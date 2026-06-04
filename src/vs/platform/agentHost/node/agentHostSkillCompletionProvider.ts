@@ -46,9 +46,16 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-
+		const skillsSeen = new Set<string>();
 		return candidates
-			.filter(skill => !typed.length || skill.name.startsWith(typed))
+			.filter(skill => {
+				const uri = skill.uri.toString();
+				if ((!typed.length || skill.name.startsWith(typed)) && !skillsSeen.has(uri)) {
+					skillsSeen.add(uri);
+					return true;
+				}
+				return false;
+			})
 			.map(skill => ({
 				insertText: '/' + skill.name + ' ',
 				rangeStart: leading.rangeStart,

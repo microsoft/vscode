@@ -1565,18 +1565,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
 			const disableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true;
 			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
-			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
+			// Rely on SDK to find all agents/skills & the like from the plugins instead of us feeding them.
+			// Else we could end up with duplicates or the like.
+			const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
+			const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 			return {
 				clientName: 'vscode',
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
 				onElicitationRequest: callbacks.onElicitationRequest,
+				hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), callbacks.hooks),
+				mcpServers: toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)),
 				onExitPlanModeRequest: callbacks.onExitPlanModeRequest,
-				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
 				workingDirectory: workingDirectory?.fsPath,
-				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
-				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				skillDirectories: toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),
 				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
