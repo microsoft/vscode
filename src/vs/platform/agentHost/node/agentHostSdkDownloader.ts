@@ -150,6 +150,7 @@ export class AgentHostSdkDownloader {
 				throw new Error(`Checksum mismatch for ${asset.file}: expected ${asset.sha256.toLowerCase()}, got ${actual}`);
 			}
 
+			await fs.mkdir(extractDir, { recursive: true });
 			await this._extractZip(archivePath, extractDir, token);
 
 			// Validate the bundle exposes the entry we expect before committing.
