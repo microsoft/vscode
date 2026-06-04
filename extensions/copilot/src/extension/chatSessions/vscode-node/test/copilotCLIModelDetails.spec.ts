@@ -9,6 +9,7 @@ import { MockChatSessionMetadataStore } from '../../common/test/mockChatSessionM
 import type { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import type { ICopilotCLIModels, CopilotCLIModelInfo } from '../../copilotcli/node/copilotCli';
 import type { ILogService } from '../../../../platform/log/common/logService';
+import { unescapeFragment } from 'ajv/dist/compile/util';
 
 const testModel: CopilotCLIModelInfo = {
 	id: 'claude-sonnet-4',
@@ -103,7 +104,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 	it('skips write when both responseModelId and creditsUsed are undefined', async () => {
 		const store = new MockChatSessionMetadataStore();
 
-		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, store, nullLog, undefined);
+		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, false, store, nullLog, undefined);
 
 		const details = await store.getRequestDetails('session-1');
 		expect(details).toEqual([]);
@@ -113,7 +114,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 		const store = new MockChatSessionMetadataStore();
 		await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', copilotRequestId: 'sdk-1', toolIdEditMap: {} }]);
 
-		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, store, nullLog, 5);
+		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, false, store, nullLog, 5);
 
 		const details = await store.getRequestDetails('session-1');
 		expect(details[0].creditsUsed).toBe(5);
@@ -125,7 +126,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 		const store = new MockChatSessionMetadataStore();
 		await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', copilotRequestId: 'sdk-1', toolIdEditMap: {} }]);
 
-		const promise = persistCopilotCLIResponseModelId('session-1', 'req-1', 'model-1', store, nullLog, 10);
+		const promise = persistCopilotCLIResponseModelId('session-1', 'req-1', 'model-1', false, store, nullLog, 10);
 
 		// The return value must be a Promise (not void/undefined)
 		expect(promise).toBeInstanceOf(Promise);
