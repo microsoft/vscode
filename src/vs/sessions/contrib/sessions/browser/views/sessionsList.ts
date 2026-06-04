@@ -18,7 +18,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -48,7 +48,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ISessionsListModelService } from './sessionsListModelService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
@@ -253,7 +253,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _motionReducedSignal;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; getStatusIcon: (status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon) => ThemeIcon; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -412,7 +412,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					recolorActiveIcon(iconColor);
 				}
 			} else {
-				const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
+				const icon = this.options.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
 				const iconSelector = ThemeIcon.asCSSSelector(icon);
 				const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
 				const swapped = applyIconSwap(iconSelector, () => {
@@ -426,6 +426,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
+			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
+			template.container.classList.toggle('unread', !isRead && !isArchived);
 		}));
 
 		// Title — reactive
@@ -635,28 +637,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
-	}
-
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
-		switch (status) {
-			case SessionStatus.InProgress:
-				// When motion is allowed, the pixel spinner is rendered directly in renderSession
-				// and this method is not consulted; here we only provide the reduced-motion fallback.
-				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput:
-				// Same as above — pixel spinner replaces the pulsing dot when motion is allowed.
-				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
-			default:
-				if (pullRequestIcon) {
-					return pullRequestIcon;
-				}
-
-				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-		}
 	}
 
 	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {
@@ -1033,7 +1013,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsManagementService.visibleSessions },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), getStatusIcon: (status, isRead, isArchived, pullRequestIcon) => this._sessionsListModelService.getStatusIcon(status, isRead, isArchived, pullRequestIcon), visibleSessions: this._sessionsManagementService.visibleSessions },
 			approvalModel,
 			instantiationService,
 			contextKeyService,

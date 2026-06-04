@@ -233,6 +233,13 @@
 	}
 
 	.session-title {
+		color: var(--vscode-foreground);
+	}
+
+	/* Strong foreground is reserved for sessions that need attention: */
+	/* unread, input required, or selected. All others use foreground. */
+	&.unread .session-title,
+	&.needs-input .session-title {
 		color: var(--vscode-strongForeground);
 	}
 

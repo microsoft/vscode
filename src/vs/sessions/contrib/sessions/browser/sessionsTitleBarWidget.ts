@@ -10,9 +10,6 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
-import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -27,12 +24,10 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatSessionProviderIdContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsListModelService } from './views/sessionsListModelService.js';
+import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { buildSessionHoverContent } from './sessionHoverContent.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session
@@ -61,7 +56,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	constructor(
 		action: SubmenuItemAction,
 		options: IBaseActionViewItemOptions | undefined,
-		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -199,14 +193,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(sessionPill);
 
-			// Beacon-style hover with session details, positioned below center
-			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(sessionPill, () => ({
-				content: this._buildSessionHoverContent(),
-				style: HoverStyle.Pointer,
-				position: { hoverPosition: HoverPosition.BELOW },
-				persistence: { hideOnHover: false },
-			})));
-
 			// Keyboard handler
 			this._dynamicDisposables.add(addDisposableListener(this._container, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
@@ -229,17 +215,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return sessionData.icon;
 		}
 		return undefined;
-	}
-
-	/**
-	 * Build a compact hover markdown for the active session.
-	 */
-	private _buildSessionHoverContent(): IMarkdownString {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		if (!sessionData) {
-			return new MarkdownString('');
-		}
-		return buildSessionHoverContent(sessionData, this.sessionsProvidersService);
 	}
 
 	/**
