@@ -44,14 +44,14 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[AgentHostClaudeAgentSdkPathSettingId]: {
 			type: 'string',
-			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
+			description: nls.localize('chat.agentHost.claudeAgent.path', "Developer override. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. Leave empty to use the SDK that is downloaded on demand for this build; set it to point the Claude agent provider at a local SDK (for example, to try a newer version). When set, it takes precedence over the downloaded SDK. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: '',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
 		[AgentHostCodexAgentBinaryPathSettingId]: {
 			type: 'string',
-			description: nls.localize('chat.agentHost.codexAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `codex` binary. When set, the Codex agent provider is registered inside the agent host and `codex app-server` is spawned from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.codexAgent.path', "Developer override. Absolute path to a locally-installed `codex` binary. Leave empty to use the SDK that is downloaded on demand for this build; set it to spawn `codex app-server` from a local binary (for example, to try a newer version). When set, it takes precedence over the downloaded SDK. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: '',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
