@@ -425,12 +425,18 @@ export class NewChatWidget extends Disposable {
 		const schedule = this._schedulePicker.currentSchedule.get();
 
 		try {
-			// We deliberately don't capture `mode` or `permissionLevel` here.
-			// For agent-host providers, replaying `mode` via `setMode` clears
-			// the underlying AGENT_OPTION (which the session may have already
+			// We deliberately don't capture `mode` here. For agent-host
+			// providers, replaying ``mode='agent'`` via `setMode` clears the
+			// underlying AGENT_OPTION (which the session may have already
 			// initialized to a specific harness id), causing scheduled runs
-			// to fail with "fetch failed". Users can configure mode and
-			// permission level explicitly from the Automations editor.
+			// to fail with ``fetch failed``. Mode can still be set explicitly
+			// from the Automations editor.
+			//
+			// We DO capture ``permissionLevel`` when the active session
+			// exposes one (Copilot CLI sessions) so the bypass/autopilot
+			// choice the user made on the composer carries through to the
+			// scheduled run instead of silently reverting to the configured
+			// default.
 			await this.automationService.createAutomation({
 				name,
 				prompt: query,
@@ -439,6 +445,7 @@ export class NewChatWidget extends Disposable {
 				providerId: session.providerId,
 				sessionTypeId: session.sessionType,
 				modelId: session.modelId.get(),
+				permissionLevel: session.permissionLevel?.get(),
 				enabled: true,
 			});
 			this.notificationService.info(localize('newSessionKind.registered', "Registered \u201C{0}\u201D as a new automated task.", name));

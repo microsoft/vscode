@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -265,6 +266,14 @@ export interface ISession {
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
+	/**
+	 * Currently selected permission/approval level (e.g. ``Default``,
+	 * ``AutoApprove``, ``Autopilot``) for this session. Optional because not
+	 * every provider tracks a per-session level — agent-host providers
+	 * persist it in session config rather than on the session object. When
+	 * ``undefined``, consumers should fall back to the provider's default.
+	 */
+	readonly permissionLevel?: IObservable<ChatPermissionLevel | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
 	readonly loading: IObservable<boolean>;
 	/** Whether the session is archived. */
