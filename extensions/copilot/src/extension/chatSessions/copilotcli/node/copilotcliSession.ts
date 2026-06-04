@@ -1000,7 +1000,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		});
 
-		this.previousRequest = this.previousRequest.then(() => handled);
+		this.previousRequest = this.previousRequest.then(() => handled).catch(() => { /* prevent unhandled rejection on the serialisation chain */ });
 		return handled;
 	}
 
@@ -1214,6 +1214,28 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
+		// Tracks the `messageId` of the last assistant text we forwarded to
+		// the stream (via `assistant.message_delta` or `assistant.message`).
+		// When the next text emission carries a different `messageId` — i.e.
+		// the model emitted a new assistant message in the same turn (e.g.
+		// after a tool call, or as a second phase) — we prepend `\n\n` so the
+		// two messages don't fuse into a single run-on paragraph
+		// (e.g. `"...wiring:Now add..."`). Only triggers when both sides have
+		// a defined messageId, so message emissions without an id (rare /
+		// legacy) keep their current behavior.
+		let lastEmittedAssistantMessageId: string | undefined;
+		const maybeEmitMessageSeparator = (incomingMessageId: string | undefined) => {
+			if (
+				incomingMessageId !== undefined &&
+				lastEmittedAssistantMessageId !== undefined &&
+				incomingMessageId !== lastEmittedAssistantMessageId
+			) {
+				requestStream?.markdown('\n\n');
+			}
+			if (incomingMessageId !== undefined) {
+				lastEmittedAssistantMessageId = incomingMessageId;
+			}
+		};
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
 			if (token.isCancellationRequested || !requestStream) {
@@ -1420,6 +1442,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (event.data.parentToolCallId) {
 						return;
 					}
+					maybeEmitMessageSeparator(event.data.messageId);
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
 					wroteResponseContent = true;
@@ -1434,6 +1457,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
+					maybeEmitMessageSeparator(event.data.messageId);
 					wroteResponseContent = true;
 					requestStream?.markdown(event.data.content);
 				}

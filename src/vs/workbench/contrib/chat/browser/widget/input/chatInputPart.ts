@@ -378,6 +378,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
+	setHistoryKey(historyKey: string | undefined): void {
+		this.history.setHistoryKey(historyKey);
+	}
+
 	readonly dnd: ChatDragAndDrop;
 
 	private history: ChatHistoryNavigator;
@@ -2237,7 +2241,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
-			// (e.g. empty workspace + Copilot CLI [Local] selected). Without
+			// (e.g. empty workspace + Copilot CLI [Agent Host] selected). Without
 			// this fallback, `_currentSessionType` stays undefined until
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.

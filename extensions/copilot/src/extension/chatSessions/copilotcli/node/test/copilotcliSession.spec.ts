@@ -1708,6 +1708,143 @@ describe('CopilotCLISession', () => {
 		await requestPromise;
 	});
 
+	describe('assistant message text separation', () => {
+		// The bug we're guarding against: when the CLI emits multiple
+		// assistant messages in a single turn (e.g. text → tool_call → more
+		// text, or two distinct phases), the markdown chunks were being
+		// concatenated directly producing run-on text like
+		// `"...wiring:Now add..."`. Each emission carries its own `messageId`
+		// from the SDK, so we insert `\n\n` whenever the id changes.
+
+		const allText = (stream: MockChatResponseStream) => stream.output.join('');
+
+		it('inserts paragraph break between assistant.message_delta events with different messageIds', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two phases' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: 'msg-2' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('wiring:\n\nNow add');
+			expect(allText(stream)).not.toContain('wiring:Now add');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT insert paragraph break between assistant.message_delta events with the same messageId', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Streamed' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Hello ', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'world', messageId: 'msg-1' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('Hello world');
+			expect(allText(stream)).not.toContain('Hello \n\nworld');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('inserts paragraph break between assistant.message events with different messageIds', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two messages' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message', { content: 'First phase.', messageId: 'msg-a' });
+			sdkSession.emit('assistant.message', { content: 'Second phase.', messageId: 'msg-b' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('First phase.\n\nSecond phase.');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('inserts paragraph break between a delta-streamed message and a subsequent full message', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Mixed' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message', { content: 'Now add', messageId: 'msg-2' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('wiring:\n\nNow add');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT prepend a separator before the very first text emission', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'First' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Hello', messageId: 'msg-1' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output[0]).toBe('Hello');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT insert a separator when messageId is undefined on both sides (legacy)', async () => {
+			// Defensive regression test: if an SDK build ever emits message
+			// events without a `messageId`, we should fall back to the
+			// pre-fix behavior (no separator) rather than inserting one
+			// between every chunk — that would produce spurious blank
+			// paragraphs.
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Legacy' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: undefined });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: undefined });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output).not.toContain('\n\n');
+
+			resolveSend!();
+			await requestPromise;
+		});
+	});
+
 	describe('/compact command', () => {
 		it('compacts the conversation and reports success', async () => {
 			const session = await createSession();

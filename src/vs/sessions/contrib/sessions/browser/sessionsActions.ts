@@ -130,13 +130,13 @@ registerAction2(class GoBackAction extends Action2 {
 			precondition: CanGoBackContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
@@ -170,13 +170,13 @@ registerAction2(class GoForwardAction extends Action2 {
 			precondition: CanGoForwardContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus },
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
@@ -287,7 +287,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
 			menu: {
-				id: Menus.SessionBarInlineToolbar,
+				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 				group: 'navigation',
 				order: 10,
@@ -319,7 +319,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
+				group: '1_session',
 				order: 10,
 				when: SessionIsCreatedContext,
 			},
@@ -343,7 +343,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: 'navigation',
+				group: '1_session',
 				order: 30,
 			},
 		});
@@ -372,7 +372,7 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: MultipleSessionsVisibleContext,
-				group: 'navigation',
+				group: '1_session',
 				order: 20,
 			},
 		});
