@@ -114,7 +114,7 @@ import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
 const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
-const WORKING_CAUGHT_UP_DEBOUNCE_MS = 500;
+const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -1681,11 +1681,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// indicator debounce window. Keep the render loop alive so the
 				// indicator can appear after a genuine pause instead of being dropped
 				// when the loop would otherwise stop here.
-				this.traceLayout('doNextProgressiveRender', 'caught up- waiting for working indicator debounce');
 				return false;
 			} else {
 				// Nothing new to render, stop rendering until next model update
-				this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
 				return true;
 			}
 		}
