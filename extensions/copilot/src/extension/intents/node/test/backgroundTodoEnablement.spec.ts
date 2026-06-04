@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestType } from '@vscode/copilot-api';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
+import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
@@ -63,13 +66,74 @@ describe('isTodoToolExplicitlyEnabled', () => {
 	});
 });
 
+// ─── isBackgroundTodoAgentEnabled unit tests ─────────────────────
+
+// The gate only opens for a signed-in, paid user whose request is routed
+// through CAPI. Each test flips exactly one of those factors away from an
+// otherwise-enabled baseline to confirm it is sufficient to close the gate.
+
+describe('isBackgroundTodoAgentEnabled', () => {
+
+	// CAPI endpoints carry a `RequestMetadata` object; BYOK/custom endpoints are
+	// fetched from a literal URL string.
+	const capiEndpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions } } as unknown as IChatEndpoint;
+	const byokEndpoint = { urlOrRequestMetadata: 'https://api.example.com/v1/chat' } as unknown as IChatEndpoint;
+
+	const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
+	const freeToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'free_limited_copilot' }));
+	const noAuthToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'no_auth_limited_copilot' }));
+
+	function auth(copilotToken: CopilotToken | undefined): IAuthenticationService {
+		return { copilotToken } as unknown as IAuthenticationService;
+	}
+
+	function config(experimentEnabled: boolean): IConfigurationService {
+		return { getExperimentBasedConfig: () => experimentEnabled } as unknown as IConfigurationService;
+	}
+
+	const expService = {} as IExperimentationService;
+
+	function isEnabled(endpoint: IChatEndpoint, copilotToken: CopilotToken | undefined, experimentEnabled: boolean, request: TestChatRequest = new TestChatRequest('fix the bug')): boolean {
+		return isBackgroundTodoAgentEnabled(endpoint, config(experimentEnabled), expService, auth(copilotToken), request);
+	}
+
+	test('enabled for a signed-in paid user on a CAPI endpoint with the experiment on', () => {
+		expect(isEnabled(capiEndpoint, paidToken, true)).toBe(true);
+	});
+
+	test('disabled when the experiment is off', () => {
+		expect(isEnabled(capiEndpoint, paidToken, false)).toBe(false);
+	});
+
+	test('disabled when there is no Copilot token (signed out)', () => {
+		expect(isEnabled(capiEndpoint, undefined, true)).toBe(false);
+	});
+
+	test('disabled for a free-plan user', () => {
+		expect(isEnabled(capiEndpoint, freeToken, true)).toBe(false);
+	});
+
+	test('disabled for a no-auth user', () => {
+		expect(isEnabled(capiEndpoint, noAuthToken, true)).toBe(false);
+	});
+
+	test('disabled on a non-CAPI (BYOK) endpoint', () => {
+		expect(isEnabled(byokEndpoint, paidToken, true)).toBe(false);
+	});
+
+	test('disabled when #todo is explicitly referenced', () => {
+		const request = new TestChatRequest('fix the bug');
+		(request as any).toolReferences = [{ name: 'todo' }];
+		expect(isEnabled(capiEndpoint, paidToken, true, request)).toBe(false);
+	});
+});
+
 // ─── getAgentTools integration tests for background todo gate ────
 
 describe('getAgentTools background todo enablement', () => {
 	let accessor: ITestingServicesAccessor;
 	let instantiationService: IInstantiationService;
 	let configService: IConfigurationService;
-	let experimentationService: IExperimentationService;
 	let mockEndpoint: IChatEndpoint;
 
 	beforeAll(() => {
@@ -85,7 +149,6 @@ describe('getAgentTools background todo enablement', () => {
 		accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		configService = accessor.get(IConfigurationService);
-		experimentationService = accessor.get(IExperimentationService);
 		mockEndpoint = instantiationService.createInstance(MockEndpoint, undefined);
 	});
 
@@ -101,18 +164,6 @@ describe('getAgentTools background todo enablement', () => {
 	function hasTodoTool(tools: readonly { name: string }[]): boolean {
 		return tools.some(t => t.name === ToolName.CoreManageTodoList);
 	}
-
-	test('background todo agent is enabled only when experiment is on and todo is not explicit', () => {
-		const request = new TestChatRequest('fix the bug');
-		configService.setConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, false);
-		expect(isBackgroundTodoAgentEnabled(configService, experimentationService, request)).toBe(false);
-
-		configService.setConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, true);
-		expect(isBackgroundTodoAgentEnabled(configService, experimentationService, request)).toBe(true);
-
-		(request as any).toolReferences = [{ name: 'todo' }];
-		expect(isBackgroundTodoAgentEnabled(configService, experimentationService, request)).toBe(false);
-	});
 
 	test('todo tool is not in enabled tools when experiment is on', async () => {
 		configService.setConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, true);
