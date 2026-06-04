@@ -313,7 +313,11 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const pane = await editorService.openEditor(input, { pinned: true });
 					if (pane instanceof AICustomizationManagementEditor) {
 						const mode = configurationService.getValue<string>(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING);
-						if (mode === SessionsCustomizationsSidebarMode.Section) {
+						// Automations has no welcome-page content of its own (the
+						// welcome card just deep-links into the same section), so
+						// always open the Automations page directly regardless of
+						// the sidebar mode setting.
+						if (mode === SessionsCustomizationsSidebarMode.Section || config.isAutomations) {
 							pane.selectSectionById(config.section);
 						} else {
 							// 'welcome' (default) and 'single' both land on the welcome page.
