@@ -153,7 +153,7 @@ class PushEditorRightAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: 97,
+				order: 99.5,
 				when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext)
 			}
 		});
@@ -179,7 +179,7 @@ class PullEditorLeftAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: 97,
+				order: 99.5,
 				when: ContextKeyExpr.and(editorLeftRightWhen, AuxiliaryBarVisibleContext.toNegated())
 			}
 		});
