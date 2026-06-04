@@ -100,9 +100,12 @@ The Sessions Part (`SessionsPart` in [browser/parts/sessionsPart.ts](src/vs/sess
 
 A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/sessionView.ts)) is a single leaf in the Sessions Part's internal grid. It hosts:
 
-- A **chat composite bar** at the top (tabs for the chats in the bound session — hidden when the session has no chat yet).
-- A **chat view** below the bar, swapped in/out based on session state.
-- A floating toolbar overlay.
+- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · branch · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). Visible once the bound session is created. It is also the drag handle for the session.
+- A **chat composite bar** below the header ([browser/parts/chatCompositeBar.ts](src/vs/sessions/browser/parts/chatCompositeBar.ts)) — the chat tab strip, shown only when the session has more than one chat. A single chat is already represented by the header title.
+- A **chat view** below the bars, swapped in/out based on session state.
+- A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.
+
+The header and the composite bar are deliberately separate widgets: the header represents the session identity/actions and is always present, while the tab strip is a per-chat navigation concern that only appears with multiple chats. They share visual tokens via `applySessionBarThemeColors` ([browser/parts/sessionBarStyles.ts](src/vs/sessions/browser/parts/sessionBarStyles.ts)) and stylesheet ([browser/parts/media/chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). `SessionView` sums each widget's reported height to lay out the chat view below them.
 
 The chat view inside a session view is one of three kinds (`ChatViewKind` in [browser/parts/chatView.ts](src/vs/sessions/browser/parts/chatView.ts)), selected per autorun based on the bound session:
 
@@ -113,6 +116,8 @@ The chat view inside a session view is one of three kinds (`ChatViewKind` in [br
 | `'chat'` | The session and active chat are both created | `ChatView` (renders `session.activeChat`) |
 
 Concrete implementations live under `contrib/chat/` and are obtained via `IChatViewFactory` so the `browser/` layer doesn't have to import contrib code.
+
+When a `ChatView` loads its chat model (`acquireOrLoadSession`), it surfaces progress on **its own** progress bar, pinned to the top of that grid leaf. This mirrors how each editor group owns its `ProgressBar` (see `EditorGroupView`): the bar is created by the leaf host `AbstractChatView`, wrapped in a `ScopedProgressIndicator` (reused from `vs/workbench`) with an always-active scope, and driven via `AbstractChatView.showProgressWhile(promise, delay)`. Concurrent loads in other visible sessions each show their own progress instead of competing for a single part-wide bar, and overlapping loads on the same leaf are joined by the indicator so the bar only hides once all have settled. A short delay avoids flashing the bar for fast (cached) loads.
 
 ### 4.2 Visibility Model
 
@@ -127,6 +132,7 @@ Key invariants:
 - **Slot reuse on reconcile.** `SessionsPart.updateVisibleSessions` grows or shrinks its internal pool of `SessionView`s to match the visible count, then rebinds each surviving slot to its session by position via `SessionView.openSession(session)`. Slots are never destroyed and recreated for an existing session — only added at the right or popped from the right when the count changes.
 - **Focus promotes to active.** Focus-in or pointer-down on a non-placeholder session view promotes that session to active (via `onDidFocusSession` → `ISessionsManagementService.setActive`).
 - **Maximize.** When two or more non-placeholder views are visible, the active view can be maximized within the part's internal grid; the part exposes `toggleMaximizeSession(sessionId)`.
+- **Restored on reload.** The visibility model is persisted to workspace storage (order, sticky state, and which slot is active, including the empty new-session slot). On startup `ISessionsManagementService.restoreVisibleSessions()` rebuilds the grid, waiting for each session's provider to make it available and re-applying order, sticky flags, and the active session. To avoid flicker, restore waits for the active session, then lays out all sessions that are already available in one atomic transaction (`VisibleSessions.restoreGrid`) rather than showing the active session alone and reflowing as siblings load. Sessions whose provider surfaces them later are inserted into their persisted position incrementally. Once the grid has been laid out, keyboard focus is moved into the restored active session (matching the behaviour when a session is opened explicitly) so the user can start typing immediately. Focus is driven by the part service observing `ISessionsManagementService.activeSession` rather than the management service calling into the view. The move is guarded so it never steals focus from another surface: focus is pulled into a session only when it currently rests on `<body>`/nothing (startup restore) or already within the grid (moving between leaves), so an incidental active-session change (e.g. the fallback after deleting a session from the list) does not yank focus out of the list. Deliberate opens originating elsewhere move focus via their own explicit `focusSession` call. Restore must win the race against the empty new-session slot, whose workspace picker resolves asynchronously on the same provider-registration event restore waits for and would otherwise create and activate an untitled draft. Three mechanisms guarantee restore wins: (1) `ISessionsManagementService` is registered **eagerly** so the restore wiring and visibility model are alive before the first paint; (2) when restore rebinds the placeholder slot to the restored session, the new-session view (and its `NewChatWidget`) is disposed, and `NewChatWidget` guards its async workspace-selection handler with `this._store.isDisposed` so a late-resolving picker cannot create a draft for a slot that has already been claimed by a restored session; (3) untitled drafts are never persisted — `restoreVisibleSessions` drops them from the snapshot (`_snapshotVisibleSessionStates`) — so a stale draft can never be restored. The restoring state is intentionally not a UI suppression flag: the management service exposes none. (Restore itself drives no part-wide progress; once a session's leaf is laid out, that leaf shows its own load progress as described above.)
 
 ### 4.3 Mobile / Phone
 
@@ -191,7 +197,7 @@ All session-window contributions use `WindowVisibility.Sessions` to only appear 
 1. `constructor()` → `startup()` → `initServices()` → `initLayout()`
 2. `renderWorkbench()` — creates DOM and parts (editor part created hidden)
 3. `createWorkbenchLayout()` — builds the workbench grid
-4. `createWorkbenchManagement()` → `SessionsPartService.init()` — wires the Sessions Part to `ISessionsManagementService.visibleSessions` / `activeSession`
+4. `createWorkbenchManagement()` → `SessionsPartService.init()` — wires the Sessions Part to `ISessionsManagementService.visibleSessions` / `activeSession`. The part service depends on `ISessionsManagementService` (constructor injection) and observes `activeSession`; whenever the active session changes it moves keyboard focus into that session's view (guarded so it does not steal focus from a session the user is already interacting with). Focus is therefore a pure view concern — the management service never reaches into the part.
 5. `layout()` → `restore()` — opens default view containers for visible parts
 
 **Initial part visibility:** Sidebar ✅, Sessions Part ✅, Auxiliary Bar ✅, Editor ❌, Panel ❌

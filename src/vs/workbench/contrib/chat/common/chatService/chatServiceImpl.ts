@@ -201,11 +201,14 @@ export class ChatService extends Disposable implements IChatService {
 				if (localSessionId && this.shouldStoreSession(model)) {
 					// Always preserve sessions that have custom titles, even if empty
 					if (model.getRequests().length === 0 && !model.customTitle) {
+						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) without title, deleting from storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.deleteSession(localSessionId);
 					} else if (this._saveModelsEnabled) {
+						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
 				} else if (!localSessionId && (model.getRequests().length > 0 || hasDraftInput(model))) {
+					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
 					// External sessions: persist metadata when there are requests, OR when the
 					// user has typed/attached unsent input we need to restore on next open.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);

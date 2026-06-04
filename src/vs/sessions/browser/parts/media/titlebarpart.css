@@ -29,24 +29,74 @@
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
-	width: fit-content;
-	flex-grow: 0;
+	width: auto;
+	flex: 1 1 0;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center {
-	flex: 1;
+	flex: 0 1 auto;
 	max-width: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	min-width: 0;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
+	/* Match the VS Code window command center font size. */
+	font-size: 12px;
 }
 
-.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container > .titlebar-right {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
-	width: fit-content;
-	flex-grow: 0;
+	width: auto;
+	flex: 1 1 0;
 	justify-content: flex-end;
+}
+
+/* Center navigation / actions toolbars that flank the command center box. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container {
+	display: none;
+	flex-shrink: 0;
+	-webkit-app-region: no-drag;
+	height: 100%;
+	align-items: center;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container:not(.has-no-actions) {
+	display: flex;
+}
+
+/* The right-hand center actions (Open in VS Code) take no horizontal space in the
+ * centered cluster: the container is zero-width and overflows to the right. This way
+ * the widget's hover expansion grows rightward without widening the cluster, so the
+ * window-centered command center box never gets pushed. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-actions-container {
+	width: 0;
+	flex: 0 0 0;
+	overflow: visible;
+	/* The buttons overflow rightward into the area painted by .titlebar-right (a
+	 * later, static drag region). Lift this container above it so the overflowing
+	 * actions (Run, Open in VS Code) stay interactive — matching .left-toolbar-container. */
+	position: relative;
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+}
+
+/* The container itself is zero-width, so its -webkit-app-region: no-drag carves out a
+ * zero-width hole and the overflowing buttons would otherwise sit inside the titlebar's
+ * OS drag region (no pointer cursor, swallowed clicks). Re-declare no-drag on the action
+ * items, which have real content width, so each button gets a proper no-drag hit region.
+ * (The Open in VS Code widget already does this on its own element; this covers Run and
+ * any other action hosted here.) */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-center-actions-container .monaco-action-bar .action-item {
+	-webkit-app-region: no-drag;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {
+	color: var(--vscode-icon-foreground);
 }
 
 /* Session Title Actions Container (before right toolbar) */

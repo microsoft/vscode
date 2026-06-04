@@ -62,7 +62,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 
 			if (preferredOnly) {
-				// Wait for the workbench's own restoreLastActiveSession to
+				// Wait for the workbench's own restoreVisibleSessions to
 				// finish (which would otherwise overwrite our pick by
 				// reactivating a prior session), then drop the active session
 				// so the session-type picker re-reads the freshly stored
