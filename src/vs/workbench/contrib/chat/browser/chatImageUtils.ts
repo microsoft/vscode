@@ -83,6 +83,48 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 	});
 }
 
+/**
+ * Creates a small downscaled thumbnail of an image. Useful for compact previews
+ * (e.g. attachment pills) where the UI should retain a small rendered image
+ * instead of a full-resolution object URL.
+ * @param data The image bytes.
+ * @param mimeType The image mime type.
+ * @param maxSize The maximum width or height of the thumbnail, in pixels.
+ * @returns A promise that resolves to a PNG {@link Blob} of the thumbnail, or `undefined` on failure.
+ */
+export function createImageThumbnail(data: Uint8Array, mimeType: string | undefined, maxSize: number): Promise<Blob | undefined> {
+	return new Promise((resolve) => {
+		const blob = new Blob([data as Uint8Array<ArrayBuffer>], { type: mimeType });
+		const img = new Image();
+		const url = URL.createObjectURL(blob);
+		img.src = url;
+
+		img.onload = () => {
+			URL.revokeObjectURL(url);
+			const { width, height } = img;
+			const scaleFactor = Math.min(1, maxSize / Math.max(width, height));
+			const targetWidth = Math.max(1, Math.round(width * scaleFactor));
+			const targetHeight = Math.max(1, Math.round(height * scaleFactor));
+
+			const canvas = document.createElement('canvas');
+			canvas.width = targetWidth;
+			canvas.height = targetHeight;
+			const ctx = canvas.getContext('2d');
+			if (!ctx) {
+				resolve(undefined);
+				return;
+			}
+
+			ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+			canvas.toBlob(thumbnail => resolve(thumbnail ?? undefined), 'image/png');
+		};
+		img.onerror = () => {
+			URL.revokeObjectURL(url);
+			resolve(undefined);
+		};
+	});
+}
+
 export function convertStringToUInt8Array(data: string): Uint8Array {
 	const base64Data = data.includes(',') ? data.split(',')[1] : data;
 	if (isValidBase64(base64Data)) {
