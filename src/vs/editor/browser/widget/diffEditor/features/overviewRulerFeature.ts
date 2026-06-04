@@ -15,10 +15,10 @@ import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorViewModel } from '../diffEditorViewModel.js';
 import { appendRemoveOnDispose } from '../utils.js';
 import { EditorLayoutInfo, EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/ranges/lineRange.js';
+import { LineRange, LineRangeSet } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { OverviewRulerZone } from '../../../../common/viewModel/overviewZoneManager.js';
-import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';
+import { defaultInsertColor, defaultMoveActiveColor, defaultMoveColor, defaultRemoveColor, diffInserted, diffMovedActiveLine, diffMovedLine, diffOverviewRulerInserted, diffOverviewRulerMoved, diffOverviewRulerMovedActive, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 export class OverviewRulerFeature extends Disposable {
@@ -44,7 +44,9 @@ export class OverviewRulerFeature extends Disposable {
 			const theme = currentColorTheme.read(reader);
 			const insertColor = theme.getColor(diffOverviewRulerInserted) || (theme.getColor(diffInserted) || defaultInsertColor).transparent(2);
 			const removeColor = theme.getColor(diffOverviewRulerRemoved) || (theme.getColor(diffRemoved) || defaultRemoveColor).transparent(2);
-			return { insertColor, removeColor };
+			const moveColor = theme.getColor(diffOverviewRulerMoved) || (theme.getColor(diffMovedLine) || defaultMoveColor).transparent(2);
+			const activeMoveColor = theme.getColor(diffOverviewRulerMovedActive) || (theme.getColor(diffMovedActiveLine) || defaultMoveActiveColor).transparent(2);
+			return { insertColor, removeColor, moveColor, activeMoveColor };
 		});
 
 		const viewportDomElement = createFastDomNode(document.createElement('div'));
@@ -97,30 +99,82 @@ export class OverviewRulerFeature extends Disposable {
 				modHiddenRangesChanged.read(reader);
 
 				const colors = currentColors.read(reader);
-				const diff = m?.diff.read(reader)?.mappings;
+				const diff = m?.diff.read(reader);
+				const activeMovedText = m?.activeMovedText.read(reader);
 
-				function createZones(ranges: LineRange[], color: Color, editor: CodeEditorWidget) {
+				interface ColoredLineRange {
+					range: LineRange;
+					color: Color;
+				}
+
+				function createZones(ranges: ColoredLineRange[], editor: CodeEditorWidget) {
 					const vm = editor._getViewModel();
 					if (!vm) {
 						return [];
 					}
+
 					return ranges
-						.filter(d => d.length > 0)
+						.filter(d => d.range.length > 0)
 						.map(r => {
-							const start = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.startLineNumber, 1));
-							const end = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.endLineNumberExclusive, 1));
-							// By computing the lineCount, we won't ask the view model later for the bottom vertical position.
-							// (The view model will take into account the alignment viewzones, which will give
-							// modifications and deletetions always the same height.)
-							const lineCount = end.lineNumber - start.lineNumber;
-							return new OverviewRulerZone(start.lineNumber, end.lineNumber, lineCount, color.toString());
+							// Get the inclusive start and end lines in the model
+							const startLine = r.range.startLineNumber;
+							const inclusiveEndLine = r.range.endLineNumberExclusive - 1;
+
+							// Convert both to view coordinates safely
+							const start = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(startLine, 1));
+							const end = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(inclusiveEndLine, 1));
+
+							// Now that bounds are inclusive, the total height in lines is (end - start) + 1
+							const lineCount = (end.lineNumber - start.lineNumber) + 1;
+
+							return new OverviewRulerZone(start.lineNumber, end.lineNumber, lineCount, r.color.toString());
 						});
 				}
 
-				const originalZones = createZones((diff || []).map(d => d.lineRangeMapping.original), colors.removeColor, this._editors.original);
-				const modifiedZones = createZones((diff || []).map(d => d.lineRangeMapping.modified), colors.insertColor, this._editors.modified);
-				originalOverviewRuler?.setZones(originalZones);
-				modifiedOverviewRuler?.setZones(modifiedZones);
+				const originalMovedRanges = new LineRangeSet();
+				const modifiedMovedRanges = new LineRangeSet();
+				const originalRanges: ColoredLineRange[] = [];
+				const modifiedRanges: ColoredLineRange[] = [];
+
+				// Populates sets and pushes colors for moved text
+				for (const movedText of diff?.movedTexts || []) {
+					// Add to Set (for hole-punching the main diff later)
+					originalMovedRanges.addRange(movedText.lineRangeMapping.original);
+					modifiedMovedRanges.addRange(movedText.lineRangeMapping.modified);
+
+					const moveColor = movedText === activeMovedText ? colors.activeMoveColor : colors.moveColor;
+
+					// Collect inner changes to punch holes in the overview ruler move blocks
+					const innerOriginals = new LineRangeSet();
+					const innerModifieds = new LineRangeSet();
+					for (const change of movedText.changes) {
+						innerOriginals.addRange(change.original);
+						innerModifieds.addRange(change.modified);
+					}
+
+					// Subtract changes from the full move blocks
+					const originalMoveWithoutChanges = innerOriginals.subtractFrom(movedText.lineRangeMapping.original).ranges;
+					const modifiedMoveWithoutChanges = innerModifieds.subtractFrom(movedText.lineRangeMapping.modified).ranges;
+
+					// Push the Move Colors ONLY into the punched holes
+					originalRanges.push(...originalMoveWithoutChanges.map(range => ({ range, color: moveColor })));
+					modifiedRanges.push(...modifiedMoveWithoutChanges.map(range => ({ range, color: moveColor })));
+
+					// Push the Inner Changes (Insert/Removal on top of Move)
+					for (const change of movedText.changes) {
+						originalRanges.push({ range: change.original, color: colors.removeColor });
+						modifiedRanges.push({ range: change.modified, color: colors.insertColor });
+					}
+				}
+
+				// Loop for Mappings (Pushes normal colors into the punched holes. They'll never overlap.)
+				for (const mapping of diff?.mappings || []) {
+					originalRanges.push(...originalMovedRanges.subtractFrom(mapping.lineRangeMapping.original).ranges.map(range => ({ range, color: colors.removeColor })));
+					modifiedRanges.push(...modifiedMovedRanges.subtractFrom(mapping.lineRangeMapping.modified).ranges.map(range => ({ range, color: colors.insertColor })));
+				}
+
+				originalOverviewRuler?.setZones(createZones(originalRanges, this._editors.original));
+				modifiedOverviewRuler?.setZones(createZones(modifiedRanges, this._editors.modified));
 			}));
 
 			store.add(autorun(reader => {
