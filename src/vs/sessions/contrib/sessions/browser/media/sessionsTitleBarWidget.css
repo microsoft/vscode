@@ -21,7 +21,7 @@
 	align-items: center;
 	justify-content: flex-start;
 	min-width: 0;
-	width: 38vw;
+	width: 31vw;
 	max-width: 600px;
 	height: 22px;
 	border: 1px solid var(--vscode-commandCenter-border);
@@ -42,11 +42,10 @@
 	border-color: var(--vscode-commandCenter-activeBorder);
 }
 
-
-
 /* Session pill - clickable area for session picker, fills the command center box */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
+	justify-content: space-around;
 	align-items: center;
 	flex: 1 1 auto;
 	padding: 0 8px;
@@ -55,6 +54,8 @@
 	height: 100%;
 	cursor: pointer;
 	touch-action: manipulation;
+	/* Match the VS Code window command center title which is dimmed. */
+	opacity: 0.6;
 }
 
 .command-center .agent-sessions-titlebar-container:focus {
@@ -67,7 +68,6 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	flex: 1 1 auto;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
@@ -87,8 +87,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	/* Match the VS Code window command center title which is dimmed. */
-	opacity: 0.6;
 }
 
 /* Workspace name - secondary, dimmed label shown after the session title.
@@ -97,7 +95,6 @@
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-workspace {
 	flex: 0 0 auto;
 	white-space: nowrap;
-	opacity: 0.7;
 }
 
 .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {

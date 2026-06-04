@@ -947,15 +947,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Restore parts (open default view containers)
 		this.restoreParts();
 
-		// Restore the sessions that were visible in the grid. The part is told to
-		// suppress the empty new-session view while restore runs so it does not
-		// flash before the persisted sessions are laid out; load progress is then
-		// shown per session view as each chat model loads.
-		this.sessionsPartService.beginSessionRestore();
+		// Restore the sessions that were visible in the grid.
 		void this.sessionsManagementService.restoreVisibleSessions().catch(e => {
 			this.logService.error('[Workbench] restoreVisibleSessions failed', e);
-		}).finally(() => {
-			this.sessionsPartService.endSessionRestore();
 		});
 
 		// Set lifecycle phase to `Restored`
@@ -1177,10 +1171,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Welcome — must be created early in layout so the widget can gate
 		// other UI until sign-in / chat setup is complete.
 		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
-
-		// Wire the sessions part to the sessions management service now that
-		// the part has been created via renderWorkbench().
-		this.sessionsPartService.init();
 	}
 
 	/**
