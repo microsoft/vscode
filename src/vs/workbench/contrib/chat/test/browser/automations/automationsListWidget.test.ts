@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -90,7 +91,7 @@ suite('AutomationsListWidget', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log));
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const runner = new RecordingRunner();
 		const dialog = new FakeDialogService();
 

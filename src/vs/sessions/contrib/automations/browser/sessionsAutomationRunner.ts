@@ -8,9 +8,11 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -46,6 +48,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
 
 	async runOnce(
@@ -59,6 +62,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 			return;
 		}
 
+		const startTimeMs = Date.now();
 		let runId: string | undefined;
 		try {
 			const run = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
@@ -71,6 +75,7 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 					completedAt: new Date().toISOString(),
 					errorMessage: localize('automationRunner.cancelled', "Cancelled"),
 				});
+				publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
 				return;
 			}
 
@@ -98,15 +103,19 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				completedAt: new Date().toISOString(),
 				...(session ? { sessionId: session.sessionId } : {}),
 			});
+			publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
 		} catch (err) {
 			this.logService.error(`[SessionsAutomationRunner] run for ${automation.id} failed`, err);
+			const errorMessage = err instanceof Error ? err.message : String(err);
 			if (runId) {
 				await this.automationService.updateRun(runId, {
 					status: 'failed',
 					completedAt: new Date().toISOString(),
-					errorMessage: err instanceof Error ? err.message : String(err),
+					errorMessage,
 				});
 			}
+			publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
+			publishAutomationRunError(this.telemetryService, { trigger, automation, errorMessage });
 		}
 	}
 

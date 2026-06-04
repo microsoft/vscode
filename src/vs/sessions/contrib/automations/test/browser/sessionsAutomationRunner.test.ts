@@ -11,6 +11,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService } from '../../../../../workbench/contrib/chat/browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISession, IChat } from '../../../../services/sessions/common/session.js';
@@ -78,10 +79,10 @@ suite('SessionsAutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log));
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
 		teardown.add({ dispose: () => sessionsMgmt.dispose() });
-		const runner = new SessionsAutomationRunner(service, sessionsMgmt, log);
+		const runner = new SessionsAutomationRunner(service, sessionsMgmt, log, NullTelemetryService);
 		return { service, sessionsMgmt, runner };
 	}
 
