@@ -18,7 +18,7 @@ import { AICustomizationManagementEditorInput } from '../../../../workbench/cont
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, automationIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -33,6 +33,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 /**
  * Setting key that controls how the Customizations section in the Agents
@@ -86,6 +87,7 @@ export interface ICustomizationItemConfig {
 	readonly modelSection?: ItemsModelSection;
 	readonly isMcp?: boolean;
 	readonly isPlugins?: boolean;
+	readonly isAutomations?: boolean;
 }
 
 /**
@@ -128,6 +130,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		modelSection: AICustomizationManagementSection.Hooks,
 	},
 	{
+		id: 'sessions.customization.automations',
+		label: localize('automations', "Automations"),
+		icon: automationIcon,
+		section: AICustomizationManagementSection.Automations,
+		isAutomations: true,
+	},
+	{
 		id: 'sessions.customization.mcpServers',
 		label: localize('mcpServers', "MCP Servers"),
 		icon: mcpServerIcon,
@@ -161,6 +170,7 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IMcpService private readonly _mcpService: IMcpService,
+		@IAutomationService private readonly _automationService: IAutomationService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -213,6 +223,9 @@ export class CustomizationLinkViewItem extends ActionViewItem {
 		}
 		if (this._config.isPlugins) {
 			return this._itemsModel.getPluginCount().read(reader);
+		}
+		if (this._config.isAutomations) {
+			return this._automationService.automations.read(reader).length;
 		}
 		return 0;
 	}
