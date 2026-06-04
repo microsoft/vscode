@@ -24,17 +24,16 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { NewChatViewPane, SessionsViewId } from '../../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 
 /** Action / command IDs registered by this file. */
 export const RemoteAgentHostCommandIds = {
@@ -373,14 +372,10 @@ async function connectToConfiguredSSHHost(
 	const port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
 	const suggestedName = hostAlias;
 
-	let defaultKeyPath: string | undefined;
-	if (resolvedConfig.identityFile.length > 0) {
-		const firstKey = resolvedConfig.identityFile[0];
-		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
-		if (!defaultKeys.includes(firstKey)) {
-			defaultKeyPath = firstKey;
-		}
-	}
+	// Pass through the first resolved IdentityFile (if any) as the explicit
+	// key. The main process is responsible for de-duplicating against its
+	// default-key scan, so we don't need to filter here.
+	const defaultKeyPath = resolvedConfig.identityFile[0];
 
 	if (username) {
 		const config: ISSHAgentHostConfig = {
@@ -389,6 +384,7 @@ async function connectToConfiguredSSHHost(
 			username,
 			authMethod: SSHAuthMethod.Agent,
 			privateKeyPath: defaultKeyPath,
+			identityAgent: resolvedConfig.identityAgent,
 			agentForward: resolvedConfig.forwardAgent || undefined,
 			name: suggestedName,
 			sshConfigHost: hostAlias,
@@ -404,7 +400,7 @@ async function connectToConfiguredSSHHost(
 
 	// Fallback: alias resolved without a user — fall through to manual flow
 	await instantiationService.invokeFunction(accessor =>
-		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath)
+		promptForCredentialsAndConnect(accessor, host, undefined, port, suggestedName, defaultKeyPath, resolvedConfig.identityAgent)
 	);
 }
 
@@ -415,6 +411,7 @@ async function promptForCredentialsAndConnect(
 	port: number | undefined,
 	suggestedName?: string,
 	defaultKeyPath?: string,
+	identityAgent?: string,
 ): Promise<void> {
 	const quickInputService = accessor.get(IQuickInputService);
 	const instantiationService = accessor.get(IInstantiationService);
@@ -510,6 +507,7 @@ async function promptForCredentialsAndConnect(
 		username,
 		authMethod,
 		privateKeyPath,
+		identityAgent,
 		password,
 		name: name.trim(),
 	};
@@ -572,9 +570,9 @@ async function promptForRemoteFolder(
 	accessor: ServicesAccessor,
 	connection: ISSHAgentHostConnection,
 ): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
 	// onDidChangeConnections event, so it should exist by now.
@@ -599,8 +597,7 @@ async function promptForRemoteFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace(folderUri);
+	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
 registerAction2(class extends Action2 {
@@ -920,9 +917,9 @@ async function promptForTunnelFolder(
 	accessor: ServicesAccessor,
 	tunnel: ITunnelInfo,
 ): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 
@@ -949,8 +946,7 @@ async function promptForTunnelFolder(
 	}
 
 	sessionsManagementService.openNewSessionView();
-	const view = await viewsService.openView<NewChatViewPane>(SessionsViewId, true);
-	view?.selectWorkspace(folderUri);
+	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
 registerAction2(class extends Action2 {

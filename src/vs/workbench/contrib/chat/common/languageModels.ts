@@ -1697,15 +1697,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
-	private async promptForEnum(groupName: string, property: string, propertySchema: IJSONSchema, existing: IStringDictionary<unknown> | undefined): Promise<string | undefined> {
+	private async promptForEnum(groupName: string, property: string, propertySchema: IJSONSchema & { enumItemLabels?: string[] }, existing: IStringDictionary<unknown> | undefined): Promise<string | undefined> {
 		const values = propertySchema.enum;
 		if (!Array.isArray(values) || values.length === 0) {
 			return undefined;
 		}
 		const enumDescriptions = propertySchema.enumDescriptions;
+		const enumItemLabels = Array.isArray(propertySchema.enumItemLabels) ? propertySchema.enumItemLabels : undefined;
 		const initial = existing?.[property] !== undefined ? String(existing[property]) : (propertySchema.default !== undefined ? String(propertySchema.default) : undefined);
 		const items: IQuickPickItem[] = values.map((value, index) => ({
-			label: String(value),
+			label: enumItemLabels?.[index] ?? String(value),
 			description: enumDescriptions?.[index],
 			id: String(value)
 		}));

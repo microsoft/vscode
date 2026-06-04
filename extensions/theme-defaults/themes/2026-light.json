@@ -104,6 +104,7 @@
 		"menu.foreground": "#202020",
 		"menu.selectionBackground": "#0069CC1A",
 		"menu.selectionForeground": "#202020",
+		"menu.selectionBorder": "#0069CC",
 		"menu.separatorBackground": "#EEEEF1",
 		"menu.border": "#E4E5E6FF",
 		"commandCenter.foreground": "#202020",

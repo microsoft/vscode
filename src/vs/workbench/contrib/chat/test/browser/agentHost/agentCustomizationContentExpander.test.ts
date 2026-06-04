@@ -330,6 +330,24 @@ suite('AgentCustomizationContentExpander', () => {
 			assert.strictEqual(ruleItems.length, 1);
 			assert.strictEqual(ruleItems[0].userInvocable, undefined, 'rules must not expose userInvocable');
 		});
+
+		test('emits one item per .mdc file per the Open Plugins spec', async () => {
+			const pluginRoot = URI.file('/plugins/rules-mdc');
+			await mockFiles(fileService, [
+				{ path: '/plugins/rules-mdc/rules/style.mdc', contents: ['Some rule content'] },
+				{ path: '/plugins/rules-mdc/rules/other.mdc', contents: ['Another rule'] },
+				// `.txt` and similar must still be ignored
+				{ path: '/plugins/rules-mdc/rules/readme.txt', contents: ['not a rule'] },
+			]);
+
+			const expander = new AgentCustomizationContentExpander(fileService, new NullLogService());
+			const items = await expand(expander, pluginRoot, REMOTE_HOST_GROUP, false, AICustomizationSources.plugin, CancellationToken.None);
+			const ruleItems = items.filter(i => i.type === PromptsType.instructions);
+			assert.deepStrictEqual(
+				ruleItems.map(i => i.name).sort(),
+				['other', 'style'],
+			);
+		});
 	});
 
 	// -----------------------------------------------------------------------

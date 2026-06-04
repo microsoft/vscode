@@ -62,27 +62,11 @@
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius: var(--vscode-cornerRadius-medium);
 
-		&:has(.browser-url-input:focus) {
+		&:has(.browser-url-display:focus) {
 			border-color: var(--vscode-focusBorder);
 		}
-	}
-
-	.browser-url-input {
-		flex: 1;
-		min-width: 0;
-		padding: 4px 8px;
-		font-size: 13px;
-		line-height: 17px;
-		background-color: transparent;
-		color: var(--vscode-input-foreground);
-		border: none;
-		border-radius: var(--vscode-cornerRadius-small);
-		outline: none !important;
-		text-overflow: ellipsis;
-		overflow: hidden;
-		white-space: nowrap;
 	}
 
 	.browser-url-bar-widgets {
@@ -160,6 +144,7 @@
 		.browser-emulation-toolbar-label {
 			opacity: 0.8;
 			user-select: none;
+			white-space: nowrap;
 		}
 
 		.browser-emulation-toolbar-input {
@@ -258,6 +243,37 @@
 		}
 	}
 
+	.browser-favorite-indicator-container {
+		display: flex;
+		align-items: center;
+		margin: 0;
+		flex-shrink: 0;
+
+		.browser-favorite-indicator {
+			padding: 2px;
+			border-radius: var(--vscode-cornerRadius-small);
+			border-width: 0;
+			color: var(--vscode-descriptionForeground);
+			background-color: transparent;
+			outline: none !important;
+
+			&:focus-visible {
+				outline: 1px solid var(--vscode-focusBorder) !important;
+				outline-offset: 0px !important;
+			}
+
+			.codicon {
+				margin: 0;
+				font-size: 16px;
+			}
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground) !important;
+				color: var(--vscode-foreground);
+			}
+		}
+	}
+
 	.browser-share-toggle-container {
 		display: flex;
 		align-items: center;
@@ -311,16 +327,17 @@
 		min-height: 0;
 		position: relative;
 		margin-top: 1px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 		box-sizing: border-box;
 	}
 
 	.browser-container {
 		overflow: visible;
 		border-radius: var(--vscode-cornerRadius-small);
-		position: relative;
+		/*  Absolutely positioned within the wrapper; size and position are set
+			inline from JS (already snapped to the physical-pixel grid) so the
+			WebContentsView placed by the main process and the placeholder
+			screenshot align on the same pixels. */
+		position: absolute;
 		outline: none !important;
 		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
 
@@ -443,7 +460,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: contain;
+		background-size: 100% 100%;
 		background-repeat: no-repeat;
 	}
 
@@ -688,19 +705,14 @@
 		}
 	}
 
-	/* URL input wrapper for display/input swap */
-	.browser-url-input-wrapper {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		min-width: 0;
-	}
-
 	.browser-url-display {
 		flex: 1;
-		padding: 4px 8px;
+		min-width: 0;
+		display: block;
+		box-sizing: border-box;
+		padding: 4px 6px;
 		font-size: 13px;
-		line-height: 17px;
+		line-height: normal;
 		color: var(--vscode-input-foreground);
 		cursor: text;
 		white-space: nowrap;
@@ -708,8 +720,10 @@
 		text-overflow: ellipsis;
 		outline: none !important;
 
-		&.placeholder {
+		&:empty::before {
+			content: attr(data-placeholder);
 			color: var(--vscode-input-placeholderForeground);
+			pointer-events: none;
 		}
 	}
 

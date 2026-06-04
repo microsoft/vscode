@@ -16,6 +16,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
+import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -34,8 +35,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { basename, dirname, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
-import { PANEL_BORDER } from '../../../../common/theme.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
@@ -161,12 +160,6 @@ type CustomizationEditorSaveItemClassification = {
 };
 
 //#endregion
-
-export const aiCustomizationManagementSashBorder = registerColor(
-	'aiCustomizationManagement.sashBorder',
-	PANEL_BORDER,
-	localize('aiCustomizationManagementSashBorder', "The color of the Agent Customizations editor splitview sash border.")
-);
 
 //#region Sidebar Section Item
 
@@ -341,6 +334,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private harnessDropdownLabel: HTMLElement | undefined;
 	private sidebarHeaderContainer: HTMLElement | undefined;
 	private homeButton: HTMLElement | undefined;
+	private homeButtonIcon: HTMLElement | undefined;
 	private homeButtonLabel: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
@@ -475,10 +469,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 					this.pluginListWidget?.layout(height - 16, width - 24);
 					const modelsFooterHeight = this.modelsFooterElement?.offsetHeight || 80;
 					this.modelsWidget?.layout(height - 16 - modelsFooterHeight, width);
-					if (this.viewMode === 'editor' && this.embeddedEditor) {
-						const editorHeaderHeight = 50;
-						const padding = 24;
-						this.embeddedEditor.layout({ width: Math.max(0, width - padding), height: Math.max(0, height - editorHeaderHeight - padding) });
+					if (this.viewMode === 'editor' && this.embeddedEditor && this.embeddedEditorContainer) {
+						// Use the actual rendered size of the embedded editor container so
+						// the Monaco editor (and its scrollbars) stay within the rounded
+						// panel chrome regardless of header/margin changes. Guard against
+						// the container being hidden (clientHeight === 0); re-layout once
+						// it becomes visible to avoid a zero-height editor.
+						const { clientWidth, clientHeight } = this.embeddedEditorContainer;
+						if (clientWidth > 0 && clientHeight > 0) {
+							this.embeddedEditor.layout({ width: clientWidth, height: clientHeight });
+						} else if (this.dimension) {
+							DOM.getWindow(this.embeddedEditorContainer).requestAnimationFrame(() => {
+								if (this.embeddedEditor && this.embeddedEditorContainer) {
+									const { clientWidth: w, clientHeight: h } = this.embeddedEditorContainer;
+									if (w > 0 && h > 0) {
+										this.embeddedEditor.layout({ width: w, height: h });
+									}
+								}
+							});
+						}
 					}
 					// Embedded MCP/plugin detail panes use a plain DOM widget that flows with
 					// the container; no explicit layout call is needed here.
@@ -592,6 +601,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessService.availableHarnesses.read(reader);
 			const activeId = this.harnessService.activeHarness.read(reader);
 			this.harnessContextKey.set(activeId);
+			this.updateHomeButtonHarnessPresentation();
 			this.rebuildVisibleSections();
 			this.ensureHarnessDropdown();
 			this.updateHarnessDropdown();
@@ -620,9 +630,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Home/overview button
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
+		homeButton.classList.add('sidebar-harness-home-button');
 		homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, localize('homeButtonTooltip', "Back to overview")));
-		const homeIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
+		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
 		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
@@ -630,6 +641,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
 		}));
+		this.updateHomeButtonHarnessPresentation();
 
 		// Harness dropdown (shown when multiple harnesses available)
 		//this.createHarnessDropdown(headerRow);
@@ -692,6 +704,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const harnessVisible = this.harnessDropdownContainer && this.harnessDropdownContainer.style.display !== 'none';
 		this.homeButtonLabel.style.display = harnessVisible ? 'none' : '';
 		this.homeButton.style.flex = harnessVisible ? '' : '1';
+	}
+
+	private updateHomeButtonHarnessPresentation(): void {
+		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel || this.isHarnessSelectorEnabled) {
+			return;
+		}
+
+		const descriptor = this.harnessService.getActiveDescriptor();
+		if (!descriptor) {
+			this.homeButtonIcon.className = 'sidebar-home-icon';
+			this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
+			this.homeButtonLabel.textContent = localize('overview', "Overview");
+			this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
+			this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
+			return;
+		}
+
+		this.homeButtonIcon.className = 'sidebar-home-icon';
+		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(descriptor.icon));
+		this.homeButtonLabel.textContent = descriptor.label;
+		this.homeButton.setAttribute('aria-label', localize('homeButtonWithHarness', "{0}, Back to overview", descriptor.label));
+		this.homeButton.title = localize('homeButtonTooltipWithHarness', "Current harness: {0}. Click to go to overview", descriptor.label);
 	}
 
 	private updateHarnessDropdown(): void {
@@ -1322,10 +1356,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override updateStyles(): void {
-		const borderColor = this.theme.getColor(aiCustomizationManagementSashBorder);
-		if (borderColor) {
-			this.splitView?.style({ separatorBorder: borderColor });
-		}
+		// The modal provides its own panel chrome, so the split view separator
+		// is intentionally hidden here regardless of theme.
+		this.splitView?.style({ separatorBorder: Color.transparent });
 	}
 
 	override async setInput(input: AICustomizationManagementEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -2246,9 +2279,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		// Back button header
-		const detailHeader = DOM.append(this.mcpDetailContainer, $('.editor-header'));
-		const backButton = DOM.append(detailHeader, $('button.editor-back-button'));
+		// Container for the compact MCP detail component
+		const detailBody = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
+
+		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
+
+		// Back button rendered into the detail's leading slot
+		const backButton = DOM.append(this.embeddedMcpDetail.leadingSlot, $('button.editor-back-button'));
+		backButton.setAttribute('type', 'button');
 		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToMcpListTooltip', "Back to MCP servers")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
@@ -2256,11 +2294,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
 			this.goBackFromMcpDetail();
 		}));
-
-		// Container for the compact MCP detail component
-		const detailBody = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
-
-		this.embeddedMcpDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMcpServerDetail, detailBody));
 	}
 
 	private async showEmbeddedMcpDetail(server: IWorkbenchMcpServer): Promise<void> {
@@ -2300,9 +2333,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 
-		// Back button header
-		const detailHeader = DOM.append(this.pluginDetailContainer, $('.editor-header'));
-		const backButton = DOM.append(detailHeader, $('button.editor-back-button'));
+		// Container for the compact plugin detail component
+		const detailBody = DOM.append(this.pluginDetailContainer, $('.plugin-detail-editor-container'));
+
+		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
+
+		// Back button rendered into the detail's leading slot
+		const backButton = DOM.append(this.embeddedPluginDetail.leadingSlot, $('button.editor-back-button'));
+		backButton.setAttribute('type', 'button');
 		backButton.setAttribute('aria-label', localize('backToPluginList', "Back to plugins"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToPluginListTooltip', "Back to plugins")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
@@ -2310,11 +2348,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
 			this.goBackFromPluginDetail();
 		}));
-
-		// Container for the compact plugin detail component
-		const detailBody = DOM.append(this.pluginDetailContainer, $('.plugin-detail-editor-container'));
-
-		this.embeddedPluginDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedAgentPluginDetail, detailBody));
 	}
 
 	private async showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void> {
