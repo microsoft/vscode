@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -35,7 +35,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { ISharedProcessTunnelProxyService, ITunnelProxyInfo } from '../../../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
+import { ISharedProcessTunnelProxyService } from '../../../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 
 /**
@@ -88,7 +88,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	get isSharingAvailable(): boolean {
 		return this._isSharingAvailable;
 	}
-	private _remoteProxyPromise: Promise<ITunnelProxyInfo | undefined> | undefined;
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
@@ -114,12 +113,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		this.sendKeybindings();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
-		this._register(toDisposable(() => {
-			const authority = this.environmentService.remoteAuthority;
-			if (this._remoteProxyPromise && authority) {
-				void this.tunnelProxyService.stop(authority).catch(err => this.logService.error('[BrowserViewWorkbenchService] Failed to stop tunnel proxy:', err));
-			}
-		}));
+
+		// Address pump: keep the shared-process tunnel proxy's address
+		// provider up to date with the resolved remote connection so the
+		// proxy can connect whenever the main process starts it. Runs
+		// unconditionally for remote workspaces — `setAddress` on the
+		// shared service is a no-op if the proxy has not been started
+		// yet and the address is stored for the next start. Started/stopped
+		// dynamically as the `enableRemoteProxy` setting toggles.
+		this._register(this._proxyAddressPump);
+		this._updateProxyAddressPump();
 
 		this.sendTheme();
 		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
@@ -134,6 +137,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId)) {
 				this.sendConfiguration();
+			}
+			if (e.affectsConfiguration('workbench.browser.enableRemoteProxy')) {
+				this._updateProxyAddressPump();
 			}
 		}));
 
@@ -188,46 +194,31 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return true;
 	}
 
-	private async _getRemoteProxy(): Promise<ITunnelProxyInfo | undefined> {
-		if (!this.willUseRemoteProxy()) {
-			return undefined;
-		}
-		if (!this._remoteProxyPromise) {
-			this._remoteProxyPromise = this._startRemoteProxy(this.environmentService.remoteAuthority!);
-		}
-		return this._remoteProxyPromise;
-	}
+	private readonly _proxyAddressPump = new MutableDisposable();
 
-	private async _startRemoteProxy(remoteAuthority: string): Promise<ITunnelProxyInfo | undefined> {
-		try {
-			const result = await this.tunnelProxyService.start(remoteAuthority);
-			this.logService.info(`[BrowserViewWorkbenchService] Tunnel proxy started for remote authority '${remoteAuthority}'`);
-
-			// Push the resolved address to the proxy
-			const connectionData = this.remoteAuthorityResolverService.getConnectionData(remoteAuthority);
-			if (connectionData) {
-				await this.tunnelProxyService.setAddress(remoteAuthority, {
-					connectTo: connectionData.connectTo,
-					connectionToken: connectionData.connectionToken
-				});
+	private _updateProxyAddressPump(): void {
+		const authority = this.environmentService.remoteAuthority;
+		if (!authority || !this.willUseRemoteProxy()) {
+			this._proxyAddressPump.clear();
+			return;
+		}
+		if (this._proxyAddressPump.value) {
+			return;
+		}
+		// Window id alone is the proxy id: a window has at most one
+		// remote authority at any moment, so the authority is implied.
+		const proxyId = String(this._mainWindowId);
+		const push = () => {
+			const data = this.remoteAuthorityResolverService.getConnectionData(authority);
+			if (data) {
+				void this.tunnelProxyService.setAddress(proxyId, {
+					connectTo: data.connectTo,
+					connectionToken: data.connectionToken
+				}).catch(err => this.logService.error('[BrowserViewWorkbenchService] Failed to update tunnel proxy address:', err));
 			}
-
-			// Keep address up to date on reconnections
-			this._register(this.remoteAuthorityResolverService.onDidChangeConnectionData(() => {
-				const data = this.remoteAuthorityResolverService.getConnectionData(remoteAuthority);
-				if (data) {
-					void this.tunnelProxyService.setAddress(remoteAuthority, {
-						connectTo: data.connectTo,
-						connectionToken: data.connectionToken
-					}).catch(err => this.logService.error('[BrowserViewWorkbenchService] Failed to update tunnel proxy address:', err));
-				}
-			}));
-
-			return result;
-		} catch (err) {
-			this.logService.error('[BrowserViewWorkbenchService] Failed to start tunnel proxy:', err);
-			return undefined;
-		}
+		};
+		push();
+		this._proxyAddressPump.value = this.remoteAuthorityResolverService.onDidChangeConnectionData(push);
 	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
@@ -237,14 +228,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
-				const proxy = await this._getRemoteProxy();
+				const useProxy = this.willUseRemoteProxy();
+				const proxyAuthority = useProxy ? this.environmentService.remoteAuthority : undefined;
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
 						sessionOptions: {
-							scope: await this._resolveStorageScope(proxy),
-							proxy
+							scope: await this._resolveStorageScope(useProxy),
+							proxyAuthority
 						},
 						initialState: {
 							url: initialState?.url,
@@ -282,7 +274,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return { mainWindowId: this._mainWindowId };
 	}
 
-	private async _resolveStorageScope(proxy: ITunnelProxyInfo | undefined): Promise<BrowserViewStorageScope> {
+	private async _resolveStorageScope(useProxy: boolean): Promise<BrowserViewStorageScope> {
 		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
 		) ?? 'default';
@@ -299,7 +291,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		} else if (dataStorage === 'default') {
 			// When proxying, default to workspace-scoped sessions
 			// to avoid polluting the global session with remote site data.
-			dataStorage = proxy
+			dataStorage = useProxy
 				? BrowserViewStorageScope.Workspace
 				: BrowserViewStorageScope.Global;
 		}

@@ -6,7 +6,6 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { localize } from '../../../nls.js';
-import { ITunnelProxyInfo } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
 
 const commandPrefix = 'workbench.action.browser';
 export enum BrowserViewCommandId {
@@ -299,8 +298,14 @@ export enum BrowserViewStorageScope {
 export interface IBrowserSessionOptions {
 	/** Storage / data-isolation scope for the session. */
 	scope: BrowserViewStorageScope;
-	/** Tunnel proxy info (URL, credentials, certificate fingerprint). */
-	proxy?: ITunnelProxyInfo;
+	/**
+	 * Remote authority whose tunnel proxy should be used for network
+	 * requests. When set, the main process acquires a reference to the
+	 * shared-process tunnel proxy for this authority and configures the
+	 * Electron session accordingly. The proxy is started on demand and
+	 * stopped when no view is using it anymore.
+	 */
+	proxyAuthority?: string;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';

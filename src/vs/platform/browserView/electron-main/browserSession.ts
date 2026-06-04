@@ -13,8 +13,11 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { BrowserViewStorageScope, IBrowserSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
+import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
-import { ITunnelProxyInfo } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
+import { ISharedProcessTunnelProxyService } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
+import { ILogService } from '../../log/common/log.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
 
 // Same as webviews, minus clipboard-read
@@ -34,10 +37,11 @@ const allowedPermissions = new Set([
  * The class centralises the permission configuration.  The {@link id}
  * doubles as the CDP `browserContextId`.
  *
- * This class uses a private constructor with static factory methods
- * ({@link getOrCreate}, {@link getOrCreateGlobal}, etc.) and maintains
- * an internal registry of live sessions. Use the static methods to
- * obtain instances.
+ * Instances are produced via the static factory methods
+ * ({@link getOrCreate}, {@link getOrCreateGlobal}, etc.) which take an
+ * {@link IInstantiationService} to inject service dependencies. The
+ * constructor is not meant to be called directly; use the factories so
+ * the internal registry stays consistent.
  */
 export class BrowserSession {
 
@@ -119,26 +123,26 @@ export class BrowserSession {
 	/**
 	 * Get or create the singleton global-scope session.
 	 */
-	static getOrCreateGlobal(): BrowserSession {
+	static getOrCreateGlobal(instantiationService: IInstantiationService): BrowserSession {
 		const electronSession = session.fromPartition('persist:vscode-browser');
 		return BrowserSession._bySession.get(electronSession)
-			?? new BrowserSession('global', electronSession, BrowserViewStorageScope.Global, undefined);
+			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global);
 	}
 
 	/**
 	 * Get or create a workspace-scope session for the given workspace.
 	 */
-	static getOrCreateWorkspace(workspaceId: string, workspaceStorageHome: URI, proxy?: ITunnelProxyInfo): BrowserSession {
+	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI): BrowserSession {
 		const storage = joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
 		const electronSession = session.fromPath(storage.fsPath);
 		return BrowserSession._bySession.get(electronSession)
-			?? new BrowserSession(`workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace, proxy);
+			?? instantiationService.createInstance(BrowserSession, `workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace);
 	}
 
 	/**
 	 * Get or create an ephemeral session for the given view / target id.
 	 */
-	static getOrCreateEphemeral(viewId: string, type?: string, proxy?: ITunnelProxyInfo): BrowserSession {
+	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type: string | undefined): BrowserSession {
 		if (type === 'workspace' || type === 'ephemeral') {
 			throw new Error(`Cannot create session with reserved type '${type}'`);
 		}
@@ -146,7 +150,7 @@ export class BrowserSession {
 		const sessionId = `${type ?? 'ephemeral'}:${viewId}`;
 		const electronSession = session.fromPartition(`vscode-browser-${type}${viewId}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? new BrowserSession(sessionId, electronSession, BrowserViewStorageScope.Ephemeral, proxy);
+			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
 	}
 
 	/**
@@ -155,18 +159,19 @@ export class BrowserSession {
 	 * multiple views that share a scope (e.g. two Global views) get the
 	 * same `BrowserSession`.
 	 *
+	 * @param instantiationService Used to construct the session and inject
+	 *                             its service dependencies (tunnel proxy,
+	 *                             log) when a new session is needed.
 	 * @param viewId   Used only for ephemeral sessions where every view
 	 *                 needs its own Electron session.
-	 * @param sessionOptions  Determines the storage scope and proxy configuration
-	 *                        for the session.  The `scope` determines how the
-	 *                        session `id` is derived and thus which views share
-	 *                        the session.
+	 * @param sessionOptions  Determines the storage scope for the session.
 	 * @param workspaceStorageHome  Root folder under which per-workspace
 	 *                              browser storage is created
 	 *                              (`IEnvironmentMainService.workspaceStorageHome`).
 	 * @param workspaceId  Only required when `scope` is `workspace`.
 	 */
 	static getOrCreate(
+		instantiationService: IInstantiationService,
 		viewId: string,
 		sessionOptions: IBrowserSessionOptions,
 		workspaceStorageHome: URI,
@@ -174,15 +179,15 @@ export class BrowserSession {
 	): BrowserSession {
 		switch (sessionOptions.scope) {
 			case BrowserViewStorageScope.Global:
-				return BrowserSession.getOrCreateGlobal();
+				return BrowserSession.getOrCreateGlobal(instantiationService);
 			case BrowserViewStorageScope.Workspace:
 				if (workspaceId) {
-					return BrowserSession.getOrCreateWorkspace(workspaceId, workspaceStorageHome, sessionOptions.proxy);
+					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome);
 				}
 			// fallthrough -- no workspace context -> ephemeral
 			case BrowserViewStorageScope.Ephemeral:
 			default:
-				return BrowserSession.getOrCreateEphemeral(viewId, undefined, sessionOptions.proxy);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined);
 		}
 	}
 
@@ -205,8 +210,9 @@ export class BrowserSession {
 
 	private readonly _trust: BrowserSessionTrust;
 	private readonly _history: BrowserSessionHistory;
+	private readonly _remote: BrowserSessionRemote;
 
-	private constructor(
+	constructor(
 		/**
 		 * Unique identifier for this session.  Derived from what makes the
 		 * underlying Electron session unique (scope key, workspace id, view
@@ -217,11 +223,12 @@ export class BrowserSession {
 		readonly electronSession: Electron.Session,
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
-		/** Tunnel proxy info, if remote. */
-		readonly proxy: ITunnelProxyInfo | undefined,
+		@ISharedProcessTunnelProxyService tunnelService: ISharedProcessTunnelProxyService,
+		@ILogService logService: ILogService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
+		this._remote = new BrowserSessionRemote(this, tunnelService, logService);
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
@@ -237,6 +244,11 @@ export class BrowserSession {
 	/** Public history interface for consumers that record visits. */
 	get history(): IBrowserSessionHistory {
 		return this._history;
+	}
+
+	/** Public remote interface owning theproxy lifecycle for this session. */
+	get remote(): IBrowserSessionRemote {
+		return this._remote;
 	}
 
 	/**
@@ -264,12 +276,6 @@ export class BrowserSession {
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
-		if (this.proxy) {
-			this.electronSession.setProxy({
-				proxyRules: this.proxy.url,
-				proxyBypassRules: '<-loopback>'
-			});
-		}
 		this.electronSession.protocol.handle(Schemas.file, request => {
 			const filePath = normalize(URI.parse(request.url).fsPath);
 			if (!BrowserSession._trustedFileRoots.findSubstr(filePath)) {

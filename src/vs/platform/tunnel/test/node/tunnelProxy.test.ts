@@ -392,4 +392,100 @@ suite('TunnelProxy', () => {
 			/ECONNREFUSED/,
 		);
 	});
+
+	test('dispose terminates active CONNECT tunnels', async () => {
+		const connectFn = createMockConnectFn(targetPort);
+		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
+		const info = await p.start();
+
+		// Open a CONNECT tunnel and keep it open (no end/destroy).
+		const { statusCode, socket } = await proxyConnect(info, `127.0.0.1:${targetPort}`, true);
+		assert.strictEqual(statusCode, 200);
+
+		const closed = new Promise<void>(resolve => socket.once('close', () => resolve()));
+
+		p.dispose();
+
+		// The previously-active CONNECT socket must be force-closed by
+		// dispose; without explicit teardown of these sockets,
+		// `server.close()` alone would leave the port bound indefinitely.
+		await closed;
+	});
+
+	test('dispose terminates CONNECT sockets stuck waiting for the upstream tunnel', async () => {
+		const tls = await import('tls');
+
+		// Mock connect that never resolves — simulates a slow/hung
+		// upstream tunnel. The CONNECT socket sits in limbo between the
+		// `connect` event firing and the upstream returning, and must
+		// still be torn down by dispose.
+		let connectCalled: () => void;
+		const connectCalledPromise = new Promise<void>(resolve => { connectCalled = resolve; });
+		const hangingConnect: ITunnelConnectFn = () => {
+			connectCalled();
+			return new Promise(() => { /* never resolves */ });
+		};
+		const p = ds.add(new TunnelProxy(hangingConnect, new NullLogService()));
+		const info = await p.start();
+
+		const clientSocket = await new Promise<TLSSocket>((resolve, reject) => {
+			const s = tls.connect({
+				host: '127.0.0.1',
+				port: info.port,
+				rejectUnauthorized: false,
+			}, () => {
+				const authHeader = 'Basic ' + Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64');
+				s.write(`CONNECT 127.0.0.1:${targetPort} HTTP/1.1\r\nHost: 127.0.0.1:${targetPort}\r\nProxy-Authorization: ${authHeader}\r\n\r\n`);
+				resolve(s);
+			});
+			s.on('error', reject);
+		});
+
+		// Wait until the proxy has entered the hanging upstream call so
+		// the socket is registered in _connectSockets.
+		await connectCalledPromise;
+
+		const closed = new Promise<void>(resolve => clientSocket.once('close', () => resolve()));
+		p.dispose();
+		await closed;
+	});
+
+	test('dispose terminates idle HTTPS keep-alive connections', async () => {
+		const https = await import('https');
+		const connectFn = createMockConnectFn(targetPort);
+		const p = ds.add(new TunnelProxy(connectFn, new NullLogService()));
+		const info = await p.start();
+
+		// Send one request with keep-alive so the client/server pair holds
+		// the TLS connection open after the response. Without
+		// `server.closeAllConnections()` on dispose, this socket would
+		// linger until either side timed out.
+		const agent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
+		const responseSocket = await new Promise<TLSSocket>((resolve, reject) => {
+			let socket: TLSSocket | undefined;
+			const req = https.request({
+				agent,
+				hostname: '127.0.0.1',
+				port: info.port,
+				method: 'GET',
+				path: `http://127.0.0.1:${targetPort}/keepalive`,
+				headers: {
+					'Proxy-Authorization': 'Basic ' + Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64'),
+				},
+			}, res => {
+				res.on('data', () => { /* drain */ });
+				res.on('end', () => resolve(socket!));
+			});
+			req.on('socket', s => { socket = s as TLSSocket; });
+			req.on('error', reject);
+			req.end();
+		});
+
+		const closed = new Promise<void>(resolve => responseSocket.once('close', () => resolve()));
+
+		p.dispose();
+		agent.destroy();
+
+		await closed;
+	});
 });

@@ -87,8 +87,8 @@ function createSelfSignedCertPem(
 
 	// Validity
 	const validity = derSequence([
-		derUtcTime(now),
-		derUtcTime(notAfter),
+		derTime(now),
+		derTime(notAfter),
 	]);
 
 	// Version v3 [0] EXPLICIT INTEGER 2
@@ -170,8 +170,16 @@ function derLength(length: number): Buffer {
 		return Buffer.from([length]);
 	} else if (length < 0x100) {
 		return Buffer.from([0x81, length]);
-	} else {
+	} else if (length < 0x10000) {
 		return Buffer.from([0x82, (length >> 8) & 0xff, length & 0xff]);
+	} else if (length < 0x1000000) {
+		return Buffer.from([0x83, (length >> 16) & 0xff, (length >> 8) & 0xff, length & 0xff]);
+	} else {
+		// X.690 section 8.1.3 allows up to 0x7f length octets, but anything
+		// beyond 3 bytes (16 MiB) is well outside our use case and most
+		// likely indicates a bug. Fail loudly rather than silently emit
+		// a truncated, malformed length.
+		throw new Error(`derLength: value too large (${length})`);
 	}
 }
 
@@ -190,9 +198,22 @@ function derSet(items: Buffer[]): Buffer {
 }
 
 function derInteger(value: Buffer): Buffer {
-	// Ensure positive — prepend 0x00 if high bit set
-	const needsPad = value[0] & 0x80;
-	const content = needsPad ? Buffer.concat([Buffer.from([0x00]), value]) : value;
+	// Canonical DER INTEGER encoding (X.690 section 8.3.2): the contents octets
+	// must use the smallest number of octets. Strip leading 0x00 bytes
+	// that are not needed to keep the high bit unset, then prepend a
+	// single 0x00 if the high bit is set (to keep the value positive).
+	// INTEGER value MUST contain at least one octet.
+	if (value.length === 0) {
+		throw new Error('derInteger: value must be non-empty');
+	}
+	let start = 0;
+	while (start < value.length - 1 && value[start] === 0 && (value[start + 1] & 0x80) === 0) {
+		start++;
+	}
+	let content = value.subarray(start);
+	if (content[0] & 0x80) {
+		content = Buffer.concat([Buffer.from([0x00]), content]);
+	}
 	return Buffer.concat([Buffer.from([0x02]), derLength(content.length), content]);
 }
 
@@ -209,10 +230,22 @@ function derOctetString(content: Buffer): Buffer {
 	return Buffer.concat([Buffer.from([0x04]), derLength(content.length), content]);
 }
 
-function derUtcTime(date: Date): Buffer {
-	const s = date.toISOString().replace(/[-:T]/g, '').substring(2, 14) + 'Z';
-	const content = Buffer.from(s, 'ascii');
-	return Buffer.concat([Buffer.from([0x17]), derLength(content.length), content]);
+function derTime(date: Date): Buffer {
+	// RFC 5280 section 4.1.2.5: CAs MUST encode times through 2049 as UTCTime
+	// (YY...) and times from 2050 onward as GeneralizedTime (YYYY...).
+	// UTCTime two-digit years 50-99 are interpreted as 1950-1999 and
+	// 00-49 as 2000-2049, so a UTCTime for 2050 would be misread as 1950.
+	const iso = date.toISOString().replace(/[-:T]/g, '');
+	const year = date.getUTCFullYear();
+	if (year >= 1950 && year < 2050) {
+		// UTCTime: YYMMDDHHMMSSZ
+		const content = Buffer.from(iso.substring(2, 14) + 'Z', 'ascii');
+		return Buffer.concat([Buffer.from([0x17]), derLength(content.length), content]);
+	} else {
+		// GeneralizedTime: YYYYMMDDHHMMSSZ
+		const content = Buffer.from(iso.substring(0, 14) + 'Z', 'ascii');
+		return Buffer.concat([Buffer.from([0x18]), derLength(content.length), content]);
+	}
 }
 
 // #endregion

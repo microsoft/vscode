@@ -102,4 +102,21 @@ suite('selfSignedCert', () => {
 		assert.notStrictEqual(cert.fingerprint, cert2.fingerprint);
 		assert.notStrictEqual(cert.key, cert2.key);
 	});
+
+	test('produces canonical DER INTEGER serials across many runs', async () => {
+		// Regression: a random 8-byte serial with `serial[0] &= 0x7f`
+		// occasionally yields a leading 0x00 byte where the next byte's
+		// high bit is unset — that's non-canonical DER and OpenSSL
+		// rejects it with ASN.1 INVALID_INTEGER when the cert is loaded.
+		// Run enough iterations that the probability of hitting the bad
+		// path is overwhelming: P(failure per cert) ≈ 1/256, so 200 runs
+		// gives P(no failure) ≈ (255/256)^200 ≈ 46% — comfortably high
+		// enough that a buggy encoder fails most invocations.
+		for (let i = 0; i < 200; i++) {
+			const c = await generateSelfSignedCert();
+			// Constructing a TLS secure context is what triggers the
+			// OpenSSL INVALID_INTEGER error path.
+			tls.createSecureContext({ key: c.key, cert: c.cert });
+		}
+	});
 });

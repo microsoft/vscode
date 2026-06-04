@@ -56,6 +56,15 @@ export class TunnelProxy extends Disposable {
 	private _expectedAuthHeader: string | undefined;
 	private _certFingerprint: string | undefined;
 
+	/**
+	 * Sockets we took over from the HTTPS server via CONNECT. Once the
+	 * CONNECT handler runs the server no longer tracks them, so
+	 * `server.close()` and `server.closeAllConnections()` won't terminate
+	 * them — we have to destroy them ourselves on dispose to release the
+	 * listening port promptly.
+	 */
+	private readonly _connectSockets = new Set<net.Socket>();
+
 	get localPort(): number {
 		return this._localPort;
 	}
@@ -126,7 +135,12 @@ export class TunnelProxy extends Disposable {
 	}
 
 	override dispose(): void {
+		for (const socket of this._connectSockets) {
+			socket.destroy();
+		}
+		this._connectSockets.clear();
 		this._tunnelAgent?.destroy();
+		this._server?.closeAllConnections();
 		this._server?.close();
 		super.dispose();
 	}
@@ -145,6 +159,13 @@ export class TunnelProxy extends Disposable {
 	 * through the remote agent, and pipes the sockets together.
 	 */
 	private async _onConnect(req: import('http').IncomingMessage, socket: net.Socket, head: Buffer): Promise<void> {
+		// Track the socket from the moment the CONNECT event fires so
+		// dispose can tear it down even before the upstream tunnel
+		// returns (or if auth/host validation fails). The close listener
+		// auto-removes whether we close it here or later.
+		this._connectSockets.add(socket);
+		socket.on('close', () => this._connectSockets.delete(socket));
+
 		if (!this._checkAuth(req.headers['proxy-authorization'])) {
 			socket.write(
 				'HTTP/1.1 407 Proxy Authentication Required\r\n' +

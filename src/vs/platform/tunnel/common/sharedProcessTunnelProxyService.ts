@@ -35,25 +35,33 @@ export interface ITunnelProxyInfo {
  *
  * The proxy uses a self-signed TLS certificate and Basic proxy
  * authentication with randomly generated credentials.
+ *
+ * Each proxy is keyed by an opaque {@link id}. The shared process does
+ * not interpret the id; callers compose it from whatever scopes they
+ * need to isolate (e.g. window id + remote authority, so two windows
+ * on the same remote get independent proxies and address providers).
  */
 export interface ISharedProcessTunnelProxyService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Start the tunnel proxy for the given remote authority.
+	 * Start (or join) the tunnel proxy for the given {@link id}.
+	 * Reference-counted: every {@link start} must be paired with a
+	 * {@link stop}; the proxy stays up while the count is positive.
 	 * Returns the proxy URL, credentials, and certificate fingerprint.
 	 */
-	start(authority: string): Promise<ITunnelProxyInfo>;
+	start(id: string): Promise<ITunnelProxyInfo>;
 
 	/**
-	 * Set the remote address info for the proxy for the given authority.
-	 * Should be called whenever the resolver resolves.
+	 * Update the remote address used by the proxy for the given {@link id}.
+	 * Should be called whenever the resolver resolves. Safe to call
+	 * before {@link start} — the address is stored for the next start.
 	 */
-	setAddress(authority: string, address: IAddress): Promise<void>;
+	setAddress(id: string, address: IAddress): Promise<void>;
 
 	/**
-	 * Release one reference to the proxy for the given authority.
+	 * Release one reference to the proxy for the given {@link id}.
 	 * The proxy is stopped when the last reference is released.
 	 */
-	stop(authority: string): Promise<void>;
+	stop(id: string): Promise<void>;
 }

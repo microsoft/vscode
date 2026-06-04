@@ -37,7 +37,6 @@ class AddressProvider implements IAddressProvider {
 }
 
 class ProxyEntry {
-	readonly addressProvider = new AddressProvider();
 	proxy: TunnelProxy | undefined;
 	startPromise: Promise<ITunnelProxyInfo> | undefined;
 	refCount = 0;
@@ -46,6 +45,14 @@ class ProxyEntry {
 export class SharedProcessTunnelProxyService extends Disposable implements ISharedProcessTunnelProxyService {
 	declare readonly _serviceBrand: undefined;
 
+	/**
+	 * Address providers are long-lived per id. They survive across
+	 * start/stop cycles so that an address pushed by the workbench
+	 * before the first {@link start} (or between a {@link stop} and the
+	 * next {@link start}) is preserved and used as soon as the proxy
+	 * reconnects.
+	 */
+	private readonly _addressProviders = new Map<string, AddressProvider>();
 	private readonly _entries = new Map<string, ProxyEntry>();
 
 	constructor(
@@ -62,20 +69,21 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 			entry.proxy?.dispose();
 		}
 		this._entries.clear();
+		this._addressProviders.clear();
 		super.dispose();
 	}
 
-	async start(authority: string): Promise<ITunnelProxyInfo> {
-		let entry = this._entries.get(authority);
+	async start(id: string): Promise<ITunnelProxyInfo> {
+		let entry = this._entries.get(id);
 		if (!entry) {
 			entry = new ProxyEntry();
-			this._entries.set(authority, entry);
+			this._entries.set(id, entry);
 		}
 
 		entry.refCount++;
 
 		if (!entry.startPromise) {
-			entry.startPromise = this._doStart(entry);
+			entry.startPromise = this._doStart(id, entry);
 		}
 
 		// All callers — including concurrent ones that join an existing
@@ -86,17 +94,26 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 			entry.refCount--;
 			if (entry.refCount === 0) {
 				entry.startPromise = undefined;
-				this._entries.delete(authority);
+				this._entries.delete(id);
 			}
 			throw err;
 		}
 	}
 
-	private async _doStart(entry: ProxyEntry): Promise<ITunnelProxyInfo> {
+	private _getOrCreateAddressProvider(id: string): AddressProvider {
+		let provider = this._addressProviders.get(id);
+		if (!provider) {
+			provider = new AddressProvider();
+			this._addressProviders.set(id, provider);
+		}
+		return provider;
+	}
+
+	private async _doStart(id: string, entry: ProxyEntry): Promise<ITunnelProxyInfo> {
 		const options: IConnectionOptions = {
 			commit: this._productService.commit,
 			quality: this._productService.quality,
-			addressProvider: entry.addressProvider,
+			addressProvider: this._getOrCreateAddressProvider(id),
 			remoteSocketFactoryService: this._remoteSocketFactoryService,
 			signService: this._signService,
 			logService: this._logService,
@@ -113,12 +130,12 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 		return result;
 	}
 
-	async setAddress(authority: string, address: IAddress): Promise<void> {
-		this._entries.get(authority)?.addressProvider.setAddress(address);
+	async setAddress(id: string, address: IAddress): Promise<void> {
+		this._getOrCreateAddressProvider(id).setAddress(address);
 	}
 
-	async stop(authority: string): Promise<void> {
-		const entry = this._entries.get(authority);
+	async stop(id: string): Promise<void> {
+		const entry = this._entries.get(id);
 		if (!entry) {
 			return;
 		}
@@ -127,7 +144,7 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 		}
 		if (entry.refCount === 0) {
 			entry.proxy?.dispose();
-			this._entries.delete(authority);
+			this._entries.delete(id);
 		}
 	}
 }

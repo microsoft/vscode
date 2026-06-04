@@ -340,9 +340,9 @@ export class BrowserView extends Disposable {
 		this.session.trust.installCertErrorHandler(webContents);
 
 		// Automatically supply proxy auth credentials for the tunnel proxy.
-		if (this.session.proxy) {
-			const { username, password } = this.session.proxy.credentials;
-			const proxyPort = this.session.proxy.port;
+		if (this.session.remote.proxy) {
+			const { username, password } = this.session.remote.proxy.credentials;
+			const proxyPort = this.session.remote.proxy.port;
 			webContents.on('login', (event, _details, authInfo, callback) => {
 				if (authInfo.isProxy && authInfo.host === '127.0.0.1' && authInfo.port === proxyPort) {
 					event.preventDefault();
@@ -534,7 +534,7 @@ export class BrowserView extends Disposable {
 			storageKeys: this.session.history.storageKeys,
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
-			isRemoteSession: !!this.session.proxy,
+			isRemoteSession: !!this.session.remote.proxyId,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device
 		};
