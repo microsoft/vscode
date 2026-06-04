@@ -183,31 +183,33 @@ suite(`ipynb serializer`, () => {
 	});
 
 	test('Serialize bytes matches string serialization', async () => {
-		const data = new vscode.NotebookData([
-			new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown'),
-			new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python')
-		]);
-		data.metadata = {
-			indentAmount: ' ',
-			metadata: {
-				language_info: {
-					name: 'python'
-				}
-			},
-			nbformat: 4,
-			nbformat_minor: 5
-		};
-		data.cells[1].outputs = [
-			new vscode.NotebookCellOutput([
-				vscode.NotebookCellOutputItem.text('hello\nworld', 'text/plain'),
-				new vscode.NotebookCellOutputItem(new Uint8Array([1, 2, 3]), 'image/png')
-			], {
-				outputType: 'display_data',
-				metadata: {}
-			})
-		];
+		for (const indentAmount of [' ', '01234567890']) {
+			const data = new vscode.NotebookData([
+				new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown'),
+				new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python')
+			]);
+			data.metadata = {
+				indentAmount,
+				metadata: {
+					language_info: {
+						name: 'python'
+					}
+				},
+				nbformat: 4,
+				nbformat_minor: 5
+			};
+			data.cells[1].outputs = [
+				new vscode.NotebookCellOutput([
+					vscode.NotebookCellOutputItem.text('hello\nworld', 'text/plain'),
+					new vscode.NotebookCellOutputItem(new Uint8Array([1, 2, 3]), 'image/png')
+				], {
+					outputType: 'display_data',
+					metadata: {}
+				})
+			];
 
-		assert.strictEqual(new TextDecoder().decode(serializeNotebookToBytes(data)), serializeNotebookToString(data));
+			assert.strictEqual(new TextDecoder().decode(serializeNotebookToBytes(data)), serializeNotebookToString(data));
+		}
 	});
 
 	suite('Outputs', () => {
