@@ -458,13 +458,25 @@ function renderForm(
 	// Captures the chat mode the scheduled run should start in. The runner
 	// passes the captured value through {@link ISessionsProvider.setMode}.
 	// Providers that don't support setting a mode silently ignore it.
-	const MODES: readonly { readonly value: string; readonly label: string }[] = [
-		{ value: ChatModeKind.Agent, label: localize('automation.mode.agent', "Agent Mode") },
-		{ value: ChatModeKind.Ask, label: localize('automation.mode.ask', "Ask Mode") },
-		{ value: ChatModeKind.Edit, label: localize('automation.mode.edit', "Edit Mode") },
+	const MODES: readonly { readonly value: string; readonly label: string; readonly description: string }[] = [
+		{
+			value: ChatModeKind.Agent,
+			label: localize('automation.mode.agent', "Agent"),
+			description: localize('automation.mode.agent.description', "Plans, edits and runs tools autonomously."),
+		},
+		{
+			value: ChatModeKind.Ask,
+			label: localize('automation.mode.ask', "Ask"),
+			description: localize('automation.mode.ask.description', "Answers questions about your code without making changes."),
+		},
+		{
+			value: ChatModeKind.Edit,
+			label: localize('automation.mode.edit', "Edit"),
+			description: localize('automation.mode.edit.description', "Applies focused edits across the files you reference."),
+		},
 	];
 	const modeRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(modeRow, $('label.automation-form-label', { for: 'automation-mode' }, localize('automation.form.mode', "Mode")));
+	DOM.append(modeRow, $('label.automation-form-label', { for: 'automation-mode' }, localize('automation.form.mode', "Agent Mode")));
 	const modeSelect = DOM.append(modeRow, $('select.automation-form-select', { id: 'automation-mode' })) as HTMLSelectElement;
 	DOM.append(modeSelect, $('option', { value: '' }, localize('automation.mode.default', "Use default")));
 	for (const m of MODES) {
@@ -476,23 +488,46 @@ function renderForm(
 	if (!state.mode) {
 		modeSelect.value = '';
 	}
+	const modeHint = DOM.append(modeRow, $('.automation-form-hint'));
+	const updateModeHint = () => {
+		const match = MODES.find(m => m.value === modeSelect.value);
+		modeHint.textContent = match
+			? match.description
+			: localize('automation.mode.default.description', "Use the workspace's default chat mode.");
+	};
+	updateModeHint();
 	disposables.add(DOM.addStandardDisposableListener(modeSelect, 'change', () => {
 		state.mode = modeSelect.value || undefined;
+		updateModeHint();
 	}));
 
-	// --- Permission level (Default / Auto-approve / Autopilot) ---
+	// --- Permission level (Default / Bypass / Autopilot) ---
 	// Captures how aggressively scheduled runs should auto-confirm tool
 	// invocations. Mirrors the permission picker on the chat composer. The
 	// runner passes the captured value through
 	// {@link ISessionsProvider.setPermissionLevel}. Providers that don't
-	// support permission gating silently ignore it.
-	const PERMISSIONS: readonly { readonly value: string; readonly label: string }[] = [
-		{ value: ChatPermissionLevel.Default, label: localize('automation.permission.default', "Ask for permission") },
-		{ value: ChatPermissionLevel.AutoApprove, label: localize('automation.permission.autoApprove', "Auto-approve safe operations") },
-		{ value: ChatPermissionLevel.Autopilot, label: localize('automation.permission.autopilot', "Autopilot (approve all)") },
+	// support permission gating silently ignore it. Labels and descriptions
+	// match the composer's permission picker so users see the same
+	// terminology in both places.
+	const PERMISSIONS: readonly { readonly value: string; readonly label: string; readonly description: string }[] = [
+		{
+			value: ChatPermissionLevel.Default,
+			label: localize('automation.permission.default', "Default Approvals"),
+			description: localize('automation.permission.default.description', "Copilot uses your configured settings."),
+		},
+		{
+			value: ChatPermissionLevel.AutoApprove,
+			label: localize('automation.permission.autoApprove', "Bypass Approvals"),
+			description: localize('automation.permission.autoApprove.description', "All tool calls are auto-approved."),
+		},
+		{
+			value: ChatPermissionLevel.Autopilot,
+			label: localize('automation.permission.autopilot', "Autopilot (Preview)"),
+			description: localize('automation.permission.autopilot.description', "Autonomously iterates from start to finish."),
+		},
 	];
 	const permRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(permRow, $('label.automation-form-label', { for: 'automation-permission' }, localize('automation.form.permission', "Permission")));
+	DOM.append(permRow, $('label.automation-form-label', { for: 'automation-permission' }, localize('automation.form.permission', "Permission Mode")));
 	const permSelect = DOM.append(permRow, $('select.automation-form-select', { id: 'automation-permission' })) as HTMLSelectElement;
 	DOM.append(permSelect, $('option', { value: '' }, localize('automation.permission.useDefault', "Use default")));
 	for (const p of PERMISSIONS) {
@@ -504,8 +539,17 @@ function renderForm(
 	if (!state.permissionLevel) {
 		permSelect.value = '';
 	}
+	const permHint = DOM.append(permRow, $('.automation-form-hint'));
+	const updatePermHint = () => {
+		const match = PERMISSIONS.find(p => p.value === permSelect.value);
+		permHint.textContent = match
+			? match.description
+			: localize('automation.permission.useDefault.description', "Use the workspace's configured approval settings.");
+	};
+	updatePermHint();
 	disposables.add(DOM.addStandardDisposableListener(permSelect, 'change', () => {
 		state.permissionLevel = permSelect.value || undefined;
+		updatePermHint();
 	}));
 
 	// --- Enabled checkbox ---
