@@ -9,6 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService } from '../../../browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
 
@@ -24,7 +25,7 @@ suite('AutomationService', () => {
 
 	function createService(storage?: InMemoryStorageService): { service: AutomationService; storage: InMemoryStorageService } {
 		const sharedStorage = teardown.add(storage ?? new InMemoryStorageService());
-		const service = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const service = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		return { service, storage: sharedStorage };
 	}
 
@@ -121,7 +122,7 @@ suite('AutomationService', () => {
 
 	test('deleteAutomation removes the entry and orphan runs are dropped on reload', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		await firstService.recordRunStart(a.id, 'manual', 1);
 		assert.strictEqual(firstService.runs.get().length, 1);
@@ -132,7 +133,7 @@ suite('AutomationService', () => {
 		assert.strictEqual(firstService.runs.get().length, 0);
 		firstService.dispose();
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(secondService.automations.get(), []);
 		assert.strictEqual(secondService.runs.get().length, 0);
 	});
@@ -184,12 +185,12 @@ suite('AutomationService', () => {
 
 	test('persists across service restarts via shared storage', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
 		await firstService.recordRunStart(a.id, 'manual', 7);
 		firstService.dispose();
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		assert.strictEqual(secondService.automations.get().length, 1);
 		assert.strictEqual(secondService.automations.get()[0].id, a.id);
 		assert.strictEqual(secondService.runs.get().length, 1);
@@ -197,8 +198,8 @@ suite('AutomationService', () => {
 
 	test('two services on the same storage stay in sync via onDidChangeValue', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const windowA = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
-		const windowB = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const windowA = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
+		const windowB = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 
 		assert.deepStrictEqual(windowB.automations.get(), []);
 		const created = await windowA.createAutomation({ name: 'X', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
@@ -213,7 +214,7 @@ suite('AutomationService', () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		// StorageScope.APPLICATION is -1
 		storage.store('chat.automations.ledger', JSON.stringify({ schemaVersion: 999, automations: [], runs: [] }), -1, 1);
-		const service = teardown.add(new AutomationService(storage, new NullLogService()));
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(service.automations.get(), []);
 		assert.deepStrictEqual(service.runs.get(), []);
 	});
@@ -221,7 +222,7 @@ suite('AutomationService', () => {
 	test('reading a corrupt ledger leaves observables empty without throwing', () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		storage.store('chat.automations.ledger', 'not json', -1, 1);
-		const service = teardown.add(new AutomationService(storage, new NullLogService()));
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(service.automations.get(), []);
 	});
 
@@ -239,7 +240,7 @@ suite('AutomationService', () => {
 			],
 		};
 		storage.store('chat.automations.ledger', JSON.stringify(ledger), -1, 1);
-		const service = teardown.add(new AutomationService(storage, new NullLogService()));
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.strictEqual(service.automations.get().length, 1);
 		assert.strictEqual(service.automations.get()[0].id, 'keep');
 		assert.strictEqual(service.runs.get().length, 1);
@@ -248,11 +249,11 @@ suite('AutomationService', () => {
 
 	test('round-trips a folderUri through persistence', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
-		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const uri = URI.parse('file:///workspace/project');
 		await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: uri });
 
-		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService()));
+		const secondService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
 		const reloaded = secondService.automations.get()[0];
 		assert.strictEqual(reloaded.folderUri.toString(), uri.toString());
 	});
@@ -263,7 +264,7 @@ suite('AutomationService', () => {
 		// leaked-disposable assertion at suite teardown.
 		const store = new DisposableStore();
 		const storage = store.add(new InMemoryStorageService());
-		const service = store.add(new AutomationService(storage, new NullLogService()));
+		const service = store.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
 		assert.deepStrictEqual(service.automations.get(), []);
 		store.dispose();
 	});

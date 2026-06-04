@@ -13,11 +13,13 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { AutomationsAccessibilityHelp } from '../aiCustomization/automationsAccessibilityHelp.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeProvider, PlaceholderAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
+import { publishAutomationToggled } from '../../common/automations/automationTelemetry.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { PlaceholderAutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
@@ -85,7 +87,10 @@ registerAction2(class ToggleChatAutomationsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const current = configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
-		await configurationService.updateValue(CHAT_AUTOMATIONS_ENABLED_SETTING, !current, ConfigurationTarget.USER);
+		const next = !current;
+		await configurationService.updateValue(CHAT_AUTOMATIONS_ENABLED_SETTING, next, ConfigurationTarget.USER);
+		publishAutomationToggled(telemetryService, next);
 	}
 });
