@@ -38,6 +38,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 
 /**
  * Setting key that controls how the Customizations section in the Agents
@@ -367,7 +368,10 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				return instantiationService.createInstance(CustomizationLinkViewItem, action, options, config);
 			}, undefined));
 
-			const sectionVisibleWhen = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+			const baseSectionVisible = ContextKeyExpr.has(customizationSectionVisibleKey(section));
+			const sectionVisibleWhen = config.isAutomations
+				? ContextKeyExpr.and(baseSectionVisible, ChatAutomationsEnabledContext)
+				: baseSectionVisible;
 
 			// Register the action with menu item
 			this._register(registerAction2(class extends Action2 {
