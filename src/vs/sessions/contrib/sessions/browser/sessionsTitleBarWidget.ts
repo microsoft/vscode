@@ -5,7 +5,8 @@
 
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
-import { Separator } from '../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
@@ -14,7 +15,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMenuService, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuItemAction, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -24,29 +25,25 @@ import { IActionViewItemService } from '../../../../platform/actions/browser/act
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId, SessionItemHasBranchNameContext } from './views/sessionsList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { buildSessionHoverContent, getSessionDiffStats } from './sessionHoverContent.js';
-
-const titleBarContextKeys = new Set([IsNewChatSessionContext.key]);
+import { buildSessionHoverContent } from './sessionHoverContent.js';
 
 /**
- * Sessions Title Bar Widget - renders the active chat session title
+ * Sessions Title Bar Widget - renders the active chat session
  * in the command center of the agent sessions workbench.
  *
- * Shows the current chat session label as a clickable pill with:
+ * Shows the current chat session as a clickable pill with:
  * - Kind icon at the beginning (provider type icon)
- * - Session title
  * - Repository folder name and active branch/worktree name when available
  *
  * Session actions (changes, terminal, etc.) are rendered via the
- * SessionTitleActions menu toolbar next to the session title.
+ * SessionTitleActions menu toolbar next to this widget.
  *
  * On click, opens the sessions picker.
  */
@@ -75,14 +72,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	) {
 		super(undefined, action, options);
 
-		// Re-render when the active session or its data changes
+		// Re-render when the active session's title or workspace changes
 		this._register(autorun(reader => {
 			const sessionData = this.sessionsManagementService.activeSession.read(reader);
 			if (sessionData) {
 				sessionData.title.read(reader);
-				sessionData.status.read(reader);
 				sessionData.workspace.read(reader);
-				sessionData.changes.read(reader);
 			}
 			this._lastRenderState = undefined;
 			this._render();
@@ -98,13 +93,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => {
 			this._lastRenderState = undefined;
 			this._render();
-		}));
-
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(titleBarContextKeys)) {
-				this._lastRenderState = undefined;
-				this._render();
-			}
 		}));
 	}
 
@@ -139,25 +127,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._isRendering = true;
 
 		try {
-			const isNewChatSession = this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key);
-			this._container.classList.toggle('agent-sessions-titlebar-hidden', !!isNewChatSession);
-			if (isNewChatSession) {
-				this._dynamicDisposables.clear();
-				this._container.setAttribute('aria-hidden', 'true');
-				this._container.removeAttribute('role');
-				this._container.removeAttribute('aria-label');
-				this._container.tabIndex = -1;
-				return;
-			}
-
-			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
-			const repoLabel = this._getRepositoryLabel();
-			const repoBranchLabel = this._getRepositoryBranchLabel();
-			const diffStats = this._getDiffStats();
+			const sessionTitle = this._getSessionTitle() ?? localize('newSession', "New Session");
+			const workspaceLabel = this._getRepositoryLabel();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoBranchLabel ?? ''}|${diffStats ? `${diffStats.insertions}/${diffStats.deletions}` : ''}`;
+			const renderState = `${icon?.id ?? ''}|${sessionTitle ?? ''}|${workspaceLabel ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -175,10 +150,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._container.setAttribute('aria-label', localize('agentSessionsShowSessions', "Show Sessions"));
 			this._container.tabIndex = 0;
 
-			// Session pill: icon + label + folder together
+			// Session pill: icon + title + workspace together
 			const sessionPill = $('div.agent-sessions-titlebar-pill');
 
-			// Center group: icon + label + folder
+			// Center group: icon + title + workspace name
 			const centerGroup = $('div.agent-sessions-titlebar-center');
 
 			// Kind icon at the beginning
@@ -187,43 +162,21 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				centerGroup.appendChild(iconEl);
 			}
 
-			// Label
-			const labelEl = $('div.agent-sessions-titlebar-label');
-			labelEl.textContent = label;
-			centerGroup.appendChild(labelEl);
+			// Session title shown next to the icon
+			if (sessionTitle) {
+				const titleEl = $('div.agent-sessions-titlebar-title');
+				titleEl.textContent = sessionTitle;
+				centerGroup.appendChild(titleEl);
+			}
 
-			// Folder shown next to the title
-			if (repoLabel) {
-				const detailsEl = $('div.agent-sessions-titlebar-details');
+			// Workspace name shown after the session title
+			if (workspaceLabel) {
+				const separatorEl = $('div.agent-sessions-titlebar-separator');
+				centerGroup.appendChild(separatorEl);
 
-				const repoEl = $('div.agent-sessions-titlebar-repo');
-				repoEl.textContent = repoLabel;
-				detailsEl.appendChild(repoEl);
-
-				if (repoBranchLabel) {
-					const separatorEl = $('div.agent-sessions-titlebar-separator');
-					detailsEl.appendChild(separatorEl);
-
-					const branchEl = $('div.agent-sessions-titlebar-branch');
-					branchEl.append(...renderLabelWithIcons(`$(git-branch) ${repoBranchLabel}`));
-					detailsEl.appendChild(branchEl);
-				}
-
-				if (diffStats) {
-					const separatorEl = $('div.agent-sessions-titlebar-separator');
-					detailsEl.appendChild(separatorEl);
-
-					const diffEl = $('div.agent-sessions-titlebar-diff');
-					const addedEl = $('span.agent-sessions-titlebar-diff-added');
-					addedEl.textContent = `+${diffStats.insertions}`;
-					diffEl.appendChild(addedEl);
-					const removedEl = $('span.agent-sessions-titlebar-diff-removed');
-					removedEl.textContent = `-${diffStats.deletions}`;
-					diffEl.appendChild(removedEl);
-					detailsEl.appendChild(diffEl);
-				}
-
-				centerGroup.appendChild(detailsEl);
+				const workspaceEl = $('div.agent-sessions-titlebar-workspace');
+				workspaceEl.textContent = workspaceLabel;
+				centerGroup.appendChild(workspaceEl);
 			}
 
 			sessionPill.appendChild(centerGroup);
@@ -268,17 +221,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Get the label of the active chat session.
-	 */
-	private _getActiveSessionLabel(): string {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		if (sessionData) {
-			return sessionData.title.get() || localize('agentSessions.newSession', "New Session");
-		}
-		return localize('agentSessions.newSession', "New Session");
-	}
-
-	/**
 	 * Get the icon for the active session's type.
 	 */
 	private _getActiveSessionIcon(): ThemeIcon | undefined {
@@ -301,6 +243,14 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
+	 * Get the display title for the active session.
+	 */
+	private _getSessionTitle(): string | undefined {
+		const sessionData = this.sessionsManagementService.activeSession.get();
+		return sessionData?.title.get()?.trim() || undefined;
+	}
+
+	/**
 	 * Get the repository label for the active session.
 	 */
 	private _getRepositoryLabel(): string | undefined {
@@ -314,30 +264,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		return undefined;
 	}
 
-	/**
-	 * Get the branch label for the active session.
-	 */
-	private _getRepositoryBranchLabel(): string | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		return sessionData?.workspace.get()?.folders[0]?.gitRepository?.branchName?.trim() || undefined;
-	}
-
-	/**
-	 * Get the aggregated insertions/deletions for the active session, or
-	 * undefined when there are no changes.
-	 */
-	private _getDiffStats(): { insertions: number; deletions: number } | undefined {
-		const sessionData = this.sessionsManagementService.activeSession.get();
-		return sessionData ? getSessionDiffStats(sessionData) : undefined;
-	}
-
 	private _showContextMenu(e: MouseEvent): void {
 		const sessionData = this.sessionsManagementService.activeSession.get();
 		if (!sessionData) {
 			return;
 		}
 
-		if (this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key)) {
+		if (!sessionData.isCreated.get()) {
 			return;
 		}
 
@@ -355,8 +288,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));
 
+		// Extension contributions on this menu need a marshalled AgentSessionContext arg; built-in actions take ISession.
+		const marshalledArg = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: { resource: sessionData.resource },
+			sessions: [{ resource: sessionData.resource }],
+		};
+		const wrapForExtensions = (action: IAction): IAction => {
+			if (!(action instanceof MenuItemAction) || !action.item.source) {
+				return action;
+			}
+			const wrapped = new Action(action.id, action.label, action.class, action.enabled, () => this.commandService.executeCommand(action.id, marshalledArg));
+			wrapped.tooltip = action.tooltip;
+			wrapped.checked = action.checked;
+			return wrapped;
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: sessionData, shouldForwardArgs: true }).map(([, actions]) => actions.map(wrapForExtensions))),
 			getAnchor: () => new StandardMouseEvent(getActiveWindow(), e),
 		});
 

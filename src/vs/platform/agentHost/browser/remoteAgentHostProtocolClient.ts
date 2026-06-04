@@ -19,12 +19,13 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
@@ -39,6 +40,7 @@ import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey,
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { dirname } from '../../../base/common/resources.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -872,7 +874,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * the customization, but should not need to write them. Grants are
 	 * deduped per connection and revoked when the connection closes.
 	 */
-	private _grantImplicitReadsForCustomizations(refs: readonly CustomizationRef[]): void {
+	private _grantImplicitReadsForCustomizations(refs: readonly ClientPluginCustomization[]): void {
 		for (const ref of refs) {
 			let uri: URI;
 			try {
@@ -880,14 +882,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} catch {
 				continue;
 			}
-			const key = uri.toString();
+			const grantUri = dirname(uri);
+			const key = grantUri.toString();
 			if (this._grantedCustomizationUris.has(key)) {
 				continue;
 			}
 			this._grantedCustomizationUris.add(key);
 			// Disposable is owned by the permission service; cleared on
 			// connectionClosed.
-			this._permissionService.grantImplicitRead(this._address, uri);
+			this._permissionService.grantImplicitRead(this._address, grantUri);
 		}
 	}
 
@@ -919,6 +922,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async resourceMove(params: CommandMap['resourceMove']['params']): Promise<CommandMap['resourceMove']['result']> {
 		return this._sendRequest('resourceMove', params);
+	}
+
+	async resourceResolve(params: CommandMap['resourceResolve']['params']): Promise<CommandMap['resourceResolve']['result']> {
+		return this._sendRequest('resourceResolve', params);
+	}
+
+	async resourceMkdir(params: CommandMap['resourceMkdir']['params']): Promise<CommandMap['resourceMkdir']['result']> {
+		return this._sendRequest('resourceMkdir', params);
+	}
+
+	async createResourceWatch(params: CommandMap['createResourceWatch']['params']): Promise<CommandMap['createResourceWatch']['result']> {
+		return this._sendRequest('createResourceWatch', params);
+	}
+
+	/**
+	 * Convenience wrapper used by {@link AHPFileSystemProvider.watch}:
+	 * runs `createResourceWatch` + `subscribe` and returns a handle that
+	 * surfaces `resourceWatch/changed` envelopes as
+	 * {@link IFileChange}[] events. Disposing the handle unsubscribes
+	 * the watch channel.
+	 */
+	watchResource(params: CommandMap['createResourceWatch']['params']): Promise<IRemoteWatchHandle> {
+		return createRemoteWatchHandle({
+			createResourceWatch: p => this.createResourceWatch(p),
+			subscribe: uri => this.subscribe(uri),
+			unsubscribe: uri => this.unsubscribe(uri),
+			onDidAction: this.onDidAction,
+		}, params);
 	}
 
 	/**
@@ -1190,6 +1221,59 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 						}
 					});
 				return;
+			}
+			case 'resourceResolve': {
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				const resolveUri = URI.parse(p.uri as string);
+				return void gateAndHandle(resolveUri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: resolveUri.toString(), read: true }, async () => {
+					const stat = await this._fileService.stat(resolveUri);
+					const type = stat.isSymbolicLink && p.followSymlinks === false ? 'symlink' as const
+						: stat.isDirectory ? 'directory' as const
+							: 'file' as const;
+					return {
+						uri: resolveUri.toString(),
+						type,
+						...(stat.size !== undefined ? { size: stat.size } : {}),
+						...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+						...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+						...(stat.etag ? { etag: stat.etag } : {}),
+					};
+				});
+			}
+			case 'resourceMkdir': {
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				const mkdirUri = URI.parse(p.uri as string);
+				return void gateAndHandle(mkdirUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: mkdirUri.toString(), write: true }, async () => {
+					await this._fileService.createFolder(mkdirUri);
+					return {};
+				});
+			}
+			case 'resourceCopy': {
+				if (!p.source) { sendError(new Error('Missing source')); return; }
+				if (!p.destination) { sendError(new Error('Missing destination')); return; }
+				const sourceUri = URI.parse(p.source as string);
+				const destinationUri = URI.parse(p.destination as string);
+				return void (async () => {
+					try {
+						// Gate both source (read) and destination (write).
+						const [sourceOk, destOk] = await Promise.all([
+							this._permissionService.check(this._address, sourceUri, AgentHostPermissionMode.Read),
+							this._permissionService.check(this._address, destinationUri, AgentHostPermissionMode.Write),
+						]);
+						if (!sourceOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: sourceUri.toString(), read: true });
+							return;
+						}
+						if (!destOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: destinationUri.toString(), write: true });
+							return;
+						}
+						await this._fileService.copy(sourceUri, destinationUri, !p.failIfExists);
+						sendResult({});
+					} catch (err) {
+						sendError(err);
+					}
+				})();
 			}
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);

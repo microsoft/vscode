@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, autorun, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, ITransaction, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
@@ -148,7 +148,7 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
-	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, []);
+	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._visibleSessions;
 
 	private readonly _wrappers = this._register(new DisposableMap<string, VisibleSession>());
@@ -226,8 +226,10 @@ export class VisibleSessions extends Disposable {
 		}
 
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
-		this._activeSession.set(visibleSession, undefined);
-		this._refresh();
+		transaction((tsx) => {
+			this._activeSession.set(visibleSession, tsx);
+			this._refresh(tsx);
+		});
 		return visibleSession;
 	}
 
@@ -242,9 +244,14 @@ export class VisibleSessions extends Disposable {
 	 * - If the slot is already visible, it is moved to the computed
 	 *   position; its sticky / non-sticky state is preserved.
 	 *
-	 * No-op if `targetSessionId` is not currently visible.
+	 * When `activate` is `true` (default), the inserted slot also becomes
+	 * the active session. When `false`, the active session is left
+	 * unchanged.
+	 *
+	 * `targetSessionId` may be `undefined` to position relative to the empty
+	 * (new-session) slot. No-op if the target slot is not currently visible.
 	 */
-	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right'): void {
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate: boolean = true): void {
 		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
@@ -282,7 +289,74 @@ export class VisibleSessions extends Disposable {
 			this._mostRecentNonStickySlot = id;
 		}
 
-		this._refresh();
+		transaction((tsx) => {
+			if (activate) {
+				const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
+				this._activeSession.set(wrapper, tsx);
+			}
+			this._refresh(tsx);
+		});
+	}
+
+	/**
+	 * Atomically (re)build the entire grid from a persisted snapshot.
+	 *
+	 * Slots are given left-to-right; a `session` of `undefined` denotes the
+	 * empty new-session slot. The whole model — slot order, stickiness and the
+	 * active slot — is published in a single transaction so restoring multiple
+	 * sessions does not produce intermediate layouts (which would otherwise
+	 * cause the grid to visibly flicker as sessions are restored one by one).
+	 *
+	 * Any wrappers for sessions no longer present in the snapshot are disposed.
+	 *
+	 * @param slots Ordered grid slots to restore.
+	 * @param activeIndex Index into `slots` of the slot that should be active,
+	 * or `-1` for none.
+	 */
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number): void {
+		this._visibleList = [];
+		this._stickyIds.clear();
+
+		let activeWrapper: VisibleSession | undefined;
+		let lastNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
+		for (let i = 0; i < slots.length; i++) {
+			const { session, sticky } = slots[i];
+			const id = session?.sessionId;
+			this._visibleList.push(id);
+			if (session) {
+				const wrapper = this._getOrCreateVisibleSession(session);
+				if (sticky) {
+					this._stickyIds.add(session.sessionId);
+				}
+				if (i === activeIndex) {
+					activeWrapper = wrapper;
+				}
+			}
+			if (!this._isStickySlot(id)) {
+				lastNonStickySlot = id;
+			}
+		}
+
+		// Dispose wrappers for sessions that are no longer part of the grid so
+		// the model does not leak entries from a previous (e.g. transient
+		// new-session) state.
+		for (const existingId of [...this._wrappers.keys()]) {
+			if (!this._visibleList.includes(existingId)) {
+				this._wrappers.deleteAndDispose(existingId);
+			}
+		}
+
+		// Mirror the slot-replacement bookkeeping used elsewhere: prefer the
+		// active slot when it is non-sticky, otherwise the last non-sticky slot.
+		const activeId = activeWrapper?.sessionId;
+		this._mostRecentNonStickySlot = (activeId !== undefined && !this._isStickySlot(activeId))
+			? activeId
+			: lastNonStickySlot;
+
+		transaction(tsx => {
+			this._activeSession.set(activeWrapper, tsx);
+			this._refresh(tsx);
+		});
 	}
 
 	/**
@@ -290,8 +364,10 @@ export class VisibleSessions extends Disposable {
 	 * slot when toggled.
 	 * - If the session is not currently visible, it is appended at the end as
 	 *   sticky.
+	 *
+	 * Returns the session's stickiness state after the toggle.
 	 */
-	toggleStickiness(session: ISession): void {
+	toggleStickiness(session: ISession): boolean {
 		const id = session.sessionId;
 		if (!this._visibleList.includes(id)) {
 			this._stickyIds.add(id);
@@ -306,32 +382,53 @@ export class VisibleSessions extends Disposable {
 				this._mostRecentNonStickySlot = this._findLastNonSticky();
 			}
 		}
-		this._refresh();
+		this._refresh(undefined);
+		return this._stickyIds.has(id);
 	}
 
 	/**
 	 * Remove the given session ids from the visibility model and dispose their
-	 * wrappers. Clears the active observable if the active session is among
-	 * the removed ids. Observables are refreshed once if anything changed.
+	 * wrappers. Passing `undefined` removes the empty (new-session) slot if
+	 * present. If the active slot is among the removed entries, the active
+	 * observable falls back to the slot at the active's original position
+	 * (or the slot to its left if it was at the end of the grid); when no
+	 * visible slot remains, the active observable is cleared. Observables
+	 * are refreshed once if anything changed.
 	 */
-	removeMany(sessionIds: Iterable<string>): void {
-		let changed = false;
-		const activeId = this._activeSession.get()?.sessionId;
-		let activeRemoved = false;
-		for (const id of sessionIds) {
-			if (this._removeFromModel(id)) {
-				changed = true;
-				if (id === activeId) {
-					activeRemoved = true;
+	removeMany(sessionIds: Iterable<string | undefined>): void {
+		transaction((tsx) => {
+			let changed = false;
+			const activeId = this._activeSession.get()?.sessionId;
+			// activeSession.get() is undefined both when the empty slot is active
+			// and when no slot is active; disambiguate via the visible list.
+			const emptySlotIsActive = activeId === undefined && this._visibleList.includes(undefined);
+			const activeSlotId = emptySlotIsActive ? undefined : activeId;
+			const activeIdx = activeId !== undefined || emptySlotIsActive
+				? this._visibleList.indexOf(activeSlotId)
+				: -1;
+			let activeRemoved = false;
+			for (const id of sessionIds) {
+				if (this._removeFromModel(id)) {
+					changed = true;
+					if (id === undefined ? emptySlotIsActive : id === activeId) {
+						activeRemoved = true;
+					}
 				}
 			}
-		}
-		if (activeRemoved) {
-			this._activeSession.set(undefined, undefined);
-		}
-		if (changed) {
-			this._refresh();
-		}
+			if (activeRemoved) {
+				if (this._visibleList.length === 0) {
+					this._activeSession.set(undefined, tsx);
+				} else {
+					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, this._visibleList.length - 1));
+					const fallbackId = this._visibleList[fallbackIdx];
+					const fallbackWrapper = fallbackId !== undefined ? this._wrappers.get(fallbackId) : undefined;
+					this._activeSession.set(fallbackWrapper, tsx);
+				}
+			}
+			if (changed) {
+				this._refresh(tsx);
+			}
+		});
 	}
 
 	/**
@@ -362,11 +459,13 @@ export class VisibleSessions extends Disposable {
 			this._wrappers.deleteAndDispose(fromId);
 		}
 
-		const visibleSession = this._getOrCreateVisibleSession(updatedSession);
-		if (wasActive) {
-			this._activeSession.set(visibleSession, undefined);
-		}
-		this._refresh();
+		transaction((tsx) => {
+			const visibleSession = this._getOrCreateVisibleSession(updatedSession);
+			if (wasActive) {
+				this._activeSession.set(visibleSession, tsx);
+			}
+			this._refresh(tsx);
+		});
 	}
 
 	/**
@@ -413,7 +512,7 @@ export class VisibleSessions extends Disposable {
 
 	/** Re-publish the visible sessions and sticky ids observables. */
 	refresh(): void {
-		this._refresh();
+		this._refresh(undefined);
 	}
 
 	private _findLastNonSticky(): string | undefined | typeof NO_RECENT {
@@ -443,28 +542,28 @@ export class VisibleSessions extends Disposable {
 		return this._visibleList.includes(undefined) ? undefined : NO_RECENT;
 	}
 
-	private _removeFromModel(sessionId: string): boolean {
+	private _removeFromModel(sessionId: string | undefined): boolean {
 		let changed = false;
 		const idx = this._visibleList.indexOf(sessionId);
 		if (idx >= 0) {
 			this._visibleList.splice(idx, 1);
 			changed = true;
 		}
-		if (this._stickyIds.delete(sessionId)) {
+		if (sessionId !== undefined && this._stickyIds.delete(sessionId)) {
 			changed = true;
 		}
 		if (this._mostRecentNonStickySlot === sessionId) {
 			this._mostRecentNonStickySlot = this._findLastNonSticky();
 			changed = true;
 		}
-		if (this._wrappers.has(sessionId)) {
+		if (sessionId !== undefined && this._wrappers.has(sessionId)) {
 			this._wrappers.deleteAndDispose(sessionId);
 			changed = true;
 		}
 		return changed;
 	}
 
-	private _refresh(): void {
+	private _refresh(tsx: ITransaction | undefined): void {
 		const wrappers: (IActiveSession | undefined)[] = [];
 		for (const id of this._visibleList) {
 			if (id === undefined) {
@@ -477,7 +576,7 @@ export class VisibleSessions extends Disposable {
 				wrappers.push(visibleSession);
 			}
 		}
-		this._visibleSessions.set(wrappers, undefined);
+		this._visibleSessions.set(wrappers, tsx);
 	}
 
 	private _getOrCreateVisibleSession(session: ISession): VisibleSession {

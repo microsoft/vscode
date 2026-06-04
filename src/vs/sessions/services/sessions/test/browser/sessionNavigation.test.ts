@@ -86,7 +86,16 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
 	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
+	readonly onWillSendRequest = Event.None;
+	readonly onDidSendRequest = Event.None;
+	readonly onDidArchiveSession = Event.None;
+	readonly onDidUnarchiveSession = Event.None;
+	readonly onDidDeleteSession = Event.None;
+	readonly onDidDeleteChat = Event.None;
+	readonly onDidRenameChat = Event.None;
+	readonly onDidToggleSessionStickiness = Event.None;
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -159,17 +168,19 @@ class MockSessionStore implements ISessionsManagementService {
 			this.setActiveSession(session, chat);
 		}
 	}
-	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
+	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
+	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<void> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
 	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
-	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right'): void { throw new Error('not implemented'); }
-	closeSession(_session: ISession): void { throw new Error('not implemented'); }
+	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right', _activate?: boolean): void { throw new Error('not implemented'); }
+	closeSession(_session: ISession | undefined): void { throw new Error('not implemented'); }
+	closeAllSessions(): void { throw new Error('not implemented'); }
 	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }

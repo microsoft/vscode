@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -18,7 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -46,6 +46,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const sessions = sessionsManagementService.getSessions()
 			.filter(s => !s.isArchived.get())
@@ -102,6 +103,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 					sessionsManagementService.openSession(selected.session.resource);
 				} else {
 					sessionsManagementService.openNewSessionView();
+					sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 				}
 			}
 			picker.hide();
@@ -128,13 +130,13 @@ registerAction2(class GoBackAction extends Action2 {
 			precondition: CanGoBackContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
@@ -168,13 +170,13 @@ registerAction2(class GoForwardAction extends Action2 {
 			precondition: CanGoForwardContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus },
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
-				id: Menus.TitleBarLeftLayout,
+				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
@@ -192,6 +194,92 @@ registerAction2(class GoForwardAction extends Action2 {
 	}
 });
 
+// -- Focus Active Session --
+
+registerAction2(class FocusActiveSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.focusActiveSession',
+			title: localize2('focusActiveSession', "Focus Active Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				// Must outrank the workbench `workbench.action.chat.open` binding
+				// (WorkbenchContrib) so that in the sessions window the chord
+				// focuses the active session. Using the normal open chat action will not work for new session views.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
+	}
+});
+
+// -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
+
+for (let index = 0; index < 9; index++) {
+	const position = index + 1;
+	registerAction2(class FocusSessionByPositionAction extends Action2 {
+		constructor() {
+			super({
+				id: `sessions.focusSessionInGrid${position}`,
+				title: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
+				f1: true,
+				category: SessionsCategories.Sessions,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib + 1,
+					primary: KeyMod.CtrlCmd | (KeyCode.Digit1 + index),
+					when: IsSessionsWindowContext,
+				},
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsPartService = accessor.get(ISessionsPartService);
+
+			const visible = sessionsManagementService.visibleSessions.get();
+			if (index >= visible.length) {
+				return;
+			}
+
+			const session = visible[index];
+			sessionsManagementService.setActive(session);
+			sessionsPartService.focusSession(session);
+		}
+	});
+}
+
+// -- Close All Sessions --
+
+registerAction2(class CloseAllSessionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.closeAllSessions',
+			title: localize2('closeAllSessions', "Close All Sessions"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			precondition: IsSessionsWindowContext,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyW),
+				// Only fire from the keyboard while a session (its chat view) has focus.
+				when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsFocusContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(ISessionsManagementService).closeAllSessions();
+	}
+});
+
 registerAction2(class AddChatToSessionBarAction extends Action2 {
 	constructor() {
 		super({
@@ -199,8 +287,8 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			title: localize2('chatCompositeBar.addChat', "New Chat"),
 			icon: Codicon.add,
 			menu: {
-				id: Menus.SessionBarInlineToolbar,
-				when: SessionIsCreatedContext,
+				id: Menus.SessionBarToolbar,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 				group: 'navigation',
 				order: 10,
 			},
@@ -211,7 +299,10 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 		if (!session) {
 			return;
 		}
-		accessor.get(ISessionsManagementService).openNewChatInSession(session);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		await sessionsManagementService.openNewChatInSession(session);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 });
 
@@ -228,8 +319,9 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 			},
 			menu: {
 				id: Menus.SessionBarToolbar,
-				group: 'navigation',
+				group: '1_session',
 				order: 10,
+				when: SessionIsCreatedContext,
 			},
 		});
 	}
@@ -251,17 +343,18 @@ registerAction2(class CloseSessionAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
-				group: 'navigation',
+				group: '1_session',
 				order: 30,
 			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
-		accessor.get(ISessionsManagementService).closeSession(session);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+
+		sessionsManagementService.closeSession(session);
+		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 });
 
@@ -279,16 +372,14 @@ registerAction2(class ToggleMaximizeSessionViewAction extends Action2 {
 			menu: {
 				id: Menus.SessionBarToolbar,
 				when: MultipleSessionsVisibleContext,
-				group: 'navigation',
+				group: '1_session',
 				order: 20,
 			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, session: IActiveSession | undefined): Promise<void> {
-		if (!session) {
-			return;
-		}
 		accessor.get(ISessionsPartService).toggleMaximizeSession(session);
+		accessor.get(ISessionsManagementService).setActive(session);
 	}
 });

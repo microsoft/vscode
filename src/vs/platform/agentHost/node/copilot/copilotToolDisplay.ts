@@ -896,11 +896,21 @@ export function tryStringify(value: unknown): string | undefined {
 }
 
 /**
- * Extends the SDK's {@link PermissionRequest} with the known extra properties
- * that arrive on the index-signature. The SDK defines these as `[key: string]: unknown`
- * so this interface adds proper types for the fields we actually use.
+ * Loose, optional-field projection of the SDK's {@link PermissionRequest}
+ * discriminated union. Lets the rest of the agent host read the well-known
+ * fields without `switch (request.kind)` narrowing at every access site.
+ *
+ * The SDK's `PermissionRequest` (a union with required per-variant fields) is
+ * structurally assignable to this interface — every variant carries `kind`
+ * and `toolCallId?`, and the variant-specific fields are listed here as
+ * optional. Use this type at the agent-host boundary so call sites and tests
+ * can rely on a single shape.
  */
-export interface ITypedPermissionRequest extends PermissionRequest {
+export interface ITypedPermissionRequest {
+	/** Permission kind discriminator from the SDK. */
+	kind: PermissionRequest['kind'];
+	/** Tool call ID that triggered this permission request, when available. */
+	toolCallId?: string;
 	/** File path — set for `read` permission requests. */
 	path?: string;
 	/** File path — set for `write` permission requests. */
