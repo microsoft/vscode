@@ -69,6 +69,7 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
+import { IAuthenticationService } from '../../../lib/node/chatLibMain';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -99,8 +100,14 @@ export function isTodoToolExplicitlyEnabled(request: vscode.ChatRequest): boolea
  *
  * @internal - exported for testing
  */
-export function isBackgroundTodoAgentEnabled(configurationService: IConfigurationService, experimentationService: IExperimentationService, request: vscode.ChatRequest): boolean {
-	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
+export function isBackgroundTodoAgentEnabled(
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+	authenticationService: IAuthenticationService,
+	request: vscode.ChatRequest): boolean {
+	const token = authenticationService.copilotToken;
+	const isEnabledForToken = token !== undefined && !token.isFreeUser && !token.isNoAuthUser;
+	return isEnabledForToken && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
 		&& !isTodoToolExplicitlyEnabled(request);
 }
 
@@ -148,6 +155,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
+	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
+
 	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -222,7 +231,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
-	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, request)) {
+	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, authenticationService, request)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -290,6 +299,7 @@ export class AgentIntent extends EditCodeIntent {
 		@ICodeMapperService codeMapperService: ICodeMapperService,
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@IChatSessionService chatSessionService: IChatSessionService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAutomodeService private readonly _automodeService: IAutomodeService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -383,7 +393,7 @@ export class AgentIntent extends EditCodeIntent {
 			// Do NOT pass the request `token` as parentToken — it may be cancelled
 			// by the framework after the turn ends, which would immediately abort
 			// the background pass even on a normal completion.
-			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
+			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this._authenticationService, request)) {
 				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
 				const currentTurn = conversation.getLatestTurn();
 				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
@@ -567,6 +577,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -1376,7 +1387,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		this._backgroundTodoExecutionContext = executionContext;
 
 		const { decision, reason, delta } = processor.shouldRun({
-			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.authenticationService, this.request),
 			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
 			isAgentPrompt: this.prompt === AgentPrompt,
 			promptContext,
