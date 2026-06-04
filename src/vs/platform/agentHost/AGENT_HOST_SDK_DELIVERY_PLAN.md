@@ -11,9 +11,12 @@ user manually points a setting at a locally-downloaded SDK:
 We don't want to **bundle** the SDKs (each per-platform native package is ~190–210 MB).
 Instead we want to:
 
-1. Publish the SDK bundles as **regular VS Code assets** (ESRP-signed, served from the
-   PRSS CDN, listed on `builds.code.visualstudio.com`), with a download URL shaped like
-   `https://vscode.download.prss.microsoft.com/dbazure/download/insider/<commit>/<file>.gz`.
+1. Publish the SDK bundles as **regular VS Code CDN assets** (ESRP-released, served from the
+   PRSS CDN), with a download URL shaped like
+   `https://vscode.download.prss.microsoft.com/dbazure/download/insider/agent-host-sdks/<file>.zip`.
+   > Note: the final design publishes to a **version-keyed, commit-independent** path
+   > (`<quality>/agent-host-sdks/<file>`) and does **not** list the bundles on
+   > `builds.code.visualstudio.com` (no CosmosDB asset). See Resolved decisions 3–4.
 2. Pin a **specific SDK version per VS Code build** (baked into `product.json`); rebuild /
    re-upload the SDK bundle only when the pinned version changes (dedupe / no-op otherwise).
 3. Source the SDKs from the **approved npm mirror (Terrapin / Monaco feed)**, not raw npm.
@@ -350,3 +353,59 @@ release-only path of `publish.ts`) takes each per-target `.gz` and:
 - **Docs/tests**: reword setting descriptions to "developer override" (no longer required); unit
   tests for platform→key mapping, URL building, checksum-failure, override precedence, graceful
   no-op; e2e smoke in the build stage.
+
+## Implementation status (as shipped on `gcianci/agent-host-sdk-download`)
+
+Implemented and locally verified (type-checked + unit-tested where runnable). Items that touch
+ADO / ESRP cannot be exercised locally and are written to be **safe to dispatch**.
+
+### Deviations from the plan above (and why)
+
+- **Archive format is `.zip`, not `.gz`/`tar+gzip`.** The runtime reuses the existing
+  `src/vs/base/node/zip.ts` `extract()` (yauzl, already a runtime dependency) and the build uses
+  `yazl` (already a build devDependency). This adds **zero** new runtime dependencies and the
+  extractor preserves the Unix exec bit (`modeFromEntry`), so codex's native binary stays
+  executable. Asset names are `agent-host-sdk-<sdk>-<os>-<arch>-<version>.zip`.
+- **Bundle manifest decouples the runtime from upstream package layout.** Each bundle carries an
+  `agent-host-sdk.json` at its root: codex → `{ kind, version, exec }` (bundle-relative path to the
+  native `codex` executable that the host spawns directly); claude → `{ kind, version, packageRoot }`
+  (bundle-relative path to the package root the host `import()`s). The runtime reads only the
+  manifest, so it never hard-codes `@openai/codex-<triple>/vendor/.../codex` internals.
+- **Pipeline stage is default-OFF.** The `AgentHostSdks` stage is gated by a new
+  `VSCODE_BUILD_AGENT_HOST_SDKS` parameter (default `false`) and `dependsOn: []`. A normal pipeline
+  dispatch never runs it, and even when enabled the ESRP publish step is further gated on
+  `VSCODE_PUBLISH`/`VSCODE_RELEASE` — so it cannot fail an ordinary build.
+
+### File map
+
+- **Runtime** — `src/vs/platform/agentHost/node/agentHostSdkDownloader.ts`
+  (`AgentHostSdkDownloader.resolve(sdk) → Promise<string|undefined>`): fail-soft, in-process
+  dedupe, sha256 verify, atomic cache at `<userDataPath>/agentHostSdks/<sdk>/<version>/` with a
+  `.complete` marker + sibling prune, manifest-based entry resolution, alpine/linux/win platform
+  mapping. Wired as the final fallback in `nodeAgentHostStarter.ts` /
+  `electron-main/electronAgentHostStarter.ts` (`setting || env || resolve()`), so the dev-override
+  settings always win. Unit tests in `test/node/agentHostSdkDownloader.test.ts` (7, passing).
+- **Types/pin** — `IAgentHostSdk(s)`/`IAgentHostSdkAsset` + `agentHostSdks?` in
+  `src/vs/base/common/product.ts`; `agentHostSdks` section in `product.json` (versions pinned,
+  `platforms` filled in by CI on first publish). `@openai/codex` pinned exact `0.134.0`.
+- **Build tooling** — `build/lib/agentHostSdks.ts` (per-target fetch via `npm install
+  --os/--cpu/--libc`, light strip, deterministic `yazl` zip + manifest + sha256, native
+  magic/arch validation, offline version-equality guardrail) and
+  `build/npm/update-agent-host-sdks.ts` (maintainer writer + `--check` verifier; `--versions-only`
+  for the cheap offline gate). npm scripts: `update-agent-host-sdks`, `check-agent-host-sdks`,
+  `check-agent-host-sdks-versions` (the last runs in the quality-checks job).
+- **Publish/pipeline** — `build/azure-pipelines/common/publish-agent-host-sdks.ts` (ESRP release to
+  the commit-independent `<quality>/agent-host-sdks/<file>` path, HTTP-200 dedupe, no CosmosDB;
+  reuses `ESRPReleaseService`/`withLease` now exported from `publish.ts`) and
+  `build/azure-pipelines/product-agent-host-sdks.yml` (the default-OFF stage), wired into
+  `product-build.yml`.
+
+### Needs human review before first real publish
+
+- ESRP service-connection / key-vault / pool names in `product-agent-host-sdks.yml` are mirrored
+  from the publish + Copilot templates but cannot be validated locally.
+- The first `npm run update-agent-host-sdks` (run on a machine/CI with mirror access) populates the
+  per-platform `{file, sha256}` map in `product.json`; until then `platforms` is intentionally
+  empty and the runtime simply no-ops (graceful degradation).
+- The codex native executable's exact in-bundle path is layout-dependent; `findCodexExecutable`
+  globs for `codex`/`codex.exe`. Confirm against the first real fetched package.
