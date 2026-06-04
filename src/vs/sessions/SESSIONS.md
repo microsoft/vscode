@@ -225,7 +225,7 @@ Providers may fire `onDidReplaceSession` when a temporary (untitled) session is 
    registerWorkbenchContribution2(MyProviderContribution.ID, MyProviderContribution, WorkbenchPhase.AfterRestored);
    ```
 5. Use `toSessionId(providerId, resource)` for session IDs
-6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` on untitled→committed transitions
+6. Fire `onDidChangeSessions` on every session change and `onDidReplaceSession` from the provider on untitled→committed transitions
 7. Set `supportsLocalWorkspaces: true` if the provider can resolve local file-system workspaces
 
 ---
