@@ -250,13 +250,11 @@ suite('AgentHostGitService', () => {
 					diff: { added: 5, removed: 2 },
 				},
 				{
-					before: undefined,
 					after: { uri: 'file:///repo/added.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
 					diff: { added: 10, removed: 0 },
 				},
 				{
 					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts') } },
-					after: undefined,
 					diff: { added: 0, removed: 7 },
 				},
 				{

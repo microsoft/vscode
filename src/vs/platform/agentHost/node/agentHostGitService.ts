@@ -770,7 +770,11 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 			removed: stats?.removed ?? 0
 		};
 
-		return { before, after, diff };
+		return {
+			...(before ? { before } : {}),
+			...(after ? { after } : {}),
+			diff
+		};
 	});
 }
 
