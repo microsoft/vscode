@@ -149,6 +149,10 @@ Editors open as modal overlays rather than occupying grid space. The configurati
 | Editor opens (no explicit group) | Opens in modal overlay |
 | All editors closed / Escape / backdrop click | Modal closes and is disposed |
 
+When the editor part is shown in the grid (not as a modal), its title toolbar hosts layout actions registered in `contrib/editor/browser/editor.contribution.ts`: open in modal editor, maximize / restore editor area, close editor area, and a **chevron** toggle (right of the tabs, `MenuId.EditorTitleLayout`) that expands the editor by collapsing the auxiliary bar: when the auxiliary bar (secondary side bar) is visible a `chevron-right` **Push Editor Right** hides it; once hidden the same slot shows a `chevron-left` **Show Secondary Side Bar** that brings it back. `AuxiliaryBarVisibleContext` drives the flip.
+
+The auxiliary-bar invariant (§10) is only enforced when the editor part *becomes* visible, so this toggle can collapse the side part while the editor stays open.
+
 The main editor part can be explicitly revealed for workflows that target it directly.
 
 ---
