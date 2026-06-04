@@ -554,8 +554,8 @@ export class ClaudeAgentSession extends Disposable {
 			return;
 		}
 		const contentBlocks = resolvePromptToContentBlocks(
-			steeringMessage.userMessage.text,
-			steeringMessage.userMessage.attachments,
+			steeringMessage.message.text,
+			steeringMessage.message.attachments,
 		);
 		const sdkMessage: SDKUserMessage = {
 			type: 'user',

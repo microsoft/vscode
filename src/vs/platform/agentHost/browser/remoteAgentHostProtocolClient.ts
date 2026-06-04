@@ -19,6 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
@@ -31,6 +32,7 @@ import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
@@ -826,6 +828,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		await this._sendRequest('disposeTerminal', { channel: terminal.toString() });
 	}
 
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return await this._sendRequest('invokeChangesetOperation', params);
+	}
+
 	/**
 	 * List all sessions from the remote agent host.
 	 */
@@ -921,6 +927,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async resourceMove(params: CommandMap['resourceMove']['params']): Promise<CommandMap['resourceMove']['result']> {
 		return this._sendRequest('resourceMove', params);
+	}
+
+	async resourceResolve(params: CommandMap['resourceResolve']['params']): Promise<CommandMap['resourceResolve']['result']> {
+		return this._sendRequest('resourceResolve', params);
+	}
+
+	async resourceMkdir(params: CommandMap['resourceMkdir']['params']): Promise<CommandMap['resourceMkdir']['result']> {
+		return this._sendRequest('resourceMkdir', params);
+	}
+
+	async createResourceWatch(params: CommandMap['createResourceWatch']['params']): Promise<CommandMap['createResourceWatch']['result']> {
+		return this._sendRequest('createResourceWatch', params);
+	}
+
+	/**
+	 * Convenience wrapper used by {@link AHPFileSystemProvider.watch}:
+	 * runs `createResourceWatch` + `subscribe` and returns a handle that
+	 * surfaces `resourceWatch/changed` envelopes as
+	 * {@link IFileChange}[] events. Disposing the handle unsubscribes
+	 * the watch channel.
+	 */
+	watchResource(params: CommandMap['createResourceWatch']['params']): Promise<IRemoteWatchHandle> {
+		return createRemoteWatchHandle({
+			createResourceWatch: p => this.createResourceWatch(p),
+			subscribe: uri => this.subscribe(uri),
+			unsubscribe: uri => this.unsubscribe(uri),
+			onDidAction: this.onDidAction,
+		}, params);
 	}
 
 	/**
@@ -1192,6 +1226,59 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 						}
 					});
 				return;
+			}
+			case 'resourceResolve': {
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				const resolveUri = URI.parse(p.uri as string);
+				return void gateAndHandle(resolveUri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: resolveUri.toString(), read: true }, async () => {
+					const stat = await this._fileService.stat(resolveUri);
+					const type = stat.isSymbolicLink && p.followSymlinks === false ? 'symlink' as const
+						: stat.isDirectory ? 'directory' as const
+							: 'file' as const;
+					return {
+						uri: resolveUri.toString(),
+						type,
+						...(stat.size !== undefined ? { size: stat.size } : {}),
+						...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+						...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+						...(stat.etag ? { etag: stat.etag } : {}),
+					};
+				});
+			}
+			case 'resourceMkdir': {
+				if (!p.uri) { sendError(new Error('Missing uri')); return; }
+				const mkdirUri = URI.parse(p.uri as string);
+				return void gateAndHandle(mkdirUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: mkdirUri.toString(), write: true }, async () => {
+					await this._fileService.createFolder(mkdirUri);
+					return {};
+				});
+			}
+			case 'resourceCopy': {
+				if (!p.source) { sendError(new Error('Missing source')); return; }
+				if (!p.destination) { sendError(new Error('Missing destination')); return; }
+				const sourceUri = URI.parse(p.source as string);
+				const destinationUri = URI.parse(p.destination as string);
+				return void (async () => {
+					try {
+						// Gate both source (read) and destination (write).
+						const [sourceOk, destOk] = await Promise.all([
+							this._permissionService.check(this._address, sourceUri, AgentHostPermissionMode.Read),
+							this._permissionService.check(this._address, destinationUri, AgentHostPermissionMode.Write),
+						]);
+						if (!sourceOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: sourceUri.toString(), read: true });
+							return;
+						}
+						if (!destOk) {
+							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: destinationUri.toString(), write: true });
+							return;
+						}
+						await this._fileService.copy(sourceUri, destinationUri, !p.failIfExists);
+						sendResult({});
+					} catch (err) {
+						sendError(err);
+					}
+				})();
 			}
 			default:
 				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);

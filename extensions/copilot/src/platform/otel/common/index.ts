@@ -11,5 +11,6 @@ export { collectSystemTextsFromRequestBody, extractTextFromContent, normalizePro
 export { NoopOTelService } from './noopOtelService';
 export { resolveOTelConfig, DEFAULT_OTLP_ENDPOINT, type OTelConfig, type OTelConfigInput } from './otelConfig';
 export { IOTelService, SpanKind, SpanStatusCode, type ICompletedSpanData, type ISpanEventData, type ISpanEventRecord, type ISpanHandle, type OTelModelOptions, type SpanOptions, type TraceContext } from './otelService';
+export { normalizeResponseModel } from './responseModel';
 export { resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes, type WorkspaceOTelMetadata } from './workspaceOTelMetadata';
 

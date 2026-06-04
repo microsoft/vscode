@@ -499,6 +499,20 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'chatSessionsProvider'
 	},
 	{
+		key: 'chatSessions/item/context',
+		id: MenuId.SessionItemContextMenu,
+		description: localize('menus.chatSessionsItemContext', "The context menu for items in the Sessions window's session list."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
+		key: 'chatSessions/header/context',
+		id: MenuId.SessionHeaderContext,
+		description: localize('menus.chatSessionsHeaderContext', "The context menu for the session header in the Sessions window."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider'
+	},
+	{
 		key: 'chatSessions/newSession',
 		id: MenuId.AgentSessionsCreateSubMenu,
 		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),

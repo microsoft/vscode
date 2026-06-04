@@ -183,6 +183,19 @@
 	overflow: hidden;
 }
 
+/*
+ * When the secondary side bar (auxiliary bar) is hidden, the editor becomes the
+ * rightmost card and takes over the space the auxiliary bar used to occupy. The
+ * 10px workbench gutter on the right edge (see Workbench.layout) already provides
+ * the outer margin, so we only need to restore the right border and the right
+ * corner radii so the editor still looks like a card.
+ */
+.agent-sessions-workbench.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-right-width: 1px;
+	border-top-right-radius: 8px;
+	border-bottom-right-radius: 8px;
+}
+
 .agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
 	box-shadow: none;
 }
@@ -474,20 +487,26 @@
 	background: transparent !important;
 }
 
-/* Constrain content items to the same max-width, centered */
-.agent-sessions-workbench .interactive-session .interactive-item-container {
+/* Constrain content items to the same max-width, centered.
+ * Scoped to the chat panel (`.part.sessionspart`) and the chat editor host
+ * (`.chat-editor-relative`) so the "card style" doesn't leak into other chat
+ * surfaces that reuse `.interactive-item-container` — notably the terminal
+ * and editor inline chat widgets and the agent-session hover widget. */
+.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container,
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 12px !important;
-	padding-right: 12px !important;
+	padding-left: 12px;
+	padding-right: 12px;
 	box-sizing: border-box;
 }
 
-.agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
+.agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
+.agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 12px !important;
-	padding-right: 12px !important;
+	padding-left: 12px;
+	padding-right: 12px;
 	box-sizing: border-box;
 }
 
@@ -542,13 +561,17 @@
 	background-color: transparent !important;
 }
 
-.agent-sessions-workbench .interactive-session .interactive-input-part {
+/* Scoped to the chat panel (`.part.sessionspart`) and the chat editor host
+ * (`.chat-editor-relative`) to avoid leaking into other chat surfaces such as
+ * the inline chat widgets and agent-session hover widget. */
+.agent-sessions-workbench .part.sessionspart .interactive-session .interactive-input-part,
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: 950px;
-	margin: 0 auto !important;
-	display: inherit !important;
+	margin: 0 auto;
+	display: inherit;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 10px !important;
+	padding: 4px 10px;
 	box-sizing: border-box;
 }
 

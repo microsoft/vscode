@@ -21,8 +21,10 @@ import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/bro
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
@@ -51,6 +53,13 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	private _authenticationSettled = false;
 
 	private readonly _protocolClient: RemoteAgentHostProtocolClient | undefined;
+	private readonly _noopRootState: IAgentSubscription<RootState> = {
+		value: undefined,
+		verifiedValue: undefined,
+		onDidChange: Event.None,
+		onWillApplyAction: Event.None,
+		onDidApplyAction: Event.None,
+	};
 	private _connectStarted = false;
 
 	constructor(
@@ -145,7 +154,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	}
 
 	get rootState(): IAgentSubscription<RootState> {
-		return this._requireClient().rootState;
+		return this._protocolClient?.rootState ?? this._noopRootState;
 	}
 
 	get onDidNotification(): Event<INotification> {
@@ -208,6 +217,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeTerminal(terminal);
 	}
 
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._requireClient().invokeChangesetOperation(params);
+	}
+
 	resourceList(uri: URI): Promise<ResourceListResult> {
 		return this._requireClient().resourceList(uri);
 	}
@@ -230,5 +243,21 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._requireClient().resourceMove(params);
+	}
+
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		return this._requireClient().resourceResolve(params);
+	}
+
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		return this._requireClient().resourceMkdir(params);
+	}
+
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return this._requireClient().createResourceWatch(params);
+	}
+
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> {
+		return this._requireClient().watchResource(params);
 	}
 }

@@ -29,6 +29,13 @@ export type RecentlyViewedDocumentsOptions = {
 	readonly includeViewedFiles: boolean;
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly clippingStrategy: RecentFileClippingStrategy;
+	/**
+	 * When clipping a file around its focal range, the budget is split evenly
+	 * between the lines above and below the focal range. When `true`, any budget
+	 * left unused by the lines above the focal range is donated to the lines
+	 * below it instead of being discarded.
+	 */
+	readonly useLeftoverBudgetFromAbove: boolean;
 };
 
 export namespace RecentlyViewedDocumentsOptions {
@@ -38,6 +45,7 @@ export namespace RecentlyViewedDocumentsOptions {
 		'includeViewedFiles': vBoolean(),
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
 		'clippingStrategy': vEnum(RecentFileClippingStrategy.AroundEditRange, RecentFileClippingStrategy.Proportional),
+		'useLeftoverBudgetFromAbove': vBoolean(),
 	});
 }
 
@@ -133,6 +141,13 @@ export type CurrentFileOptions = {
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly includeCursorTag: boolean;
 	readonly prioritizeAboveCursor: boolean;
+	/**
+	 * When clipping the current file, the budget is split evenly between the
+	 * lines above and below the cursor (only when `prioritizeAboveCursor` is
+	 * `false`). When `true`, any budget left unused by the lines above the cursor
+	 * is donated to the lines below it instead of being discarded.
+	 */
+	readonly useLeftoverBudgetFromAbove: boolean;
 };
 
 export namespace CurrentFileOptions {
@@ -142,6 +157,7 @@ export namespace CurrentFileOptions {
 		'includeLineNumbers': vEnum(IncludeLineNumbersOption.WithSpaceAfter, IncludeLineNumbersOption.WithoutSpace, IncludeLineNumbersOption.None),
 		'includeCursorTag': vBoolean(),
 		'prioritizeAboveCursor': vBoolean(),
+		'useLeftoverBudgetFromAbove': vBoolean(),
 	});
 }
 
@@ -343,6 +359,10 @@ export enum PromptingStrategy {
 	PatchBased = 'patchBased',
 	PatchBased01 = 'patchBased01',
 	PatchBased02 = 'patchBased02',
+	/** PatchBased02 variant: line numbers on recent docs. */
+	PatchBased02WithRecentLineNumbers = 'patchBased02WithRecentLineNumbers',
+	/** PatchBased02 variant: no line numbers on recent docs. */
+	PatchBased02WithoutRecentLineNumbers = 'patchBased02WithoutRecentLineNumbers',
 	/**
 	 * Xtab275-based strategy with edit intent tag parsing.
 	 * Response format: <|edit_intent|>low|medium|high|no_edit<|/edit_intent|>
@@ -393,6 +413,8 @@ export namespace ResponseFormat {
 			case PromptingStrategy.PatchBased:
 			case PromptingStrategy.PatchBased01:
 			case PromptingStrategy.PatchBased02:
+			case PromptingStrategy.PatchBased02WithRecentLineNumbers:
+			case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 				return ResponseFormat.CustomDiffPatch;
 			case PromptingStrategy.Xtab275EditIntent:
 				return ResponseFormat.EditWindowWithEditIntent;
@@ -416,6 +438,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		includeCursorTag: false,
 		prioritizeAboveCursor: false,
+		useLeftoverBudgetFromAbove: false,
 	},
 	pagedClipping: {
 		pageSize: 10,
@@ -426,6 +449,7 @@ export const DEFAULT_OPTIONS: PromptOptions = {
 		includeViewedFiles: false,
 		includeLineNumbers: IncludeLineNumbersOption.None,
 		clippingStrategy: RecentFileClippingStrategy.AroundEditRange,
+		useLeftoverBudgetFromAbove: false,
 	},
 	languageContext: {
 		enabled: false,
@@ -471,6 +495,50 @@ export interface ModelConfiguration {
 	recentlyViewedDocuments?: Partial<RecentlyViewedDocumentsOptions>;
 	lintOptions: Partial<LintOptions> | undefined;
 	supportsNextCursorLinePrediction?: boolean;
+}
+
+/**
+ * Per-strategy configuration baked into the strategy itself. When a strategy
+ * declares values here, those values override anything provided by the upstream
+ * model configuration. A strategy without an entry contributes no overrides.
+ */
+const STRATEGY_CONFIG: Partial<Record<PromptingStrategy, Partial<ModelConfiguration>>> = {
+	// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard-code it for CopilotNesXtab
+	[PromptingStrategy.CopilotNesXtab]: {
+		includeTagsInCurrentFile: true,
+	},
+	[PromptingStrategy.PatchBased02WithRecentLineNumbers]: {
+		includeTagsInCurrentFile: false,
+		includePostScript: true,
+		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		supportsNextCursorLinePrediction: false,
+	},
+	[PromptingStrategy.PatchBased02WithoutRecentLineNumbers]: {
+		includeTagsInCurrentFile: false,
+		includePostScript: true,
+		currentFile: { includeLineNumbers: IncludeLineNumbersOption.WithoutSpace },
+		recentlyViewedDocuments: { includeLineNumbers: IncludeLineNumbersOption.None },
+		supportsNextCursorLinePrediction: false,
+	},
+};
+
+/** Apply per-strategy baked-in config; strategy values override `config`. */
+export function applyStrategyConfig(config: ModelConfiguration): ModelConfiguration {
+	const overrides = config.promptingStrategy === undefined ? undefined : STRATEGY_CONFIG[config.promptingStrategy];
+	if (!overrides) {
+		return config;
+	}
+	const hasCurrentFile = config.currentFile !== undefined || overrides.currentFile !== undefined;
+	const hasRecentlyViewed = config.recentlyViewedDocuments !== undefined || overrides.recentlyViewedDocuments !== undefined;
+	const hasLintOptions = config.lintOptions !== undefined || overrides.lintOptions !== undefined;
+	return {
+		...config,
+		...overrides,
+		currentFile: hasCurrentFile ? { ...config.currentFile, ...overrides.currentFile } : undefined,
+		recentlyViewedDocuments: hasRecentlyViewed ? { ...config.recentlyViewedDocuments, ...overrides.recentlyViewedDocuments } : undefined,
+		lintOptions: hasLintOptions ? { ...config.lintOptions, ...overrides.lintOptions } : undefined,
+	};
 }
 
 export const LINT_OPTIONS_VALIDATOR: IValidator<Partial<LintOptions>> = vObj({

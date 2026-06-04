@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -19,8 +20,9 @@ import { IChatSessionsService, localChatSessionType } from '../../../../workbenc
 import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
-import { NewChatWidget } from './newChatViewPane.js';
-import { NewChatInSessionWidget } from './newChatInSessionViewPane.js';
+import { NewChatWidget } from './newChatWidget.js';
+import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
+import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsPanelBackground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../common/theme.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
@@ -66,6 +68,18 @@ export class NewChatView extends AbstractChatView {
 			this._widget.selectWorkspace(folderUri, providerId);
 		}
 	}
+
+	override prefillInput(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.prefillInput(text);
+		}
+	}
+
+	override sendQuery(text: string): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.sendQuery(text);
+		}
+	}
 }
 
 /**
@@ -88,6 +102,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
@@ -97,6 +112,7 @@ export class ChatView extends AbstractChatView {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -130,6 +146,12 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.render(this.element);
 		this._widget.setVisible(true);
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
+				this._applyHistoryKey();
+			}
+		}));
 	}
 
 	private _buildStyles(active: boolean) {
@@ -147,8 +169,10 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
-	override setChat(chat: IChat): void {
+	override setChat(chat: IChat, historyKey?: string): void {
 		const resource = chat.resource;
+		this._historyKey = historyKey;
+		this._applyHistoryKey();
 
 		// Skip loading if we're already showing this chat
 		if (isEqual(this._currentChatResource, resource)) {
@@ -162,7 +186,7 @@ export class ChatView extends AbstractChatView {
 		this._loadCts.value = cts;
 		const token = cts.token;
 
-		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
+		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
 			if (token.isCancellationRequested || !ref) {
 				ref?.dispose();
 				return;
@@ -178,6 +202,16 @@ export class ChatView extends AbstractChatView {
 				this._currentChatResource = undefined;
 			}
 		});
+
+		// Surface progress on this leaf's own bar while the chat model loads,
+		// matching how each editor group shows progress independently. The short
+		// delay avoids flashing the bar for fast cached loads.
+		this.showProgressWhile(loadPromise, 800);
+	}
+
+	private _applyHistoryKey(): void {
+		const scopedHistory = this.configurationService.getValue<boolean>(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING) !== false;
+		this._widget.inputPart.setHistoryKey(scopedHistory ? this._historyKey : undefined);
 	}
 
 	private _updateWidgetLockState(sessionType: string): void {
