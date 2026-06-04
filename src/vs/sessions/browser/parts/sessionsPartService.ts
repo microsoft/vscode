@@ -31,13 +31,6 @@ export interface ISessionsPartService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Wires the part to the {@link ISessionsManagementService} so that changes to
-	 * the active session are reflected in the UI. Must be called after the part
-	 * has been added to the DOM via {@link SessionsPart.create}.
-	 */
-	init(): void;
-
-	/**
 	 * Toggles the maximized state of the session view hosting the given session
 	 * in the sessions part's grid.
 	 */
@@ -86,9 +79,16 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
+	/**
+	 * Session id (or `undefined` for the new-session slot) that focus was last
+	 * moved into in response to an active-session change. Tracks the active id
+	 * so unrelated visibility updates don't re-focus and steal focus.
+	 */
+	private _focusedActiveSessionId: string | undefined;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService
 	) {
 		super();
 
@@ -96,25 +96,33 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		const isPhoneLayout = width < 640;
 
 		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
-	}
 
-	init(): void {
-		// Reflect changes to the visible-sessions model in the grid. Active session
-		// is read from the same autorun so the part can mark the active slot in a
-		// single reconciliation pass.
 		this._register(autorun(reader => {
-			const visible = this.sessionsManagementService.visibleSessions.read(reader);
-			const active = this.sessionsManagementService.activeSession.read(reader);
+			const visible = sessionsManagementService.visibleSessions.read(reader);
+			const active = sessionsManagementService.activeSession.read(reader);
 			this._mainPart.updateVisibleSessions(visible, active);
+
+			// Move keyboard focus into the active session whenever it changes
+			// (e.g. after opening, switching to, or restoring a session) so the
+			// user can start typing immediately. This is done after the grid has
+			// reconciled above so the target slot exists. The focus is guarded so
+			// a session the user is already interacting with is never re-focused
+			// (which would steal focus from the clicked element), and the id check
+			// ensures unrelated visibility updates do not move focus.
+			const activeId = active?.sessionId;
+			if (activeId !== this._focusedActiveSessionId) {
+				this._focusedActiveSessionId = activeId;
+				this._mainPart.focusSession(activeId);
+			}
 		}));
 
 		// When a session view in the grid receives focus, promote that session to
 		// the active session. The id is guaranteed to correspond to a session in
 		// the visibility model (the part only fires for non-placeholder slots).
 		this._register(this._mainPart.onDidFocusSession(sessionId => {
-			const session = this.sessionsManagementService.visibleSessions.get().find(s => s?.sessionId === sessionId);
+			const session = sessionsManagementService.visibleSessions.get().find(s => s?.sessionId === sessionId);
 			if (session) {
-				this.sessionsManagementService.setActive(session);
+				sessionsManagementService.setActive(session);
 			}
 		}));
 	}
@@ -131,7 +139,7 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 	}
 
 	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.getSessionView(session?.sessionId)?.focus();
+		this._mainPart.focusSession(session?.sessionId);
 	}
 
 	getSessionView(sessionId: string | undefined): SessionView | undefined {

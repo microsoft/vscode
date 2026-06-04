@@ -17,7 +17,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import type { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
-const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
+export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 
 class BrowserEditorStorageScopeContribution extends BrowserEditorContribution {
 	private readonly _storageScopeContext: IContextKey<string>;
@@ -53,7 +53,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -78,7 +78,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
@@ -104,7 +104,7 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
+				group: BrowserActionGroup.Data,
 				order: 20,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
 			}
