@@ -199,10 +199,18 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
+				const models = this._resolvedModelInfos ?? [];
+				if (!models.length) {
+					return models;
+				}
+
 				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				let models = this._resolvedModelInfos ?? [];
-				if (autoModelEnabled) {
-					models = [buildAutoModel()].concat(models);
+				const hasAutoModel = models.some(model => model.id === 'auto');
+				if (!autoModelEnabled) {
+					return hasAutoModel ? models.filter(model => model.id !== 'auto') : models;
+				}
+				if (!hasAutoModel) {
+					return [buildAutoModel()].concat(models);
 				}
 				return models;
 			},
@@ -254,7 +262,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				tooltip
 			};
 		});
-		if (isAutoModelEnabled) {
+		if (isAutoModelEnabled && modelsInfo.length > 0) {
 			modelsInfo.unshift(buildAutoModel(models[0]));
 		}
 		return modelsInfo;
