@@ -22,7 +22,7 @@
 	margin-top: 4px;
 	border-radius: 6px;
 	min-height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold, 500);
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	cursor: pointer;
 	user-select: none;
 }
