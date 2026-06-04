@@ -16,9 +16,11 @@ import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMa
 import { ILogService } from '../../log/common/log.js';
 import { Schemas } from '../../../base/common/network.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import product from '../../product/common/product.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostSdkDownloader } from '../node/agentHostSdkDownloader.js';
 import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHost.config.contribution.js';
@@ -34,6 +36,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 	private readonly _onWillShutdown = this._register(new Emitter<void>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
+	private readonly _sdkDownloader: AgentHostSdkDownloader;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
@@ -41,6 +45,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._sdkDownloader = new AgentHostSdkDownloader(product, this._environmentMainService.userDataPath, this._logService);
 
 		this._register(this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire()));
 
@@ -70,16 +76,20 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// The Claude agent is opt-in: enabled when the user points the SDK path
 		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
 		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
+		// override). Otherwise, in released builds, the SDK is fetched on demand
+		// from the download CDN (returns `undefined` in OSS/dev or on failure).
 		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
 			|| process.env[AgentHostClaudeSdkPathEnvVar]
+			|| await this._sdkDownloader.resolve('claude')
 			|| '';
 
 		// Codex agent is opt-in: enabled when the user points the binary-path
 		// setting at a locally-installed `codex` CLI, or when the env var is
-		// already set on the parent process (developer override).
+		// already set on the parent process (developer override). Otherwise the
+		// SDK is fetched on demand from the download CDN.
 		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
 			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
+			|| await this._sdkDownloader.resolve('codex')
 			|| '';
 		const codexHome = this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId) || '';
 		const codexArgs = this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId);

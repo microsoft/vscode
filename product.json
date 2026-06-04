@@ -35,6 +35,16 @@
 	"urlProtocol": "code-oss",
 	"agentsTelemetryAppName": "agents",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
+	"agentHostSdks": {
+		"codex": {
+			"version": "0.134.0",
+			"platforms": {}
+		},
+		"claude": {
+			"version": "0.2.128",
+			"platforms": {}
+		}
+	},
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",

@@ -14,6 +14,39 @@ export interface IBuiltInExtension {
 	readonly metadata: unknown;
 }
 
+/**
+ * Pinned, per-platform delivery metadata for a single agent host SDK
+ * (e.g. the Codex or Claude agent harness). The native SDK packages are too
+ * large to bundle, so they are published as version-keyed assets on the
+ * download CDN and fetched on demand at runtime. See
+ * `src/vs/platform/agentHost/AGENT_HOST_SDK_DELIVERY_PLAN.md`.
+ */
+export interface IAgentHostSdk {
+	/** Exact (non-range) version of the SDK this build was compiled against. */
+	readonly version: string;
+	/**
+	 * Per-platform asset descriptors keyed by {@link TargetPlatform} string
+	 * (e.g. `darwin-arm64`, `linux-x64`, `alpine-x64`, `win32-arm64`). The
+	 * runtime selects the entry matching the current platform/arch.
+	 */
+	readonly platforms: IStringDictionary<IAgentHostSdkAsset>;
+}
+
+export interface IAgentHostSdkAsset {
+	/**
+	 * Version-keyed, commit-independent file name published under
+	 * `${downloadUrl}/${quality}/agent-host-sdks/${file}`.
+	 */
+	readonly file: string;
+	/** Hex-encoded sha256 of the published `.gz`, verified after download. */
+	readonly sha256: string;
+}
+
+export interface IAgentHostSdks {
+	readonly codex?: IAgentHostSdk;
+	readonly claude?: IAgentHostSdk;
+}
+
 export interface IProductWalkthrough {
 	id: string;
 	steps: IProductWalkthroughStep[];
@@ -91,6 +124,13 @@ export interface IProductConfiguration {
 	readonly builtInExtensions?: IBuiltInExtension[];
 	readonly walkthroughMetadata?: IProductWalkthrough[];
 	readonly featuredExtensions?: IFeaturedExtension[];
+
+	/**
+	 * On-demand delivery metadata for the agent host SDKs (Codex / Claude).
+	 * Absent in OSS/dev builds — when absent (or when {@link downloadUrl} is
+	 * unset) the runtime falls back to the developer override settings only.
+	 */
+	readonly agentHostSdks?: IAgentHostSdks;
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;

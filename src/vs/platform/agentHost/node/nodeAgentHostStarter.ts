@@ -12,7 +12,9 @@ import { IEnvironmentService, INativeEnvironmentService } from '../../environmen
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import product from '../../product/common/product.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
+import { AgentHostSdkDownloader } from './agentHostSdkDownloader.js';
 import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
@@ -42,12 +44,15 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 	private readonly _onRequestConnection = this._register(new Emitter<void>());
 	readonly onRequestConnection = this._onRequestConnection.event;
 
+	private readonly _sdkDownloader: AgentHostSdkDownloader;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._sdkDownloader = new AgentHostSdkDownloader(product, this._environmentService.userDataPath, this._logService);
 	}
 
 	/**
@@ -78,18 +83,21 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		// The Claude agent is opt-in: enabled when the user points the SDK path
 		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
 		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
+		// override). Otherwise, in released builds, the SDK is fetched on demand
+		// from the download CDN (returns `undefined` in OSS/dev or on failure).
 		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
 			|| process.env[AgentHostClaudeSdkPathEnvVar]
+			|| await this._sdkDownloader.resolve('claude')
 			|| '';
 		if (claudeSdkPath) {
 			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
 		}
 
 		// Codex agent is opt-in via `chat.agentHost.codexAgent.path`. Mirrors the
-		// Claude opt-in pattern above.
+		// Claude opt-in pattern above, including on-demand SDK download.
 		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
 			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
+			|| await this._sdkDownloader.resolve('codex')
 			|| '';
 		if (codexBinaryPath) {
 			env[AgentHostCodexAgentBinaryPathEnvVar] = codexBinaryPath;
