@@ -459,9 +459,9 @@ function renderForm(
 	// passes the captured value through {@link ISessionsProvider.setMode}.
 	// Providers that don't support setting a mode silently ignore it.
 	const MODES: readonly { readonly value: string; readonly label: string }[] = [
-		{ value: ChatModeKind.Agent, label: localize('automation.mode.agent', "Agent") },
-		{ value: ChatModeKind.Ask, label: localize('automation.mode.ask', "Ask") },
-		{ value: ChatModeKind.Edit, label: localize('automation.mode.edit', "Edit") },
+		{ value: ChatModeKind.Agent, label: localize('automation.mode.agent', "Agent Mode") },
+		{ value: ChatModeKind.Ask, label: localize('automation.mode.ask', "Ask Mode") },
+		{ value: ChatModeKind.Edit, label: localize('automation.mode.edit', "Edit Mode") },
 	];
 	const modeRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(modeRow, $('label.automation-form-label', { for: 'automation-mode' }, localize('automation.form.mode', "Mode")));
