@@ -1,0 +1,31 @@
+:root {
+	--accent: #3994bc;
+	--bg: #121314;
+	--fg: #bbbebf;
+}
+
+.theme-test {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	background-color: var(--bg);
+	color: var(--fg);
+}
+
+.theme-test__button {
+	padding: 4px 12px;
+	border: 1px solid var(--accent);
+	border-radius: 6px;
+	font-size: 13px;
+	transition: background-color 0.2s ease;
+}
+
+.theme-test__button:hover {
+	background-color: rgba(57, 148, 188, 0.15);
+}
+
+@media (max-width: 600px) {
+	.theme-test {
+		gap: 4px;
+	}
+}
