@@ -47,7 +47,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ISessionsListModelService } from './sessionsListModelService.js';
+import { ISessionsListModelService, SessionStatusIndicator } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../browser/dnd.js';
@@ -55,7 +55,6 @@ import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
-import { getSessionStatusIndicator } from '../../../../browser/sessionStatusIcon.js';
 
 const $ = DOM.$;
 
@@ -245,7 +244,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	private readonly _motionReducedSignal;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean; getStatusIndicator: (status: SessionStatus, isRead: boolean, isArchived: boolean, motionReduced: boolean, pullRequestIcon?: ThemeIcon) => SessionStatusIndicator; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -389,7 +388,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 			};
 
-			const indicator = getSessionStatusIndicator(sessionStatus, isRead, isArchived, motionReduced, gitHubInfo?.pullRequest?.icon);
+			const indicator = this.options.getStatusIndicator(sessionStatus, isRead, isArchived, motionReduced, gitHubInfo?.pullRequest?.icon);
 			const swapped = applyIconSwap(indicator.cacheKey, () => {
 				const iconEl = indicator.kind === 'spinner'
 					? createPixelSpinner(undefined, { variant: indicator.variant })
@@ -987,7 +986,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const accessibilityService = instantiationService.invokeFunction(accessor => accessor.get(IAccessibilityService));
 		const sessionsProvidersService = instantiationService.invokeFunction(accessor => accessor.get(ISessionsProvidersService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), visibleSessions: this._sessionsManagementService.visibleSessions },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s), getStatusIndicator: (status, isRead, isArchived, motionReduced, pullRequestIcon) => this._sessionsListModelService.getStatusIndicator(status, isRead, isArchived, motionReduced, pullRequestIcon), visibleSessions: this._sessionsManagementService.visibleSessions },
 			approvalModel,
 			instantiationService,
 			contextKeyService,

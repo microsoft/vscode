@@ -10,10 +10,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
+import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
@@ -134,6 +136,8 @@ class MockSessionStore implements ISessionsManagementService {
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
 
+	getRecentlyOpenedSessions(): IRecentlyOpenedSessions { return { recent: [...this._sessions.values()], other: [] }; }
+
 	getSession(resource: URI): ISession | undefined {
 		return this._sessions.get(resource.toString());
 	}
@@ -202,8 +206,12 @@ suite('SessionsNavigation', () => {
 
 		contextKeyService = disposables.add(new MockContextKeyService());
 
+		const storageService = disposables.add(new InMemoryStorageService());
+		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+
 		nav = disposables.add(new SessionsNavigation(
 			store,
+			recency,
 			contextKeyService,
 			new NullLogService(),
 		));
@@ -268,7 +276,7 @@ suite('SessionsNavigation', () => {
 		assert.strictEqual(canGoForward(), false);
 	});
 
-	test('navigating to a new session after goBack clears forward history', async () => {
+	test('opening a new session after goBack keeps older entries reachable (MRU, no truncation)', async () => {
 		const s1 = stubSession('s1');
 		const s2 = stubSession('s2');
 		const s3 = stubSession('s3');
@@ -276,24 +284,29 @@ suite('SessionsNavigation', () => {
 		store.addSession(s2);
 		store.addSession(s3);
 
-		store.setActiveSession(s1);
-		store.setActiveSession(s2);
+		store.setActiveSession(s1); // recency=[s1]
+		store.setActiveSession(s2); // recency=[s2, s1], cursor=s2
 
-		await nav.goBack();
-		// Now navigate to s3 instead of going forward
+		await nav.goBack(); // cursor=s1
+		// Now open s3 explicitly: s3 is promoted to the front -> recency=[s3, s2, s1]
 		store.setActiveSession(s3);
 
 		assert.strictEqual(canGoBack(), true);
 		assert.strictEqual(canGoForward(), false);
 
-		// Going back should go to s1 (s2 is no longer in forward history)
+		// Unlike browser-style truncation, s2 is NOT discarded; going back from
+		// s3 lands on the next most-recent entry, s2.
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedResource?.toString(), s2.resource.toString());
+
+		// And s1 remains reachable one step further back.
 		await nav.goBack();
 		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
 	});
 
-	test('reopening an earlier session removes it from history and appends at end (no duplicates)', async () => {
-		// Regression: A→B→C, back→back→fwd→fwd, open A again
-		// should produce history [B,C,A] not [A,B,C,A]
+	test('reopening an earlier session moves it to the front of recency (no duplicates)', async () => {
+		// A→B→C, back→back→fwd→fwd, open A again
+		// should move A to the front: recency=[A,C,B] (no duplicate A)
 		const s1 = stubSession('s1');
 		const s2 = stubSession('s2');
 		const s3 = stubSession('s3');
@@ -301,16 +314,16 @@ suite('SessionsNavigation', () => {
 		store.addSession(s2);
 		store.addSession(s3);
 
-		store.setActiveSession(s1); // history=[s1], idx=0
-		store.setActiveSession(s2); // history=[s1,s2], idx=1
-		store.setActiveSession(s3); // history=[s1,s2,s3], idx=2
+		store.setActiveSession(s1); // recency=[s1]
+		store.setActiveSession(s2); // recency=[s2,s1]
+		store.setActiveSession(s3); // recency=[s3,s2,s1]
 
-		await nav.goBack();  // idx=1
-		await nav.goBack();  // idx=0
-		await nav.goForward(); // idx=1
-		await nav.goForward(); // idx=2
+		await nav.goBack();  // cursor=s2
+		await nav.goBack();  // cursor=s1
+		await nav.goForward(); // cursor=s2
+		await nav.goForward(); // cursor=s3
 
-		// Now open s1 again — should deduplicate: history=[s2,s3,s1]
+		// Now open s1 again — moves to front: recency=[s1,s3,s2]
 		store.setActiveSession(s1);
 
 		// Back once: s3

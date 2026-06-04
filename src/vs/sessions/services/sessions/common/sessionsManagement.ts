@@ -101,6 +101,17 @@ export interface IActiveSession extends ISession {
 }
 
 /**
+ * Sessions split into recently opened and other (never opened) groups, used to
+ * populate the sessions picker.
+ */
+export interface IRecentlyOpenedSessions {
+	/** Sessions opened in this workspace, most recently opened first. */
+	readonly recent: ISession[];
+	/** Sessions never opened in this workspace, most recently updated first. */
+	readonly other: ISession[];
+}
+
+/**
  * An active session item extends IChatSessionItem with repository information.
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
@@ -119,6 +130,18 @@ export interface ISessionsManagementService {
 	 * Get a session by its resource URI.
 	 */
 	getSession(resource: URI): ISession | undefined;
+
+	/**
+	 * Get all sessions from all registered providers, split into two groups:
+	 * - `recent`: sessions that have been opened in this workspace, ordered by
+	 *   how recently they were opened (most recently opened first), capped at a
+	 *   fixed maximum.
+	 * - `other`: the remaining sessions, sorted by their last update time (most
+	 *   recently updated first).
+	 *
+	 * Used to populate the sessions picker.
+	 */
+	getRecentlyOpenedSessions(): IRecentlyOpenedSessions;
 
 	/**
 	 * Get all session types from all registered providers.
