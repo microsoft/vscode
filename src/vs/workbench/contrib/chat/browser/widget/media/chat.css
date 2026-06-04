@@ -1594,7 +1594,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editor-container .monaco-editor .chat-prompt-spinner {
-	transform-origin: 6px 6px;
+	transform-origin: 0.5em 0.5em;
 	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
