@@ -107,7 +107,7 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -2760,8 +2760,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			[OpenAgentHostModePickerAction.ID, 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostBranchPickerAction.ID, 22],
-			[OpenAgentHostIsolationPickerAction.ID, 22],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
@@ -2871,23 +2869,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
 						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
-						|| action.id === OpenAgentHostPermissionModePickerAction.ID
-						|| action.id === OpenAgentHostBranchPickerAction.ID
-						|| action.id === OpenAgentHostIsolationPickerAction.ID)
+						|| action.id === OpenAgentHostPermissionModePickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
 					if (this.options.isSessionsWindow) {
 						return new HiddenActionViewItem(action);
 					}
-					const property = action.id === OpenAgentHostBranchPickerAction.ID
-						? SessionConfigKey.Branch
-						: action.id === OpenAgentHostIsolationPickerAction.ID
-							? SessionConfigKey.Isolation
-							: action.id === OpenAgentHostAutoApprovePickerAction.ID
-								? SessionConfigKey.AutoApprove
-								: action.id === OpenAgentHostPermissionModePickerAction.ID
-									? ClaudeSessionConfigKey.PermissionMode
-									: SessionConfigKey.Mode;
+					const property = action.id === OpenAgentHostAutoApprovePickerAction.ID
+						? SessionConfigKey.AutoApprove
+						: action.id === OpenAgentHostPermissionModePickerAction.ID
+							? ClaudeSessionConfigKey.PermissionMode
+							: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {

@@ -48,14 +48,6 @@ interface IConfigPickerItem {
 }
 
 function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
-	if (property === SessionConfigKey.Isolation) {
-		if (value === 'folder') { return Codicon.folder; }
-		if (value === 'worktree') { return Codicon.worktree; }
-		return undefined;
-	}
-	if (property === SessionConfigKey.Branch) {
-		return Codicon.gitBranch;
-	}
 	if (property === SessionConfigKey.Mode) {
 		switch (value) {
 			case 'plan': return Codicon.checklist;
@@ -149,11 +141,10 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 }
 
 /**
- * The set of well-known session-config property names that have a dedicated
- * picker chip in the secondary toolbar (registered as `MenuId.ChatInputSecondary`
- * actions). The generic-fallback chip lane filters these out so unknown
- * properties advertised by an agent get their own chip without duplicating
- * the dedicated ones.
+ * The set of well-known session-config property names that are either handled
+ * by dedicated UI or intentionally hidden from the workbench chat-input chip
+ * lane. The generic-fallback chip lane filters these out so unknown properties
+ * advertised by an agent get their own chip.
  *
  * `Permissions` has no chip — it is surfaced through other UI — but is
  * included so the generic lane does not invent a chip for it.
@@ -161,6 +152,8 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
 	SessionConfigKey.AutoApprove,
+	SessionConfigKey.Isolation,
+	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
 	ClaudeSessionConfigKey.PermissionMode,
 ]);
