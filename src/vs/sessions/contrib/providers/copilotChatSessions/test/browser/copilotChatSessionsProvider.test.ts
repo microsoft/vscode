@@ -24,7 +24,7 @@ import { AgentSessionProviders } from '../../../../../../workbench/contrib/chat/
 import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
@@ -177,8 +177,9 @@ function createProviderWithConfig(
 		onDidChangeFocusedSession: Event.None,
 	});
 	instantiationService.stub(ILanguageModelsService, {
-		lookupLanguageModel: () => undefined,
+		lookupLanguageModel: (id: string): ILanguageModelChatMetadata | undefined => id ? new class extends mock<ILanguageModelChatMetadata>() { override readonly id = id; } : undefined,
 	});
+	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(ILanguageModelToolsService, {
 		toToolReferences: () => [],
 	});

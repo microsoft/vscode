@@ -1591,7 +1591,19 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
 	}
 
+	/**
+	 * Applies a language model to the given session. The contract on
+	 * {@link ICreateNewSessionOptions.modelId} is that unknown ids should be
+	 * dropped — otherwise a stale captured id (e.g. one stored on an
+	 * automation before a model was renamed/removed) would propagate down to
+	 * `userSelectedModelId` on the eventual `chatService.sendRequest` and
+	 * fail the run with an opaque error.
+	 */
 	setModel(sessionId: string, modelId: string): void {
+		if (!this.languageModelsService.lookupLanguageModel(modelId)) {
+			this.logService.warn(`[CopilotChatSessionsProvider] setModel: unknown modelId '${modelId}' for session ${sessionId} — falling back to provider default`);
+			return;
+		}
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setModelId(modelId);
@@ -2177,12 +2189,30 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * In both cases we wait with the safety timeout. Only if the timeout
 	 * expires *and* the response was cancelled do we throw a
 	 * {@link CancellationError} — signalling that the commit will never come.
+	 *
+	 * If the response completed with `errorDetails` (e.g. the agent host
+	 * rejected the request, the model was unavailable, or an underlying
+	 * service errored), the extension never schedules the untitled→real swap
+	 * and the commit event never fires. In that case we surface the original
+	 * chat error instead of a misleading "Timed out waiting for session
+	 * commit" message so callers (notably the Automations runner) record the
+	 * real failure cause in the run history.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
 		responseCompletePromise?: Promise<void>,
 		responseCreatedPromise?: Promise<IChatResponseModel>,
 	): Promise<URI> {
+		const throwIfResponseFailed = (response: IChatResponseModel | undefined): void => {
+			if (!response || response.isCanceled) {
+				return;
+			}
+			const errorDetails = response.result?.errorDetails;
+			if (errorDetails?.message) {
+				throw new Error(errorDetails.message);
+			}
+		};
+
 		const disposables = new DisposableStore();
 		try {
 			const commitPromise = new Promise<URI>(resolve => {
@@ -2204,11 +2234,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					return committed.uri;
 				}
 
-				// Response finished before the commit event arrived.
-				// The commit may still be in-flight — the agent could have
-				// initiated the worktree before the user cancelled, and the
-				// async IPC chain hasn't delivered the event yet. Fall through
-				// to the safety timeout to give it a chance to arrive.
+				// Response finished before the commit event arrived. Surface
+				// the underlying chat error if any — otherwise the swap may
+				// still be in-flight (e.g. cancelled after the worktree was
+				// initiated, or the IPC chain hasn't delivered the event
+				// yet). Fall through to the safety timeout to give it a
+				// chance to arrive.
+				const responseEarly = responseCreatedPromise ? await responseCreatedPromise : undefined;
+				throwIfResponseFailed(responseEarly);
 			}
 
 			// Race commit against a safety timeout. If a response-created
@@ -2227,11 +2260,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (outcome.kind === 'cancelled') {
 				throw new CancellationError();
 			}
-			// Timed out — last-resort check for cancellation
+			// Timed out — last-resort check for cancellation, then surface
+			// any underlying chat error before falling back to the generic
+			// timeout message.
 			const response = responseCreatedPromise ? await responseCreatedPromise : undefined;
 			if (response?.isCanceled) {
 				throw new CancellationError();
 			}
+			throwIfResponseFailed(response);
 			throw new Error('Timed out waiting for session commit');
 		} finally {
 			disposables.dispose();
