@@ -2,8 +2,8 @@ on:
   workflow_call:
     inputs:
       job_name:
-        type: string
-        required: true
+        type: 
+        required: 
       electron_tests:
         type: boolean
         default: false
@@ -26,7 +26,7 @@ jobs:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
         with:
-          lfs: true
+          lfs: 
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -192,7 +192,7 @@ jobs:
       - name: Diagnostics before integration test runs
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
-        continue-on-error: true
+        continue-on-error: 
         if: always()
 
       - name: 🧪 Run integration tests (Electron)
@@ -216,13 +216,13 @@ jobs:
       - name: Diagnostics after integration test runs
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
-        continue-on-error: true
+        continue-on-error: 
         if: always()
 
       - name: Diagnostics before smoke test run
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
-        continue-on-error: true
+        continue-on-error: 
         if: always()
 
       - name: Compile smoke tests
@@ -255,34 +255,35 @@ jobs:
       - name: Diagnostics after smoke test run
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
-        continue-on-error: true
+        continue-on-error: 
         if: always()
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@v7
         if: failure()
-        continue-on-error: true
+        continue-on-error: 
         with:
           name: ${{ format('crash-dump-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/crashes
-          if-no-files-found: ignore
+          if-no-files-found: 
+      
 
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@v7
         if: failure()
-        continue-on-error: true
+        continue-on-error: 
         with:
           name: ${{ format('node-modules-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: node_modules
-          if-no-files-found: ignore
+          if-no-files-found: 
 
       - name: Publish Log Files
         uses: actions/upload-artifact@v7
         if: always()
-        continue-on-error: true
+        continue-on-error: 
         with:
           name: ${{ format('logs-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
-          if-no-files-found: ignore
+          if-no-files-found: 
