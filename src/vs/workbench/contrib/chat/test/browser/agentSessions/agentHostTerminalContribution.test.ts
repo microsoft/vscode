@@ -91,8 +91,12 @@ class MockTerminalProfileResolverService extends mock<ITerminalProfileResolverSe
 	};
 	public lastOptions: IShellLaunchConfigResolveOptions | undefined;
 
+	/** Optional hook invoked inside getDefaultProfile, before it resolves. */
+	public onResolve: (() => void) | undefined;
+
 	override async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		this.lastOptions = options;
+		this.onResolve?.();
 		if (this.profile instanceof Error) {
 			throw this.profile;
 		}
@@ -317,6 +321,23 @@ suite('AgentHostTerminalContribution', () => {
 	test('skips dispatch when the resolver throws', async () => {
 		const { agentHostService, resolver } = setup(disposables);
 		resolver.profile = new Error('resolver failed');
+
+		agentHostService.setRootState(rootStateWithDefaultShellKey());
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+	});
+
+	test('skips dispatch when the schema retracts the key while resolving', async () => {
+		const { agentHostService, resolver } = setup(disposables);
+		resolver.profile = { profileName: 'Bash', path: '/usr/bin/bash', args: [], isDefault: true };
+
+		// While getDefaultProfile is in flight (e.g. a host restart / schema
+		// refresh lands), swap to a schema that no longer advertises
+		// defaultShell. The post-await schema gate must catch this and bail.
+		resolver.onResolve = () => {
+			agentHostService.setRootState(rootStateWithoutDefaultShellKey());
+		};
 
 		agentHostService.setRootState(rootStateWithDefaultShellKey());
 		await flush();

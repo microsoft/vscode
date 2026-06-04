@@ -232,8 +232,13 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		// Re-read after any await: the value may be stale and another change
-		// may have landed while we resolved.
+		// Re-check after the await: a host restart / schema refresh may have
+		// landed while we resolved. Re-run the schema gate (not just a config
+		// existence check) so we never dispatch a key the *current* schema no
+		// longer advertises - protects older / 3rd-party hosts.
+		if (!this._schemaHasKey(entry.key)) {
+			return;
+		}
 		const rootState = this._agentHostService.rootState.value;
 		if (!rootState || rootState instanceof Error || !rootState.config) {
 			return;
