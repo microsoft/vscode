@@ -68,6 +68,7 @@ class CellOutputElement extends Disposable {
 
 	private readonly contextKeyService: IContextKeyService;
 	private toolbarAttached = false;
+	private toolbarContainer: HTMLElement | undefined;
 
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
@@ -310,45 +311,51 @@ class CellOutputElement extends Disposable {
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
 
 		outputItemDiv.appendChild(mimeTypePicker);
-		this.toolbarAttached = true;
+		this.toolbarContainer = mimeTypePicker;
 
-		const toolbar = this.toolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
-			renderDropdownAsChildElement: false
-		}));
-		toolbar.context = {
-			ui: true,
-			cell: this.output.cellViewModel as ICellViewModel,
-			outputViewModel: this.output,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
+		try {
+			const toolbar = this.toolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
+				renderDropdownAsChildElement: false
+			}));
+			toolbar.context = {
+				ui: true,
+				cell: this.output.cellViewModel as ICellViewModel,
+				outputViewModel: this.output,
+				notebookEditor: this.notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
 
-		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = this.toolbarDisposables.add(new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output)));
+			// TODO: This could probably be a real registered action, but it has to talk to this output element
+			const pickAction = this.toolbarDisposables.add(new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+				async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output)));
 
-		const menuContextKeyService = this.toolbarDisposables.add(this.contextKeyService.createScoped(outputItemDiv));
-		const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
-		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
-		const cellOutputMimetype = NOTEBOOK_CELL_OUTPUT_MIMETYPE.bindTo(menuContextKeyService);
-		isFirstCellOutput.set(index === 0);
-		cellOutputMimetype.set(currentMimeType.mimeType);
-		this.toolbarDisposables.add(autorun((r) => { hasHiddenOutputs.set(this.cellOutputContainer.hasHiddenOutputs.read(r)); }));
-		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
+			const menuContextKeyService = this.toolbarDisposables.add(this.contextKeyService.createScoped(outputItemDiv));
+			const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
+			const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
+			const cellOutputMimetype = NOTEBOOK_CELL_OUTPUT_MIMETYPE.bindTo(menuContextKeyService);
+			isFirstCellOutput.set(index === 0);
+			cellOutputMimetype.set(currentMimeType.mimeType);
+			this.toolbarDisposables.add(autorun((r) => { hasHiddenOutputs.set(this.cellOutputContainer.hasHiddenOutputs.read(r)); }));
+			const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
-		const updateMenuToolbar = () => {
-			let { secondary } = getActionBarActions(menu!.getActions({ shouldForwardArgs: true }), () => false);
-			if (!isCopyEnabled) {
-				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
-			}
-			if (hasMultipleMimeTypes) {
-				secondary = [pickAction, ...secondary];
-			}
+			const updateMenuToolbar = () => {
+				let { secondary } = getActionBarActions(menu!.getActions({ shouldForwardArgs: true }), () => false);
+				if (!isCopyEnabled) {
+					secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
+				}
+				if (hasMultipleMimeTypes) {
+					secondary = [pickAction, ...secondary];
+				}
 
-			toolbar.setActions([], secondary);
-		};
-		updateMenuToolbar();
-		this.toolbarDisposables.add(menu.onDidChange(updateMenuToolbar));
+				toolbar.setActions([], secondary);
+			};
+			updateMenuToolbar();
+			this.toolbarDisposables.add(menu.onDidChange(updateMenuToolbar));
+			this.toolbarAttached = true;
+		} catch (error) {
+			this._clearToolbar();
+			throw error;
+		}
 	}
 
 	private async _pickActiveMimeTypeRenderer(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
@@ -466,6 +473,8 @@ class CellOutputElement extends Disposable {
 	private _clearToolbar() {
 		this.toolbarAttached = false;
 		this.toolbarDisposables.clear();
+		this.toolbarContainer?.remove();
+		this.toolbarContainer = undefined;
 	}
 
 	override dispose() {
