@@ -96,6 +96,7 @@ Pinned sessions appear in a dedicated "Pinned" section at the top. Pin state is 
 
 - **Clicking a session** marks it read and calls `SessionsManagementService.openSession()`
 - **Active session tracking** — the list auto-scrolls to and selects the active session via an `autorun` on `activeSession`
+- **Drag out** — on desktop, dragging a session outside the Agents window opens it in a new Agents window.
 - **Keyboard shortcuts** — `Ctrl/Cmd+1..9` opens sessions by index; `Ctrl+Alt+-` / `Ctrl+Alt+Shift+-` for back/forward navigation
 - **Mobile** — opening a session also closes the sidebar drawer
 

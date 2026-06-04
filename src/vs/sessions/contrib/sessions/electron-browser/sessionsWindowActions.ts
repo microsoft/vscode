@@ -10,15 +10,13 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { SessionItemContextMenuId } from '../browser/views/sessionsList.js';
+import { OpenSessionInNewWindowCommandId, SessionItemContextMenuId } from '../browser/views/sessionsList.js';
 
 export class OpenSessionInNewAgentsWindowAction extends Action2 {
 
-	static readonly ID = 'sessionsViewPane.openInNewWindow';
-
 	constructor() {
 		super({
-			id: OpenSessionInNewAgentsWindowAction.ID,
+			id: OpenSessionInNewWindowCommandId,
 			title: localize2('openInNewWindow', "Open in New Window"),
 			menu: [{
 				id: SessionItemContextMenuId,

@@ -22,6 +22,8 @@ import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themable
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -55,6 +57,8 @@ import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../../../bro
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { isWindowDraggedOver } from '../../../../../workbench/browser/dnd.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
 
 const $ = DOM.$;
@@ -113,6 +117,7 @@ function swapIconWithCrossfade(container: HTMLElement, newChild: HTMLElement, an
 
 export const SessionItemToolbarMenuId = new MenuId('SessionItemToolbar');
 export const SessionItemContextMenuId = MenuId.SessionItemContextMenu;
+export const OpenSessionInNewWindowCommandId = 'sessionsViewPane.openInNewWindow';
 export const SessionSectionToolbarMenuId = new MenuId('SessionSectionToolbar');
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
 export const IsSessionArchivedContext = new RawContextKey<boolean>('sessionItem.isArchived', false);
@@ -855,6 +860,14 @@ class SessionsAccessibilityProvider {
 class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionListItem> {
 
 	private readonly _transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+	private _draggedSessions: ISession[] = [];
+
+	constructor(
+		private readonly _commandService: ICommandService,
+		private readonly _hostService: IHostService,
+	) {
+		super();
+	}
 
 	getDragURI(element: SessionListItem): string | null {
 		if (isSessionSection(element) || isSessionShowMore(element)) {
@@ -880,6 +893,7 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		if (sessions.length === 0) {
 			return;
 		}
+		this._draggedSessions = sessions;
 
 		const identifiers = sessions.map(s => new DraggedSessionIdentifier(s.sessionId, s.resource));
 		this._transfer.setData(identifiers, DraggedSessionIdentifier.prototype);
@@ -892,8 +906,42 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 		}
 	}
 
-	onDragEnd(): void {
+	onDragEnd(originalEvent: DragEvent): void {
+		const sessions = this._draggedSessions;
+		this._draggedSessions = [];
 		this._transfer.clearData(DraggedSessionIdentifier.prototype);
+
+		if (sessions.length === 0) {
+			return;
+		}
+
+		void this._openDraggedSessionsInNewWindow(sessions, originalEvent).catch(onUnexpectedError);
+	}
+
+	private async _openDraggedSessionsInNewWindow(sessions: readonly ISession[], originalEvent: DragEvent): Promise<void> {
+		if (isWeb || isWindowDraggedOver()) {
+			return;
+		}
+
+		const cursor = await this._hostService.getCursorScreenPoint();
+		const point = cursor?.point ?? { x: originalEvent.screenX, y: originalEvent.screenY };
+		if (this._isInsideActiveWindow(point)) {
+			return;
+		}
+
+		await this._commandService.executeCommand(OpenSessionInNewWindowCommandId, sessions.length === 1 ? sessions[0] : [...sessions]);
+	}
+
+	private _isInsideActiveWindow(point: { readonly x: number; readonly y: number }): boolean {
+		const targetWindow = DOM.getActiveWindow();
+		if (targetWindow.document.visibilityState !== 'visible' || !targetWindow.document.hasFocus()) {
+			return false;
+		}
+
+		return point.x >= targetWindow.screenX
+			&& point.x <= targetWindow.screenX + targetWindow.outerWidth
+			&& point.y >= targetWindow.screenY
+			&& point.y <= targetWindow.screenY + targetWindow.outerHeight;
 	}
 
 	onDragOver(): boolean | ITreeDragOverReaction {
@@ -1004,6 +1052,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 
@@ -1065,7 +1114,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(),
-				dnd: this._register(new SessionsListDragAndDrop()),
+				dnd: this._register(new SessionsListDragAndDrop(this.commandService, this.hostService)),
 				identityProvider: {
 					getId: (element: SessionListItem) => {
 						if (isSessionSection(element)) {
