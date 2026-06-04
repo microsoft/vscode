@@ -11,7 +11,7 @@ import { getMapForWordSeparators } from '../../../common/core/wordCharacterClass
 import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
 import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { SearchParams, TextModelSearch, isMultilineRegexSource, normalizeMultilineRegexSource } from '../../../common/model/textModelSearch.js';
 import { createTextModel } from '../testTextModel.js';
 
 // --------- Find
@@ -791,6 +791,33 @@ suite('TextModelSearch', () => {
 			new FindMatch(new Range(1, 8, 1, 10), ['30']),
 			new FindMatch(new Range(1, 10, 1, 10), ['']),
 			new FindMatch(new Range(1, 11, 1, 13), ['10'])
+		]);
+
+		model.dispose();
+	});
+
+	test('normalizes multiline dot-or-newline regex alternation', () => {
+		assert.strictEqual(normalizeMultilineRegexSource('(.|\\n)*'), '([\\s\\S])*');
+		assert.strictEqual(normalizeMultilineRegexSource('(.+|\\n)*'), '([\\s\\S])*');
+		assert.strictEqual(normalizeMultilineRegexSource('(?:\\n|.)+'), '(?:[\\s\\S])+');
+		assert.strictEqual(normalizeMultilineRegexSource('(.|\\n)'), '(.|\\n)');
+	});
+
+	test('issue #314038. Multiline regex with dot-or-newline alternation finds triple quoted block', () => {
+		const model = createTextModel([
+			'class RotaryEmbedding:',
+			'\t"""',
+			'\tLarge docstring line one',
+			'\tLarge docstring line two',
+			'\t"""',
+			'\tdef forward(self):',
+			'\t\tpass'
+		].join('\n'));
+
+		const searchParams = new SearchParams('\\t*"""(.+|\\n)*"""$(?=\\n)', true, false, null);
+		const actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 100);
+		assert.deepStrictEqual(actual, [
+			new FindMatch(new Range(2, 1, 5, 5), null)
 		]);
 
 		model.dispose();
