@@ -25,6 +25,7 @@ import { parseClaudeModelId } from '../claudeModelId';
 import type { ParsedClaudeModelId } from '../../common/claudeModelId';
 import { IClaudeSessionStateService } from '../../common/claudeSessionStateService';
 import { MockClaudeCodeSdkService } from './mockClaudeCodeSdkService';
+import { MarkdownSegmentSeparator } from '../../../../../util/common/markdownSegmentSeparator';
 
 function createMockLangModelServer(): ClaudeLanguageModelServer {
 	return {
@@ -233,6 +234,23 @@ describe('ClaudeCodeSession', () => {
 		await session.invoke(createMockChatRequest('Hello'), stream, undefined, CancellationToken.None);
 
 		expect(stream.output.join('\n')).toContain('Hello from mock!');
+	});
+
+	it('resets the assistant text segment separator on request completion (regression: cross-turn state leak)', async () => {
+		// Regression test for #319871: `_processMessages` constructs a
+		// single `MarkdownSegmentSeparator` for the whole session and
+		// reuses it across turns. It MUST call `.reset()` when a request
+		// completes; otherwise the first text emission of the next turn
+		// (a fresh stream) would be prefixed with a spurious `\n\n`.
+		const resetSpy = vi.spyOn(MarkdownSegmentSeparator.prototype, 'reset');
+		const mockServer = createMockLangModelServer();
+		commitTestState(sessionStateService, 'test-session');
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, mockServer, 'test-session', true));
+		const stream = new MockChatResponseStream();
+
+		await session.invoke(createMockChatRequest('Hello'), stream, undefined, CancellationToken.None);
+
+		expect(resetSpy).toHaveBeenCalled();
 	});
 
 	it('queues multiple requests and processes them sequentially', async () => {

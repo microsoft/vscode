@@ -582,6 +582,32 @@ describe('handleAssistantMessage', () => {
 			);
 			expect(markdownCalls(request)).toBe('Hello');
 		});
+
+		it('after reset() between turns, the next turn does not emit a leading separator (regression: cross-turn state leak)', () => {
+			// Regression test for #319871: ClaudeCodeSession._processMessages
+			// reuses a single MarkdownSegmentSeparator across all turns in a
+			// session. Without an explicit .reset() at request completion,
+			// `lastSegmentKey` persists, and the first text emission of
+			// turn N+1 against a *fresh* stream would be prefixed with a
+			// spurious `\n\n`.
+			const firstTurn = makeAssistantMessage([{ type: 'text', text: 'turn 1', citations: null }]);
+			handleAssistantMessage(firstTurn, accessor, TEST_SESSION_ID, request, state);
+			expect(markdownCalls(request)).toBe('turn 1');
+
+			// _processMessages calls .reset() on requestComplete.
+			state.assistantTextSegmentSeparator.reset();
+
+			// Turn 2 arrives with a distinct uuid. In production this is a
+			// fresh stream; using the same mock stream here is fine because
+			// we are asserting the *next* markdown call is the text itself,
+			// not a separator.
+			const secondTurn = makeAssistantMessage([{ type: 'text', text: 'turn 2', citations: null }]);
+			(secondTurn as { uuid: string }).uuid = 'ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee';
+			handleAssistantMessage(secondTurn, accessor, TEST_SESSION_ID, request, state);
+
+			// Concatenated markdown across both turns: no `\n\n` between them.
+			expect(markdownCalls(request)).toBe('turn 1turn 2');
+		});
 	});
 });
 

@@ -704,6 +704,10 @@ export class ClaudeCodeSession extends Disposable {
 					this._otelTracker.endRequest();
 					// Clear the capturing token so subsequent requests get their own
 					this.sessionStateService.setCapturingTokenForSession(this.sessionId, undefined);
+					// Reset segment-separator state so the first text of the next
+					// turn isn't prefixed with a spurious `\n\n` on a fresh stream
+					// (the helper is shared across all turns in this loop).
+					assistantTextSegmentSeparator.reset();
 					const completed = this._inFlightRequests.shift();
 					if (completed && !completed.deferred.isSettled) {
 						await completed.deferred.complete();
