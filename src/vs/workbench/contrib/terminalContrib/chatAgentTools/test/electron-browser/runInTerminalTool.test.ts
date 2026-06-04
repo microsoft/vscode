@@ -330,7 +330,7 @@ suite('RunInTerminalTool', () => {
 			kind: undefined,
 			isBuiltin: true,
 			modeInstructions: undefined,
-			modeId: 'agent',
+			telemetryModeId: 'agent',
 			applyCodeBlockSuggestionId: undefined,
 			permissionLevel,
 		};

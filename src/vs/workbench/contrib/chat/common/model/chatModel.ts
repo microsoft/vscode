@@ -335,8 +335,8 @@ export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
 	isBuiltin: boolean;
 	modeInstructions: IChatRequestModeInstructions | undefined;
-	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
-	modeName?: string;
+	telemetryModeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
+	telemetryModeName?: string;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 	permissionLevel?: ChatPermissionLevel;
 }
