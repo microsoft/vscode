@@ -9,11 +9,13 @@ import { MenuId } from '../../platform/actions/common/actions.js';
  * Menu IDs for the Agent Sessions workbench layout.
  */
 export const Menus = {
-	ChatBarTitle: new MenuId('ChatBarTitle'),
+	SessionsTitle: new MenuId('SessionsTitle'),
 	CommandCenter: new MenuId('SessionsCommandCenter'),
 	CommandCenterCenter: new MenuId('SessionsCommandCenterCenter'),
 	TitleBarContext: new MenuId('SessionsTitleBarContext'),
 	TitleBarLeftLayout: new MenuId('SessionsTitleBarLeftLayout'),
+	TitleBarCenterLeft: new MenuId('SessionsTitleBarCenterLeft'),
+	TitleBarCenterRight: new MenuId('SessionsTitleBarCenterRight'),
 	TitleBarSessionTitle: new MenuId('SessionsTitleBarSessionTitle'),
 	TitleBarSessionMenu: new MenuId('SessionsTitleBarSessionMenu'),
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
@@ -33,4 +35,5 @@ export const Menus = {
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
+	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 } as const;

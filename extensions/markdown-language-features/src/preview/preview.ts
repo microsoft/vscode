@@ -215,6 +215,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.#disposed = true;
 
 		clearTimeout(this.#throttleTimer);
+		clearTimeout(this.#scrollingTimer);
 		for (const entry of this.#fileWatchersBySrc.values()) {
 			entry.dispose();
 		}

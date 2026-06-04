@@ -7,8 +7,8 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { MessageKind, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatProgressMessage, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
@@ -43,12 +43,16 @@ function createCompletedToolCall(overrides?: Partial<ICompletedToolCall>): IComp
 function createTurn(overrides?: Partial<Turn>): Turn {
 	return {
 		id: 'turn-1',
-		userMessage: { text: 'Hello' },
+		message: { text: 'Hello', origin: { kind: MessageKind.User } },
 		responseParts: [],
 		usage: undefined,
 		state: TurnState.Complete,
 		...overrides,
 	};
+}
+
+function message(text: string, kind = MessageKind.User): Message {
+	return { text, origin: { kind } };
 }
 
 function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
@@ -110,7 +114,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('single turn produces request + response pair', () => {
 			const turn = createTurn({
-				userMessage: { text: 'Do something' },
+				message: message('Do something'),
 				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as ToolCallResponsePart],
 			});
 
@@ -132,6 +136,33 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.toolCallId, 'tc-1');
 			assert.strictEqual(serialized.toolId, 'test_tool');
 			assert.strictEqual(serialized.isComplete, true);
+		});
+
+		test('system-initiated turn preserves compact request label', () => {
+			const turn = createTurn({
+				message: message('`sleep 6` completed', MessageKind.SystemNotification),
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			assert.strictEqual(history[0].type, 'request');
+			if (history[0].type !== 'request') { return; }
+			assert.strictEqual(history[0].isSystemInitiated, true);
+			assert.strictEqual(history[0].prompt, '`sleep 6` completed');
+			assert.strictEqual(history[0].systemInitiatedLabel, undefined);
+		});
+
+		test('system notification response part restores as progress message', () => {
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' }],
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const progress = response.parts[0] as IChatProgressMessage;
+			assert.strictEqual(progress.kind, 'progressMessage');
+			assert.strictEqual(progress.content.value, 'Shell command completed');
 		});
 
 		test('generic completed tool call in history includes input/output details', () => {
@@ -212,12 +243,12 @@ suite('stateToProgressAdapter', () => {
 		test('per-turn model id and display name flow from usage.model', () => {
 			const turn1 = createTurn({
 				id: 'turn-1',
-				userMessage: { text: 'first' },
+				message: message('first'),
 				usage: { model: 'gpt-5' },
 			});
 			const turn2 = createTurn({
 				id: 'turn-2',
-				userMessage: { text: 'second' },
+				message: message('second'),
 				usage: { model: 'opus-4.7' },
 			});
 
@@ -238,7 +269,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
-			const turn = createTurn({ userMessage: { text: 'first' } });
+			const turn = createTurn({ message: message('first') });
 			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5': 'GPT-5' }, 'gpt-5');
 			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
 
@@ -277,7 +308,7 @@ suite('stateToProgressAdapter', () => {
 
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
-				userMessage: { text: 'Use restored model' },
+				message: message('Use restored model'),
 			});
 
 			const lookup = makeLookup('agent-host-copilot:', {}, 'gpt-5');
@@ -729,6 +760,36 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(IChatToolInvocation.resultDetails(invocation), undefined);
 		});
 
+		test('normalizes LF line endings to CRLF in terminal output for xterm rendering', () => {
+			const tc = createToolCallState({
+				toolInput: 'grep -n foo',
+				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+				],
+			});
+			const invocation = toolCallStateToInvocation(tc);
+
+			finalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'test_tool',
+				displayName: 'Test Tool',
+				invocationMessage: 'Running test tool...',
+				toolInput: 'grep -n foo',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: 'Ran grep -n foo',
+				content: [
+					{ type: ToolResultContentType.Terminal, resource: 'agenthost-terminal:///t5', title: 'Terminal' },
+					{ type: ToolResultContentType.Text, text: 'line1\nline2\r\nline3\n' },
+				],
+			});
+
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput.text, 'line1\r\nline2\r\nline3\r\n');
+		});
+
 		test('finalizes generic tool with input/output details', () => {
 			const tc = createToolCallState({
 				status: ToolCallStatus.Running,
@@ -963,7 +1024,7 @@ suite('stateToProgressAdapter', () => {
 		function createActiveTurnState(responseParts?: ActiveTurn['responseParts']): ActiveTurn {
 			return {
 				id: 'turn-active',
-				userMessage: { text: 'Do things' },
+				message: message('Do things'),
 				responseParts: responseParts ?? [],
 				usage: undefined,
 			};
@@ -993,6 +1054,15 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'markdownContent');
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
+		});
+
+		test('produces progress message for system notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
+				{ kind: ResponsePartKind.SystemNotification, content: 'Shell command completed' },
+			]), undefined);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].kind, 'progressMessage');
+			assert.strictEqual((result[0] as IChatProgressMessage).content.value, 'Shell command completed');
 		});
 
 		test('produces thinking progress for reasoning', () => {

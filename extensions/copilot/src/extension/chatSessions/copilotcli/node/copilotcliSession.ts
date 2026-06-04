@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, LocalSession, SendOptions, Session, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
+import type { Attachment, SendOptions, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
@@ -11,35 +11,36 @@ import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
+import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
-import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Codicon } from '../../../../util/vs/base/common/codicons';
 import { Emitter } from '../../../../util/vs/base/common/event';
+import { createSingleCallFunction } from '../../../../util/vs/base/common/functional';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, MarkdownString, Uri } from '../../../../vscodeTypes';
-import { getQuotaMessageForPlan } from '../../../../platform/chat/common/commonTypes';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { clearTodoList, enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, stripReminders, ToolCall, updateTodoListFromSqlItems } from '../common/copilotCLITools';
 import { clearPendingCopilotCLIRequestContext, setPendingCopilotCLIRequestContext } from '../common/pendingRequestContext';
+import { LocalSession, Session, SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
-import { SessionIdForCLI } from '../common/utils';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 import { handleExitPlanMode } from './exitPlanModeHandler';
@@ -47,7 +48,6 @@ import { type McCommand, type McEvent, type McSessionCreateResult, MissionContro
 import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
 import { TodoSqlQuery } from './todoSqlQuery';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from './userInputHelpers';
-import { createSingleCallFunction } from '../../../../util/vs/base/common/functional';
 
 /**
  * Known commands that can be sent to a CopilotCLI session instead of a free-form prompt.
@@ -837,7 +837,7 @@ export interface ICopilotCLISession extends IDisposable {
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void>;
@@ -975,7 +975,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void> {
@@ -991,7 +991,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const previousRequestSnapshot = this.previousRequest;
 
 		const handled = this._requestLogger.captureInvocation(capturingToken, async () => {
-			await this.updateModel(model?.model, model?.reasoningEffort, authInfo, token);
+			await this.updateModel(model?.model, model?.reasoningEffort, model?.contextTier, authInfo, token);
 
 			if (isAlreadyBusyWithAnotherRequest) {
 				return this._handleRequestSteering(input, attachments, model, previousRequestSnapshot, token);
@@ -1000,7 +1000,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		});
 
-		this.previousRequest = this.previousRequest.then(() => handled);
+		this.previousRequest = this.previousRequest.then(() => handled).catch(() => { /* prevent unhandled rejection on the serialisation chain */ });
 		return handled;
 	}
 
@@ -1023,7 +1023,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private async _handleRequestSteering(
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		previousRequestPromise: Promise<unknown>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
@@ -1065,7 +1065,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
@@ -1672,7 +1672,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		}
 	}
 
-	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
+	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, contextTier: 'default' | 'long_context' | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
 		// Where possible try to avoid an extra call to getSelectedModel by using cached value.
 		let currentModel: string | undefined = undefined;
 		if (modelId) {
@@ -1685,8 +1685,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (token.isCancellationRequested) {
 			return;
 		}
+		const optionsUpdate: Record<string, unknown> = {};
 		if (authInfo) {
-			this._sdkSession.setAuthInfo(authInfo);
+			optionsUpdate.authInfo = authInfo;
+		}
+		if (contextTier) {
+			optionsUpdate.contextTier = contextTier;
+		}
+		if (Object.keys(optionsUpdate).length > 0) {
+			this._sdkSession.updateOptions(optionsUpdate);
 		}
 		if (modelId) {
 			if (modelId !== currentModel) {
@@ -2571,6 +2578,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				lines.push(`- ${attachment.title}: (${attachment.number}, ${attachment.type}, ${attachment.referenceType})`);
 			} else if (attachment.type === 'blob') {
 				lines.push(`- ${attachment.displayName ?? 'blob'} (${attachment.type}, ${attachment.mimeType})`);
+			} else if (attachment.type === 'extension_context') {
+				lines.push(`- ${attachment.title ?? 'extension_context'} (${attachment.type}, ${attachment.extensionId})`);
 			} else {
 				lines.push(`- ${attachment.displayName} (${attachment.type}, ${attachment.type === 'selection' ? attachment.filePath : attachment.path})`);
 			}

@@ -32,7 +32,7 @@ import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { BrowserEditor, BrowserEditorContribution, IBrowserEditorWidgetContribution, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -40,7 +40,6 @@ import product from '../../../../../platform/product/common/product.js';
 import { AgentHostEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { safeSetInnerHtml } from '../../../../../base/browser/domSanitize.js';
-import { BrowserActionCategory } from '../browserViewActions.js';
 import { AgentHostChatToolsEnabledSettingId } from '../browserViewWorkbenchService.js';
 
 // Register tools
@@ -96,6 +95,17 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 const BrowserCategory = localize2('browserCategory', "Browser");
 
 const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+const CONTEXT_BROWSER_AREA_SELECTION_ACTIVE = new RawContextKey<boolean>('browserAreaSelectionActive', false, localize('browser.areaSelectionActive', "Whether area selection is currently active"));
+
+type IntegratedBrowserAddScreenshotToChatAddedEvent = {
+	screenshotType: 'viewport' | 'area' | 'fullPage';
+};
+
+type IntegratedBrowserAddScreenshotToChatAddedClassification = {
+	screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, or fullPage).' };
+	owner: 'jruales';
+	comment: 'A screenshot was successfully added to chat from Integrated Browser.';
+};
 
 
 /**
@@ -104,6 +114,7 @@ const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('bro
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	private readonly _elementSelectionActiveContext: IContextKey<boolean>;
+	private readonly _areaSelectionActiveContext: IContextKey<boolean>;
 
 	// Share with Agent
 	private readonly _shareButtonContainer: HTMLElement;
@@ -124,6 +135,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	) {
 		super(editor);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
+		this._areaSelectionActiveContext = CONTEXT_BROWSER_AREA_SELECTION_ACTIVE.bindTo(contextKeyService);
 
 		// Build share toggle button
 		const hoverDelegate = this._register(instantiationService.createInstance(
@@ -155,11 +167,11 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}));
 	}
 
-	override get urlBarWidgets(): readonly IBrowserEditorWidgetContribution[] {
-		return [{ element: this._shareButtonContainer, order: 50 }];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.PostUrl, element: this._shareButtonContainer, order: 50 }];
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		// Manage sharing state
 		this._updateSharingState(true);
 		store.add(model.onDidChangeSharingState(() => {
@@ -178,10 +190,15 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		store.add(model.onDidChangeElementSelectionActive(active => {
 			this._elementSelectionActiveContext.set(active);
 		}));
+		this._areaSelectionActiveContext.set(model.isAreaSelectionActive);
+		store.add(model.onDidChangeAreaSelectionActive(active => {
+			this._areaSelectionActiveContext.set(active);
+		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		this._elementSelectionActiveContext.reset();
+		this._areaSelectionActiveContext.reset();
 	}
 
 	// -- Sharing -------------------------------------------------------
@@ -278,6 +295,19 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		return widget;
 	}
 
+	/**
+	 * Reveal the chat widget and attach the given entries. Returns false if no widget was available.
+	 * Callers are responsible for running {@link _confirmContentAttachmentRisk} first.
+	 */
+	private async _attachToChat(entries: readonly IChatRequestVariableEntry[]): Promise<boolean> {
+		const widget = await this._revealChatWidgetForAttachment();
+		if (!widget?.attachmentModel) {
+			return false;
+		}
+		widget.attachmentModel.addContext(...entries);
+		return true;
+	}
+
 	// -- Element Selection ----------------------------------------------
 
 	private async _attachElementDataToChat(elementData: IElementData, model: IBrowserViewModel) {
@@ -338,9 +368,9 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		if (!await this._confirmContentAttachmentRisk(elementData.url ?? model.url)) {
 			return;
 		}
-
-		const widget = await this._revealChatWidgetForAttachment();
-		widget?.attachmentModel?.addContext(...toAttach);
+		if (!await this._attachToChat(toAttach)) {
+			return;
+		}
 
 		type IntegratedBrowserAddElementToChatAddedEvent = {
 			attachImages: boolean;
@@ -389,8 +419,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 			});
 
-			const widget = await this._revealChatWidgetForAttachment();
-			widget?.attachmentModel?.addContext(...toAttach);
+			await this._attachToChat(toAttach);
 		} catch (error) {
 			this.logService.error('BrowserEditor.addConsoleLogsToChat: Failed to get console logs', error);
 		}
@@ -408,14 +437,16 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		try {
+			// Capture the screenshot BEFORE revealing the chat panel or prompting the
+			// user so the image reflects what the user saw when they pressed the button,
+			// not a reflowed version of the page after the panel opens or a later version
+			// after the dialog appears.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
+
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
 				return;
 			}
 
-			// Capture the screenshot BEFORE revealing the chat panel so the
-			// image reflects what the user saw when they pressed the button,
-			// not a reflowed version of the page after the panel opens.
-			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
 			const toAttach: IChatRequestVariableEntry[] = [{
 				id: 'browser-screenshot-' + Date.now(),
 				name: localize('browserScreenshot', 'Browser Screenshot'),
@@ -425,25 +456,111 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				mimeType: 'image/jpeg',
 			}];
 
-			const widget = await this._revealChatWidgetForAttachment();
-
-			widget?.attachmentModel?.addContext(...toAttach);
-
-			type IntegratedBrowserAddScreenshotToChatAddedEvent = {
-				screenshotType: 'viewport' | 'area' | 'fullPage';
-			};
-
-			type IntegratedBrowserAddScreenshotToChatAddedClassification = {
-				screenshotType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What kind of screenshot was captured (viewport, area, or fullPage).' };
-				owner: 'jruales';
-				comment: 'A screenshot was successfully added to chat from Integrated Browser.';
-			};
+			if (!await this._attachToChat(toAttach)) {
+				return;
+			}
 
 			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
 				screenshotType: 'viewport'
 			});
 		} catch (error) {
 			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
+		}
+	}
+
+	/**
+	 * Drive the area-screenshot flow: present the drag-to-select picker, capture the
+	 * user-drawn region, and attach the resulting image to chat.
+	 */
+	async addAreaScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		// Toggle off if already active — second invocation cancels.
+		if (model.isAreaSelectionActive) {
+			void model.toggleAreaSelection(false);
+			return;
+		}
+
+		this.editor.ensureBrowserFocus();
+
+		// `onDidPickArea` fires exactly once per session with the user-drawn rectangle
+		// or `undefined` on cancellation, so we don't have to reconcile rect vs.
+		// activation-state events across the IPC boundary.
+		const pickPromise = Event.toPromise(Event.once(model.onDidPickArea));
+		void model.toggleAreaSelection(true);
+		const rect = await pickPromise;
+
+		if (!rect) {
+			return;
+		}
+
+		try {
+			// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
+			// into the captured screenshot.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
+
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-area-screenshot-' + Date.now(),
+				name: localize('browserAreaScreenshot', 'Browser Area Screenshot'),
+				fullName: localize('browserAreaScreenshot', 'Browser Area Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+				mimeType: 'image/jpeg',
+			}];
+
+			if (!await this._attachToChat(toAttach)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: 'area'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
+		}
+	}
+
+	/**
+	 * Capture a full-page screenshot (including content scrolled off-screen) and attach it to chat.
+	 */
+	async addFullPageScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		try {
+			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
+
+			if (!await this._confirmContentAttachmentRisk(model.url)) {
+				return;
+			}
+
+			const toAttach: IChatRequestVariableEntry[] = [{
+				id: 'browser-fullpage-screenshot-' + Date.now(),
+				name: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
+				fullName: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
+				kind: 'image',
+				value: screenshotBuffer.buffer,
+				mimeType: 'image/png',
+			}];
+
+			if (!await this._attachToChat(toAttach)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: 'fullPage'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		}
 	}
 }
@@ -467,7 +584,7 @@ class AddElementToChatAction extends Action2 {
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: 'actions',
+				group: '1_element',
 				order: 1,
 				when: ChatContextKeys.enabled
 			},
@@ -503,8 +620,8 @@ class AddConsoleLogsToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: 'actions',
-				order: 3,
+				group: '1_element',
+				order: 2,
 				when: ChatContextKeys.enabled
 			}
 		});
@@ -530,8 +647,8 @@ class AddScreenshotToChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
-				group: 'actions',
-				order: 2,
+				group: '2_screenshots',
+				order: 1,
 				when: ChatContextKeys.enabled
 			}
 		});
@@ -544,9 +661,67 @@ class AddScreenshotToChatAction extends Action2 {
 	}
 }
 
+class AddAreaScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddAreaScreenshotToChat;
+
+	constructor() {
+		super({
+			id: AddAreaScreenshotToChatAction.ID,
+			title: localize2('browser.addAreaScreenshotToChatAction', 'Add Area Screenshot to Chat'),
+			category: BrowserActionCategory,
+			icon: Codicon.screenFull,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			toggled: CONTEXT_BROWSER_AREA_SELECTION_ACTIVE,
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '2_screenshots',
+				order: 2,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addAreaScreenshotToChat();
+		}
+	}
+}
+
+class AddFullPageScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddFullPageScreenshotToChat;
+
+	constructor() {
+		const enabledSetting = ContextKeyExpr.has('config.workbench.browser.experimentalUserTools.enabled');
+		super({
+			id: AddFullPageScreenshotToChatAction.ID,
+			title: localize2('browser.addFullPageScreenshotToChatAction', 'Add Full Page Screenshot to Chat (Experimental)'),
+			category: BrowserActionCategory,
+			icon: Codicon.deviceCamera,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled, enabledSetting),
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '2_screenshots',
+				order: 3,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addFullPageScreenshotToChat();
+		}
+	}
+}
+
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
+registerAction2(AddAreaScreenshotToChatAction);
+registerAction2(AddFullPageScreenshotToChatAction);
 
 // Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.
 // The primary action (chevron's left side) is the first item in the submenu.
@@ -593,6 +768,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			experiment: { mode: 'startup' },
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
+		},
+		'workbench.browser.experimentalUserTools.enabled': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental'],
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.experimentalUserTools.enabled' },
+				"When enabled, experimental user-facing tools are available in the Integrated Browser's Add to Chat menu."
+			),
 		}
 	}
 });

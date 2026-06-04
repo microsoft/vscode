@@ -247,9 +247,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
-			// Electron: workaround for https://github.com/electron/electron/issues/14258
-			// We have to detect keyboard events in the <webview> and dispatch them to our
-			// keybinding service because these events do not bubble to the parent window anymore.
 			this.handleKeyEvent('keydown', data);
 		}));
 
@@ -713,7 +710,18 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
+	private shouldForwardKeyEvent(event: KeyEvent): boolean {
+		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
+	}
+
 	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
+		if (!this.shouldForwardKeyEvent(event)) {
+			return;
+		}
+
+		// Electron: workaround for https://github.com/electron/electron/issues/14258
+		// We have to detect keyboard events in the <webview> and dispatch them to our
+		// keybinding service because these events do not bubble to the parent window anymore.
 		// Create a fake KeyboardEvent from the data provided
 		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target

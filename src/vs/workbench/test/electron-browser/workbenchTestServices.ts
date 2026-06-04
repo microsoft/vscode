@@ -103,7 +103,7 @@ export class TestNativeHostService implements INativeHostService {
 		throw new Error('Method not implemented.');
 	}
 
-	async openAgentsWindow(_options?: { folderUri?: UriComponents }): Promise<void> { }
+	async openAgentsWindow(_options?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents; preferredSessionType?: { providerId?: string; sessionTypeId: string } }): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }

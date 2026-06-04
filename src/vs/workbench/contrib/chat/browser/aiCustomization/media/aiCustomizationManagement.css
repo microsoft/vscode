@@ -13,17 +13,17 @@
 
 /* Sidebar */
 .ai-customization-management-editor .management-sidebar {
-	background-color: var(--vscode-sideBar-background);
 	height: 100%;
 	overflow: hidden;
 }
 
 .ai-customization-management-editor .sidebar-content {
 	height: 100%;
-	padding: 4px;
+	padding: 0 12px 4px 4px;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
+	background: var(--vscode-editor-background);
 }
 
 .ai-customization-management-editor .sidebar-header-row {
@@ -31,7 +31,6 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 0 6px;
 }
 
 .ai-customization-management-editor .sidebar-home-button {
@@ -124,12 +123,12 @@
 
 .ai-customization-management-editor .section-list-item .section-count {
 	flex-shrink: 0;
-	font-size: 10px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
-	text-align: center;
+	text-align: right;
 	line-height: 16px;
 }
 
@@ -142,7 +141,20 @@
 
 .ai-customization-management-editor .content-inner {
 	height: 100%;
-	padding: 10px;
+	box-sizing: border-box;
+	padding-right: 16px;
+	padding-bottom: 16px;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .content-inner .welcome-page-host {
+	flex: 1 1 auto;
+	min-height: 0;
+	padding: 40px 40px 16px;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
 	box-sizing: border-box;
 }
 
@@ -251,7 +263,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 12px 2px;
+	padding: 16px 0;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -316,7 +328,7 @@
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-subtext {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
 	line-height: 1.4;
@@ -330,7 +342,7 @@
 .ai-customization-group-header {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 	padding: 4px 8px;
 	cursor: pointer;
 	-webkit-user-select: none;
@@ -373,7 +385,7 @@
 }
 
 .ai-customization-group-header .group-label {
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
@@ -383,12 +395,11 @@
 
 .ai-customization-group-header .group-count {
 	flex-shrink: 0;
-	font-size: 10px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label2);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-descriptionForeground);
-	min-width: 14px;
-	text-align: center;
-	line-height: 16px;
+	text-align: right;
+	margin-top: 2px;
 }
 
 .ai-customization-group-header .group-info {
@@ -412,15 +423,11 @@
 	opacity: 1;
 }
 
-.ai-customization-group-header.collapsed .group-label {
-	opacity: 0.7;
-}
-
 /* List item styling */
 .ai-customization-list-item {
 	display: flex;
-	align-items: flex-start;
-	padding: 6px 8px 6px 30px;
+	align-items: center;
+	padding: 6px 12px 6px 16px;
 	cursor: pointer;
 	border-radius: 4px;
 	min-height: 32px;
@@ -479,7 +486,7 @@
 /* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
-	font-size: 10px;
+	font-size: var(--vscode-agents-fontSize-label4);
 	padding: 0 4px;
 	border-radius: 3px;
 	color: var(--vscode-descriptionForeground);
@@ -534,7 +541,7 @@
 }
 
 .ai-customization-list-item .item-name {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -542,7 +549,7 @@
 }
 
 .ai-customization-list-item .item-description {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -552,7 +559,7 @@
 
 .ai-customization-list-item .item-description.is-filename {
 	font-family: monospace;
-	font-size: 10px;
+	font-size: var(--vscode-agents-fontSize-label4);
 	opacity: 0.7;
 }
 
@@ -560,7 +567,7 @@
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
-	margin-left: 8px;
+	margin-left: 16px;
 	gap: 4px;
 	opacity: 0;
 	transition: opacity 0.1s ease;
@@ -582,7 +589,7 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 4px 4px 32px 4px;
+	padding: 0 0 32px;
 	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
@@ -607,16 +614,15 @@
 
 .ai-customization-list-widget .section-title-header .section-title,
 .mcp-list-widget .section-title-header .section-title {
-	font-size: 22px;
-	font-weight: 600;
-	line-height: 1.2;
+	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 0;
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-list-widget .section-title-header .section-title-description,
 .mcp-list-widget .section-title-header .section-title-description {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
@@ -629,7 +635,7 @@
 
 .ai-customization-list-widget .section-title-header .section-title-link,
 .mcp-list-widget .section-title-header .section-title-link {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
 	line-height: 1.45;
@@ -654,13 +660,13 @@
 }
 
 .ai-customization-list-widget .section-footer .section-footer-description {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	margin: 0 0 8px 0;
 }
 
 .ai-customization-list-widget .section-footer .section-footer-link {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
@@ -726,8 +732,8 @@
 }
 
 .ai-customization-overview .overview-section .section-label {
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -756,14 +762,27 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	padding: 40px 40px 16px;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
+	overflow: hidden;
+	box-sizing: border-box;
 }
 
 /* Embedded MCP server detail view */
 .ai-customization-management-editor .mcp-detail-container {
+	position: relative;
 	height: 100%;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
+	padding: 16px;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
+	overflow: hidden;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
@@ -774,10 +793,35 @@
 
 /* Embedded plugin detail view */
 .ai-customization-management-editor .plugin-detail-container {
+	position: relative;
 	height: 100%;
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
+	padding: 16px;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+/* Inline back button with the embedded detail header */
+.ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail {
+	padding: 0;
+}
+
+.ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header {
+	align-items: center;
+}
+
+.ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
+.ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
+	display: flex;
+	align-items: center;
+	margin-inline-end: 4px;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container {
@@ -804,7 +848,7 @@
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-header {
 	display: flex;
 	align-items: flex-start;
-	gap: 12px;
+	gap: 4px;
 	min-width: 0;
 }
 
@@ -832,9 +876,9 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-name {
 	margin: 0;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2);
 	line-height: 22px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	word-break: break-word;
 }
 
@@ -852,15 +896,16 @@
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-description {
 	color: var(--vscode-foreground);
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.4;
 	white-space: pre-wrap;
 	word-break: break-word;
+	padding-inline-start: 32px;
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-empty {
 	color: var(--vscode-descriptionForeground);
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	padding: 8px 0;
 }
 
@@ -872,14 +917,14 @@
 }
 
 .ai-customization-management-editor .models-content-container .section-footer-description {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.5;
 	margin: 0 0 8px 0;
 }
 
 .ai-customization-management-editor .models-content-container .section-footer-link {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
@@ -939,7 +984,7 @@
 }
 
 .mcp-list-widget .mcp-empty-state .empty-subtext {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 250px;
 	line-height: 1.4;
@@ -989,7 +1034,7 @@
 }
 
 .mcp-list-widget .mcp-disabled-state .empty-subtext {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
 	max-width: 420px;
 	line-height: 1.5;
@@ -1027,6 +1072,10 @@
 	gap: 10px;
 }
 
+.mcp-server-item:not(.has-detail):not(.builtin) {
+	cursor: default;
+}
+
 .mcp-server-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
@@ -1049,7 +1098,7 @@
 }
 
 .mcp-server-item .mcp-server-name {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -1057,7 +1106,7 @@
 }
 
 .mcp-server-item .mcp-server-description {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1067,29 +1116,29 @@
 
 .mcp-server-item .mcp-server-status {
 	flex-shrink: 0;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 2px 8px;
-	border-radius: 10px;
-	font-weight: 500;
+	border-radius: 4px;
+	font-weight: var(--vscode-agents-fontWeight-medium);
 }
 
 .mcp-server-item .mcp-server-status.running {
-	background-color: var(--vscode-terminal-ansiGreen);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiGreen) 50%, transparent);
 	color: var(--vscode-editor-background);
 }
 
 .mcp-server-item .mcp-server-status.starting {
-	background-color: var(--vscode-terminal-ansiYellow);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiYellow) 50%, transparent);
 	color: var(--vscode-editor-background);
 }
 
 .mcp-server-item .mcp-server-status.error {
-	background-color: var(--vscode-terminal-ansiRed);
+	background-color: color-mix(in srgb, var(--vscode-terminal-ansiRed) 50%, transparent);
 	color: var(--vscode-editor-background);
 }
 
 .mcp-server-item .mcp-server-status.stopped {
-	background-color: var(--vscode-badge-background);
+	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
 	color: var(--vscode-badge-foreground);
 }
 
@@ -1098,7 +1147,7 @@
 }
 
 .mcp-server-item .mcp-server-status.disabled {
-	background-color: var(--vscode-badge-background);
+	background-color: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent);
 	color: var(--vscode-badge-foreground);
 }
 
@@ -1126,7 +1175,7 @@
 }
 
 .mcp-gallery-item .mcp-gallery-publisher {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -1157,7 +1206,7 @@
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	padding: 2px 10px;
 }
 
@@ -1170,13 +1219,19 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	padding: 0;
+	background: var(--vscode-agentsPanel-background);
+	border: 1px solid var(--vscode-agentsPanel-border);
+	border-radius: 6px;
+	overflow: hidden;
+	box-sizing: border-box;
 }
 
 .ai-customization-management-editor .editor-header {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	padding: 6px 2px;
+	padding: 16px 16px 6px;
 	flex-shrink: 0;
 }
 
@@ -1234,7 +1289,7 @@
 }
 
 .ai-customization-management-editor .editor-item-path {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1291,9 +1346,8 @@
 .ai-customization-management-editor .embedded-editor-container {
 	flex: 1;
 	margin-top: 8px;
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 4px;
 	min-height: 0;
+	overflow: hidden;
 }
 
 .ai-customization-management-editor .editor-preview-container {
@@ -1377,7 +1431,7 @@
 }
 
 .ai-customization-management-editor .editor-preview-row-value {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 1.5;
 	color: var(--vscode-foreground);
 	white-space: pre-wrap;
@@ -1440,12 +1494,31 @@
 	padding-left: 18px;
 }
 
-.ai-customization-management-editor .embedded-editor-container {
-	overflow: hidden;
-}
-
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {
 	border-radius: 4px;
+}
+
+/* Initial open transition: a subtle fade + lift plays once when the editor
+pane is first mounted. View switches inside the modal are not animated. */
+.ai-customization-management-editor {
+	animation: ai-customization-view-enter 160ms ease-out;
+}
+
+@keyframes ai-customization-view-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.ai-customization-management-editor {
+		animation: none;
+	}
 }
 
 /* Welcome page styles live in the welcome page variant stylesheets. */

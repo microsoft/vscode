@@ -22,10 +22,8 @@ const failureMarkers = [
 	'Cannot find module',
 ];
 
-export function setup(logger: Logger, opts: { web?: boolean; remote?: boolean }) {
-	const enabled = process.env.COPILOT_CLI_UI_SMOKE === '1' && !opts.web && !opts.remote;
-
-	(enabled ? describe : describe.skip)('Copilot CLI', function () {
+export function setup(logger: Logger) {
+	describe('Copilot CLI', function () {
 		this.timeout(3 * 60 * 1000);
 		this.retries(0);
 
@@ -117,7 +115,6 @@ async function getCopilotCliDiagnostics(app: Application, mockServer?: MockLlmSe
 			'Copilot CLI diagnostics:',
 			`mockServer=${mockServer?.url ?? '(not started)'} requestCount=${mockServer?.requestCount() ?? '(unknown)'}`,
 			'appExtraEnv=GITHUB_PAT:true IS_SCENARIO_AUTOMATION:true VSCODE_COPILOT_CHAT_TOKEN:true',
-			`copilotCliUiSmoke=${process.env.COPILOT_CLI_UI_SMOKE ?? '(unset)'}`,
 			`copilotChatLog=${copilotChatLog?.relativePath ?? '(not found)'}`,
 			`extensionHostLog=${extensionHostLog?.relativePath ?? '(not found)'}`,
 			`relevantLogTail:\n${relevantLogTail || '(empty; see attached smoke test logs for full output)'}`,

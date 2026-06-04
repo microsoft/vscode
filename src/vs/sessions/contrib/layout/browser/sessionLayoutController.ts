@@ -63,6 +63,7 @@ export class LayoutController extends Disposable {
 	private readonly _viewStateBySession: ResourceMap<ISessionViewState>;
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
 	private readonly _workingSetSequencer = new Sequencer();
+	private readonly _useModalConfigObs;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
@@ -112,6 +113,29 @@ export class LayoutController extends Disposable {
 			return activeSession?.workspace.read(reader)?.folders?.[0]?.root !== undefined;
 		});
 
+		const multipleSessionsVisibleObs = derived<boolean>(reader => {
+			return this._sessionManagementService.visibleSessions.read(reader).length > 1;
+		});
+
+		// When multiple sessions are visible, drop per-session view/panel state
+		// for each visible session (editor working sets are preserved).
+		// This will ensure the default visibility logic will be used again after
+		// closing all visible session and opening an existing one
+		this._register(autorun(reader => {
+			const visibleSessions = this._sessionManagementService.visibleSessions.read(reader);
+			if (visibleSessions.length <= 1) {
+				return;
+			}
+			for (const session of visibleSessions) {
+				if (!session) {
+					continue;
+				}
+				this._viewStateBySession.delete(session.resource);
+				this._panelVisibilityBySession.delete(session.resource);
+				this._pendingTurnStateByResource.delete(session.resource);
+			}
+		}));
+
 		// Switch between sessions — sync auxiliary bar (skip on mobile to avoid
 		// disruptive auto-expand on narrow viewports)
 		if (!(isWeb && isMobile)) {
@@ -121,6 +145,12 @@ export class LayoutController extends Disposable {
 				const isUntitled = activeSessionIsUntitledObs.read(reader);
 				const activeSessionHasWorkspace = activeSessionHasWorkspaceObs.read(reader);
 				const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
+				const multipleVisible = multipleSessionsVisibleObs.read(reader);
+
+				if (multipleVisible) {
+					previousSessionResource = activeSessionResource;
+					return;
+				}
 
 				// Save auxiliary bar state for the session we're switching away from
 				const isSessionSwitch = previousSessionResource !== undefined && !isEqual(previousSessionResource, activeSessionResource);
@@ -136,6 +166,9 @@ export class LayoutController extends Disposable {
 		// Switch between sessions — sync panel visibility
 		this._register(autorun(reader => {
 			const activeSessionResource = activeSessionResourceObs.read(reader);
+			if (multipleSessionsVisibleObs.read(reader)) {
+				return;
+			}
 			this._syncPanelVisibility(activeSessionResource);
 		}));
 
@@ -156,6 +189,10 @@ export class LayoutController extends Disposable {
 					return;
 				}
 
+				if (multipleSessionsVisibleObs.read(reader)) {
+					return;
+				}
+
 				const lastTurnEnd = activeSession.lastTurnEnd.read(reader);
 				const turnCompleted = !!lastTurnEnd && lastTurnEnd.getTime() >= pendingTurnState.submittedAt;
 				if (!turnCompleted) {
@@ -172,6 +209,9 @@ export class LayoutController extends Disposable {
 			}));
 
 			this._register(this._chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+				if (multipleSessionsVisibleObs.get()) {
+					return;
+				}
 				this._pendingTurnStateByResource.set(chatSessionResource, {
 					hadChangesBeforeSend: activeSessionHasChangesObs.get(),
 					submittedAt: Date.now(),
@@ -184,15 +224,26 @@ export class LayoutController extends Disposable {
 			if (e.partId !== Parts.PANEL_PART) {
 				return;
 			}
+			if (multipleSessionsVisibleObs.get()) {
+				return;
+			}
 			const activeSession = this._sessionManagementService.activeSession.get();
 			if (activeSession) {
 				this._panelVisibilityBySession.set(activeSession.resource, e.visible);
 			}
 		}));
 
+		// Invariant: the editor part must never be visible without the auxiliary bar.
+		this._enforceAuxiliaryBarWhenEditorVisible();
+		this._register(this._layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.EDITOR_PART && e.visible) {
+				this._enforceAuxiliaryBarWhenEditorVisible();
+			}
+		}));
+
 		// --- Editor working sets ---
 
-		const useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
+		this._useModalConfigObs = observableConfigValue<'off' | 'some' | 'all'>('workbench.editor.useModal', 'all', this._configurationService);
 
 		// Workspace folders — used to defer session switch until workspace is ready
 		const workspaceFoldersObs = observableFromEvent(
@@ -222,7 +273,7 @@ export class LayoutController extends Disposable {
 		});
 
 		this._register(autorun(reader => {
-			const useModalConfig = useModalConfigObs.read(reader);
+			const useModalConfig = this._useModalConfigObs.read(reader);
 			if (useModalConfig === 'all') {
 				return;
 			}
@@ -253,6 +304,15 @@ export class LayoutController extends Disposable {
 	}
 
 	// --- Auxiliary bar ---
+
+	private _enforceAuxiliaryBarWhenEditorVisible(): void {
+		if (
+			this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) &&
+			!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+		) {
+			this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		}
+	}
 
 	private _captureViewState(sessionResource: URI): void {
 		const auxiliaryBarVisible = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART);
@@ -341,9 +401,10 @@ export class LayoutController extends Disposable {
 
 	private _saveState(): void {
 		const activeSession = this._sessionManagementService.activeSession.get();
+		const multipleVisible = this._sessionManagementService.visibleSessions.get().length > 1;
 
-		// Capture current state for the active session
-		if (activeSession) {
+		// Capture current state for the active session (skip when multiple sessions are visible)
+		if (activeSession && !multipleVisible) {
 			this._captureViewState(activeSession.resource);
 		}
 
@@ -395,17 +456,23 @@ export class LayoutController extends Disposable {
 			: 'empty';
 
 		return this._workingSetSequencer.queue(async () => {
+			// Switching the active session must never reveal the main editor area
+			// (or restore editors into it) while modal-only mode is in effect — the
+			// outer autorun already guards against this, but `useModal` may have
+			// flipped to 'all' between this call being queued and now.
+			const isModal = this._useModalConfigObs.get() === 'all';
+
 			if (workingSet === 'empty') {
 				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
 				return;
 			}
 
-			if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
-			if (result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		});
