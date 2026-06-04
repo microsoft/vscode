@@ -45,6 +45,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
+	public readonly ownsAuthorization = true;
 
 	constructor(
 		private readonly languageModel: vscode.LanguageModelChat,
