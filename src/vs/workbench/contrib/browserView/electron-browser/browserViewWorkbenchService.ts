@@ -23,7 +23,6 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ChatConfiguration } from '../../chat/common/constants.js';
-import { AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { focusBorder } from '../../../../platform/theme/common/colors/baseColors.js';
 import { buttonForeground, buttonBackground } from '../../../../platform/theme/common/colors/inputColors.js';
@@ -34,6 +33,7 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -41,6 +41,7 @@ import { Schemas } from '../../../../base/common/network.js';
  * Sessions window or when the agent host is disabled.
  */
 export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
+export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -67,9 +68,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		ContextKeyExpr.or(
 			IsSessionsWindowContext.negate(),
 			ContextKeyExpr.and(
-				IsSessionsWindowContext,
-				ContextKeyExpr.has(`config.${AgentHostEnabledSettingId}`),
 				ContextKeyExpr.has(`config.${AgentHostChatToolsEnabledSettingId}`),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('activeSessionType', localChatSessionType),
+					ContextKeyExpr.equals('sessions.isAgentHostSession', true),
+				)
 			),
 		),
 	)!;
@@ -112,6 +115,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
+				this.sendConfiguration();
+			}
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId)) {
 				this.sendConfiguration();
 			}
 		}));
@@ -331,6 +339,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private sendConfiguration(): void {
 		void this._browserViewService.updateConfiguration({
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 		});
 	}
 

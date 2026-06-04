@@ -135,6 +135,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+
+/**
+ * Experimental setting id controlling whether the local agent host acts as the
+ * default sessions provider. When enabled (and `chat.agentHost.enabled` is
+ * true), the local agent host's session types are surfaced before those of
+ * other providers. Defaults to `false`.
+ */
+export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
+
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
 export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;

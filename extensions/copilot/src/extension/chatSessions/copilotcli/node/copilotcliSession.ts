@@ -837,7 +837,7 @@ export interface ICopilotCLISession extends IDisposable {
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void>;
@@ -975,7 +975,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		authInfo: NonNullable<SessionOptions['authInfo']>,
 		token: vscode.CancellationToken
 	): Promise<void> {
@@ -991,7 +991,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const previousRequestSnapshot = this.previousRequest;
 
 		const handled = this._requestLogger.captureInvocation(capturingToken, async () => {
-			await this.updateModel(model?.model, model?.reasoningEffort, authInfo, token);
+			await this.updateModel(model?.model, model?.reasoningEffort, model?.contextTier, authInfo, token);
 
 			if (isAlreadyBusyWithAnotherRequest) {
 				return this._handleRequestSteering(input, attachments, model, previousRequestSnapshot, token);
@@ -1000,7 +1000,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		});
 
-		this.previousRequest = this.previousRequest.then(() => handled);
+		this.previousRequest = this.previousRequest.then(() => handled).catch(() => { /* prevent unhandled rejection on the serialisation chain */ });
 		return handled;
 	}
 
@@ -1023,7 +1023,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private async _handleRequestSteering(
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		previousRequestPromise: Promise<unknown>,
 		token: vscode.CancellationToken,
 	): Promise<void> {
@@ -1065,7 +1065,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		request: { id: string; toolInvocationToken: ChatParticipantToolToken; sessionResource?: vscode.Uri },
 		input: CopilotCLISessionInput,
 		attachments: Attachment[],
-		model: { model: string; reasoningEffort?: string } | undefined,
+		model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined,
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
@@ -1214,6 +1214,28 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
+		// Tracks the `messageId` of the last assistant text we forwarded to
+		// the stream (via `assistant.message_delta` or `assistant.message`).
+		// When the next text emission carries a different `messageId` — i.e.
+		// the model emitted a new assistant message in the same turn (e.g.
+		// after a tool call, or as a second phase) — we prepend `\n\n` so the
+		// two messages don't fuse into a single run-on paragraph
+		// (e.g. `"...wiring:Now add..."`). Only triggers when both sides have
+		// a defined messageId, so message emissions without an id (rare /
+		// legacy) keep their current behavior.
+		let lastEmittedAssistantMessageId: string | undefined;
+		const maybeEmitMessageSeparator = (incomingMessageId: string | undefined) => {
+			if (
+				incomingMessageId !== undefined &&
+				lastEmittedAssistantMessageId !== undefined &&
+				incomingMessageId !== lastEmittedAssistantMessageId
+			) {
+				requestStream?.markdown('\n\n');
+			}
+			if (incomingMessageId !== undefined) {
+				lastEmittedAssistantMessageId = incomingMessageId;
+			}
+		};
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
 			if (token.isCancellationRequested || !requestStream) {
@@ -1420,6 +1442,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (event.data.parentToolCallId) {
 						return;
 					}
+					maybeEmitMessageSeparator(event.data.messageId);
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
 					wroteResponseContent = true;
@@ -1434,6 +1457,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
+					maybeEmitMessageSeparator(event.data.messageId);
 					wroteResponseContent = true;
 					requestStream?.markdown(event.data.content);
 				}
@@ -1672,7 +1696,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		}
 	}
 
-	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
+	private async updateModel(modelId: string | undefined, reasoningEffort: string | undefined, contextTier: 'default' | 'long_context' | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: CancellationToken): Promise<void> {
 		// Where possible try to avoid an extra call to getSelectedModel by using cached value.
 		let currentModel: string | undefined = undefined;
 		if (modelId) {
@@ -1685,8 +1709,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (token.isCancellationRequested) {
 			return;
 		}
+		const optionsUpdate: Record<string, unknown> = {};
 		if (authInfo) {
-			this._sdkSession.updateOptions({ authInfo });
+			optionsUpdate.authInfo = authInfo;
+		}
+		if (contextTier) {
+			optionsUpdate.contextTier = contextTier;
+		}
+		if (Object.keys(optionsUpdate).length > 0) {
+			this._sdkSession.updateOptions(optionsUpdate);
 		}
 		if (modelId) {
 			if (modelId !== currentModel) {

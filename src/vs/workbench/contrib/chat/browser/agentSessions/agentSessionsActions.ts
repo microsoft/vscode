@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
@@ -624,6 +626,16 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
+/**
+ * Matches every session type that supports renaming: local sessions and all
+ * agent-host session types (`agent-host-*` and `remote-*`), mirroring the
+ * generic `isAgentHostTarget` check used by the rename action body.
+ */
+const renameSupportedSessionTypes = ContextKeyExpr.or(
+	ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+	ChatContextKeyExprs.isAgentHostSessionItem,
+);
+
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
@@ -639,14 +651,14 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+					renameSupportedSessionTypes
 				),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 3,
-				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+				when: renameSupportedSessionTypes
 			}
 		});
 	}
@@ -659,10 +671,15 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
 		if (title) {
-			chatService.setChatSessionTitle(session.resource, title);
+			if (isAgentHostAgentSessionItem(session)) {
+				await chatSessionsService.renameChatSession(session.resource, title, CancellationToken.None);
+			} else {
+				chatService.setChatSessionTitle(session.resource, title);
+			}
 		}
 	}
 }
