@@ -4940,6 +4940,25 @@
               "default": true
             }
           },
+          "github.copilot.chat.cli.sandbox.enabled": {
+            "type": "string",
+            "enum": [
+              "off",
+              "on",
+              "allowNetwork"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.cli.sandbox.enabled.offDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.onDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.allowNetworkDescription%"
+            ],
+            "default": "off",
+            "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
+            "tags": [
+              "advanced",
+              "experimental"
+            ]
+          },
           "github.copilot.chat.cli.branchSupport.enabled": {
             "type": "boolean",
             "default": false,
