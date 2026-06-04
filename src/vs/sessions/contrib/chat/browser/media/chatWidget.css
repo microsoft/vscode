@@ -287,6 +287,28 @@
 	transform: translateY(1px);
 }
 
+/*
+ * Static (non-interactive) kind label: blends into the surrounding
+ * "New <kind> in <workspace>" sentence as plain inline text rather
+ * than the chip-styled dropdown trigger used when the picker is
+ * interactive.
+ */
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label.static {
+	padding: 0;
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+	background-color: transparent;
+}
+
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label.static:hover {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label.static .sessions-chat-dropdown-label {
+	margin-left: 0;
+}
+
 .sessions-chat-dropdown-label {
 	margin-left: 6px;
 	overflow: hidden;

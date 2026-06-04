@@ -120,7 +120,6 @@ export class NewSessionKindPicker extends Disposable {
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
-		trigger.tabIndex = 0;
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
 
@@ -174,7 +173,9 @@ export class NewSessionKindPicker extends Disposable {
 		const option = getKindOption(this._kind);
 		const interactive = this._isInteractive();
 
-		dom.append(this._triggerElement, renderIcon(option.icon));
+		if (interactive) {
+			dom.append(this._triggerElement, renderIcon(option.icon));
+		}
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = option.label.toLowerCase();
 
@@ -184,14 +185,19 @@ export class NewSessionKindPicker extends Disposable {
 			this._triggerElement.role = 'button';
 			this._triggerElement.setAttribute('aria-haspopup', 'listbox');
 			this._triggerElement.setAttribute('aria-expanded', 'false');
+			this._triggerElement.tabIndex = 0;
 			this._triggerElement.ariaLabel = localize('newSessionKind.triggerAriaLabel', "Kind: {0}. Click to change.", option.label);
-			this._triggerElement.classList.remove('disabled');
+			this._triggerElement.classList.remove('static');
 		} else {
 			this._triggerElement.removeAttribute('role');
 			this._triggerElement.removeAttribute('aria-haspopup');
 			this._triggerElement.removeAttribute('aria-expanded');
+			this._triggerElement.tabIndex = -1;
 			this._triggerElement.ariaLabel = option.label;
-			this._triggerElement.classList.add('disabled');
+			// When there's only one kind available, the trigger blends into
+			// the surrounding "New ___ in {workspace}" sentence as plain
+			// inline text — no chip styling, no icon, no chevron.
+			this._triggerElement.classList.add('static');
 		}
 	}
 
