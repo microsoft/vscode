@@ -82,7 +82,7 @@
 }
 
 .chat-composite-bar-session-title-text {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -100,6 +100,7 @@
 }
 
 .chat-composite-bar-session-title.editing {
+	flex: 1 1 auto;
 	cursor: default;
 	background-color: transparent;
 	/* Remove the read-mode padding; the input has its own border + padding that
