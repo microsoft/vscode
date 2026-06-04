@@ -16,7 +16,6 @@ import { AgentHostSessionGitStateService } from './agentHostSessionGitStateServi
 
 export class AgentHostChangesetOperationContributionService extends Disposable implements IChangesetOperationContributionService {
 
-	private readonly _contributions = new Set<IChangesetOperationContribution>();
 	private readonly _handlerRegistrations = this._register(new DisposableMap<IChangesetOperationContribution>());
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
@@ -35,21 +34,19 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 	}
 
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable {
-		if (this._contributions.has(contribution)) {
+		if (this._handlerRegistrations.has(contribution)) {
 			throw new Error('Changeset operation contribution already registered');
 		}
-		this._contributions.add(contribution);
-		this._registerContributionHandlers(contribution);
+		this._handlerRegistrations.set(contribution, contribution.registerHandlers(this._registry));
 		return toDisposable(() => {
 			this._handlerRegistrations.deleteAndDispose(contribution);
-			this._contributions.delete(contribution);
 			contribution.dispose();
 		});
 	}
 
 	getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined {
 		const operations: ChangesetOperation[] = [];
-		for (const contribution of this._contributions) {
+		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
 			if (contributed) {
 				operations.push(...contributed);
@@ -131,12 +128,5 @@ export class AgentHostChangesetOperationContributionService extends Disposable i
 				this._changesetOperationHandlers.delete(operationId);
 			}
 		});
-	}
-
-	private _registerContributionHandlers(contribution: IChangesetOperationContribution): void {
-		if (this._handlerRegistrations.has(contribution)) {
-			return;
-		}
-		this._handlerRegistrations.set(contribution, contribution.registerHandlers(this._registry));
 	}
 }

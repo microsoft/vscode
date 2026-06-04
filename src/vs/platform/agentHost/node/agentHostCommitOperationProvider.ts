@@ -47,6 +47,7 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 	}
 
 	private async _onCommitted(sessionKey: string): Promise<void> {
+		this._registry?.onDidChangeOperations(sessionKey);
 		await this._registry?.refreshSessionGitState(sessionKey);
 	}
 }

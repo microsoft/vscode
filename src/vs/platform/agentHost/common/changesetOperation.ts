@@ -18,6 +18,14 @@ import type { ChangesetOperation, ISessionGitState, URI } from './state/sessionS
  * responsible for executing the operation.
  */
 export interface IChangesetOperationHandler {
+	/**
+	 * Executes a previously advertised changeset operation.
+	 *
+	 * The handler receives the original protocol params so it can inspect the
+	 * changeset channel and optional target. Validation that the operation exists
+	 * on the changeset and supports the requested target scope happens before this
+	 * method is called.
+	 */
 	invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult>;
 }
 
@@ -37,25 +45,76 @@ export interface IChangesetOperationContext {
 	readonly changesetUri: URI;
 	/** Well-known changeset kind for {@link changesetUri}. */
 	readonly changesetKind: ChangesetKind;
-	/** Current git metadata for the session. This is enough for the PR operations today. */
+	/** Current git metadata for the session used to compute operation availability. */
 	readonly gitState: ISessionGitState;
 }
 
+/**
+ * Registration surface handed to changeset operation contributions.
+ *
+ * Contributions use this object to install operation handlers and request a
+ * refresh when external state changes which operations should be advertised.
+ */
 export interface IChangesetOperationRegistry {
+	/**
+	 * Registers the server-side handler for one {@link ChangesetOperation.id}.
+	 * The returned disposable removes only this registration.
+	 */
 	registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable;
+	/**
+	 * Notifies the contribution service that advertised operations for all static
+	 * changesets in `sessionKey` should be recomputed from current session state.
+	 */
 	onDidChangeOperations(sessionKey: string): void;
+	/**
+	 * Recomputes the session's git metadata and then refreshes advertised
+	 * operations if that metadata can be resolved.
+	 */
 	refreshSessionGitState(sessionKey: string): Promise<void>;
 }
 
+/**
+ * Provider of changeset operations for one feature area.
+ *
+ * A contribution owns the decision about which operations are available for a
+ * changeset and registers the handlers that execute those operations.
+ */
 export interface IChangesetOperationContribution extends IDisposable {
+	/**
+	 * Registers every operation handler owned by this contribution. Called once
+	 * when the contribution is added to the service.
+	 */
 	registerHandlers(registry: IChangesetOperationRegistry): IDisposable;
+	/**
+	 * Returns operations that should be advertised for the given changeset, or
+	 * `undefined` when this contribution has nothing to offer in the context.
+	 */
 	getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined;
 }
 
+/**
+ * Coordinates changeset operation contributions, advertised operation state,
+ * and client-triggered invocation.
+ */
 export interface IChangesetOperationContributionService extends IDisposable {
+	/**
+	 * Adds a contribution and registers its handlers. Disposing the returned value
+	 * unregisters the handlers and disposes the contribution.
+	 */
 	registerContribution(contribution: IChangesetOperationContribution): IDisposable;
+	/**
+	 * Collects all operations advertised by registered contributions for a
+	 * changeset context.
+	 */
 	getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] | undefined;
-	refreshOperationsFromCurrentState(sessionKey: string): void;
+	/**
+	 * Recomputes and publishes operations for the session and uncommitted static
+	 * changesets using the supplied git state.
+	 */
 	updateOperations(sessionKey: string, gitState: ISessionGitState): void;
+	/**
+	 * Invokes an advertised operation after validating the changeset, operation id,
+	 * and requested target scope.
+	 */
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 }
