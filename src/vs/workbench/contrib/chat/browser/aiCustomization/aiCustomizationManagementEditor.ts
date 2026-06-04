@@ -56,6 +56,7 @@ import {
 	CONTENT_MIN_WIDTH,
 } from './aiCustomizationManagement.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, pluginIcon, automationIcon } from './aiCustomizationIcons.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -531,6 +532,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const descriptor = this.harnessService.findHarnessById(activeId);
 		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
+		// Also hide the Automations section when the feature setting is off.
+		if (this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) !== true) {
+			hidden.add(AICustomizationManagementSection.Automations);
+		}
+
 		this.sections.length = 0;
 		for (const s of this.allSections) {
 			if (!hidden.has(s.id)) {
@@ -624,6 +630,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled)) {
 				this.onStructuredPreviewSettingChanged();
+			}
+			if (e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
+				this.rebuildVisibleSections();
 			}
 		}));
 

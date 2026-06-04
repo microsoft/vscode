@@ -13,6 +13,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 
 /**
  * The kinds of "thing" the new-chat composer can produce when the user
@@ -79,11 +81,22 @@ export class NewSessionKindPicker extends Disposable {
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
 
 	get kind(): NewSessionKind { return this._kind; }
+
+	private _isAutomationsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	}
+
+	private _availableKindOptions(): readonly IKindOption[] {
+		return this._isAutomationsEnabled()
+			? KIND_OPTIONS
+			: KIND_OPTIONS.filter(o => o.kind !== NewSessionKind.Automation);
+	}
 
 	setKind(kind: NewSessionKind): void {
 		if (kind === this._kind) {
@@ -97,6 +110,8 @@ export class NewSessionKindPicker extends Disposable {
 	/**
 	 * Renders the inline picker into `container`. Returns the picker's
 	 * slot element so callers can lay it out alongside sibling pickers.
+	 * Subscribes to the chat.automations.enabled setting so the trigger
+	 * collapses to a static label when only one kind option is available.
 	 */
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
@@ -106,28 +121,48 @@ export class NewSessionKindPicker extends Disposable {
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
-		trigger.role = 'button';
-		trigger.setAttribute('aria-haspopup', 'listbox');
-		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
 		this._updateTriggerLabel();
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
 			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
+				if (!this._isInteractive()) {
+					return;
+				}
 				dom.EventHelper.stop(e, true);
 				this._showPicker();
 			}));
 		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
+			if (!this._isInteractive()) {
+				return;
+			}
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
 				this._showPicker();
 			}
 		}));
 
+		// Re-render the trigger when the automations setting flips so the
+		// dropdown affordance and "automation" option appear/disappear in
+		// real time without re-mounting the composer.
+		this._renderDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
+				if (!this._availableKindOptions().some(o => o.kind === this._kind)) {
+					this.setKind(NewSessionKind.Session);
+				} else {
+					this._updateTriggerLabel();
+				}
+			}
+		}));
+
 		return slot;
+	}
+
+	private _isInteractive(): boolean {
+		return this._availableKindOptions().length > 1;
 	}
 
 	private _updateTriggerLabel(): void {
@@ -137,14 +172,27 @@ export class NewSessionKindPicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 		const option = getKindOption(this._kind);
+		const interactive = this._isInteractive();
 
 		dom.append(this._triggerElement, renderIcon(option.icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = option.label.toLowerCase();
-		const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
-		chevron.classList.add('sessions-chat-dropdown-chevron');
 
-		this._triggerElement.ariaLabel = localize('newSessionKind.triggerAriaLabel', "Kind: {0}. Click to change.", option.label);
+		if (interactive) {
+			const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+			chevron.classList.add('sessions-chat-dropdown-chevron');
+			this._triggerElement.role = 'button';
+			this._triggerElement.setAttribute('aria-haspopup', 'listbox');
+			this._triggerElement.setAttribute('aria-expanded', 'false');
+			this._triggerElement.ariaLabel = localize('newSessionKind.triggerAriaLabel', "Kind: {0}. Click to change.", option.label);
+			this._triggerElement.classList.remove('disabled');
+		} else {
+			this._triggerElement.removeAttribute('role');
+			this._triggerElement.removeAttribute('aria-haspopup');
+			this._triggerElement.removeAttribute('aria-expanded');
+			this._triggerElement.ariaLabel = option.label;
+			this._triggerElement.classList.add('disabled');
+		}
 	}
 
 	private _showPicker(): void {
@@ -153,7 +201,15 @@ export class NewSessionKindPicker extends Disposable {
 		}
 		const triggerElement = this._triggerElement;
 
-		const items: IActionListItem<IKindPickerItem>[] = KIND_OPTIONS.map(option => ({
+		const options = this._availableKindOptions();
+		// If automations are disabled and the current kind is Automation,
+		// fall back to Session so the trigger label and downstream behavior
+		// match the available options.
+		if (!options.some(o => o.kind === this._kind)) {
+			this.setKind(NewSessionKind.Session);
+		}
+
+		const items: IActionListItem<IKindPickerItem>[] = options.map(option => ({
 			kind: ActionListItemKind.Action,
 			label: option.label,
 			description: option.description,

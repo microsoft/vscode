@@ -7,12 +7,14 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IAutomation } from '../../common/automations/automation.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { AutomationLeaderElection, IAutomationLeaderElection } from './automationLeaderElection.js';
 
 /**
@@ -35,6 +37,14 @@ export interface IAutomationSchedulerCoreOptions {
 	readonly leaderElection?: IAutomationLeaderElection;
 	/** If true, the periodic timer is not started; useful for tests. */
 	readonly disableAutoTick?: boolean;
+	/**
+	 * Predicate that gates dispatch. When it returns `false`, the
+	 * scheduler skips its tick body entirely — no crash recovery, no
+	 * catch-up, no dispatch. Used to wire the
+	 * `chat.automations.enabled` setting; defaults to always-on so
+	 * tests don't have to think about it.
+	 */
+	readonly isFeatureEnabled?: () => boolean;
 }
 
 /**
@@ -60,6 +70,7 @@ export class AutomationSchedulerCore extends Disposable {
 
 	private readonly _tickIntervalMs: number;
 	private readonly _now: () => Date;
+	private readonly _isFeatureEnabled: () => boolean;
 
 	private readonly _timer = this._register(new IntervalTimer());
 	private readonly _runCts = this._register(new CancellationTokenSource());
@@ -85,6 +96,7 @@ export class AutomationSchedulerCore extends Disposable {
 
 		this._tickIntervalMs = options.tickIntervalMs ?? DEFAULT_SCHEDULER_TICK_MS;
 		this._now = options.now ?? (() => new Date());
+		this._isFeatureEnabled = options.isFeatureEnabled ?? (() => true);
 
 		this._leader = options.leaderElection ?? this._register(new AutomationLeaderElection(storageService, logService));
 
@@ -126,6 +138,16 @@ export class AutomationSchedulerCore extends Disposable {
 
 	private async tickOnce(isLeadershipTransition: boolean): Promise<void> {
 		if (!this._leader.isLeader.get()) {
+			return;
+		}
+
+		// Skip all dispatch work when the feature is disabled via the
+		// `chat.automations.enabled` setting. The next tick that occurs
+		// while the feature is enabled will pick up any due rows; we
+		// re-arm the leadership-startup work so catch-up runs after a
+		// re-enable as well.
+		if (!this._isFeatureEnabled()) {
+			this._didStartupForCurrentLeadership = false;
 			return;
 		}
 
@@ -183,9 +205,12 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 		@IAutomationRunner runner: IAutomationRunner,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(new AutomationSchedulerCore(automationService, runner, storageService, logService));
+		this._register(new AutomationSchedulerCore(automationService, runner, storageService, logService, {
+			isFeatureEnabled: () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
+		}));
 	}
 }
 
