@@ -108,6 +108,8 @@ const enum Constants {
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
+const noXtermReadyPromise: Promise<XtermTerminal | undefined> = Promise.resolve(undefined);
+const noBarrierWait: Promise<boolean> = Promise.resolve(true);
 
 interface ICanvasDimensions {
 	width: number;
@@ -151,8 +153,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Resolves when xterm.js is ready, this will be undefined if the terminal instance is disposed
 	 * before xterm.js could be created.
 	 */
-	private _xtermReadyPromise: Promise<XtermTerminal | undefined>;
-	get xtermReadyPromise(): Promise<XtermTerminal | undefined> { return this._xtermReadyPromise; }
+	private _xtermReadyPromise: Promise<XtermTerminal | undefined> | undefined;
+	get xtermReadyPromise(): Promise<XtermTerminal | undefined> { return this._xtermReadyPromise ?? noXtermReadyPromise; }
 
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;
@@ -187,8 +189,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _areLinksReady: boolean = false;
 	private readonly _initialDataEventsListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _initialDataEvents: string[] | undefined = [];
-	private _containerReadyBarrier: AutoOpenBarrier;
-	private _attachBarrier: AutoOpenBarrier;
+	private _containerReadyBarrier: AutoOpenBarrier | undefined;
+	private _attachBarrier: AutoOpenBarrier | undefined;
 	private _icon: TerminalIcon | undefined;
 	private readonly _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _widgetManager: TerminalWidgetManager;
@@ -367,7 +369,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private readonly _onLineData = this._register(new Emitter<string>({
-		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise)?.raw.loadAddon(this._lineDataEventAddon!)
+		onDidAddFirstListener: async () => (this.xterm ?? await this.xtermReadyPromise)?.raw.loadAddon(this._lineDataEventAddon!)
 	}));
 	readonly onLineData = this._onLineData.event;
 
@@ -540,7 +542,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise = this._createXterm();
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
-			await this._containerReadyBarrier.wait();
+			await (this._containerReadyBarrier?.wait() ?? noBarrierWait);
+			if (this.isDisposed) {
+				return;
+			}
 
 			// Resolve the executable ahead of time if shell integration is enabled, this should not
 			// be done for custom PTYs as that would cause extension Pseudoterminal-based terminals
@@ -649,7 +654,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			} catch (err) {
 				onUnexpectedError(err);
 			}
-			this._xtermReadyPromise.then(xterm => {
+			this.xtermReadyPromise.then(xterm => {
 				if (xterm) {
 					contribution.xtermReady?.(xterm);
 				}
@@ -1055,7 +1060,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (!this._attachBarrier.isOpen()) {
+		if (this._attachBarrier && !this._attachBarrier.isOpen()) {
 			this._attachBarrier.open();
 		}
 
@@ -1108,7 +1113,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Fire xtermOpen on all contributions
 		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(xterm => {
+				this.xtermReadyPromise.then(xterm => {
 					if (xterm) {
 						contribution.xtermOpen?.(xterm);
 					}
@@ -1293,6 +1298,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._widgetManager);
+		if (this._containerReadyBarrier && !this._containerReadyBarrier.isOpen()) {
+			this._containerReadyBarrier.open();
+		}
+		this._containerReadyBarrier = undefined;
+		if (this._attachBarrier && !this._attachBarrier.isOpen()) {
+			this._attachBarrier.open();
+		}
+		this._attachBarrier = undefined;
+		this._xtermReadyPromise = undefined;
 
 		if (this.xterm?.raw.element) {
 			this._hadFocusOnExit = this.hasFocus;
@@ -1369,8 +1383,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async focusWhenReady(force?: boolean): Promise<void> {
-		await this._xtermReadyPromise;
-		await this._attachBarrier.wait();
+		await this.xtermReadyPromise;
+		await (this._attachBarrier?.wait() ?? noBarrierWait);
 		this.focus(force);
 	}
 
@@ -1509,9 +1523,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Listen to xterm.js' sequence title change event, trigger this async to ensure
-				// _xtermReadyPromise is ready constructed since this is called from the ctor
+				// xtermReadyPromise is ready constructed since this is called from the ctor
 				setTimeout(() => {
-					this._xtermReadyPromise.then(xterm => {
+					this.xtermReadyPromise.then(xterm => {
 						if (xterm) {
 							this._messageTitleDisposable.value = xterm.raw.onTitleChange(e => this._onTitleChange(e));
 						}
@@ -1735,7 +1749,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// user (via the `workbench.action.terminal.kill` command).
 		const waitOnExit = this.waitOnExit;
 		if (waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
-			this._xtermReadyPromise.then(xterm => {
+			this.xtermReadyPromise.then(xterm => {
 				if (!xterm) {
 					return;
 				}
@@ -2011,14 +2025,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._resize();
 
 		// Signal the container is ready
-		if (!this._containerReadyBarrier.isOpen()) {
+		if (this._containerReadyBarrier && !this._containerReadyBarrier.isOpen()) {
 			this._containerReadyBarrier.open();
 		}
 
 		// Layout all contributions
 		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(xterm => {
+				this.xtermReadyPromise.then(xterm => {
 					if (xterm) {
 						contribution.layout?.(xterm, dimension);
 					}

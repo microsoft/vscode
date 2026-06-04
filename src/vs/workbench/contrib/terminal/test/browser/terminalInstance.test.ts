@@ -161,6 +161,27 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
 
+		test('should release startup promises and barriers on dispose', async () => {
+			const instance = await createTerminalInstance();
+			const privateInstance = instance as unknown as {
+				_xtermReadyPromise: Promise<unknown> | undefined;
+				_containerReadyBarrier: unknown;
+				_attachBarrier: unknown;
+			};
+
+			strictEqual(privateInstance._xtermReadyPromise instanceof Promise, true);
+			strictEqual(privateInstance._containerReadyBarrier !== undefined, true);
+			strictEqual(privateInstance._attachBarrier !== undefined, true);
+
+			instance.dispose();
+
+			strictEqual(privateInstance._xtermReadyPromise, undefined);
+			strictEqual(privateInstance._containerReadyBarrier, undefined);
+			strictEqual(privateInstance._attachBarrier, undefined);
+			strictEqual(await instance.xtermReadyPromise, undefined);
+			await instance.focusWhenReady();
+		});
+
 		test('should preserve title for task terminals', async () => {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
