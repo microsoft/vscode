@@ -203,16 +203,8 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				if (!models.length) {
 					return models;
 				}
-
 				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
-				const hasAutoModel = models.some(model => model.id === 'auto');
-				if (!autoModelEnabled) {
-					return hasAutoModel ? models.filter(model => model.id !== 'auto') : models;
-				}
-				if (!hasAutoModel) {
-					return [buildAutoModel()].concat(models);
-				}
-				return models;
+				return autoModelEnabled ? [buildAutoModel()] : [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.
@@ -262,7 +254,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				tooltip
 			};
 		});
-		if (isAutoModelEnabled && modelsInfo.length > 0) {
+		if (isAutoModelEnabled) {
 			modelsInfo.unshift(buildAutoModel(models[0]));
 		}
 		return modelsInfo;
