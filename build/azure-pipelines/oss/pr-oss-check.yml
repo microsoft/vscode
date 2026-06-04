@@ -1,0 +1,111 @@
+trigger: none
+
+pr: none
+
+parameters:
+  - name: GITHUB_CHECK_RUN_ID
+    type: string
+
+variables:
+  - name: NPM_REGISTRY
+    value: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
+  - name: VSCODE_QUALITY
+    value: oss
+
+jobs:
+  - job: ValidateOSSLicenseCoverage
+    displayName: Validate OSS license coverage for changed package.json files
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    timeoutInMinutes: 60
+    variables:
+      VSCODE_ARCH: x64
+    steps:
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - script: |
+          set -e
+          echo "Checking if package.json files were modified..."
+
+          git fetch origin main
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          if echo "$CHANGED_FILES" | grep -E '(^|/)package\.json$'; then
+            echo "##vso[task.setvariable variable=SHOULD_VALIDATE]true"
+            echo "package.json files were modified, proceeding with validation"
+          else
+            echo "##vso[task.setvariable variable=SHOULD_VALIDATE]false"
+            echo "No package.json files were modified, skipping validation"
+            echo "##vso[task.complete result=Succeeded;]No package.json files changed - nothing to validate"
+          fi
+        displayName: Check if package.json files were modified
+
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
+        displayName: Setup NPM Registry
+
+      - script: |
+          set -e
+          echo "NPMRC Path: $(npm config get userconfig)"
+          echo "NPM Registry: $(npm config get registry)"
+          npm config set registry "$NPM_REGISTRY"
+          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
+        displayName: Setup NPM
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
+        displayName: Setup NPM Authentication
+
+      - script: |
+          set -e
+          for attempt in {1..3}; do
+            echo "Attempt $attempt: npm install (root only, ignore-scripts)"
+            if npm i --ignore-scripts --no-audit --no-fund; then
+              echo "npm install succeeded"
+              exit 0
+            fi
+            echo "npm install failed on attempt $attempt; sleeping 30s"
+            sleep 30
+          done
+          echo "npm install failed after 3 attempts"
+          exit 1
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        displayName: Install root dependencies (best-effort, for LICENSE detection)
+        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
+      - script: |
+          set -e
+          npx tsc --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out \
+            build/azure-pipelines/oss/apply-overrides.ts \
+            build/azure-pipelines/oss/check-pr-dependencies.ts
+        displayName: Compile OSS check scripts
+        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
+      - script: |
+          set -e
+          node .oss-build-out/check-pr-dependencies.js \
+            --repo "$(Build.SourcesDirectory)" \
+            --base "origin/main" \
+            --head "HEAD" \
+            --cglicenses "$(Build.SourcesDirectory)/cglicenses.json"
+        displayName: Check PR-added dependencies have license coverage
+        condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
+
+      - script: node build/azure-pipelines/update-dependencies-check.ts
+        displayName: Update GitHub check run
+        condition: always()
+        env:
+          GITHUB_INSTALLATION_TOKEN: $(GITHUB_INSTALLATION_TOKEN)
+          CHECK_RUN_ID: ${{ parameters.GITHUB_CHECK_RUN_ID }}
+          AGENT_JOBSTATUS: $(Agent.JobStatus)
