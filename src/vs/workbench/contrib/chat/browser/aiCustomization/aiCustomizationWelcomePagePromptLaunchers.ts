@@ -37,6 +37,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	readonly container: HTMLElement;
 	private readonly scrollable: DomScrollableElement;
 	private cardsContainer: HTMLElement | undefined;
+	private firstCard: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
 
 	private sentLabel: HTMLElement | undefined;
@@ -221,6 +222,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		this.cardDisposables.clear();
 		DOM.clearNode(this.cardsContainer);
+		this.firstCard = undefined;
 
 		for (const category of this.categoryDescriptions) {
 			if (!visibleSectionIds.has(category.id)) {
@@ -230,6 +232,9 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const card = DOM.append(this.cardsContainer, $('.welcome-prompts-card'));
 			card.setAttribute('tabindex', '0');
 			card.setAttribute('role', 'button');
+			if (!this.firstCard) {
+				this.firstCard = card;
+			}
 
 			const cardHeader = DOM.append(card, $('.welcome-prompts-card-header'));
 			const iconEl = DOM.append(cardHeader, $('.welcome-prompts-card-icon'));
@@ -281,6 +286,14 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	}
 
 	focus(): void {
-		this.inputElement?.focus();
+		// Prefer the prompt input so screen reader / keyboard users land on a meaningful
+		// control. If the input isn't rendered (e.g. when the getting-started banner is
+		// disabled), fall back to the first focusable card so focus stays inside the
+		// welcome page rather than escaping to the surrounding workbench editor.
+		if (this.inputElement) {
+			this.inputElement.focus();
+			return;
+		}
+		this.firstCard?.focus();
 	}
 }

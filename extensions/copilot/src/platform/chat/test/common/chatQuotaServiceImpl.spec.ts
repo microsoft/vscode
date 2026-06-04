@@ -3,10 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { ICAPIClientService } from '../../../endpoint/common/capiClient';
+import { TestLogService } from '../../../testing/common/testLogService';
 import { ChatQuotaService } from '../../common/chatQuotaServiceImpl';
+
+function createMockCapiClientService(): ICAPIClientService {
+	return {
+		_serviceBrand: undefined,
+		makeRequest: vi.fn(),
+	} as unknown as ICAPIClientService;
+}
 
 function createMockAuthService(): IAuthenticationService {
 	return {
@@ -16,9 +25,36 @@ function createMockAuthService(): IAuthenticationService {
 	} as unknown as IAuthenticationService;
 }
 
+function createMockAuthServiceWithEmitter(opts?: { isFreeUser?: boolean }) {
+	const emitter = new Emitter<void>();
+	const authService = {
+		_serviceBrand: undefined,
+		copilotToken: undefined as { isFreeUser: boolean; quotaInfo: ReturnType<typeof makeQuotaInfo> } | undefined,
+		onDidAuthenticationChange: emitter.event,
+	} as unknown as IAuthenticationService;
+	return {
+		authService, emitter, setToken: (quotaInfo: ReturnType<typeof makeQuotaInfo>) => {
+			(authService as any).copilotToken = { isFreeUser: opts?.isFreeUser ?? false, quotaInfo };
+		}
+	};
+}
+
+function makeQuotaInfo(overrides: { chat?: Partial<SnapshotData>; premium_interactions?: Partial<SnapshotData> } = {}, resetDate = '2026-06-01T00:00:00Z') {
+	return {
+		quota_reset_date: resetDate,
+		quota_snapshots: {
+			chat: { quota_id: 'chat', entitlement: 100, remaining: 50, unlimited: false, overage_count: 0, overage_permitted: false, percent_remaining: 50, ...overrides.chat },
+			completions: { quota_id: 'completions', entitlement: 100, remaining: 100, unlimited: false, overage_count: 0, overage_permitted: false, percent_remaining: 100 },
+			premium_interactions: { quota_id: 'premium', entitlement: 500, remaining: 400, unlimited: false, overage_count: 5, overage_permitted: true, percent_remaining: 80, ...overrides.premium_interactions },
+		},
+	};
+}
+
+type SnapshotData = { quota_id: string; entitlement: number; remaining: number; unlimited: boolean; overage_count: number; overage_permitted: boolean; percent_remaining: number };
+
 describe('ChatQuotaService', () => {
 	function create() {
-		return new ChatQuotaService(createMockAuthService());
+		return new ChatQuotaService(createMockAuthService(), new TestLogService(), createMockCapiClientService());
 	}
 
 	const TURN_A = 'turn-a';
@@ -422,6 +458,66 @@ describe('ChatQuotaService', () => {
 
 			// Parent sees only its own + subagent, not title/categorization
 			expect(getTotalCredits(svc, parentReqId, parentTurnId)).toBe(57);
+		});
+	});
+
+	describe('processUserInfoQuotaSnapshot via auth change', () => {
+		test('free user reads from chat snapshot', () => {
+			const { authService, emitter, setToken } = createMockAuthServiceWithEmitter({ isFreeUser: true });
+			const svc = new ChatQuotaService(authService, new TestLogService(), createMockCapiClientService());
+
+			setToken(makeQuotaInfo({
+				chat: { percent_remaining: 30, overage_permitted: false, overage_count: 0, entitlement: 100 },
+				premium_interactions: { percent_remaining: 80, overage_permitted: true, overage_count: 5, entitlement: 500 },
+			}));
+			emitter.fire();
+
+			const quota = svc.quotaInfo;
+			expect(quota).toBeDefined();
+			expect(quota!.percentRemaining).toBe(30);
+			expect(quota!.additionalUsageEnabled).toBe(false);
+			expect(quota!.additionalUsageUsed).toBe(0);
+			expect(quota!.quota).toBe(100);
+		});
+
+		test('paid user reads from premium_interactions snapshot', () => {
+			const { authService, emitter, setToken } = createMockAuthServiceWithEmitter({ isFreeUser: false });
+			const svc = new ChatQuotaService(authService, new TestLogService(), createMockCapiClientService());
+
+			setToken(makeQuotaInfo({
+				chat: { percent_remaining: 30, overage_permitted: false, overage_count: 0, entitlement: 100 },
+				premium_interactions: { percent_remaining: 80, overage_permitted: true, overage_count: 5, entitlement: 500 },
+			}));
+			emitter.fire();
+
+			const quota = svc.quotaInfo;
+			expect(quota).toBeDefined();
+			expect(quota!.percentRemaining).toBe(80);
+			expect(quota!.additionalUsageEnabled).toBe(true);
+			expect(quota!.additionalUsageUsed).toBe(5);
+			expect(quota!.quota).toBe(500);
+		});
+
+		test('fires onDidChange when quota is updated', () => {
+			const { authService, emitter, setToken } = createMockAuthServiceWithEmitter({ isFreeUser: true });
+			const svc = new ChatQuotaService(authService, new TestLogService(), createMockCapiClientService());
+			let changeCount = 0;
+			svc.onDidChange(() => changeCount++);
+
+			setToken(makeQuotaInfo());
+			emitter.fire();
+
+			expect(changeCount).toBe(1);
+		});
+
+		test('no-ops when copilotToken has no quotaInfo', () => {
+			const { authService, emitter } = createMockAuthServiceWithEmitter({ isFreeUser: true });
+			const svc = new ChatQuotaService(authService, new TestLogService(), createMockCapiClientService());
+
+			(authService as any).copilotToken = { isFreeUser: true, quotaInfo: undefined };
+			emitter.fire();
+
+			expect(svc.quotaInfo).toBeUndefined();
 		});
 	});
 });

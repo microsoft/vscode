@@ -11,6 +11,7 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -134,7 +135,12 @@ function renderSessionItem(ctx: ComponentFixtureContext, session: IAgentSession,
 	container.appendChild(listRow);
 
 	const template = renderer.renderTemplate(listRow);
-	renderer.renderElement(wrapAsTreeNode(session), 0, template);
+	const treeNode = wrapAsTreeNode(session);
+	renderer.renderElement(treeNode, 0, template);
+	disposableStore.add(toDisposable(() => {
+		renderer.disposeElement(treeNode, 0, template);
+		renderer.disposeTemplate(template);
+	}));
 }
 
 function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionSection): void {
@@ -160,7 +166,12 @@ function renderSectionItem(ctx: ComponentFixtureContext, section: IAgentSessionS
 	container.appendChild(listRow);
 
 	const template = renderer.renderTemplate(listRow);
-	renderer.renderElement(wrapAsTreeNode(section), 0, template);
+	const treeNode = wrapAsTreeNode(section);
+	renderer.renderElement(treeNode, 0, template);
+	disposableStore.add(toDisposable(() => {
+		renderer.disposeElement(treeNode, 0, template);
+		renderer.disposeTemplate(template);
+	}));
 }
 
 // ============================================================================

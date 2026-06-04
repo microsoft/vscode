@@ -39,6 +39,36 @@
     ],
     "policies": [
         {
+            "key": "mcp.enterpriseManagedAuth.idp",
+            "name": "McpEnterpriseManagedAuthIdp",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "mcp.enterpriseManagedAuth.idp.policy",
+                    "value": "The OAuth/OIDC IdP configuration used for enterprise-managed Model Context Protocol (MCP) server authentication. Delivered through enterprise policy (Windows Group Policy, macOS managed preferences, Linux `/etc/vscode/policy.json`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
+            "key": "chat.plugins.extraMarketplaces",
+            "name": "ChatExtraMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.extraMarketplaces.policy",
+                    "value": "Additional plugin marketplaces to query. Keys are marketplace names; values are GitHub shorthand (`owner/repo[#ref]`) or Git URIs (`<url>[#ref]`)."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": false
+        },
+        {
             "key": "chat.mcp.gallery.serviceUrl",
             "name": "McpGalleryServiceUrl",
             "category": "InteractiveSession",
@@ -117,7 +147,7 @@
             "key": "chat.sessionSync.enabled",
             "name": "CopilotSessionSync",
             "category": "InteractiveSession",
-            "minimumVersion": "1.119",
+            "minimumVersion": "1.121",
             "localization": {
                 "description": {
                     "key": "chat.sessionSync.enabled.policy",
@@ -205,6 +235,36 @@
             },
             "type": "boolean",
             "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.plugins.enabledPlugins",
+            "name": "ChatEnabledPlugins",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.enabledPlugins.policy",
+                    "value": "Plugin enablement. Keys are plugin IDs in `<plugin>@<marketplace>` form; values enable or disable the plugin."
+                }
+            },
+            "type": "object",
+            "default": {},
+            "included": true
+        },
+        {
+            "key": "chat.plugins.strictMarketplaces",
+            "name": "ChatStrictMarketplaces",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.122",
+            "localization": {
+                "description": {
+                    "key": "chat.plugins.strictMarketplaces.policy",
+                    "value": "Only trust marketplaces supplied via enterprise policy; plugins from any other marketplace will not load."
+                }
+            },
+            "type": "boolean",
+            "default": false,
             "included": true
         },
         {
@@ -344,6 +404,51 @@
                 "on",
                 "allowNetwork"
             ],
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowUnsandboxedCommands",
+            "name": "ChatAgentSandboxAllowUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.autoApproveUnsandboxedCommands",
+            "name": "ChatAgentSandboxAutoApproveUnsandboxedCommands",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.autoApproveUnsandboxedCommands",
+                    "value": "Controls whether agent mode terminal commands that run outside the sandbox are auto-approved. This applies only when both `#chat.agent.sandbox.enabled#` and `#chat.agent.sandbox.allowUnsandboxedCommands#` are enabled."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true
+        },
+        {
+            "key": "chat.agent.sandbox.allowAutoApprove",
+            "name": "ChatAgentSandboxAllowAutoApprove",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.116",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowAutoApprove",
+                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                }
+            },
+            "type": "boolean",
+            "default": true,
             "included": true
         },
         {

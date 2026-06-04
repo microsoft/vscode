@@ -51,7 +51,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
-		this._pickerWidget.setHideChevrons(pickerOptions.hideChevrons);
+		this._pickerWidget.setCompact(pickerOptions.compact);
 
 		// Sync delegate → widget when model list or selection changes externally
 		this._register(autorun(t => {

@@ -941,6 +941,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
 					const lastLineLength = lastLine.length;
 					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabCustomDiffPatchResponseHandler.handleResponse(
 							linesStream,
@@ -949,6 +950,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							activeDoc.workspaceRoot,
 							pseudoEditWindow,
 							tracer,
+							duplicateAdditionsMode,
 						),
 					);
 					break;
@@ -1407,7 +1409,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				includeTags: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeTagsInCurrentFile, this.expService),
 				includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeLineNumbersInCurrentFile, this.expService),
 				includeCursorTag: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeCursorTagInCurrentFile, this.expService),
-				prioritizeAboveCursor: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPrioritizeAboveCursor, this.expService)
+				prioritizeAboveCursor: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPrioritizeAboveCursor, this.expService),
+				useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabCurrentFileUseLeftoverBudgetFromAbove, this.expService)
 			},
 			pagedClipping: {
 				pageSize: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabPageSize, this.expService)
@@ -1418,6 +1421,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				includeViewedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeViewedFiles, this.expService),
 				includeLineNumbers: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedIncludeLineNumbers, this.expService),
 				clippingStrategy: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedClippingStrategy, this.expService),
+				useLeftoverBudgetFromAbove: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabRecentlyViewedUseLeftoverBudgetFromAbove, this.expService),
 			},
 			languageContext: determineLanguageContextOptions(activeDocument.languageId, {
 				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabLanguageContextEnabled, this.expService),
@@ -1439,13 +1443,17 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			},
 			lintOptions: undefined,
 			includePostScript: true,
+			globalBudget: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetEnabled, this.expService)
+				? {
+					totalTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudgetTotalTokens, this.expService),
+					order: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_ORDER,
+					shares: xtabPromptOptions.GlobalBudgetOptions.DEFAULT_SHARES,
+				}
+				: undefined,
 		};
 
 		const selectedModelConfig = this.modelService.selectedModelConfiguration();
-		// proxy /models doesn't know about includeTagsInCurrentFile field as of now, so hard code it to true for CopilotNesXtab strategy
-		const modelConfig: xtabPromptOptions.ModelConfiguration = selectedModelConfig.promptingStrategy === xtabPromptOptions.PromptingStrategy.CopilotNesXtab
-			? { ...selectedModelConfig, includeTagsInCurrentFile: true }
-			: selectedModelConfig;
+		const modelConfig = xtabPromptOptions.applyStrategyConfig(selectedModelConfig);
 		return {
 			promptOptions: overrideModelConfig(sourcedModelConfig, modelConfig),
 			modelServiceConfig: modelConfig
@@ -1645,9 +1653,12 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased:
 		case xtabPromptOptions.PromptingStrategy.PatchBased01:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:
 		case xtabPromptOptions.PromptingStrategy.Xtab275Aggressiveness:
+		case xtabPromptOptions.PromptingStrategy.Xtab275AggressivenessHighLow:
 		case xtabPromptOptions.PromptingStrategy.Xtab275EditIntent:
 		case xtabPromptOptions.PromptingStrategy.Xtab275EditIntentShort:
 			return xtab275SystemPrompt;

@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
@@ -26,6 +27,23 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+}
+
+/**
+ * Presentation options for the sessions-core model picker. A provider returns
+ * these from {@link ISessionsProvider.getModelPickerOptions} so it controls how
+ * its models are displayed, rather than the core picker inferring behavior from
+ * the provider or session type.
+ */
+export interface ISessionModelPickerOptions {
+	/** Whether to group models by vendor/family in the picker. */
+	readonly useGroupedModelPicker: boolean;
+	/** Whether to surface featured models. */
+	readonly showFeatured: boolean;
+	/** Whether to surface featured models that are currently unavailable. */
+	readonly showUnavailableFeatured: boolean;
+	/** Whether to offer the "Manage Models" action in the picker. */
+	readonly showManageModelsAction: boolean;
 }
 
 /**
@@ -50,6 +68,15 @@ export interface ISessionsProvider {
 	 * Icon for the provider, used in the UI.
 	 */
 	readonly icon: ThemeIcon;
+
+	/**
+	 * Sort order that determines the precedence of this provider's session
+	 * types relative to other providers. Lower values are surfaced first;
+	 * providers with equal order keep their registration order. The default is
+	 * `0`. A provider may change this dynamically (e.g. based on a setting) and
+	 * fire `onDidChangeSessionTypes` to have consumers re-evaluate the order.
+	 */
+	readonly order: number;
 
 	/**
 	 * Session types supported by this provider. The provider is expected to update this list and fire `onDidChangeSessionTypes`
@@ -93,23 +120,35 @@ export interface ISessionsProvider {
 	 * Resolve a workspace for the given repository URI.
 	 * Returns `undefined` when the provider cannot handle the given URI
 	 * (e.g. wrong scheme or authority).
-	 * @param repositoryUri The URI of the repository to resolve the workspace for.
+	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined;
+	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
 
 	/**
-	 * Create a new session for the given repository URI.
+	 * Create a new session for the given workspace URI.
 	 * The provider should not add this session to its session list until the first request is sent.
-	 * @param repositoryUri The URI of the repository to create the session for.
+	 * Multiple new sessions may be created and tracked concurrently; each is
+	 * identified by its `sessionId` and lives until it is either sent (graduating
+	 * into the session list) or disposed via {@link deleteNewSession}.
+	 * @param workspaceUri The URI of the repository to create the session for.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createNewSession(repositoryUri: URI, sessionTypeId: string): ISession;
+	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession;
 
 	/**
-	 * Get the session types supported for a given repository URI.
-	 * @param repositoryUri The URI of the repository to get session types for.
+	 * Delete a new (untitled, not-yet-sent) session previously created via
+	 * {@link createNewSession}, removing it from the provider's tracking and
+	 * releasing any resources it eagerly acquired (e.g. a backend session).
+	 * No-op when the id is unknown or the session has already been sent.
+	 * @param sessionId The id of the new session to delete.
 	 */
-	getSessionTypes(repositoryUri: URI): ISessionType[];
+	deleteNewSession(sessionId: string): void;
+
+	/**
+	 * Get the session types supported for a given workspace URI.
+	 * @param workspaceUri The URI of the workspace to get session types for.
+	 */
+	getSessionTypes(workspaceUri: URI): ISessionType[];
 
 	/**
 	 * Rename a chat within a session.
@@ -118,6 +157,37 @@ export interface ISessionsProvider {
 	 * @param title The new title for the chat.
 	 */
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
+
+	/**
+	 * Get the language models that can be selected for a session. The sessions
+	 * core renders these in a single {@link ModelPickerActionItem}-based picker
+	 * and persists the user's choice per provider per session type. Returns an
+	 * empty array when the session has no selectable models (e.g. the underlying
+	 * runtime does not expose model selection).
+	 *
+	 * Providers backed by registered language models return them directly;
+	 * providers whose models come from another source (e.g. extension-host
+	 * option groups for cloud sessions) synthesize equivalent metadata.
+	 * @param sessionId The ID of the session.
+	 */
+	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[];
+
+	/**
+	 * Get the presentation options for the sessions-core model picker for the
+	 * given session. The provider — not the core picker — decides how its models
+	 * are presented (grouping, featured models, whether the manage-models action
+	 * is offered), so provider-specific behavior is not hardcoded in core.
+	 * @param sessionId The ID of the session.
+	 */
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
+
+	/**
+	 * Event that fires when the set of models returned by {@link getModels}
+	 * may have changed (e.g. language models finished loading, or the backend
+	 * advertised a new option group). The core model picker re-reads the model
+	 * list when this fires. Has no payload — consumers re-query per session.
+	 */
+	readonly onDidChangeModels: Event<void>;
 
 	/**
 	 * Set the model for a session.
@@ -152,23 +222,16 @@ export interface ISessionsProvider {
 	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
 
 	/**
-	 * Send a request to a session and create a new chat with the response.
-	 * @param sessionId The ID of the session to send the request to.
-	 * @param options Options for the request, including the query and any attached context entries.
+	 * Create a new chat in the given session and return it.
+	 *
+	 * @param sessionId The ID of the session to create the new chat in.
+	 * @param prompt Optional prompt to initialize the new chat with.
 	 */
-	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
+	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
 
 	/**
-	 * Add a new empty chat to an existing session without sending a request.
-	 * The new chat is registered in the group model and can be used to compose
-	 * a message before sending.
-	 * @param sessionId The ID of the session to add a chat to.
-	 * @returns The newly created chat.
-	 */
-	addChat(sessionId: string): IChat;
-
-	/**
-	 * Send a request for an existing chat within a session.
+	 * Send a request for a chat within a session.
+	 *
 	 * @param sessionId The ID of the session containing the chat.
 	 * @param chatResource The resource URI of the chat to send the request for.
 	 * @param options Options for the request, including the query and any attached context entries.

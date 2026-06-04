@@ -75,15 +75,6 @@ Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\nod
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
 
-; Remove leftover shortcuts and pinned entries from the previous Agents sub-application.
-Type: files; Name: "{group}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userprograms}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{commonprograms}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{autodesktop}\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Agents - Insiders.lnk"; Check: QualityIsInsiders
-Type: files; Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\StartMenu\Agents - Insiders.lnk"; Check: QualityIsInsiders
-
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
 Type: filesandordirs; Name: "{app}\bin"
@@ -1312,7 +1303,8 @@ Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; V
 
 ; App Paths - allows running code from Explorer address bar
 Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: ""; ValueData: "{app}\{#ExeBasename}.exe"; Flags: uninsdeletekey
-Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey
+; Remove the "Path" value previously written here; ShellExecute appends it to the launched process PATH, polluting the env. Default value above is enough to resolve `code` from Explorer/Run.
+Root: {#EnvironmentRootKey}; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#ApplicationName}.exe"; ValueType: none; ValueName: "Path"; Flags: deletevalue
 
 [Code]
 function IsBackgroundUpdate(): Boolean;

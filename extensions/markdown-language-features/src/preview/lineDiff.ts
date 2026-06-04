@@ -4,19 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type { MarkdownPreviewLineChanges } from '../../types/previewMessaging';
+import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges } from '../../types/previewMessaging';
 
 interface LineChanges {
 	readonly added: readonly number[];
 	readonly deleted: readonly number[];
 	readonly originalToModified: readonly number[];
 	readonly modifiedToOriginal: readonly number[];
+	readonly originalInnerChanges: readonly MarkdownPreviewInnerChange[];
+	readonly modifiedInnerChanges: readonly MarkdownPreviewInnerChange[];
+	readonly changeIndicators: readonly MarkdownPreviewChangeIndicator[];
 }
 
 interface LineMappings {
 	readonly originalToModified: number[];
 	readonly modifiedToOriginal: number[];
 }
+
+type ChangedLineRange = Pick<vscode.TextDiffChange, 'originalRange' | 'modifiedRange'>;
 
 export class MarkdownPreviewLineDiffProvider {
 
@@ -36,13 +41,18 @@ export class MarkdownPreviewLineDiffProvider {
 	}
 
 	public async getOriginalLineChanges(): Promise<MarkdownPreviewLineChanges | undefined> {
-		const deleted = (await this.#getLineChanges()).deleted;
-		return deleted.length ? { deleted } : undefined;
+		const changes = await this.#getLineChanges();
+		const deleted = changes.deleted;
+		const innerChanges = changes.originalInnerChanges;
+		return deleted.length || innerChanges.length ? { deleted, innerChanges } : undefined;
 	}
 
-	public async getModifiedLineChanges(): Promise<MarkdownPreviewLineChanges | undefined> {
-		const added = (await this.#getLineChanges()).added;
-		return added.length ? { added } : undefined;
+	public async getModifiedLineChanges(options?: { includeChangeIndicators?: boolean }): Promise<MarkdownPreviewLineChanges | undefined> {
+		const changes = await this.#getLineChanges();
+		const added = changes.added;
+		const innerChanges = changes.modifiedInnerChanges;
+		const changeIndicators = options?.includeChangeIndicators === false ? [] : changes.changeIndicators;
+		return added.length || innerChanges.length || changeIndicators.length ? { added, innerChanges, changeIndicators } : undefined;
 	}
 
 	public async translateOriginalLineToModified(line: number): Promise<number> {
@@ -51,6 +61,14 @@ export class MarkdownPreviewLineDiffProvider {
 
 	public async translateModifiedLineToOriginal(line: number): Promise<number> {
 		return translateLine(line, (await this.#getLineChanges()).modifiedToOriginal, this.#originalDocument.lineCount);
+	}
+
+	public async getOriginalToModifiedMappings(): Promise<readonly number[]> {
+		return (await this.#getLineChanges()).originalToModified;
+	}
+
+	public async getModifiedToOriginalMappings(): Promise<readonly number[]> {
+		return (await this.#getLineChanges()).modifiedToOriginal;
 	}
 
 	#getLineChanges(): Promise<LineChanges> {
@@ -74,6 +92,9 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	const modifiedLineCount = modifiedDocument.lineCount;
 	const added: number[] = [];
 	const deleted: number[] = [];
+	const originalInnerChanges: MarkdownPreviewInnerChange[] = [];
+	const modifiedInnerChanges: MarkdownPreviewInnerChange[] = [];
+	const changedLineRanges: ChangedLineRange[] = [];
 	const mappings = createEmptyLineMappings(originalLineCount, modifiedLineCount);
 
 	let lastOriginalEnd = 0;
@@ -98,6 +119,20 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 			mappings.modifiedToOriginal[i] = clampLine(origStart, originalLineCount);
 		}
 
+		// Collect change indicators for deletions and modifications
+		const origChangedCount = origEnd - origStart;
+		if (origChangedCount > 0) {
+			changedLineRanges.push(change);
+		}
+
+		// Collect inner changes (character-level changes within modified lines)
+		if (change.innerChanges) {
+			for (const inner of change.innerChanges) {
+				collectInnerChangesForSide(inner.originalRange, originalInnerChanges);
+				collectInnerChangesForSide(inner.modifiedRange, modifiedInnerChanges);
+			}
+		}
+
 		lastOriginalEnd = origEnd;
 		lastModifiedEnd = modEnd;
 	}
@@ -105,8 +140,113 @@ async function computeLineChanges(originalDocument: vscode.TextDocument, modifie
 	// Map unchanged lines after the last change
 	fillUnchangedLineMappings(mappings, lastOriginalEnd, originalLineCount, lastModifiedEnd, modifiedLineCount);
 	fillMissingLineMappings(mappings);
+	const splitChangedLineRanges = splitChangedLineRangesByMarkdownBlocks(changedLineRanges, originalDocument, modifiedDocument);
+	const changeIndicators = createChangeIndicators(splitChangedLineRanges, originalDocument, modifiedDocument, originalInnerChanges, modifiedInnerChanges);
 
-	return { added, deleted, ...mappings };
+	return { added, deleted, originalInnerChanges, modifiedInnerChanges, changeIndicators, ...mappings };
+}
+
+function createChangeIndicators(ranges: readonly ChangedLineRange[], originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, originalInnerChanges: readonly MarkdownPreviewInnerChange[], modifiedInnerChanges: readonly MarkdownPreviewInnerChange[]): MarkdownPreviewChangeIndicator[] {
+	return ranges.map(range => {
+		const modifiedLineCount = range.modifiedRange.end.line - range.modifiedRange.start.line;
+		return {
+			modifiedLine: range.modifiedRange.start.line,
+			modifiedLineCount,
+			originalLineCount: range.originalRange.end.line - range.originalRange.start.line,
+			originalContent: getLineRangeText(originalDocument, range.originalRange),
+			originalInnerChanges: getRelativeInnerChanges(originalInnerChanges, range.originalRange),
+			modifiedContent: getLineRangeText(modifiedDocument, range.modifiedRange),
+			modifiedInnerChanges: getRelativeInnerChanges(modifiedInnerChanges, range.modifiedRange),
+			type: modifiedLineCount === 0 ? 'deletion' : 'modification',
+		};
+	});
+}
+
+function getRelativeInnerChanges(innerChanges: readonly MarkdownPreviewInnerChange[], range: vscode.Range): MarkdownPreviewInnerChange[] | undefined {
+	const relativeInnerChanges: MarkdownPreviewInnerChange[] = [];
+	for (const change of innerChanges) {
+		if (change.line >= range.start.line && change.line < range.end.line) {
+			relativeInnerChanges.push({
+				line: change.line - range.start.line,
+				startColumn: change.startColumn,
+				endColumn: change.endColumn,
+			});
+		}
+	}
+	return relativeInnerChanges.length ? relativeInnerChanges : undefined;
+}
+
+function splitChangedLineRangesByMarkdownBlocks(ranges: readonly ChangedLineRange[], originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument): ChangedLineRange[] {
+	const splitRanges: ChangedLineRange[] = [];
+	for (const range of ranges) {
+		const originalBlocks = getNonBlankLineRanges(originalDocument, range.originalRange);
+		const modifiedBlocks = getNonBlankLineRanges(modifiedDocument, range.modifiedRange);
+		if (originalBlocks.length > 1 && originalBlocks.length === modifiedBlocks.length) {
+			for (let i = 0; i < originalBlocks.length; ++i) {
+				splitRanges.push({
+					originalRange: originalBlocks[i],
+					modifiedRange: modifiedBlocks[i],
+				});
+			}
+		} else {
+			splitRanges.push(range);
+		}
+	}
+	return splitRanges;
+}
+
+function getNonBlankLineRanges(document: vscode.TextDocument, range: vscode.Range): vscode.Range[] {
+	const ranges: vscode.Range[] = [];
+	let blockStartLine: number | undefined;
+	for (let line = range.start.line; line < range.end.line; ++line) {
+		if (document.lineAt(line).text.trim().length === 0) {
+			if (blockStartLine !== undefined) {
+				ranges.push(new vscode.Range(blockStartLine, 0, line, 0));
+				blockStartLine = undefined;
+			}
+		} else if (blockStartLine === undefined) {
+			blockStartLine = line;
+		}
+	}
+	if (blockStartLine !== undefined) {
+		ranges.push(new vscode.Range(blockStartLine, 0, range.end.line, 0));
+	}
+	return ranges;
+}
+
+function getLineRangeText(document: vscode.TextDocument, range: vscode.Range): string {
+	const lines: string[] = [];
+	for (let line = range.start.line; line < range.end.line; ++line) {
+		lines.push(document.lineAt(line).text);
+	}
+	return lines.join('\n');
+}
+
+/**
+ * Splits a Range into per-line inner change entries.
+ * For single-line ranges, emits one entry. For multi-line ranges,
+ * the first line goes from startColumn to end-of-line (maxColumn),
+ * middle lines are full-line, and the last line goes from column 0
+ * to endColumn.
+ */
+function collectInnerChangesForSide(range: vscode.Range, out: MarkdownPreviewInnerChange[]): void {
+	if (range.isEmpty) {
+		return;
+	}
+	if (range.isSingleLine) {
+		out.push({ line: range.start.line, startColumn: range.start.character, endColumn: range.end.character });
+	} else {
+		// First line: from start column to end-of-line
+		out.push({ line: range.start.line, startColumn: range.start.character, endColumn: Number.MAX_SAFE_INTEGER });
+		// Middle lines: entire line
+		for (let line = range.start.line + 1; line < range.end.line; ++line) {
+			out.push({ line, startColumn: 0, endColumn: Number.MAX_SAFE_INTEGER });
+		}
+		// Last line: from start to end column (skip if endColumn is 0, meaning the range ended at the line boundary)
+		if (range.end.character > 0) {
+			out.push({ line: range.end.line, startColumn: 0, endColumn: range.end.character });
+		}
+	}
 }
 
 function createEmptyLineMappings(originalLineCount: number, modifiedLineCount: number): LineMappings {

@@ -112,8 +112,8 @@ export default {
 	devServer: {
 		host: 'localhost',
 		port,
-		hot: 'only',
-		liveReload: false,
+		hot: true,
+		liveReload: true,
 		compress: false,
 		headers: {
 			'Access-Control-Allow-Origin': '*',

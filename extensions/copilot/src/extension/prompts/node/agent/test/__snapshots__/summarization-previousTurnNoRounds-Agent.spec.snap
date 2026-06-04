@@ -15,12 +15,6 @@ I am working in a workspace with the following folders:
 
 ### User
 ~~~md
-<context>
-(Date removed from snapshot)
-</context>
-<reminderInstructions>
-
-</reminderInstructions>
 <userRequest>
 previous turn 1
 </userRequest>
@@ -36,12 +30,6 @@ response
 
 ### User
 ~~~md
-<context>
-(Date removed from snapshot)
-</context>
-<reminderInstructions>
-
-</reminderInstructions>
 <userRequest>
 previous turn 2
 </userRequest>

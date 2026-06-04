@@ -15,7 +15,7 @@
 
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio {
 	width: 100%;
-	gap: 8px;
+	gap: 4px;
 }
 
 .action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button {

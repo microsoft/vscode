@@ -203,7 +203,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: OpenProfileMenu,
 			group: '1_new',
 			order: 4,
-			when: IsSessionsWindowContext.negate()
 		});
 	}
 

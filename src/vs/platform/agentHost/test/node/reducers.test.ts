@@ -5,9 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { sessionReducer } from '../../common/state/protocol/reducers.js';
+import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type SessionState } from '../../common/state/sessionState.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -28,13 +29,11 @@ function makeSession(): SessionState {
 function withActiveTurnAndToolCall(state: SessionState): SessionState {
 	state = sessionReducer(state, {
 		type: ActionType.SessionTurnStarted,
-		session: 'copilot:/test',
 		turnId: 'turn-1',
-		userMessage: { text: 'hello' },
+		message: { text: 'hello', origin: { kind: MessageKind.User } },
 	});
 	state = sessionReducer(state, {
 		type: ActionType.SessionToolCallStart,
-		session: 'copilot:/test',
 		turnId: 'turn-1',
 		toolCallId: 'tc-1',
 		toolName: 'readFile',
@@ -53,7 +52,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Transition to PendingConfirmation (no `confirmed` field)
 		state = sessionReducer(state, {
 			type: ActionType.SessionToolCallReady,
-			session: 'copilot:/test',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
@@ -69,7 +67,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Transition to Running first
 		state = sessionReducer(state, {
 			type: ActionType.SessionToolCallReady,
-			session: 'copilot:/test',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file',
@@ -80,13 +77,12 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Then complete with requiresResultConfirmation
 		state = sessionReducer(state, {
 			type: ActionType.SessionToolCallComplete,
-			session: 'copilot:/test',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			requiresResultConfirmation: true,
 			result: {
 				success: true,
-				pastTenseMessage: 'Read file',
+				pastTenseMessage: 'Read file'
 			},
 		});
 
@@ -99,7 +95,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Transition to PendingConfirmation
 		state = sessionReducer(state, {
 			type: ActionType.SessionToolCallReady,
-			session: 'copilot:/test',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
@@ -110,7 +105,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Confirm it
 		state = sessionReducer(state, {
 			type: ActionType.SessionToolCallConfirmed,
-			session: 'copilot:/test',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			approved: true,
@@ -125,7 +119,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 
 		state = sessionReducer(state, {
 			type: ActionType.SessionInputRequested,
-			session: 'copilot:/test',
 			request: {
 				id: 'req-1',
 				message: 'What is your name?',
@@ -133,8 +126,8 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 					kind: SessionInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
-					required: true,
-				}],
+					required: true
+				}]
 			},
 		});
 
@@ -147,7 +140,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Add an input request
 		state = sessionReducer(state, {
 			type: ActionType.SessionInputRequested,
-			session: 'copilot:/test',
 			request: {
 				id: 'req-1',
 				message: 'What is your name?',
@@ -155,8 +147,8 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 					kind: SessionInputQuestionKind.Text,
 					id: 'q-1',
 					message: 'What is your name?',
-					required: true,
-				}],
+					required: true
+				}]
 			},
 		});
 		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
@@ -164,7 +156,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Complete the input request
 		state = sessionReducer(state, {
 			type: ActionType.SessionInputCompleted,
-			session: 'copilot:/test',
 			requestId: 'req-1',
 			response: SessionInputResponseKind.Accept,
 			answers: { 'q-1': { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'Alice' } } },
@@ -182,7 +173,6 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		// Transition to PendingConfirmation via SessionToolCallReady (no confirmed)
 		state = sessionReducer(state, {
 			type: ActionType.SessionToolCallReady,
-			session: 'copilot:/test',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
 			invocationMessage: 'Read file?',
@@ -190,5 +180,116 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 		});
 
 		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
+	});
+});
+
+suite('changesetReducer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const ready: ChangesetState = { status: ChangesetStatus.Ready, files: [] };
+	const fileA = { id: 'file:///a.ts', edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 1, removed: 0 } } };
+	const fileARenamed = { id: 'file:///a.ts', edit: { after: { uri: 'file:///a.ts', content: { uri: 'file:///a.ts' } }, diff: { added: 5, removed: 0 } } };
+
+	test('ChangesetFileSet appends a new file', () => {
+		const next = changesetReducer(ready, { type: ActionType.ChangesetFileSet, file: fileA });
+		assert.deepStrictEqual(next.files, [fileA]);
+	});
+
+	test('ChangesetFileSet replaces an existing file by id (upsert)', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetFileSet, file: fileARenamed });
+		assert.deepStrictEqual(next.files, [fileARenamed]);
+	});
+
+	test('ChangesetFileRemoved removes by id', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetFileRemoved, fileId: fileA.id });
+		assert.deepStrictEqual(next.files, []);
+	});
+
+	test('ChangesetFileRemoved is a no-op for an unknown id', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetFileRemoved, fileId: 'file:///nope.ts' });
+		assert.strictEqual(next, seeded);
+	});
+
+	test('ChangesetStatusChanged → Error attaches the error', () => {
+		const err = { errorType: 'computeFailed', message: 'boom' };
+		const next = changesetReducer(ready, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Error, error: err });
+		assert.deepStrictEqual({ status: next.status, error: next.error }, { status: ChangesetStatus.Error, error: err });
+	});
+
+	test('ChangesetStatusChanged → Ready strips a previous error', () => {
+		const errored: ChangesetState = { status: ChangesetStatus.Error, error: { errorType: 'x', message: 'y' }, files: [fileA] };
+		const next = changesetReducer(errored, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		assert.deepStrictEqual({ status: next.status, error: next.error, files: next.files }, { status: ChangesetStatus.Ready, error: undefined, files: [fileA] });
+	});
+
+	test('ChangesetOperationsChanged with array replaces operations', () => {
+		const ops = [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }];
+		const next = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: ops });
+		assert.deepStrictEqual(next.operations, ops);
+	});
+
+	test('ChangesetOperationsChanged with undefined strips operations', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }] });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetOperationsChanged, operations: undefined });
+		assert.strictEqual(next.operations, undefined);
+	});
+
+	test('ChangesetCleared empties files', () => {
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetFileSet, file: fileA });
+		const next = changesetReducer(seeded, { type: ActionType.ChangesetCleared, });
+		assert.deepStrictEqual(next.files, []);
+	});
+
+	test('ChangesetCleared is a no-op when files are already empty', () => {
+		const next = changesetReducer(ready, { type: ActionType.ChangesetCleared, });
+		assert.strictEqual(next, ready);
+	});
+});
+
+suite('sessionReducer – SessionCustomizationUpdated', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const agentA: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/helper.md', uri: 'file:///plugin-a/agents/helper.md', name: 'helper' };
+	const agentB: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/reviewer.md', uri: 'file:///plugin-a/agents/reviewer.md', name: 'reviewer', description: 'reviews code' };
+
+	function pluginA(extra: Partial<PluginCustomization> = {}): Customization {
+		return {
+			type: CustomizationType.Plugin,
+			id: 'file:///plugin-a',
+			uri: 'file:///plugin-a',
+			name: 'Plugin A',
+			enabled: true,
+			...extra,
+		};
+	}
+
+	test('insert: appends a new top-level customization with its children', () => {
+		const customization = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentA, agentB] });
+		const state = sessionReducer(makeSession(), {
+			type: ActionType.SessionCustomizationUpdated,
+			customization,
+		});
+
+		assert.deepStrictEqual(state.customizations, [customization]);
+	});
+
+	test('update: replaces the matching entry entirely', () => {
+		const initial = pluginA({ load: { kind: CustomizationLoadStatus.Loading }, children: [agentA] });
+		const seeded = sessionReducer(makeSession(), {
+			type: ActionType.SessionCustomizationUpdated,
+			customization: initial,
+		});
+		const updated = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentB] });
+		const next = sessionReducer(seeded, {
+			type: ActionType.SessionCustomizationUpdated,
+			customization: updated,
+		});
+
+		assert.deepStrictEqual(next.customizations, [updated]);
 	});
 });

@@ -15,30 +15,28 @@
 .ai-customization-management-editor .welcome-prompts-content-container {
 	position: absolute;
 	inset: 0;
-	padding: 24px;
 	box-sizing: border-box;
 	overflow: hidden;
 }
 
 .ai-customization-management-editor .welcome-prompts-inner {
-	max-width: 800px;
 	margin: 0 auto;
-	padding-top: 16px;
 }
 
 .ai-customization-management-editor .welcome-prompts-heading {
-	font-size: 18px;
-	font-weight: 400;
-	letter-spacing: -0.01em;
+	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 0 0 6px;
 	color: var(--vscode-foreground);
 }
 
 .ai-customization-management-editor .welcome-prompts-subtitle {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	color: var(--vscode-descriptionForeground);
-	margin: 0 0 36px;
-	line-height: 1.6;
+	margin: 0 0 8px;
+	padding-bottom: 8px;
+	line-height: 1.45;
+	min-height: calc(var(--vscode-agents-fontSize-body1) * 1.45 * 2);
 }
 
 .ai-customization-management-editor .welcome-prompts-primary {
@@ -49,9 +47,9 @@
 	width: 100%;
 	box-sizing: border-box;
 	padding: 12px 8px 8px;
-	margin: 12px 0 24px;
+	margin: 16px 0;
 	border: 1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 85%, transparent);
-	border-radius: 16px;
+	border-radius: 6px;
 }
 
 .ai-customization-management-editor .welcome-prompts-section-label {
@@ -60,14 +58,9 @@
 	gap: 8px;
 	margin: 0;
 	padding: 0 4px;
-	font-size: 13px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-body1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
-}
-
-.ai-customization-management-editor .welcome-prompts-section-label-icon {
-	font-size: 14px;
-	color: var(--vscode-descriptionForeground);
 }
 
 .ai-customization-management-editor .welcome-prompts-input-row {
@@ -75,7 +68,7 @@
 	align-items: center;
 	min-height: 36px;
 	height: 36px;
-	border-radius: 8px;
+	border-radius: 6px;
 	background: var(--vscode-agentsChatInput-background);
 	border: 1px solid var(--vscode-agentsChatInput-border, var(--vscode-input-border, transparent));
 	padding: 0 4px 0 12px;
@@ -91,7 +84,7 @@
 	min-width: 0;
 	height: 36px;
 	padding: 0;
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	font-family: inherit;
 	border: none;
 	outline: none;
@@ -192,11 +185,10 @@
 	border-radius: 6px;
 	background: var(--vscode-sideBar-background);
 	cursor: pointer;
-	transition: background-color 0.15s ease, border-color 0.15s ease;
+	transition: background-color 0.1s ease;
 }
 
 .ai-customization-management-editor .welcome-prompts-card:hover {
-	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-list-hoverBackground);
 }
 

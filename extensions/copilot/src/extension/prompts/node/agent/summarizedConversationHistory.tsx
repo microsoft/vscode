@@ -7,7 +7,7 @@ import * as l10n from '@vscode/l10n';
 import { BasePromptElementProps, PrioritizedList, PromptElement, PromptMetadata, PromptSizing, Raw, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import { ChatMessage } from '@vscode/prompt-tsx/dist/base/output/rawTypes';
-import type { ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
+import type { ChatLanguageModelToolReference, ChatResponsePart, ChatResultPromptTokenDetail, LanguageModelToolInformation, NotebookDocument, Progress } from 'vscode';
 import { IChatHookService, PreCompactHookInput } from '../../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse, FetchSuccess } from '../../../../platform/chat/common/commonTypes';
 import { getTextPart } from '../../../../platform/chat/common/globalStringUtils';
@@ -263,7 +263,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 				userQueryTagName: this.props.userQueryTagName,
 				ReminderInstructionsClass: this.props.ReminderInstructionsClass,
 				ToolReferencesHintClass: this.props.ToolReferencesHintClass,
-			})} />);
+			})} customizationsIndexUpdate={this.props.customizationsIndexUpdate} />);
 		}
 
 		// We may have a summary from earlier in the conversation, but skip history if we have a new summary
@@ -408,6 +408,11 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly summarizationInstructions?: string;
 	/** Skip Full mode and go straight to Simple mode for foreground budget-exceeded recovery. */
 	readonly forceSimpleSummary?: boolean;
+	/**
+	 * Forwarded to the latest user message when the customizations-index has
+	 * drifted from its frozen snapshot. See {@link AgentUserMessageProps.customizationsIndexUpdate}.
+	 */
+	readonly customizationsIndexUpdate?: { value: string; toolReferences: readonly ChatLanguageModelToolReference[] | undefined };
 }
 
 /**
@@ -556,12 +561,16 @@ class ConversationHistorySummarizer {
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) { }
 
-	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number }> {
+	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number } | undefined> {
 		// Execute pre-compact hook before summarization to allow hooks to archive transcripts or perform cleanup
 		await this.executePreCompactHook();
 
 		// Just a function for test to create props and call this
 		const propsInfo = this.instantiationService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(this.props);
+		if (!propsInfo) {
+			this.logService.info('[ConversationHistorySummarizer] no prior content to summarize, skipping');
+			return undefined;
+		}
 
 		const summaryPromise = this.getSummaryWithFallback(propsInfo);
 		this.progress?.report(new ChatResponseProgressPart2(l10n.t('Compacting conversation...'), async () => {
@@ -1009,7 +1018,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 
 	getProps(
 		props: SummarizedAgentHistoryProps
-	): ISummarizedConversationHistoryInfo {
+	): ISummarizedConversationHistoryInfo | undefined {
 		let toolCallRounds = props.promptContext.toolCallRounds;
 		let isContinuation = props.promptContext.isContinuation;
 		let summarizedToolCallRoundId = '';
@@ -1026,7 +1035,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 			toolCallRounds = [];
 			summarizedToolCallRoundId = props.promptContext.history.at(-1)!.rounds.at(-1)!.id;
 		} else {
-			throw new Error('Nothing to summarize');
+			return undefined;
 		}
 
 		// For Anthropic models with thinking enabled, find the last assistant message with thinking

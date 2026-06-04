@@ -37,6 +37,14 @@ export type EditorAssociations = readonly EditorAssociation[];
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
 
+/**
+ * Default value for `workbench.editorAssociations` in the Agents window.
+ * Shared so that dynamic re-registrations of the setting preserve the override.
+ */
+export const editorsAssociationsAgentsWindowDefault: Readonly<Record<string, string>> = Object.freeze({
+	'*.md': 'vscode.markdown.preview.editor'
+});
+
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
@@ -47,6 +55,9 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 			markdownDescription: localize('editor.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
 			additionalProperties: {
 				type: 'string'
+			},
+			agentsWindow: {
+				default: editorsAssociationsAgentsWindowDefault
 			}
 		},
 		[diffEditorsAssociationsSettingId]: {
@@ -101,12 +112,33 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type RegisteredEditorInfo = {
-	id: string;
-	label: string;
-	detail?: string;
-	priority: RegisteredEditorPriority;
+export type RegisteredEditorPriorityInfo = {
+	readonly editor: RegisteredEditorPriority;
+	readonly diff: RegisteredEditorPriority;
+	readonly merge: RegisteredEditorPriority;
 };
+
+export type RegisteredEditorInfo = {
+	readonly id: string;
+	readonly label: string;
+	readonly detail?: string;
+	readonly priority: RegisteredEditorPriorityInfo;
+};
+
+export type RegisteredEditorRegistrationInfo = Omit<RegisteredEditorInfo, 'priority'> & {
+	readonly priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo;
+};
+
+export function toRegisteredEditorPriorityInfo(priority: RegisteredEditorPriority | RegisteredEditorPriorityInfo): RegisteredEditorPriorityInfo {
+	if (typeof priority !== 'string') {
+		return priority;
+	}
+	return {
+		editor: priority,
+		diff: priority,
+		merge: priority,
+	};
+}
 
 type EditorInputFactoryResult = EditorInputWithOptions | Promise<EditorInputWithOptions>;
 
@@ -166,7 +198,7 @@ export interface IEditorResolverService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: RegisteredEditorInfo,
+		editorInfo: RegisteredEditorRegistrationInfo,
 		options: RegisteredEditorOptions,
 		editorFactoryObject: EditorInputFactoryObject
 	): IDisposable;

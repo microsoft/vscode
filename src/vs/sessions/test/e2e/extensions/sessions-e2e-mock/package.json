@@ -83,7 +83,7 @@
 					"group": "navigation@1"
 				}
 			],
-			"chat/input/editing/sessionApplyActions": [
+			"agents/changes/actions/primary": [
 				{
 					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isMergeBaseBranchProtected",

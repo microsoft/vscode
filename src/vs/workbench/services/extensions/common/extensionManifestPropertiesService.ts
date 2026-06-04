@@ -22,7 +22,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
-export const EXTENSIONS_SUPPORT_SESSIONS_WINDOW = 'extensions.supportSessionsWindow';
+export const EXTENSIONS_SUPPORT_AGENTS_WINDOW = 'extensions.supportAgentsWindow';
 
 const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionContributions> = new Set([
 	'themes',
@@ -382,7 +382,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	private getConfiguredSessionsWindowSupport(manifest: IExtensionManifest): boolean | undefined {
 		if (this._configuredSessionsWindowSupportMap === null) {
 			const configuredSessionsWindowSupportMap = new ExtensionIdentifierMap<boolean>();
-			const configuredSessionsWindowSupport = this.configurationService.getValue<{ [key: string]: boolean }>(EXTENSIONS_SUPPORT_SESSIONS_WINDOW) || {};
+			const configuredSessionsWindowSupport = this.configurationService.getValue<{ [key: string]: boolean }>(EXTENSIONS_SUPPORT_AGENTS_WINDOW) || {};
 			for (const id of Object.keys(configuredSessionsWindowSupport)) {
 				if (configuredSessionsWindowSupport[id] !== undefined) {
 					configuredSessionsWindowSupportMap.set(id, configuredSessionsWindowSupport[id]);

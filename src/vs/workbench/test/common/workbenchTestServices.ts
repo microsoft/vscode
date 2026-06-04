@@ -796,6 +796,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
+	readonly onDidChangeUsageBasedBilling = Event.None;
 	readonly quotas = {};
 
 	update(token: CancellationToken): Promise<void> {
@@ -814,11 +815,15 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
 
+	acceptQuotas(): void { }
+	clearQuotas(): void { }
 	markAnonymousRateLimited(): void { }
+	markSetupCompleted(): void { }
 	setForceHidden(_hidden: boolean): void { }
 
 	readonly previewFeaturesDisabled = false;
 	readonly clientByokEnabled = false;
+	readonly hasByokModels = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import type { TraceContext } from '../../../../platform/otel/common/otelService';
@@ -25,6 +25,7 @@ export interface SessionState {
 	usageHandler: UsageHandler | undefined;
 	reasoningEffort: EffortLevel | undefined;
 	traceContext: TraceContext | undefined;
+	turnId: string | undefined;
 }
 
 /**
@@ -114,6 +115,16 @@ export interface IClaudeSessionStateService {
 	 * Sets the OTel trace context for a session.
 	 */
 	setTraceContextForSession(sessionId: string, traceContext: TraceContext | undefined): void;
+
+	/**
+	 * Gets the current turn ID for a session (VS Code request ID, used for per-turn credit tracking).
+	 */
+	getTurnIdForSession(sessionId: string): string | undefined;
+
+	/**
+	 * Sets the current turn ID for a session.
+	 */
+	setTurnIdForSession(sessionId: string, turnId: string | undefined): void;
 }
 
 export const IClaudeSessionStateService = createServiceIdentifier<IClaudeSessionStateService>('IClaudeSessionStateService');

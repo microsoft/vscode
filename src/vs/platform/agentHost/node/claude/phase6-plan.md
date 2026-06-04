@@ -2,6 +2,8 @@
 
 > **Handoff plan** — written to be executed by an agent with no prior conversation context. All file paths and line citations are verified against the workspace at synthesis time. Cross-reference [roadmap.md](./roadmap.md) before committing exact phase numbers.
 
+> **Status note (post-Phase 6.5 design — Phase 6.1 Cycle G).** The throw inside `createSession({ fork })` references `sdk.getSessionMessages` as the lookup mechanism, reflecting the originally-planned lazy-walk approach. **Phase 6.5 ships the contract-based persisted-mapping approach instead** — the `protocolTurnId → lastSdkMessageUuid` mapping is captured by Phase 13's result-message mapper on every `type:'result'` ingest and stored in the session-data DB; fork performs an O(1) DB lookup, not a JSONL walk. See [roadmap.md §"Phase 6.5 — Fork"](./roadmap.md) and [CONTEXT.md M9 fork sub-flow](./CONTEXT.md) for the canonical contract.
+
 ## 1. Goal
 
 Replace [claudeAgent.ts](claudeAgent.ts)'s `sendMessage` stub with a real implementation that streams a single assistant turn (no tool execution) from the Claude SDK back to the workbench client as `AgentSignal`s. Introduce the **provisional / materialize** lifecycle pattern that Phase 5 deliberately deferred: `createSession` returns immediately with `provisional: true`, the SDK subprocess fork happens lazily on the first `sendMessage`, and `onDidMaterializeSession` fires once the SDK init handshake completes.
@@ -866,6 +868,16 @@ Phase-6 smoke checklist (6 boxes):
 These are decisions Phase 6 locks down so later phases are pure-additive.
 
 ### 8.1 Phase 6.5 — fork
+
+> **Status update (post-Phase-6):** Phase 6.5 was attempted on top of
+> Phase 6 and **fully reverted**. The implementation outline below is
+> preserved as a historical record of the design at Phase-6 lock-down
+> time; the **current source of truth** is `roadmap.md` § "Phase 6.5 —
+> Fork (deferred)". The reverted attempt used a JSONL forward-scan
+> heuristic to infer turn boundaries; the new approach persists
+> `turnId → lastSdkMessageUuid` on result-message ingest, anchored on
+> Phase 13's mapper. Phase 6.5 is no longer a stacked PR on Phase 6 —
+> it sequences after Phase 13.
 
 **Critical SDK divergence from CopilotAgent**: Claude SDK's `forkSession(sessionId, { upToMessageId, title })` at [sdk.d.ts:540-565](../../../../../../node_modules/@anthropic-ai/claude-agent-sdk/sdk.d.ts) takes a **message UUID**, not an event id. This is structurally different from CopilotAgent's `getNextTurnEventId(turnId) → toEventId` pattern. Mirroring CopilotAgent's pattern would have been wrong.
 

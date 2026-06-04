@@ -70,7 +70,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService storageService: IStorageService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = () => configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead
@@ -143,32 +142,30 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						},
 					} satisfies IActionWidgetDropdownAction,
 				];
-				if (isAutopilotEnabled()) {
-					actions.push({
-						...action,
-						id: 'chat.permissions.autopilot',
-						label: localize('permissions.autopilot', "Autopilot (Preview)"),
-						detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
-						icon: ThemeIcon.fromId(Codicon.rocket.id),
-						checked: currentLevel === ChatPermissionLevel.Autopilot,
-						enabled: !policyRestricted,
-						tooltip: policyRestricted ? localize('permissions.autopilot.policyDisabled', "Disabled by enterprise policy") : '',
-						hover: {
-							content: policyRestricted
-								? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
-								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
-						},
-						run: async () => {
-							if (!await maybeConfirmElevatedPermissionLevel(ChatPermissionLevel.Autopilot, this.dialogService, storageService)) {
-								return;
-							}
-							delegate.setPermissionLevel(ChatPermissionLevel.Autopilot);
-							if (this.element) {
-								this.renderLabel(this.element);
-							}
-						},
-					} satisfies IActionWidgetDropdownAction);
-				}
+				actions.push({
+					...action,
+					id: 'chat.permissions.autopilot',
+					label: localize('permissions.autopilot', "Autopilot (Preview)"),
+					detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+					icon: ThemeIcon.fromId(Codicon.rocket.id),
+					checked: currentLevel === ChatPermissionLevel.Autopilot,
+					enabled: !policyRestricted,
+					tooltip: policyRestricted ? localize('permissions.autopilot.policyDisabled', "Disabled by enterprise policy") : '',
+					hover: {
+						content: policyRestricted
+							? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
+							: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
+					},
+					run: async () => {
+						if (!await maybeConfirmElevatedPermissionLevel(ChatPermissionLevel.Autopilot, this.dialogService, storageService)) {
+							return;
+						}
+						delegate.setPermissionLevel(ChatPermissionLevel.Autopilot);
+						if (this.element) {
+							this.renderLabel(this.element);
+						}
+					},
+				} satisfies IActionWidgetDropdownAction);
 				return actions;
 			}
 		};
@@ -190,7 +187,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				}
 			}],
 			reporter: { id: 'ChatPermissionPicker', name: 'ChatPermissionPicker', includeOptions: true },
-			listOptions: { minWidth: 255 },
+			listOptions: { minWidth: 255, detailItemHeight: 44 },
 		}, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 
@@ -227,7 +224,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);
 		element.classList.toggle('warning', !ext && level === ChatPermissionLevel.Autopilot);

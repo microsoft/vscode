@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, ObservablePromise, ObservableResolvedPromise, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
-import { timeout } from '../../../../base/common/async.js';
+import { rejectIfNotCanceled, timeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,6 +17,7 @@ import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
 import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../diffEditor/utils.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 
 export class MultiDiffEditorViewModel extends Disposable {
 	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>;
@@ -186,8 +187,8 @@ export class DocumentDiffItemViewModel extends Disposable {
 
 		this.waitForInitialDiffOr1s = new ObservablePromise(
 			Promise.race([
-				this.diffEditorViewModel.waitForDiff(),
-				timeout(1000),
+				this.diffEditorViewModel.waitForDiff().catch(rejectIfNotCanceled),
+				timeout(1000, cancelOnDispose(this._store)).catch(rejectIfNotCanceled),
 			])
 		);
 	}

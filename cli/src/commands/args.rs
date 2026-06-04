@@ -236,10 +236,14 @@ pub struct ServeWebArgs {
 
 #[derive(Args, Debug, Clone)]
 pub struct AgentHostArgs {
-	/// Host to listen on, defaults to 'localhost'
+	/// Host the agent host should bind on. Defaults to 'localhost'. Pass
+	/// `0.0.0.0` to expose the agent host on all interfaces (paired with
+	/// a connection token unless `--without-connection-token` is set).
 	#[clap(long)]
 	pub host: Option<String>,
-	/// Port to listen on. If 0 is passed a random free port is picked.
+	/// Port the agent host should bind on. If 0 (the default) the OS
+	/// picks a free ephemeral port; the chosen port is recorded in the
+	/// agent host lockfile.
 	#[clap(long, default_value_t = 0)]
 	pub port: u16,
 	/// A secret that must be included with all requests.
@@ -254,6 +258,14 @@ pub struct AgentHostArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
+
+	/// Stop any agent host already running on this machine and start a
+	/// fresh one. Without this flag, the command reuses an existing live
+	/// supervisor when its configuration is compatible, and errors out
+	/// when the requested `--host` / `--port` / `--connection-token`
+	/// differ from what's already running.
+	#[clap(long)]
+	pub replace: bool,
 
 	/// Expose the agent host over a dev tunnel.
 	#[clap(long)]
