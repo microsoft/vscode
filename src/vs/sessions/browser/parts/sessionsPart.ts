@@ -377,7 +377,7 @@ export class SessionsPart extends Part {
 		const borderTotal = SessionsPart.BORDER_WIDTH * 2;
 		const marginLeft = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : SessionsPart.MARGIN_LEFT;
 		const marginBottom = this.layoutService.isVisible(Parts.PANEL_PART) ? SessionsPart.MARGIN_BOTTOM : 0;
-		const marginRight = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) ? SessionsPart.MARGIN_RIGHT : 0;
+		const marginRight = SessionsPart.MARGIN_RIGHT;
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(

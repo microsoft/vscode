@@ -152,15 +152,15 @@
 	margin-bottom: 0;
 }
 
-.agent-sessions-workbench.noauxiliarybar .part.sessionspart {
+.agent-sessions-workbench.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	margin-right: 0;
 }
 
 .agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	/*
-	 * No right margin so the editor flushes against the auxiliary bar (whose
-	 * `margin-left` is 0 in this state). The grid sash sits at the visual
-	 * seam between the two cards. The 5px bottom margin pairs with the
+	 * 5px right margin pairs with the auxiliary bar's 5px left margin so the
+	 * two parts read as visually decoupled cards with the grid sash centered
+	 * in the 10px gutter between them. The 5px bottom margin pairs with the
 	 * panel's `margin-top: 5px` to center the sash; it drops to 0 when the
 	 * panel is hidden (see `.nopanel` override).
 	 *
@@ -171,16 +171,19 @@
 	 * container via `trackAttributes`, so without this scoping the styling
 	 * would leak into floating editor windows.
 	 */
-	margin: 0 0 5px 5px;
+	margin: 0 5px 5px 5px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border, transparent);
-	border-right-width: 0;
-	border-top-right-radius: 0;
-	border-bottom-right-radius: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-radius: 8px;
 	box-sizing: border-box;
 	overflow: hidden;
+	transition: margin 200ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part) {
+		transition: none;
+	}
 }
 
 .agent-sessions-workbench .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
@@ -359,36 +362,21 @@
 
 .agent-sessions-workbench .part.auxiliarybar {
 	/*
-	 * The right gutter is provided by the workbench grid (see Workbench.layout).
-	 * The bottom margin is 5px when the panel is visible (paired with the panel's
-	 * 5px top margin to center the sash) and 0 when the panel is hidden
-	 * (see `.nopanel` override below) so the card fills its cell.
+	 * 5px left margin pairs with the editor part's 5px right margin so the
+	 * two parts read as visually decoupled cards with the grid sash centered
+	 * in the 10px gutter between them. The right gutter is provided by the
+	 * workbench grid (see Workbench.layout). The bottom margin is 5px when
+	 * the panel is visible (paired with the panel's 5px top margin to center
+	 * the sash) and 0 when the panel is hidden (see `.nopanel` override below)
+	 * so the card fills its cell.
 	 *
-	 * Default (editor visible): card flushes against the editor with the
-	 * grid sash at the seam. `padding-left: 5px` keeps the inner content
-	 * aligned with the editor-hidden state.
-	 *
-	 * Editor hidden (override below): 5px left gutter against the sash.
-	 *
-	 * The TS `layout()` mirrors this and re-runs on editor visibility
-	 * changes so the inner area is sized correctly.
+	 * The TS `layout()` mirrors this so the inner area is sized correctly.
 	 */
-	margin: 0 0 5px 0;
-	padding-left: 5px;
+	margin: 0 0 5px 5px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-top-left-radius: 0;
-	border-bottom-left-radius: 0;
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-radius: 8px;
 	box-sizing: border-box;
-}
-
-.agent-sessions-workbench.nomaineditorarea .part.auxiliarybar {
-	margin-left: 5px;
-	padding-left: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
 }
 
 .agent-sessions-workbench.nopanel .part.auxiliarybar,

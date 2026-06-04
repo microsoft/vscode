@@ -63,7 +63,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/mar
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { EditorMaximizedContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { EditorMaximizedContext, IsPhoneLayoutContext, KeyboardVisibleContext } from '../common/contextkeys.js';
 import {
 	NotificationsPosition,
 	NotificationsSettings,
@@ -72,7 +72,6 @@ import {
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
-import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from './parts/sessionsPartService.js';
@@ -457,15 +456,28 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 					isPhoneLayoutCtx.set(this.layoutPolicy.viewportClass.read(reader) === 'phone');
 				}));
 
-				// Virtual keyboard tracking (visualViewport): publishes the
-				// keyboard height as an observable, mirrors it onto the
-				// `--vscode-keyboard-height` CSS variable on the main
-				// container, and drives the `KeyboardVisibleContext`
-				// context key. The service is an eager singleton, so
-				// resolving it here is what triggers its constructor —
-				// the registry hands ownership/disposal to the
-				// instantiation service so we don't `_register` it.
-				accessor.get(IMobileVisualViewport);
+				// Virtual keyboard detection via visualViewport API.
+				// Use `window.innerHeight` (layout viewport) as the baseline
+				// rather than a captured initial height. Layout viewport
+				// updates on orientation change and split-screen resizes, so
+				// comparing against it avoids stale baselines on landscape
+				// launches, Android split-screen, and iOS URL-bar collapse.
+				if (mainWindow.visualViewport) {
+					const keyboardVisibleCtx = KeyboardVisibleContext.bindTo(contextKeyService);
+					const KEYBOARD_HEIGHT_THRESHOLD_PX = 100;
+
+					const onViewportResize = () => {
+						const vp = mainWindow.visualViewport;
+						if (!vp) {
+							return;
+						}
+						const heightDiff = mainWindow.innerHeight - vp.height;
+						keyboardVisibleCtx.set(heightDiff > KEYBOARD_HEIGHT_THRESHOLD_PX);
+					};
+
+					mainWindow.visualViewport.addEventListener('resize', onViewportResize);
+					this._register({ dispose: () => mainWindow.visualViewport?.removeEventListener('resize', onViewportResize) });
+				}
 
 				// Orientation changes produce a window `resize` event which
 				// is already handled by `registerLayoutListeners()`. No
@@ -1017,6 +1029,16 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			if (!this.partVisibility.editor) {
 				this.setEditorHidden(false);
 				this.restoreAttachedEditorMaximizedState();
+				// Opening an editor from the chat (e.g. clicking a link) should
+				// maximize the preview: hide the Changes/Files aux bar and shrink
+				// the chat panel to its minimum width so the editor takes the
+				// remaining space. The user can manually resize afterwards.
+				this.setAuxiliaryBarHidden(true);
+				const sessionsSize = this.workbenchGrid.getViewSize(this.sessionsPartView);
+				this.workbenchGrid.resizeView(this.sessionsPartView, {
+					width: this.sessionsPartView.minimumWidth,
+					height: sessionsSize.height
+				});
 			}
 		}));
 
@@ -1920,12 +1942,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 				this.setEditorHidden(false);
 			}
 
-			// Hide all other content parts
+			// Collapse both side panels (primary sidebar + auxiliary changes/files)
+			// but keep the chat (sessions) part visible.
 			if (this.partVisibility.sidebar) {
 				this.setSideBarHidden(true);
 			}
-			if (this.partVisibility.sessions) {
-				this.setSessionsHidden(true);
+			if (this.partVisibility.auxiliaryBar) {
+				this.setAuxiliaryBarHidden(true);
 			}
 
 			this._editorMaximized = true;
@@ -1934,7 +1957,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 			// Restore previous visibility state
 			this.setSideBarHidden(!state?.sidebar);
-			this.setSessionsHidden(!state?.sessions);
+			this.setAuxiliaryBarHidden(!state?.auxiliaryBar);
 
 			this._editorMaximized = false;
 		}
