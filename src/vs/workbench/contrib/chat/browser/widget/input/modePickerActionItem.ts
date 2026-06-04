@@ -91,6 +91,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				mode.kind === ChatModeKind.Agent &&
 				agentModeDisabledViaPolicy;
 
+			const modeIcon = mode.icon.get();
+
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			// Add toolbar actions for Agent modes
@@ -126,7 +128,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
 				label: mode.label.get(),
-				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : (mode.icon.get() ? getCompactCodicon(mode.icon.get()!) : undefined),
+				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : (modeIcon ? getCompactCodicon(modeIcon) : undefined),
 				class: isDisabledViaPolicy ? 'disabled-by-policy' : undefined,
 				enabled: !isDisabledViaPolicy,
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,

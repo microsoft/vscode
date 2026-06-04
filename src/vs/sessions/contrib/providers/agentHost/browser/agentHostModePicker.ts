@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -31,9 +31,9 @@ export interface IAgentHostSessionEnumPickerItem {
 
 function getModeIcon(value: string | undefined): ThemeIcon | undefined {
 	switch (value) {
-		case 'plan': return Codicon.checklistCompact;
-		case 'autopilot': return Codicon.rocketCompact;
-		case 'interactive': return Codicon.commentCompact;
+		case 'plan': return Codicon.checklist;
+		case 'autopilot': return Codicon.rocket;
+		case 'interactive': return Codicon.comment;
 		default: return undefined;
 	}
 }
@@ -197,7 +197,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 		const icon = this._getTriggerIcon(ctx.currentValue);
 		if (icon) {
-			dom.append(this._triggerElement, renderIcon(icon));
+			dom.append(this._triggerElement, renderIcon(getCompactCodicon(icon)));
 		}
 
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));

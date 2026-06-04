@@ -1154,7 +1154,7 @@ export class ModelPickerWidget extends Disposable {
 	private _updateBadge(): void {
 		if (this._badgeIcon) {
 			if (this._badge) {
-				const icon = this._badge === 'info' ? Codicon.info : Codicon.warningCompact;
+				const icon = getCompactCodicon(this._badge === 'info' ? Codicon.info : Codicon.warning);
 				dom.reset(this._badgeIcon, renderIcon(icon));
 				this._badgeIcon.style.display = '';
 				this._badgeIcon.classList.toggle('info', this._badge === 'info');
