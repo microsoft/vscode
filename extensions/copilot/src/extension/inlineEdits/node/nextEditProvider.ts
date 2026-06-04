@@ -698,12 +698,18 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const curDocId = doc.id;
 		const logger = parentLogger.createSubLogger('_executeNewNextEditRequest');
 
-		const recording = this._debugRecorder?.getRecentLog();
-
 		const logContext = req.log;
+
+		// Refresh the recording bookmark to the moment we snapshot document/selection state
+		// for the prompt. The bookmark created at provider entry can be stale by the time
+		// we reach here (after debounce/awaits)
+		if (this._debugRecorder) {
+			logContext.recordingBookmark = this._debugRecorder.createBookmark();
+		}
 
 		const activeDocAndIdx = assertDefined(historyContext.getDocumentAndIdx(curDocId));
 		const activeDocSelection = doc.selection.get()[0] as OffsetRange | undefined;
+		const recording = this._debugRecorder?.getRecentLog();
 
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
@@ -726,7 +732,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			nLinesEditWindow,
 			false, // isSpeculative
 			logContext,
-			req.log.recordingBookmark,
+			logContext.recordingBookmark,
 			recording,
 			req.providerRequestStartDateTime,
 		);
