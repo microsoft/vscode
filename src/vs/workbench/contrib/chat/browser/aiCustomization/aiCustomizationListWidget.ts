@@ -1601,7 +1601,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.promptsService,
 			this.workspaceService,
 			{ allItems: this.allItems, displayEntries: this.displayEntries },
-			this.itemsModel.getPromptsServiceItemProvider(),
+			this.itemsModel.getActiveItemSource(),
 			this.harnessService,
 			this.agentPluginService,
 		);

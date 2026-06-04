@@ -125,7 +125,7 @@ import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/el
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
 import { ElectronAgentHostStarter } from '../../platform/agentHost/electron-main/electronAgentHostStarter.js';
 import { AgentHostProcessManager } from '../../platform/agentHost/node/agentHostService.js';
-import { AgentHostEnabledSettingId } from '../../platform/agentHost/common/agentService.js';
+import { isAgentHostEnabled } from '../../platform/agentHost/common/agentService.js';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
 import { Lazy } from '../../base/common/lazy.js';
 import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
@@ -228,20 +228,9 @@ export class CodeApplication extends Disposable {
 			return false;
 		});
 
-		// Without this, starting recording in the issue reporting wizard takes
-		// a few seconds due to overhead of enumerating sources, so we warm up the sources in advance.
 		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
-		const warmUpScreenSources = () => {
-			desktopCapturer.getSources({
-				types: ['screen'],
-				thumbnailSize: { width: 0, height: 0 },
-			}).then(sources => { cachedScreenSources = sources; }).catch(() => { /* best-effort */ });
-		};
 		const invalidateScreenSourceCache = () => {
 			cachedScreenSources = undefined;
-			if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
-				warmUpScreenSources();
-			}
 		};
 		electronScreen.on('display-added', invalidateScreenSourceCache);
 		electronScreen.on('display-removed', invalidateScreenSourceCache);
@@ -251,9 +240,6 @@ export class CodeApplication extends Disposable {
 			electronScreen.off('display-removed', invalidateScreenSourceCache);
 			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
 		}));
-		if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
-			warmUpScreenSources();
-		}
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
 				const frame = request.frame;
@@ -1179,7 +1165,7 @@ export class CodeApplication extends Disposable {
 		services.set(ILocalPtyService, ptyHostService);
 
 		// Agent Host
-		if (this.configurationService.getValue(AgentHostEnabledSettingId)) {
+		if (isAgentHostEnabled(this.configurationService)) {
 			const agentHostStarter = new ElectronAgentHostStarter(this.configurationService, this.environmentMainService, this.lifecycleMainService, this.logService);
 			this._register(new AgentHostProcessManager(agentHostStarter, this.logService, this.loggerService));
 		}

@@ -56,7 +56,7 @@ function createRange(startLineNumber: number, endLineNumber: number = startLineN
 	};
 }
 
-function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion): ISessionEditorComment {
+function createFeedbackComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion, replies?: readonly string[]): ISessionEditorComment {
 	return {
 		id: `agentFeedback:${id}`,
 		sourceId: id,
@@ -67,6 +67,7 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 		text,
 		suggestion,
 		canConvertToAgentFeedback: false,
+		replies,
 	};
 }
 
@@ -109,12 +110,18 @@ function createMockAgentFeedbackService(): IAgentFeedbackService {
 	return new class extends mock<IAgentFeedbackService>() {
 		override readonly onDidChangeFeedback = Event.None;
 		override readonly onDidChangeNavigation = Event.None;
+		override readonly onDidAddFeedback = Event.None;
+		override readonly onDidConvertFeedback = Event.None;
+		override readonly onDidAddReply = Event.None;
+		override readonly onDidSubmitFeedback = Event.None;
 
 		override addFeedback(): IAgentFeedback {
 			throw new Error('Not implemented for fixture');
 		}
 
 		override removeFeedback(): void { }
+
+		override addReply(): void { }
 
 		override getFeedback(): readonly IAgentFeedback[] {
 			return [];
@@ -213,6 +220,7 @@ function renderWidget(context: ComponentFixtureContext, options: IFixtureOptions
 		editor,
 		options.commentItems,
 		sessionResource,
+		undefined,
 	));
 
 	widget.layout(options.commentItems[0].range.startLineNumber);
@@ -268,6 +276,20 @@ const suggestionMix = [
 const prReviewOnly = [
 	createPRReviewComment('pr-1', 'This variable should be renamed to match our naming conventions.', 2),
 	createPRReviewComment('pr-2', 'Please add error handling for the edge case when second is zero.', 7, 8),
+];
+
+const threadedFeedback = [
+	createFeedbackComment(
+		'f-thread',
+		'Consider extracting this into a helper function.',
+		7,
+		7,
+		undefined,
+		[
+			'I agree, and we should also unit test the helper.',
+			'Make sure the helper name matches the domain concept.',
+		],
+	),
 ];
 
 const allSourcesMixed = [
@@ -372,6 +394,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 			commentItems: allSourcesMixed,
 			expanded: true,
 			focusedCommentId: 'prReview:pr-2',
+		}),
+	}),
+
+	ExpandedThreadedFeedback: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderWidget(context, {
+			commentItems: threadedFeedback,
+			expanded: true,
 		}),
 	}),
 

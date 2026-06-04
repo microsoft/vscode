@@ -605,7 +605,7 @@
 		"addLabel": "chat-billing",
 		"action": "close",
 		"reason": "duplicate",
-		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/319403. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
 	},
 	{
 		"type": "label",

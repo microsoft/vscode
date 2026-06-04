@@ -93,6 +93,8 @@ function makeSession(resource: URI, opts?: {
 		activeChat: observableValue('activeChat', chat),
 		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
+		isCreated: observableValue('isCreated', true),
+		sticky: observableValue('sticky', false),
 	};
 }
 
@@ -125,6 +127,7 @@ suite('LayoutController', () => {
 
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
+			override readonly visibleSessions = constObservable([]);
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions() { return []; }
 		});
@@ -400,6 +403,7 @@ suite('LayoutController', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSession;
+			override readonly visibleSessions = constObservable([]);
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions() { return []; }
 		});
