@@ -29,11 +29,11 @@
 
 .ci-status-widget-header:hover {
 	background-color: var(--vscode-list-hoverBackground);
-	padding-right: 22px;
+	padding-right: 26px;
 }
 
 .ci-status-widget-header:focus {
-	padding-right: 22px;
+	padding-right: 26px;
 }
 
 .ci-status-widget-header:focus-visible {
@@ -44,7 +44,7 @@
 /* Chevron — right-aligned, visible on hover only */
 .ci-status-widget-header .group-chevron {
 	position: absolute;
-	right: 4px;
+	right: 8px;
 	top: 50%;
 	transform: translateY(-50%);
 	width: 16px;
@@ -96,17 +96,17 @@
 .ci-status-widget-count-badge {
 	display: inline-flex;
 	align-items: center;
-	gap: 2px;
-	font-size: var(--vscode-agents-fontSize-label3, 11px);
+	gap: 4px;
+	font-size: 11px;
 	line-height: 1;
+}
+
+.monaco-workbench .ci-status-widget-count-badge .codicon[class*='codicon-'] {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .ci-status-widget-count-badge span:not(.codicon) {
 	opacity: 0.7;
-}
-
-.ci-status-widget-count-badge .codicon {
-	font-size: 16px;
 }
 
 .ci-status-widget-count-badge.ci-status-success .codicon {

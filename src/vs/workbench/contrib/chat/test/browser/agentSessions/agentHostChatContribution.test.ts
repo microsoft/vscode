@@ -216,9 +216,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._rootStateOnDidChange.fire(state);
 	}
 
-	public authenticateCalls: { resource: string; token: string }[] = [];
-	override async authenticate(params: { resource: string; token: string }): Promise<{ authenticated: boolean }> {
-		this.authenticateCalls.push({ resource: params.resource, token: params.token });
+	public authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+	override async authenticate(params: { resource: string; scopes?: readonly string[]; token: string }): Promise<{ authenticated: boolean }> {
+		this.authenticateCalls.push({ resource: params.resource, scopes: params.scopes, token: params.token });
 		return { authenticated: true };
 	}
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
@@ -4881,14 +4881,14 @@ suite('AgentHostChatContribution', () => {
 			// First rootState — kicks off the eager auth pass.
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
-			assert.deepStrictEqual(agentHostService.authenticateCalls, [{ resource: 'https://api.github.com', token: 'tok-1' }]);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' }]);
 
 			// Repeated rootState changes with the same token must not re-fire authenticate.
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
 			await timeout(0);
 			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 1 });
 			await timeout(0);
-			assert.deepStrictEqual(agentHostService.authenticateCalls, [{ resource: 'https://api.github.com', token: 'tok-1' }]);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' }]);
 		});
 
 		test('re-authenticates when token rotates, then dedupes again', async () => {
@@ -4910,8 +4910,8 @@ suite('AgentHostChatContribution', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(agentHostService.authenticateCalls, [
-				{ resource: 'https://api.github.com', token: 'tok-1' },
-				{ resource: 'https://api.github.com', token: 'tok-2' },
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-1' },
+				{ resource: 'https://api.github.com', scopes: ['read:user'], token: 'tok-2' },
 			]);
 		});
 
