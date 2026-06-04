@@ -95,7 +95,7 @@ class TestOctoKitService implements IAgentHostOctoKitService {
 
 function createAgentService(): IAgentService {
 	return {
-		getAuthToken: resource => resource === GITHUB_REPO_PROTECTED_RESOURCE.resource ? 'gh-token' : undefined,
+		getAuthToken: resource => resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource ? 'gh-token' : undefined,
 	} as IAgentService;
 }
 

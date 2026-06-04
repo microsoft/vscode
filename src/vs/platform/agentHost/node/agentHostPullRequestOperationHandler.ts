@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { IAgentService } from '../common/agentService.js';
+import { GITHUB_REPO_PROTECTED_RESOURCE, IAgentService } from '../common/agentService.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { readSessionGitState, type ChangesetOperationFollowUp, type SessionState } from '../common/state/sessionState.js';
@@ -107,7 +107,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		// `getDefaultBranch` may return `origin/<branch>` — `pulls` API wants the bare name.
 		const base = baseBranchName.startsWith('origin/') ? baseBranchName.substring('origin/'.length) : baseBranchName;
 
-		const authToken = this._agentService.getAuthToken(GITHUB_REPO_PROTECTED_RESOURCE.resource);
+		const authToken = this._agentService.getAuthToken(GITHUB_REPO_PROTECTED_RESOURCE);
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
