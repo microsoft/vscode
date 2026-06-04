@@ -18,7 +18,7 @@ import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/fi
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IObservable, IReader, autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -35,7 +35,6 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -56,16 +55,9 @@ import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { buildSessionHoverContent } from '../sessionHoverContent.js';
+import { getSessionStatusIndicator } from '../../../../browser/sessionStatusIcon.js';
 
 const $ = DOM.$;
-
-// Sentinel values stored on the row template's `currentIconSelector` when the
-// icon container holds a pixel spinner (vs. a codicon). Distinct values per
-// spinner variant so transitions between variants correctly rebuild the DOM,
-// while transitions that keep the same variant just update the color and avoid
-// restarting the CSS animation.
-const PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
-const PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 // Duration of the cross-fade when the icon swaps to a different glyph/variant.
 const ICON_SWAP_FADE_MS = 180;
@@ -397,32 +389,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 			};
 
-			const isPixelSpinner = (sessionStatus === SessionStatus.InProgress || sessionStatus === SessionStatus.NeedsInput) && !motionReduced;
-			if (isPixelSpinner) {
-				const isNeedsInput = sessionStatus === SessionStatus.NeedsInput;
-				const variant: 'grid' | 'ring' = isNeedsInput ? 'ring' : 'grid';
-				const spinnerKey = isNeedsInput ? PIXEL_SPINNER_RING_KEY : PIXEL_SPINNER_GRID_KEY;
-				const iconColor = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
-				const swapped = applyIconSwap(spinnerKey, () => {
-					const spinner = createPixelSpinner(undefined, { variant });
-					spinner.style.color = iconColor;
-					return spinner;
-				});
-				if (!swapped) {
-					recolorActiveIcon(iconColor);
-				}
-			} else {
-				const icon = this.getStatusIcon(sessionStatus, isRead, isArchived, gitHubInfo?.pullRequest?.icon);
-				const iconSelector = ThemeIcon.asCSSSelector(icon);
-				const iconColor = icon.color ? asCssVariable(icon.color.id) : '';
-				const swapped = applyIconSwap(iconSelector, () => {
-					const iconSpan = $(`span${iconSelector}`);
-					iconSpan.style.color = iconColor;
-					return iconSpan;
-				});
-				if (!swapped) {
-					recolorActiveIcon(iconColor);
-				}
+			const indicator = getSessionStatusIndicator(sessionStatus, isRead, isArchived, motionReduced, gitHubInfo?.pullRequest?.icon);
+			const swapped = applyIconSwap(indicator.cacheKey, () => {
+				const iconEl = indicator.kind === 'spinner'
+					? createPixelSpinner(undefined, { variant: indicator.variant })
+					: $(`span${indicator.cacheKey}`);
+				iconEl.style.color = indicator.color;
+				return iconEl;
+			});
+			if (!swapped) {
+				recolorActiveIcon(indicator.color);
 			}
 			template.iconContainer.classList.toggle('session-icon-pulse', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
@@ -635,28 +611,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				this._onDidChangeItemHeight.fire(element);
 			}
 		}));
-	}
-
-	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
-		switch (status) {
-			case SessionStatus.InProgress:
-				// When motion is allowed, the pixel spinner is rendered directly in renderSession
-				// and this method is not consulted; here we only provide the reduced-motion fallback.
-				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput:
-				// Same as above — pixel spinner replaces the pulsing dot when motion is allowed.
-				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
-			default:
-				if (pullRequestIcon) {
-					return pullRequestIcon;
-				}
-
-				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
-		}
 	}
 
 	private getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefined {

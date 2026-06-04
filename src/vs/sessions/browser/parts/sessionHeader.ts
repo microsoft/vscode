@@ -7,11 +7,12 @@ import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, DisposableResizeObserver, EventType, reset } from '../../../base/browser/dom.js';
-import { autorun, IReader } from '../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { ThemeIcon, themeColorFromId } from '../../../base/common/themables.js';
-import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { createPixelSpinner } from '../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
+import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { localize } from '../../../nls.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
@@ -22,6 +23,7 @@ import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
+import { getSessionStatusIndicator } from '../sessionStatusIcon.js';
 
 /**
  * The session header shown at the top of a session view. It surfaces the session
@@ -52,6 +54,15 @@ export class SessionHeader extends Disposable {
 
 	private _visible = false;
 
+	/**
+	 * Tracks what the icon element currently renders so re-renders only rebuild the
+	 * DOM when the glyph/spinner variant actually changes (color updates are cheap).
+	 * Avoids restarting the spinner's CSS animation on unrelated observable changes.
+	 */
+	private _currentIconSelector: string | undefined;
+
+	private readonly _motionReducedSignal: IObservable<void>;
+
 	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 
 	get element(): HTMLElement {
@@ -69,8 +80,11 @@ export class SessionHeader extends Disposable {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
+
+		this._motionReducedSignal = observableSignalFromEvent('reduceMotion', this._accessibilityService.onDidChangeReducedMotion);
 
 		this._container = $('.chat-composite-bar.session-header-bar');
 
@@ -170,6 +184,7 @@ export class SessionHeader extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
+		this._currentIconSelector = undefined;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
@@ -189,15 +204,14 @@ export class SessionHeader extends Disposable {
 	}
 
 	private _updateHeader(session: IActiveSession, reader: IReader): void {
-		// Session icon — mirror the status-based icon shown in the sessions list.
+		// Session icon — mirror the status-based icon shown in the sessions list,
+		// including the animated pixel spinner for in-progress / needs-input states.
 		const status = session.status.read(reader);
 		const isRead = session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		const pullRequestIcon = session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest?.icon;
-		const icon = this._getStatusIcon(status, isRead, isArchived, pullRequestIcon);
-		this._iconEl.className = 'chat-composite-bar-session-icon';
-		this._iconEl.classList.add(...ThemeIcon.asClassNameArray(icon));
-		this._iconEl.style.color = icon.color ? asCssVariable(icon.color.id) : '';
+		this._motionReducedSignal.read(reader);
+		this._updateIcon(status, isRead, isArchived, pullRequestIcon);
 
 		// Session title
 		this._titleEl.textContent = session.title.read(reader) || localize('agentSessions.newSession', "New Session");
@@ -265,28 +279,19 @@ export class SessionHeader extends Disposable {
 	}
 
 	/**
-	 * The status-based icon shown next to the session title. Mirrors the icon logic used by
-	 * the sessions list (`SessionsListRenderer.getStatusIcon`) so both surfaces stay in sync.
-	 * Replicated inline because the list renderer lives in the `contrib/` layer, which the
-	 * core `browser/parts/` layer must not import from.
+	 * Renders the status icon into {@link _iconEl}, using the shared
+	 * {@link getSessionStatusIndicator}. In-progress / needs-input sessions get the
+	 * animated pixel spinner (when motion is allowed), matching the sessions list;
+	 * other states render a codicon. The current glyph/variant is cached so re-renders
+	 * only rebuild the DOM when it changes, keeping the spinner animation from restarting.
 	 */
-	private _getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
-		switch (status) {
-			case SessionStatus.InProgress:
-				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
-			case SessionStatus.NeedsInput:
-				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
-			case SessionStatus.Error:
-				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
-			default:
-				if (pullRequestIcon) {
-					return pullRequestIcon;
-				}
-				if (!isRead && !isArchived) {
-					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
-				}
-				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+	private _updateIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon: ThemeIcon | undefined): void {
+		const indicator = getSessionStatusIndicator(status, isRead, isArchived, this._accessibilityService.isMotionReduced(), pullRequestIcon);
+		if (this._currentIconSelector !== indicator.cacheKey) {
+			this._currentIconSelector = indicator.cacheKey;
+			reset(this._iconEl, indicator.kind === 'spinner' ? createPixelSpinner(undefined, { variant: indicator.variant }) : $(`span${indicator.cacheKey}`));
 		}
+		this._iconEl.style.color = indicator.color;
 	}
 
 	private _setVisible(visible: boolean): void {
