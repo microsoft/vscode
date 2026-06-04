@@ -130,9 +130,9 @@ registerAction2(class GoBackAction extends Action2 {
 			precondition: CanGoBackContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus },
+				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
@@ -170,9 +170,9 @@ registerAction2(class GoForwardAction extends Action2 {
 			precondition: CanGoForwardContext,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				win: { primary: KeyMod.Alt | KeyCode.RightArrow },
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus },
+				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.WinCtrl | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorContextKeys.editorTextFocus.toNegated()),
 			},
 			menu: [{
