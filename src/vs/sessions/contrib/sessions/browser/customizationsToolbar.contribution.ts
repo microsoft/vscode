@@ -391,7 +391,17 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
 					const sessionsService = accessor.get(ISessionsService);
-					await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
+					const configurationService = accessor.get(IConfigurationService);
+					const mode = configurationService.getValue<string>(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING);
+					// Automations has no welcome-page content of its own (the
+					// welcome card just deep-links into the same section), so
+					// always open the Automations page directly regardless of
+					// the sidebar mode setting.
+					if (mode === SessionsCustomizationsSidebarMode.Section || config.isAutomations) {
+						await openCustomizationSectionPage(editorService, harnessService, sessionsService, section);
+					} else {
+						await openCustomizationOverviewPage(editorService, harnessService, sessionsService);
+					}
 				}
 			}));
 		}
