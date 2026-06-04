@@ -61,7 +61,7 @@ describe('AutomodeService', () => {
 	let configurationService: IConfigurationService;
 	let mockChatEndpoint: IChatEndpoint;
 	let envService: NullEnvService;
-	let mockTelemetryService: ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+	let mockTelemetryService: ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 
 	function createEndpoint(model: string, provider: string, overrides?: Partial<IChatEndpoint>): IChatEndpoint {
 		return {
@@ -154,7 +154,7 @@ describe('AutomodeService', () => {
 			sendMSFTTelemetryErrorEvent: vi.fn(),
 			sendSharedTelemetryEvent: vi.fn(),
 			sendEnhancedGHTelemetryEvent: vi.fn(),
-		} as unknown as ITelemetryService & { sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
+		} as unknown as ITelemetryService & { sendEnhancedGHTelemetryEvent: ReturnType<typeof vi.fn>; sendMSFTTelemetryEvent: ReturnType<typeof vi.fn> };
 	});
 
 	afterEach(() => {
@@ -1132,6 +1132,20 @@ describe('AutomodeService', () => {
 				overrideReason: 'clientOverride',
 			});
 			expect(selectionEvent![2]).toMatchObject({
+				imageCount: 1,
+				totalImageBytes: 24,
+				maxImageBytes: 24,
+				maxImageWidth: 7,
+				maxImageHeight: 11,
+				maxImagePixels: 77,
+				totalImagePixels: 77,
+				imagePngCount: 1,
+				imageClipboardCount: 1,
+			});
+
+			const restrictedEvent = mockTelemetryService.sendEnhancedGHTelemetryEvent.mock.calls.find((call: unknown[]) => call[0] === 'automode.routerDecisionRestricted');
+			expect(restrictedEvent).toBeDefined();
+			expect(restrictedEvent![2]).toMatchObject({
 				imageCount: 1,
 				totalImageBytes: 24,
 				maxImageBytes: 24,
