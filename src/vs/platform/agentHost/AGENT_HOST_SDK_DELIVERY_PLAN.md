@@ -80,7 +80,12 @@ Both SDKs = small JS core + one heavy per-platform native package.
 - So the SDK devDependency must be present for the type check to work, and it only validates
   against *whatever version is installed*.
 - **Decision (keep it simple): a PR check hard-enforces `package.json` devDependency version
-  == `product.json` pin version** for each SDK. One logical version per SDK, no silent skew.
+  == `product.json` pin version** for each SDK, as an **exact-string** compare. Both SDK
+  devDependencies are declared as **exact** versions (no caret/range): `@openai/codex` must be
+  `0.134.0` (currently `^0.134.0` → change to exact), `@anthropic-ai/claude-agent-sdk` is
+  already exact. Exact pins make the check a trivial string compare, eliminate accidental patch
+  float, and keep `package.json` / `package-lock.json` / `product.json` from silently
+  disagreeing (Decision: V1).
 - **Trying a newer SDK locally** → don't touch either version. Use the **runtime override
   settings** `chat.agentHost.claudeAgent.path` / `chat.agentHost.codexAgent.path` (or their env
   vars) to point the running agent host at any locally-installed SDK/binary. These **always
@@ -120,19 +125,26 @@ Add an `agentHostSdks` section directly in the **OSS `vscode/product.json`** (sa
 }
 ```
 
-- `file` is commit-independent; the runtime builds the URL as
-  `${downloadUrlBase}/${quality}/${commit}/${file}` using `product.commit`/`product.quality`
-  (the asset is published at `<quality>/<commit>/<file>`).
+- `file` carries the SDK **version** (commit-independent). The runtime builds the URL as
+  `${downloadUrlBase}/${quality}/agent-host-sdks/${file}` using `product.quality` only —
+  **no commit needed** (Decision: B2, version-keyed path).
+- The asset is **not** recorded as a per-build CosmosDB `Asset` and does **not** appear on the
+  `builds.code.visualstudio.com` builds page (Decision: B2). The git-tracked product.json pin is
+  the authoritative record of which SDK version a build uses.
 - The pin can still be overridden per quality via the `vscode-distro` mixin if ever needed, but
   routine version bumps happen in the OSS repo only.
 
-### B. Build stage (Topology B — one dedicated `AgentHostSdks` job + fetch-by-target)
-A dedicated stage/job (mirrors the `Copilot` stage) does fetch/package/hash/publish for **all**
-targets; native-boot smoke tests run opportunistically on native-arch runners.
+### B. Build stage (Topology C2 — one dedicated `AgentHostSdks` job, explicit `--os/--cpu/--libc`)
+A single dedicated stage/job (mirrors the `Copilot` stage) fetches/packages/hashes/publishes
+**all** targets from one agent; native-boot smoke tests run opportunistically on native-arch
+runners. We can build all targets from one OS because we only **download** the prebuilt leaf
+binary packages (`@openai/codex-<os>-<arch>`, `@anthropic-ai/claude-agent-sdk-<os>-<arch>`,
+incl. musl) — we never execute them at build time and they have no platform-gated postinstall.
 
-1. For each target `<os>-<arch>` (incl. Alpine **musl**): fetch the pinned `@openai/codex@<ver>`
-   / `@anthropic-ai/claude-agent-sdk@<ver>` **by explicit target** (`npm install --os/--cpu` or
-   direct `*-<os>-<arch>` tarball) from the **Terrapin mirror**.
+1. For each target `<os>-<arch>[-musl]`: `npm install @openai/codex@<ver>` /
+   `@anthropic-ai/claude-agent-sdk@<ver>` with **explicit** `--os=<os> --cpu=<arch>
+   [--libc=musl]` into a per-target temp dir, from the **Terrapin / Monaco mirror**.
+   (Verify with infra: the mirror must mirror the per-platform leaf packages incl. musl.)
 2. **Light strip** (JS core + required runtime deps + the one native package; drop
    docs/tests/sourcemaps; resolve codex `rg` via smoke test).
 3. Deterministic tar+gzip (fixed mtimes/ownership/order) →
@@ -143,36 +155,55 @@ targets; native-boot smoke tests run opportunistically on native-arch runners.
 5. **Smoke tests**: always `import()` the claude JS core + validate each native binary's
    header/arch; additionally **boot `codex app-server`** on native-arch runners (matching
    per-platform jobs or a post-publish test that downloads the asset).
-6. Publish each `.gz` as a pipeline artifact (`vscode_agenthostsdk-<sdk>_<os>_<arch>_archive`)
-   so `publish.ts`/`processArtifact` (with new `getPlatform` cases) ESRP-signs + releases to
-   PRSS at `<quality>/<commit>/<file>` and records the CosmosDB asset.
-7. **Dedupe**: `processArtifact` already HTTP-200-checks the PRSS URL → unchanged versions are a
-   no-op on later builds.
+6. Publish each `.gz` via **ESRP *release*** (provision-to-CDN, **not** code-signing) to a
+   **version-keyed, commit-independent** PRSS path (e.g.
+   `${PRSS_CDN_URL}/${quality}/agent-host-sdks/<file-with-version>.gz`). This needs a small
+   custom publish path (the standard `processArtifact` is commit-keyed + writes a CosmosDB
+   asset — see Decision 7/8).
+7. **Dedupe is by version**: HTTP-200-check the stable version-keyed URL before release →
+   unchanged versions are a true no-op **across builds** (not just within one build).
+8. **No code-signing / no notarization of the native binaries** (Decision 9): the binaries are
+   downloaded programmatically and written by our own Node code at runtime, so they carry **no
+   `com.apple.quarantine` xattr** and macOS Gatekeeper never intercepts them; they are spawned
+   as **child processes**, not loaded into our hardened-runtime process. This mirrors how
+   `@vscode/vsce-sign` and `@vscode/ripgrep` already ship downloaded native binaries. Integrity
+   is enforced by **sha256 only**.
 
 > macOS **universal** needs no extra SDK artifact: it ships only `darwin-x64` + `darwin-arm64`
 > bundles, and the universal app downloads the one matching the running machine's `process.arch`.
 
-### C. Runtime download owner — Option 2 (shared-process service)
-A new `IAgentHostSdkService` in the **shared process** downloads/verifies/caches; the
-main-process starter calls `ensureSdk(codex|claude)` before spawn and forwards the returned
-path via the existing env vars (no agent-host-process changes). It must: build the URL from the
-product.json pin + `commit`/`quality`, download via `IRequestService`, verify sha256 (reuse
-`IChecksumService`), extract+cache under global storage keyed by `<sdk>@<version>`, return the
-on-disk path, and let the **existing settings win as dev overrides**. Add a workbench progress
-surface when a window exists, with a headless fallback for server mode.
+### C. Runtime download owner — Option R1 (node-layer service called by both starters)
+A new `node`-layer `IAgentHostSdkService` (in `platform/agentHost/node/`) owns
+download/verify/cache and is called **inline by both starters** — `ElectronAgentHostStarter`
+(runs in electron-**main**, a Node env) and `NodeAgentHostStarter` (server/dev/headless Node
+env). This is the **only** owner that covers desktop **and** headless server with a single
+implementation; the Electron *shared process* is desktop-only and unavailable on the server
+path, so it cannot be the single owner.
 
-#### Why Option 2 (vs the alternatives)
-- **Option 1 — Main process resolves before spawn.** + reuses env-var plumbing, headless-safe,
-  agent host unchanged; − main process should stay light; first-run download blocks start.
-- **Option 2 — Shared-process service, orchestrated by main starter (CHOSEN).** + shared
-  process is purpose-built for background IO (already hosts extension downloads, checksum +
-  request services); keeps main light; centralized cache+verify; headless *and* windowed; agent
-  host needs zero changes; − cross-process coordination + download locking; server path needs a
-  fallback resolver.
-- **Option 3 — Agent host downloads itself.** + self-contained, lazy; − duplicates
-  download/verify/cache in a lightweight process; re-checks every spawn; no UI progress.
-- **Option 4 — Workbench/sessions-layer service.** + richest UI; − agent host can start with no
-  renderer window (websocket/server mode), so it can't be the single source of truth.
+`ensureSdk(codex|claude)` must:
+- resolve the per-platform `{file, sha256}` from the product.json pin and build the URL as
+  `${downloadUrlBase}/${quality}/agent-host-sdks/${file}`;
+- download via a Node request util, verify sha256, extract+cache under global storage keyed by
+  `<sdk>@<version>`, and return the on-disk path;
+- be idempotent / cached: a present, hash-valid cache entry is a no-op (no re-verify cost per
+  spawn beyond a cheap existence/marker check).
+
+It slots into the **existing precedence** in both starters:
+`setting (chat.agentHost.*.path) || env var || await ensureSdk(...)` — so **dev overrides always
+win** and require zero repo edits. First-run download is async, one-time per version, gated
+behind first agent-host start. Add a workbench progress surface when a window exists, with a
+headless fallback (log only) for server mode.
+
+#### Why R1 (vs the alternatives)
+- **R1 — node-layer service, inline in both starters (CHOSEN).** + one implementation for
+  desktop + headless; agent host unchanged; sits in existing env-var precedence; single cache
+  owner. − first-run download runs in electron-main on desktop (async, one-time, cached — minor).
+- **R2 — desktop delegates to Electron shared process; server inline.** + keeps main "light" on
+  desktop; − **two** code paths for identical logic; shared process unavailable on server anyway.
+- **R3 — agent host process downloads itself.** + self-contained, lazy; − re-verifies every
+  spawn, duplicates download/verify/cache, no single cache owner, no UI progress.
+- **R4 — workbench/sessions-layer service.** + richest UI; − agent host can start headless with
+  no renderer window (websocket/server mode), so it can't be the single source of truth.
 
 ## SDK version-update flow (runbook)
 
@@ -205,19 +236,28 @@ Bumping a pinned SDK is a **small, OSS-reviewable PR in `microsoft/vscode`**.
 downloaded pinned SDK at runtime, so trying a newer version is zero repo edits.
 
 ## Resolved decisions
-1. **Runtime download owner** — Option 2 (shared-process service).
+1. **Runtime download owner** — Option R1: a `node`-layer `IAgentHostSdkService` called inline by
+   **both** starters (electron-main + server/headless Node). The Electron shared process is
+   desktop-only, so it cannot be the single owner.
 2. **product.json pin** — store `{file, sha256}` per platform; derive the URL at runtime from
-   `downloadUrl`/`commit`/`quality`.
+   `downloadUrl` + `quality` + a **version-keyed** path (no commit).
+7. **CDN addressing** — version-keyed, commit-independent path → true cross-build dedupe (B2).
+8. **No builds-page listing** — publish to the CDN but write **no** CosmosDB asset record; the
+   git-tracked product.json pin is the authoritative record (B2).
+9. **No code-signing / notarization** — sha256 integrity only; rely on programmatic download
+   (no quarantine xattr) + child-process spawn, mirroring `@vscode/vsce-sign` / `@vscode/ripgrep`.
 3. **Hash mismatch** — hard fail the build. A PR check recomputes hashes and, on mismatch, fails
    telling the developer to run `npm run update-agent-host-sdks` and commit (no auto-commit).
-4. **Build topology** — Topology B: one dedicated `AgentHostSdks` job fetches all targets by
-   explicit os/arch (cross-compilation-safe) and emits one `.gz` per target; native-boot smoke
+4. **Build topology** — Topology C2: one dedicated `AgentHostSdks` job builds all targets from a
+   single agent via explicit `npm install --os/--cpu/--libc` (we only download prebuilt leaf
+   packages, never execute them at build), emitting one `.gz` per target; native-boot smoke
    tests run opportunistically on native-arch runners. macOS universal needs no extra SDK.
-5. **`package.json` vs `product.json`** — one logical version per SDK, enforced equal by a PR
-   check (hard fail). Local experimentation uses the runtime override settings, not repo edits.
-   Pin lives in OSS `vscode/product.json` (precedent: `builtInExtensions`).
-6. **`@openai/codex-sdk`** — remove if present; the agent host only needs `@openai/codex`
-   (launcher) + its per-platform native package.
+5. **`package.json` vs `product.json`** — one **exact** version per SDK (V1), enforced equal by a
+   PR check (hard fail, string compare). Local experimentation uses the runtime override
+   settings, not repo edits. Pin lives in OSS `vscode/product.json` (precedent: `builtInExtensions`).
+6. **`@openai/codex-sdk`** — already absent; the agent host only needs `@openai/codex`
+   (launcher) + its per-platform native package. Change `@openai/codex` from `^0.134.0` →
+   exact `0.134.0`.
 
 ## Todos (high level)
 - Confirm/remove stray `@openai/codex-sdk` dependency; keep `@openai/codex` + pinned Claude.
