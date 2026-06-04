@@ -10,6 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationLeaderElection } from '../../../browser/automations/automationLeaderElection.js';
 import { IAutomationRunner } from '../../../common/automations/automationRunner.js';
 import { AutomationSchedulerCore, CRASH_RECOVERY_REASON } from '../../../browser/automations/automationScheduler.js';
@@ -71,7 +72,7 @@ suite('AutomationSchedulerCore', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log));
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const runner = new RecordingRunner();
 		// Start as non-leader so individual tests can seed automations
 		// before triggering the leader's catch-up pass.
@@ -180,13 +181,13 @@ suite('AutomationSchedulerCore', () => {
 	test('on becoming leader, fails any leftover pending/running runs as crash recovery', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const firstService = teardown.add(new AutomationService(storage, log));
+		const firstService = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		firstService.setClockForTesting(() => T0);
 		const a = await firstService.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER });
 		const run = await firstService.recordRunStart(a.id, 'manual', 1);
 		firstService.dispose();
 
-		const service = teardown.add(new AutomationService(storage, log));
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		service.setClockForTesting(() => T0);
 		const runner = new RecordingRunner();
 		const leader = new FakeLeaderElection(true);

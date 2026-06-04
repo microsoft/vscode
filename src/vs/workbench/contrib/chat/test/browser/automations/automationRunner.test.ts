@@ -8,6 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { PlaceholderAutomationRunner } from '../../../browser/automations/automationRunner.js';
 import { AutomationService } from '../../../browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
@@ -25,7 +26,7 @@ suite('PlaceholderAutomationRunner', () => {
 	function setup() {
 		const storage = teardown.add(new InMemoryStorageService());
 		const log = new NullLogService();
-		const service = teardown.add(new AutomationService(storage, log));
+		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const runner = new PlaceholderAutomationRunner(service, log);
 		runner.setRunDurationForTesting(0);
 		return { service, runner };

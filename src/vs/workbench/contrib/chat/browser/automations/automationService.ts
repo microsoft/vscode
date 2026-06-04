@@ -9,6 +9,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import {
 	AutomationRunTrigger,
 	IAutomation,
@@ -20,6 +21,7 @@ import {
 	IUpdateAutomationOptions,
 	IUpdateAutomationRunOptions,
 } from '../../common/automations/automationService.js';
+import { publishAutomationCreated, publishAutomationDeleted, publishAutomationUpdated } from '../../common/automations/automationTelemetry.js';
 import { computeNextRunAt } from '../../common/automations/schedule.js';
 
 /**
@@ -76,6 +78,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -139,6 +142,7 @@ export class AutomationService extends Disposable implements IAutomationService 
 		});
 		const next = [automation, ...this._automations.get()];
 		this.commit(next, this._runs.get());
+		publishAutomationCreated(this.telemetryService, automation);
 		return automation;
 	}
 
@@ -161,15 +165,20 @@ export class AutomationService extends Disposable implements IAutomationService 
 		});
 		const next = this._automations.get().map(a => a.id === id ? updated : a);
 		this.commit(next, this._runs.get());
+		publishAutomationUpdated(this.telemetryService, current, updated);
 		return updated;
 	}
 
 	async deleteAutomation(id: string): Promise<void> {
+		const existing = this.getAutomation(id);
 		const next = this._automations.get().filter(a => a.id !== id);
 		if (next.length === this._automations.get().length) {
 			return;
 		}
 		this.commit(next, this._runs.get());
+		if (existing) {
+			publishAutomationDeleted(this.telemetryService, existing);
+		}
 	}
 
 	async recordRunStart(automationId: string, trigger: AutomationRunTrigger, leaderWindowId: number): Promise<IAutomationRun> {
