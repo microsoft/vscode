@@ -814,6 +814,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Agent file 1.',
 					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now' }],
@@ -873,6 +874,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Agent file 1.',
 					tools: ['tool1', 'tool2'],
@@ -894,6 +896,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md').toString(),
 					name: 'agent2',
 					agentInstructions: {
 						content: 'First use #tool:tool2\nThen use #tool:tool1',
@@ -954,6 +957,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Code review agent.',
 					argumentHint: 'Provide file path or code snippet to review',
@@ -975,6 +979,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md').toString(),
 					name: 'agent2',
 					description: 'Documentation generator.',
 					argumentHint: 'Specify function or class name to document',
@@ -1048,6 +1053,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md').toString(),
 					name: 'github-agent',
 					description: 'GitHub Copilot specialized agent.',
 					target: Target.GitHubCopilot,
@@ -1069,6 +1075,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md').toString(),
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
@@ -1090,6 +1097,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md').toString(),
 					name: 'generic-agent',
 					description: 'Generic agent without target.',
 					agentInstructions: {
@@ -1169,6 +1177,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md').toString(),
 					name: 'copilot-agent',
 					description: 'Copilot agent with same tool names.',
 					target: Target.GitHubCopilot,
@@ -1191,6 +1200,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md').toString(),
 					name: 'claude-agent',
 					description: 'Claude agent with tools and model.',
 					target: Target.Claude,
@@ -1214,6 +1224,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md').toString(),
 					name: 'claude-agent2',
 					description: 'Claude agent with various tools.',
 					target: Target.Claude,
@@ -1274,6 +1285,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md').toString(),
 					name: 'demonstrate',
 					description: 'Demonstrate agent.',
 					tools: ['demo-tool'],
@@ -1347,6 +1359,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md').toString(),
 					name: 'restricted-agent',
 					description: 'Agent with restricted access.',
 					agents: ['subagent1', 'subagent2'],
@@ -1368,6 +1381,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md').toString(),
 					name: 'no-access-agent',
 					description: 'Agent with no access to subagents, skills, or instructions.',
 					agents: [],
@@ -1389,6 +1403,7 @@ suite('PromptsService', () => {
 					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md').toString(),
 					name: 'full-access-agent',
 					description: 'Agent with full access.',
 					agents: ['*'],

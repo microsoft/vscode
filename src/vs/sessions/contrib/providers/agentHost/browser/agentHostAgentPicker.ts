@@ -6,12 +6,10 @@
 import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
-import { fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -250,8 +248,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		if (mode.id === ChatMode.Agent.id) {
 			this._setAgent(session, provider, undefined);
 		} else {
-			const modeUri = mode.uri?.get() ?? URI.parse(mode.id);
-			const rawAgentUri = fromAgentHostUri(modeUri).toString();
+			const rawAgentUri = mode.id;
 			this._setAgent(session, provider, { uri: rawAgentUri, name: mode.name.get() });
 		}
 	}
