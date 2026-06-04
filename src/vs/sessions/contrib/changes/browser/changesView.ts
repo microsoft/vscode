@@ -7,7 +7,6 @@ import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isWeb } from '../../../../base/common/platform.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
@@ -27,7 +26,7 @@ import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolb
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { MenuId, Action2, MenuItemAction, registerAction2, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -56,6 +55,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
+import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -68,8 +68,9 @@ import { PANEL_SECTION_BORDER } from '../../../../workbench/common/theme.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { logChangesViewFileSelect, logChangesViewVersionModeChange, logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ChecksViewModel } from './checksViewModel.js';
-import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../agentHost/browser/agentHostSkillButtons.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesVersionMode, ChangesViewMode, IsolationMode } from '../common/changes.js';
+// eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
+import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../providers/agentHost/browser/agentHostSkillButtons.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, toIChangesFileItem } from './changesViewRenderer.js';
 import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -355,7 +356,7 @@ export class ChangesViewPane extends ViewPane {
 
 		// Version mode
 		this._register(bindContextKey(ChangesContextKeys.VersionMode, this.scopedContextKeyService, reader => {
-			return this.viewModel.versionModeObs.read(reader);
+			return this.viewModel.activeSessionChangesetObs.read(reader)?.id ?? '';
 		}));
 
 		// View mode
@@ -712,6 +713,12 @@ export class ChangesViewPane extends ViewPane {
 					return;
 				}
 
+				// Open a single file diff editor when configured to do so
+				if (this.configurationService.getValue<boolean>(SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING)) {
+					void this._openSingleFileDiffEditor(e.element, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned);
+					return;
+				}
+
 				// Open multi-file diff editor
 				void this._openMultiFileDiffEditor(e.element.uri);
 			}));
@@ -875,19 +882,8 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getSessionDiscardRef(): string {
-		const versionMode = this.viewModel.versionModeObs.get();
-		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
-		const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.get();
-
-		if (versionMode === ChangesVersionMode.UncommittedChanges) {
-			return 'HEAD';
-		}
-
-		return versionMode === ChangesVersionMode.LastTurn
-			? lastCheckpointRef
-				? `${lastCheckpointRef}^`
-				: ''
-			: firstCheckpointRef ?? '';
+		const changeset = this.viewModel.activeSessionChangesetObs.get();
+		return changeset?.originalCheckpointRef.get() ?? '';
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1086,10 +1082,12 @@ export class ChangesViewPane extends ViewPane {
 		};
 
 		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const labels = getChangesEditorLabels(item.uri, this.labelService);
 
 		if (isDeletion && originalUri) {
 			this.editorService.openEditor({
 				resource: originalUri,
+				...labels,
 				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 			}, group);
 			return;
@@ -1099,6 +1097,7 @@ export class ChangesViewPane extends ViewPane {
 			this.editorService.openEditor({
 				original: { resource: originalUri },
 				modified: { resource: modifiedFileUri },
+				...labels,
 				options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 			}, group);
 			return;
@@ -1106,7 +1105,25 @@ export class ChangesViewPane extends ViewPane {
 
 		this.editorService.openEditor({
 			resource: modifiedFileUri,
+			...labels,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
+		}, group);
+	}
+
+	private async _openSingleFileDiffEditor(item: IChangesFileItem, sideBySide: boolean, preserveFocus: boolean, pinned: boolean): Promise<void> {
+		const { uri, originalUri, isDeletion } = item;
+		const group = sideBySide ? SIDE_GROUP : ACTIVE_GROUP;
+		const labels = getChangesEditorLabels(uri, this.labelService);
+
+		// Always open a diff editor. Added files (no original) and deleted files
+		// (no modified) are shown as a diff against an empty side, matching the
+		// "Open Changes" action.
+		const modifiedUri = isDeletion ? undefined : uri;
+		await this.editorService.openEditor({
+			original: { resource: originalUri },
+			modified: { resource: modifiedUri },
+			...labels,
+			options: { preserveFocus, pinned }
 		}, group);
 	}
 
@@ -1338,101 +1355,37 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsManagementService sessionManagementService: ISessionsManagementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
-				const state = viewModel.activeSessionStateObs.get();
-				const branchName = state?.branchName;
-				const baseBranchName = state?.baseBranchName;
+				const changesets = viewModel.activeSessionChangesetsObs.get() ?? [];
+				const selectedChangeset = viewModel.activeSessionChangesetObs.get();
 
-				const actions = [
-					{
-						...action,
-						id: 'chatEditing.versionsBranchChanges',
-						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
-						detail: branchName && baseBranchName
-							? `${branchName} → ${baseBranchName}`
-							: branchName,
-						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
-						category: { label: 'changes', order: 1, showHeader: false },
-						enabled: viewModel.activeSessionIsArchivedObs.get() === false,
-						run: async () => {
-							viewModel.setVersionMode(ChangesVersionMode.BranchChanges);
-							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.BranchChanges);
-							if (this.element) {
-								this.renderLabel(this.element);
-							}
-						},
+				return changesets.map(changeset => ({
+					...action,
+					id: `agents.changes.changeset.${changeset.id}`,
+					label: changeset.label,
+					detail: changeset.description,
+					checked: selectedChangeset?.id === changeset.id,
+					category: {
+						label: changeset.category ?? '',
+						showHeader: false,
+						order: 0
 					},
-				];
-
-				if (!isWeb) {
-					actions.push({
-						...action,
-						id: 'chatEditing.versionsUncommittedChanges',
-						label: localize('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
-						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
-						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
-						category: { label: 'changes', order: 2, showHeader: false },
-						enabled: !viewModel.activeSessionIsVirtualWorkspaceObs.get() &&
-							viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-							viewModel.activeSessionIsArchivedObs.get() === false,
-						run: async () => {
-							viewModel.setVersionMode(ChangesVersionMode.UncommittedChanges);
-							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.UncommittedChanges);
-							if (this.element) {
-								this.renderLabel(this.element);
-							}
-						},
-					});
-					actions.push({
-						...action,
-						id: 'chatEditing.versionsAllChanges',
-						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
-						detail: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
-						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
-						category: { label: 'checkpoints', order: 3, showHeader: false },
-						enabled: viewModel.activeSessionIsVirtualWorkspaceObs.get() ||
-							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
-						run: async () => {
-							viewModel.setVersionMode(ChangesVersionMode.AllChanges);
-							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.AllChanges);
-							if (this.element) {
-								this.renderLabel(this.element);
-							}
-						},
-					});
-					actions.push({
-						...action,
-						id: 'chatEditing.versionsLastTurnChanges',
-						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
-						detail: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
-						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
-						category: { label: 'checkpoints', order: 4, showHeader: false },
-						enabled: viewModel.activeSessionIsVirtualWorkspaceObs.get() ||
-							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
-								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
-						run: async () => {
-							viewModel.setVersionMode(ChangesVersionMode.LastTurn);
-							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.LastTurn);
-							if (this.element) {
-								this.renderLabel(this.element);
-							}
-						},
-					});
-				}
-
-				return actions;
+					enabled: changeset.isEnabled.get(),
+					run: async () => {
+						viewModel.setChangesetId(changeset.id);
+						logChangesViewVersionModeChange(this.telemetryService, changeset.id);
+					}
+				} satisfies IActionWidgetDropdownAction));
 			},
 		};
 
 		super(action, { actionProvider, listOptions: { detailItemHeight: 44 } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			viewModel.versionModeObs.read(reader);
+			viewModel.activeSessionChangesetObs.read(reader);
 
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -1441,16 +1394,12 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const mode = this.viewModel.versionModeObs.get();
-		const label = mode === ChangesVersionMode.BranchChanges
-			? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
-			: mode === ChangesVersionMode.UncommittedChanges
-				? localize('sessionsChanges.versionsUncommittedChanges', 'Uncommitted Changes')
-				: mode === ChangesVersionMode.AllChanges
-					? localize('sessionsChanges.versionsAllChanges', "All Changes")
-					: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
+		const changeset = this.viewModel.activeSessionChangesetObs.get();
+		if (!changeset) {
+			return null;
+		}
 
-		dom.reset(element, dom.$('span', undefined, label), ...renderLabelWithIcons('$(chevron-down)'));
+		dom.reset(element, dom.$('span', undefined, changeset.label), ...renderLabelWithIcons('$(chevron-down)'));
 		this.updateAriaLabel();
 		return null;
 	}

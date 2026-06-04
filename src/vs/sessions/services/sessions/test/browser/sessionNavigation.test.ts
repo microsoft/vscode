@@ -11,8 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IActiveSession, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IChat, ISession, ISessionType, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
@@ -23,7 +23,6 @@ const stubChat = {
 	title: constObservable('Chat'),
 	updatedAt: constObservable(new Date()),
 	status: constObservable(SessionStatus.Completed),
-	changesets: constObservable([]),
 	changes: constObservable([]),
 	checkpoints: constObservable(undefined),
 	modelId: constObservable(undefined),
@@ -42,7 +41,6 @@ function stubChatWithId(id: string, status: SessionStatus = SessionStatus.Comple
 		updatedAt: constObservable(new Date()),
 		status: constObservable(status),
 		checkpoints: constObservable(undefined),
-		changesets: constObservable([]),
 		changes: constObservable([]),
 		modelId: constObservable(undefined),
 		mode: constObservable(undefined),
@@ -76,7 +74,7 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		chats: constObservable(sessionChats),
-		mainChat: sessionChats[0],
+		mainChat: constObservable(sessionChats[0]),
 		capabilities: { supportsMultipleChats: chats !== undefined && chats.length > 1 },
 	};
 }
@@ -86,8 +84,18 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
 	readonly activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+	readonly visibleSessions = observableValue<readonly IActiveSession[]>('test.visibleSessions', []);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
+	readonly onWillSendRequest = Event.None;
+	readonly onDidSendRequest = Event.None;
+	readonly onDidArchiveSession = Event.None;
+	readonly onDidUnarchiveSession = Event.None;
+	readonly onDidDeleteSession = Event.None;
+	readonly onDidDeleteChat = Event.None;
+	readonly onDidRenameChat = Event.None;
+	readonly onDidToggleSessionStickiness = Event.None;
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -103,6 +111,8 @@ class MockSessionStore implements ISessionsManagementService {
 			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
 			const active: IActiveSession = {
 				...session,
+				isCreated: constObservable(true),
+				sticky: constObservable(false),
 				activeChat: observableValue<IChat>(`test.activeChat-${session.sessionId}`, activeChat),
 			};
 			this.activeSession.set(active, undefined);
@@ -129,6 +139,8 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getAllSessionTypes(): ISessionType[] { return []; }
+	getSessionTypesForFolder(_folderUri: URI): IProviderSessionType[] { return []; }
+	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
 		this._openedResource = sessionResource;
@@ -156,14 +168,20 @@ class MockSessionStore implements ISessionsManagementService {
 			this.setActiveSession(session, chat);
 		}
 	}
-	restoreLastActiveSession(): Promise<void> { throw new Error('not implemented'); }
-	createNewSession(_providerId: string, _workspaceUri: URI, _sessionTypeId?: string): ISession { throw new Error('not implemented'); }
+	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
+	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
-	sendAndCreateChat(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
+	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
+	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<void> { throw new Error('not implemented'); }
 	sendRequest(_session: ISession, _chat: IChat, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
-	openNewChatInSession(_session: ISession): void { throw new Error('not implemented'); }
+	openNewChatInSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	openPreviousSession(): Promise<void> { throw new Error('not implemented'); }
 	openNextSession(): Promise<void> { throw new Error('not implemented'); }
+	toggleSessionStickiness(_session: ISession): void { throw new Error('not implemented'); }
+	insertAt(_session: ISession, _targetSessionId: string, _side: 'left' | 'right', _activate?: boolean): void { throw new Error('not implemented'); }
+	closeSession(_session: ISession | undefined): void { throw new Error('not implemented'); }
+	closeAllSessions(): void { throw new Error('not implemented'); }
+	setActive(_session: IActiveSession): void { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	deleteSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }

@@ -39,14 +39,87 @@ export interface IToolResultFilter {
 	apply(text: string, input: unknown): IToolResultFilterOutput;
 }
 
+/**
+ * Result of looking up a tool invocation in an {@link IToolResultCache}.
+ */
+export interface IToolResultCacheHit {
+	/** The cached output content from the previous run. */
+	readonly text: string;
+	/** Wall-clock timestamp (ms since epoch) of when the cached entry was produced. */
+	readonly timestamp: number;
+}
+
+/**
+ * A read-through / write-through cache for tool results. Used to implement
+ * "same as last run" response dedup for read-only, deterministic tool calls.
+ *
+ * The compressor invokes caches in this order on every `maybeCompress` call:
+ *   1. `observe(toolId, input)` — caches may use this hook to invalidate
+ *      sibling entries (e.g. a `git commit` clears `git status` / `git diff`).
+ *   2. `lookup(toolId, input)` — if any cache returns a hit, the compressor
+ *      substitutes the result with a single-line "same output as last run"
+ *      reply and emits `cacheHit: true` telemetry.
+ *   3. If no hit, after compression the compressor calls `record` so the
+ *      cache can store the (possibly compressed) output.
+ */
+export interface IToolResultCache {
+	readonly id: string;
+	readonly toolIds: readonly string[];
+	observe(toolId: string, input: unknown): void;
+	lookup(toolId: string, input: unknown): IToolResultCacheHit | undefined;
+	record(toolId: string, input: unknown, text: string): void;
+}
+
 export interface IToolResultCompressor {
 	readonly _serviceBrand: undefined;
 	registerFilter(filter: IToolResultFilter): void;
+	registerCache(cache: IToolResultCache): void;
 	/**
 	 * Returns a possibly-compressed copy of `result`, or `undefined` if no
 	 * compression was applied (caller should pass through the original).
 	 */
 	maybeCompress(toolId: string, input: unknown, result: IToolResult): IToolResult | undefined;
+}
+
+/**
+ * Heuristically decide whether a text part should be excluded from filter
+ * rewriting because it carries structured data the model is likely to parse.
+ *
+ * Currently detects:
+ * - Top-level JSON objects/arrays (parsed to verify)
+ * - YAML documents (leading `---` header)
+ * - TOML-style documents (leading `[section]` header)
+ *
+ * Returning `true` means: the registry will NOT pass this text part to any
+ * filter, even if the filter says it matches.
+ *
+ * This is intentionally cheap and conservative — false negatives just mean
+ * a filter may decline to compress; false positives could corrupt structured
+ * payloads.
+ */
+export function isProtectedFromCompression(text: string): boolean {
+	const trimmed = text.trim();
+	if (!trimmed) {
+		return false;
+	}
+	// Top-level JSON object or array — refuse to touch.
+	const first = trimmed[0];
+	const last = trimmed[trimmed.length - 1];
+	if ((first === '{' && last === '}') || (first === '[' && last === ']')) {
+		try {
+			JSON.parse(trimmed);
+			return true;
+		} catch {
+			// fall through
+		}
+	}
+	// TOML / YAML-style documents at the top level: a line `---` opener or
+	// a file-level table header like `[section]`.
+	// These are cheap heuristics — we don't try to parse YAML/TOML.
+	if (/^---\s*\n/.test(trimmed) || /^\[[A-Za-z_][A-Za-z0-9_.-]*\]\s*\n/.test(trimmed)) {
+		return true;
+	}
+	return false;
 }
 
 /**

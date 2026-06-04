@@ -56,7 +56,7 @@ export class RenameSuggestionsPrompt extends PromptElement<Props, State> {
 		const isDefinitionBeingRenamed = defState.k === 'found' && defState.definitions.some(def => def.excerptRange.contains(this.props.range));
 
 		if (!isDefinitionBeingRenamed) {
-			const endpointInfo = await this.endpointProvider.getChatEndpoint('copilot-fast');
+			const endpointInfo = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 			const documentContext: IDocumentContext = {
 				document,
 				fileIndentInfo: undefined,

@@ -19,17 +19,6 @@
 	touch-action: manipulation;
 }
 
-.monaco-workbench .open-in-vscode-titlebar-widget::after {
-	content: '';
-	position: absolute;
-	right: -6px;
-	top: 4px;
-	bottom: 4px;
-	width: 1px;
-	background-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.5));
-	pointer-events: none;
-}
-
 .monaco-workbench .open-in-vscode-titlebar-widget > .open-in-vscode-titlebar-widget-icon {
 	width: 16px;
 	height: 16px;

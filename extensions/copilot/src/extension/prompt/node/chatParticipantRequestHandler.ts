@@ -32,8 +32,10 @@ import { ICommandService } from '../../commands/node/commandService';
 import { getAgentForIntent, Intent } from '../../common/constants';
 import { IConversationStore } from '../../conversationStore/node/conversationStore';
 import { IIntentService } from '../../intents/node/intentService';
+import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { UnknownIntent } from '../../intents/node/unknownIntent';
-import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatAutoModeDetails, formatModelDetails } from '../../../platform/chat/common/chatModelDetails';
 import { ContributedToolName } from '../../tools/common/toolNames';
 import { ChatVariablesCollection } from '../common/chatVariablesCollection';
 import { Conversation, getGlobalContextCacheKey, GlobalContextMessageMetadata, ICopilotChatResult, ICopilotChatResultIn, normalizeSummariesOnRounds, RenderedUserMessageMetadata, Turn, TurnStatus, TurnTokenUsageMetadata } from '../common/conversation';
@@ -87,6 +89,7 @@ export class ChatParticipantRequestHandler {
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IAuthenticationChatUpgradeService private readonly _authenticationUpgradeService: IAuthenticationChatUpgradeService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
 		this.location = this.getLocation(request);
 
@@ -259,12 +262,14 @@ export class ChatParticipantRequestHandler {
 				result = await chatResult;
 				const endpoint = await this._endpointProvider.getChatEndpoint(this.request);
 				const creditsUsed = this._chatQuotaService.getCreditsForTurn(this.turn.id);
-				if (creditsUsed !== undefined) {
-					result.details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
+				const hideAutoModelName = isAutoModel(endpoint) === 1
+					&& this._experimentationService.getTreatmentVariable<boolean>('copilotchat.hideAutoModelName') === true;
+				if (hideAutoModelName) {
+					result.details = formatAutoModeDetails(creditsUsed, endpoint.multiplier);
+				} else if (this._authService.copilotToken?.isNoAuthUser) {
+					result.details = endpoint.name;
 				} else {
-					result.details = this._authService.copilotToken?.isNoAuthUser || endpoint.multiplier === undefined
-						? `${endpoint.name}`
-						: `${endpoint.name} • ${endpoint.multiplier}x`;
+					result.details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 				}
 			}
 

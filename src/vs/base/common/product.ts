@@ -380,9 +380,7 @@ export interface IDefaultChatAgent {
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
-	readonly manageSettingsUrl: string;
 	readonly managePlanUrl: string;
-	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
 	readonly termsStatementUrl: string;
@@ -403,6 +401,7 @@ export interface IDefaultChatAgent {
 	readonly entitlementSignupLimitedUrl: string;
 	readonly tokenEntitlementUrl: string;
 	readonly mcpRegistryDataUrl: string;
+	readonly managedSettingsUrl: string;
 
 	readonly chatQuotaExceededContext: string;
 	readonly completionsQuotaExceededContext: string;

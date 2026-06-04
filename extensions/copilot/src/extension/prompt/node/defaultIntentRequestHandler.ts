@@ -486,7 +486,7 @@ export class DefaultIntentRequestHandler {
 
 	private async getErrorDetails(error: ChatFetchError) {
 		const status = await this._octoKitService.getGitHubOutageStatus();
-		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status);
+		return getErrorDetailsFromChatFetchError(error, this._authenticationService.copilotToken?.copilotPlan, status, this._authenticationService.copilotToken?.tokenBasedBilling, this._authenticationService.copilotToken?.quotaInfo.quota_reset_date);
 	}
 
 	private async processResult(fetchResult: ChatResponse, responseMessage: string, chatResult: ChatResult | void, metadataFragment: Partial<IResultMetadata>, baseModelTelemetry: ConversationalBaseTelemetryData, rounds: IToolCallRound[]): Promise<ChatResult> {
@@ -724,7 +724,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 			telemetryProperties: {
 				messageId: this.telemetry.telemetryMessageId,
 				conversationId: this.options.conversation.sessionId,
-				messageSource: this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
+				messageSource: opts.isKeepAliveProbe ? 'chat.cacheKeepAlive' : this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
 				subType: this.options.request.subAgentInvocationId ? `subagent` : this.options.request.isSystemInitiated ? 'system-initiated' : undefined,
 				parentRequestId: this.options.request.parentRequestId,
 				iterationNumber: opts.iterationNumber.toString(),

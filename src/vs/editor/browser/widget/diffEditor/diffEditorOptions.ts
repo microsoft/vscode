@@ -168,7 +168,7 @@ function validateDiffEditorOptions(options: Readonly<IDiffEditorOptions>, defaul
 		diffCodeLens: validateBooleanOption(options.diffCodeLens, defaults.diffCodeLens),
 		renderOverviewRuler: validateBooleanOption(options.renderOverviewRuler, defaults.renderOverviewRuler),
 		diffWordWrap: validateStringSetOption<'off' | 'on' | 'inherit'>(options.diffWordWrap, defaults.diffWordWrap, ['off', 'on', 'inherit']),
-		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced'], { 'smart': 'legacy', 'experimental': 'advanced' }),
+		diffAlgorithm: validateStringSetOption(options.diffAlgorithm, defaults.diffAlgorithm, ['legacy', 'advanced', 'advanced-external', 'advanced-wasm'], { 'smart': 'legacy', 'experimental': 'advanced' }),
 		accessibilityVerbose: validateBooleanOption(options.accessibilityVerbose, defaults.accessibilityVerbose),
 		experimental: {
 			showMoves: validateBooleanOption(options.experimental?.showMoves, defaults.experimental.showMoves!),

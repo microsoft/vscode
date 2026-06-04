@@ -8,16 +8,21 @@ import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
+	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
+	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
+	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
+	UtilityModel = 'chat.utilityModel',
+	UtilitySmallModel = 'chat.utilitySmallModel',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -64,11 +69,10 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
-	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
-	AutopilotEnabled = 'chat.autopilot.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
@@ -81,6 +85,7 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
+	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -210,6 +215,7 @@ export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
 	IsSessionsWindowContext.negate(),
 	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	IsAuxiliaryWindowContext.negate()
 );
 
 export const ChatEditorTitleMaxLength = 30;

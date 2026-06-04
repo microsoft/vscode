@@ -13,6 +13,7 @@ import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, I
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ActivationKind } from '../../../extensions/common/extensions.js';
 
 function createSession() {
 	return { id: 'session1', accessToken: 'token1', account: { id: 'account', label: 'Account' }, scopes: ['test'] };
@@ -462,5 +463,60 @@ suite('AuthenticationService', () => {
 				event: { added: [], removed: [], changed: [session] }
 			});
 		});
+	});
+
+});
+
+suite('AuthenticationService - tryActivateProvider', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let authenticationService: AuthenticationService;
+
+	setup(() => {
+		const storageService = disposables.add(new TestStorageService());
+		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
+		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService, new NullLogService()));
+	});
+
+	teardown(() => {
+		authenticationService.dispose();
+	});
+
+	test('should resolve when provider registers even if activateByEvent never resolves (#315841)', async () => {
+		// Dispose the service created in setup to release the extension point handler,
+		// so we can create a new one with a hanging activateByEvent.
+		authenticationService.dispose();
+
+		const storageService = disposables.add(new TestStorageService());
+		const authAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
+		// Simulate a deadlocked extension host: activateByEvent never resolves.
+		const hangingExtService = new class extends TestExtensionService {
+			override activateByEvent(_activationEvent: string, _activationKind?: ActivationKind): Promise<void> {
+				return new Promise<void>(() => { /* never resolves */ });
+			}
+		};
+		authenticationService = disposables.add(new AuthenticationService(hangingExtService, authAccessService, TestEnvironmentService, new NullLogService()));
+
+		const provider = createProvider({ getSessions: async () => [createSession()] });
+
+		// Start getSessions — this calls tryActivateProvider which fires activateByEvent.
+		// Since activateByEvent never resolves, the old code would deadlock here.
+		const sessionsPromise = authenticationService.getSessions(provider.id);
+
+		// Simulate the local extension host registering the provider
+		// while the webworker host is still stuck.
+		authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+		// The Promise.race in tryActivateProvider should unblock immediately.
+		const sessions = await sessionsPromise;
+		assert.strictEqual(sessions.length, 1);
+	});
+
+	test('should resolve when activateByEvent completes and provider is already registered', async () => {
+		const provider = createProvider({ getSessions: async () => [createSession()] });
+		authenticationService.registerAuthenticationProvider(provider.id, provider);
+
+		const sessions = await authenticationService.getSessions(provider.id);
+		assert.strictEqual(sessions.length, 1);
 	});
 });

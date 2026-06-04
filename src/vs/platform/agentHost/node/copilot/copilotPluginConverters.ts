@@ -6,9 +6,11 @@
 import { spawn } from 'child_process';
 import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
 import { dirname } from '../../../../base/common/path.js';
 
 type SessionHooks = NonNullable<SessionConfig['hooks']>;
@@ -70,22 +72,76 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
 
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
- * Reads each agent's `.md` file to use as the prompt.
+ *
+ * Each agent file is read and (when present) its YAML frontmatter is parsed:
+ *  - `name` falls back to the agent's resource name (filename stem).
+ *  - `description` is forwarded verbatim.
+ *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
+ *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - `prompt` is the markdown body that follows the frontmatter (or the
+ *    full file content when there is no frontmatter).
  */
 export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
 	const configs: CustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
+			const raw = content.value.toString();
+			const md = parseFrontMatter(raw);
+			const name = md?.getStringValue('name') ?? agent.name;
+			const description = md?.getStringValue('description');
+			const tools = md?.getStringArrayValue('tools');
+			const prompt = md?.body ?? raw;
+			let model: string | undefined = md?.getStringValue('model') ?? undefined;
+			const models = md?.getStringArrayValue('model') ?? undefined;
+			if (!model && models && Array.isArray(models) && models.length > 0) {
+				model = models[0];
+			}
+
 			configs.push({
-				name: agent.name,
-				prompt: content.value.toString(),
+				name,
+				...(description ? { description } : {}),
+				...(model ? { model } : {}),
+				tools: tools && tools.length > 0 ? tools : null,
+				prompt,
 			});
 		} catch {
 			// Skip agents whose file cannot be read
 		}
 	}
 	return configs;
+}
+
+/**
+ * Projects parsed plugin agents into their protocol-level
+ * {@link AgentCustomization} shape.
+ */
+export function toAgentCustomizations(agents: readonly IParsedAgent[]): AgentCustomization[] {
+	return agents.map(a => a.customization);
+}
+
+/**
+ * Collects every child customization (agent, skill, rule, hook, MCP
+ * server) produced by a parsed plugin, deduped by id. This is the single
+ * source of truth for populating a container customization's `children`
+ * array — every projector that produced an SDK config above derives its
+ * matching protocol child from the same parsed primitive.
+ */
+export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildCustomization[] {
+	const byId = new Map<string, ChildCustomization>();
+	const add = (c: ChildCustomization) => {
+		if (!byId.has(c.id)) {
+			byId.set(c.id, c);
+		}
+	};
+	for (const plugin of plugins) {
+		for (const a of plugin.agents) { add(a.customization); }
+		for (const s of plugin.skills) { add(s.customization); }
+		for (const r of plugin.instructions) { add(r.customization); }
+		for (const h of plugin.hooks) { add(h.customization); }
+		for (const m of plugin.mcpServers) { add(m.customization); }
+	}
+	return [...byId.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -97,11 +153,22 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
  * The SDK expects directory paths; we extract the parent directory of each SKILL.md.
  */
 export function toSdkSkillDirectories(skills: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(skills);
+}
+
+/**
+ * Converts parsed plugin instructions into the SDK's
+ * `instructionDirectories` config.
+ */
+export function toSdkInstructionDirectories(instructions: readonly INamedPluginResource[]): string[] {
+	return toSdkResourceDirectories(instructions);
+}
+
+function toSdkResourceDirectories(resources: readonly INamedPluginResource[]): string[] {
 	const seen = new Set<string>();
 	const result: string[] = [];
-	for (const skill of skills) {
-		// SKILL.md parent directory is the skill directory
-		const dir = dirname(skill.uri.fsPath);
+	for (const resource of resources) {
+		const dir = dirname(resource.uri.fsPath);
 		if (!seen.has(dir)) {
 			seen.add(dir);
 			result.push(dir);
@@ -344,6 +411,7 @@ export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IPar
 			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
 			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
 			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
 		})));
 	};
 	return serialize(a) === serialize(b);

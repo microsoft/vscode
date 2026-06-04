@@ -109,7 +109,7 @@ suite('TabbedActionListWidget', () => {
 		widget.show<ITestItem>({
 			user: 'test',
 			anchor,
-			tabs: ['Local', 'Remote'],
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
 			initialTab: 'Local',
 			createActionList: () => ({ items: [action('a')] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
@@ -130,7 +130,7 @@ suite('TabbedActionListWidget', () => {
 		widget.show<ITestItem>({
 			user: 'test',
 			anchor,
-			tabs: ['Local', 'Remote'],
+			tabs: [{ id: 'Local' }, { id: 'Remote' }],
 			initialTab: 'Remote',
 			createActionList: (tab) => {
 				calls.push(tab);
@@ -151,7 +151,7 @@ suite('TabbedActionListWidget', () => {
 		const showOnce = () => widget.show<ITestItem>({
 			user: 'test',
 			anchor,
-			tabs: ['Local'],
+			tabs: [{ id: 'Local' }],
 			initialTab: 'Local',
 			createActionList: () => ({ items: [action('a')] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
@@ -176,7 +176,7 @@ suite('TabbedActionListWidget', () => {
 		widget.show<ITestItem>({
 			user: 'test',
 			anchor,
-			tabs: ['Local'],
+			tabs: [{ id: 'Local' }],
 			initialTab: 'Local',
 			createActionList: () => ({ items: [action('a')] }),
 			delegate: { onSelect: () => { }, onHide: () => { } },
