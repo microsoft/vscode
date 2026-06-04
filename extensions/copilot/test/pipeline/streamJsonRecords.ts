@@ -88,6 +88,9 @@ async function* streamJsonArray<T>(stream: NodeJS.ReadableStream): AsyncGenerato
 	let escaped = false;
 	let current = '';
 	let hasContent = false;
+	let elementsYielded = 0;
+	let pendingElement = false;
+	let trailingChar = '';
 
 	for await (const chunk of stream) {
 		const text = chunk as string;
@@ -100,13 +103,18 @@ async function* streamJsonArray<T>(stream: NodeJS.ReadableStream): AsyncGenerato
 				}
 				if (ch === '[') {
 					arrayStarted = true;
+					pendingElement = true;
 					continue;
 				}
 				throw new Error(`Expected '[' at start of JSON array input, got '${ch}'`);
 			}
 
 			if (arrayEnded) {
-				break;
+				if (!isWhitespace(ch)) {
+					trailingChar = ch;
+					break;
+				}
+				continue;
 			}
 
 			if (inString) {
@@ -143,6 +151,10 @@ async function* streamJsonArray<T>(stream: NodeJS.ReadableStream): AsyncGenerato
 					hasContent = false;
 					if (trimmed.length > 0) {
 						yield JSON.parse(trimmed) as T;
+						elementsYielded++;
+						pendingElement = false;
+					} else if (pendingElement && elementsYielded > 0) {
+						throw new Error('Unexpected \']\' after trailing comma in JSON array');
 					}
 					arrayEnded = true;
 					continue;
@@ -157,9 +169,12 @@ async function* streamJsonArray<T>(stream: NodeJS.ReadableStream): AsyncGenerato
 				const trimmed = current.trim();
 				current = '';
 				hasContent = false;
-				if (trimmed.length > 0) {
-					yield JSON.parse(trimmed) as T;
+				if (trimmed.length === 0) {
+					throw new Error('Unexpected \',\' (missing element) in JSON array');
 				}
+				yield JSON.parse(trimmed) as T;
+				elementsYielded++;
+				pendingElement = true;
 				continue;
 			}
 
@@ -174,10 +189,21 @@ async function* streamJsonArray<T>(stream: NodeJS.ReadableStream): AsyncGenerato
 			}
 		}
 
-		if (arrayEnded) {
+		if (arrayEnded && trailingChar) {
 			break;
 		}
 	}
 
-	// An empty or whitespace-only file is treated as containing no records.
+	if (!arrayStarted) {
+		// Empty or whitespace-only file: no records.
+		return;
+	}
+
+	if (!arrayEnded) {
+		throw new Error('Unexpected end of input: JSON array was not closed');
+	}
+
+	if (trailingChar) {
+		throw new Error(`Unexpected '${trailingChar}' after end of JSON array`);
+	}
 }

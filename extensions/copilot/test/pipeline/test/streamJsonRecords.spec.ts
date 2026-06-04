@@ -69,6 +69,38 @@ describe('streamJsonRecords', () => {
 		test('throws when a .json file does not start with an array', async () => {
 			await expect(collect('{"a":1}')).rejects.toThrow();
 		});
+
+		test('throws on truncated input (no closing bracket)', async () => {
+			await expect(collect('[1, 2, 3')).rejects.toThrow(/not closed|Unexpected end/i);
+		});
+
+		test('throws on truncated input mid-element', async () => {
+			await expect(collect('[1, 2, {"a":1')).rejects.toThrow(/not closed|Unexpected end/i);
+		});
+
+		test('throws on truncated input with unclosed string', async () => {
+			await expect(collect('["abc]')).rejects.toThrow(/not closed|Unexpected end/i);
+		});
+
+		test('throws on trailing data after the array', async () => {
+			await expect(collect('[1, 2, 3]garbage')).rejects.toThrow(/after end of JSON array/i);
+		});
+
+		test('throws on extra top-level values', async () => {
+			await expect(collect('[1][2]')).rejects.toThrow(/after end of JSON array/i);
+		});
+
+		test('throws on missing element between commas', async () => {
+			await expect(collect('[1,,2]')).rejects.toThrow(/missing element/i);
+		});
+
+		test('throws on trailing comma', async () => {
+			await expect(collect('[1, 2,]')).rejects.toThrow(/trailing comma/i);
+		});
+
+		test('accepts trailing whitespace after the array', async () => {
+			expect(await collect('[1, 2]\n  \t\n')).toEqual([1, 2]);
+		});
 	});
 
 	describe('JSON Lines (.jsonl)', () => {
@@ -104,6 +136,10 @@ describe('streamJsonRecords', () => {
 			const value = [{ s: 'a [ ] , { } b' }, { s: 'second' }];
 			const result = await collect(value.map(v => JSON.stringify(v)).join('\n'), '.ndjson');
 			expect(result).toEqual(value);
+		});
+
+		test('throws when the last line is truncated mid-object', async () => {
+			await expect(collect('{"a":1}\n{"b":2', '.jsonl')).rejects.toThrow();
 		});
 	});
 
