@@ -34,7 +34,7 @@ import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperServ
 import { IToolsService } from '../../tools/common/toolsService';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { AgentIntentInvocation } from './agentIntent';
-import { IAuthenticationService } from '../../../lib/node/chatLibMain';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>

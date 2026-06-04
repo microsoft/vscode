@@ -38,7 +38,7 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { EditCodeIntent, EditCodeIntentOptions } from './editCodeIntent';
 import { EditCode2IntentInvocation } from './editCodeIntent2';
-import { IAuthenticationService } from '../../../lib/node/chatLibMain';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
 	instaService.invokeFunction(async accessor => {

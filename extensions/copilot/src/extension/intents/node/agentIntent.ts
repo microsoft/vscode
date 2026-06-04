@@ -69,7 +69,7 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
-import { IAuthenticationService } from '../../../lib/node/chatLibMain';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -1386,7 +1386,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			telemetryService: this.telemetryService,
 			promptContext,
 		};
-		this._backgroundTodoExecutionContext = executionContext;
 
 		const { decision, reason, delta } = processor.shouldRun({
 			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request),
@@ -1400,6 +1399,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
 			// Coalesce into the queue so the latest context is not lost.
+			this._backgroundTodoExecutionContext = executionContext;
 			processor.requestRegularPass(delta, executionContext, token, turnId);
 			return;
 		}
@@ -1408,6 +1408,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
+		this._backgroundTodoExecutionContext = executionContext;
 		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 
