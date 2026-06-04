@@ -1976,7 +1976,7 @@ class CopilotTelemetryContribution extends Disposable implements IWorkbenchContr
 			this.telemetryService.setCommonProperty('common.copilotTrackingId', copilotTrackingId);
 		}
 
-		if (this.chatEntitlementService.isInternal && !this.telemetryService.msftInternal) {
+		if (this.chatEntitlementService.isInternal) {
 			this.telemetryService.setCommonProperty('common.msftInternal', true);
 		}
 	}
