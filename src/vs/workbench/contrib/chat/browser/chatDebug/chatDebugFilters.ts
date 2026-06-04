@@ -10,18 +10,16 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { viewFilterSubmenu } from '../../../../browser/parts/views/viewFilter.js';
+import { parseTimeToken, stripTimestampTokens } from '../../common/chatDebugEvents.js';
 import {
 	CHAT_DEBUG_FILTER_ACTIVE,
-	CHAT_DEBUG_KIND_TOOL_CALL, CHAT_DEBUG_KIND_MODEL_TURN, CHAT_DEBUG_KIND_GENERIC, CHAT_DEBUG_KIND_SUBAGENT,
-	CHAT_DEBUG_KIND_USER_MESSAGE, CHAT_DEBUG_KIND_AGENT_RESPONSE,
-	CHAT_DEBUG_LEVEL_TRACE, CHAT_DEBUG_LEVEL_INFO, CHAT_DEBUG_LEVEL_WARNING, CHAT_DEBUG_LEVEL_ERROR,
-	CHAT_DEBUG_CMD_TOGGLE_TOOL_CALL, CHAT_DEBUG_CMD_TOGGLE_MODEL_TURN, CHAT_DEBUG_CMD_TOGGLE_GENERIC,
-	CHAT_DEBUG_CMD_TOGGLE_SUBAGENT, CHAT_DEBUG_CMD_TOGGLE_USER_MESSAGE, CHAT_DEBUG_CMD_TOGGLE_AGENT_RESPONSE,
-	CHAT_DEBUG_CMD_TOGGLE_TRACE, CHAT_DEBUG_CMD_TOGGLE_INFO, CHAT_DEBUG_CMD_TOGGLE_WARNING, CHAT_DEBUG_CMD_TOGGLE_ERROR,
+	CHAT_DEBUG_KIND_TOOL_CALL, CHAT_DEBUG_KIND_MODEL_TURN, CHAT_DEBUG_KIND_PROMPT_DISCOVERY, CHAT_DEBUG_KIND_SUBAGENT,
+	CHAT_DEBUG_CMD_TOGGLE_TOOL_CALL, CHAT_DEBUG_CMD_TOGGLE_MODEL_TURN, CHAT_DEBUG_CMD_TOGGLE_PROMPT_DISCOVERY,
+	CHAT_DEBUG_CMD_TOGGLE_SUBAGENT,
 } from './chatDebugTypes.js';
 
 /**
- * Shared filter state for the Chat Debug Panel.
+ * Shared filter state for the Agent Debug Logs.
  *
  * Both the Logs view and the Flow Chart view read from this single source of
  * truth. Toggle commands modify the state and fire `onDidChange` so every
@@ -35,53 +33,69 @@ export class ChatDebugFilterState extends Disposable {
 	// Kind visibility
 	filterKindToolCall: boolean = true;
 	filterKindModelTurn: boolean = true;
-	filterKindGeneric: boolean = true;
+	filterKindPromptDiscovery: boolean = true;
 	filterKindSubagent: boolean = true;
-	filterKindUserMessage: boolean = true;
-	filterKindAgentResponse: boolean = true;
-
-	// Level visibility
-	filterLevelTrace: boolean = true;
-	filterLevelInfo: boolean = true;
-	filterLevelWarning: boolean = true;
-	filterLevelError: boolean = true;
 
 	// Text filter
 	textFilter: string = '';
 
-	isKindVisible(kind: string): boolean {
+	// Parsed timestamp filters (epoch ms)
+	beforeTimestamp: number | undefined;
+	afterTimestamp: number | undefined;
+
+	isKindVisible(kind: string, category?: string): boolean {
 		switch (kind) {
 			case 'toolCall': return this.filterKindToolCall;
 			case 'modelTurn': return this.filterKindModelTurn;
-			case 'generic': return this.filterKindGeneric;
+			case 'generic':
+				// The "Chat Customization" toggle hides events produced by
+				// the prompt discovery pipeline (category === 'discovery')
+				// and the customization summary (category === 'customization').
+				// Other generic events (e.g. from external providers) are
+				// always visible and are not affected by this toggle.
+				if (category !== 'discovery' && category !== 'customization') {
+					return true;
+				}
+				return this.filterKindPromptDiscovery;
 			case 'subagentInvocation': return this.filterKindSubagent;
-			case 'userMessage': return this.filterKindUserMessage;
-			case 'agentResponse': return this.filterKindAgentResponse;
+
 			default: return true;
 		}
 	}
 
 	isAllKindsVisible(): boolean {
 		return this.filterKindToolCall && this.filterKindModelTurn &&
-			this.filterKindGeneric && this.filterKindSubagent &&
-			this.filterKindUserMessage && this.filterKindAgentResponse;
-	}
-
-	isAllLevelsVisible(): boolean {
-		return this.filterLevelTrace && this.filterLevelInfo &&
-			this.filterLevelWarning && this.filterLevelError;
+			this.filterKindPromptDiscovery && this.filterKindSubagent;
 	}
 
 	isAllFiltersDefault(): boolean {
-		return this.isAllKindsVisible() && this.isAllLevelsVisible();
+		return this.isAllKindsVisible();
 	}
 
 	setTextFilter(text: string): void {
 		const normalized = text.toLowerCase();
 		if (this.textFilter !== normalized) {
 			this.textFilter = normalized;
+			this.beforeTimestamp = parseTimeToken(normalized, 'before');
+			this.afterTimestamp = parseTimeToken(normalized, 'after');
 			this._onDidChange.fire();
 		}
+	}
+
+	/** Returns the text filter with before:/after: tokens removed. */
+	get textFilterWithoutTimestamps(): string {
+		return stripTimestampTokens(this.textFilter);
+	}
+
+	isTimestampVisible(created: Date): boolean {
+		const time = created.getTime();
+		if (this.beforeTimestamp !== undefined && time > this.beforeTimestamp) {
+			return false;
+		}
+		if (this.afterTimestamp !== undefined && time < this.afterTimestamp) {
+			return false;
+		}
+		return true;
 	}
 
 	fire(): void {
@@ -106,23 +120,10 @@ export function registerFilterMenuItems(
 	kindToolCallKey.set(true);
 	const kindModelTurnKey = CHAT_DEBUG_KIND_MODEL_TURN.bindTo(scopedContextKeyService);
 	kindModelTurnKey.set(true);
-	const kindGenericKey = CHAT_DEBUG_KIND_GENERIC.bindTo(scopedContextKeyService);
-	kindGenericKey.set(true);
+	const kindPromptDiscoveryKey = CHAT_DEBUG_KIND_PROMPT_DISCOVERY.bindTo(scopedContextKeyService);
+	kindPromptDiscoveryKey.set(true);
 	const kindSubagentKey = CHAT_DEBUG_KIND_SUBAGENT.bindTo(scopedContextKeyService);
 	kindSubagentKey.set(true);
-	const kindUserMessageKey = CHAT_DEBUG_KIND_USER_MESSAGE.bindTo(scopedContextKeyService);
-	kindUserMessageKey.set(true);
-	const kindAgentResponseKey = CHAT_DEBUG_KIND_AGENT_RESPONSE.bindTo(scopedContextKeyService);
-	kindAgentResponseKey.set(true);
-	const levelTraceKey = CHAT_DEBUG_LEVEL_TRACE.bindTo(scopedContextKeyService);
-	levelTraceKey.set(true);
-	const levelInfoKey = CHAT_DEBUG_LEVEL_INFO.bindTo(scopedContextKeyService);
-	levelInfoKey.set(true);
-	const levelWarningKey = CHAT_DEBUG_LEVEL_WARNING.bindTo(scopedContextKeyService);
-	levelWarningKey.set(true);
-	const levelErrorKey = CHAT_DEBUG_LEVEL_ERROR.bindTo(scopedContextKeyService);
-	levelErrorKey.set(true);
-
 	const registerToggle = (
 		id: string, title: string, key: RawContextKey<boolean>, group: string,
 		getter: () => boolean, setter: (v: boolean) => void, ctxKey: IContextKey<boolean>,
@@ -142,15 +143,8 @@ export function registerFilterMenuItems(
 
 	registerToggle(CHAT_DEBUG_CMD_TOGGLE_TOOL_CALL, localize('chatDebug.filter.toolCall', "Tool Calls"), CHAT_DEBUG_KIND_TOOL_CALL, '1_kind', () => state.filterKindToolCall, v => { state.filterKindToolCall = v; }, kindToolCallKey);
 	registerToggle(CHAT_DEBUG_CMD_TOGGLE_MODEL_TURN, localize('chatDebug.filter.modelTurn', "Model Turns"), CHAT_DEBUG_KIND_MODEL_TURN, '1_kind', () => state.filterKindModelTurn, v => { state.filterKindModelTurn = v; }, kindModelTurnKey);
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_GENERIC, localize('chatDebug.filter.generic', "Generic"), CHAT_DEBUG_KIND_GENERIC, '1_kind', () => state.filterKindGeneric, v => { state.filterKindGeneric = v; }, kindGenericKey);
+	registerToggle(CHAT_DEBUG_CMD_TOGGLE_PROMPT_DISCOVERY, localize('chatDebug.filter.promptDiscovery', "Chat Customization"), CHAT_DEBUG_KIND_PROMPT_DISCOVERY, '1_kind', () => state.filterKindPromptDiscovery, v => { state.filterKindPromptDiscovery = v; }, kindPromptDiscoveryKey);
 	registerToggle(CHAT_DEBUG_CMD_TOGGLE_SUBAGENT, localize('chatDebug.filter.subagent', "Subagent Invocations"), CHAT_DEBUG_KIND_SUBAGENT, '1_kind', () => state.filterKindSubagent, v => { state.filterKindSubagent = v; }, kindSubagentKey);
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_USER_MESSAGE, localize('chatDebug.filter.userMessage', "User Messages"), CHAT_DEBUG_KIND_USER_MESSAGE, '1_kind', () => state.filterKindUserMessage, v => { state.filterKindUserMessage = v; }, kindUserMessageKey);
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_AGENT_RESPONSE, localize('chatDebug.filter.agentResponse', "Agent Responses"), CHAT_DEBUG_KIND_AGENT_RESPONSE, '1_kind', () => state.filterKindAgentResponse, v => { state.filterKindAgentResponse = v; }, kindAgentResponseKey);
-
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_TRACE, localize('chatDebug.filter.trace', "Trace"), CHAT_DEBUG_LEVEL_TRACE, '2_level', () => state.filterLevelTrace, v => { state.filterLevelTrace = v; }, levelTraceKey);
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_INFO, localize('chatDebug.filter.info', "Info"), CHAT_DEBUG_LEVEL_INFO, '2_level', () => state.filterLevelInfo, v => { state.filterLevelInfo = v; }, levelInfoKey);
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_WARNING, localize('chatDebug.filter.warning', "Warning"), CHAT_DEBUG_LEVEL_WARNING, '2_level', () => state.filterLevelWarning, v => { state.filterLevelWarning = v; }, levelWarningKey);
-	registerToggle(CHAT_DEBUG_CMD_TOGGLE_ERROR, localize('chatDebug.filter.error', "Error"), CHAT_DEBUG_LEVEL_ERROR, '2_level', () => state.filterLevelError, v => { state.filterLevelError = v; }, levelErrorKey);
 
 	return store;
 }
@@ -166,25 +160,12 @@ export function bindFilterContextKeys(
 	CHAT_DEBUG_FILTER_ACTIVE.bindTo(scopedContextKeyService).set(true);
 	const kindToolCallKey = CHAT_DEBUG_KIND_TOOL_CALL.bindTo(scopedContextKeyService);
 	const kindModelTurnKey = CHAT_DEBUG_KIND_MODEL_TURN.bindTo(scopedContextKeyService);
-	const kindGenericKey = CHAT_DEBUG_KIND_GENERIC.bindTo(scopedContextKeyService);
+	const kindPromptDiscoveryKey = CHAT_DEBUG_KIND_PROMPT_DISCOVERY.bindTo(scopedContextKeyService);
 	const kindSubagentKey = CHAT_DEBUG_KIND_SUBAGENT.bindTo(scopedContextKeyService);
-	const kindUserMessageKey = CHAT_DEBUG_KIND_USER_MESSAGE.bindTo(scopedContextKeyService);
-	const kindAgentResponseKey = CHAT_DEBUG_KIND_AGENT_RESPONSE.bindTo(scopedContextKeyService);
-	const levelTraceKey = CHAT_DEBUG_LEVEL_TRACE.bindTo(scopedContextKeyService);
-	const levelInfoKey = CHAT_DEBUG_LEVEL_INFO.bindTo(scopedContextKeyService);
-	const levelWarningKey = CHAT_DEBUG_LEVEL_WARNING.bindTo(scopedContextKeyService);
-	const levelErrorKey = CHAT_DEBUG_LEVEL_ERROR.bindTo(scopedContextKeyService);
-
 	return () => {
 		kindToolCallKey.set(state.filterKindToolCall);
 		kindModelTurnKey.set(state.filterKindModelTurn);
-		kindGenericKey.set(state.filterKindGeneric);
+		kindPromptDiscoveryKey.set(state.filterKindPromptDiscovery);
 		kindSubagentKey.set(state.filterKindSubagent);
-		kindUserMessageKey.set(state.filterKindUserMessage);
-		kindAgentResponseKey.set(state.filterKindAgentResponse);
-		levelTraceKey.set(state.filterLevelTrace);
-		levelInfoKey.set(state.filterLevelInfo);
-		levelWarningKey.set(state.filterLevelWarning);
-		levelErrorKey.set(state.filterLevelError);
 	};
 }

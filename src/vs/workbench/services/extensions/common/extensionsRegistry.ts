@@ -179,8 +179,8 @@ export const schema: IJSONSchema = {
 			properties: {
 				'vscode': {
 					type: 'string',
-					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^0.10.5 indicates compatibility with a minimum VS Code version of 0.10.5.'),
-					default: '^1.22.0',
+					description: nls.localize('vscode.extension.engines.vscode', 'For VS Code extensions, specifies the VS Code version that the extension is compatible with. Cannot be *. For example: ^1.105.0 indicates compatibility with a minimum VS Code version of 1.105.0.'),
+					default: '^1.105.0',
 				}
 			}
 		},
@@ -266,7 +266,7 @@ export const schema: IJSONSchema = {
 				defaultSnippets: [
 					{
 						label: 'onWebviewPanel',
-						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emitted when a webview is loaded of a certain viewType'),
 						body: 'onWebviewPanel:viewType'
 					},
 					{
@@ -421,7 +421,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onMcpCollection',
-						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenver a tool from the MCP server is requested.'),
+						description: nls.localize('vscode.extension.activationEvents.onMcpCollection', 'An activation event emitted whenever a tool from the MCP server is requested.'),
 						body: 'onMcpCollection:${2:collectionId}',
 					},
 					{
@@ -643,7 +643,7 @@ export type removeArray<T> = T extends Array<infer X> ? X : T;
 
 export interface IExtensionPointDescriptor<T> {
 	extensionPoint: string;
-	deps?: IExtensionPoint<any>[];
+	deps?: IExtensionPoint<unknown>[];
 	jsonSchema: IJSONSchema;
 	defaultExtensionKind?: ExtensionKind[];
 	canHandleResolver?: boolean;
@@ -674,7 +674,7 @@ export class ExtensionsRegistryImpl {
 		return result;
 	}
 
-	public getExtensionPoints(): ExtensionPoint<any>[] {
+	public getExtensionPoints(): ExtensionPoint<unknown>[] {
 		return Array.from(this._extensionPoints.values());
 	}
 }

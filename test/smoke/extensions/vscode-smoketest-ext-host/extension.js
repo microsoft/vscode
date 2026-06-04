@@ -13,9 +13,36 @@ const os = require('os');
 let deactivateMarkerFile;
 
 /**
+ * @param {string} command
+ * @param {number} timeoutMs
+ */
+async function waitForCommand(command, timeoutMs) {
+	const started = Date.now();
+	while (Date.now() - started < timeoutMs) {
+		const commands = await vscode.commands.getCommands(true);
+		if (commands.includes(command)) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 250));
+	}
+
+	throw new Error(`Timed out waiting for command '${command}'`);
+}
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+	// Record extension host pid on every activation so smoke tests can validate
+	// that a new extension host process was started after a restart action.
+	try {
+		const pid = String(process.pid);
+		const activationPidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid-on-activate.txt');
+		fs.writeFileSync(activationPidFile, pid, 'utf-8');
+	} catch {
+		// Ignore errors in smoke helper setup.
+	}
+
 	// This is used to verify that the extension host process is properly killed
 	// when window reloads even if the extension host is blocked
 	// Refs: https://github.com/microsoft/vscode/issues/291346
@@ -23,12 +50,9 @@ function activate(context) {
 		vscode.commands.registerCommand('smoketest.getExtensionHostPidAndBlock', (delayMs = 100, durationMs = 60000) => {
 			const pid = process.pid;
 
-			// Write PID file to workspace folder if available, otherwise temp dir
+			// Write PID file to temp dir to avoid polluting workspace search results
 			// Note: filename must match name in extension-host-restart.test.ts
-			const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			const pidFile = workspaceFolder
-				? path.join(workspaceFolder, 'vscode-ext-host-pid.txt')
-				: path.join(os.tmpdir(), 'vscode-ext-host-pid.txt');
+			const pidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid.txt');
 			setTimeout(() => {
 				fs.writeFileSync(pidFile, String(pid), 'utf-8');
 
@@ -57,18 +81,37 @@ function activate(context) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.setupGracefulDeactivation', () => {
 			const pid = process.pid;
-			const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			const pidFile = workspaceFolder
-				? path.join(workspaceFolder, 'vscode-ext-host-pid-graceful.txt')
-				: path.join(os.tmpdir(), 'vscode-ext-host-pid-graceful.txt');
-			deactivateMarkerFile = workspaceFolder
-				? path.join(workspaceFolder, 'vscode-ext-host-deactivated.txt')
-				: path.join(os.tmpdir(), 'vscode-ext-host-deactivated.txt');
+			const pidFile = path.join(os.tmpdir(), 'vscode-ext-host-pid-graceful.txt');
+			deactivateMarkerFile = path.join(os.tmpdir(), 'vscode-ext-host-deactivated.txt');
 
 			// Write PID file immediately so test knows the extension is ready
 			fs.writeFileSync(pidFile, String(pid), 'utf-8');
 
 			return { pid, markerFile: deactivateMarkerFile };
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.copilotcli';
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('github.copilot.chat').update('backgroundAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 30_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('github.copilot.chat').update('claudeAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 30_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
 		})
 	);
 }

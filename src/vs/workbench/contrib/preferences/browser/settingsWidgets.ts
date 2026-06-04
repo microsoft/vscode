@@ -659,6 +659,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			} else if (e.equals(KeyCode.Escape)) {
 				this.cancelEdit();
 				e.preventDefault();
+				e.stopPropagation();
 			}
 			rowElement?.focus();
 		};
@@ -1198,6 +1199,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 			} else if (e.equals(KeyCode.Escape)) {
 				this.cancelEdit();
 				e.preventDefault();
+				e.stopPropagation();
 			}
 		};
 

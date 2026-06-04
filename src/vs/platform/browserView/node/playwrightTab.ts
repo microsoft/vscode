@@ -7,12 +7,29 @@
 import type * as playwright from 'playwright-core';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { createCancelablePromise, raceCancellablePromises } from '../../../base/common/async.js';
+import { createCancelablePromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
+import { URI } from '../../../base/common/uri.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { IPlaywrightActionScope } from './playwrightService.js';
+
+type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
 declare module 'playwright-core' {
 	interface Page {
-		// A hidden Playwright method that returns an AI-friendly snapshot of the page.
-		_snapshotForAI(options?: { track?: string }): Promise<{ full: string; incremental?: string }>;
+		// We defined this here to be able to use the unofficial `_track` option
+		ariaSnapshot(options?: IAiAriaSnapshotOptions): Promise<string>;
+	}
+}
+
+/**
+ * Thrown when a dialog (alert, confirm, prompt) opens while a page action is
+ * running. The caller should defer the underlying promise and let the agent
+ * handle the dialog before retrying.
+ */
+export class DialogInterruptedError extends Error {
+	constructor() {
+		super('Action was interrupted by a dialog');
+		this.name = 'DialogInterruptedError';
 	}
 }
 
@@ -37,12 +54,13 @@ export class PlaywrightTab {
 		 * @deprecated prefer accessing the page via safeRunAgainstPage.
 		 * Only use this directly if you are sure it cannot be blocked by dialogs.
 		 */
-		private readonly page: playwright.Page
+		private readonly page: playwright.Page,
+		private readonly actionScope: IPlaywrightActionScope,
+		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		page.on('console', event => this._handleConsoleMessage(event))
 			.on('pageerror', error => this._handlePageError(error))
 			.on('requestfailed', request => this._handleRequestFailed(request))
-			.on('filechooser', chooser => this._handleFileChooser(chooser))
 			.on('dialog', dialog => this._handleDialog(dialog))
 			.on('download', download => this._handleDownload(download));
 
@@ -70,7 +88,7 @@ export class PlaywrightTab {
 
 	async replyToDialog(accept?: boolean, promptText?: string) {
 		if (!this._dialog) {
-			throw new Error('No active dialog to respond to');
+			throw new Error('No active modal dialog to respond to');
 		}
 		const dialog = this._dialog;
 		this._dialog = undefined;
@@ -90,7 +108,7 @@ export class PlaywrightTab {
 
 	async replyToFileChooser(files: string[]) {
 		if (!this._fileChooser) {
-			throw new Error('No active file chooser to respond to');
+			throw new Error('No active file chooser dialog to respond to');
 		}
 		const chooser = this._fileChooser;
 		this._fileChooser = undefined;
@@ -117,27 +135,68 @@ export class PlaywrightTab {
 	}
 
 	/**
+	 * Returns a blocked-by-policy error message if the current page URL is
+	 * denied by the network filter, or `undefined` if the URL is allowed.
+	 */
+	private _getBlockedURLErrorMessage(): string | undefined {
+		const url = this.page.url();
+		if (!url || url === 'about:blank') {
+			return undefined;
+		}
+		let uri: URI | undefined;
+		try { uri = URI.parse(url); } catch { }
+		if (uri && !this.agentNetworkFilterService.isUriAllowed(uri)) {
+			return this.agentNetworkFilterService.formatError(uri);
+		}
+		return undefined;
+	}
+
+	/**
 	 * Run a callback against the page and wait for it to complete.
+	 *
 	 * Because dialogs pause the page, execution races against any dialog that opens -- if a dialog
 	 * appears before the callback finishes, the method throws so the caller can surface it to the agent.
+	 *
+	 * Also allows for interactions to be handled differently when triggered by agents.
+	 * E.g. file dialogs should appear when the user triggers one, but not when the agent does.
 	 */
 	async safeRunAgainstPage<T>(action: (page: playwright.Page, token: CancellationToken) => Promise<T>): Promise<T> {
 		if (this._dialog) {
 			throw new Error(`Cannot perform action while a dialog is open`);
 		}
 
+		// Block agent actions when the current page URL is on the deny list.
+		const blockedError = this._getBlockedURLErrorMessage();
+		if (blockedError) {
+			throw new Error(blockedError);
+		}
+
 		let actionDidComplete = false;
 		let result: T | void;
 		const dialogOpened = Event.toPromise(this._onDialogStateChanged.event);
 		const actionCompleted = createCancelablePromise(async (token) => {
-			result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
-			actionDidComplete = true;
+
+			// Whenever the page has a `filechooser` handler, the default file chooser is disabled.
+			// We don't want this during normal user interactions, but we do for agentic interactions.
+			// So we add a handler just during the action, and remove it afterwards.
+			// This isn't perfect (e.g. the user could trigger it while an action is running), but it's a best effort.
+			const handleFileChooser = (chooser: playwright.FileChooser) => this._handleFileChooser(chooser);
+			this.page.on('filechooser', handleFileChooser);
+
+			try {
+				this.actionScope.activeCalls++;
+				result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
+				actionDidComplete = true;
+			} finally {
+				this.page.off('filechooser', handleFileChooser);
+				this.actionScope.activeCalls--;
+			}
 		});
 
 		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {
 			if (!actionDidComplete) {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
-				throw new Error('Action was interrupted by a dialog');
+				throw new DialogInterruptedError();
 			}
 			return result!;
 		});
@@ -146,11 +205,19 @@ export class PlaywrightTab {
 	async getSummary(full = this._needsFullSnapshot): Promise<string> {
 		await this._initialized;
 
+		// When the current page URL is blocked by network policy, return only a
+		// policy error — do not expose title, URL, console logs, or snapshot to
+		// avoid prompt-injection via blocked content.
+		const blockedError = this._getBlockedURLErrorMessage();
+		if (blockedError) {
+			return blockedError;
+		}
+
 		if (full && this._needsFullSnapshot) {
 			this._needsFullSnapshot = false;
 		}
 
-		const snapshotFromPage = await this.safeRunAgainstPage((page) => page._snapshotForAI({ track: 'response' })).catch(() => {
+		const snapshotFromPage = await this.safeRunAgainstPage((page) => this.getAiSnapshot(page, full)).catch(() => {
 			this._needsFullSnapshot = true;
 			return undefined;
 		});
@@ -159,7 +226,7 @@ export class PlaywrightTab {
 		const logs = this._logs;
 		this._logs = [];
 
-		const snapshot = (full ? snapshotFromPage?.full : snapshotFromPage?.incremental ?? snapshotFromPage?.full)?.trim() ?? '';
+		const snapshot = snapshotFromPage?.trim() ?? '';
 
 		return [
 			...(title ? [`Page Title: ${title}`] : []),
@@ -170,8 +237,16 @@ export class PlaywrightTab {
 				`Recent events:`,
 				...logs.map(log => `- [${new Date(log.time).toISOString()}] (${log.type}) ${log.description}`)
 			] : []),
-			...(snapshot ? ['Snapshot:', snapshot] : [])
+			`Snapshot: ${snapshotFromPage !== undefined ? snapshot ? `\n${snapshot}` : '<unchanged>' : '<unavailable>'}`,
 		].join('\n');
+	}
+
+	private getAiSnapshot(page: playwright.Page, full: boolean): Promise<string> {
+		const options: IAiAriaSnapshotOptions = { mode: 'ai' };
+		if (!full) {
+			options._track = 'response';
+		}
+		return page.ariaSnapshot(options);
 	}
 
 	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
@@ -201,8 +276,10 @@ export class PlaywrightTab {
 			if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
 			else { promises.push(request.response().catch(() => { })); }
 		}
-		const timeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
-		await Promise.race([Promise.all(promises), timeout]);
+		await raceCancellablePromises<unknown>([
+			Promise.all(promises),
+			timeout(5000) // Don't wait indefinitely for requests to finish
+		]);
 
 		return result;
 	}

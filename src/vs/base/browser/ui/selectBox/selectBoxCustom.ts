@@ -788,7 +788,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// SetUp list mouse controller - control navigation, disabled items, focus
 		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_UP, e => this.onPointerUp(e)));
 
-		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
+		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && !this.options[e.index]?.isDisabled && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
 
 		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.FOCUS_OUT, e => {
@@ -948,6 +948,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
+		// Ignore if current selection is disabled (e.g. separator)
+		if (this.options[this.selected]?.isDisabled) {
+			this.hideSelectDropDown(true);
+			return;
+		}
+
 		// Only fire if selection change
 		if (this.selected !== this._currentSelection) {
 			this._currentSelection = this.selected;
@@ -1017,20 +1023,16 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Allow scrolling to settle
 		setTimeout(() => {
-			const previousSelected = this.selected;
-			this.selected = this.selectList.getFocus()[0];
+			let candidate = this.selectList.getFocus()[0];
 
-			// Shift selection down if we land on a disabled option
-			while (this.selected < this.options.length - 1 && this.options[this.selected].isDisabled) {
-				this.selected++;
+			// Shift selection up if we land on a disabled option
+			while (candidate > 0 && this.options[candidate].isDisabled) {
+				candidate--;
 			}
-
-			// If no non-disabled option was found, restore previous selection
-			if (this.options[this.selected].isDisabled) {
-				this.selected = previousSelected;
+			if (this.options[candidate].isDisabled) {
 				return;
 			}
-
+			this.selected = candidate;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selected);
 			this.select(this.selected);
@@ -1044,20 +1046,16 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Allow scrolling to settle
 		setTimeout(() => {
-			const previousSelected = this.selected;
-			this.selected = this.selectList.getFocus()[0];
+			let candidate = this.selectList.getFocus()[0];
 
-			// Shift selection up if we land on a disabled option
-			while (this.selected > 0 && this.options[this.selected].isDisabled) {
-				this.selected--;
+			// Shift selection down if we land on a disabled option
+			while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+				candidate++;
 			}
-
-			// If no non-disabled option was found, restore previous selection
-			if (this.options[this.selected].isDisabled) {
-				this.selected = previousSelected;
+			if (this.options[candidate].isDisabled) {
 				return;
 			}
-
+			this.selected = candidate;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selected);
 			this.select(this.selected);
@@ -1070,18 +1068,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.options.length < 2) {
 			return;
 		}
-		const previousSelected = this.selected;
-		this.selected = 0;
-		while (this.selected < this.options.length - 1 && this.options[this.selected].isDisabled) {
-			this.selected++;
+		let candidate = 0;
+		while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+			candidate++;
 		}
-
-		// If no non-disabled option was found, restore previous selection
-		if (this.options[this.selected].isDisabled) {
-			this.selected = previousSelected;
+		if (this.options[candidate].isDisabled) {
 			return;
 		}
-
+		this.selected = candidate;
 		this.selectList.setFocus([this.selected]);
 		this.selectList.reveal(this.selected);
 		this.select(this.selected);
@@ -1093,18 +1087,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.options.length < 2) {
 			return;
 		}
-		const previousSelected = this.selected;
-		this.selected = this.options.length - 1;
-		while (this.selected > 0 && this.options[this.selected].isDisabled) {
-			this.selected--;
+		let candidate = this.options.length - 1;
+		while (candidate > 0 && this.options[candidate].isDisabled) {
+			candidate--;
 		}
-
-		// If no non-disabled option was found, restore previous selection
-		if (this.options[this.selected].isDisabled) {
-			this.selected = previousSelected;
+		if (this.options[candidate].isDisabled) {
 			return;
 		}
-
+		this.selected = candidate;
 		this.selectList.setFocus([this.selected]);
 		this.selectList.reveal(this.selected);
 		this.select(this.selected);

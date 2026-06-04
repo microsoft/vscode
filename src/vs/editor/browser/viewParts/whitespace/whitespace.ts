@@ -122,9 +122,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	}
 
 	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineRenderingData): string {
-		if (lineData.hasVariableFonts) {
-			return '';
-		}
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}

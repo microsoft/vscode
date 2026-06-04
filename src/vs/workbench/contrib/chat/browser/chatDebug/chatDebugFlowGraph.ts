@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IChatDebugEvent } from '../../common/chatDebugService.js';
 
 // ---- Data model ----
@@ -10,6 +11,8 @@ import { IChatDebugEvent } from '../../common/chatDebugService.js';
 export interface FlowNode {
 	readonly id: string;
 	readonly kind: IChatDebugEvent['kind'];
+	/** For `generic` nodes: the event category (e.g. `'discovery'`). Used to narrow filtering. */
+	readonly category?: string;
 	readonly label: string;
 	readonly sublabel?: string;
 	readonly description?: string;
@@ -17,10 +20,12 @@ export interface FlowNode {
 	readonly isError?: boolean;
 	readonly created: number;
 	readonly children: FlowNode[];
+	/** Present on merged discovery nodes: the individual nodes that were merged. */
+	readonly mergedNodes?: FlowNode[];
 }
 
 export interface FlowFilterOptions {
-	readonly isKindVisible: (kind: string) => boolean;
+	readonly isKindVisible: (kind: string, category?: string) => boolean;
 	readonly textFilter: string;
 }
 
@@ -35,9 +40,15 @@ export interface LayoutNode {
 	readonly y: number;
 	readonly width: number;
 	readonly height: number;
+	/** Number of individual nodes merged into this one (for discovery merging). */
+	readonly mergedCount?: number;
+	/** Whether the merged node is currently expanded (individual nodes shown to the right). */
+	readonly isMergedExpanded?: boolean;
 }
 
 export interface LayoutEdge {
+	readonly fromId?: string;
+	readonly toId?: string;
 	readonly fromX: number;
 	readonly fromY: number;
 	readonly toX: number;
@@ -67,6 +78,10 @@ export interface FlowChartRenderResult {
 	readonly svg: SVGElement;
 	/** Map from node/subgraph ID to its focusable SVG element. */
 	readonly focusableElements: Map<string, SVGElement>;
+	/** Adjacency lists derived from graph edges: successors and predecessors per node ID. */
+	readonly adjacency: Map<string, { next: string[]; prev: string[] }>;
+	/** Map from node/subgraph ID to its layout position. */
+	readonly positions: Map<string, { x: number; y: number }>;
 }
 
 // ---- Build flow graph from debug events ----
@@ -84,18 +99,45 @@ function truncateLabel(text: string, maxLength: number): string {
 export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	// Before filtering, extract description metadata from subagent events
 	// that will be filtered out, so we can enrich the surviving sibling events.
-	const subagentToolNames = new Set(['runSubagent', 'search_subagent']);
+	const subagentToolNames = ['runSubagent', 'search_subagent'];
 
-	// The extension emits two subagentInvocation events per subagent:
+	/**
+	 * Check whether a name matches a known subagent tool name.
+	 * Handles exact matches and names with suffixes (e.g.
+	 * "runSubagent-default", "runSubagent (agent)", "runSubagent: desc").
+	 * Callers must strip any emoji prefix before calling.
+	 */
+	function isSubagentName(name: string): boolean {
+		for (const toolName of subagentToolNames) {
+			if (name === toolName) {
+				return true;
+			}
+			if (name.startsWith(toolName)) {
+				const nextChar = name[toolName.length];
+				if (nextChar === '-' || nextChar === ' ' || nextChar === '(' || nextChar === ':') {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/** Strip the leading tool emoji prefix if present. */
+	const emojiPrefixRe = /^\u{1F6E0}\uFE0F?\s*/u;
+	function stripToolEmoji(name: string): string {
+		return name.replace(emojiPrefixRe, '');
+	}
+
+	// The extension may emit two subagentInvocation events per subagent:
 	// 1. "started" marker (agentName = descriptive name, status = running) — survives filtering
-	// 2. completion event (agentName = "runSubagent", status = completed) — filtered out
+	// 2. completion event (agentName = "runSubagent" / "runSubagent-*", status = completed) — filtered out
 	// The completion event carries the real description. When multiple subagents
 	// run under the same parent, they share a parentEventId, so we match them
 	// by order: the N-th started marker gets the N-th completion's description.
 	const completionDescsByParent = new Map<string, string[]>();
 	const startedCountByParent = new Map<string, number>();
 	for (const e of events) {
-		if (e.kind === 'subagentInvocation' && subagentToolNames.has(e.agentName) && e.description && e.parentEventId) {
+		if (e.kind === 'subagentInvocation' && isSubagentName(e.agentName) && e.description && e.parentEventId) {
 			let descs = completionDescsByParent.get(e.parentEventId);
 			if (!descs) {
 				descs = [];
@@ -118,15 +160,12 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		return descs[idx] ?? descs[0];
 	}
 
-	// Filter out redundant events:
-	// - toolCall with subagent tool names: the subagentInvocation event has richer metadata
-	// - subagentInvocation with agentName matching a tool name: these are completion
-	//   duplicates of the "SubAgent started" marker which has the proper descriptive name
+	// Filter out subagent invocation completion duplicates (events whose
+	// agentName matches a known tool name). Subagent tool calls are kept
+	// in the tree for correct parent-child linkage; they are collapsed
+	// into their subagent child in a post-processing step.
 	const filtered = events.filter(e => {
-		if (e.kind === 'toolCall' && subagentToolNames.has(e.toolName.replace(/^\u{1F6E0}\uFE0F?\s*/u, ''))) {
-			return false;
-		}
-		if (e.kind === 'subagentInvocation' && subagentToolNames.has(e.agentName)) {
+		if (e.kind === 'subagentInvocation' && isSubagentName(e.agentName)) {
 			return false;
 		}
 		return true;
@@ -158,15 +197,27 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	function toFlowNode(event: IChatDebugEvent): FlowNode {
 		const children = event.id ? idToChildren.get(event.id) : undefined;
 
+		// Remap generic events with well-known names to their proper kind
+		// so they get correct styling and sublabel treatment.
+		const effectiveKind = getEffectiveKind(event);
+
 		// For subagent invocations, enrich with description from the
 		// filtered-out completion sibling, or fall back to the event's own field.
-		let sublabel = getEventSublabel(event);
+		let label = getEventLabel(event, effectiveKind);
+		const sublabel = getEventSublabel(event, effectiveKind);
 		let tooltip = getEventTooltip(event);
 		let description: string | undefined;
-		if (event.kind === 'subagentInvocation') {
+		if (effectiveKind === 'subagentInvocation') {
 			description = getSubagentDescription(event);
+			// Strip any existing "Subagent:" prefix from the description to
+			// avoid double-prefixing (e.g. "Subagent: Subagent: name").
+			const cleanDesc = description?.replace(/^Subagent:\s*/i, '');
+			// Show "Subagent: <description>" as the label so users can identify
+			// these nodes and see what task they perform.
+			label = cleanDesc
+				? localize('subagentWithDesc', "Subagent: {0}", truncateLabel(cleanDesc, 30))
+				: localize('subagentLabel', "Subagent");
 			if (description) {
-				sublabel = truncateLabel(description, 30) + (sublabel ? ` \u00b7 ${sublabel}` : '');
 				// Ensure description appears in tooltip if not already present
 				if (tooltip && !tooltip.includes(description)) {
 					const lines = tooltip.split('\n');
@@ -178,8 +229,9 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 
 		return {
 			id: event.id ?? `event-${events.indexOf(event)}`,
-			kind: event.kind,
-			label: getEventLabel(event),
+			kind: effectiveKind,
+			category: event.kind === 'generic' ? event.category : undefined,
+			label,
 			sublabel,
 			description,
 			tooltip,
@@ -189,70 +241,80 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		};
 	}
 
-	return mergeModelTurns(roots.map(toFlowNode));
-}
+	const rawNodes = roots.map(toFlowNode);
 
-/**
- * Absorbs model turn nodes into the subsequent sibling node.
- *
- * Each model turn represents an LLM call that decides what to do next
- * (call tools, respond, etc.). Rather than showing model turns as separate
- * boxes, we merge their metadata (token count, LLM latency) into the next
- * node's sublabel and tooltip so the diagram stays compact while
- * preserving the correlation.
- */
-function mergeModelTurns(nodes: FlowNode[]): FlowNode[] {
-	const result: FlowNode[] = [];
-	let pendingModelTurn: FlowNode | undefined;
+	// Post-process: collapse subagent tool call nodes into their
+	// subagent child, and flatten child_session_ref placeholder nodes.
+	// This preserves the correct parent-child hierarchy that would
+	// otherwise break when filtering events before tree construction.
+	return collapseSubagentToolCalls(rawNodes);
 
-	for (const node of nodes) {
-		if (node.kind === 'modelTurn') {
-			pendingModelTurn = node;
-			continue;
+	function collapseSubagentToolCalls(nodeList: FlowNode[]): FlowNode[] {
+		let changed = false;
+		const result: FlowNode[] = [];
+		for (const node of nodeList) {
+			if (node.kind === 'toolCall' && isSubagentName(stripToolEmoji(node.label))) {
+				changed = true;
+				// Flatten any child_session_ref intermediaries first so
+				// the subagentInvocation becomes a direct child.
+				const flatChildren = flattenChildSessionRefs(node.children);
+				const subagentChildren = flatChildren.filter(c => c.kind === 'subagentInvocation');
+				if (subagentChildren.length > 0) {
+					const otherChildren = flatChildren.filter(c => c.kind !== 'subagentInvocation');
+					// Each subagent child gets its own children; non-subagent
+					// siblings (which are rare) are added to the first subagent.
+					for (let i = 0; i < subagentChildren.length; i++) {
+						const extra = i === 0 ? otherChildren : [];
+						result.push({
+							...subagentChildren[i],
+							children: collapseSubagentToolCalls(
+								[...subagentChildren[i].children, ...extra]
+							),
+						});
+					}
+				} else {
+					// No subagent child — promote children directly
+					result.push(...collapseSubagentToolCalls(flatChildren));
+				}
+			} else {
+				const newChildren = collapseSubagentToolCalls(node.children);
+				if (newChildren !== node.children) {
+					changed = true;
+					result.push({ ...node, children: newChildren });
+				} else {
+					result.push(node);
+				}
+			}
 		}
-
-		const merged = applyModelTurnInfo(node, pendingModelTurn);
-		pendingModelTurn = undefined;
-		result.push(merged);
+		return changed ? result : nodeList;
 	}
 
-	// If the last node was a model turn with no successor, keep it
-	if (pendingModelTurn) {
-		result.push(pendingModelTurn);
+	function flattenChildSessionRefs(nodeList: FlowNode[]): FlowNode[] {
+		if (!nodeList.some(n => n.kind === 'generic' && n.category === 'subagent')) {
+			return nodeList; // fast path: nothing to flatten
+		}
+		const result: FlowNode[] = [];
+		for (const node of nodeList) {
+			if (node.kind === 'generic' && node.category === 'subagent') {
+				// child_session_ref placeholder — find the subagentInvocation
+				// and move all siblings into it as children.
+				const subagentChild = node.children.find(c => c.kind === 'subagentInvocation');
+				if (subagentChild) {
+					const siblings = node.children.filter(c => c !== subagentChild);
+					result.push({
+						...subagentChild,
+						children: [...subagentChild.children, ...siblings],
+					});
+				} else {
+					// No subagent child — promote all children
+					result.push(...node.children);
+				}
+			} else {
+				result.push(node);
+			}
+		}
+		return result;
 	}
-
-	return result;
-}
-
-/**
- * Enriches a node with model turn metadata and recursively
- * merges model turns within its children.
- */
-function applyModelTurnInfo(node: FlowNode, modelTurn: FlowNode | undefined): FlowNode {
-	const mergedChildren = node.children.length > 0 ? mergeModelTurns(node.children) : node.children;
-
-	if (!modelTurn) {
-		return mergedChildren !== node.children ? { ...node, children: mergedChildren } : node;
-	}
-
-	// Build compact annotation from model turn info (e.g. "500 tok · LLM 2.3s")
-	const annotation = modelTurn.sublabel;
-	const newSublabel = annotation
-		? (node.sublabel ? `${node.sublabel} \u00b7 ${annotation}` : annotation)
-		: node.sublabel;
-
-	// Enrich tooltip with model turn details
-	const modelTooltip = modelTurn.tooltip ?? (modelTurn.label !== 'Model Turn' ? modelTurn.label : undefined);
-	const newTooltip = modelTooltip
-		? (node.tooltip ? `${node.tooltip}\n\nModel: ${modelTooltip}` : `Model: ${modelTooltip}`)
-		: node.tooltip;
-
-	return {
-		...node,
-		sublabel: newSublabel,
-		tooltip: newTooltip,
-		children: mergedChildren,
-	};
 }
 
 // ---- Flow node filtering ----
@@ -277,11 +339,11 @@ export function filterFlowNodes(nodes: FlowNode[], options: FlowFilterOptions): 
 	return result;
 }
 
-function filterByKind(nodes: FlowNode[], isKindVisible: (kind: string) => boolean): FlowNode[] {
+function filterByKind(nodes: FlowNode[], isKindVisible: (kind: string, category?: string) => boolean): FlowNode[] {
 	const result: FlowNode[] = [];
 	let changed = false;
 	for (const node of nodes) {
-		if (!isKindVisible(node.kind)) {
+		if (!isKindVisible(node.kind, node.category)) {
 			changed = true;
 			// For subagents, drop the entire subgraph
 			if (node.kind === 'subagentInvocation') {
@@ -301,6 +363,7 @@ function filterByKind(nodes: FlowNode[], isKindVisible: (kind: string) => boolea
 	}
 	return changed ? result : nodes;
 }
+
 
 function nodeMatchesText(node: FlowNode, text: string): boolean {
 	return node.label.toLowerCase().includes(text) ||
@@ -382,58 +445,272 @@ export function sliceFlowNodes(nodes: readonly FlowNode[], maxCount: number): Fl
 	return { nodes: sliced, totalCount, shownCount };
 }
 
+// ---- Discovery node merging ----
+
+function isDiscoveryNode(node: FlowNode): boolean {
+	return node.kind === 'generic' && node.category === 'discovery';
+}
+
+/**
+ * Merges consecutive prompt-discovery nodes (generic events with
+ * `category === 'discovery'`) into a single summary node.
+ *
+ * The merged node always stays in the graph and carries the individual
+ * nodes in `mergedNodes`.  Expansion (showing the individual nodes to the
+ * right) is handled at the layout level.
+ *
+ * Operates recursively on children.
+ */
+export function mergeDiscoveryNodes(
+	nodes: readonly FlowNode[],
+): FlowNode[] {
+	const result: FlowNode[] = [];
+
+	let i = 0;
+	while (i < nodes.length) {
+		const node = nodes[i];
+
+		// Non-discovery node: recurse into children and pass through.
+		if (!isDiscoveryNode(node)) {
+			const mergedChildren = mergeDiscoveryNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i++;
+			continue;
+		}
+
+		// Accumulate a run of consecutive discovery nodes.
+		const run: FlowNode[] = [node];
+		let j = i + 1;
+		while (j < nodes.length && isDiscoveryNode(nodes[j])) {
+			run.push(nodes[j]);
+			j++;
+		}
+
+		if (run.length < 2) {
+			// Single discovery node — nothing to merge.
+			result.push(node);
+			i = j;
+			continue;
+		}
+
+		// Build a stable id from the first node so the expand state persists.
+		const mergedId = `merged-discovery:${run[0].id}`;
+
+		// Build a merged summary node.
+		const labels = run.map(n => n.label);
+		const uniqueLabels = [...new Set(labels)];
+		const summaryLabel = uniqueLabels.length <= 2
+			? uniqueLabels.join(', ')
+			: localize('discoveryMergedLabel', "{0} +{1} more", uniqueLabels[0], run.length - 1);
+
+		result.push({
+			id: mergedId,
+			kind: 'generic',
+			category: 'discovery',
+			label: summaryLabel,
+			sublabel: localize('discoveryStepsCount', "{0} discovery steps", run.length),
+			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
+			created: run[0].created,
+			children: [],
+			mergedNodes: run,
+		});
+		i = j;
+	}
+
+	return result;
+}
+
+// ---- Tool call node merging ----
+
+function isToolCallNode(node: FlowNode): boolean {
+	return node.kind === 'toolCall';
+}
+
+/**
+ * Returns the tool name from a tool-call node's label.
+ * Tool call labels are set to `event.toolName` (possibly with a leading
+ * emoji prefix stripped), so the label itself is the canonical tool name.
+ */
+function getToolName(node: FlowNode): string {
+	return node.label;
+}
+
+/**
+ * Merges consecutive tool-call nodes that invoke the same tool into a
+ * single summary node.
+ *
+ * This mirrors `mergeDiscoveryNodes`: the merged node carries the
+ * individual nodes in `mergedNodes` and expansion is handled at the
+ * layout level.
+ *
+ * Operates recursively on children.
+ */
+export function mergeToolCallNodes(
+	nodes: readonly FlowNode[],
+): FlowNode[] {
+	const result: FlowNode[] = [];
+
+	let i = 0;
+	while (i < nodes.length) {
+		const node = nodes[i];
+
+		// Non-tool-call node: recurse into children and pass through.
+		if (!isToolCallNode(node)) {
+			const mergedChildren = mergeToolCallNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i++;
+			continue;
+		}
+
+		// Accumulate a run of consecutive tool-call nodes with the same tool name.
+		const toolName = getToolName(node);
+		const run: FlowNode[] = [node];
+		let j = i + 1;
+		while (j < nodes.length && isToolCallNode(nodes[j]) && getToolName(nodes[j]) === toolName) {
+			run.push(nodes[j]);
+			j++;
+		}
+
+		if (run.length < 2) {
+			// Single tool call — recurse into children, nothing to merge.
+			const mergedChildren = mergeToolCallNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i = j;
+			continue;
+		}
+
+		// Build a stable id from the first node so the expand state persists.
+		const mergedId = `merged-toolCall:${run[0].id}`;
+
+		result.push({
+			id: mergedId,
+			kind: 'toolCall',
+			label: toolName,
+			sublabel: localize('toolCallsCount', "{0} calls", run.length),
+			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
+			created: run[0].created,
+			children: [],
+			mergedNodes: run,
+		});
+		i = j;
+	}
+
+	return result;
+}
+
 // ---- Event helpers ----
 
-function getEventLabel(event: IChatDebugEvent): string {
-	switch (event.kind) {
-		case 'userMessage': {
-			const firstLine = event.message.split('\n')[0];
-			return firstLine.length > 40 ? firstLine.substring(0, 37) + '...' : firstLine;
+/**
+ * Remaps generic events with well-known names (e.g. "User message",
+ * "Agent response") to their proper typed kind so they receive
+ * correct colors, labels, and sublabel treatment in the flow chart.
+ */
+function getEffectiveKind(event: IChatDebugEvent): IChatDebugEvent['kind'] {
+	if (event.kind === 'generic') {
+		const name = event.name.toLowerCase().replace(/[\s_-]+/g, '');
+		if (name === 'usermessage' || name === 'userprompt' || name === 'user' || name.startsWith('usermessage')) {
+			return 'userMessage';
 		}
+		if (name === 'response' || name.startsWith('agentresponse') || name.startsWith('assistantresponse') || name.startsWith('modelresponse')) {
+			return 'agentResponse';
+		}
+		const cat = event.category?.toLowerCase();
+		if (cat === 'user' || cat === 'usermessage') {
+			return 'userMessage';
+		}
+		if (cat === 'response' || cat === 'agentresponse') {
+			return 'agentResponse';
+		}
+	}
+	return event.kind;
+}
+
+function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['kind']): string {
+	const kind = effectiveKind ?? event.kind;
+	switch (kind) {
+		case 'userMessage':
+			return localize('userLabel', "User Message");
 		case 'modelTurn':
-			return event.model ?? 'Model Turn';
+			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
-			return event.toolName;
+			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : localize('toolCallLabel', "Tool Call");
 		case 'subagentInvocation':
-			return event.agentName;
+			return event.kind === 'subagentInvocation' ? event.agentName : localize('subagentFallback', "Subagent");
 		case 'agentResponse':
-			return 'Response';
+			return localize('agentResponseLabel', "Agent Response");
 		case 'generic':
-			return event.name;
+			return event.kind === 'generic' ? event.name : localize('genericLabel', "Event");
 	}
 }
 
-function getEventSublabel(event: IChatDebugEvent): string | undefined {
-	switch (event.kind) {
+function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['kind']): string | undefined {
+	const kind = effectiveKind ?? event.kind;
+	switch (kind) {
 		case 'modelTurn': {
 			const parts: string[] = [];
-			if (event.totalTokens) {
-				parts.push(`${event.totalTokens} tokens`);
+			if (event.kind === 'modelTurn' && event.requestName) {
+				parts.push(event.requestName);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'modelTurn' && event.totalTokens) {
+				parts.push(localize('tokenCount', "{0} tokens", event.totalTokens));
+			}
+			if (event.kind === 'modelTurn' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
 		}
 		case 'toolCall': {
 			const parts: string[] = [];
-			if (event.result) {
+			if (event.kind === 'toolCall' && event.result) {
 				parts.push(event.result);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'toolCall' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
 		}
 		case 'subagentInvocation': {
 			const parts: string[] = [];
-			if (event.status) {
+			if (event.kind === 'subagentInvocation' && event.status) {
 				parts.push(event.status);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'subagentInvocation' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
+		}
+		case 'userMessage':
+		case 'agentResponse': {
+			// Use the message summary as the sublabel. For remapped generic
+			// events, use the details property.
+			let text: string | undefined;
+			if (event.kind === 'userMessage' || event.kind === 'agentResponse') {
+				text = event.message;
+			} else if (event.kind === 'generic') {
+				text = event.details;
+			}
+			if (!text) {
+				return undefined;
+			}
+			// Find the first meaningful line, skipping trivial lines like
+			// lone brackets/braces that appear when the message is JSON.
+			const lines = text.split('\n');
+			let firstLine = '';
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (trimmed && trimmed.length > 2) {
+					firstLine = trimmed;
+					break;
+				}
+			}
+			if (!firstLine) {
+				// Fall back to the full text collapsed to a single line
+				firstLine = text.replace(/\s+/g, ' ').trim();
+			}
+			if (!firstLine) {
+				return undefined;
+			}
+			return firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
 		}
 		default:
 			return undefined;
@@ -468,14 +745,14 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			const parts: string[] = [event.toolName];
 			if (event.input) {
 				const input = event.input.trim();
-				parts.push(`Input: ${input.length > TOOLTIP_MAX_LENGTH ? input.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : input}`);
+				parts.push(localize('tooltipInput', "Input: {0}", input.length > TOOLTIP_MAX_LENGTH ? input.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : input));
 			}
 			if (event.output) {
 				const output = event.output.trim();
-				parts.push(`Output: ${output.length > TOOLTIP_MAX_LENGTH ? output.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : output}`);
+				parts.push(localize('tooltipOutput', "Output: {0}", output.length > TOOLTIP_MAX_LENGTH ? output.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : output));
 			}
 			if (event.result) {
-				parts.push(`Result: ${event.result}`);
+				parts.push(localize('tooltipResult', "Result: {0}", event.result));
 			}
 			return parts.join('\n');
 		}
@@ -485,13 +762,13 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 				parts.push(event.description);
 			}
 			if (event.status) {
-				parts.push(`Status: ${event.status}`);
+				parts.push(localize('tooltipStatus', "Status: {0}", event.status));
 			}
 			if (event.toolCallCount !== undefined) {
-				parts.push(`Tool calls: ${event.toolCallCount}`);
+				parts.push(localize('tooltipToolCalls', "Tool calls: {0}", event.toolCallCount));
 			}
 			if (event.modelTurnCount !== undefined) {
-				parts.push(`Model turns: ${event.modelTurnCount}`);
+				parts.push(localize('tooltipModelTurns', "Model turns: {0}", event.modelTurnCount));
 			}
 			return parts.join('\n');
 		}
@@ -507,17 +784,20 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			if (event.model) {
 				parts.push(event.model);
 			}
-			if (event.totalTokens) {
-				parts.push(`Tokens: ${event.totalTokens}`);
+			if (event.totalTokens !== undefined) {
+				parts.push(localize('tooltipTokens', "Tokens: {0}", event.totalTokens));
 			}
-			if (event.inputTokens) {
-				parts.push(`Input tokens: ${event.inputTokens}`);
+			if (event.inputTokens !== undefined) {
+				parts.push(localize('tooltipInputTokens', "Input tokens: {0}", event.inputTokens));
 			}
-			if (event.outputTokens) {
-				parts.push(`Output tokens: ${event.outputTokens}`);
+			if (event.outputTokens !== undefined) {
+				parts.push(localize('tooltipOutputTokens', "Output tokens: {0}", event.outputTokens));
 			}
-			if (event.durationInMillis) {
-				parts.push(`Duration: ${formatDuration(event.durationInMillis)}`);
+			if (event.cachedTokens !== undefined) {
+				parts.push(localize('tooltipCachedTokens', "Cached tokens: {0}", event.cachedTokens));
+			}
+			if (event.durationInMillis !== undefined) {
+				parts.push(localize('tooltipDuration', "Duration: {0}", formatDuration(event.durationInMillis)));
 			}
 			return parts.length > 0 ? parts.join('\n') : undefined;
 		}

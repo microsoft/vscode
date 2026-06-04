@@ -5,18 +5,20 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getSessionId } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const HandleDialogBrowserToolData: IToolData = {
 	id: 'handle_dialog',
-	toolReferenceName: 'handleDialog',
+	toolReferenceName: BrowserChatToolReferenceName.HandleDialog,
 	displayName: localize('handleDialogBrowserTool.displayName', 'Handle Dialog'),
 	userDescription: localize('handleDialogBrowserTool.userDescription', 'Respond to a dialog in a browser page'),
-	modelDescription: 'Respond to a pending dialog (alert, confirm, prompt) or file chooser dialog on a browser page.',
+	modelDescription: 'Respond to a pending modal (alert, confirm, prompt) or file chooser dialog on a browser page.',
 	icon: Codicon.comment,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -24,31 +26,31 @@ export const HandleDialogBrowserToolData: IToolData = {
 		properties: {
 			pageId: {
 				type: 'string',
-				description: `The browser page ID, acquired from context or ${OpenPageToolId}.`
+				description: `The browser page ID, acquired from context or the open tool.`
 			},
-			accept: {
+			acceptModal: {
 				type: 'boolean',
-				description: 'Whether to accept (true) or dismiss (false) the dialog.'
+				description: 'Whether to accept (true) or dismiss (false) a modal dialog.'
 			},
 			promptText: {
 				type: 'string',
-				description: 'Text to enter into a prompt dialog. Only applicable for prompt dialogs.'
+				description: 'Text to enter into a prompt dialog.'
 			},
-			files: {
+			selectFiles: {
 				type: 'array',
 				items: { type: 'string' },
-				description: 'Absolute paths of files to select. Required for file chooser dialogs.'
+				description: 'Absolute paths of files to select, or empty to dismiss. Required for file chooser dialogs.'
 			},
 		},
-		required: ['pageId', 'accept'],
+		required: ['pageId'],
 	},
 };
 
 interface IHandleDialogBrowserToolParams {
 	pageId: string;
-	accept: boolean;
+	acceptModal: boolean;
 	promptText?: string;
-	files?: string[];
+	selectFiles?: string[];
 }
 
 export class HandleDialogBrowserTool implements IToolImpl {
@@ -57,25 +59,35 @@ export class HandleDialogBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const link = createBrowserPageLink(_context.parameters.pageId);
 		return {
-			invocationMessage: localize('browser.handleDialog.invocation', "Handling browser dialog"),
-			pastTenseMessage: localize('browser.handleDialog.past', "Handled browser dialog"),
+			invocationMessage: new MarkdownString(localize('browser.handleDialog.invocation', "Handling dialog in {0}", link)),
+			pastTenseMessage: new MarkdownString(localize('browser.handleDialog.past', "Handled dialog in {0}", link)),
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IHandleDialogBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
+		if (params.selectFiles !== undefined && (params.acceptModal !== undefined || params.promptText !== undefined)) {
+			return errorResult(`Invalid parameters. 'selectFiles' cannot be used with 'acceptModal' or 'promptText'.`);
+		}
+
+		if (!Array.isArray(params.selectFiles) && (params.acceptModal === undefined || params.acceptModal === null)) {
+			return errorResult(`Invalid parameters. Either 'selectFiles' or 'acceptModal' must be provided.`);
+		}
+
 		try {
 			let result;
-			if (params.files !== undefined) {
-				result = await this.playwrightService.replyToFileChooser(params.pageId, params.accept ? params.files : []);
+			if (params.selectFiles !== undefined) {
+				result = await this.playwrightService.replyToFileChooser(sessionId, params.pageId, params.selectFiles);
 			} else {
-				result = await this.playwrightService.replyToDialog(params.pageId, params.accept, params.promptText);
+				result = await this.playwrightService.replyToDialog(sessionId, params.pageId, params.acceptModal, params.promptText);
 			}
 			return { content: [{ kind: 'text', value: result.summary }] };
 		} catch (e) {

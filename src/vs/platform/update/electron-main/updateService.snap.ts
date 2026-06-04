@@ -31,6 +31,12 @@ abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.info('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
+
+		// Clear transient one-time properties from Idle state after delivering the event.
+		// This prevents new windows from seeing stale error/notAvailable messages.
+		if (state.type === StateType.Idle && (state.error || state.notAvailable)) {
+			this._state = State.Idle(state.updateType);
+		}
 	}
 
 	constructor(
@@ -109,11 +115,17 @@ abstract class AbstractUpdateService implements IUpdateService {
 			return Promise.resolve(undefined);
 		}
 
+		// Remember the Ready state so we can restore it if the quit is vetoed
+		const readyState = this.state;
+
+		this.setState(State.Restarting(this.state.update));
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
 			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
+				this.logService.info('update#quitAndInstall(): quit was vetoed, restoring Ready state');
+				this.setState(readyState);
 				return;
 			}
 
@@ -133,7 +145,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
+	async setInternalOrg(_internalOrg: string | undefined): Promise<void> {
 		// noop - not applicable for snap
 	}
 
@@ -176,7 +188,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 			if (result) {
 				this.setState(State.Ready({ version: 'something' }, false, false));
 			} else {
-				this.setState(State.Idle(UpdateType.Snap));
+				this.setState(State.Idle(UpdateType.Snap, undefined, undefined));
 			}
 		}, err => {
 			this.logService.error(err);

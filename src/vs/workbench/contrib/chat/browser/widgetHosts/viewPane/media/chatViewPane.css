@@ -130,6 +130,14 @@
 		padding: 0 6px 0 14px;
 	}
 
+	/* Stacked: symmetric padding */
+	&.sessions-control-orientation-stacked {
+
+		.agent-sessions-empty-filter-message {
+			padding-left: 20px;
+		}
+	}
+
 	/* Right position: symmetric padding */
 	&.sessions-control-orientation-sidebyside.chat-view-position-right {
 

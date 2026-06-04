@@ -110,6 +110,7 @@ suite('ChatAttachmentsContentPart', () => {
 			// Should still have 1 attachment (now as image)
 			const updatedAttachments = part.domNode!.querySelectorAll('.chat-attached-context-attachment');
 			assert.strictEqual(updatedAttachments.length, 1, 'Should have 1 attachment after update');
+			assert.ok(updatedAttachments[0].classList.contains('image-attachment'), 'Image attachment should have styling class');
 		});
 
 		test('should preserve contextMenuHandler after update', () => {

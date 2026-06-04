@@ -51,6 +51,7 @@ import './mainThreadManagedSockets.js';
 import './mainThreadOutputService.js';
 import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
+import './mainThreadDocumentDiff.js';
 import './mainThreadQuickOpen.js';
 import './mainThreadRemoteConnectionData.js';
 import './mainThreadSaveParticipant.js';
@@ -95,11 +96,14 @@ import './mainThreadMcp.js';
 import './mainThreadChatContext.js';
 import './mainThreadChatDebug.js';
 import './mainThreadChatStatus.js';
+import './mainThreadChatQuota.js';
+import './mainThreadChatInputNotification.js';
 import './mainThreadChatOutputRenderer.js';
 import './mainThreadChatSessions.js';
 import './mainThreadDataChannels.js';
 import './mainThreadMeteredConnection.js';
 import './mainThreadGitExtensionService.js';
+import './mainThreadBrowsers.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

@@ -12,6 +12,8 @@ import { IMeteredConnectionService } from '../../meteredConnection/common/metere
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
+import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IUpdate, State, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions } from './abstractUpdateService.js';
 
@@ -25,9 +27,11 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		@ILogService logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IApplicationStorageMainService applicationStorageMainService: IApplicationStorageMainService,
 		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, false);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, telemetryService, applicationStorageMainService, meteredConnectionService, false);
 	}
 
 	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string {
@@ -39,15 +43,16 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			return;
 		}
 
-		const background = !explicit && !this.shouldDisableProgressiveReleases();
-		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background });
+		const internalOrg = this.getInternalOrg();
+		const background = !explicit && !internalOrg;
+		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background, internalOrg });
 		this.setState(State.CheckingForUpdates(explicit));
 
-		this.requestService.request({ url }, CancellationToken.None)
+		this.requestService.request({ url, callSite: 'updateService.linux.checkForUpdates' }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
-					this.setState(State.Idle(UpdateType.Archive));
+					this.setState(State.Idle(UpdateType.Archive, undefined, explicit || undefined));
 				} else {
 					this.setState(State.AvailableForDownload(update));
 				}

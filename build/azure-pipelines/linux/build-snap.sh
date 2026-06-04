@@ -4,6 +4,10 @@ set -e
 # Get snapcraft version
 snapcraft --version
 
+# Configure apt to retry on transient network failures
+# This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
+sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
+
 # Make sure we get latest packages
 sudo apt-get update
 sudo apt-get upgrade -y

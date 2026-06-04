@@ -9,7 +9,7 @@
 	border-radius: 8px;
 	display: flex;
 	align-items: center;
-	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	cursor: pointer;
 	min-width: var(--vscode-inline-chat-affordance-height);
 	min-height: var(--vscode-inline-chat-affordance-height);

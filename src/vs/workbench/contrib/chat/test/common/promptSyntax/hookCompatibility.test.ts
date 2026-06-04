@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { HookType } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../common/promptSyntax/hookTypes.js';
 import { parseCopilotHooks, parseHooksFromFile, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';
 

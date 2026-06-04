@@ -16,7 +16,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IUserDataSyncEnablementService, SyncResource } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CONFIGURE_SYNC_COMMAND_ID } from '../../../../services/userDataSync/common/userDataSync.js';
@@ -25,9 +25,9 @@ import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { Target, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { getTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { getCleanPromptName, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 /**
  * Options to override the default folder-picker and editor-open behaviour
@@ -38,6 +38,12 @@ export interface INewPromptOptions {
 	readonly targetFolder?: URI;
 	readonly targetStorage?: PromptsStorage;
 	readonly openFile?: (uri: URI) => Promise<ICodeEditor | undefined>;
+	/**
+	 * Override the file extension (e.g. `.md` for Claude rules instead of
+	 * `.instructions.md`). When set, the name picker uses this extension
+	 * instead of the default for the prompt type.
+	 */
+	readonly fileExtension?: string;
 }
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -83,7 +89,7 @@ class AbstractNewPromptFileAction extends Action2 {
 			storage = selectedFolder.storage;
 		}
 
-		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri);
+		const fileName = await instaService.invokeFunction(askForPromptFileName, this.type, folderUri, undefined, options?.fileExtension);
 		if (!fileName) {
 			return;
 		}
@@ -186,7 +192,7 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`. - "src/**/*.ts"`,
 					`---`,
 					``,
-					`<!-- Tip: Use /create-instruction in chat to generate content with agent assistance -->`,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
 					``,
 					`\${2:Provide coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
@@ -197,7 +203,7 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
 					`---`,
 					``,
-					`<!-- Tip: Use /create-instruction in chat to generate content with agent assistance -->`,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
 					``,
 					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
@@ -321,7 +327,7 @@ class NewSkillFileAction extends Action2 {
 					return localize('commands.new.skill.name.tooLong', "Skill name must be 64 characters or less");
 				}
 				// Per spec: lowercase alphanumeric and hyphens only
-				if (!/^[a-z0-9-]+$/.test(name)) {
+				if (!VALID_SKILL_NAME_REGEX.test(name)) {
 					return localize('commands.new.skill.name.invalidChars', "Skill name may only contain lowercase letters, numbers, and hyphens");
 				}
 				if (name.startsWith('-') || name.endsWith('-')) {

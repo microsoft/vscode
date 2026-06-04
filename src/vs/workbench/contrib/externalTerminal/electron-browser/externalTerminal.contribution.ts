@@ -23,12 +23,14 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: OPEN_NATIVE_CONSOLE_COMMAND_ID,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-	when: TerminalContextKeys.notFocus,
+	when: ContextKeyExpr.and(TerminalContextKeys.notFocus, IsSessionsWindowContext.negate()),
 	weight: KeybindingWeight.WorkbenchContrib,
 	handler: async (accessor) => {
 		const historyService = accessor.get(IHistoryService);

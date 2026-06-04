@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable } from 'vscode';
-import { AvatarQuery, SourceControlHistoryItemDetailsProvider } from './api/git';
+import type { AvatarQuery, SourceControlHistoryItemDetailsProvider } from './api/git';
 import { Repository } from './repository';
 import { ApiRepository } from './api/api1';
 

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../platform/window/common/window.js';
 import { NotificationsPosition, NotificationsSettings } from '../../common/notifications.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { hideIcon, hideUpIcon } from '../../browser/parts/notifications/notificationsActions.js';
+import { hideIcon, hideUpIcon, getNotificationExpandIcon, getNotificationCollapseIcon } from '../../browser/parts/notifications/notificationsActions.js';
 
 suite('Notifications Position', () => {
 
@@ -140,6 +140,33 @@ suite('Notifications Position', () => {
 		test('hide icon defaults use correct codicons', () => {
 			assert.strictEqual(Codicon.chevronDown.id, 'chevron-down');
 			assert.strictEqual(Codicon.chevronUp.id, 'chevron-up');
+		});
+	});
+
+	suite('Expand/Collapse Notification Icons', () => {
+
+		test('bottom-right expand uses notifications-expand icon', () => {
+			assert.strictEqual(getNotificationExpandIcon(NotificationsPosition.BOTTOM_RIGHT).id, 'notifications-expand');
+		});
+
+		test('bottom-left expand uses notifications-expand icon', () => {
+			assert.strictEqual(getNotificationExpandIcon(NotificationsPosition.BOTTOM_LEFT).id, 'notifications-expand');
+		});
+
+		test('top-right expand uses notifications-expand-down icon', () => {
+			assert.strictEqual(getNotificationExpandIcon(NotificationsPosition.TOP_RIGHT).id, 'notifications-expand-down');
+		});
+
+		test('bottom-right collapse uses notifications-collapse icon', () => {
+			assert.strictEqual(getNotificationCollapseIcon(NotificationsPosition.BOTTOM_RIGHT).id, 'notifications-collapse');
+		});
+
+		test('bottom-left collapse uses notifications-collapse icon', () => {
+			assert.strictEqual(getNotificationCollapseIcon(NotificationsPosition.BOTTOM_LEFT).id, 'notifications-collapse');
+		});
+
+		test('top-right collapse uses notifications-collapse-up icon', () => {
+			assert.strictEqual(getNotificationCollapseIcon(NotificationsPosition.TOP_RIGHT).id, 'notifications-collapse-up');
 		});
 	});
 });

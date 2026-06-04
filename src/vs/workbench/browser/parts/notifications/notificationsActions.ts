@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/notificationsActions.css';
-import { INotificationViewItem } from '../../../common/notifications.js';
+import { INotificationViewItem, NotificationsPosition } from '../../../common/notifications.js';
 import { localize } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from './notificationsCommands.js';
@@ -19,10 +19,20 @@ const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, l
 export const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
 export const hideUpIcon = registerIcon('notifications-hide-up', Codicon.chevronUp, localize('hideUpIcon', 'Icon for the hide action in notifications when positioned at the top.'));
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
+const expandDownIcon = registerIcon('notifications-expand-down', Codicon.chevronDown, localize('expandDownIcon', 'Icon for the expand action in notifications when the notification center is at the top.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
+const collapseUpIcon = registerIcon('notifications-collapse-up', Codicon.chevronUp, localize('collapseUpIcon', 'Icon for the collapse action in notifications when the notification center is at the top.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
 const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
 export const positionIcon = registerIcon('notifications-position', Codicon.arrowSwap, localize('positionIcon', 'Icon for the position action in notifications.'));
+
+export function getNotificationExpandIcon(position: NotificationsPosition): ThemeIcon {
+	return position === NotificationsPosition.TOP_RIGHT ? expandDownIcon : expandIcon;
+}
+
+export function getNotificationCollapseIcon(position: NotificationsPosition): ThemeIcon {
+	return position === NotificationsPosition.TOP_RIGHT ? collapseUpIcon : collapseIcon;
+}
 
 export class ClearNotificationAction extends Action {
 

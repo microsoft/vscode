@@ -161,6 +161,11 @@
 
 .extensions-viewlet > .extensions .extension-list-item {
 	position: absolute;
+	box-shadow: var(--vscode-shadow-sm);
+}
+
+.extensions-viewlet > .extensions .extension-list-item:hover {
+	box-shadow: var(--vscode-shadow-md);
 }
 
 .extensions-viewlet > .extensions .extension-list-item.loading {

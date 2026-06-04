@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from '../../../common/contextkeys.js';
+import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -168,7 +168,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		readonly windowId: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService private readonly hostService: IHostService,
@@ -237,9 +237,14 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	readonly sideGroup: IEditorSideGroup = {
-		openEditor: (editor, options) => {
-			const [group] = this.scopedInstantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
-
+		openEditor: async (editor, options) => {
+			const findGroupResult = this.scopedInstantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
+			let group;
+			if (findGroupResult instanceof Promise) {
+				([group] = await findGroupResult);
+			} else {
+				([group] = findGroupResult);
+			}
 			return group.openEditor(editor, options);
 		}
 	};
@@ -1037,8 +1042,15 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	protected handleContextKeys(): void {
+		// Bind `editorAreaFocus` to the editor part's scoped context key service so
+		// it evaluates to `true` only when keyboard focus is within the editor area.
+		// Applies to all editor parts (main, modal, auxiliary) so callers can gate
+		// shortcuts on focus being in any editor area regardless of which part.
+		EditorAreaFocusContext.bindTo(this.scopedContextKeyService).set(true);
+
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
+		const editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.scopedContextKeyService);
 
 		const updateContextKeys = () => {
 			const groupCount = this.count;
@@ -1055,11 +1067,48 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			}
 		};
 
-		updateContextKeys();
+		const updateEditorTabsVisibleContext = () => {
+			editorTabsVisibleContext.set(this.partOptions.showTabs === 'multiple');
+		};
 
-		this._register(this.onDidAddGroup(() => updateContextKeys()));
-		this._register(this.onDidRemoveGroup(() => updateContextKeys()));
+		const updateTopRightGroupContextKey = () => {
+			if (!this.gridWidget || !this._contentDimension) {
+				return;
+			}
+
+			let topRightGroup: IEditorGroupView | undefined;
+			for (const group of this.groups) {
+				if (
+					this.gridWidget.getNeighborViews(group, Direction.Up).length === 0 &&
+					this.gridWidget.getNeighborViews(group, Direction.Right).length === 0
+				) {
+					topRightGroup = group;
+					break;
+				}
+			}
+
+			for (const group of this.groups) {
+				const contextKey = this.editorPartsView.bind(IsTopRightEditorGroupContext, group);
+				contextKey.set(group === topRightGroup);
+			}
+		};
+
+		updateContextKeys();
+		updateEditorTabsVisibleContext();
+		updateTopRightGroupContextKey();
+
+		this._register(this.onDidAddGroup(() => {
+			updateContextKeys();
+			updateTopRightGroupContextKey();
+		}));
+		this._register(this.onDidRemoveGroup(() => {
+			updateContextKeys();
+			updateTopRightGroupContextKey();
+		}));
 		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
+		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
+		this._register(this.onDidMoveGroup(() => updateTopRightGroupContextKey()));
+		this._register(this.onDidLayout(() => updateTopRightGroupContextKey()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {
@@ -1155,6 +1204,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			onDragEnd: () => clearAllTimeouts(),
 			onDrop: () => clearAllTimeouts()
 		}));
+
+		// Make sure pending opener timeouts are cleared when the part is disposed
+		this._register(toDisposable(() => clearAllTimeouts()));
 	}
 
 	centerLayout(active: boolean): void {

@@ -9,12 +9,14 @@ import { ISessionData } from '../../../contrib/editTelemetry/browser/editStats/a
 import { Random } from '../../../../editor/test/common/core/random.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	AiStatsHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderAiStatsHover({ ...context, data: createSampleDataWithSessions() }),
 	}),
 
 	AiStatsHoverNoData: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderAiStatsHover({ ...context, data: createEmptyData() }),
 	}),
 });

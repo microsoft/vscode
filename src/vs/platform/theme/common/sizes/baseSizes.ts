@@ -24,6 +24,10 @@ export const codiconFontSize = registerSize('codiconFontSize',
 	sizeForAllThemes(16, 'px'),
 	nls.localize('codiconFontSize', "Base font size for codicons."));
 
+export const codiconFontSizeCompact = registerSize('codiconFontSize.compact',
+	sizeForAllThemes(12, 'px'),
+	nls.localize('codiconFontSizeCompact', "Compact font size for codicons."));
+
 // ------ Corner Radii
 
 export const cornerRadiusMedium = registerSize('cornerRadius.medium',

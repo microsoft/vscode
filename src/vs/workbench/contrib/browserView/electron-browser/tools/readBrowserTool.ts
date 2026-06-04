@@ -7,15 +7,15 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
-import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getSessionId } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const ReadBrowserToolData: IToolData = {
 	id: 'read_page',
-	toolReferenceName: 'readPage',
+	toolReferenceName: BrowserChatToolReferenceName.ReadPage,
 	displayName: localize('readBrowserTool.displayName', 'Read Page'),
 	userDescription: localize('readBrowserTool.userDescription', 'Read the content of a browser page'),
 	modelDescription: 'Get a snapshot of the current browser page state. This is better than screenshot.',
@@ -26,7 +26,7 @@ export const ReadBrowserToolData: IToolData = {
 		properties: {
 			pageId: {
 				type: 'string',
-				description: `The browser page ID to read, acquired from context or ${OpenPageToolId}.`
+				description: `The browser page ID to read, acquired from context or the open tool.`
 			},
 		},
 		required: ['pageId'],
@@ -43,7 +43,7 @@ export class ReadBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const link = `[browser page](${BrowserViewUri.forUrl('', _context.parameters.pageId).toString()})`;
+		const link = createBrowserPageLink(_context.parameters.pageId);
 		return {
 			invocationMessage: new MarkdownString(localize('browser.read.invocation', "Reading {0}", link)),
 			pastTenseMessage: new MarkdownString(localize('browser.read.past', "Read {0}", link)),
@@ -52,12 +52,13 @@ export class ReadBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IReadBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
-		const summary = await this.playwrightService.getSummary(params.pageId);
+		const summary = await this.playwrightService.getSummary(sessionId, params.pageId);
 		if (!summary) {
 			return errorResult('No page summary available.');
 		}

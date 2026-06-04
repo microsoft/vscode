@@ -5,11 +5,11 @@
 
 .monaco-workbench > .notifications-toasts {
 	position: absolute;
-	z-index: 1000;
+	z-index: 2545; /* above modal editor backdrop (2540), below quick input (2550) and dialogs (2575) */
 	right: 3px;
 	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
-	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .monaco-workbench.nostatusbar > .notifications-toasts {
@@ -35,15 +35,15 @@
 	flex-direction: column;
 }
 
-.monaco-workbench > .notifications-toasts .notification-toast-container {
-	overflow: hidden; /* this ensures that the notification toast does not shine through */
-}
-
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
 	margin: 4px; /* enables separation and drop shadows around toasts */
 	transform: translate3d(0px, 100%, 0px); /* move the notification 50px to the bottom (to prevent bleed through) */
 	opacity: 0; /*  fade the toast in */
 	transition:	transform 300ms ease-out, opacity 300ms ease-out;
+}
+
+.monaco-workbench > .notifications-toasts .notifications-list-container {
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-workbench > .notifications-toasts .notifications-list-container,

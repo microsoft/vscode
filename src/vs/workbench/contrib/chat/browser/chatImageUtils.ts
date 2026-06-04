@@ -8,6 +8,7 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 
 /**
  * Resizes an image provided as a UInt8Array string. Resizing is based on Open AI's algorithm for tokenzing images.
@@ -78,6 +79,48 @@ export async function resizeImage(data: Uint8Array | string, mimeType?: string):
 		img.onerror = (error) => {
 			URL.revokeObjectURL(url);
 			reject(error);
+		};
+	});
+}
+
+/**
+ * Creates a small downscaled thumbnail of an image. Useful for compact previews
+ * (e.g. attachment pills) where the UI should retain a small rendered image
+ * instead of a full-resolution object URL.
+ * @param data The image bytes.
+ * @param mimeType The image mime type.
+ * @param maxSize The maximum width or height of the thumbnail, in pixels.
+ * @returns A promise that resolves to a PNG {@link Blob} of the thumbnail, or `undefined` on failure.
+ */
+export function createImageThumbnail(data: Uint8Array, mimeType: string | undefined, maxSize: number): Promise<Blob | undefined> {
+	return new Promise((resolve) => {
+		const blob = new Blob([data as Uint8Array<ArrayBuffer>], { type: mimeType });
+		const img = new Image();
+		const url = URL.createObjectURL(blob);
+		img.src = url;
+
+		img.onload = () => {
+			URL.revokeObjectURL(url);
+			const { width, height } = img;
+			const scaleFactor = Math.min(1, maxSize / Math.max(width, height));
+			const targetWidth = Math.max(1, Math.round(width * scaleFactor));
+			const targetHeight = Math.max(1, Math.round(height * scaleFactor));
+
+			const canvas = document.createElement('canvas');
+			canvas.width = targetWidth;
+			canvas.height = targetHeight;
+			const ctx = canvas.getContext('2d');
+			if (!ctx) {
+				resolve(undefined);
+				return;
+			}
+
+			ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+			canvas.toBlob(thumbnail => resolve(thumbnail ?? undefined), 'image/png');
+		};
+		img.onerror = () => {
+			URL.revokeObjectURL(url);
+			resolve(undefined);
 		};
 	});
 }
@@ -160,3 +203,10 @@ function getTimestampFromFilename(filename: string): number | undefined {
 	}
 	return undefined;
 }
+
+CommandsRegistry.registerCommand('_chat.resizeImage', async (_accessor, data: Uint8Array | VSBuffer, mimeType?: string): Promise<Uint8Array> => {
+	if (data instanceof VSBuffer) {
+		data = data.buffer;
+	}
+	return resizeImage(data, mimeType);
+});

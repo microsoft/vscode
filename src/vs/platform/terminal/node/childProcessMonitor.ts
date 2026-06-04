@@ -49,10 +49,18 @@ export class ChildProcessMonitor extends Disposable {
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 
 	constructor(
-		private readonly _pid: number,
+		private _pid: number,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+	}
+
+	/**
+	 * Updates the pid to monitor. This is needed when the pid is not available
+	 * immediately after spawn (e.g. node-pty deferred conpty connection).
+	 */
+	setPid(pid: number): void {
+		this._pid = pid;
 	}
 
 	/**

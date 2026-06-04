@@ -9,15 +9,24 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
+import { IChatWidgetService } from '../../chat.js';
 import { getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
 	readonly agentId?: string;
+	readonly withAutopilot?: boolean;
 }
 
 export class ChatSuggestNextWidget extends Disposable {
@@ -35,8 +44,13 @@ export class ChatSuggestNextWidget extends Disposable {
 	private buttonDisposables = new Map<HTMLElement, DisposableStore>();
 
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -92,13 +106,102 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
+		const isAutopilotPolicyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const firstAutoSendHandoff = !isAutopilotPolicyRestricted ? handoffs.find(h => h.send) : undefined;
+
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
+
+			if (handoff === firstAutoSendHandoff) {
+				const autopilotButton = this.createAutopilotButton(handoff);
+				this.promptsContainer.appendChild(autopilotButton);
+			}
+		}
+
+		if (CommandsRegistry.getCommand(OPEN_AGENTS_WINDOW_COMMAND_ID)) {
+			const handoffButton = this.createAgentsWindowHandoffButton(handoffs[0]);
+			this.promptsContainer.appendChild(handoffButton);
 		}
 
 		this.domNode.style.display = 'flex';
 		this._onDidChangeHeight.fire();
+	}
+
+	private createAgentsWindowHandoffButton(seedHandoff: IHandOff): HTMLElement {
+		const disposables = new DisposableStore();
+		const label = localize('chat.suggestNext.continueInAgentsWindow', "Continue in Agents Window");
+
+		const handoffLabel = seedHandoff.label;
+		const getCurrentHandoff = (): IHandOff | undefined => {
+			const currentHandoffs = this._currentMode?.handOffs?.get();
+			return currentHandoffs?.find(h => h.label === handoffLabel) ?? seedHandoff;
+		};
+
+		const button = dom.$('.chat-welcome-view-suggested-prompt.chat-suggest-next-handoff');
+		button.setAttribute('tabindex', '0');
+		button.setAttribute('role', 'button');
+		button.setAttribute('aria-label', label);
+
+		const iconEl = dom.append(button, dom.$('.codicon.codicon-window'));
+		iconEl.setAttribute('aria-hidden', 'true');
+		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
+		titleElement.textContent = label;
+
+		const trigger = () => {
+			const current = getCurrentHandoff();
+			const handoffPrompt = current?.prompt?.trim() || '';
+			const transcript = this.captureChatTranscript();
+			const query = this.composeAgentsWindowQuery(handoffPrompt, transcript);
+			const folderUri = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+			this.commandService.executeCommand(OPEN_AGENTS_WINDOW_COMMAND_ID, {
+				folderUri: folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
+				initialQuery: query,
+			});
+		};
+
+		disposables.add(dom.addDisposableListener(button, 'click', trigger));
+		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				trigger();
+			}
+		}));
+
+		this.buttonDisposables.set(button, disposables);
+		return button;
+	}
+
+	/**
+	 * Pull a compact transcript of the current chat — last user request and
+	 * the assistant reply — so the Agents-window CLI session has the context
+	 * that produced this handoff, not just the static handoff prompt.
+	 */
+	private captureChatTranscript(): { lastUserMessage: string; lastAssistantReply: string } {
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		const requests = widget?.viewModel?.model.getRequests() ?? [];
+		const last = requests.at(-1);
+		return {
+			lastUserMessage: last?.message?.text?.trim() ?? '',
+			lastAssistantReply: last?.response?.response.toString().trim() ?? '',
+		};
+	}
+
+	private composeAgentsWindowQuery(handoffPrompt: string, transcript: { lastUserMessage: string; lastAssistantReply: string }): string {
+		const parts: string[] = [];
+		parts.push(localize('chat.suggestNext.handoffHeader', "Handing off from VS Code chat. Original request:"));
+		if (transcript.lastUserMessage) {
+			parts.push('', '> ' + transcript.lastUserMessage.split('\n').join('\n> '));
+		}
+		if (transcript.lastAssistantReply) {
+			parts.push('', localize('chat.suggestNext.handoffPlanHeader', "Plan from VS Code chat:"), '', transcript.lastAssistantReply);
+		}
+		if (handoffPrompt) {
+			parts.push('', '---', '', handoffPrompt);
+		} else if (!transcript.lastUserMessage && !transcript.lastAssistantReply) {
+			parts.push('', localize('chat.suggestNext.handoffDefaultQuery', "Continue the previous chat."));
+		}
+		return parts.join('\n');
 	}
 
 	private createPromptButton(handoff: IHandOff): HTMLElement {
@@ -126,9 +229,13 @@ export class ChatSuggestNextWidget extends Disposable {
 		// Get chat session contributions to show in chevron dropdown
 		// Filter to only first-party providers that support "continue in".
 		// TODO: Expand later to any agent with `canDelegate` === true.
+		const currentSessionType = this.contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key);
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		const availableContributions = contributions.filter(c => {
 			if (!c.canDelegate) {
+				return false;
+			}
+			if (c.type === currentSessionType) {
 				return false;
 			}
 			const provider = getAgentSessionProvider(c.type);
@@ -216,6 +323,46 @@ export class ChatSuggestNextWidget extends Disposable {
 		}));
 
 		// Store disposables for this button so they can be disposed when the button is removed
+		this.buttonDisposables.set(button, disposables);
+
+		return button;
+	}
+
+	private createAutopilotButton(handoff: IHandOff): HTMLElement {
+		const disposables = new DisposableStore();
+
+		const handoffLabel = handoff.label;
+		const getCurrentHandoff = (): IHandOff | undefined => {
+			const currentHandoffs = this._currentMode?.handOffs?.get();
+			return currentHandoffs?.find(h => h.label === handoffLabel) ?? handoff;
+		};
+
+		const label = localize('chat.suggestNext.startWithAutopilot', "Start with Autopilot");
+		const button = dom.$('.chat-welcome-view-suggested-prompt');
+		button.setAttribute('tabindex', '0');
+		button.setAttribute('role', 'button');
+		button.setAttribute('aria-label', label);
+
+		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
+		titleElement.textContent = label;
+
+		disposables.add(dom.addDisposableListener(button, 'click', () => {
+			const currentHandoff = getCurrentHandoff();
+			if (currentHandoff) {
+				this._onDidSelectPrompt.fire({ handoff: currentHandoff, withAutopilot: true });
+			}
+		}));
+
+		disposables.add(dom.addDisposableListener(button, 'keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff, withAutopilot: true });
+				}
+			}
+		}));
+
 		this.buttonDisposables.set(button, disposables);
 
 		return button;
