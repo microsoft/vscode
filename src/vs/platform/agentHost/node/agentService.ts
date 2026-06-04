@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -53,6 +53,7 @@ import { registerDefaultChangesetOperationContributions } from './agentHostChang
 import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
+import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 
 /**
@@ -104,7 +105,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
-	private readonly _authTokens = new Map<string, string>();
+	private readonly _authService: AgentHostAuthenticationService;
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
@@ -194,6 +195,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
+		this._authService = new AgentHostAuthenticationService(_logService);
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
 			changesetStateRetention: {
 				// The cache calls this lazily after construction. If a future state-manager
@@ -314,40 +316,11 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- auth ---------------------------------------------------------------
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		// Multiple providers may share the same protected resource (e.g.
-		// both Copilot CLI and Claude consume the GitHub Copilot token).
-		// Fan out to every matching provider in parallel; the request is
-		// considered authenticated if at least one accepts. Provider
-		// failures are isolated — one provider rejecting (e.g. proxy
-		// server bind failure) MUST NOT prevent another provider from
-		// accepting the same token.
-		const matching = [...this._providers.values()].filter(
-			p => p.getProtectedResources().some(r => r.resource === params.resource),
-		);
-		const settled = await Promise.allSettled(
-			matching.map(p => p.authenticate(params.resource, params.token)),
-		);
-		let authenticated = false;
-		for (let i = 0; i < settled.length; i++) {
-			const result = settled[i];
-			if (result.status === 'fulfilled') {
-				authenticated ||= result.value;
-			} else {
-				this._logService.error(
-					result.reason,
-					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
-				);
-			}
-		}
-		if (authenticated) {
-			this._authTokens.set(params.resource, params.token);
-		}
-		return { authenticated };
+		return this._authService.authenticate(params, this._providers.values());
 	}
 
-	getAuthToken(resource: string): string | undefined {
-		return this._authTokens.get(resource);
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
+		return this._authService.getAuthToken(request);
 	}
 
 	// ---- Changeset operation handlers --------------------------------------

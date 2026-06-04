@@ -77,7 +77,10 @@ export class AgentHostCommitOperationHandler implements IChangesetOperationHandl
 		}
 		this._throwIfCancelled(token);
 
-		const authToken = this._agentService.getAuthToken(GITHUB_COPILOT_PROTECTED_RESOURCE.resource);
+		const authToken = this._agentService.getAuthToken({
+			resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+			scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+		});
 		if (!authToken) {
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,

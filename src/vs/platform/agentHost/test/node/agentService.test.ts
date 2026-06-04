@@ -1201,7 +1201,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const result = await service.authenticate({ resource: 'https://unknown.example.com', token: 'tok' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken('https://unknown.example.com'), authenticateCalls: copilotAgent.authenticateCalls }, {
+			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: 'https://unknown.example.com' }), authenticateCalls: copilotAgent.authenticateCalls }, {
 				result: { authenticated: false },
 				token: undefined,
 				authenticateCalls: [],
@@ -1213,10 +1213,27 @@ suite('AgentService (node dispatcher)', () => {
 
 			const result = await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' });
 
-			assert.deepStrictEqual({ result, token: service.getAuthToken(GITHUB_COPILOT_PROTECTED_RESOURCE.resource), authenticateCalls: copilotAgent.authenticateCalls }, {
+			assert.deepStrictEqual({ result, token: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported }), authenticateCalls: copilotAgent.authenticateCalls }, {
 				result: { authenticated: true },
 				token: 'copilot-token',
 				authenticateCalls: [{ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'copilot-token' }],
+			});
+		});
+
+		test('stores tokens for the same resource by scopes', async () => {
+			service.registerProvider(copilotAgent);
+
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user'], token: 'read-token' });
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user', 'user:email'], token: 'profile-token' });
+
+			assert.deepStrictEqual({
+				readToken: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['read:user'] }),
+				profileToken: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['user:email', 'read:user'] }),
+				supersetToken: service.getAuthToken({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, scopes: ['user:email'] }),
+			}, {
+				readToken: 'read-token',
+				profileToken: 'profile-token',
+				supersetToken: 'profile-token',
 			});
 		});
 

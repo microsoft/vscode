@@ -351,9 +351,22 @@ export interface AuthenticateParams {
 	 * {@link IAuthorizationProtectedResourceMetadata} that this token targets.
 	 */
 	readonly resource: string;
+	/**
+	 * Scopes that were used to acquire the token. Omitted for legacy clients
+	 * that can only identify tokens by protected resource.
+	 */
+	readonly scopes?: readonly string[];
 
 	/** The bearer token value (RFC 6750). */
 	readonly token: string;
+}
+
+/** Request for a previously accepted bearer token. */
+export interface IAgentHostAuthTokenRequest {
+	/** Protected resource identifier from {@link ProtectedResourceMetadata.resource}. */
+	readonly resource: string;
+	/** Required token scopes, when the caller needs a scope-specific token. */
+	readonly scopes?: readonly string[];
 }
 
 /**
@@ -782,7 +795,7 @@ export interface IAgentService {
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
 	/** Return a bearer token previously supplied via {@link authenticate}. */
-	getAuthToken(resource: string): string | undefined;
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
