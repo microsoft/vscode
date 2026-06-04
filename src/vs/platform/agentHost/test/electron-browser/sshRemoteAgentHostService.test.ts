@@ -22,10 +22,10 @@ import type {
 	ISSHAgentHostConfig,
 	ISSHConnectResult,
 	ISSHKeyboardInteractiveRequest,
-	ISSHRelayMessage,
 	ISSHResolvedConfig,
 	ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
+import type { IRelayMessage } from '../../common/relayTransport.js';
 import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
 import { RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
 
@@ -44,7 +44,7 @@ class MockSSHMainService {
 	private readonly _onDidReportConnectProgress = new Emitter<{ connectionKey: string; message: string }>();
 	readonly onDidReportConnectProgress = this._onDidReportConnectProgress.event;
 
-	private readonly _onDidRelayMessage = new Emitter<ISSHRelayMessage>();
+	private readonly _onDidRelayMessage = new Emitter<IRelayMessage>();
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
 
 	private readonly _onDidRelayClose = new Emitter<string>();

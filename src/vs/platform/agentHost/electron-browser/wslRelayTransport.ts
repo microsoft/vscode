@@ -6,15 +6,15 @@
 import { ILogService } from '../../log/common/log.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { RelayTransport } from '../common/relayTransport.js';
-import type { ISSHRemoteAgentHostMainService } from '../common/sshRemoteAgentHost.js';
+import type { IWSLRemoteAgentHostMainService } from '../common/wslRemoteAgentHost.js';
 
-export class SSHRelayTransport extends RelayTransport {
+export class WSLRelayTransport extends RelayTransport {
 	constructor(
 		connectionId: string,
-		sshService: ISSHRemoteAgentHostMainService,
+		wslService: IWSLRemoteAgentHostMainService,
 		ahpLogger: AhpJsonlLogger | undefined,
 		@ILogService logService: ILogService,
 	) {
-		super(connectionId, sshService, ahpLogger, logService, '[SSHRelayTransport]');
+		super(connectionId, wslService, ahpLogger, logService, '[WSLRelayTransport]');
 	}
 }
