@@ -97,6 +97,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 			toolIdEditMap: {},
 			responseModelId: 'claude-sonnet-4.6',
 			creditsUsed: 16.4,
+			isUsingAutoModel: false,
 		}]);
 	});
 
