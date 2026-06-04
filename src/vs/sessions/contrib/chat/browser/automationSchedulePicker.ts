@@ -326,8 +326,7 @@ export class AutomationSchedulePicker extends Disposable {
 		const items: IActionListItem<ITimePickerItem>[] = [];
 		items.push({
 			kind: ActionListItemKind.Action,
-			label: localize('automationSchedule.customTime', "Custom time…"),
-			description: localize('automationSchedule.customTime.desc', "Type an exact time (e.g. 9:15 AM, 14:30)."),
+			label: localize('automationSchedule.customTime', "Custom\u2026"),
 			group: { title: '', icon: Codicon.edit },
 			item: { hour: this._hour.get(), minute: this._minute.get(), custom: true },
 			disabled: false,
@@ -373,7 +372,7 @@ export class AutomationSchedulePicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: item => item.item ? (item.item.custom ? localize('automationSchedule.customTime', "Custom time…") : formatTime12h(item.item.hour, item.item.minute)) : '',
+				getAriaLabel: item => item.item ? (item.item.custom ? localize('automationSchedule.customTime', "Custom\u2026") : formatTime12h(item.item.hour, item.item.minute)) : '',
 				getWidgetAriaLabel: () => localize('automationSchedule.timeWidgetAriaLabel', "Schedule time"),
 			},
 		);
