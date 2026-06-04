@@ -226,48 +226,127 @@ Bumping a pinned SDK is a **small, OSS-reviewable PR in `microsoft/vscode`**.
    writes to your branch.
 
 **On merge/build (automatic):**
-7. The dedicated `AgentHostSdks` job re-fetches the pinned versions by explicit target,
-   re-packages, re-verifies sha256 (hard fail on mismatch), runs the smoke tests, ESRP-signs and
-   publishes each `.gz` to PRSS, recording the CosmosDB asset. Unchanged versions dedupe to a
+7. The dedicated `AgentHostSdks` stage re-fetches the pinned versions by explicit target,
+   re-packages deterministically, re-verifies sha256 (hard fail on mismatch), runs the smoke
+   tests, then **ESRP-*releases*** (provision-to-CDN, no code-signing) each `.gz` to the
+   version-keyed PRSS path. **No CosmosDB asset record.** Unchanged versions HTTP-200-dedupe to a
    no-op.
 
 **Local experimentation needs none of this:** point `chat.agentHost.claudeAgent.path` /
 `chat.agentHost.codexAgent.path` at any locally-installed SDK/binary — the setting overrides the
 downloaded pinned SDK at runtime, so trying a newer version is zero repo edits.
 
+### D. Cache location, concurrency & lifecycle (Decisions L1 / Q9)
+- **Location:** `<userDataPath>/agentHostSdks/<sdk>/<version>/` (server: equivalent server data
+  dir), resolved via `INativeEnvironmentService`. Per-version subdir so an in-progress upgrade
+  and the active version can coexist.
+- **Atomic install:** download to a temp file → verify sha256 → extract to a temp dir → write a
+  `.complete` marker last → atomic `rename` into `<version>/`. A present `<version>/.complete`
+  is a no-op. Concurrent cross-process callers either see the marker or race the rename
+  idempotently (identical bytes). **In-process**: a per-`<sdk>` promise cache dedupes concurrent
+  `ensureSdk` calls.
+- **Pruning (L1):** after a successful resolve of the active pinned version, delete sibling
+  `<version>/` dirs that differ from the just-resolved one (never the one returned). Bounds disk
+  to ~one bundle per SDK; self-healing.
+
+### E. Failure & graceful degradation (Decision Q10 — the CI/dev-safety guarantee)
+- `ensureSdk` returns **undefined** (no attempt) when the product.json `agentHostSdks` pin is
+  absent **or `product.downloadUrl` is empty** (OSS dev builds). → runtime behaves **exactly as
+  today**: opt-in via the settings/env vars only. This is what keeps existing builds, CI, and
+  local dev green **before** the SDKs are ever published.
+- On download/verify failure (offline, firewall, 404 because a pin isn't published yet): reject
+  → the **specific agent provider is treated as unavailable** (not registered), identical to the
+  current behavior when the setting is unset. The agent host process still starts; the failure is
+  logged and (when a window exists) surfaced once. **Never crashes the host.**
+
+### F. Bundle contents & strip policy (Decision Q11)
+- Preserve the installed **package subtree (node_modules layout)** so module resolution /
+  `import()` works unchanged. The returned path matches what the existing override expects:
+  - **claude** → the `@anthropic-ai/claude-agent-sdk` package root (loaded via dynamic
+    `import()`); include its runtime deps `@anthropic-ai/sdk`, `@modelcontextprotocol/sdk`, and
+    the one native `@anthropic-ai/claude-agent-sdk-<target>` package.
+  - **codex** → the `codex` app-server executable inside `@openai/codex-<target>`; include the
+    `@openai/codex` launcher.
+- **Light strip only:** `*.md`, `*.map`, `*.d.ts`, test/`__tests__` dirs. **Keep** codex's
+  vendored `rg` unless a smoke test proves it unused (revisit later, not now).
+
+### G. Publish mechanism (Decision Q14 — bypasses `processArtifact`)
+Because B2 wants version-keyed paths and no CosmosDB record, the standard commit-keyed
+`processArtifact` flow is **not** reused. A dedicated publish script (extracted from the
+release-only path of `publish.ts`) takes each per-target `.gz` and:
+1. computes `friendlyFileName = ${quality}/agent-host-sdks/${file}`;
+2. HTTP-200-checks `${PRSS_CDN_URL}/${friendlyFileName}` → skip if present (cross-build dedupe);
+3. else `ESRPReleaseService.createRelease(version, filePath, friendlyFileName)` (provision only,
+   no `sign-*`/`notarize-*` ops);
+4. **no** `createAsset` / CosmosDB write.
+
+### H. Pipeline placement (Decision Q15 — safe to dispatch)
+- A **standalone `AgentHostSdks` stage** (mirrors the `Copilot` stage structure) that the
+  installer/app stages do **not** `dependsOn`. A failure in this stage therefore cannot break the
+  product/installer builds — it surfaces as its own check. This satisfies "safe to dispatch."
+- The stage: setup npm registry (Terrapin) → run the build job (C2) → run the smoke tests → run
+  the publish script. Secret/service-connection/pool names are reused from the existing publish
+  and Copilot templates and are flagged in-code for human review (cannot be validated locally).
+
+### I. Smoke-test depth (Decision Q16)
+- **Always (any build agent):** extract each `.gz`; assert the native binary exists and has the
+  correct **magic + arch** (Mach-O / ELF / PE header for the target); `import()` the claude JS
+  core to catch packaging/resolution breakage.
+- **Native-arch agents only (best-effort):** actually spawn `codex app-server` (minimal
+  handshake) and the claude binary `--version`. Cross-arch targets skip execution (can't run a
+  foreign binary) so they never block.
+
 ## Resolved decisions
 1. **Runtime download owner** — Option R1: a `node`-layer `IAgentHostSdkService` called inline by
    **both** starters (electron-main + server/headless Node). The Electron shared process is
    desktop-only, so it cannot be the single owner.
-2. **product.json pin** — store `{file, sha256}` per platform; derive the URL at runtime from
-   `downloadUrl` + `quality` + a **version-keyed** path (no commit).
-7. **CDN addressing** — version-keyed, commit-independent path → true cross-build dedupe (B2).
-8. **No builds-page listing** — publish to the CDN but write **no** CosmosDB asset record; the
+2. **product.json pin** — store `{file, sha256}` per platform under
+   `agentHostSdks.<sdk>.{version, platforms.<TargetPlatform>}`, reusing the existing
+   `TargetPlatform` keys (`darwin-arm64`, `linux-armhf`, `alpine-x64`, …). Derive the URL at
+   runtime from `downloadUrl` + `quality` + the **version-keyed** path (no commit).
+3. **CDN addressing** — version-keyed, commit-independent path → true cross-build dedupe (B2).
+4. **No builds-page listing** — publish to the CDN but write **no** CosmosDB asset record; the
    git-tracked product.json pin is the authoritative record (B2).
-9. **No code-signing / notarization** — sha256 integrity only; rely on programmatic download
+5. **No code-signing / notarization** — sha256 integrity only; rely on programmatic download
    (no quarantine xattr) + child-process spawn, mirroring `@vscode/vsce-sign` / `@vscode/ripgrep`.
-3. **Hash mismatch** — hard fail the build. A PR check recomputes hashes and, on mismatch, fails
+6. **Hash mismatch** — hard fail the build. A PR check recomputes hashes and, on mismatch, fails
    telling the developer to run `npm run update-agent-host-sdks` and commit (no auto-commit).
-4. **Build topology** — Topology C2: one dedicated `AgentHostSdks` job builds all targets from a
-   single agent via explicit `npm install --os/--cpu/--libc` (we only download prebuilt leaf
-   packages, never execute them at build), emitting one `.gz` per target; native-boot smoke
-   tests run opportunistically on native-arch runners. macOS universal needs no extra SDK.
-5. **`package.json` vs `product.json`** — one **exact** version per SDK (V1), enforced equal by a
+7. **Build topology** — Topology C2: one dedicated `AgentHostSdks` stage builds all targets from a
+   single agent via explicit `npm install --os/--cpu/--libc` (download-only of prebuilt leaf
+   packages), emitting one `.gz` per target; native-boot smoke tests run opportunistically on
+   native-arch runners. macOS universal needs no extra SDK.
+8. **`package.json` vs `product.json`** — one **exact** version per SDK (V1), enforced equal by a
    PR check (hard fail, string compare). Local experimentation uses the runtime override
    settings, not repo edits. Pin lives in OSS `vscode/product.json` (precedent: `builtInExtensions`).
-6. **`@openai/codex-sdk`** — already absent; the agent host only needs `@openai/codex`
+9. **`@openai/codex-sdk`** — already absent; the agent host only needs `@openai/codex`
    (launcher) + its per-platform native package. Change `@openai/codex` from `^0.134.0` →
    exact `0.134.0`.
+10. **Cache** — L1: `<userDataPath>/agentHostSdks/<sdk>/<version>/`; atomic temp+rename+`.complete`
+    marker; in-process promise dedupe; prune non-active siblings after a successful resolve.
+11. **Graceful degradation** — `ensureSdk` no-ops (returns undefined) when the pin or
+    `product.downloadUrl` is absent, and a download failure marks only that provider unavailable;
+    the host never crashes. Guarantees existing dev/CI stays green before publish.
+12. **Publish** — dedicated release-only script (no `processArtifact`, no CosmosDB); ESRP provision
+    to `${quality}/agent-host-sdks/${file}` with HTTP-200 dedupe.
+13. **Pipeline** — standalone `AgentHostSdks` stage; installers do **not** depend on it, so it
+    cannot break the product build (safe to dispatch).
 
 ## Todos (high level)
-- Confirm/remove stray `@openai/codex-sdk` dependency; keep `@openai/codex` + pinned Claude.
-- Define product.json `agentHostSdks` schema; mixin support for per-quality override.
-- Build: dedicated `AgentHostSdks` job (fetch-by-target → strip → package → smoke-test →
-  verify → publish); `getPlatform`/`processArtifact` cases; dedupe-by-version; shared
-  `packageAgentHostSdk` module; `npm run update-agent-host-sdks` (+ `--check`); version-equality
-  PR check.
-- Runtime: `IAgentHostSdkService` (URL build + download + sha256 verify + extract + cache);
-  wire into the Electron + Node starters with dev-override precedence; progress + headless
-  fallback.
-- Docs/tests: update setting descriptions (now "dev override", not "required"); unit tests for
-  URL building, caching, checksum failure, override precedence; e2e smoke in build.
+- **package.json**: change `@openai/codex` `^0.134.0` → exact `0.134.0` (claude already exact);
+  refresh lockfile.
+- **Schema/types**: add `agentHostSdks` to `product.json` + `IProductConfiguration`
+  (`src/vs/base/common/product.ts`); reuse `TargetPlatform` keys.
+- **Runtime**: implement node-layer `IAgentHostSdkService` (TargetPlatform compute incl.
+  alpine/musl, URL build, download, sha256 verify, atomic extract+cache+prune, in-proc dedupe,
+  graceful no-op); wire into `ElectronAgentHostStarter` + `NodeAgentHostStarter` in the existing
+  `setting || env || ensureSdk()` precedence; progress when windowed, log-only headless.
+- **Build tooling**: shared `packageAgentHostSdk` module (deterministic tar+gz); `build/lib`
+  fetch-by-target (`--os/--cpu/--libc`); `npm run update-agent-host-sdks` (+ `--check`); smoke
+  tests (magic/arch + claude import + best-effort native spawn); release-only publish script.
+- **PR checks**: version-equality (exact string) + hash `--check`, hard-failing with actionable
+  messages.
+- **Pipeline**: standalone `AgentHostSdks` stage mirroring the `Copilot` stage; additive,
+  non-gating; flag service-connection/pool/secret names for human review.
+- **Docs/tests**: reword setting descriptions to "developer override" (no longer required); unit
+  tests for platform→key mapping, URL building, checksum-failure, override precedence, graceful
+  no-op; e2e smoke in the build stage.
