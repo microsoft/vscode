@@ -271,6 +271,8 @@ export type IChatRequestTelemetryProperties = {
 	parentHeaderRequestId?: string;
 	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The conversation turn index, matching the panel.request turn measurement. */
+	turnIndex?: string;
 	/** The 0-based iteration number of the tool-calling loop that produced this request. */
 	iterationNumber?: string;
 };
