@@ -10,6 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestOperationContribution } from '../../node/agentHostPullRequestOperationProvider.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
+import { ChangesetKind } from '../../common/changesetUri.js';
 
 const githubBranchWithUncommittedChanges: ISessionGitState = {
 	hasGitHubRemote: true,
@@ -31,7 +32,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 	test('advertises PR operations for GitHub branches with uncommitted changes', () => {
 		const provider = createContribution();
 
-		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges });
+		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
 		assert.deepStrictEqual(operations?.map(op => op.id), ['create-pr', 'create-draft-pr']);
 	});
@@ -40,8 +41,8 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const provider = createContribution();
 
 		const actual = [
-			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, hasGitHubRemote: false } }),
-			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 0 } }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, hasGitHubRemote: false }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
+			provider.getOperations({ sessionKey: 'agent:/session', gitState: { ...githubBranchWithUncommittedChanges, uncommittedChanges: 0, outgoingChanges: 0 }, changesetKind: ChangesetKind.Session, changesetUri: '' }),
 		];
 
 		assert.deepStrictEqual(actual, [undefined, undefined]);
@@ -51,7 +52,7 @@ suite('AgentHostPullRequestOperationContribution', () => {
 		const provider = createContribution();
 
 		provider.onPullRequestCreated({ sessionKey: 'agent:/session', branchName: 'feature/test' });
-		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges });
+		const operations = provider.getOperations({ sessionKey: 'agent:/session', gitState: githubBranchWithUncommittedChanges, changesetKind: ChangesetKind.Session, changesetUri: '' });
 
 		assert.deepStrictEqual({ operations }, {
 			operations: undefined,
