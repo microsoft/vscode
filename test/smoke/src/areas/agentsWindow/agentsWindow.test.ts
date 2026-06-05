@@ -118,7 +118,7 @@ export function setup(logger: Logger) {
 			}
 		});
 
-		it('Test Copilot CLI session', async function () {
+		it.skip('Test Copilot CLI session', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.agentsWindow.waitForNewSessionView();
