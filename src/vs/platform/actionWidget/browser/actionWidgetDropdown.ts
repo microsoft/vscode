@@ -8,7 +8,6 @@ import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../ba
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -19,7 +18,7 @@ import { IActionWidgetService } from './actionWidget.js';
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
-	description?: string | IMarkdownString | HTMLElement;
+	description?: string;
 	/**
 	 * Optional detail text displayed as a second line below the label.
 	 */

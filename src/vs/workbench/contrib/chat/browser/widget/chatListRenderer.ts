@@ -115,20 +115,6 @@ const $ = dom.$;
 const COPILOT_USERNAME = 'GitHub Copilot';
 const WORKING_CAUGHT_UP_DEBOUNCE_MS = 50;
 
-/**
- * Compute a deterministic, mock per-turn AIC cost from a response id.
- * Returns a value in the range [0.20, 4.20] AICs so each turn shows a
- * stable but visibly different number on hover.
- */
-function computeMockTurnAICs(id: string): number {
-	let hash = 0;
-	for (let i = 0; i < id.length; i++) {
-		hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
-	}
-	const cents = Math.abs(hash) % 401; // 0..400
-	return 0.2 + cents / 100;
-}
-
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	/**
@@ -748,10 +734,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Render result details in footer if available
 		if (isResponseVM(element) && element.result?.details) {
-			// Strip the multiplier suffix (e.g. " · 3x" or " • 3x") to show only the model name
-			const details = element.result.details.replace(/\s*[·•]\s*\d+(\.\d+)?x\s*$/i, '');
-			const aics = computeMockTurnAICs(element.id);
-			templateData.footerDetailsContainer.textContent = `${details} · ${aics.toFixed(1)} Credits`;
+			templateData.footerDetailsContainer.textContent = element.result.details;
 			templateData.footerDetailsContainer.classList.remove('hidden');
 		} else {
 			templateData.footerDetailsContainer.classList.add('hidden');

@@ -91,9 +91,9 @@ class ChatManagementActionsContribution extends Disposable implements IWorkbench
 					f1: true,
 				});
 			}
-			async run(accessor: ServicesAccessor, query?: string) {
+			async run(accessor: ServicesAccessor) {
 				const editorService = accessor.get(IEditorService);
-				return editorService.openEditor(new ModelsManagementEditorInput(query), { pinned: true });
+				return editorService.openEditor(new ModelsManagementEditorInput(), { pinned: true });
 			}
 		}));
 

@@ -580,17 +580,7 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
-		let { inputCost, outputCost, cacheCost } = entry.model.metadata;
-		const multiplier = entry.model.metadata.multiplierNumeric;
-
-		// Derive per-token costs from multiplier when token-level costs aren't provided
-		if (inputCost === undefined && outputCost === undefined && cacheCost === undefined && multiplier !== undefined) {
-			const baseCost = 100; // base credits per 1M tokens
-			inputCost = Math.round(baseCost * multiplier);
-			outputCost = Math.round(baseCost * multiplier * 5);
-			cacheCost = Math.round(baseCost * multiplier * 0.1);
-		}
-
+		const { inputCost, outputCost, cacheCost } = entry.model.metadata;
 		const hasCost = inputCost !== undefined || outputCost !== undefined || cacheCost !== undefined;
 
 		if (hasCost) {
@@ -1150,7 +1140,7 @@ export class ChatModelsWidget extends Disposable {
 			});
 		}
 
-		const hasAnyCostFields = this.viewModel.viewModelEntries.some(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e) && (e.model.metadata.inputCost !== undefined || e.model.metadata.outputCost !== undefined || e.model.metadata.cacheCost !== undefined || e.model.metadata.multiplierNumeric !== undefined));
+		const hasAnyCostFields = this.viewModel.viewModelEntries.some(e => !isLanguageModelProviderEntry(e) && !isLanguageModelGroupEntry(e) && !isStatusEntry(e) && (e.model.metadata.inputCost !== undefined || e.model.metadata.outputCost !== undefined || e.model.metadata.cacheCost !== undefined));
 		columns.push(
 			{
 				label: localize('tokenLimits', 'Context Size'),

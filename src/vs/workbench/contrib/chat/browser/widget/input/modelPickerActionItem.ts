@@ -117,7 +117,6 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 			label += ` (${keybindingLabel})`;
 		}
 		const { statusIcon, tooltip } = this._pickerWidget.selectedModel?.metadata || {};
-		const cleanTooltip = tooltip?.replace(/\s*Rate is counted at \d+(\.\d+)?x\.?/gi, '').replace(/\s*Counted at \d+(\.\d+)?x\.?/gi, '').trim();
-		return statusIcon && cleanTooltip ? `${label} • ${cleanTooltip}` : label;
+		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;
 	}
 }

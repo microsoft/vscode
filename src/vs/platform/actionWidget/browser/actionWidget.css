@@ -229,41 +229,6 @@
 	font-size: 12px;
 }
 
-/* Submenu panel: align all descriptions into a consistent left-aligned column.
- * The title gets a min-width so descriptions begin at the same x for every row. */
-.action-list-submenu-panel .monaco-list .monaco-list-row.action .title {
-	min-width: 90px;
-	flex: 0 0 auto;
-}
-
-.action-list-submenu-panel .monaco-list .monaco-list-row .description {
-	margin-left: 16px;
-	text-align: left;
-	flex: 1 1 auto;
-}
-
-/* Section group titles in the submenu panel (e.g. "Context Window", "Thinking Effort"). */
-.action-list-submenu-panel .monaco-list .monaco-list-row .group-title,
-.action-list-submenu-panel .monaco-list .monaco-list-row .action-list-section-header {
-	font-weight: 600;
-	color: var(--vscode-foreground);
-	text-transform: none;
-	font-size: 12px;
-	opacity: 0.9;
-	margin-top: 4px;
-}
-
-/* Tighten the hover-header (description) above the submenu panel list. */
-.action-list-submenu-hover-header {
-	padding: 8px 10px;
-}
-.action-list-submenu-hover-header > p {
-	margin: 0;
-}
-.action-list-submenu-hover-header > p + p {
-	margin-top: 4px;
-}
-
 .action-widget .monaco-list-row.action .group-title {
 	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;
@@ -271,12 +236,6 @@
 	font-size: 12px;
 	flex-shrink: 0;
 }
-
-/* Description below mode — shows descriptions as subtext under the title */
-.action-widget .description-below .monaco-list .monaco-list-row.action {
-	flex-wrap: wrap;
-	align-content: center;
-	padding-right: 2px;
 
 /* Items with detail — show detail as subtext below the title */
 .action-widget .monaco-list .monaco-list-row.action {
@@ -332,16 +291,10 @@
 /* Item toolbar - shows on hover/focus */
 .action-widget .monaco-list-row.action .action-list-item-toolbar {
 	display: none;
-	align-items: center;
 }
 
 .action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
 .action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
-	display: flex;
-}
-
-/* Section toggle rows always show their toolbar */
-.action-widget .monaco-list-row.action.section-toggle.has-toolbar .action-list-item-toolbar {
 	display: flex;
 }
 
@@ -377,9 +330,8 @@
 }
 
 .action-widget .action-list-filter-input {
-	width: auto;
-	flex: 1 1 auto;
-	min-width: 0;
+	width: 100%;
+	flex: 1;
 	box-sizing: border-box;
 	padding: 4px 8px;
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -395,23 +347,6 @@
 
 .action-widget .action-list-filter-input::placeholder {
 	color: var(--vscode-input-placeholderForeground);
-}
-
-.action-widget .action-list-filter-actions {
-	flex: 0 0 auto;
-	display: flex;
-	align-items: center;
-}
-
-.action-widget .action-list-filter-trailing-label {
-	flex: 0 0 auto;
-	padding-left: 10px;
-	margin-left: 4px;
-	border-left: 1px solid var(--vscode-editorHoverWidget-border);
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	line-height: 22px;
-	white-space: nowrap;
 }
 
 .action-widget .action-list-filter-actions .action-label {
