@@ -13,7 +13,9 @@ import { IAutomationSchedule } from './automation.js';
  * so the same automation always fires at "the same time of day" regardless
  * of where the user is. DST transitions are handled by JavaScript's local
  * `Date` constructor, with a forward shift when the requested wall time
- * falls in the spring-forward gap.
+ * falls in the spring-forward gap. Day-of-month is advanced via the `Date`
+ * constructor's overflow semantics (`new Date(y, m, d+N, ...)`) rather than
+ * by adding milliseconds, so spring-forward days are not silently skipped.
  *
  * Returns `undefined` for the `manual` interval and for invalid inputs.
  *
@@ -23,13 +25,6 @@ import { IAutomationSchedule } from './automation.js';
 export function computeNextRunAt(schedule: IAutomationSchedule, now: Date): Date | undefined {
 	const { interval, scheduleHour, scheduleMinute, scheduleDay } = schedule;
 
-	if (!Number.isInteger(scheduleHour) || scheduleHour < 0 || scheduleHour > 23) {
-		return undefined;
-	}
-	if (!Number.isInteger(scheduleMinute) || scheduleMinute < 0 || scheduleMinute > 59) {
-		return undefined;
-	}
-
 	switch (interval) {
 		case 'manual':
 			return undefined;
@@ -38,15 +33,23 @@ export function computeNextRunAt(schedule: IAutomationSchedule, now: Date): Date
 			return new Date(now.getTime() + 60 * 60 * 1000);
 
 		case 'daily': {
+			if (!isValidHourMinute(scheduleHour, scheduleMinute)) {
+				return undefined;
+			}
 			const today = buildLocalDate(now.getFullYear(), now.getMonth(), now.getDate(), scheduleHour, scheduleMinute);
 			if (today.getTime() > now.getTime()) {
 				return today;
 			}
-			const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-			return buildLocalDate(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), scheduleHour, scheduleMinute);
+			// Advance by calendar date, not milliseconds, so spring-forward
+			// days are not skipped (a `+ 24 * 60 * 60 * 1000` jump on the
+			// DST day can land on the day after the target).
+			return buildLocalDate(now.getFullYear(), now.getMonth(), now.getDate() + 1, scheduleHour, scheduleMinute);
 		}
 
 		case 'weekly': {
+			if (!isValidHourMinute(scheduleHour, scheduleMinute)) {
+				return undefined;
+			}
 			if (!Number.isInteger(scheduleDay) || scheduleDay < 0 || scheduleDay > 6) {
 				return undefined;
 			}
@@ -57,13 +60,17 @@ export function computeNextRunAt(schedule: IAutomationSchedule, now: Date): Date
 			if (daysAhead < 0 || sameDayButPassed) {
 				daysAhead += 7;
 			}
-			const target = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
-			return buildLocalDate(target.getFullYear(), target.getMonth(), target.getDate(), scheduleHour, scheduleMinute);
+			return buildLocalDate(now.getFullYear(), now.getMonth(), now.getDate() + daysAhead, scheduleHour, scheduleMinute);
 		}
 
 		default:
 			return undefined;
 	}
+}
+
+function isValidHourMinute(hour: number, minute: number): boolean {
+	return Number.isInteger(hour) && hour >= 0 && hour <= 23
+		&& Number.isInteger(minute) && minute >= 0 && minute <= 59;
 }
 
 /**

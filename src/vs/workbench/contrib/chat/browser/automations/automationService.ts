@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -33,6 +33,14 @@ const STORAGE_KEY = 'chat.automations.ledger';
 
 const CURRENT_SCHEMA_VERSION = 1;
 
+/**
+ * Maximum number of run-history records retained per automation. Older runs
+ * are evicted when this cap is exceeded so the single-blob ledger does not
+ * grow unbounded (e.g. an hourly schedule running for a year would otherwise
+ * produce 8,760+ records). The UI also clamps the displayed history.
+ */
+const MAX_RUNS_PER_AUTOMATION = 50;
+
 interface ISerializedAutomation {
 	readonly id: string;
 	readonly name: string;
@@ -53,6 +61,14 @@ interface ISerializedAutomation {
 
 interface ISerializedLedger {
 	readonly schemaVersion: number;
+	/**
+	 * Monotonic counter incremented on every write. Used for optimistic
+	 * concurrency: `persist()` re-reads storage before writing and warns
+	 * (and bumps from the on-disk revision) when another window has written
+	 * since this window's last `readLedger`. Defaults to 0 for forward-
+	 * compatibility with older serialized blobs that pre-date this field.
+	 */
+	readonly revision?: number;
 	readonly automations: readonly ISerializedAutomation[];
 	readonly runs: readonly IAutomationRun[];
 }
@@ -64,6 +80,20 @@ interface ILedger {
 
 const EMPTY_LEDGER: ILedger = Object.freeze({ automations: [], runs: [] });
 
+/**
+ * Outcome of attempting to read the persisted ledger.
+ *
+ * - `{ kind: 'ledger', ... }`: parse succeeded and the schema is compatible.
+ * - `{ kind: 'unsupportedSchema' }`: the on-disk ledger has a `schemaVersion`
+ *   greater than what this build understands. The service must NOT write
+ *   under this state — a newer build wrote the data and we would silently
+ *   destroy it. The in-memory observables are also frozen at their last
+ *   known state to avoid clearing the UI to empty.
+ */
+type ReadLedgerResult =
+	| { kind: 'ledger'; ledger: ILedger; revision: number }
+	| { kind: 'unsupportedSchema' };
+
 export class AutomationService extends Disposable implements IAutomationService {
 
 	declare readonly _serviceBrand: undefined;
@@ -71,6 +101,22 @@ export class AutomationService extends Disposable implements IAutomationService 
 	private readonly _automations: ISettableObservable<readonly IAutomation[]>;
 	private readonly _runs: ISettableObservable<readonly IAutomationRun[]>;
 	private readonly _now: () => Date;
+
+	/**
+	 * Set to `true` when {@link readLedger} encounters a newer
+	 * `schemaVersion` than this build knows. Once set, the service refuses
+	 * to write to storage and stops mutating observables in
+	 * {@link refreshFromStorage}, so an older window cannot destroy data
+	 * written by a newer build.
+	 */
+	private _unsupportedSchema = false;
+
+	/**
+	 * Monotonic revision of the last ledger this window observed (either
+	 * read from storage or written by this window). Used by {@link persist}
+	 * for optimistic-concurrency detection across windows.
+	 */
+	private _lastSeenRevision = 0;
 
 	readonly automations: IObservable<readonly IAutomation[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
@@ -86,7 +132,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 		// override after construction via `setClockForTesting`.
 		this._now = () => new Date();
 
-		const initial = this.readLedger();
+		const result = this.readLedger();
+		const initial = result.kind === 'ledger' ? result.ledger : EMPTY_LEDGER;
+		if (result.kind === 'ledger') {
+			this._lastSeenRevision = result.revision;
+		}
 		this._automations = observableValue<readonly IAutomation[]>(this, initial.automations);
 		this._runs = observableValue<readonly IAutomationRun[]>(this, initial.runs);
 		this.automations = this._automations;
@@ -253,36 +303,94 @@ export class AutomationService extends Disposable implements IAutomationService 
 	//#region Persistence
 
 	private commit(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): void {
-		this._automations.set(automations, undefined);
-		this._runs.set(runs, undefined);
-		this.persist(automations, runs);
+		if (this._unsupportedSchema) {
+			this.logService.warn('[AutomationService] Skipping commit; ledger has an unsupported (newer) schema version.');
+			return;
+		}
+		const trimmedRuns = trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION);
+		transaction(tx => {
+			this._automations.set(automations, tx);
+			this._runs.set(trimmedRuns, tx);
+		});
+		this.persist(automations, trimmedRuns);
 	}
 
 	private persist(automations: readonly IAutomation[], runs: readonly IAutomationRun[]): void {
+		if (this._unsupportedSchema) {
+			// A newer build wrote this storage key; refuse to overwrite.
+			return;
+		}
+
+		// Re-read on-disk state immediately before writing to detect (a) a
+		// schema upgrade that happened while we were running and (b) a
+		// concurrent write from another window. This is a best-effort
+		// mitigation, not a true CAS: another window could still write
+		// between our `get` and our `store`. The `revision` field is
+		// persisted so a future change can build full retry-on-conflict
+		// semantics on top without a storage migration.
+		let baseRevision = this._lastSeenRevision;
+		const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
+		if (raw) {
+			try {
+				const parsed = JSON.parse(raw) as ISerializedLedger;
+				if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
+					this._unsupportedSchema = true;
+					this.logService.warn(`[AutomationService] On-disk ledger upgraded to schema v${parsed.schemaVersion}; entering read-only mode and skipping write.`);
+					return;
+				}
+				const onDiskRevision = typeof parsed?.revision === 'number' ? parsed.revision : 0;
+				if (onDiskRevision > this._lastSeenRevision) {
+					this.logService.warn(`[AutomationService] Concurrent write detected (on-disk revision ${onDiskRevision} > local ${this._lastSeenRevision}); overwriting. Recent changes from another window may be lost.`);
+				}
+				baseRevision = Math.max(onDiskRevision, this._lastSeenRevision);
+			} catch {
+				// Unparseable existing blob — treat as if absent.
+			}
+		}
+
+		const nextRevision = baseRevision + 1;
 		const serialized: ISerializedLedger = {
 			schemaVersion: CURRENT_SCHEMA_VERSION,
+			revision: nextRevision,
 			automations: automations.map(serializeAutomation),
 			runs: [...runs],
 		};
 		this.storageService.store(STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._lastSeenRevision = nextRevision;
 	}
 
 	private refreshFromStorage(): void {
-		const ledger = this.readLedger();
-		this._automations.set(ledger.automations, undefined);
-		this._runs.set(ledger.runs, undefined);
+		const result = this.readLedger();
+		if (result.kind === 'unsupportedSchema') {
+			// Freeze observables at their last-known-good state so the UI
+			// keeps showing the user's automations and we don't write
+			// anything that would clobber the newer schema.
+			return;
+		}
+		this._unsupportedSchema = false;
+		this._lastSeenRevision = result.revision;
+		transaction(tx => {
+			this._automations.set(result.ledger.automations, tx);
+			this._runs.set(result.ledger.runs, tx);
+		});
 	}
 
-	private readLedger(): ILedger {
+	private readLedger(): ReadLedgerResult {
 		const raw = this.storageService.get(STORAGE_KEY, StorageScope.APPLICATION);
 		if (!raw) {
-			return EMPTY_LEDGER;
+			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 		try {
 			const parsed = JSON.parse(raw) as ISerializedLedger;
+			if (typeof parsed?.schemaVersion === 'number' && parsed.schemaVersion > CURRENT_SCHEMA_VERSION) {
+				this._unsupportedSchema = true;
+				this.logService.warn(`[AutomationService] Ledger has schema v${parsed.schemaVersion}; this build only supports v${CURRENT_SCHEMA_VERSION}. Entering read-only mode.`);
+				return { kind: 'unsupportedSchema' };
+			}
 			if (parsed?.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+				// Older schema with no migration available — treat as empty.
 				this.logService.warn(`[AutomationService] Unsupported ledger schema version ${parsed?.schemaVersion}; ignoring.`);
-				return EMPTY_LEDGER;
+				return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 			}
 			const automations: IAutomation[] = [];
 			for (const entry of parsed.automations ?? []) {
@@ -296,10 +404,11 @@ export class AutomationService extends Disposable implements IAutomationService 
 			const runs = (parsed.runs ?? [])
 				.filter(r => validIds.has(r.automationId))
 				.map(r => Object.freeze({ ...r }));
-			return { automations, runs };
+			const revision = typeof parsed.revision === 'number' ? parsed.revision : 0;
+			return { kind: 'ledger', ledger: { automations, runs: trimRunsPerAutomation(runs, MAX_RUNS_PER_AUTOMATION) }, revision };
 		} catch (err) {
 			this.logService.error('[AutomationService] Failed to parse automations ledger; resetting.', err);
-			return EMPTY_LEDGER;
+			return { kind: 'ledger', ledger: EMPTY_LEDGER, revision: 0 };
 		}
 	}
 
@@ -360,4 +469,23 @@ function mergeAutomation(current: IAutomation, patch: IUpdateAutomationOptions):
 		permissionLevel: patch.permissionLevel === null ? undefined : (patch.permissionLevel ?? current.permissionLevel),
 		enabled: patch.enabled ?? current.enabled,
 	};
+}
+
+/**
+ * Caps the number of runs retained per `automationId` at `max`, preserving
+ * input order (which the service maintains as newest-first via prepend in
+ * `recordRunStart`). Older runs beyond the cap are dropped.
+ */
+function trimRunsPerAutomation(runs: readonly IAutomationRun[], max: number): readonly IAutomationRun[] {
+	const counts = new Map<string, number>();
+	const out: IAutomationRun[] = [];
+	for (const run of runs) {
+		const count = counts.get(run.automationId) ?? 0;
+		if (count >= max) {
+			continue;
+		}
+		counts.set(run.automationId, count + 1);
+		out.push(run);
+	}
+	return out.length === runs.length ? runs : out;
 }
