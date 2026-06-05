@@ -62,7 +62,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
-				const currentType = this._getSelectedSessionType();
+				const currentType = this._getSelectedSessionType() ?? this._getDefaultSessionType();
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
