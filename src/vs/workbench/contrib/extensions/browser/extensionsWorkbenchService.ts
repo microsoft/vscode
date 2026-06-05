@@ -34,7 +34,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification, AutoUpdateMinimumReleaseAgeConfigurationKey } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification, AutoUpdateMinimumReleaseAgeConfigurationKey, DefaultAutoUpdateMinimumReleaseAge } from '../common/extensions.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -81,7 +81,6 @@ interface IExtensionStateProvider<T> {
 }
 
 const MINUTE_IN_MILLISECONDS = 60 * 1000;
-const DEFAULT_AUTO_UPDATE_MINIMUM_RELEASE_AGE = 120;
 
 interface InstalledExtensionsEvent {
 	readonly extensionIds: TelemetryTrustedValue<string>;
@@ -1213,8 +1212,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getAutoUpdateMinimumReleaseAge(): number {
 		const minimumReleaseAge = this.configurationService.getValue<number>(AutoUpdateMinimumReleaseAgeConfigurationKey);
-		if (typeof minimumReleaseAge !== 'number' || !Number.isFinite(minimumReleaseAge) || minimumReleaseAge < 0) {
-			return DEFAULT_AUTO_UPDATE_MINIMUM_RELEASE_AGE;
+		if (typeof minimumReleaseAge !== 'number' || !Number.isInteger(minimumReleaseAge) || minimumReleaseAge < 0) {
+			return DefaultAutoUpdateMinimumReleaseAge;
 		}
 		return minimumReleaseAge;
 	}

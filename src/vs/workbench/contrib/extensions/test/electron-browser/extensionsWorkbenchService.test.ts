@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue, AutoUpdateMinimumReleaseAgeConfigurationKey } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue, AutoUpdateMinimumReleaseAgeConfigurationKey, DefaultAutoUpdateMinimumReleaseAge } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -469,6 +469,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test isAutoUpdateDelayed falls back to default for invalid minimum release age', async () => {
 		stubConfiguration(true, true, -1);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
+	});
+
+	test('test isAutoUpdateDelayed falls back to default for fractional minimum release age', async () => {
+		stubConfiguration(true, true, 0.5);
 		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
 
 		assert.strictEqual(testObject.local[0].outdated, true);
@@ -1824,7 +1832,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const values: any = {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true,
-			[AutoUpdateMinimumReleaseAgeConfigurationKey]: minimumReleaseAgeValue ?? 120
+			[AutoUpdateMinimumReleaseAgeConfigurationKey]: minimumReleaseAgeValue ?? DefaultAutoUpdateMinimumReleaseAge
 		};
 		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());
 		instantiationService.stub(IConfigurationService, {

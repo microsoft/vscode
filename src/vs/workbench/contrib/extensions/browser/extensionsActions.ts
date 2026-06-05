@@ -2863,7 +2863,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
 				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
 				// Do not override the higher-priority warning class with the info class.
-				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are automatically updated after the configured minimum release age. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are automatically updated after the configured minimum release age. It will be automatically updated {0}.", updateAt)) }, !hasConsentWarning);
 			}
 		}
 
