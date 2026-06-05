@@ -215,13 +215,17 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	private _getUpgradeDescription(): IMarkdownString {
-		return new MarkdownString(localize('chat.sessionTarget.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
+		return new MarkdownString(
+			localize('chat.sessionTarget.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
+			{ isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] } }
+		);
 	}
 
 	private _getUpgradeHover(): MarkdownString {
-		const hover = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to delegate work to the cloud agent."));
+		const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
+		hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to delegate work to the cloud agent."));
 		return hover;
+	}
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
