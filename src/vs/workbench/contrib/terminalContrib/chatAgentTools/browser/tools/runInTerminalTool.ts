@@ -2784,20 +2784,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		const utilitySmallIdPromise = this._resolveUtilitySmallModelId().then(utilitySmallId => {
+		// Resolve the utility-small alias eagerly and cache it so steering
+		// dispatch stays synchronous. Falls back to the conversation model if
+		// an event fires before resolution completes (rare — events require
+		// the terminal to produce output first).
+		let cachedUtilitySmallId: string | undefined;
+		this._resolveUtilitySmallModelId().then(utilitySmallId => {
+			cachedUtilitySmallId = utilitySmallId;
 			if (utilitySmallId) {
 				this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
 			} else {
 				this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
 			}
-			return utilitySmallId;
 		}, err => {
 			this._logService.warn(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model`, err);
-			return undefined;
 		});
-		const resolveSendOptions = async (): Promise<typeof sendOptions> => {
-			const utilitySmallId = await utilitySmallIdPromise;
-			return utilitySmallId ? { ...sendOptions, userSelectedModelId: utilitySmallId } : sendOptions;
+		const buildSendOptions = (): typeof sendOptions => {
+			return cachedUtilitySmallId ? { ...sendOptions, userSelectedModelId: cachedUtilitySmallId } : sendOptions;
 		};
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
@@ -2915,13 +2918,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
-				resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
-					...opts,
+				this._chatService.sendRequest(chatSessionResource, message, {
+					...buildSendOptions(),
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
 					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
 					terminalExecutionId: termId,
-				})).catch(e => {
+				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
 				});
 			}));
@@ -2969,13 +2972,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
-			resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
-				...opts,
+			this._chatService.sendRequest(chatSessionResource, message, {
+				...buildSendOptions(),
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalCommandCompleted', "{0} completed", commandDisplay),
 				terminalExecutionId: termId,
-			})).catch(e => {
+			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
 
@@ -3043,13 +3046,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposeNotification();
 			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
 			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
-			resolveSendOptions().then(opts => this._chatService.sendRequest(chatSessionResource, message, {
-				...opts,
+			this._chatService.sendRequest(chatSessionResource, message, {
+				...buildSendOptions(),
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalProcessExited', "{0} terminal exited", commandDisplay),
 				terminalExecutionId: termId,
-			})).catch(e => {
+			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send terminal-exited notification for terminal ${termId}`, e);
 			});
 		}));
