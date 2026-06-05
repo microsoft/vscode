@@ -55,6 +55,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { /* no-op */ }
 	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	persistChangesSummary(): void { /* no-op */ }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshUncommittedChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }

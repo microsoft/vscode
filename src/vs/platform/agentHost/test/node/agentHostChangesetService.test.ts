@@ -297,17 +297,20 @@ suite('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(sessionFileSets.map(e => e.action.file.edit), gitDiffs);
 			assert.deepStrictEqual(uncommittedFileSets.map(e => e.action.file.edit), gitDiffs);
 
-			// The compute pass also persists the file list under the
-			// legacy `'diffs'` slot so it survives restarts. The write
-			// is fire-and-forget through the metadata sequencer; poll
+			// The compute pass also persists a small `ChangesSummary`
+			// aggregate under the `META_CHANGES_SUMMARY` slot so a
+			// subsequent `listSessions` can render the chip without
+			// recomputing. Only the session-wide kind contributes;
+			// uncommitted recomputes never touch the DB. The write is
+			// fire-and-forget through the metadata sequencer; poll
 			// briefly until it lands.
 			let persisted: string | undefined;
 			for (let i = 0; i < 50 && !persisted; i++) {
 				await timeout(2);
-				persisted = await sessionDb.getMetadata('diffs');
+				persisted = await sessionDb.getMetadata('agentHost.changes');
 			}
-			assert.ok(persisted, 'expected the compute pass to persist diffs to the session DB');
-			assert.deepStrictEqual(JSON.parse(persisted), gitDiffs);
+			assert.ok(persisted, 'expected the session compute pass to persist a changes summary');
+			assert.deepStrictEqual(JSON.parse(persisted), { additions: 1, deletions: 0, files: 1 });
 		});
 
 		test('falls back to the edit-tracker aggregator when the git service returns undefined', async () => {
@@ -422,9 +425,10 @@ suite('AgentHostChangesetService', () => {
 				.filter(e => e.action.type === ActionType.ChangesetFileRemoved && e.channel === uncommittedUri);
 			assert.deepStrictEqual(removed, [], 'no files should be removed when the git path is unavailable');
 
-			// 2) The persisted DB blob is unchanged (compute did not overwrite it).
-			const persistedAfter = await sessionDb.getMetadata('agentHost.changeset.uncommitted');
-			assert.strictEqual(persistedAfter, undefined, 'compute must not persist anything when git is unavailable');
+			// 2) The uncommitted recompute must never touch the DB —
+			//    only the session-wide kind persists a summary.
+			const persistedAfter = await sessionDb.getMetadata('agentHost.changes');
+			assert.strictEqual(persistedAfter, undefined, 'uncommitted compute must not persist a changes summary');
 
 			// 3) Live state still reports the 3 seeded files.
 			const snapshot = localStateManager.getSnapshot(uncommittedUri);

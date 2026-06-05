@@ -45,6 +45,9 @@ export const META_CHANGESET_UNCOMMITTED = 'agentHost.changeset.uncommitted';
 /** Metadata key under which the session-wide changeset's diff list is persisted. */
 export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
 
+/** Metadata key under which the changes summary is persisted. */
+export const META_CHANGES_SUMMARY = 'agentHost.changes';
+
 /**
  * Legacy metadata key used by older builds to persist the session-wide
  * changeset's diff list. Read-only fallback for {@link META_CHANGESET_SESSION}.
@@ -56,10 +59,6 @@ export type StaticChangesetKind = 'uncommitted' | 'session';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
 	return kind === 'uncommitted' ? buildUncommittedChangesetUri(session) : buildSessionChangesetUri(session);
-}
-
-function persistKeyFor(kind: StaticChangesetKind): string {
-	return kind === 'uncommitted' ? META_CHANGESET_UNCOMMITTED : META_CHANGESET_SESSION;
 }
 
 /**
@@ -235,6 +234,16 @@ export interface IAgentHostChangesetService {
 	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
 
 	/**
+	 * Fire-and-forget persistence of the `summary.changes` aggregate to the
+	 * session DB under {@link META_CHANGES_SUMMARY}. Used both by the
+	 * happy-path turn-complete write and by the {@link ChangesetSessionCoordinator}
+	 * one-shot migration that reads the old `META_CHANGESET_SESSION` /
+	 * `META_LEGACY_DIFFS` blobs and projects them into the new key on
+	 * sessions written by older builds. Errors are logged, not thrown.
+	 */
+	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void;
+
+	/**
 	 * Returns true when the static changeset identified by `changesetUri` is
 	 * currently being recomputed. Used by cache eviction to avoid dropping a
 	 * slot while its producer is mid-flight.
@@ -386,6 +395,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const parsed = this.parsePersistedStaticChangesets(sessionUri, metadata);
 		this.applyPersistedStaticChangesets(sessionUri, parsed);
 		return parsed;
+	}
+
+	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
+		this._persistSessionFlag(sessionUri, META_CHANGES_SUMMARY, JSON.stringify(summary));
 	}
 
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean {
@@ -709,15 +722,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 
 			this._publishChangesetDiffs(session, changesetUri, diffs);
-			// Persist the file list so a subsequent `listSessions` /
-			// `restoreSession` can reseed the changeset before the first
-			// post-restart compute completes.
-			this._persistSessionFlag(session, persistKeyFor(kind), JSON.stringify(diffs));
-			// Migration: also overwrite the legacy `'diffs'` key with the
-			// session-changeset payload so older readers stay correct
-			// during the rollout window.
+
+			// Persist the small aggregate so a subsequent `listSessions`
+			// can render the chip without recomputing or reading the
+			// full diff list. Only the session-wide changeset feeds the
+			// chip — uncommitted/turn/compare slots describe slices, not
+			// the session-level footprint.
 			if (kind === 'session') {
-				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
+				this.persistChangesSummary(session, summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 });
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);

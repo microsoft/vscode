@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { SessionStatus, withSessionGitState, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import type { ChangesSummary } from '../../common/state/protocol/state.js';
 import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -104,6 +105,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	applyPersistedStaticChangesets(_sessionUri: string, _diffs: IRestoredChangesetDiffs): void { }
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
+	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshUncommittedChangeset(session: string): void { this.calls.push(`refreshUncommitted:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }

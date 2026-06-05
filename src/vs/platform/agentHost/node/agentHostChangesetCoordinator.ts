@@ -22,10 +22,12 @@ import {
 	computeChangesSummaryFromLiveState,
 	computeChangesSummaryFromPersistedDiffs,
 	IAgentHostChangesetService,
+	META_CHANGES_SUMMARY,
 	META_CHANGESET_SESSION,
 	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
 } from './agentHostChangesetService.js';
+import { ChangesSummary } from '../common/state/protocol/channels-session/state.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -45,6 +47,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
+	[META_CHANGES_SUMMARY]: true,
 	[META_LEGACY_DIFFS]: true,
 };
 
@@ -136,13 +139,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * `AgentService` already issues for title / read / archive / config
 	 * keys.
 	 */
-	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+	onSessionRestored(sessionStr: string): void {
 		this._changesets.registerStaticChangesets(sessionStr);
-		this._changesets.restorePersistedStaticChangesets(sessionStr, {
-			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
-			sessionRaw: metadata[META_CHANGESET_SESSION],
-			legacyRaw: metadata[META_LEGACY_DIFFS],
-		});
+
 		// `addSubscriber`'s 0→1 trigger may have fired before the session
 		// state existed; now that `summary.workingDirectory` is populated,
 		// drain the deferred refresh. Idempotent — the per-session
@@ -376,6 +375,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 			return entry;
 		}
 
+		// Check if the metadata contains the changes summary. In the past we
+		// used to store the changesets in the session database but we have
+		// since moved to a more efficient storage mechanism by only storing
+		// the changes summary.
+		const changesSummary = metadata[META_CHANGES_SUMMARY];
+		if (changesSummary !== undefined) {
+			return { ...entry, changes: JSON.parse(changesSummary) as ChangesSummary };
+		}
+
 		// Ready live state for an unopened session: synthesise the aggregate
 		// from the live `changeKind: 'session'` changeset state. Counts stay
 		// in lockstep with the actual changeset state for the session-list
@@ -383,27 +391,32 @@ export class ChangesetSessionCoordinator extends Disposable {
 		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
 		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
 		if (liveChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this._changesets.persistChangesSummary(sessionStr, liveChanges);
 			return { ...entry, changes: liveChanges };
 		}
 
 		// No live source — try persisted blobs (if the caller batched them).
-		const uncommittedRaw = metadata[META_CHANGESET_UNCOMMITTED];
 		const sessionRaw = metadata[META_CHANGESET_SESSION];
 		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (uncommittedRaw === undefined && sessionRaw === undefined && legacyRaw === undefined) {
+		if (sessionRaw === undefined && legacyRaw === undefined) {
 			return entry;
 		}
+
+		// Extract the changes summary from the persisted static changesets
 		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, {
-			uncommittedRaw,
 			sessionRaw,
 			legacyRaw,
 		});
+
 		// `listSessions` must not seed full changeset state for every row;
 		// it only parses persisted blobs enough to render the chip aggregate.
 		// Once the session is opened via `restoreSession`, the live overlay in
 		// `AgentService.listSessions` replaces this parse-only aggregate.
 		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
 		if (persistedChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this._changesets.persistChangesSummary(sessionStr, persistedChanges);
 			return { ...entry, changes: persistedChanges };
 		}
 		return entry;

@@ -27,7 +27,7 @@ import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedActio
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
 import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -38,7 +38,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { AgentHostChangesetService, IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { AgentHostChangesetService, IAgentHostChangesetService, META_CHANGES_SUMMARY } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
@@ -1267,6 +1267,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
 		let isArchived: boolean | undefined;
+		let changes: ChangesSummary | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
@@ -1294,10 +1295,16 @@ export class AgentService extends Disposable implements IAgentService {
 						} else if (m.isDone !== undefined) {
 							isArchived = m.isDone === 'true';
 						}
-						// Capture the batched changeset blobs verbatim — the
-						// coordinator parses, validates, and applies them
-						// after `restoreSession` registers the static states.
+
 						changesetMetadata = m as Record<string, string | undefined>;
+						if (changesetMetadata[META_CHANGES_SUMMARY]) {
+							try {
+								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
 						if (m.configValues) {
 							try {
 								persistedConfigValues = JSON.parse(m.configValues);
@@ -1334,6 +1341,7 @@ export class AgentService extends Disposable implements IAgentService {
 			model: meta.model,
 			agent: meta.agent,
 			workingDirectory: meta.workingDirectory?.toString(),
+			changes: meta.changes ?? changes,
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
@@ -1349,7 +1357,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// active-session autorun subscribing in parallel with the
 		// chat-view); now that `summary.workingDirectory` is populated,
 		// re-triggering the refresh dispatches to the compute path.
-		this._changesetCoordinator.onSessionRestored(sessionStr, changesetMetadata ?? {});
+		this._changesetCoordinator.onSessionRestored(sessionStr);
 
 		// Restore persisted `_meta` (e.g. git state) onto the new session
 		// state. This dispatches a SessionMetaChanged action.
