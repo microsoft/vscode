@@ -14,6 +14,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -47,6 +48,7 @@ export class NewChatWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
@@ -118,8 +120,8 @@ export class NewChatWidget extends Disposable {
 		// Create initial session for any workspace already selected at construct time.
 		// If the selection arrives later (provider registers asynchronously), the
 		// picker fires onDidSelectWorkspace and our listener handles it.
-		// Skip if an active session already exists (restored by openNewSessionView
-		// from a pending new session when navigating back from another session).
+		// Skip if an active session already exists (restored by openNewSession
+		// from a new-session draft when navigating back from another session).
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (!this._syncWorkspacePickerFromActiveSession() && restoredFolderUri) {
 			this._createNewSession(restoredFolderUri, this._newChatInput.sessionTypePicker.selectedPick);
@@ -129,7 +131,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * If a pending session was restored by {@link openNewSessionView}, sync
+	 * If a new-session draft was restored by {@link openNewSession}, sync
 	 * the workspace picker to match the session's workspace. The picker may
 	 * have restored a workspace from a different provider (e.g. remote vs
 	 * local), so overwrite it with the session's actual workspace without
@@ -175,11 +177,14 @@ export class NewChatWidget extends Disposable {
 		const effectivePick = pick && this._isPreferredServable(folderUri, pick) ? pick : undefined;
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
-			return this.sessionsManagementService.createNewSession(folderUri, effectivePick
-				? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
-				: fallbackProviderId
-					? { providerId: fallbackProviderId }
-					: undefined);
+			return this.sessionsViewService.openNewSession({
+				folderUri,
+				...(effectivePick
+					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
+					: fallbackProviderId
+						? { providerId: fallbackProviderId }
+						: undefined),
+			});
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 			return undefined;
@@ -387,7 +392,7 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 
 		if (!folderUri) {
-			this.sessionsManagementService.unsetNewSession();
+			this.sessionsViewService.unsetNewSession();
 			return;
 		}
 

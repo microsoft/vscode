@@ -9,6 +9,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionOpenerParticipant, ISessionOpenOptions, sessionOpenerRegistry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 
 /**
  * Routes session open requests in the Agents window through the
@@ -21,12 +22,13 @@ class SessionsOpenerParticipant implements ISessionOpenerParticipant {
 
 	async handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const target = sessionsManagementService.getSession(session.resource);
 		if (!target) {
 			return false;
 		}
 
-		await sessionsManagementService.openSession(session.resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
+		await sessionsViewService.openSession(session.resource, { preserveFocus: openOptions?.editorOptions?.preserveFocus });
 		return true;
 	}
 }
