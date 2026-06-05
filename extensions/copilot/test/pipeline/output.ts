@@ -114,16 +114,17 @@ export function resolveOutputPath(inputPath: string, explicitPath: string | unde
 		return path.resolve(explicitPath);
 	}
 	const parsed = path.parse(inputPath);
-	return path.join(parsed.dir, `${parsed.name}_output.json`);
+	return path.join(parsed.dir, `${parsed.name}_output.jsonl`);
 }
 
 /**
- * Write validated samples to a JSON file.
+ * Write validated samples to a JSON Lines file (one JSON object per line).
  * Samples are sorted by rowIndex for deterministic output.
  *
- * The output is written incrementally as a JSON array via a write stream — each
- * sample is JSON-stringified individually, so a multi-GB output never has to be
- * materialized as a single string (which would hit V8's ~512 MiB string limit).
+ * JSONL was chosen over a pretty-printed JSON array specifically so the writer
+ * (and any reader) can operate one record at a time, with no surrounding
+ * brackets/commas to track. This keeps memory bounded for multi-GB outputs and
+ * avoids hitting V8's ~512 MiB max-string-length limit.
  */
 export async function writeSamples(
 	outputPath: string,
@@ -151,30 +152,16 @@ export async function writeSamples(
 
 	const writer = openWriteStream(resolvedPath);
 	let fileSize = 0;
-	const append = async (chunk: string) => {
-		await writer.write(chunk);
-		fileSize += Buffer.byteLength(chunk, 'utf-8');
-	};
 
 	try {
-		if (validSamples.length === 0) {
-			await append('[]');
-		} else {
-			await append('[\n');
-			for (let i = 0; i < validSamples.length; i++) {
-				const sample = validSamples[i];
-				const out = {
-					messages: sample.messages.map(m => ({ role: m.role, content: m.content })),
-					metadata: sample.metadata,
-				};
-				const formatted = JSON.stringify(out, null, 2)
-					.split('\n')
-					.map(line => '  ' + line)
-					.join('\n');
-				await append(formatted);
-				await append(i < validSamples.length - 1 ? ',\n' : '\n');
-			}
-			await append(']');
+		for (const sample of validSamples) {
+			const out = {
+				messages: sample.messages.map(m => ({ role: m.role, content: m.content })),
+				metadata: sample.metadata,
+			};
+			const line = JSON.stringify(out) + '\n';
+			await writer.write(line);
+			fileSize += Buffer.byteLength(line, 'utf-8');
 		}
 		await writer.close();
 	} catch (err) {

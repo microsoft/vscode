@@ -275,7 +275,7 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 			const end = Math.min(start + chunkSize, totalRecords);
 			workers.push({
 				chunkPath: path.join(tmpDir, `chunk_${w}.json`),
-				resultPath: path.join(tmpDir, `result_${w}.json`),
+				resultPath: path.join(tmpDir, `result_${w}.jsonl`),
 				start,
 				count: end - start,
 			});
