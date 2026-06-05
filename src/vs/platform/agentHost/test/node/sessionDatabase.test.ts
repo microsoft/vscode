@@ -448,6 +448,32 @@ suite('SessionDatabase', () => {
 		});
 	});
 
+	// ---- Turn checkpoint refs -------------------------------------------
+
+	suite('turn checkpoint refs', () => {
+
+		test('getTurnCheckpointRef falls back to `event_id` when the key is the SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnCheckpointRef('request_aaa', 'ref-1');
+
+			assert.strictEqual(await db.getTurnCheckpointRef('sdk-evt-1'), 'ref-1');
+		});
+
+		test('getPreviousCheckpointRef falls back to `event_id` when the key is the SDK event id', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('request_aaa');
+			await db.createTurn('request_bbb');
+			await db.setTurnEventId('request_aaa', 'sdk-evt-1');
+			await db.setTurnEventId('request_bbb', 'sdk-evt-2');
+			await db.setTurnCheckpointRef('request_aaa', 'ref-1');
+			await db.setTurnCheckpointRef('request_bbb', 'ref-2');
+
+			assert.strictEqual(await db.getPreviousCheckpointRef('sdk-evt-2'), 'ref-1');
+		});
+	});
+
 	// ---- Dispose --------------------------------------------------------
 
 	suite('dispose', () => {

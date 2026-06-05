@@ -24,6 +24,7 @@ interface SessionConfig {
 
 const SESSIONS: readonly SessionConfig[] = [
 	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2' },
+	{ name: 'Copilot CLI Sandbox', scenarioId: 'smoke-hello-copilot-sandbox', reply: 'MOCKED_COPILOT_SANDBOX_RESPONSE', scenarioId2: 'smoke-hello-copilot-sandbox-2', reply2: 'MOCKED_COPILOT_SANDBOX_RESPONSE_2' },
 	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
 	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
@@ -51,7 +52,7 @@ export function setup(logger: Logger) {
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
 
-			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
+			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg), verbose: true });
 			logger.log(`Mock LLM server started at ${mockServer.url}`);
 		});
 
@@ -84,9 +85,14 @@ export function setup(logger: Logger) {
 			// sessions.chat.localAgent.enabled exposes the "Local" session type.
 			await app.workbench.settingsEditor.addUserSettings([
 				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
+				// Use token auth (not HMAC) so the SDK can call /models and
+				// /models/session against the mock server without HMAC validation.
+				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
 				['chat.allowAnonymousAccess', 'true'],
 				['github.copilot.chat.githubMcpServer.enabled', 'false'],
 				['sessions.chat.localAgent.enabled', 'true'],
+				['github.copilot.chat.cli.sandbox.enabled', '"on"'],
+				['github.copilot.chat.cli.sessionEventLogging.enabled', 'true'],
 			]);
 
 			// `--enable-smoke-test-driver` (set by the runner) skips the auth dialog.

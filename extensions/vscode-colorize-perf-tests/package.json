@@ -18,6 +18,9 @@
     "watch": "gulp watch-extension:vscode-colorize-perf-tests",
     "compile": "gulp compile-extension:vscode-colorize-perf-tests"
   },
+  "dependencies": {
+    "jsonc-parser": "^3.2.0"
+  },
   "devDependencies": {
     "@types/node": "24.x"
   },
