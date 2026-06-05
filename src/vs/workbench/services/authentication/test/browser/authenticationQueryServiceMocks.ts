@@ -205,11 +205,17 @@ export class TestMcpAccessService extends BaseTestService implements IAuthentica
 	private readonly _onDidChangeMcpSessionAccess = this._register(new Emitter<any>());
 	onDidChangeMcpSessionAccess = this._onDidChangeMcpSessionAccess.event;
 
-	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined {
-		this.trackCall('isAccessAllowed', providerId, accountName, mcpServerId);
+	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl?: string): boolean | undefined {
+		this.trackCall('isAccessAllowed', providerId, accountName, mcpServerId, mcpServerUrl);
 		const servers = this.data.get(this.getKey(providerId, accountName)) || [];
 		const server = servers.find((s: any) => s.id === mcpServerId);
-		return server?.allowed;
+		if (!server) {
+			return undefined;
+		}
+		if (mcpServerUrl !== undefined && server.url !== mcpServerUrl) {
+			return undefined;
+		}
+		return server.allowed;
 	}
 
 	readAllowedMcpServers(providerId: string, accountName: string): any[] {

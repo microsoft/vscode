@@ -10,6 +10,26 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
+/**
+ * Compares two MCP server URLs for the purpose of access binding. They are compared by their canonical
+ * WHATWG URL form, so cosmetic differences in the origin (host case, default port, encoding) and a root
+ * trailing slash ("foo.com" vs "foo.com/") don't force a spurious re-consent — while a trailing slash on
+ * a path ("foo.com/a" vs "foo.com/a/") is preserved as a meaningful difference between endpoints.
+ */
+function urlsEqual(a: string | undefined, b: string | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (a === undefined || b === undefined) {
+		return false;
+	}
+	try {
+		return new URL(a).toString() === new URL(b).toString();
+	} catch {
+		return false;
+	}
+}
+
 export interface AllowedMcpServer {
 	id: string;
 	name: string;
@@ -22,6 +42,12 @@ export interface AllowedMcpServer {
 	lastUsed?: number;
 	// If true, this comes from the product.json
 	trusted?: boolean;
+	/**
+	 * The MCP server URL the grant was made for. A token is only released to a server whose current
+	 * URL matches this, so changing the URL while keeping the same id requires the user to re-consent.
+	 * Undefined for stdio servers, which have no URL.
+	 */
+	url?: string;
 }
 
 export const IAuthenticationMcpAccessService = createDecorator<IAuthenticationMcpAccessService>('IAuthenticationMcpAccessService');
@@ -35,10 +61,13 @@ export interface IAuthenticationMcpAccessService {
 	 * @param providerId The id of the authentication provider
 	 * @param accountName The account name that access is checked for
 	 * @param mcpServerId The id of the MCP server requesting access
+	 * @param mcpServerUrl The MCP server's current URL. When given, access is only allowed if it matches
+	 * the URL stored when access was granted, so re-pointing a server at a new endpoint requires the user
+	 * to re-consent. Omit it to check by id alone (e.g. when inspecting the stored decision).
 	 * @returns Returns true or false if the user has opted to permanently grant or disallow access, and undefined
 	 * if they haven't made a choice yet
 	 */
-	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined;
+	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl?: string): boolean | undefined;
 	readAllowedMcpServers(providerId: string, accountName: string): AllowedMcpServer[];
 	updateAllowedMcpServers(providerId: string, accountName: string, mcpServers: AllowedMcpServer[]): void;
 	removeAllowedMcpServers(providerId: string, accountName: string): void;
@@ -58,7 +87,7 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 		super();
 	}
 
-	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined {
+	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl?: string): boolean | undefined {
 		const trustedMCPServerAuthAccess = this._productService.trustedMcpAuthAccess;
 		if (Array.isArray(trustedMCPServerAuthAccess)) {
 			if (trustedMCPServerAuthAccess.includes(mcpServerId)) {
@@ -71,6 +100,11 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 		const allowList = this.readAllowedMcpServers(providerId, accountName);
 		const mcpServerData = allowList.find(mcpServer => mcpServer.id === mcpServerId);
 		if (!mcpServerData) {
+			return undefined;
+		}
+		// A grant is bound to the URL it was made for: if the server now has a different URL, the user
+		// must re-consent before a token is released to it.
+		if (mcpServerUrl !== undefined && !urlsEqual(mcpServerData.url, mcpServerUrl)) {
 			return undefined;
 		}
 		// This property didn't exist on this data previously, inclusion in the list at all indicates allowance
@@ -130,6 +164,10 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 				// Update name if provided and not already set to a proper name
 				if (mcpServer.name && mcpServer.name !== mcpServer.id && allowList[index].name !== mcpServer.name) {
 					allowList[index].name = mcpServer.name;
+				}
+				// Only overwrite the URL when one is provided, so management toggles (which omit it) keep the binding.
+				if (mcpServer.url !== undefined) {
+					allowList[index].url = mcpServer.url;
 				}
 			}
 		}

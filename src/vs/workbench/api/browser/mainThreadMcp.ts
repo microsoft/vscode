@@ -364,6 +364,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		clientSecret?: string,
 	): Promise<string | undefined> {
 		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId, clientSecret, resource, audience }, true);
+		// A token is only released to a server whose current URL matches the one the user consented to, so
+		// changing the URL while keeping the same id requires re-consent. Stdio servers have no URL.
+		const mcpServerUrl = server.launch.type === McpServerTransportType.HTTP ? server.launch.uri.toString(true) : undefined;
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -373,13 +376,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		let session: AuthenticationSession;
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
-			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
+			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id, mcpServerUrl)) {
 				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopes, server.id, server.label);
 				this._serverAuthTracking.track(providerId, serverId, scopes);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
-			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
+			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id, mcpServerUrl)) {
 				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopes, server.id, server.label);
 				this._serverAuthTracking.track(providerId, serverId, scopes);
 				return sessions[0].accessToken;
@@ -428,7 +431,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			);
 		}
 
-		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true }]);
+		this.authenticationMCPServerAccessService.updateAllowedMcpServers(providerId, session.account.label, [{ id: server.id, name: server.label, allowed: true, url: mcpServerUrl }]);
 		this.authenticationMcpServersService.updateAccountPreference(server.id, providerId, session.account);
 		this.authenticationMCPServerUsageService.addAccountUsage(providerId, session.account.label, scopes, server.id, server.label);
 		this._serverAuthTracking.track(providerId, serverId, scopes);
