@@ -175,14 +175,21 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	registerTerminalInstanceWithExecutionId(terminalExecutionId: string, instance: ITerminalInstance): IDisposable {
+		// If this id is already registered (re-registration), dispose the previous listener
+		// store first so we don't leak listeners. The new registration replaces the mapping
+		// and installs its own onDisposed listener below.
+		this._terminalInstanceListenersByExecutionId.deleteAndDispose(terminalExecutionId);
 		this._terminalInstancesByExecutionId.set(terminalExecutionId, instance);
+		const instanceStore = new DisposableStore();
 		const unregister = () => {
-			if (this._terminalInstancesByExecutionId.get(terminalExecutionId) === instance) {
-				this._terminalInstancesByExecutionId.delete(terminalExecutionId);
+			// Only tear down the mapping/listener if it still points at this instance.
+			// If a newer registration has replaced us, leave its state alone.
+			if (this._terminalInstancesByExecutionId.get(terminalExecutionId) !== instance) {
+				return;
 			}
+			this._terminalInstancesByExecutionId.delete(terminalExecutionId);
 			this._terminalInstanceListenersByExecutionId.deleteAndDispose(terminalExecutionId);
 		};
-		const instanceStore = new DisposableStore();
 		instanceStore.add(instance.onDisposed(unregister));
 		this._terminalInstanceListenersByExecutionId.set(terminalExecutionId, instanceStore);
 		return toDisposable(unregister);
