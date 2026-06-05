@@ -40,17 +40,15 @@ export async function resolvePullArtifact(
 			return data;
 		}
 	}
-	// Fallback 1: Get global ID from a task sessions
+	// Fallback 1: Get global ID from a task session
 	if (agentTaskSessions && agentTaskSessions.length > 0) {
 		// TODO: update package with new type
-		const session = agentTaskSessions.filter((s: AgentTaskSession & { resource_global_id?: string }) => !!s.resource_global_id)?.[0];
-		if (session && (session as AgentTaskSession & { resource_global_id?: string }).resource_global_id) {
-			const globalId = (session as AgentTaskSession & { resource_global_id?: string }).resource_global_id;
-			if (globalId) {
-				const data = await getPullRequestFromGlobalId(octokit, log, globalId);
-				if (data) {
-					return data;
-				}
+		const sessions = agentTaskSessions as (AgentTaskSession & { resource_global_id?: string })[];
+		const globalId = sessions.find(s => !!s.resource_global_id)?.resource_global_id;
+		if (globalId) {
+			const data = await getPullRequestFromGlobalId(octokit, log, globalId);
+			if (data) {
+				return data;
 			}
 		}
 	}

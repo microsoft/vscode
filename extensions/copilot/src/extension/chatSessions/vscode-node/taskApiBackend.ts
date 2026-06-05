@@ -110,8 +110,8 @@ function taskToSessionInfo(task: AgentTask): SessionInfo {
  * recover the repo identity. The Task API wire shape only carries `task.repository.id`, so
  * when the caller doesn't already know the repo (e.g. the global `listTasks` path) this is
  * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks. Also
- * exported so the provider can derive `{owner, repo}` for the inline "Create pull request"
- * confirmation on PR-less tasks.
+ * exported so the provider can derive `{owner, repo}` for the "Create pull request"
+ * toolbar action on PR-less tasks.
  */
 export function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
 	if (!htmlUrl) {
@@ -191,11 +191,10 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			event_content: params.prompt,
 			problem_statement: params.problemStatement,
 			base_ref: params.baseRef,
-			// v2 default: don't auto-create a PR. The provider surfaces an inline
-			// "Create pull request" confirmation button at the end of the task's history
-			// when the task completes without an attached pull artifact, so the user can
-			// opt in. See `ChatSessionContentBuilder.buildTaskHistory` + the
-			// `kind: 'create-pr'` branch in `handleConfirmationData`.
+			// v2 default: don't auto-create a PR. The provider surfaces a "Create pull
+			// request" toolbar action in the chat input when the task completes without an
+			// attached pull artifact, so the user can opt in. See
+			// `CopilotCloudSessionsProvider.handleCreatePullRequestForTaskCommand`.
 			create_pull_request: false,
 			event_type: 'visual_studio_code_remote_agent_tool_invoked',
 			...(params.headRef && { head_ref: params.headRef }),

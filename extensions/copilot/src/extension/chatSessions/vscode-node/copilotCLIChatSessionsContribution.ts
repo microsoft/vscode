@@ -2017,7 +2017,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			stream.warning(l10n.t('You have uncommitted changes in your workspace. The cloud agent will start from the last committed state. Consider committing your changes first if you want to include them.'));
 		}
 
-		const prInfo = await this.cloudSessionProvider.delegate(request, stream, context, token, { kind: 'delegation', prompt: request.prompt, chatContext: context });
+		const prInfo = await this.cloudSessionProvider.delegate(request, stream, context, token, { prompt: request.prompt, chatContext: context });
 		await this.recordPushToSession(session, `/delegate ${request.prompt}`, prInfo);
 
 	}

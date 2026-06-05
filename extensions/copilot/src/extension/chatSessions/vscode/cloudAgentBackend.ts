@@ -223,9 +223,9 @@ export interface TaskCloudAgentBackend extends CloudAgentBackendCommon {
 
 	/**
 	 * Materialise a pull request for a task that finished without one. The v2 backend
-	 * no longer auto-creates a PR on `createTask`, so the provider offers an inline
-	 * "Create pull request" confirmation button at the end of a completed task's history
-	 * that calls this method when accepted.
+	 * no longer auto-creates a PR on `createTask`, so the provider offers a "Create pull
+	 * request" toolbar action in the chat input for a settled, PR-less task that calls this
+	 * method when invoked.
 	 */
 	createPullRequestForTask(
 		owner: string,

@@ -13,7 +13,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
-import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, validateMetadata } from '../copilotCloudSessionsProvider';
+import { normalizeInitialSessionOptions, parseSessionLogChunksSafely } from '../copilotCloudSessionsProvider';
 import { TaskApiBackend, parseRepoFromTaskUrl } from '../taskApiBackend';
 
 vi.mock('vscode', async () => {
@@ -414,34 +414,5 @@ describe('parseRepoFromTaskUrl', () => {
 
 	it('returns undefined when the URL is undefined', () => {
 		expect(parseRepoFromTaskUrl(undefined)).toBeUndefined();
-	});
-});
-
-describe('validateMetadata (ConfirmationMetadata discriminator)', () => {
-	const minimalChatContext = {} as unknown as vscode.ChatContext;
-
-	it('accepts a delegation confirmation with explicit kind', () => {
-		expect(() => validateMetadata({
-			kind: 'delegation',
-			prompt: 'do thing',
-			chatContext: minimalChatContext,
-		})).not.toThrow();
-	});
-
-	it('accepts a legacy delegation confirmation without a kind discriminator', () => {
-		// Confirmations stored before the discriminator existed look like this.
-		expect(() => validateMetadata({
-			prompt: 'do thing',
-			chatContext: minimalChatContext,
-		})).not.toThrow();
-	});
-
-	it('rejects null or non-object input', () => {
-		expect(() => validateMetadata(null)).toThrow();
-		expect(() => validateMetadata('string')).toThrow();
-	});
-
-	it('rejects an unknown discriminator', () => {
-		expect(() => validateMetadata({ kind: 'something-else' })).toThrow(/unknown kind/);
 	});
 });

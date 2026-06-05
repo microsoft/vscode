@@ -47,23 +47,10 @@ import MarkdownIt = require('markdown-it');
 
 const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.t('Sign in to GitHub to access Copilot cloud sessions.') } };
 
-/**
- * Payload carried on a `stream.confirmation(...)` part rendered by the cloud-sessions
- * provider for the pre-delegation prompt (`kind: 'delegation'`), where the user picks
- * Authorize / Commit / Push / Delegate before we hand off to the cloud agent.
- *
- * The discriminator MUST be set on every confirmation we emit so `handleConfirmationData`
- * can route correctly; legacy stored confirmations without `kind` are treated as
- * `delegation` for backwards-compat.
- */
-type ConfirmationMetadata =
-	| DelegationConfirmationMetadata;
-
-interface DelegationConfirmationMetadata {
-	readonly kind: 'delegation';
-	readonly prompt: string;
-	readonly references?: readonly vscode.ChatPromptReference[];
-	readonly chatContext: vscode.ChatContext;
+interface ConfirmationMetadata {
+	prompt: string;
+	references?: readonly vscode.ChatPromptReference[];
+	chatContext: vscode.ChatContext;
 }
 
 type InitialSessionOption = {
@@ -71,27 +58,19 @@ type InitialSessionOption = {
 	readonly value: string | vscode.ChatSessionProviderOptionItem;
 };
 
-export function validateMetadata(metadata: unknown): asserts metadata is ConfirmationMetadata {
+function validateMetadata(metadata: unknown): asserts metadata is ConfirmationMetadata {
 	if (typeof metadata !== 'object') {
 		throw new Error('Invalid confirmation metadata: not an object.');
 	}
 	if (metadata === null) {
 		throw new Error('Invalid confirmation metadata: null value.');
 	}
-	const m = metadata as Partial<ConfirmationMetadata> & Record<string, unknown>;
-	// Legacy delegation confirmations stored before the discriminator was added carry
-	// `prompt` + `chatContext` but no `kind`. Treat those as delegation.
-	const kind = m.kind ?? (typeof m.prompt === 'string' ? 'delegation' : undefined);
-	if (kind === 'delegation') {
-		if (typeof m.prompt !== 'string') {
-			throw new Error('Invalid confirmation metadata: missing or invalid prompt.');
-		}
-		if (typeof m.chatContext !== 'object' || m.chatContext === null) {
-			throw new Error('Invalid confirmation metadata: missing or invalid chatContext.');
-		}
-		return;
+	if (typeof (metadata as ConfirmationMetadata).prompt !== 'string') {
+		throw new Error('Invalid confirmation metadata: missing or invalid prompt.');
 	}
-	throw new Error(`Invalid confirmation metadata: unknown kind ${String(kind)}.`);
+	if (typeof (metadata as ConfirmationMetadata).chatContext !== 'object' || (metadata as ConfirmationMetadata).chatContext === null) {
+		throw new Error('Invalid confirmation metadata: missing or invalid chatContext.');
+	}
 }
 
 function describeRuntimeValue(value: unknown): string {
@@ -315,6 +294,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	})[] | undefined;
 	private activeSessionIds: Set<string> = new Set();
 	private activeSessionPollingInterval: ReturnType<typeof setInterval> | undefined;
+	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
+	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
+	private readonly _createPullRequestInFlightTaskIds = new Set<string>();
 	private readonly plainTextRenderer = new PlainTextRenderer();
 	private readonly gitOperationsManager = new CopilotCloudGitOperationsManager(this.logService, this._gitService, this._gitExtensionService);
 
@@ -1867,7 +1849,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		stream: vscode.ChatResponseStream,
 		context: vscode.ChatContext,
 		token: vscode.CancellationToken,
-		metadata: DelegationConfirmationMetadata,
+		metadata: ConfirmationMetadata,
 		base_ref?: string,
 		head_ref?: string
 	): Promise<vscode.ChatResponsePullRequestPart> {
@@ -2130,6 +2112,16 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return;
 		}
 
+		// Re-entrancy guard: ignore repeat invocations while a create-PR request for this task is
+		// still in flight (e.g. the toolbar action triggered again before the first call settled)
+		// so we don't submit duplicate PRs. Also hide the toolbar action immediately; it is
+		// restored on failure below, and on success `refresh()` re-evaluates the context key.
+		if (this._createPullRequestInFlightTaskIds.has(taskId)) {
+			return;
+		}
+		this._createPullRequestInFlightTaskIds.add(taskId);
+		this.setCanCreatePullRequestContext(false);
+
 		try {
 			await vscode.window.withProgress(
 				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Creating pull request') },
@@ -2146,7 +2138,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					/* __GDPR__
 						"copilotcloud.chat.createPRFromTask" : {
 							"owner": "joshspicer",
-							"comment": "Event sent when the user clicks the inline 'Create pull request' button on a completed v2 cloud task.",
+							"comment": "Event sent when the user invokes the 'Create pull request' toolbar action on a settled v2 cloud task without a pull request.",
 							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the create-pull-request call succeeded or failed." }
 						}
 					*/
@@ -2167,7 +2159,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				outcome: 'failure'
 			});
 			vscode.window.showErrorMessage(vscode.l10n.t('Failed to create pull request: {0}', error instanceof Error ? error.message : String(error)));
+			// The task is still settled and PR-less, so re-enable the toolbar action for a retry.
+			this.setCanCreatePullRequestContext(true);
 			return;
+		} finally {
+			this._createPullRequestInFlightTaskIds.delete(taskId);
 		}
 		this.refresh();
 	}
@@ -2427,11 +2423,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				message,
 				{
 					metadata: {
-						kind: 'delegation',
 						prompt: request.prompt,
 						references: request.references,
 						chatContext: context,
-					} satisfies DelegationConfirmationMetadata
+					} satisfies ConfirmationMetadata
 				},
 				buttons
 			);
@@ -2443,11 +2438,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				context,
 				token,
 				{
-					kind: 'delegation',
 					prompt: request.prompt,
 					references: request.references,
 					chatContext: context
-				} satisfies DelegationConfirmationMetadata,
+				} satisfies ConfirmationMetadata,
 			);
 		}
 	}
