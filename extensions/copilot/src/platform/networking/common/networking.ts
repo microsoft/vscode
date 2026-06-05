@@ -150,6 +150,26 @@ export function stringifyUrlOrRequestMetadata(urlOrRequestMetadata: string | Req
 	return JSON.stringify(urlOrRequestMetadata);
 }
 
+/**
+ * Whether the given value is {@link RequestMetadata} (routed through CAPI) rather
+ * than a literal URL string (fetched directly, e.g. BYOK / custom endpoints).
+ *
+ * This is the exact discriminant used by `networkRequest`: a `RequestMetadata`
+ * object is dispatched via {@link ICAPIClientService.makeRequest}, whereas a
+ * `string` URL is sent straight to {@link IFetcherService.fetch}.
+ */
+export function isCAPIRequestMetadata(urlOrRequestMetadata: string | RequestMetadata): urlOrRequestMetadata is RequestMetadata {
+	return typeof urlOrRequestMetadata !== 'string';
+}
+
+/**
+ * Whether requests for this endpoint are routed through CAPI (the Copilot proxy)
+ * rather than fetched directly from a literal URL (BYOK / custom endpoints).
+ */
+export function isCAPIEndpoint(endpoint: IEndpoint): boolean {
+	return isCAPIRequestMetadata(endpoint.urlOrRequestMetadata);
+}
+
 export interface IEmbeddingsEndpoint extends IEndpoint {
 	readonly maxBatchSize: number;
 }
@@ -504,7 +524,7 @@ function networkRequest(
 		// pass the controller abort signal to the request
 		request.signal = abort.signal;
 	}
-	if (typeof endpoint.urlOrRequestMetadata === 'string') {
+	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
@@ -520,7 +540,7 @@ function networkRequest(
 		});
 		return requestPromise;
 	} else {
-		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
+		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata);
 	}
 }
 
