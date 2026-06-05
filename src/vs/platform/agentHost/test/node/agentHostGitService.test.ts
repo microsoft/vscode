@@ -299,7 +299,7 @@ suite('AgentHostGitService', () => {
 		test('keeps missing git-lfs error over the later generic fatal line', () => {
 			const err = Object.assign(new Error('Command failed'), { code: 128 });
 			const stderr = [
-				"Preparing worktree (new branch 'agents/example')",
+				'Preparing worktree (new branch \'agents/example\')',
 				'git-lfs filter-process: git-lfs: command not found',
 				'fatal: the remote end hung up unexpectedly',
 			].join('\n');
