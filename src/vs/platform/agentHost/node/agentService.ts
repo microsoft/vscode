@@ -1169,8 +1169,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return contents.value.buffer;
 		} catch (err) {
 			if (proxiedUri !== originalUri) {
-				const contents = await this._fileService.readFile(originalUri);
-				return contents.value.buffer;
+				try {
+					const contents = await this._fileService.readFile(originalUri);
+					return contents.value.buffer;
+				} catch {
+					// ignore
+				}
 			}
 			throw err;
 		}

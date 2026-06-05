@@ -11,9 +11,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import {
 	AgentHostPermissionMode,
-	IAgentHostPermissionService,
+	IAgentHostResourceService,
 	IPendingResourceRequest,
-} from '../../../../../../platform/agentHost/common/agentHostPermissionService.js';
+} from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -25,11 +25,19 @@ import {
 	IChatInputNotificationService,
 } from '../../../browser/widget/input/chatInputNotificationService.js';
 
-class FakePermissionService extends Disposable implements IAgentHostPermissionService {
+class FakePermissionService extends Disposable implements IAgentHostResourceService {
 	declare readonly _serviceBrand: undefined;
 	readonly pending: ISettableObservable<readonly IPendingResourceRequest[]> = observableValue('pending', []);
 	readonly allPending: IObservable<readonly IPendingResourceRequest[]> = this.pending;
 
+	list = async () => ({ entries: [] });
+	read = async () => ({ bytes: undefined as unknown as never });
+	write = async () => { /* */ };
+	del = async () => { /* */ };
+	move = async () => { /* */ };
+	copy = async () => { /* */ };
+	resolve = async () => ({ uri: '', type: 'file' as never });
+	mkdir = async () => { /* */ };
 	check = async () => true;
 	request = async () => { /* */ };
 	pendingFor = () => this.pending;
@@ -109,7 +117,7 @@ suite('AgentHostPermissionUiContribution', () => {
 
 	function createContribution(): AgentHostPermissionUiContribution {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IAgentHostPermissionService, permissionService);
+		instantiationService.stub(IAgentHostResourceService, permissionService);
 		instantiationService.stub(IChatInputNotificationService, notificationService);
 		instantiationService.stub(ILabelService, labelService);
 		const contribution = instantiationService.createInstance(AgentHostPermissionUiContribution);
