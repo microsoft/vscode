@@ -120,7 +120,7 @@ suite('AuthenticationMcpAccessService', () => {
 		});
 	});
 
-	suite('isAccessAllowed URL binding (security)', () => {
+	suite('isAccessAllowedForUrl URL binding (security)', () => {
 		const serverUrl = 'https://server.example.com/mcp';
 
 		test('grants access when the supplied URL matches the stored URL', () => {
@@ -128,7 +128,7 @@ suite('AuthenticationMcpAccessService', () => {
 				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
 			]);
 
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', serverUrl);
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl);
 			assert.strictEqual(result, true);
 		});
 
@@ -139,11 +139,11 @@ suite('AuthenticationMcpAccessService', () => {
 
 			// "foo.com" and "foo.com/" are the same origin, and the host is case-insensitive.
 			assert.strictEqual(
-				authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', 'https://server.example.com/'),
+				authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://server.example.com/'),
 				true
 			);
 			assert.strictEqual(
-				authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', 'https://SERVER.EXAMPLE.COM'),
+				authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://SERVER.EXAMPLE.COM'),
 				true
 			);
 		});
@@ -154,7 +154,7 @@ suite('AuthenticationMcpAccessService', () => {
 			]);
 
 			// A trailing slash on a path points at a different endpoint, so the user must re-consent.
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', 'https://server.example.com/mcp/');
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://server.example.com/mcp/');
 			assert.strictEqual(result, undefined);
 		});
 
@@ -163,7 +163,7 @@ suite('AuthenticationMcpAccessService', () => {
 				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
 			]);
 
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', 'https://evil.example.com/mcp');
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', 'https://evil.example.com/mcp');
 			assert.strictEqual(result, undefined);
 		});
 
@@ -173,32 +173,32 @@ suite('AuthenticationMcpAccessService', () => {
 				{ id: 'http-server', name: 'HTTP Server', allowed: true }
 			]);
 
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', serverUrl);
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl);
 			assert.strictEqual(result, undefined);
 		});
 
-		test('inspection without a URL returns the stored decision regardless of stored URL', () => {
+		test('inspection (isAccessAllowed) returns the stored decision regardless of stored URL', () => {
 			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
 				{ id: 'http-server', name: 'HTTP Server', allowed: true, url: serverUrl }
 			]);
 
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', undefined);
+			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server');
 			assert.strictEqual(result, true);
 		});
 
-		test('stdio servers (no URL on either side) are unaffected', () => {
+		test('stdio servers (inspection, no URL) are unaffected', () => {
 			authenticationMcpAccessService.updateAllowedMcpServers('github', 'user@example.com', [
 				{ id: 'stdio-server', name: 'Stdio Server', allowed: true }
 			]);
 
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'stdio-server', undefined);
+			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'stdio-server');
 			assert.strictEqual(result, true);
 		});
 
 		test('product.json trusted servers bypass the URL check', () => {
 			productService.trustedMcpAuthAccess = ['trusted-http-server'];
 
-			const result = authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'trusted-http-server', 'https://anything.example.com/mcp');
+			const result = authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'trusted-http-server', 'https://anything.example.com/mcp');
 			assert.strictEqual(result, true);
 		});
 
@@ -215,7 +215,7 @@ suite('AuthenticationMcpAccessService', () => {
 			const stored = authenticationMcpAccessService.readAllowedMcpServers('github', 'user@example.com')
 				.find(s => s.id === 'http-server');
 			assert.strictEqual(stored?.url, serverUrl);
-			assert.strictEqual(authenticationMcpAccessService.isAccessAllowed('github', 'user@example.com', 'http-server', serverUrl), true);
+			assert.strictEqual(authenticationMcpAccessService.isAccessAllowedForUrl('github', 'user@example.com', 'http-server', serverUrl), true);
 		});
 	});
 

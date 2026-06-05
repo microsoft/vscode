@@ -16,7 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
  * trailing slash ("foo.com" vs "foo.com/") don't force a spurious re-consent — while a trailing slash on
  * a path ("foo.com/a" vs "foo.com/a/") is preserved as a meaningful difference between endpoints.
  */
-function urlsEqual(a: string | undefined, b: string | undefined): boolean {
+export function urlsEqual(a: string | undefined, b: string | undefined): boolean {
 	if (a === b) {
 		return true;
 	}
@@ -57,17 +57,29 @@ export interface IAuthenticationMcpAccessService {
 	readonly onDidChangeMcpSessionAccess: Event<{ providerId: string; accountName: string }>;
 
 	/**
-	 * Check MCP server access to an account
+	 * Inspect the stored access decision for an MCP server, keyed by id alone. Used by management and
+	 * inspection surfaces (e.g. the "Manage Trusted MCP Servers" UI) that operate on a server id without
+	 * a live URL. For the security-critical token-release gate use {@link isAccessAllowedForUrl} instead.
 	 * @param providerId The id of the authentication provider
 	 * @param accountName The account name that access is checked for
 	 * @param mcpServerId The id of the MCP server requesting access
-	 * @param mcpServerUrl The MCP server's current URL. When given, access is only allowed if it matches
-	 * the URL stored when access was granted, so re-pointing a server at a new endpoint requires the user
-	 * to re-consent. Omit it to check by id alone (e.g. when inspecting the stored decision).
 	 * @returns Returns true or false if the user has opted to permanently grant or disallow access, and undefined
 	 * if they haven't made a choice yet
 	 */
-	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl?: string): boolean | undefined;
+	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined;
+	/**
+	 * Gate for releasing a token to an HTTP MCP server. Access is only allowed if {@link mcpServerUrl}
+	 * matches the URL stored when access was granted, so re-pointing a server at a new endpoint (while
+	 * keeping the same id) requires the user to re-consent. `product.json`-trusted servers bypass the
+	 * URL check. Only HTTP servers authenticate, so the URL is always known and therefore required.
+	 * @param providerId The id of the authentication provider
+	 * @param accountName The account name that access is checked for
+	 * @param mcpServerId The id of the MCP server requesting access
+	 * @param mcpServerUrl The MCP server's current URL
+	 * @returns Returns true or false if the user has opted to permanently grant or disallow access, and undefined
+	 * if they haven't made a choice yet (or the URL no longer matches the granted one)
+	 */
+	isAccessAllowedForUrl(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string): boolean | undefined;
 	readAllowedMcpServers(providerId: string, accountName: string): AllowedMcpServer[];
 	updateAllowedMcpServers(providerId: string, accountName: string, mcpServers: AllowedMcpServer[]): void;
 	removeAllowedMcpServers(providerId: string, accountName: string): void;
@@ -87,7 +99,15 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 		super();
 	}
 
-	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl?: string): boolean | undefined {
+	isAccessAllowed(providerId: string, accountName: string, mcpServerId: string): boolean | undefined {
+		return this._isAccessAllowed(providerId, accountName, mcpServerId, undefined);
+	}
+
+	isAccessAllowedForUrl(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string): boolean | undefined {
+		return this._isAccessAllowed(providerId, accountName, mcpServerId, mcpServerUrl);
+	}
+
+	private _isAccessAllowed(providerId: string, accountName: string, mcpServerId: string, mcpServerUrl: string | undefined): boolean | undefined {
 		const trustedMCPServerAuthAccess = this._productService.trustedMcpAuthAccess;
 		if (Array.isArray(trustedMCPServerAuthAccess)) {
 			if (trustedMCPServerAuthAccess.includes(mcpServerId)) {
