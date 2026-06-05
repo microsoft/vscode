@@ -2066,10 +2066,8 @@ class SessionDiscoveredEntry extends Disposable {
 			}
 			return true;
 		} catch (err) {
-			// We don't want to update _customizations/_plugin if aborted/cancelled.
-			// Where possible _customization and _plugin must remain stable during refresh/cancellations.
-			// Else if we cancel while refreshing and clear the plugin and customizations, then the Client will get empty customizations
-			// Which is wrong, at a minimum we shuld return the old details.
+			// Don't update `_customizations` / `_plugin` when cancelled.
+			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
 			if (token.isCancellationRequested) {
 				return false;
 			}
