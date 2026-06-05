@@ -68,7 +68,7 @@
 }
 
 .chat-composite-bar-session-title {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	display: flex;

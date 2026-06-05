@@ -17,7 +17,8 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -415,6 +416,28 @@ MenuRegistry.appendMenuItem(Menus.SessionHeaderContext, {
 	group: '1_view',
 	order: 1,
 	when: SessionIsCreatedContext,
+});
+
+registerAction2(class RenameSessionHeaderAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.sessionHeader.rename',
+			title: localize2('renameSessionHeader', "Rename..."),
+			menu: [{
+				id: Menus.SessionHeaderContext,
+				group: '2_edit',
+				order: 1,
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+			}],
+		});
+	}
+
+	override run(accessor: ServicesAccessor, session: IActiveSession | undefined): void {
+		if (!session) {
+			return;
+		}
+		accessor.get(ISessionsPartService).getSessionView(session.sessionId)?.startTitleEditing();
+	}
 });
 
 registerAction2(class CloseSessionAction extends Action2 {
