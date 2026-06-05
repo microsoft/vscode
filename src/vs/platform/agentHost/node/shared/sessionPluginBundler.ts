@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { hash } from '../../../../base/common/hash.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
@@ -82,10 +83,11 @@ export class SessionPluginBundler extends Disposable {
 	 *
 	 * Overwrites any previous bundle for this working directory. Returns a
 	 * {@link ClientPluginCustomization} pointing at the on-disk plugin root
-	 * with a content-based nonce, or `undefined` when there are no files.
+	 * with a content-based nonce, or `undefined` when there are no files or
+	 * cancellation was requested.
 	 */
-	async bundle(directories: readonly IDiscoveredDirectory[]): Promise<IBundleResult | undefined> {
-		if (directories.length === 0) {
+	async bundle(directories: readonly IDiscoveredDirectory[], token: CancellationToken = CancellationToken.None): Promise<IBundleResult | undefined> {
+		if (directories.length === 0 || token.isCancellationRequested) {
 			return undefined;
 		}
 
@@ -114,9 +116,15 @@ export class SessionPluginBundler extends Disposable {
 				}
 
 				const content = await this._fileService.readFile(file);
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
 				files.push({ destUri, content: content.value });
 				hashParts.push(`${hashKey}:${content.value.toString()}`);
 			}
+		}
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
 		hashParts.sort();
@@ -143,14 +151,29 @@ export class SessionPluginBundler extends Disposable {
 		} catch {
 			// Directory may not exist on first bundle.
 		}
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
 		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
 		await this._fileService.createFolder(dirname(manifestUri));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
 		for (const file of files) {
 			await this._fileService.createFolder(dirname(file.destUri));
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 			await this._fileService.writeFile(file.destUri, file.content);
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 		}
 
 		this._lastNonce = nonce;

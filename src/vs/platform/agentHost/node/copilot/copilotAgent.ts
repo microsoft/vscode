@@ -2048,7 +2048,7 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
-			const bundleResult = await this._bundler.bundle(directories);
+			const bundleResult = await this._bundler.bundle(directories, token);
 			if (token.isCancellationRequested) {
 				return false;
 			}

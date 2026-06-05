@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -297,6 +298,35 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 			writeCalls: 0,
 			deleteCalls: 0,
 		});
+	});
+
+	test('returns undefined without rewriting when cancelled', async () => {
+		await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
+
+		let writeCalls = 0;
+		let deleteCalls = 0;
+		const originalWriteFile = fileService.writeFile.bind(fileService);
+		const originalDel = fileService.del.bind(fileService);
+		disposables.add({
+			dispose: () => {
+				fileService.writeFile = originalWriteFile as typeof fileService.writeFile;
+				fileService.del = originalDel as typeof fileService.del;
+			}
+		});
+		fileService.writeFile = ((...args: Parameters<typeof fileService.writeFile>) => {
+			writeCalls++;
+			return originalWriteFile(...args);
+		}) as typeof fileService.writeFile;
+		fileService.del = ((...args: Parameters<typeof fileService.del>) => {
+			deleteCalls++;
+			return originalDel(...args);
+		}) as typeof fileService.del;
+
+		const result = await bundler.bundle(await discovery.directories(), CancellationToken.Cancelled);
+		assert.deepStrictEqual({ result, writeCalls, deleteCalls }, { result: undefined, writeCalls: 0, deleteCalls: 0 });
 	});
 
 	test('different working directories produce different bundle authorities', async () => {
