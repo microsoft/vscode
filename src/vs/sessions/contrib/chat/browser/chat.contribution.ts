@@ -11,6 +11,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
@@ -65,8 +66,9 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsManagementService.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
+		sessionsViewService.openNewSession({ fromActiveSession: true });
 		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 }

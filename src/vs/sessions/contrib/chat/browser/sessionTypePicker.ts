@@ -112,12 +112,9 @@ export class SessionTypePicker extends Disposable {
 			if (session) {
 				const folderUri = session.workspace.get()?.folders[0]?.root;
 				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
-				const concrete = { providerId: session.providerId, sessionTypeId: session.sessionType };
-				const changed = concrete.providerId !== this._picked?.providerId || concrete.sessionTypeId !== this._picked?.sessionTypeId;
-				this._picked = concrete;
-				if (changed) {
-					this._writeStoredPick(concrete);
-				}
+				// The active session's actual type wins over any stored preference
+				// for trigger-label rendering.
+				this._picked = { providerId: session.providerId, sessionTypeId: session.sessionType };
 			} else {
 				this._folderSessionTypes = [];
 				// Preserve the stored pick when no active session exists,

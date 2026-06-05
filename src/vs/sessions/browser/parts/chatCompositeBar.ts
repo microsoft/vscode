@@ -21,6 +21,7 @@ import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../sessionsViewService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
@@ -74,6 +75,7 @@ export class ChatCompositeBar extends Disposable {
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -301,7 +303,7 @@ export class ChatCompositeBar extends Disposable {
 
 	private _onTabClicked(chat: IChat): void {
 		if (this._session) {
-			this._sessionsManagementService.openChat(this._session, chat.resource);
+			this._sessionsViewService.openChat(this._session, chat.resource);
 		}
 	}
 

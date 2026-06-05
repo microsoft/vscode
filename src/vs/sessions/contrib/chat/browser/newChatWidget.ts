@@ -14,6 +14,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -47,6 +48,7 @@ export class NewChatWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
@@ -175,11 +177,14 @@ export class NewChatWidget extends Disposable {
 		const effectivePick = pick && this._isPreferredServable(folderUri, pick) ? pick : undefined;
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
 		try {
-			return this.sessionsManagementService.createNewSession(folderUri, effectivePick
-				? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
-				: fallbackProviderId
-					? { providerId: fallbackProviderId }
-					: undefined);
+			return this.sessionsViewService.openNewSession({
+				folderUri,
+				...(effectivePick
+					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
+					: fallbackProviderId
+						? { providerId: fallbackProviderId }
+						: undefined),
+			});
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 			return undefined;
@@ -387,7 +392,7 @@ export class NewChatWidget extends Disposable {
 		this._pendingPreferredUpgrade.clear();
 
 		if (!folderUri) {
-			this.sessionsManagementService.unsetNewSession();
+			this.sessionsViewService.unsetNewSession();
 			return;
 		}
 
