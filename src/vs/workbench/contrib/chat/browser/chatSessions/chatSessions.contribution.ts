@@ -1378,7 +1378,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.widget.clear();
+					await view.startNewLocalSession();
 				} else {
 					await view.loadSession(sessionResource);
 				}
