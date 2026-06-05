@@ -15,6 +15,8 @@ import { NextCursorLinePrediction } from '../../../../platform/inlineEdits/commo
 import { AggressivenessLevel, DEFAULT_OPTIONS, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
+import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
+import { StatelessNextEditTelemetryBuilder } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
@@ -31,9 +33,18 @@ import { LintErrors } from '../../common/lintErrors';
 import { PromptPieces } from '../../common/promptCrafting';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import { XtabNextCursorPredictor } from '../../node/xtabNextCursorPredictor';
+import type { RequestTracingContext } from '../../node/xtabProvider';
 
 function createTestLogger(): ILogger {
 	return new TestLogService();
+}
+
+function createTestTracingContext(tracer: ILogger): RequestTracingContext {
+	return {
+		tracer,
+		logContext: new InlineEditRequestLogContext('test', 0, undefined),
+		telemetry: new StatelessNextEditTelemetryBuilder('test-request'),
+	};
 }
 
 function computeTokens(s: string): number {
@@ -130,7 +141,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// Make a prediction request - should fail with NotFound
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isError()).toBe(true);
 			if (result.isError()) {
@@ -155,7 +166,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// First call - triggers disabling
-			await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
+			await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			// Verify disabled
 			expect(predictor.determineEnablement()).toBeUndefined();
@@ -191,7 +202,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// Make a prediction request - should fail but not disable
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isError()).toBe(true);
 			if (result.isError()) {
@@ -217,7 +228,7 @@ describe('XtabNextCursorPredictor', () => {
 				resolvedModel: 'test-model'
 			});
 
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {
@@ -242,7 +253,7 @@ describe('XtabNextCursorPredictor', () => {
 				resolvedModel: 'test-model'
 			});
 
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, createTestTracingContext(tracer), CancellationToken.None);
 
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {

@@ -98,7 +98,7 @@ export interface ModelConfig extends xtabPromptOptions.PromptOptions {
 	modelName: string | undefined;
 }
 
-interface RequestTracingContext {
+export interface RequestTracingContext {
 	tracer: ILogger;
 	logContext: InlineEditRequestLogContext;
 	telemetry: StatelessNextEditTelemetryBuilder;
@@ -1139,7 +1139,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		cancellationToken: CancellationToken,
 		retryState: RetryState.t,
 	): EditStreaming {
-		const { tracer, telemetry, logContext } = tracing;
+		const { tracer, telemetry } = tracing;
 		const { editWindowInfo: { editWindow }, modelServiceConfig, promptPieces } = editStreamCtx;
 
 		const noSuggestions = new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
@@ -1155,7 +1155,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.GotCancelled('beforeNextCursorPredictionFetchUserTyped');
 		}
 
-		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracer, telemetry, logContext, cancellationToken);
+		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracing, cancellationToken);
 
 		if (cancellationToken.isCancellationRequested) {
 			return new NoNextEditReason.GotCancelled('afterNextCursorPredictionFetch');

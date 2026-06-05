@@ -12,14 +12,12 @@ import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { DEFAULT_CURSOR_PREDICTION_LINT_OPTIONS, parseLintOptionString } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { StatelessNextEditTelemetryBuilder } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { ILogger } from '../../../platform/log/common/logService';
 import { OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IProxyModelsService } from '../../../platform/proxyModels/common/proxyModelsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
-import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { backwardCompatSetting } from '../../../util/common/backwardCompatSetting';
 import { ErrorUtils } from '../../../util/common/errors';
 import { Result } from '../../../util/common/result';
@@ -30,6 +28,7 @@ import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRa
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { LintErrors } from '../common/lintErrors';
 import { constructTaggedFile, getUserPrompt, PromptPieces } from '../common/promptCrafting';
+import type { RequestTracingContext } from './xtabProvider';
 import { constructMessages } from './xtabUtils';
 
 export type CursorJumpPrediction =
@@ -180,9 +179,9 @@ export class XtabNextCursorPredictor {
 	}
 
 
-	public async predictNextCursorPosition(promptPieces: PromptPieces, parentTracer: ILogger, telemetryBuilder: StatelessNextEditTelemetryBuilder | undefined, logContext: InlineEditRequestLogContext | undefined, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
+	public async predictNextCursorPosition(promptPieces: PromptPieces, tracing: RequestTracingContext, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
 
-		const tracer = parentTracer.createSubLogger('predictNextCursorPosition');
+		const tracer = tracing.tracer.createSubLogger('predictNextCursorPosition');
 
 		const promptR = this.buildCursorPredictionPrompt(promptPieces);
 		if (promptR.isError()) {
@@ -191,11 +190,11 @@ export class XtabNextCursorPredictor {
 		}
 		const { messages, keptRange } = promptR.val;
 
-		telemetryBuilder?.setCursorJumpPrompt(messages);
-		logContext?.setCursorJumpPrompt(messages, keptRange);
+		tracing.telemetry.setCursorJumpPrompt(messages);
+		tracing.logContext.setCursorJumpPrompt(messages, keptRange);
 
 		const modelName = this.determineModelName();
-		telemetryBuilder?.setCursorJumpModelName(modelName);
+		tracing.telemetry.setCursorJumpModelName(modelName);
 
 		const resolvedEndpoint = await this.resolveEndpoint(modelName, tracer);
 		if (!resolvedEndpoint) {
@@ -237,7 +236,7 @@ export class XtabNextCursorPredictor {
 		}
 
 		try {
-			telemetryBuilder?.setCursorJumpResponse(response.value);
+			tracing.telemetry.setCursorJumpResponse(response.value);
 			const trimmed = response.value.trim();
 			return this.parseResponse(trimmed, keptRange);
 		} catch (err: unknown) {
