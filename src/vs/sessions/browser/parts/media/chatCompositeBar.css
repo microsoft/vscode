@@ -15,6 +15,9 @@
 /* Header host: title row + meta row, with the top padding for the whole bar area */
 .chat-composite-bar.session-header-bar {
 	padding: 6px 10px 0;
+	max-width: 950px;
+	margin: 0 auto;
+	box-sizing: border-box;
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats */
@@ -68,11 +71,69 @@
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	display: flex;
+	align-items: center;
 	font-weight: 600;
 	font-size: 13px;
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
+	border-radius: 4px;
+	min-height: 22px;
+	/* Match the input's inner padding so the rendered text and the rename
+		input's text occupy the same horizontal position. */
+	padding: 0 4px;
+	margin: 0 -4px;
+}
+
+.chat-composite-bar-session-title-text {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Hover feedback: only when the title can actually be renamed and we aren't
+	currently editing it. */
+.chat-composite-bar-session-title.editable {
+	cursor: text;
+}
+
+.chat-composite-bar-session-title.editable:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-composite-bar-session-title.editing {
+	flex: 1 1 auto;
+	cursor: default;
+	background-color: transparent;
+	/* Remove the read-mode padding; the input has its own border + padding that
+		together match the read-mode padding so the text doesn't shift. */
+	padding: 0;
+}
+
+/* Inline rename input. Sized and styled to closely match the rendered title
+	so swapping in/out doesn't shift the row's layout. */
+.chat-composite-bar-session-title-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+	font-family: inherit;
+	font-weight: inherit;
+	font-size: inherit;
+	line-height: inherit;
+	color: var(--vscode-input-foreground, inherit);
+	background-color: var(--vscode-input-background, transparent);
+	border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
+	border-radius: 4px;
+	padding: 0 3px;
+	margin: 0;
+	outline: none;
+	min-height: 22px;
+}
+
+.chat-composite-bar-session-title-input::selection {
+	background-color: var(--vscode-selection-background, var(--vscode-editor-selectionBackground));
 }
 
 .chat-composite-bar-title-actions {

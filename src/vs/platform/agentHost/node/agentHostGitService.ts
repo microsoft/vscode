@@ -788,27 +788,32 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 
 	return changes.map(change => {
 		const stats = numStats.get(change.newPath ?? change.oldPath ?? '');
-		const hasBefore = change.kind !== FileEditKind.Create;
-		const hasAfter = change.kind !== FileEditKind.Delete;
+
+		const before = change.kind !== FileEditKind.Create && change.oldPath
+			? {
+				uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
+				content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
+			}
+			: undefined;
+
+		const after = change.kind !== FileEditKind.Delete && change.newPath
+			? {
+				uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
+				content: afterRef !== undefined
+					? { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) }
+					: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() }
+			}
+			: undefined;
+
+		const diff = {
+			added: stats?.added ?? 0,
+			removed: stats?.removed ?? 0
+		};
+
 		return {
-			...(hasBefore && change.oldPath ? {
-				before: {
-					uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
-					content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
-				},
-			} : {}),
-			...(hasAfter && change.newPath ? {
-				after: afterRef !== undefined
-					? {
-						uri: buildGitBlobUri(sessionUri, afterRef, change.newPath),
-						content: { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) },
-					}
-					: {
-						uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
-						content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
-					},
-			} : {}),
-			diff: { added: stats?.added ?? 0, removed: stats?.removed ?? 0 },
+			...(before ? { before } : {}),
+			...(after ? { after } : {}),
+			diff
 		};
 	});
 }
