@@ -34,7 +34,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification, AutoUpdateMinimumReleaseAgeConfigurationKey } from '../common/extensions.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -80,7 +80,8 @@ interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
 }
 
-const DELAYED_AUTO_UPDATE_PERIOD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+const MINUTE_IN_MILLISECONDS = 60 * 1000;
+const DEFAULT_AUTO_UPDATE_MINIMUM_RELEASE_AGE = 120;
 
 interface InstalledExtensionsEvent {
 	readonly extensionIds: TelemetryTrustedValue<string>;
@@ -1121,7 +1122,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private initializeAutoUpdate(): void {
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey) || e.affectsConfiguration(AutoUpdateMinimumReleaseAgeConfigurationKey)) {
 				if (!this.isAutoUpdateEnabled()) {
 					// Auto update disabled — cancel any pending delayed re-check
 					this.delayedAutoUpdateCheckTimer.value = undefined;
@@ -1210,6 +1211,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
 	}
 
+	private getAutoUpdateMinimumReleaseAge(): number {
+		const minimumReleaseAge = this.configurationService.getValue<number>(AutoUpdateMinimumReleaseAgeConfigurationKey);
+		if (typeof minimumReleaseAge !== 'number' || !Number.isFinite(minimumReleaseAge) || minimumReleaseAge < 0) {
+			return DEFAULT_AUTO_UPDATE_MINIMUM_RELEASE_AGE;
+		}
+		return minimumReleaseAge;
+	}
+
 	isAutoUpdateDelayed(extension: IExtension): boolean {
 		if (!extension.outdated) {
 			return false;
@@ -1234,7 +1243,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Future timestamp (clock skew) — treat as not delayed
 			return 0;
 		}
-		return Math.max(0, DELAYED_AUTO_UPDATE_PERIOD - elapsed);
+		return Math.max(0, this.getAutoUpdateMinimumReleaseAge() * MINUTE_IN_MILLISECONDS - elapsed);
 	}
 
 	private isFromTrustedPublisher(extension: IExtension): boolean {

@@ -188,6 +188,7 @@ export const enum ExtensionEditorTab {
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
+export const AutoUpdateMinimumReleaseAgeConfigurationKey = 'extensions.autoUpdateMinimumReleaseAge';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 

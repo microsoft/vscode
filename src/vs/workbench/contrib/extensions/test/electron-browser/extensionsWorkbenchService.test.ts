@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue, AutoUpdateMinimumReleaseAgeConfigurationKey } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -445,6 +445,36 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
 	});
 
+	test('test isAutoUpdateDelayed uses configured minimum release age', async () => {
+		stubConfiguration(true, true, 10080);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60 * 24) /* 1 day ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
+
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60 * 24 * 8) /* 8 days ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test isAutoUpdateDelayed returns false when minimum release age is 0', async () => {
+		stubConfiguration(true, true, 0);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60) /* 1 minute ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+	});
+
+	test('test isAutoUpdateDelayed falls back to default for invalid minimum release age', async () => {
+		stubConfiguration(true, true, -1);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
+	});
+
 	test('test isAutoUpdateDelayed returns false for a version with a future published timestamp', async () => {
 		testObject = await anOutdatedExtensionWorkbenchService(Date.now() + (1000 * 60 * 60) /* 1 hour in the future */);
 
@@ -483,6 +513,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	test('test getAutoUpdateDelayRemaining returns 0 for a trusted publisher', async () => {
 		instantiationService.stub(IProductService, { ...TestProductService, trustedExtensionPublishers: ['pub'] });
+		stubConfiguration(true, true, 10080);
 		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
 
 		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
@@ -1789,10 +1820,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return workbenchService;
 	}
 
-	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
+	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any, minimumReleaseAgeValue?: any): void {
 		const values: any = {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
-			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
+			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true,
+			[AutoUpdateMinimumReleaseAgeConfigurationKey]: minimumReleaseAgeValue ?? 120
 		};
 		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());
 		instantiationService.stub(IConfigurationService, {
