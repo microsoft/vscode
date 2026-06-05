@@ -356,8 +356,7 @@
 	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	color: var(--vscode-descriptionForeground);
-	/* align left with session item margin; keep extra right padding for section content spacing */
-	padding: 0 16px 0 10px;
+	padding: 0 10px;
 
 	.session-section-label {
 		flex: 1 1 auto;
@@ -382,7 +381,6 @@
 
 	.session-section-chevron {
 		flex-shrink: 0;
-		margin-left: 4px;
 		display: none;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
