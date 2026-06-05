@@ -2258,7 +2258,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private ensureGoalBannerWidget(): ChatGoalBannerWidget {
 		if (!this._goalBannerWidget.value) {
-			const widget = this._register(new ChatGoalBannerWidget());
+			// The `_goalBannerWidget` MutableDisposable owns and disposes the widget;
+			// do not also `_register` it here to avoid a double-dispose.
+			const widget = new ChatGoalBannerWidget();
 			this._register(widget.onDismiss(() => this._onDidDismissGoalBanner.fire()));
 			this._goalBannerWidget.value = widget;
 			this.chatGoalBannerContainer.appendChild(widget.domNode);

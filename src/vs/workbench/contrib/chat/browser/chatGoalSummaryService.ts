@@ -22,7 +22,7 @@ export interface IChatGoalSummaryService {
 	summarize(prompt: string, token: CancellationToken): Promise<string | undefined>;
 }
 
-const MAX_PROMPT_BYTES = 4000;
+const MAX_PROMPT_CHARS = 4000;
 const MAX_SUMMARY_CHARS = 100;
 const CACHE_SIZE = 50;
 
@@ -86,7 +86,7 @@ export class ChatGoalSummaryService implements IChatGoalSummaryService {
 			return undefined;
 		}
 
-		const truncatedPrompt = prompt.length > MAX_PROMPT_BYTES ? prompt.slice(0, MAX_PROMPT_BYTES) + '...[truncated]' : prompt;
+		const truncatedPrompt = prompt.length > MAX_PROMPT_CHARS ? prompt.slice(0, MAX_PROMPT_CHARS) + '...[truncated]' : prompt;
 		const systemPrompt = [
 			'You summarize a user\'s coding request into a single short phrase suitable for a status badge.',
 			'Reply with the phrase only — no prose, no quotes, no leading "Goal:", no punctuation at the end.',
