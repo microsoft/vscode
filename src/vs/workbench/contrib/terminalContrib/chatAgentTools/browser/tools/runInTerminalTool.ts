@@ -2387,16 +2387,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	/**
-	 * Resolves the opaque language-model identifier published under the
-	 * `copilot/copilot-utility-small` alias (vendor `copilot`, id
-	 * `copilot-utility-small`). `selectLanguageModels` returns an array of
-	 * resolved identifier strings; we use the first match directly as
-	 * `userSelectedModelId` on terminal-tool steering messages (background
-	 * completion / input-needed / disposal notifications). The alias is
-	 * published by the copilot extension and already honors the
-	 * `chat.utilitySmallModel` setting. Returns `undefined` if the alias is
-	 * not available, in which case the caller leaves the conversation model
-	 * in place.
+	 * Resolves a language-model identifier for terminal-tool steering messages
+	 * (background completion / input-needed / disposal notifications).
+	 *
+	 * Calls `selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' })`
+	 * which returns an array of opaque identifier strings matching the filter.
+	 * We take the first match and pass it as `userSelectedModelId` on steering
+	 * requests. The alias is published by the Copilot extension and already
+	 * honors the `chat.utilitySmallModel` setting. Returns `undefined` if no
+	 * model matches, in which case the caller falls back to the conversation model.
 	 */
 	private async _resolveUtilitySmallModelId(): Promise<string | undefined> {
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
