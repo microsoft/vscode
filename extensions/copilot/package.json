@@ -1236,7 +1236,7 @@
         "toolReferenceName": "sessionStoreSql",
         "when": "github.copilot.sessionSearch.enabled",
         "userDescription": "Query your Copilot session history using SQL",
-        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index from debug logs).",
+        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
         "tags": [],
         "canBeReferencedInPrompt": false,
         "inputSchema": {
@@ -1246,10 +1246,9 @@
               "type": "string",
               "enum": [
                 "query",
-                "standup",
                 "reindex"
               ],
-              "description": "The action to perform. 'query' (default) executes a SQL query. 'standup' pre-fetches last 24h session data for standup reports. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
+              "description": "The action to perform. 'query' (default) executes a SQL query. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
             },
             "query": {
               "type": "string",
@@ -3231,6 +3230,11 @@
             ],
             "markdownDescription": "%github.copilot.nextEditSuggestions.enabled%",
             "scope": "language-overridable"
+          },
+          "github.copilot.completions.chat.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.completions.chat.enabled%"
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
@@ -6205,18 +6209,6 @@
           "group": "1_edit@4"
         }
       ],
-      "chatSessions/header/context": [
-        {
-          "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        },
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        }
-      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
@@ -7032,7 +7024,6 @@
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
     "diff": "^8.0.3",
-    "dompurify": "^3.4.8",
     "express": "^5.2.1",
     "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.4",

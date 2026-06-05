@@ -793,7 +793,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// open with hydrated state. Use the unmanaged accessor to peek
 		// without taking a fresh subscription, which would trigger a
 		// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
-		const existingState = this._readEagerlyCreatedSessionState(resolvedSession);
+		const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
 
 		if (!existingState) {
 			// Eager-create did not produce server-side state (e.g. no
@@ -842,11 +842,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * subscription (which would issue a duplicate snapshot fetch on the wire,
 	 * and in tests would synthesise placeholder state via the mock's auto-
 	 * hydration path).
+	 *
+	 * If the eager subscription exists but hasn't received its first snapshot
+	 * yet (creation in flight), waits for it to hydrate or error before
+	 * returning. This closes a race where the chat request arrives between
+	 * `createSession` resolving and the snapshot landing.
 	 */
-	private _readEagerlyCreatedSessionState(resolvedSession: URI): SessionState | undefined {
+	private async _readEagerlyCreatedSessionState(resolvedSession: URI, token: CancellationToken): Promise<SessionState | undefined> {
 		const sub = this._config.connection.getSubscriptionUnmanaged(StateComponents.Session, resolvedSession);
 		if (!sub) {
 			return undefined;
+		}
+		if (sub.value === undefined) {
+			// Snapshot is in flight. Attach the listener before re-checking
+			// to close a race where the snapshot lands between the value
+			// read and the listener attachment.
+			await new Promise<void>(resolve => {
+				const store = new DisposableStore();
+				const settle = () => {
+					store.dispose();
+					resolve();
+				};
+				store.add(sub.onDidChange(settle));
+				store.add(token.onCancellationRequested(settle));
+				if (sub.value !== undefined || token.isCancellationRequested) {
+					settle();
+				}
+			});
 		}
 		const value = sub.value;
 		return (value && !(value instanceof Error)) ? value : undefined;
@@ -2798,9 +2820,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
-		if (uri.scheme !== 'file') {
-			return undefined;
-		}
 		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
 		const attachment: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
 		if (_meta) {
@@ -2810,9 +2829,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
-		if (location.uri.scheme !== 'file') {
-			return undefined;
-		}
 		const attachmentUri = this._rebaseAttachmentUri(location.uri, sessionResource);
 		const attachment: MessageAttachment = {
 			type: MessageAttachmentKind.Resource,
