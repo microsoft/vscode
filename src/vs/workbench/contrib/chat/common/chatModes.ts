@@ -579,7 +579,7 @@ export class CustomChatMode implements IChatMode {
 			update(this._argumentHintObservable, newData.argumentHint);
 			update(this._modeInstructions, newData.agentInstructions, IChatModeInstructions.isEquals);
 			update(this._uriObservable, newData.uri, isURLEquals);
-			update(this._handoffsObservable, newData.handOffs, arraysEqual);
+			update(this._handoffsObservable, newData.handOffs, objectEquals);
 			update(this._targetObservable, newData.target);
 			update(this._visibilityObservable, newData.visibility, objectEquals);
 			update(this._agentsObservable, newData.agents, arraysEqual);
