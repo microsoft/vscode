@@ -389,7 +389,7 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					description: 'Hard cap in milliseconds before the tool returns. Prefer omitting for one-shot commands that should run to completion (installs, builds); if you must cap, use a generous value (e.g. 600000 for installs, 900000 for big builds). Too-short timeouts force background promotion and trigger polling. Use 0 for no timeout.',
+					description: 'Optional. Hard cap in milliseconds before the tool returns. Prefer omitting for one-shot commands that should run to completion (installs, builds); if you must cap, use a generous value (e.g. 600000 = 10 min for installs, 900000 = 15 min for big builds). Too-short timeouts cause the command to continue in the background, which wastes turns on unnecessary polling. Use 0 for no timeout.',
 				},
 			},
 			required: ['command', 'explanation', 'goal', 'mode']
