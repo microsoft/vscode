@@ -14,6 +14,7 @@ import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspa
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -38,6 +39,8 @@ suite('GetErrorsTool - Tool Invocation', () => {
 	const noErrorFile = URI.file('/test/workspace/src/noErrorFile.ts');
 	const eslintErrorFile = URI.file('/test/workspace/eslint/eslint_unexpected_constant_condition_1.ts');
 	const emptyLineErrorFile = URI.file('/test/workspace/emptyLineError.ts');
+	const upperCaseDriveFile = URI.file('C:/test/workspace/src/windowsDriveFile.ts');
+	const lowerCaseDriveFile = URI.file('c:/test/workspace/src/windowsDriveFile.ts');
 
 	beforeEach(() => {
 		collection = createExtensionUnitTestingServices();
@@ -50,8 +53,9 @@ suite('GetErrorsTool - Tool Invocation', () => {
 		const eslintErrorDoc = createTextDocumentData(eslintErrorFile, 'if (true) {\n  console.log("This is a constant condition");\n}', 'ts').document;
 		// File with a trailing empty line where the error is reported
 		const emptyLineErrorDoc = createTextDocumentData(emptyLineErrorFile, 'codeunit 50100 MyCU {\n  procedure Foo() {\n\n', 'ts').document;
+		const upperCaseDriveDoc = createTextDocumentData(upperCaseDriveFile, 'const drive = "C";\n', 'ts').document;
 
-		collection.define(IWorkspaceService, new SyncDescriptor(TestWorkspaceService, [[workspaceFolder], [tsDoc1, tsDoc2, jsDoc, noErrorDoc, eslintErrorDoc, emptyLineErrorDoc]]));
+		collection.define(IWorkspaceService, new SyncDescriptor(TestWorkspaceService, [[workspaceFolder], [tsDoc1, tsDoc2, jsDoc, noErrorDoc, eslintErrorDoc, emptyLineErrorDoc, upperCaseDriveDoc]]));
 
 		// Set up diagnostics service
 		diagnosticsService = new TestLanguageDiagnosticsService();
@@ -138,6 +142,21 @@ suite('GetErrorsTool - Tool Invocation', () => {
 		]);
 	});
 
+	test.skipIf(!isWindows)('getDiagnostics - matches Windows file path with different drive letter casing', () => {
+		const diagnostic = {
+			message: 'Drive letter casing diagnostic',
+			range: new Range(0, 6, 0, 11),
+			severity: DiagnosticSeverity.Error
+		};
+		diagnosticsService.setDiagnostics(upperCaseDriveFile, [diagnostic]);
+
+		const results = tool.getDiagnostics([{ uri: lowerCaseDriveFile, range: undefined }]);
+
+		expect(results).toEqual([
+			{ uri: upperCaseDriveFile, diagnostics: [diagnostic] }
+		]);
+	});
+
 	test('getDiagnostics - filters by folder path', () => {
 		// Test with folder path
 		const srcFolder = URI.file('/test/workspace/src');
@@ -209,6 +228,22 @@ suite('GetErrorsTool - Tool Invocation', () => {
 		const result = await tool.invoke({ input: { filePaths: [filePath] }, toolInvocationToken: null! }, CancellationToken.None);
 		const msg = await toolResultToString(accessor, result);
 		expect(msg).toMatchSnapshot();
+	});
+
+	test.skipIf(!isWindows)('Tool invocation - filePath matches diagnostics when Windows drive letter casing differs', async () => {
+		diagnosticsService.setDiagnostics(upperCaseDriveFile, [
+			{
+				message: 'Drive letter casing diagnostic',
+				range: new Range(0, 6, 0, 11),
+				severity: DiagnosticSeverity.Error
+			}
+		]);
+
+		const pathRep = accessor.get(IPromptPathRepresentationService);
+		const result = await tool.invoke({ input: { filePaths: [lowerCaseDriveFile.fsPath] }, toolInvocationToken: null! }, CancellationToken.None);
+		const msg = await toolResultToString(accessor, result);
+		expect(msg).toContain(`<errors path="${pathRep.getFilePath(upperCaseDriveFile)}">`);
+		expect(msg).toContain('Drive letter casing diagnostic');
 	});
 
 	test('Tool invocation - with folder path includes diagnostics from contained files', async () => {
