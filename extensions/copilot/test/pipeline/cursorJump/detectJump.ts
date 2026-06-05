@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Result } from '../../../src/util/common/result';
 import { LogDocumentId, LogEntry } from '../logRecordingTypes';
 import { applyEditsToContent } from '../responseStep';
 
@@ -27,9 +28,7 @@ export interface ICrossFileJump {
 	readonly toLine: number | undefined;
 }
 
-export type JumpDetectionResult<T> =
-	| { readonly ok: true; readonly value: T }
-	| { readonly ok: false; readonly reason: string };
+export type JumpDetectionResult<T> = Result<T, string>;
 
 export interface ISameFileDetectorOptions {
 	readonly activeDocLogId: LogDocumentId;
@@ -60,7 +59,7 @@ export function detectSameFileJump(
 	opts: ISameFileDetectorOptions,
 ): JumpDetectionResult<ISameFileJump> {
 	if (recordingAfterRequest.length === 0) {
-		return { ok: false, reason: 'noPostRequestActivity' };
+		return Result.error('noPostRequestActivity');
 	}
 
 	let lastActiveDocChangeEndOffset: number | undefined = undefined;
@@ -94,20 +93,20 @@ export function detectSameFileJump(
 				const tooFarAbove = newLine < fromLine - opts.minLinesAbove;
 				const tooFarBelow = newLine > fromLine + opts.minLinesBelow;
 				if (!tooFarAbove && !tooFarBelow) {
-					return { ok: false, reason: 'jumpWithinThreshold' };
+					return Result.error('jumpWithinThreshold');
 				}
-				return { ok: true, value: { kind: 'sameFile', fromLine, toLine: newLine, toOffset: primaryOffset } };
+				return Result.ok({ kind: 'sameFile', fromLine, toLine: newLine, toOffset: primaryOffset });
 			}
 			case 'focused': {
 				if (entry.id !== opts.activeDocLogId) {
-					return { ok: false, reason: 'leftActiveDocBeforeJump' };
+					return Result.error('leftActiveDocBeforeJump');
 				}
 				break;
 			}
 		}
 	}
 
-	return { ok: false, reason: 'noQualifyingJump' };
+	return Result.error('noQualifyingJump');
 }
 
 export interface ICrossFileDetectorOptions {
@@ -134,7 +133,7 @@ export function detectCrossFileJump(
 	opts: ICrossFileDetectorOptions,
 ): JumpDetectionResult<ICrossFileJump> {
 	if (recordingAfterRequest.length === 0) {
-		return { ok: false, reason: 'noPostRequestActivity' };
+		return Result.error('noPostRequestActivity');
 	}
 
 	let targetDocId: LogDocumentId | undefined;
@@ -164,22 +163,22 @@ export function detectCrossFileJump(
 	}
 
 	if (targetDocId === undefined) {
-		return { ok: false, reason: 'noCrossFileJump' };
+		return Result.error('noCrossFileJump');
 	}
 
 	const relPath = opts.idToRelativePath.get(targetDocId);
 	if (!relPath) {
-		return { ok: false, reason: 'crossFileTargetNotEncountered' };
+		return Result.error('crossFileTargetNotEncountered');
 	}
 
 	// If we observed the cross-file selection but couldn't resolve a line
 	// number for it, surface that explicitly so callers can drop the sample
 	// instead of treating "unknown line" as "line 0".
 	if (selectionEntryIndex !== undefined && targetLine === undefined) {
-		return { ok: false, reason: 'crossFileTargetLineUnresolved' };
+		return Result.error('crossFileTargetLineUnresolved');
 	}
 
-	return { ok: true, value: { kind: 'crossFile', toDocLogId: targetDocId, toRelativePath: relPath, toLine: targetLine } };
+	return Result.ok({ kind: 'crossFile', toDocLogId: targetDocId, toRelativePath: relPath, toLine: targetLine });
 }
 
 /**

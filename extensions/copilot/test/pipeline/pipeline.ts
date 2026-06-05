@@ -273,12 +273,12 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				minLinesBelow: nesDatagenOpts.sameFileJumpMinBelow,
 				resolveActiveDocLineAt: buildLineResolver(p),
 			});
-			if (sf.ok) {
+			if (sf.isOk()) {
 				jumps.set(p.originalRowIndex, { kind: 'sameFile', assistantTask: NesDatagenSampleTask.CursorSameFile, sameFile: sf });
 				continue;
 			}
 			if (task === NesDatagenSampleTask.CursorSameFile) {
-				skipReasons.set(sf.reason, (skipReasons.get(sf.reason) ?? 0) + 1);
+				skipReasons.set(sf.err, (skipReasons.get(sf.err) ?? 0) + 1);
 				continue;
 			}
 			// cursor-both: fall through to cross-file detection
@@ -290,11 +290,11 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				idToRelativePath: p.idToRelativePath,
 				getDocContentAtRequest: (docId) => p.idToContentAtRequest.get(docId),
 			});
-			if (cf.ok) {
+			if (cf.isOk()) {
 				jumps.set(p.originalRowIndex, { kind: 'crossFile', assistantTask: NesDatagenSampleTask.CursorCrossFile, crossFile: cf });
 				continue;
 			}
-			skipReasons.set(cf.reason, (skipReasons.get(cf.reason) ?? 0) + 1);
+			skipReasons.set(cf.err, (skipReasons.get(cf.err) ?? 0) + 1);
 		}
 	}
 
@@ -377,11 +377,11 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 			}
 
 			let assistantOut: { assistant: string; jump: NonNullable<ISampleMetadata['jump']> } | { error: string };
-			if (detected.kind === 'sameFile' && detected.sameFile.ok) {
-				const r = generateSameFileResponse(detected.sameFile.value, promptOut.keptRange);
+			if (detected.kind === 'sameFile' && detected.sameFile.isOk()) {
+				const r = generateSameFileResponse(detected.sameFile.val, promptOut.keptRange);
 				assistantOut = r;
-			} else if (detected.kind === 'crossFile' && detected.crossFile.ok) {
-				assistantOut = generateCrossFileResponse(detected.crossFile.value, p.cursorAtRequest.lineNumber);
+			} else if (detected.kind === 'crossFile' && detected.crossFile.isOk()) {
+				assistantOut = generateCrossFileResponse(detected.crossFile.val, p.cursorAtRequest.lineNumber);
 			} else {
 				continue;
 			}

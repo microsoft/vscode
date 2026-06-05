@@ -43,12 +43,15 @@ describe('detectSameFileJump', () => {
 
 	it('detects a far-below jump', () => {
 		const r = detectSameFileJump([selChanged(ACTIVE, 999)], baseOpts(_ => 30));
-		expect(r).toEqual({ ok: true, value: { kind: 'sameFile', fromLine: 10, toLine: 30, toOffset: 999 } });
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val).toEqual({ kind: 'sameFile', fromLine: 10, toLine: 30, toOffset: 999 });
+		}
 	});
 
 	it('rejects a jump within threshold', () => {
 		const r = detectSameFileJump([selChanged(ACTIVE, 50)], baseOpts(_ => 12));
-		expect(r).toEqual({ ok: false, reason: 'jumpWithinThreshold' });
+		expect(r.isError() && r.err).toBe('jumpWithinThreshold');
 	});
 
 	it('filters settle-after-edit and continues to next event', () => {
@@ -60,20 +63,20 @@ describe('detectSameFileJump', () => {
 			],
 			baseOpts(off => off === 999 ? 50 : 5),
 		);
-		expect(r.ok).toBe(true);
-		if (r.ok) {
-			expect(r.value.toLine).toBe(50);
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val.toLine).toBe(50);
 		}
 	});
 
 	it('returns leftActiveDocBeforeJump when focus moves away first', () => {
 		const r = detectSameFileJump([focused(OTHER), selChanged(ACTIVE, 999)], baseOpts(_ => 50));
-		expect(r).toEqual({ ok: false, reason: 'leftActiveDocBeforeJump' });
+		expect(r.isError() && r.err).toBe('leftActiveDocBeforeJump');
 	});
 
 	it('returns noPostRequestActivity for empty input', () => {
 		const r = detectSameFileJump([], baseOpts(_ => 0));
-		expect(r).toEqual({ ok: false, reason: 'noPostRequestActivity' });
+		expect(r.isError() && r.err).toBe('noPostRequestActivity');
 	});
 });
 
@@ -85,10 +88,10 @@ describe('detectCrossFileJump', () => {
 			[setContent(OTHER, 'line0\nline1\nline2'), selChanged(OTHER, 12)],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'src/foo.ts']]), getDocContentAtRequest: noPriorContent },
 		);
-		expect(r.ok).toBe(true);
-		if (r.ok) {
-			expect(r.value.toRelativePath).toBe('src/foo.ts');
-			expect(r.value.toLine).toBe(2);
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val.toRelativePath).toBe('src/foo.ts');
+			expect(r.val.toLine).toBe(2);
 		}
 	});
 
@@ -101,9 +104,9 @@ describe('detectCrossFileJump', () => {
 				getDocContentAtRequest: (id) => (id === OTHER ? 'line0\nline1\nline2' : undefined),
 			},
 		);
-		expect(r.ok).toBe(true);
-		if (r.ok) {
-			expect(r.value.toLine).toBe(2);
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val.toLine).toBe(2);
 		}
 	});
 
@@ -112,7 +115,7 @@ describe('detectCrossFileJump', () => {
 			[selChanged(OTHER, 12)],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'foo.ts']]), getDocContentAtRequest: noPriorContent },
 		);
-		expect(r).toEqual({ ok: false, reason: 'crossFileTargetLineUnresolved' });
+		expect(r.isError() && r.err).toBe('crossFileTargetLineUnresolved');
 	});
 
 	it('applies multi-replacement post-request changed events in offset-descending order', () => {
@@ -128,9 +131,9 @@ describe('detectCrossFileJump', () => {
 				getDocContentAtRequest: (id) => (id === OTHER ? '0123456789' : undefined),
 			},
 		);
-		expect(r.ok).toBe(true);
-		if (r.ok) {
-			expect(r.value.toLine).toBe(0);
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val.toLine).toBe(0);
 		}
 	});
 
@@ -139,7 +142,7 @@ describe('detectCrossFileJump', () => {
 			[selChanged(ACTIVE, 0)],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map(), getDocContentAtRequest: noPriorContent },
 		);
-		expect(r).toEqual({ ok: false, reason: 'noCrossFileJump' });
+		expect(r.isError() && r.err).toBe('noCrossFileJump');
 	});
 
 	it('rejects when target path is not in mapping', () => {
@@ -147,7 +150,7 @@ describe('detectCrossFileJump', () => {
 			[selChanged(OTHER, 0)],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map(), getDocContentAtRequest: noPriorContent },
 		);
-		expect(r).toEqual({ ok: false, reason: 'crossFileTargetNotEncountered' });
+		expect(r.isError() && r.err).toBe('crossFileTargetNotEncountered');
 	});
 });
 
