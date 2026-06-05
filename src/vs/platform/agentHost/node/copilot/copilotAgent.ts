@@ -2240,24 +2240,6 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
  * a reference back to this shared controller for the resolve/sync
  * helpers it needs.
  */
-/**
- * Process-wide plugin state shared across all sessions.
- *
- * Owns:
- *  - host-configured customizations (read from root config, watched, parsed)
- *  - the {@link IAgentPluginManager} that materializes plugin source URIs
- *    into a nonce-deduped on-disk cache (one shared directory for all
- *    sessions and clients)
- *  - parsing + resolution helpers used by both host- and client-side
- *    customizations
- *
- * Per-session state (client-published customizations, on-disk
- * customization discovery for the session's working directory,
- * enablement overrides) lives on {@link SessionPluginController},
- * one per {@link CopilotAgentSession}. Each session controller holds
- * a reference back to this shared controller for the resolve/sync
- * helpers it needs.
- */
 class PluginController extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	/** Fires when host customizations change. Session controllers forward this. */

@@ -369,17 +369,17 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 				attaching = false;
 				if (pendingReattach) {
 					pendingReattach = false;
-					reattach();
+					void reattach();
 				}
 			}
 		};
 
 		store.add(this._onDidChangeConnection.event(a => {
 			if (a === authority) {
-				reattach();
+				void reattach();
 			}
 		}));
-		reattach();
+		void reattach();
 
 		return store;
 	}
@@ -541,10 +541,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		// (resolve) or the grace timer expires and evicts the entry
 		// (reject).
 		return new Promise((resolve, reject) => {
-			const sub = this._onDidChangeConnection.event(a => {
-				if (a !== authority) {
-					return;
-				}
+			const settle = (): void => {
 				const current = this._authorities.get(authority);
 				if (!current) {
 					sub.dispose();
@@ -559,7 +556,15 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					sub.dispose();
 					resolve(c);
 				}
+			};
+			const sub = this._onDidChangeConnection.event(a => {
+				if (a === authority) {
+					settle();
+				}
 			});
+			// Re-check after subscribing in case the state changed between
+			// our initial check and the listener registration.
+			settle();
 		});
 	}
 
