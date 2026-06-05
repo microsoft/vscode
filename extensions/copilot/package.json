@@ -7032,6 +7032,7 @@
     "lru-cache": "^11.1.0",
     "markdown-it": "^14.1.1",
     "minimatch": "^10.2.1",
+    "tesseract.js": "^5.1.1",
     "undici": "^7.24.1",
     "vscode-tas-client": "^0.1.84",
     "web-tree-sitter": "^0.23.0"

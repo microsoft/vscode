@@ -25,6 +25,12 @@ export interface ImageTelemetryMeasurements {
 	imageFileCount: number;
 	imageUrlCount: number;
 	imageUnknownSourceCount: number;
+	ocrTextLength: number;
+	ocrConfidence: number;
+}
+
+export interface ImageOcrProperties {
+	ocrText?: string;
 }
 
 interface ImageTelemetryInput {
@@ -69,6 +75,8 @@ function createEmptyImageTelemetryMeasurements(): ImageTelemetryMeasurements {
 		imageFileCount: 0,
 		imageUrlCount: 0,
 		imageUnknownSourceCount: 0,
+		ocrTextLength: 0,
+		ocrConfidence: 0,
 	};
 }
 

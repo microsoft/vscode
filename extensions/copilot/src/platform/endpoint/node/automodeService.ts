@@ -226,7 +226,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
 						"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
 						"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
-						"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true }
+						"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
+						"ocrTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character length of OCR-extracted text from the first attached image (zero if OCR did not run)", "isMeasurement": true },
+						"ocrConfidence": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Confidence score (0-100) reported by the OCR engine for the first attached image (zero if OCR did not run)", "isMeasurement": true }
 					}
 				*/
 				this._telemetryService.sendMSFTTelemetryEvent('automode.routerFallback', {
@@ -266,7 +268,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
 					"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
 					"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
-					"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true }
+					"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
+					"ocrTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character length of OCR-extracted text from the first attached image (zero if OCR did not run)", "isMeasurement": true },
+					"ocrConfidence": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Confidence score (0-100) reported by the OCR engine for the first attached image (zero if OCR did not run)", "isMeasurement": true }
 				}
 			*/
 			const candidateModel = routerResult.candidateModel;
