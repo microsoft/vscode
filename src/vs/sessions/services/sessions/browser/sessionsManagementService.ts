@@ -830,12 +830,36 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: false, isNewChat: true, options });
 	}
 
-	openNewSessionView(): void {
-		// No-op if the current session is already a new session
-		if (this._visibility.activeSession.get() === undefined) {
+	openNewSessionView(options?: { inheritWorkspaceFromActiveSession?: boolean }): void {
+		const current = this._visibility.activeSession.get();
+		// No-op when no session is active (empty new-session placeholder showing).
+		if (current === undefined) {
 			return;
 		}
 		this._startOpenSession();
+
+		// When explicitly requested, inherit the workspace of the session being
+		// switched away from so the new session view opens in the same workspace
+		// rather than defaulting to the last composed new session's workspace.
+		// Only inherit from an established session (not the pending new session)
+		// and only when its workspace differs from any pending new session, so
+		// an existing in-progress draft for that same workspace is preserved.
+		if (options?.inheritWorkspaceFromActiveSession && current.sessionId !== this._pendingNewSession?.sessionId) {
+			const inheritUri = current.workspace.get()?.folders[0]?.root;
+			const pendingUri = this._pendingNewSession?.workspace.get()?.folders[0]?.root;
+			if (inheritUri && !this.uriIdentityService.extUri.isEqual(inheritUri, pendingUri)) {
+				try {
+					// Creates a fresh pending new session for the inherited
+					// workspace and makes it active, disposing the previous one.
+					this.createNewSession(inheritUri);
+					this._onDidOpenNewSessionView.fire();
+					return;
+				} catch (e) {
+					this.logService.warn(`[SessionsManagement] openNewSessionView: failed to inherit workspace '${inheritUri.toString()}', falling back to default`, e);
+				}
+			}
+		}
+
 		// Restore the pending new session if one exists, so pickers
 		// re-derive their state from the still-alive session object.
 		// Otherwise clear active session (first time / after send).

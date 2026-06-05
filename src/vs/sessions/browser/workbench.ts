@@ -785,7 +785,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// so the new session view becomes visible. createMobileTitlebar() is
 		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
-			this.sessionsManagementService.openNewSessionView();
+			this.sessionsManagementService.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
 			this.closeMobileSidebarDrawer();
 			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
 		}));

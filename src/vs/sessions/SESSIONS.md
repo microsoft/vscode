@@ -157,6 +157,19 @@ Follow-up messages to an existing chat go through
 `SessionsManagementService.sendRequest(session, chat, options)`. This always
 makes the sent chat the active chat.
 
+Explicit user-initiated "new session" gestures (Ctrl/Cmd+N, the **New** button,
+the mobile titlebar "+" button, and the sessions quick picker's "New Session"
+item) call `openNewSessionView({ inheritWorkspaceFromActiveSession: true })`.
+When a session is already active, the new session view inherits that session's
+workspace — a fresh pending new session is created via `createNewSession` for
+the active session's workspace folder — instead of defaulting to the workspace
+of the last composed new session. Inheritance is skipped when the active
+session's workspace already matches the current pending new session (so an
+in-progress draft for that same workspace is preserved) and falls back to the
+default behavior if the workspace cannot be resolved. Internal callers (restore
+fallback, archive, background reseed, and the close-session fallback) invoke
+`openNewSessionView()` without the flag and keep the prior behavior.
+
 `sendNewChatRequest(session, options)` accepts a `background` flag: a background
 new-session send returns the agents window to a fresh new-session view (via
 `openNewSessionView`) **before** creating and sending the session, and skips the

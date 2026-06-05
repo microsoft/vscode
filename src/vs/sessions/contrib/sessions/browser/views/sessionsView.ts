@@ -338,7 +338,7 @@ export class SessionsView extends ViewPane {
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.sessionsManagementService.openNewSessionView();
+			this.sessionsManagementService.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
 			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
 		}));
 

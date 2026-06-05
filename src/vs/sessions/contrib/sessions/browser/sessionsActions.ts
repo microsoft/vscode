@@ -145,7 +145,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			if (!selected.session) {
-				sessionsManagementService.openNewSessionView();
+				sessionsManagementService.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
 				sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 				return;
 			}
