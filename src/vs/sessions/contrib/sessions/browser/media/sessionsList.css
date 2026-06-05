@@ -380,6 +380,10 @@
 		display: none;
 	}
 
+	.session-section-toolbar .monaco-action-bar .action-label {
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
 	.session-section-chevron {
 		flex-shrink: 0;
 		margin-left: 4px;
@@ -388,7 +392,7 @@
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
 		width: 22px;
 		height: 22px;
-		border-radius: var(--vscode-cornerRadius-medium);
+		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
 }
