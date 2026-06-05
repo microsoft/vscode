@@ -144,7 +144,7 @@
 	margin: 0 5px 5px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 }
 
@@ -221,7 +221,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	border: none;
 	background: var(--vscode-sideBarSectionHeader-background);
 	margin: 0;
@@ -260,7 +260,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .editorParent {
@@ -275,13 +275,13 @@
 /* The hidden-lines bar is split into two halves (original / modified) sitting
  * side by side. Round only the outer corners so the pair forms a single pill. */
 .agent-sessions-workbench .part.editor .editor.original .diff-hidden-lines .center {
-	border-top-left-radius: 6px;
-	border-bottom-left-radius: 6px;
+	border-top-left-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
 }
 
 .agent-sessions-workbench .part.editor .editor.modified .diff-hidden-lines .center {
-	border-top-right-radius: 6px;
-	border-bottom-right-radius: 6px;
+	border-top-right-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status {
@@ -316,7 +316,7 @@
 .agent-sessions-workbench .part.editor .tabs-container > .tab {
 	background-color: transparent !important;
 	border-right: none !important;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	font-size: 12px;
 	font-weight: 500;
 	box-shadow: none !important;
@@ -417,7 +417,7 @@
 	margin: 5px 0 0 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: border-box;
 }
 
@@ -449,7 +449,7 @@
 	content: '';
 	position: absolute;
 	inset: 1px;
-	border-radius: 999px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background: var(--vscode-scrollbarSlider-background);
 }
 
@@ -768,7 +768,7 @@
 
 /* Badge */
 .agent-sessions-workbench .badge > .badge-content {
-	border-radius: 4px !important;
+	border-radius: var(--vscode-cornerRadius-small) !important;
 }
 
 /* Phone-layout rules for parts, sashes, max-width constraints, and grid
@@ -885,7 +885,7 @@
 }
 
 .agent-sessions-workbench.phone-layout .notifications-toasts .notification-toast .notification-toast-container {
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 }
 
 /* ---- Phone Layout: Hover Cards ---- */
@@ -991,7 +991,7 @@
 	height: 5px;
 	background: var(--vscode-foreground);
 	opacity: 0.3;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	margin: 8px auto 4px auto;
 }
 

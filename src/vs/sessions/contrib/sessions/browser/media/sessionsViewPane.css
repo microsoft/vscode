@@ -196,7 +196,7 @@
 		line-height: 1;
 		padding: 1px 3px;
 		border: 1px solid transparent;
-		border-radius: 2px;
+		border-radius: var(--vscode-cornerRadius-xSmall);
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
 		box-shadow: none;

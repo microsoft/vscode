@@ -9,7 +9,7 @@
 	min-height: 0;
 
 	.monaco-list-row:has(.session-item) {
-		border-radius: 6px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		margin: 0 10px;
 		width: calc(100% - 20px);
 	}
@@ -258,7 +258,7 @@
 		padding: 4px 4px 4px 6px;
 		box-sizing: border-box;
 		border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
-		border-radius: 8px;
+		border-radius: var(--vscode-cornerRadius-large);
 		background-color: var(--vscode-editor-background);
 		color: var(--vscode-editor-foreground);
 		align-items: center;
@@ -388,7 +388,7 @@
 		font-size: var(--vscode-codiconFontSize-compact, 12px);
 		width: 22px;
 		height: 22px;
-		border-radius: 5px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		justify-content: center;
 	}
 }
@@ -529,7 +529,7 @@
 		 * lives inside the row via padding. */
 		margin: 0 8px;
 		width: calc(100% - 16px);
-		border-radius: 10px;
+		border-radius: var(--vscode-cornerRadius-xLarge);
 	}
 
 	.session-item {
