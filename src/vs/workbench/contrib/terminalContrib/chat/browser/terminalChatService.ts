@@ -33,6 +33,8 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionResourceByTerminalInstance = new Map<ITerminalInstance, URI>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
+	private readonly _terminalInstancesByExecutionId = new Map<string, ITerminalInstance>();
+	private readonly _terminalInstanceListenersByExecutionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _ahpCommandSources = new Map<string, IAhpTerminalCommandSource>();
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
@@ -170,6 +172,24 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getToolSessionIdForInstance(instance: ITerminalInstance): string | undefined {
 		return this._toolSessionIdByTerminalInstance.get(instance);
+	}
+
+	registerTerminalInstanceWithExecutionId(terminalExecutionId: string, instance: ITerminalInstance): IDisposable {
+		this._terminalInstancesByExecutionId.set(terminalExecutionId, instance);
+		const unregister = () => {
+			if (this._terminalInstancesByExecutionId.get(terminalExecutionId) === instance) {
+				this._terminalInstancesByExecutionId.delete(terminalExecutionId);
+			}
+			this._terminalInstanceListenersByExecutionId.deleteAndDispose(terminalExecutionId);
+		};
+		const instanceStore = new DisposableStore();
+		instanceStore.add(instance.onDisposed(unregister));
+		this._terminalInstanceListenersByExecutionId.set(terminalExecutionId, instanceStore);
+		return toDisposable(unregister);
+	}
+
+	getTerminalInstanceByExecutionId(terminalExecutionId: string): ITerminalInstance | undefined {
+		return this._terminalInstancesByExecutionId.get(terminalExecutionId);
 	}
 
 	registerTerminalInstanceWithChatSession(chatSessionResource: URI, instance: ITerminalInstance): void {
