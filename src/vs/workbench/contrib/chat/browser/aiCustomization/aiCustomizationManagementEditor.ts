@@ -642,13 +642,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Home/overview button
 		const homeButton = this.homeButton = DOM.append(headerRow, $('button.sidebar-home-button'));
 		homeButton.classList.add('sidebar-harness-home-button');
-		homeButton.setAttribute('aria-label', localize('homeButton', "Home"));
+		homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), homeButton, localize('homeButtonTooltip', "Back to overview")));
 		const homeIcon = this.homeButtonIcon = DOM.append(homeButton, $('span.sidebar-home-icon'));
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
 		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
-		homeLabel.textContent = localize('homeButtonLabel', "Home");
+		homeLabel.textContent = localize('homeButtonLabel', "Overview");
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
 		}));
@@ -726,8 +726,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.homeButtonIcon.className = 'sidebar-home-icon';
 		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
-		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Home");
-		this.homeButton.setAttribute('aria-label', localize('homeButton', "Home"));
+		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Overview");
+		this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
 		this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
 	}
 
