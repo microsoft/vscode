@@ -131,15 +131,7 @@ class TogglePanelVisibilityAction extends Action2 {
 			title: localize2('togglePanel', 'Toggle Panel Visibility'),
 			category: Categories.View,
 			f1: true,
-			icon: panelCloseIcon,
-			menu: [
-				{
-					id: Menus.PanelTitle,
-					group: 'navigation',
-					order: 2,
-					when: IsAuxiliaryWindowContext.toNegated()
-				}
-			]
+			icon: panelCloseIcon
 		});
 	}
 
