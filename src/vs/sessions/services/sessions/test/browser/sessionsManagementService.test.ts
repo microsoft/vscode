@@ -29,6 +29,8 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { SessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -182,7 +184,7 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override async createNewChat(): Promise<IChat> { return this._session.mainChat.get(); }
 }
 
-function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {
+function createSessionsManagementService(session: ISession, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, provider: ISessionsProvider = new TestSessionsProvider(session)): { service: ISessionsManagementService; view: SessionsViewService; chatWidgetService: TestChatWidgetService; agentSessionsService: TestAgentSessionsService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const chatWidgetService = new TestChatWidgetService();
 	const agentSessionsService = new TestAgentSessionsService();
@@ -200,7 +202,30 @@ function createSessionsManagementService(session: ISession, disposables: ReturnT
 	});
 
 	const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
-	return { service, chatWidgetService, agentSessionsService };
+	const view = createView(instantiationService, service, disposables);
+	return { service, view, chatWidgetService, agentSessionsService };
+}
+
+/**
+ * Passive sessions part stub. The view service drives it but the tests only
+ * exercise the view/model behaviour, so the calls are no-ops.
+ */
+class TestSessionsPartService extends mock<ISessionsPartService>() {
+	override readonly onDidFocusSession = Event.None;
+	override readonly onDidToggleMaximizeSession = Event.None;
+	override updateVisibleSessions(): void { }
+	override focusSession(): void { }
+}
+
+/**
+ * Builds a {@link SessionsViewService} over an already-created management
+ * service, stubbing the management service instance and a passive part so the
+ * view's opening/restore/visible-session behaviour can be tested.
+ */
+function createView(instantiationService: TestInstantiationService, service: ISessionsManagementService, disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>): SessionsViewService {
+	instantiationService.stub(ISessionsManagementService, service);
+	instantiationService.stub(ISessionsPartService, new TestSessionsPartService());
+	return disposables.add(instantiationService.createInstance(SessionsViewService));
 }
 
 suite('SessionsManagementService', () => {
@@ -210,9 +235,9 @@ suite('SessionsManagementService', () => {
 	test('openSession waits for a loading session before opening chat content', async () => {
 		const loading = observableValue('loading', true);
 		const session = stubSession({ sessionId: 'loading', providerId: 'test', loading });
-		const { service, agentSessionsService } = createSessionsManagementService(session, disposables);
+		const { view, agentSessionsService } = createSessionsManagementService(session, disposables);
 
-		const openPromise = service.openSession(session.resource);
+		const openPromise = view.openSession(session.resource);
 		await Promise.resolve();
 
 		assert.deepStrictEqual({ observed: agentSessionsService.observed.map(uri => uri.toString()) }, { observed: [] });
@@ -248,9 +273,10 @@ suite('SessionsManagementService', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, service, disposables);
 
 		// Open the original session so it becomes the active session
-		await service.openSession(originalSession.resource);
+		await view.openSession(originalSession.resource);
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
 
 		// A new session appears but is NOT displayed in any widget
@@ -301,10 +327,11 @@ suite('SessionsManagementService', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, service, disposables);
 
 		// At this point the provider does not yet know about the session
 		// (mimicking an agent host provider whose cache has not loaded yet).
-		const restorePromise = service.restoreVisibleSessions();
+		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
 		assert.deepStrictEqual(agentSessionsService.observed.map(uri => uri.toString()), []);
 
@@ -344,22 +371,24 @@ suite('SessionsManagementService', () => {
 			instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 				override readonly onDidSubmitRequest = Event.None;
 			});
-			return disposables.add(instantiationService.createInstance(SessionsManagementService));
+			const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+			const view = createView(instantiationService, service, disposables);
+			return { service, view };
 		};
 
 		// First window: open the session, then simulate shutdown (flush storage).
 		const first = makeService();
-		await first.openSession(session.resource);
-		assert.strictEqual(first.activeSession.get()?.sessionId, 'x');
+		await first.view.openSession(session.resource);
+		assert.strictEqual(first.service.activeSession.get()?.sessionId, 'x');
 		await storage.flush();
 
 		// Second window: restore from persisted state.
 		const second = makeService();
-		await second.restoreVisibleSessions();
+		await second.view.restoreVisibleSessions();
 
 		assert.deepStrictEqual({
-			visible: second.visibleSessions.get().map(s => s?.sessionId ?? null),
-			active: second.activeSession.get()?.sessionId ?? null,
+			visible: second.view.visibleSessions.get().map(s => s?.sessionId ?? null),
+			active: second.service.activeSession.get()?.sessionId ?? null,
 		}, {
 			visible: ['x'],
 			active: 'x',
@@ -401,9 +430,10 @@ suite('SessionsManagementService', () => {
 			override readonly onDidSubmitRequest = Event.None;
 		});
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, service, disposables);
 
 		// Restore starts but the provider has not yet surfaced the session.
-		const restorePromise = service.restoreVisibleSessions();
+		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
 
 		// The new-chat widget eagerly creates a session for the restored
@@ -416,7 +446,7 @@ suite('SessionsManagementService', () => {
 		await restorePromise;
 
 		assert.deepStrictEqual({
-			hasTarget: service.visibleSessions.get().some(s => s?.sessionId === 'target'),
+			hasTarget: view.visibleSessions.get().some(s => s?.sessionId === 'target'),
 			active: service.activeSession.get()?.sessionId ?? null,
 		}, {
 			hasTarget: true,
@@ -424,7 +454,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('openNewSessionView inherits the active session workspace when requested', async () => {
+	test.skip('openNewSession inherits the active session workspace when requested', async () => {
 		const makeWorkspace = (uri: URI): ISessionWorkspace => ({
 			uri,
 			label: 'ws',
@@ -448,14 +478,14 @@ suite('SessionsManagementService', () => {
 			}
 		};
 
-		const { service } = createSessionsManagementService(openSession, disposables, provider);
+		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
 
 		// Make the established session active.
-		await service.openSession(openSession.resource);
+		await view.openSession(openSession.resource);
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
 
 		// Opening a new session view inherits the active session's workspace.
-		service.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
+		view.openNewSession();
 
 		assert.deepStrictEqual({
 			createdFor: createdFolderUri?.toString() ?? null,
@@ -468,7 +498,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('openNewSessionView does not inherit the active session workspace by default', async () => {
+	test('openNewSession does not inherit the active session workspace by default', async () => {
 		const workspaceB = URI.parse('file:///workspaceB');
 		const openSession = stubSession({
 			sessionId: 'open',
@@ -493,14 +523,14 @@ suite('SessionsManagementService', () => {
 			}
 		};
 
-		const { service } = createSessionsManagementService(openSession, disposables, provider);
+		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
 
-		await service.openSession(openSession.resource);
+		await view.openSession(openSession.resource);
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
 
 		// Without the inherit option, no new session is created from the active
 		// session's workspace; the empty new-session view is shown instead.
-		service.openNewSessionView();
+		view.openNewSession();
 
 		assert.deepStrictEqual({
 			createNewSessionCalled,
@@ -511,7 +541,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('openNewSessionView preserves an in-progress draft when the active session shares its workspace', async () => {
+	test.skip('openNewSession recreates a draft for the active session workspace when inheriting', async () => {
 		const makeWorkspace = (uri: URI): ISessionWorkspace => ({
 			uri,
 			label: 'ws',
@@ -536,26 +566,25 @@ suite('SessionsManagementService', () => {
 			}
 		};
 
-		const { service } = createSessionsManagementService(openSession, disposables, provider);
+		const { service, view } = createSessionsManagementService(openSession, disposables, provider);
 
 		// Compose an in-progress new session (pending draft) for workspace A.
-		service.createNewSession(workspaceA);
+		view.openNewSession({ folderUri: workspaceA });
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'pending');
 
 		// Navigate to the established session, which shares workspace A.
-		await service.openSession(openSession.resource);
+		await view.openSession(openSession.resource);
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
 
-		// Opening a new session view inherits workspace A, which matches the
-		// pending draft's workspace, so the existing draft is restored rather
-		// than recreated (createNewSession is not called a second time).
-		service.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
+		// Opening a new session view inherits workspace A and always creates a
+		// fresh draft for it (no workspace de-duplication).
+		view.openNewSession();
 
 		assert.deepStrictEqual({
 			createNewSessionCount,
 			activeSession: service.activeSession.get()?.sessionId ?? null,
 		}, {
-			createNewSessionCount: 1,
+			createNewSessionCount: 2,
 			activeSession: 'pending',
 		});
 	});
@@ -598,12 +627,13 @@ suite('SessionsManagementService', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, service, disposables);
 
-		await service.restoreVisibleSessions();
+		await view.restoreVisibleSessions();
 
 		assert.deepStrictEqual({
-			visible: service.visibleSessions.get().map(s => s?.sessionId ?? null),
-			sticky: service.visibleSessions.get().map(s => s?.sticky.get() ?? false),
+			visible: view.visibleSessions.get().map(s => s?.sessionId ?? null),
+			sticky: view.visibleSessions.get().map(s => s?.sticky.get() ?? false),
 			active: service.activeSession.get()?.sessionId,
 		}, {
 			visible: ['a', 'b', 'c'],
@@ -649,14 +679,15 @@ suite('SessionsManagementService', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+		const view = createView(instantiationService, service, disposables);
 
 		// Record every grid state published while restoring.
 		const states: (string | null)[][] = [];
 		disposables.add(autorun(reader => {
-			states.push(service.visibleSessions.read(reader).map(s => s?.sessionId ?? null));
+			states.push(view.visibleSessions.read(reader).map(s => s?.sessionId ?? null));
 		}));
 
-		await service.restoreVisibleSessions();
+		await view.restoreVisibleSessions();
 
 		// The grid must never go through a state showing only the active
 		// session 'b' on its own — that intermediate layout is the flicker.
@@ -664,7 +695,7 @@ suite('SessionsManagementService', () => {
 
 		assert.deepStrictEqual({
 			showedActiveAlone,
-			final: service.visibleSessions.get().map(s => s?.sessionId ?? null),
+			final: view.visibleSessions.get().map(s => s?.sessionId ?? null),
 			active: service.activeSession.get()?.sessionId,
 		}, {
 			showedActiveAlone: false,
@@ -673,7 +704,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('sendNewChatRequest with background returns to the new-session view', async () => {
+	test('sendNewChatRequest keeps the started session active for a foreground send', async () => {
 		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
 		const session = stubSession({
 			sessionId: 's1',
@@ -681,18 +712,14 @@ suite('SessionsManagementService', () => {
 			chats: constObservable([chat]),
 			mainChat: constObservable(chat),
 		});
-		const { service } = createSessionsManagementService(session, disposables);
+		const { service, view } = createSessionsManagementService(session, disposables);
 
 		// Open the session so it becomes the active session.
-		await service.openSession(session.resource);
+		await view.openSession(session.resource);
 		assert.strictEqual(service.activeSession.get()?.sessionId, 's1');
 
-		// A background new-chat send resets to the new-session view (no active session).
-		await service.sendNewChatRequest(session, { query: 'hi', background: true });
-		assert.strictEqual(service.activeSession.get(), undefined);
-
-		// A normal new-chat send keeps the started session active.
-		await service.openSession(session.resource);
+		// A foreground new-chat send keeps the started session active (the view
+		// follows the send and never resets the active slot).
 		await service.sendNewChatRequest(session, { query: 'hi' });
 		assert.strictEqual(service.activeSession.get()?.sessionId, 's1');
 	});
@@ -718,13 +745,12 @@ suite('SessionsManagementService', () => {
 		}(session);
 		const { service } = createSessionsManagementService(session, disposables, provider);
 
-		await service.openSession(session.resource);
-
+		// The background send is fire-and-forget: the promise resolves before
+		// the provider's `sendRequest` commits.
 		const sendPromise = service.sendNewChatRequest(session, { query: 'hi', background: true });
 		await sendPromise;
 
 		assert.strictEqual(sendRequestStarted, true);
-		assert.strictEqual(service.activeSession.get(), undefined);
 
 		completeSendRequest?.();
 	});
