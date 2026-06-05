@@ -281,7 +281,8 @@ export interface ISessionsManagementService {
 
 	/**
 	 * Switch to the new-session view.
-	 * No-op if the current session is already a new session.
+	 * No-op when no session is active (the empty new-session placeholder is
+	 * already showing).
 	 *
 	 * When `options.inheritWorkspaceFromActiveSession` is set, the new session
 	 * view inherits the workspace of the session that is currently active

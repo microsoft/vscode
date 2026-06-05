@@ -167,8 +167,8 @@ of the last composed new session. Inheritance is skipped when the active
 session's workspace already matches the current pending new session (so an
 in-progress draft for that same workspace is preserved) and falls back to the
 default behavior if the workspace cannot be resolved. Internal callers (restore
-fallback, archive, background reseed) invoke `openNewSessionView()` without the
-flag and keep the prior behavior.
+fallback, archive, background reseed, and the close-session fallback) invoke
+`openNewSessionView()` without the flag and keep the prior behavior.
 
 `sendNewChatRequest(session, options)` accepts a `background` flag: a background
 new-session send returns the agents window to a fresh new-session view (via

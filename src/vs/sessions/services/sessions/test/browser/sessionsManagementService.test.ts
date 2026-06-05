@@ -511,6 +511,55 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('openNewSessionView preserves an in-progress draft when the active session shares its workspace', async () => {
+		const makeWorkspace = (uri: URI): ISessionWorkspace => ({
+			uri,
+			label: 'ws',
+			icon: Codicon.vm,
+			folders: [{ root: uri, workingDirectory: uri, name: 'ws', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		});
+
+		const workspaceA = URI.parse('file:///workspaceA');
+		const openSession = stubSession({ sessionId: 'open', providerId: 'test', workspace: constObservable(makeWorkspace(workspaceA)) });
+		const pendingSession = stubSession({ sessionId: 'pending', providerId: 'test', workspace: constObservable(makeWorkspace(workspaceA)) });
+
+		let createNewSessionCount = 0;
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(openSession); }
+			override getSessions(): ISession[] { return [openSession]; }
+			override resolveWorkspace(folderUri?: URI): ISessionWorkspace { return makeWorkspace(folderUri!); }
+			override createNewSession(): ISession {
+				createNewSessionCount++;
+				return pendingSession;
+			}
+		};
+
+		const { service } = createSessionsManagementService(openSession, disposables, provider);
+
+		// Compose an in-progress new session (pending draft) for workspace A.
+		service.createNewSession(workspaceA);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'pending');
+
+		// Navigate to the established session, which shares workspace A.
+		await service.openSession(openSession.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
+
+		// Opening a new session view inherits workspace A, which matches the
+		// pending draft's workspace, so the existing draft is restored rather
+		// than recreated (createNewSession is not called a second time).
+		service.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
+
+		assert.deepStrictEqual({
+			createNewSessionCount,
+			activeSession: service.activeSession.get()?.sessionId ?? null,
+		}, {
+			createNewSessionCount: 1,
+			activeSession: 'pending',
+		});
+	});
+
 	test('restoreVisibleSessions restores the grid order, sticky and active state', async () => {
 		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
 		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });

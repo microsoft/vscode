@@ -832,7 +832,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	openNewSessionView(options?: { inheritWorkspaceFromActiveSession?: boolean }): void {
 		const current = this._visibility.activeSession.get();
-		// No-op if the current session is already a new session
+		// No-op when no session is active (empty new-session placeholder showing).
 		if (current === undefined) {
 			return;
 		}
