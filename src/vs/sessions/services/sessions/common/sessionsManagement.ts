@@ -101,6 +101,17 @@ export interface IActiveSession extends ISession {
 }
 
 /**
+ * Sessions split into recently opened and other (never opened) groups, used to
+ * populate the sessions picker.
+ */
+export interface IRecentlyOpenedSessions {
+	/** Sessions opened in this workspace, most recently opened first. */
+	readonly recent: ISession[];
+	/** Sessions never opened in this workspace, most recently updated first. */
+	readonly other: ISession[];
+}
+
+/**
  * An active session item extends IChatSessionItem with repository information.
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
@@ -178,88 +189,32 @@ export interface ISessionsManagementService {
 	readonly onDidDeleteChat: Event<ISession>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
-	/** Fires after a session's stickiness was toggled via {@link toggleSessionStickiness}. */
-	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent>;
+	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
+	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	// -- Active Session --
 
 	/**
 	 * Observable for the currently active session as {@link IActiveSession}.
+	 *
+	 * The canonical truth, set via {@link setActiveSession} by the
+	 * `ISessionsViewService` whenever the visible active slot changes.
 	 */
 	readonly activeSession: IObservable<IActiveSession | undefined>;
 
 	/**
-	 * Observable list of slots currently displayed in the sessions part's
-	 * grid, in their grid order (left-to-right). Each entry is either an
-	 * {@link IActiveSession} or `undefined` for the empty (new-session)
-	 * placeholder. At most one entry is `undefined` at a time. Sessions
-	 * pinned via {@link toggleSessionStickiness} are sticky; the remaining
-	 * non-sticky entries get replaced when new sessions are opened.
+	 * Set the canonical active session. Called by the `ISessionsViewService`
+	 * to mirror the visible active slot into the model; not intended for other
+	 * callers (open a session via the view service instead).
 	 */
-	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>;
+	setActiveSession(session: IActiveSession | undefined): void;
 
 	/**
-	 * Toggle a session's stickiness in the grid. The session keeps its grid
-	 * slot when toggled. If the session is not currently visible, it is
-	 * appended to the grid as sticky.
+	 * Observable for the in-progress new session (composed but not yet sent),
+	 * or `undefined` when there is none. Owned by the model; consumers read it
+	 * reactively (e.g. the view restores it into the composer slot).
 	 */
-	toggleSessionStickiness(session: ISession): void;
-
-	/**
-	 * Insert (or move) a session into the grid positioned next to a target
-	 * session that is already visible.
-	 * - If the session is not yet visible, a new non-sticky entry is created
-	 *   at the computed position.
-	 * - If the session is already visible, it is moved to the computed
-	 *   position; its sticky / non-sticky state is preserved.
-	 *
-	 * When `activate` is `true` (default), the inserted session also becomes
-	 * the active session. Pass `false` to leave the active session unchanged.
-	 */
-	insertAt(session: ISession, targetSessionId: string, side: 'left' | 'right', activate?: boolean): void;
-
-	/**
-	 * Close a session: remove it from the visibility model so it is no longer
-	 * shown in the grid. If the session was the active one, the previous
-	 * visible session becomes active; if no session remains visible, the
-	 * new-session view is opened. Passing `undefined` closes the empty
-	 * (new-session) slot if it is currently visible.
-	 */
-	closeSession(session: ISession | undefined): void;
-
-	/**
-	 * Close all sessions currently shown in the grid. Removes every visible
-	 * session in a single pass and lands on the new-session view. No-op when no
-	 * session is currently visible.
-	 */
-	closeAllSessions(): void;
-
-	setActive(session: IActiveSession | undefined): void;
-
-	/**
-	 * Select an existing session as the active session.
-	 * Sets `isNewChatSession` context to false and opens the active chat belonging to the session.
-	 */
-	openSession(sessionResource: URI, options?: { preserveFocus?: boolean }): Promise<void>;
-
-	/**
-	 * Open a specific chat within a session.
-	 * Sets `isNewChatSession` context to false and opens the chat.
-	 */
-	openChat(session: ISession, chatUri: URI): Promise<void>;
-
-	/**
-	 * Restore the last active session from persisted state.
-	 * Waits until the session provider is available and then opens the session.
-	 * Falls back to the new-session view if the session is not found.
-	 */
-	restoreLastActiveSession(): Promise<void>;
-
-	/**
-	 * Switch to the new-session view.
-	 * No-op if the current session is already a new session.
-	 */
-	openNewSessionView(): void;
+	readonly newSession: IObservable<ISession | undefined>;
 
 	/**
 	 * Create a new session for the given folder.
@@ -270,13 +225,31 @@ export interface ISessionsManagementService {
 	 * whose `getSessionTypes` includes it). When `options.sessionTypeId` is
 	 * omitted, defaults to the chosen provider's first advertised type for
 	 * the folder.
+	 *
+	 * Tracks the created session as the new session and returns it. Does not
+	 * make it active/visible — the `ISessionsViewService` shows it.
 	 */
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession;
 
 	/**
-	 * Unset the new session
+	 * Create (or reuse an existing untitled) chat in the given session via its
+	 * provider so it can be shown as the new-chat-in-session view. Returns the
+	 * chat, or `undefined` when the provider could not be resolved.
 	 */
-	unsetNewSession(): void;
+	createNewChatInSession(session: ISession): Promise<IChat | undefined>;
+
+	/**
+	 * Discard the in-progress new session, disposing it through its provider to
+	 * release the eagerly-acquired backend session.
+	 *
+	 * - When `session` is omitted, discards the current new session
+	 *   unconditionally.
+	 * - When `session` is provided, discards only if it is the current new
+	 *   session (so closing an unrelated session never drops the draft).
+	 *
+	 * No-op when there is no matching new session.
+	 */
+	discardNewSession(session?: ISession): void;
 
 	/**
 	 * Send a request, creating a new chat in the session.
@@ -303,19 +276,6 @@ export interface ISessionsManagementService {
 	 * Send a request for an existing chat within a session.
 	 */
 	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
-
-	/**
-	 * Switch to the new-chat-in-session view.
-	 * Adds a new chat to the session via the provider, makes it the active chat,
-	 * and shows a rich input for composing a message.
-	 */
-	openNewChatInSession(session: ISession): Promise<void>;
-
-	/** Navigate to the previous session in the navigation history. */
-	openPreviousSession(): Promise<void>;
-
-	/** Navigate to the next session in the navigation history. */
-	openNextSession(): Promise<void>;
 
 	// -- Session Actions --
 
