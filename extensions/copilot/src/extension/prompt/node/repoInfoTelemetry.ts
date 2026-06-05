@@ -133,10 +133,7 @@ export class RepoInfoTelemetry {
 		try {
 			this._beginTelemetrySent = true;
 			this._beginTelemetryPromise = this._sendRepoInfoTelemetry('begin');
-			const repoResults = await this._beginTelemetryPromise;
-			for (const [key, value] of repoResults) {
-				this._beginTelemetryResults.set(key, value?.properties.result);
-			}
+			await this._beginTelemetryPromise;
 		} catch (error) {
 			this._logService.warn(`Failed to send begin repo info telemetry ${error}`);
 		}
@@ -222,6 +219,11 @@ export class RepoInfoTelemetry {
 
 		for (const { rootUriKey, data } of perRepo) {
 			results.set(rootUriKey, data);
+			if (location === 'begin') {
+				// Populate begin-results within the same promise so any awaiter of `_beginTelemetryPromise`
+				// is guaranteed to see populated results without relying on continuation ordering.
+				this._beginTelemetryResults.set(rootUriKey, data?.properties.result);
+			}
 			if (!data) {
 				continue;
 			}
