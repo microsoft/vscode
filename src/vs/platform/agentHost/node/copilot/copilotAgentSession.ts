@@ -1191,14 +1191,15 @@ export class CopilotAgentSession extends Disposable {
 	 * SDK's pre-call permission prompt is redundant in that case.
 	 *
 	 * Returns false when shell tools are not registered (the SDK's built-in
-	 * terminal runs unsandboxed via `AgentHostConfigKey.DisableCustomTerminalTool`)
+	 * terminal runs unsandboxed unless `AgentHostConfigKey.EnableCustomTerminalTool`
+	 * is set)
 	 * so the standard confirmation flow is preserved.
 	 */
 	private async _isShellSandboxedByDefault(): Promise<boolean> {
 		if (!this._shellManager) {
 			return false;
 		}
-		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true) {
+		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) !== true) {
 			return false;
 		}
 		return this._shellManager.getOrCreateSandboxEngine().isEnabled();
