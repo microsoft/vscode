@@ -284,14 +284,16 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		}) as typeof fileService.del;
 
 		const second = await bundler.bundle(await discovery.directories());
+		assert.ok(first);
+		assert.ok(second);
 		assert.deepStrictEqual({
-			firstNonce: first?.ref.nonce,
-			secondNonce: second?.ref.nonce,
+			firstNonce: first.ref.nonce,
+			secondNonce: second.ref.nonce,
 			writeCalls,
 			deleteCalls,
 		}, {
-			firstNonce: first?.ref.nonce,
-			secondNonce: first?.ref.nonce,
+			firstNonce: first.ref.nonce,
+			secondNonce: first.ref.nonce,
 			writeCalls: 0,
 			deleteCalls: 0,
 		});

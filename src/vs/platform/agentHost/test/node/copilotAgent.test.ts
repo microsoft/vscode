@@ -898,9 +898,12 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(before.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
 
 				await fileService.del(agentsRoot, { recursive: true });
-				await new Promise(resolve => setTimeout(resolve, 150));
 
-				const after = await agent.getSessionCustomizations(session);
+				let after = await agent.getSessionCustomizations(session);
+				for (let i = 0; i < 20 && after.filter(customization => customization.type === CustomizationType.Directory).length > 0; i++) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+					after = await agent.getSessionCustomizations(session);
+				}
 				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), []);
 			} finally {
 				await disposeAgent(agent);
