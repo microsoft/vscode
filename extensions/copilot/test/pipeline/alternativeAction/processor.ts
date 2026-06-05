@@ -37,21 +37,16 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const { recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const { entries, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
 		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
 		if (currentFileId === undefined) {
 			return undefined;
 		}
 
-		const idToFileMap = documentIndexMapping(recordingPriorToRequest);
-		// Cross-file targets in the post-request portion may reference docs
-		// the user only encountered after the bookmark; merge those in too so
-		// detectors can resolve them by id.
-		for (const entry of recordingAfterRequest) {
-			if (entry.kind === 'documentEncountered' && !idToFileMap.has(entry.id)) {
-				idToFileMap.set(entry.id, entry.relativePath);
-			}
-		}
+		// Pass the whole recording so cross-file targets in the post-request
+		// portion can be resolved by id even if the user only encountered the
+		// target document after the bookmark.
+		const idToFileMap = documentIndexMapping(entries);
 
 		const currentFilePath = idToFileMap.get(currentFileId);
 		if (!currentFilePath) {
@@ -78,7 +73,7 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const { recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const { entries, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
 
 		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
 		if (currentFileId === undefined) {
@@ -86,7 +81,7 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const idToFileMap = documentIndexMapping(recordingPriorToRequest);
+		const idToFileMap = documentIndexMapping(entries);
 
 		const currentFilePath = idToFileMap.get(currentFileId);
 
@@ -117,6 +112,7 @@ export namespace Processor {
 	}
 
 	function splitRecordingAtRequestTime(altAction: IAlternativeAction): {
+		entries: LogEntry[];
 		recordingPriorToRequest: LogEntry[];
 		recordingAfterRequest: LogEntry[];
 	} | undefined {
@@ -149,6 +145,7 @@ export namespace Processor {
 		const recordingAfterRequest = recording.slice(recordingIdxOfRequestTime + 1);
 
 		return {
+			entries: recording,
 			recordingPriorToRequest,
 			recordingAfterRequest
 		};
