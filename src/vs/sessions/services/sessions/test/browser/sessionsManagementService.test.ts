@@ -424,6 +424,93 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('openNewSessionView inherits the active session workspace when requested', async () => {
+		const makeWorkspace = (uri: URI): ISessionWorkspace => ({
+			uri,
+			label: 'ws',
+			icon: Codicon.vm,
+			folders: [{ root: uri, workingDirectory: uri, name: 'ws', description: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		});
+
+		const workspaceB = URI.parse('file:///workspaceB');
+		const openSession = stubSession({ sessionId: 'open', providerId: 'test', workspace: constObservable(makeWorkspace(workspaceB)) });
+
+		let createdFolderUri: URI | undefined;
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(openSession); }
+			override getSessions(): ISession[] { return [openSession]; }
+			override resolveWorkspace(folderUri?: URI): ISessionWorkspace { return makeWorkspace(folderUri!); }
+			override createNewSession(folderUri?: URI): ISession {
+				createdFolderUri = folderUri;
+				return stubSession({ sessionId: 'inherited', providerId: 'test', workspace: constObservable(makeWorkspace(folderUri!)) });
+			}
+		};
+
+		const { service } = createSessionsManagementService(openSession, disposables, provider);
+
+		// Make the established session active.
+		await service.openSession(openSession.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
+
+		// Opening a new session view inherits the active session's workspace.
+		service.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
+
+		assert.deepStrictEqual({
+			createdFor: createdFolderUri?.toString() ?? null,
+			activeSession: service.activeSession.get()?.sessionId ?? null,
+			activeWorkspace: service.activeSession.get()?.workspace.get()?.folders[0]?.root.toString() ?? null,
+		}, {
+			createdFor: workspaceB.toString(),
+			activeSession: 'inherited',
+			activeWorkspace: workspaceB.toString(),
+		});
+	});
+
+	test('openNewSessionView does not inherit the active session workspace by default', async () => {
+		const workspaceB = URI.parse('file:///workspaceB');
+		const openSession = stubSession({
+			sessionId: 'open',
+			providerId: 'test',
+			workspace: constObservable({
+				uri: workspaceB,
+				label: 'ws',
+				icon: Codicon.vm,
+				folders: [{ root: workspaceB, workingDirectory: workspaceB, name: 'ws', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			} satisfies ISessionWorkspace),
+		});
+
+		let createNewSessionCalled = false;
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(openSession); }
+			override getSessions(): ISession[] { return [openSession]; }
+			override createNewSession(): ISession {
+				createNewSessionCalled = true;
+				return openSession;
+			}
+		};
+
+		const { service } = createSessionsManagementService(openSession, disposables, provider);
+
+		await service.openSession(openSession.resource);
+		assert.strictEqual(service.activeSession.get()?.sessionId, 'open');
+
+		// Without the inherit option, no new session is created from the active
+		// session's workspace; the empty new-session view is shown instead.
+		service.openNewSessionView();
+
+		assert.deepStrictEqual({
+			createNewSessionCalled,
+			activeSession: service.activeSession.get()?.sessionId ?? null,
+		}, {
+			createNewSessionCalled: false,
+			activeSession: null,
+		});
+	});
+
 	test('restoreVisibleSessions restores the grid order, sticky and active state', async () => {
 		const sessionA = stubSession({ sessionId: 'a', providerId: 'test' });
 		const sessionB = stubSession({ sessionId: 'b', providerId: 'test' });

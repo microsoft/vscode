@@ -282,8 +282,14 @@ export interface ISessionsManagementService {
 	/**
 	 * Switch to the new-session view.
 	 * No-op if the current session is already a new session.
+	 *
+	 * When `options.inheritWorkspaceFromActiveSession` is set, the new session
+	 * view inherits the workspace of the session that is currently active
+	 * (the one being switched away from) instead of defaulting to the
+	 * workspace of the last composed new session. Use this for explicit
+	 * user-initiated "new session" gestures (e.g. Ctrl/Cmd+N, the New button).
 	 */
-	openNewSessionView(): void;
+	openNewSessionView(options?: { inheritWorkspaceFromActiveSession?: boolean }): void;
 
 	/**
 	 * Create a new session for the given folder.

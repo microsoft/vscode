@@ -66,7 +66,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsManagementService.openNewSessionView();
+		sessionsManagementService.openNewSessionView({ inheritWorkspaceFromActiveSession: true });
 		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 }
