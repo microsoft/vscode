@@ -3,18 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
-import { createDecorator, IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { getClientArea } from '../../../base/browser/dom.js';
-import { mainWindow } from '../../../base/browser/window.js';
-import { SessionsPart } from './sessionsPart.js';
-import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
-import { SessionView } from './sessionView.js';
-import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { autorun } from '../../../base/common/observable.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import type { SessionView } from './sessionView.js';
+import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Event } from '../../../base/common/event.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -29,6 +22,21 @@ export interface IToggleMaximizeSessionEvent {
 
 export interface ISessionsPartService {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Reconciles the part's grid so it renders exactly the given visible
+	 * sessions (and active session). Called by the view service whenever the
+	 * visible sessions or active session change. The part is a passive renderer:
+	 * it does not observe the model itself.
+	 */
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void;
+
+	/**
+	 * Fires with the session id of a grid slot that received keyboard focus. The
+	 * view service listens to promote that session to the active session. Only
+	 * fires for non-placeholder slots.
+	 */
+	readonly onDidFocusSession: Event<string>;
 
 	/**
 	 * Toggles the maximized state of the session view hosting the given session
@@ -63,92 +71,3 @@ export interface ISessionsPartService {
 	 */
 	getProgressIndicator(): IProgressIndicator;
 }
-
-/**
- * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
- * variant based on viewport width at construction time. Registered as an eager
- * singleton so the part registers itself with the workbench layout service
- * before the workbench starts laying out parts.
- */
-export class SessionsParts extends Disposable implements ISessionsPartService {
-
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _mainPart: SessionsPart;
-
-	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
-	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
-
-	/**
-	 * Session id (or `undefined` for the new-session slot) that focus was last
-	 * moved into in response to an active-session change. Tracks the active id
-	 * so unrelated visibility updates don't re-focus and steal focus.
-	 */
-	private _focusedActiveSessionId: string | undefined;
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService
-	) {
-		super();
-
-		const { width } = getClientArea(mainWindow.document.body);
-		const isPhoneLayout = width < 640;
-
-		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
-
-		this._register(autorun(reader => {
-			const visible = sessionsManagementService.visibleSessions.read(reader);
-			const active = sessionsManagementService.activeSession.read(reader);
-			this._mainPart.updateVisibleSessions(visible, active);
-
-			// Move keyboard focus into the active session whenever it changes
-			// (e.g. after opening, switching to, or restoring a session) so the
-			// user can start typing immediately. This is done after the grid has
-			// reconciled above so the target slot exists. The focus is guarded so
-			// a session the user is already interacting with is never re-focused
-			// (which would steal focus from the clicked element), and the id check
-			// ensures unrelated visibility updates do not move focus.
-			const activeId = active?.sessionId;
-			if (activeId !== this._focusedActiveSessionId) {
-				this._focusedActiveSessionId = activeId;
-				this._mainPart.focusSession(activeId);
-			}
-		}));
-
-		// When a session view in the grid receives focus, promote that session to
-		// the active session. The id is guaranteed to correspond to a session in
-		// the visibility model (the part only fires for non-placeholder slots).
-		this._register(this._mainPart.onDidFocusSession(sessionId => {
-			const session = sessionsManagementService.visibleSessions.get().find(s => s?.sessionId === sessionId);
-			if (session) {
-				sessionsManagementService.setActive(session);
-			}
-		}));
-	}
-
-	toggleMaximizeSession(session: IActiveSession | undefined): void {
-		if (!session) {
-			this._mainPart.toggleMaximizeSession(undefined);
-			return;
-		}
-		const maximized = this._mainPart.toggleMaximizeSession(session.sessionId);
-		if (maximized !== undefined) {
-			this._onDidToggleMaximizeSession.fire({ session, maximized });
-		}
-	}
-
-	focusSession(session: IActiveSession | undefined): void {
-		this._mainPart.focusSession(session?.sessionId);
-	}
-
-	getSessionView(sessionId: string | undefined): SessionView | undefined {
-		return this._mainPart.getSessionView(sessionId);
-	}
-
-	getProgressIndicator(): IProgressIndicator {
-		return this._mainPart.getProgressIndicator();
-	}
-}
-
-registerSingleton(ISessionsPartService, SessionsParts, InstantiationType.Eager);

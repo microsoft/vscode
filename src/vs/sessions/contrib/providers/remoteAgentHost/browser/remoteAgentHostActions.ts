@@ -35,6 +35,7 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
@@ -578,6 +579,7 @@ async function promptForRemoteFolder(
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsViewService = accessor.get(ISessionsViewService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	// The provider is created synchronously during addManagedConnection's
@@ -602,7 +604,7 @@ async function promptForRemoteFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
+	sessionsViewService.openNewSession();
 	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri);
 }
 
@@ -925,6 +927,7 @@ async function promptForTunnelFolder(
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsViewService = accessor.get(ISessionsViewService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const tunnelAddress = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -951,7 +954,7 @@ async function promptForTunnelFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
+	sessionsViewService.openNewSession();
 	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
@@ -1111,6 +1114,7 @@ async function promptForWSLFolder(
 ): Promise<void> {
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsViewService = accessor.get(ISessionsViewService);
 	const sessionsPartService = accessor.get(ISessionsPartService);
 
 	const wslAddress = `wsl:${distro}`;
@@ -1133,7 +1137,7 @@ async function promptForWSLFolder(
 		return;
 	}
 
-	sessionsManagementService.openNewSessionView();
+	sessionsViewService.openNewSession();
 	sessionsPartService.getSessionView(sessionsManagementService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, provider.id);
 }
 
