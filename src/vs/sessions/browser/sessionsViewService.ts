@@ -47,12 +47,6 @@ export interface IOpenNewSessionOptions extends ICreateNewSessionOptions {
 	 * (restoring any pending draft).
 	 */
 	readonly folderUri?: URI;
-	/**
-	 * When set (and `folderUri` is omitted), create a fresh draft for the
-	 * workspace of the session being switched away from instead of restoring
-	 * the last composed new session.
-	 */
-	readonly fromActiveSession?: boolean;
 }
 
 /**
@@ -575,14 +569,7 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 	}
 
 	openNewSession(options?: IOpenNewSessionOptions): ISession | undefined {
-		// When inheriting, resolve the folder from the active session and fall
-		// through to the create path below.
-		let folderUri = options?.folderUri;
-		if (!folderUri && options?.fromActiveSession) {
-			folderUri = this._visibility.activeSession.get()?.workspace.get()?.folders[0]?.root;
-		}
-
-		// With a folder: create a concrete draft session and show it.
+		const folderUri = options?.folderUri;
 		if (folderUri) {
 			this._startOpenSession();
 			const session = this.sessionsManagementService.createNewSession(folderUri, options);

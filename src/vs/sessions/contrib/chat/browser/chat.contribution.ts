@@ -68,7 +68,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsViewService.openNewSession({ fromActiveSession: true });
+		sessionsViewService.openNewSession();
 		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 }
