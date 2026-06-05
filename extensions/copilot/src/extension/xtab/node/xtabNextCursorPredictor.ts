@@ -19,6 +19,7 @@ import { OptionalChatRequestParams } from '../../../platform/networking/common/f
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { IProxyModelsService } from '../../../platform/proxyModels/common/proxyModelsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
+import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { backwardCompatSetting } from '../../../util/common/backwardCompatSetting';
 import { ErrorUtils } from '../../../util/common/errors';
 import { Result } from '../../../util/common/result';
@@ -179,7 +180,7 @@ export class XtabNextCursorPredictor {
 	}
 
 
-	public async predictNextCursorPosition(promptPieces: PromptPieces, parentTracer: ILogger, telemetryBuilder: StatelessNextEditTelemetryBuilder | undefined, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
+	public async predictNextCursorPosition(promptPieces: PromptPieces, parentTracer: ILogger, telemetryBuilder: StatelessNextEditTelemetryBuilder | undefined, logContext: InlineEditRequestLogContext | undefined, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
 
 		const tracer = parentTracer.createSubLogger('predictNextCursorPosition');
 
@@ -191,7 +192,7 @@ export class XtabNextCursorPredictor {
 		const { messages, keptRange } = promptR.val;
 
 		telemetryBuilder?.setCursorJumpPrompt(messages);
-		telemetryBuilder?.setCursorJumpKeptRange(keptRange);
+		logContext?.setCursorJumpPrompt(messages, keptRange);
 
 		const modelName = this.determineModelName();
 		telemetryBuilder?.setCursorJumpModelName(modelName);

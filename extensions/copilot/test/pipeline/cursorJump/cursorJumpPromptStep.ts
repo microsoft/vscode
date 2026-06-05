@@ -68,9 +68,9 @@ class CursorJumpCapturingFetcher implements IChatMLFetcher {
 /**
  * Generate a cursor-prediction prompt by running the production NES pipeline
  * with cursor prediction forced on and the model call mocked. The cursor
- * predictor populates `telemetryBuilder.getCursorJumpPrompt()` /
- * `getCursorJumpKeptRange()` before the fetch fires, so the captured prompt
- * is byte-identical to what production would send for the same recording.
+ * predictor stores the built prompt + keptRange on `logContext` before the
+ * fetch fires, so the captured prompt is byte-identical to what production
+ * would send for the same recording.
  */
 export async function generateCursorPromptFromRecording(
 	accessor: ServicesAccessor,
@@ -128,7 +128,7 @@ export async function generateCursorPromptFromRecording(
 				CancellationToken.None, telemetryBuilder.nesBuilder,
 			);
 		} catch (err) {
-			if (!telemetryBuilder.nesBuilder.getStatelessNextEditTelemetry()?.cursorJumpRawMessages) {
+			if (!logContext.cursorJumpRawMessages) {
 				throw err;
 			}
 			// expected: downstream errors after the cursor-jump prompt was already captured
@@ -137,9 +137,8 @@ export async function generateCursorPromptFromRecording(
 			telemetryBuilder.dispose();
 		}
 
-		const stateless = telemetryBuilder.nesBuilder.getStatelessNextEditTelemetry();
-		const messages = stateless?.cursorJumpRawMessages;
-		const keptRange = stateless?.cursorJumpKeptRange;
+		const messages = logContext.cursorJumpRawMessages;
+		const keptRange = logContext.cursorJumpKeptRange;
 		if (!messages || !keptRange) {
 			return { error: 'Cursor-jump prompt was not captured (cursor prediction path did not run)' };
 		}

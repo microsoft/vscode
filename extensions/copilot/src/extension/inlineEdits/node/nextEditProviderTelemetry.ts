@@ -228,18 +228,6 @@ export class LlmNESTelemetryBuilder extends Disposable {
 
 		const fetchStartedAfterMs = this._statelessNextEditTelemetry?.fetchStartedAt === undefined ? undefined : this._statelessNextEditTelemetry.fetchStartedAt - this._startTime;
 
-		// Strip raw cursor-jump prompt / kept-range before spreading into the
-		// telemetry payload — those fields exist on IStatelessNextEditTelemetry
-		// only so that in-process debug / datagen tooling can read them back via
-		// getStatelessNextEditTelemetry(). cursorJumpRawMessages can contain
-		// full prompt content (source code) and must never leave the process.
-		const statelessForTelemetry = this._statelessNextEditTelemetry === undefined
-			? undefined
-			: (() => {
-				const { cursorJumpRawMessages: _crm, cursorJumpKeptRange: _ckr, ...rest } = this._statelessNextEditTelemetry;
-				return rest;
-			})();
-
 		return {
 			providerId: this._providerId,
 			headerRequestId: this._headerRequestId,
@@ -261,7 +249,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 			nextEditProviderError: this._nextEditProviderError,
 			alternativeAction,
 
-			...statelessForTelemetry,
+			...this._statelessNextEditTelemetry,
 
 			activeDocumentRepository,
 			repositoryUrls,
@@ -367,9 +355,6 @@ export class LlmNESTelemetryBuilder extends Disposable {
 	public setStatelessNextEditTelemetry(statelessNextEditTelemetry: IStatelessNextEditTelemetry): this {
 		this._statelessNextEditTelemetry = statelessNextEditTelemetry;
 		return this;
-	}
-	public getStatelessNextEditTelemetry(): IStatelessNextEditTelemetry | undefined {
-		return this._statelessNextEditTelemetry;
 	}
 
 	private _hasNextEdit: boolean = false;

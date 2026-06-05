@@ -130,7 +130,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// Make a prediction request - should fail with NotFound
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
 
 			expect(result.isError()).toBe(true);
 			if (result.isError()) {
@@ -155,7 +155,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// First call - triggers disabling
-			await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
 
 			// Verify disabled
 			expect(predictor.determineEnablement()).toBeUndefined();
@@ -191,7 +191,7 @@ describe('XtabNextCursorPredictor', () => {
 			});
 
 			// Make a prediction request - should fail but not disable
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
 
 			expect(result.isError()).toBe(true);
 			if (result.isError()) {
@@ -217,7 +217,7 @@ describe('XtabNextCursorPredictor', () => {
 				resolvedModel: 'test-model'
 			});
 
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
 
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {
@@ -242,7 +242,7 @@ describe('XtabNextCursorPredictor', () => {
 				resolvedModel: 'test-model'
 			});
 
-			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, CancellationToken.None);
+			const result = await predictor.predictNextCursorPosition(promptPieces, tracer, undefined, undefined, CancellationToken.None);
 
 			expect(result.isOk()).toBe(true);
 			if (result.isOk()) {

@@ -1139,7 +1139,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		cancellationToken: CancellationToken,
 		retryState: RetryState.t,
 	): EditStreaming {
-		const { tracer, telemetry } = tracing;
+		const { tracer, telemetry, logContext } = tracing;
 		const { editWindowInfo: { editWindow }, modelServiceConfig, promptPieces } = editStreamCtx;
 
 		const noSuggestions = new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
@@ -1155,7 +1155,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new NoNextEditReason.GotCancelled('beforeNextCursorPredictionFetchUserTyped');
 		}
 
-		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracer, telemetry, cancellationToken);
+		const nextCursorLineR = await this.nextCursorPredictor.predictNextCursorPosition(promptPieces, tracer, telemetry, logContext, cancellationToken);
 
 		if (cancellationToken.isCancellationRequested) {
 			return new NoNextEditReason.GotCancelled('afterNextCursorPredictionFetch');

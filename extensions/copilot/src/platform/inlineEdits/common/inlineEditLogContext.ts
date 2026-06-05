@@ -11,6 +11,7 @@ import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { ThemeIcon } from '../../../util/vs/base/common/themables';
 import { SerializedLineEdit } from '../../../util/vs/editor/common/core/edits/lineEdit';
+import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { SerializedEdit } from './dataTypes/editUtils';
 import { FetchCancellationError } from './dataTypes/fetchCancellationError';
 import { LanguageContextResponse, SerializedContextResponse, serializeLanguageContext } from './dataTypes/languageContext';
@@ -381,6 +382,31 @@ export class InlineEditRequestLogContext {
 			this._rawMessages = prompt;
 			this._prompt = stringifyChatMessages(prompt);
 		}
+		this.fireDidChange();
+	}
+
+	/**
+	 * Raw chat messages used to construct the cursor-jump (next-cursor-line
+	 * prediction) prompt, and the document-line offset range the model can
+	 * reference in its response. Stored here so in-process debug / datagen
+	 * tooling can read them back via the same log-context vehicle as the
+	 * xtab prompt (`rawMessages`). Never emitted to telemetry sinks — the
+	 * `rawMessages` can contain full prompt content (source code).
+	 */
+	private _cursorJumpRawMessages: Raw.ChatMessage[] | undefined = undefined;
+	private _cursorJumpKeptRange: OffsetRange | undefined = undefined;
+
+	get cursorJumpRawMessages(): Raw.ChatMessage[] | undefined {
+		return this._cursorJumpRawMessages;
+	}
+
+	get cursorJumpKeptRange(): OffsetRange | undefined {
+		return this._cursorJumpKeptRange;
+	}
+
+	setCursorJumpPrompt(messages: Raw.ChatMessage[], keptRange: OffsetRange) {
+		this._cursorJumpRawMessages = messages;
+		this._cursorJumpKeptRange = keptRange;
 		this.fireDidChange();
 	}
 
