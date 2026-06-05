@@ -20,7 +20,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get output from an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}).`,
+	modelDescription: `Get output from an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). Only use this tool if you need to inspect output from a terminal that was started in async mode and you have a concrete reason to read it now. If a sync command timed out and moved to the background, you will be automatically notified on your next turn when it completes — do NOT poll with this tool. End your turn and wait for the notification.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
