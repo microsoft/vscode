@@ -89,16 +89,8 @@ export class SessionPluginBundler extends Disposable {
 			return undefined;
 		}
 
-		try {
-			await this._fileService.del(this._rootUri, { recursive: true });
-		} catch {
-			// Directory may not exist on first bundle.
-		}
-
-		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
-		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
-
 		const hashParts: string[] = [];
+		const files: { readonly destUri: URI; readonly content: VSBuffer }[] = [];
 
 		for (const discoveredDirectory of directories) {
 			const dir = pluginDirForType(discoveredDirectory.type);
@@ -122,17 +114,16 @@ export class SessionPluginBundler extends Disposable {
 				}
 
 				const content = await this._fileService.readFile(file);
-				await this._fileService.writeFile(destUri, content.value);
+				files.push({ destUri, content: content.value });
 				hashParts.push(`${hashKey}:${content.value.toString()}`);
 			}
 		}
 
 		hashParts.sort();
 		const nonce = String(hash(hashParts.join('\n')));
-		this._lastNonce = nonce;
 
 		const rootUriString = this._rootUri.toString() as ProtocolURI;
-		return {
+		const result = {
 			ref: {
 				type: CustomizationType.Plugin,
 				id: customizationId(rootUriString),
@@ -141,6 +132,28 @@ export class SessionPluginBundler extends Disposable {
 				enabled: true,
 				nonce,
 			},
-		};
+		} satisfies IBundleResult;
+
+		if (this._lastNonce === nonce) {
+			return result;
+		}
+
+		try {
+			await this._fileService.del(this._rootUri, { recursive: true });
+		} catch {
+			// Directory may not exist on first bundle.
+		}
+
+		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
+		await this._fileService.createFolder(dirname(manifestUri));
+		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
+
+		for (const file of files) {
+			await this._fileService.createFolder(dirname(file.destUri));
+			await this._fileService.writeFile(file.destUri, file.content);
+		}
+
+		this._lastNonce = nonce;
+		return result;
 	}
 }

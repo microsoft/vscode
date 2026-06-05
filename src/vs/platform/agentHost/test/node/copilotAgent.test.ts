@@ -871,6 +871,41 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('getSessionCustomizations clears discovered files when the root disappears', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			const agentsRoot = URI.joinPath(workspace, '.github', 'agents');
+			await fileService.createFolder(agentsRoot);
+			await fileService.writeFile(URI.joinPath(agentsRoot, 'helper.agent.md'), VSBuffer.fromString('agent body'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-cleared');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				const before = await agent.getSessionCustomizations(session);
+				assert.deepStrictEqual(before.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+
+				await fileService.del(agentsRoot, { recursive: true });
+				await new Promise(resolve => setTimeout(resolve, 150));
+
+				const after = await agent.getSessionCustomizations(session);
+				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), []);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('provisional sessions', () => {

@@ -263,9 +263,38 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 		const first = await bundler.bundle(await discovery.directories());
+
+		let writeCalls = 0;
+		let deleteCalls = 0;
+		const originalWriteFile = fileService.writeFile.bind(fileService);
+		const originalDel = fileService.del.bind(fileService);
+		disposables.add({
+			dispose: () => {
+				fileService.writeFile = originalWriteFile as typeof fileService.writeFile;
+				fileService.del = originalDel as typeof fileService.del;
+			}
+		});
+		fileService.writeFile = ((...args: Parameters<typeof fileService.writeFile>) => {
+			writeCalls++;
+			return originalWriteFile(...args);
+		}) as typeof fileService.writeFile;
+		fileService.del = ((...args: Parameters<typeof fileService.del>) => {
+			deleteCalls++;
+			return originalDel(...args);
+		}) as typeof fileService.del;
+
 		const second = await bundler.bundle(await discovery.directories());
-		assert.ok(first && second);
-		assert.strictEqual(first.ref.nonce, second.ref.nonce);
+		assert.deepStrictEqual({
+			firstNonce: first?.ref.nonce,
+			secondNonce: second?.ref.nonce,
+			writeCalls,
+			deleteCalls,
+		}, {
+			firstNonce: first?.ref.nonce,
+			secondNonce: first?.ref.nonce,
+			writeCalls: 0,
+			deleteCalls: 0,
+		});
 	});
 
 	test('different working directories produce different bundle authorities', async () => {
