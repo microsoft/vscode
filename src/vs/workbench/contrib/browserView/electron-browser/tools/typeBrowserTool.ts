@@ -144,10 +144,10 @@ export class TypeBrowserTool implements IToolImpl {
 		// Type text
 		if (selector) {
 			return playwrightInvoke(this.playwrightService, sessionId, params.pageId, async (page, sel, text, submit) => {
-				const selector = page.locator(sel);
-				await selector.fill(text);
+				const locator = page.locator(sel);
+				await locator.fill(text);
 				if (submit) {
-					await selector.press('Enter');
+					await locator.press('Enter');
 				}
 			}, selector, params.text!, params.submit ?? false);
 		}
