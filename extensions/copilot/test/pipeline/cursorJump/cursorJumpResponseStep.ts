@@ -40,11 +40,8 @@ export function generateSameFileResponse(
 }
 
 /**
- * Format a cross-file jump as `<normalizedPath>:<lineNumber>`. Returns an
- * error if the target line couldn't be resolved — we *never* silently emit
- * `:0` for unresolved targets, since that produces poisoned training data
- * (jump-to-definition targets that the user had previously opened would
- * otherwise always be labelled as line 0).
+ * Format a cross-file jump as `<normalizedPath>:<lineNumber>`.
+ * `jump.toLine` is guaranteed non-undefined by `detectCrossFileJump`.
  */
 export function generateCrossFileResponse(
 	jump: ICrossFileJump,
@@ -53,9 +50,6 @@ export function generateCrossFileResponse(
 	const normalizedPath = normalizeRelativePathForModel(jump.toRelativePath);
 	if (!normalizedPath) {
 		return { error: 'crossFileEmptyPath' };
-	}
-	if (jump.toLine === undefined) {
-		return { error: 'crossFileTargetLineUnresolved' };
 	}
 	return {
 		assistant: `${normalizedPath}:${jump.toLine}`,

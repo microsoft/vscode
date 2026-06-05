@@ -152,6 +152,16 @@ describe('detectCrossFileJump', () => {
 		);
 		expect(r.isError() && r.err).toBe('crossFileTargetNotEncountered');
 	});
+
+	it('rejects focused-only without a selectionChanged', () => {
+		// background peek / split editors can emit `focused` without ever
+		// landing a cursor; the detector should treat that as no confirmed jump.
+		const r = detectCrossFileJump(
+			[focused(OTHER)],
+			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'foo.ts']]), getDocContentAtRequest: noPriorContent },
+		);
+		expect(r.isError() && r.err).toBe('crossFileTargetNoSelection');
+	});
 });
 
 describe('normalizeRelativePathForModel', () => {
@@ -198,13 +208,5 @@ describe('cursor-jump response formatting', () => {
 			assistant: 'src/foo.ts:7',
 			jump: { fromLine: 3, toLine: 7, toFilePath: 'src/foo.ts', distance: 0 },
 		});
-	});
-
-	it('rejects cross-file jump with unresolved target line', () => {
-		const r = generateCrossFileResponse(
-			{ kind: 'crossFile', toDocLogId: OTHER, toRelativePath: 'foo.ts', toLine: undefined },
-			3,
-		);
-		expect(r).toEqual({ error: 'crossFileTargetLineUnresolved' });
 	});
 });

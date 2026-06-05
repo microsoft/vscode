@@ -24,8 +24,8 @@ export interface ICrossFileJump {
 	readonly kind: 'crossFile';
 	readonly toDocLogId: LogDocumentId;
 	readonly toRelativePath: string;
-	/** 0-based line number on the target doc; `undefined` if we never saw a selection there. */
-	readonly toLine: number | undefined;
+	/** 0-based line number on the target doc. */
+	readonly toLine: number;
 }
 
 export type JumpDetectionResult<T> = Result<T, string>;
@@ -166,15 +166,20 @@ export function detectCrossFileJump(
 		return Result.error('noCrossFileJump');
 	}
 
+	// Treat focused-without-selectionChanged as "no confirmed jump": background
+	// peek / split editors can produce focused events without the user ever
+	// landing a cursor there, and downstream formatting needs a real line
+	// number anyway.
+	if (selectionEntryIndex === undefined) {
+		return Result.error('crossFileTargetNoSelection');
+	}
+
 	const relPath = opts.idToRelativePath.get(targetDocId);
 	if (!relPath) {
 		return Result.error('crossFileTargetNotEncountered');
 	}
 
-	// If we observed the cross-file selection but couldn't resolve a line
-	// number for it, surface that explicitly so callers can drop the sample
-	// instead of treating "unknown line" as "line 0".
-	if (selectionEntryIndex !== undefined && targetLine === undefined) {
+	if (targetLine === undefined) {
 		return Result.error('crossFileTargetLineUnresolved');
 	}
 
