@@ -153,7 +153,7 @@ When the editor part is shown in the grid (not as a modal), its title toolbar (`
 
 When the auxiliary bar is hidden the editor becomes the rightmost card and expands into the freed space; the workbench's 10px right gutter still applies, and a `.noauxiliarybar` rule in `browser/media/style.css` restores the editor's right border and right corner radii so it keeps its card appearance.
 
-The auxiliary-bar invariant (§10) is only enforced when the editor part *becomes* visible, so this toggle can collapse the side part while the editor stays open.
+The auxiliary-bar invariant (§10) is enforced when the editor part *becomes* visible — for example, opening a file from chat reveals the editor and also reveals the secondary side bar. The chevron toggle can still collapse the side part while the editor stays open. The one exception is **restoring a session's editor working set on session switch**: that reveal is programmatic and honors the session's saved auxiliary bar visibility, so a side bar the user hid for a session stays hidden when returning to it.
 
 The main editor part can be explicitly revealed for workflows that target it directly.
 
@@ -212,7 +212,7 @@ All session-window contributions use `WindowVisibility.Sessions` to only appear 
 
 ## 10. Per-Session Layout State
 
-`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts.
+`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, auto-reveal, persistence, and invariants).
 
 ### Auxiliary Bar
 
