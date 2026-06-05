@@ -188,7 +188,7 @@ export class SimulationOptions {
 				rowOffset: typeof argv['row-offset'] === 'number' ? argv['row-offset'] : 0,
 				workerMode: boolean(argv['worker'], false),
 				sampleTask: SimulationOptions.validateSampleTask(argv['sample-task']),
-				sameFileJumpMinAbove: typeof argv['same-file-jump-min-above'] === 'number' ? argv['same-file-jump-min-above'] : 5,
+				sameFileJumpMinAbove: typeof argv['same-file-jump-min-above'] === 'number' ? argv['same-file-jump-min-above'] : 2,
 				sameFileJumpMinBelow: typeof argv['same-file-jump-min-below'] === 'number' ? argv['same-file-jump-min-below'] : 5,
 			}
 			: undefined;
@@ -273,7 +273,7 @@ export class SimulationOptions {
 			`                                       cursor-same-file   → next-cursor-line sample restricted to the active file`,
 			`                                       cursor-cross-file  → next-cursor-line sample for a jump to another file`,
 			`                                       cursor-both        → tries same-file first, falls back to cross-file (one sample per row)`,
-			`  --same-file-jump-min-above         Minimum lines above request cursor for a same-file move to count as a jump (default: 5)`,
+			`  --same-file-jump-min-above         Minimum lines above request cursor for a same-file move to count as a jump (default: 2)`,
 			`  --same-file-jump-min-below         Minimum lines below request cursor for a same-file move to count as a jump (default: 5)`,
 			``,
 			`Global options (placed before 'nes-datagen'):`,
