@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -751,7 +752,7 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		const watchDisposable = provider.watch(wrapped, { recursive: false, excludes: [] });
 		// Yield until the watch's async chain (acquire connection →
 		// watchResource → error propagation) settles.
-		await new Promise<void>(resolve => setImmediate(resolve));
+		await timeout(0);
 
 		assert.deepStrictEqual(errors, ['watch setup failed']);
 
@@ -773,7 +774,7 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		const originalWatchResource = connection.watchResource.bind(connection);
 		connection.watchResource = async params => {
 			handleCreated = true;
-			await new Promise<void>(resolve => setImmediate(resolve));
+			await timeout(0);
 			return originalWatchResource(params);
 		};
 		const wrapped = agentHostUri('remote', '/watched');
@@ -781,12 +782,12 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		const watchDisposable = provider.watch(wrapped, { recursive: false, excludes: [] });
 		// Yield until watchResource has begun (so a handle is in flight),
 		// then dispose before it resolves.
-		await new Promise<void>(resolve => setImmediate(resolve));
+		await timeout(0);
 		assert.strictEqual(handleCreated, true);
 		watchDisposable.dispose();
 
-		await new Promise<void>(resolve => setImmediate(resolve));
-		await new Promise<void>(resolve => setImmediate(resolve));
+		await timeout(0);
+		await timeout(0);
 		assert.strictEqual(handleDisposed, true);
 	});
 
@@ -806,8 +807,8 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		disposables.add(provider.onDidChangeFile(c => received.push([...c])));
 		disposables.add(provider.watch(wrapped, { recursive: false, excludes: [] }));
 
-		await new Promise<void>(r => setImmediate(r));
-		await new Promise<void>(r => setImmediate(r));
+		await timeout(0);
+		await timeout(0);
 		firstChanges.fire([{ resource: URI.file('/watched/a.txt'), type: FileChangeType.UPDATED }]);
 
 		// Disconnect: a re-registration arrives within the grace window.
@@ -823,8 +824,8 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		};
 		disposables.add(provider.registerAuthority('remote', second));
 
-		await new Promise<void>(r => setImmediate(r));
-		await new Promise<void>(r => setImmediate(r));
+		await timeout(0);
+		await timeout(0);
 		secondChanges.fire([{ resource: URI.file('/watched/b.txt'), type: FileChangeType.ADDED }]);
 
 		assert.deepStrictEqual({
@@ -865,8 +866,8 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		};
 		disposables.add(provider.registerAuthority('never-registered', connection));
 
-		await new Promise<void>(r => setImmediate(r));
-		await new Promise<void>(r => setImmediate(r));
+		await timeout(0);
+		await timeout(0);
 		changes.fire([{ resource: URI.file('/path/late.txt'), type: FileChangeType.ADDED }]);
 
 		assert.strictEqual(connection.watchCalls.length, 1, 'watch attached after late registration');
