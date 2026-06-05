@@ -71,6 +71,40 @@ export interface InitializeParams extends BaseParams {
 	 * user-facing strings such as confirmation option labels.
 	 */
 	locale?: string;
+	/**
+	 * Optional client capability declarations.
+	 *
+	 * Servers SHOULD only advertise features whose corresponding client
+	 * capability is set here. Absent means "not declared" — the server
+	 * MUST assume the client does not support the feature.
+	 */
+	capabilities?: ClientCapabilities;
+}
+
+/**
+ * Optional capabilities a client declares during `initialize`.
+ *
+ * Each field is a presence flag: an empty object `{}` means "supported",
+ * absence means "not supported". Sub-fields on individual capabilities
+ * are reserved for future per-capability options.
+ *
+ * @category Commands
+ */
+export interface ClientCapabilities {
+	/**
+	 * Client can render
+	 * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+	 * it can host the View sandbox, run the `ui/*` protocol against it,
+	 * and forward `mcp://`-channel traffic on the App's behalf.
+	 *
+	 * Hosts SHOULD only populate
+	 * {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+	 * (and expose the corresponding
+	 * {@link McpServerCustomization.channel | `mcp://` channel}) when this
+	 * capability is declared. Clients that omit it MUST treat
+	 * App-bearing tool calls as ordinary MCP tool calls.
+	 */
+	mcpApps?: Record<string, never>;
 }
 
 /**

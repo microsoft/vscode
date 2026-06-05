@@ -12,7 +12,7 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetOperationScope, type ChangesetOperation } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationContributionService } from '../../node/agentHostChangesetOperationContributionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { AgentHostSessionGitStateService } from '../../node/agentHostSessionGitStateService.js';
@@ -58,7 +58,7 @@ suite('AgentHostChangesetOperationContributionService', () => {
 		stateManager.registerChangeset(changesetUri);
 		stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetOperationsChanged,
-			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset] }],
+			operations: [{ id: 'commit', label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
 		});
 
 		const service = disposables.add(new AgentHostChangesetOperationContributionService(

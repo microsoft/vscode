@@ -107,7 +107,7 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -770,7 +770,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(autorun(reader => {
 			const modes = this._currentChatModesObservable.read(reader);
 			reader.store.add(modes.onDidChange(() => {
-				logChangesToStateModel(this._inputModel, `[MODES] _currentChatModesObservable.onDidChange -> validateCurrentChatMode in ${this._currentSessionKey}`, undefined, this._inputModel?.state.read(undefined), this.logService);
 				this.validateCurrentChatMode();
 			}));
 		}));
@@ -780,7 +779,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatModeNameKey.set(mode.name.read(r));
 			const models = mode.model?.read(r);
 			if (models) {
-				logChangesToStateModel(this._inputModel, `mode autorun forcing model via switchModelByQualifiedName (mode=${mode.id}, qualifiedNames=[${models.join(', ')}]) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 				this.switchModelByQualifiedName(models);
 			}
 		}));
@@ -1659,12 +1657,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (!validMode) {
-			logChangesToStateModel(this._inputModel, `[VCM] validateCurrentChatMode: ${currentMode.id} not in modes set -> setChatMode(${isAgentModeEnabled ? 'Agent' : 'Ask'}) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
 			return;
 		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			logChangesToStateModel(this._inputModel, `[VCM] validateCurrentChatMode: Agent mode disabled by policy -> setChatMode(Ask) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
@@ -2764,8 +2760,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			[OpenAgentHostModePickerAction.ID, 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostBranchPickerAction.ID, 22],
-			[OpenAgentHostIsolationPickerAction.ID, 22],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
@@ -2875,23 +2869,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
 						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
-						|| action.id === OpenAgentHostPermissionModePickerAction.ID
-						|| action.id === OpenAgentHostBranchPickerAction.ID
-						|| action.id === OpenAgentHostIsolationPickerAction.ID)
+						|| action.id === OpenAgentHostPermissionModePickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
 					if (this.options.isSessionsWindow) {
 						return new HiddenActionViewItem(action);
 					}
-					const property = action.id === OpenAgentHostBranchPickerAction.ID
-						? SessionConfigKey.Branch
-						: action.id === OpenAgentHostIsolationPickerAction.ID
-							? SessionConfigKey.Isolation
-							: action.id === OpenAgentHostAutoApprovePickerAction.ID
-								? SessionConfigKey.AutoApprove
-								: action.id === OpenAgentHostPermissionModePickerAction.ID
-									? ClaudeSessionConfigKey.PermissionMode
-									: SessionConfigKey.Mode;
+					const property = action.id === OpenAgentHostAutoApprovePickerAction.ID
+						? SessionConfigKey.AutoApprove
+						: action.id === OpenAgentHostPermissionModePickerAction.ID
+							? ClaudeSessionConfigKey.PermissionMode
+							: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {

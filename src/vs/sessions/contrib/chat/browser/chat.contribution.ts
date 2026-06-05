@@ -15,6 +15,7 @@ import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
+import './modelPicker.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';

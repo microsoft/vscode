@@ -5,7 +5,8 @@
 
 import { CopilotClient, ResumeSessionConfig, RuntimeConnection, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
-import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { Limiter, SequencerByKey, Throttler } from '../../../../base/common/async.js';
+import { CancellationTokenSource, type CancellationToken } from '../../../../base/common/cancellation.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -20,7 +21,7 @@ import { basename as resourceBasename, dirname as resourceDirname } from '../../
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parseAgentFile, parsePlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -34,7 +35,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -1565,18 +1566,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return async (callbacks: Parameters<SessionWrapperFactory>[0]) => {
 			const disableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true;
 			const shellTools = disableCustomTerminalTool ? [] : await createShellTools(shellManager, this._terminalManager, this._logService, callbacks.requestUnsandboxedCommandConfirmation);
-			const customAgents = await toSdkCustomAgents(plugins.flatMap(p => p.agents), this._fileService);
+			// Rely on SDK to find all agents/skills & the like from the plugins instead of us feeding them.
+			// Else we could end up with duplicates or the like.
+			const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
+			const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 			return {
 				clientName: 'vscode',
 				onPermissionRequest: callbacks.onPermissionRequest,
 				onUserInputRequest: callbacks.onUserInputRequest,
 				onElicitationRequest: callbacks.onElicitationRequest,
+				hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), callbacks.hooks),
+				mcpServers: toSdkMcpServers(pluginsWithoutDirs.flatMap(p => p.mcpServers)),
 				onExitPlanModeRequest: callbacks.onExitPlanModeRequest,
-				hooks: toSdkHooks(plugins.flatMap(p => p.hooks), callbacks.hooks),
 				workingDirectory: workingDirectory?.fsPath,
-				mcpServers: toSdkMcpServers(plugins.flatMap(p => p.mcpServers)),
 				customAgents,
-				skillDirectories: toSdkSkillDirectories(plugins.flatMap(p => p.skills)),
+				skillDirectories: toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),
 				instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
 				systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 				pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
@@ -1946,7 +1950,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 }
 
 interface IResolvedCustomization {
-	readonly customization: Customization;
+	readonly customization: PluginCustomization;
 	readonly pluginDir?: URI;
 	readonly plugin?: IParsedPlugin;
 }
@@ -1969,6 +1973,8 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private readonly _discovery: SessionCustomizationDiscovery;
 	private readonly _bundler: SessionPluginBundler;
+	private readonly _refreshThrottler = this._register(new Throttler());
+	private _refreshCancellationSource: CancellationTokenSource | undefined;
 
 	private _customizations: readonly DirectoryCustomization[] = [];
 	private _plugin: IParsedPlugin | undefined;
@@ -1987,10 +1993,16 @@ class SessionDiscoveredEntry extends Disposable {
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
 		this._bundler = this._register(instantiationService.createInstance(SessionPluginBundler, workingDirectory));
 		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
-		this._settled = this._refresh();
+		this._settled = this._queueRefresh(false);
 		this._register(this._discovery.onDidChange(() => {
-			this._settled = this._refresh().finally(() => this._onDidRefresh());
+			this._settled = this._queueRefresh(true);
 		}));
+	}
+
+	override dispose(): void {
+		this._refreshCancellationSource?.dispose(true);
+		this._refreshCancellationSource = undefined;
+		super.dispose();
 	}
 
 	whenSettled(): Promise<void> {
@@ -2005,22 +2017,64 @@ class SessionDiscoveredEntry extends Disposable {
 		return this._plugin;
 	}
 
-	private async _refresh(): Promise<void> {
+	private _queueRefresh(notify: boolean): Promise<void> {
+		this._refreshCancellationSource?.cancel();
+		return this._refreshThrottler.queue(async throttlerToken => {
+			const refreshCancellationSource = new CancellationTokenSource(throttlerToken);
+			this._refreshCancellationSource = refreshCancellationSource;
+			try {
+				const didRefresh = await this._refresh(refreshCancellationSource.token);
+				if (didRefresh && notify && !refreshCancellationSource.token.isCancellationRequested) {
+					this._onDidRefresh();
+				}
+			} finally {
+				if (this._refreshCancellationSource === refreshCancellationSource) {
+					this._refreshCancellationSource = undefined;
+				}
+				refreshCancellationSource.dispose();
+			}
+		});
+	}
+
+	private async _refresh(token: CancellationToken): Promise<boolean> {
 		try {
 			const directories = await this._discovery.directories();
-			this._customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
-			this._plugin = undefined;
-
-			const bundleResult = await this._bundler.bundle(directories);
-			if (!bundleResult) {
-				return;
+			if (token.isCancellationRequested) {
+				return false;
 			}
-			const pluginDir = URI.parse(bundleResult.ref.uri);
-			this._plugin = await this._resolvePlugin(pluginDir);
+
+			const customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
+			if (token.isCancellationRequested) {
+				return false;
+			}
+
+			const bundleResult = await this._bundler.bundle(directories, token);
+			if (token.isCancellationRequested) {
+				return false;
+			}
+
+			// Don't update `_customizations` / `_plugin` when cancelled.
+			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
+			if (!bundleResult) {
+				this._customizations = customizations;
+				this._plugin = undefined;
+			} else {
+				const pluginDir = URI.parse(bundleResult.ref.uri);
+				const plugin = await this._resolvePlugin(pluginDir);
+				this._customizations = customizations;
+				this._plugin = plugin;
+			}
+			return true;
 		} catch (err) {
+			// Don't update `_customizations` / `_plugin` when cancelled.
+			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
+			if (token.isCancellationRequested) {
+				return false;
+			}
 			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
 			this._customizations = [];
 			this._plugin = undefined;
+			return true;
 		}
 	}
 }
@@ -2064,14 +2118,17 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			id,
 			uri,
 			name: agentInfo.name,
+			...(agentInfo.description ? { description: agentInfo.description } : {}),
 		};
 	}
 	if (type === DiscoveredType.Skill) {
+		const skillInfo = await parseSkillFile(file, fileService);
 		return {
 			type: CustomizationType.Skill,
 			id,
 			uri,
 			name: resourceBasename(resourceDirname(file)),
+			...(skillInfo.description ? { description: skillInfo.description } : {}),
 		};
 	}
 	if (type === DiscoveredType.Instruction) {
@@ -2329,12 +2386,12 @@ class PluginController extends Disposable {
 		return this._enablement.get(customization.uri) ?? customization.enabled;
 	}
 
-	private _applyEnablement(customization: Customization): Customization {
+	private _applyEnablement<T extends Customization>(customization: T): T {
 		const enabled = this._isEnabled(customization);
 		return customization.enabled === enabled ? customization : { ...customization, enabled };
 	}
 
-	private async _resolveConfiguredCustomization(customization: Customization): Promise<IResolvedCustomization> {
+	private async _resolveConfiguredCustomization(customization: PluginCustomization): Promise<IResolvedCustomization> {
 		const pluginDir = URI.parse(customization.uri);
 		const parsed = await this._tryParsePlugin(pluginDir);
 		if (!parsed) {
@@ -2358,7 +2415,7 @@ class PluginController extends Disposable {
 	}
 
 	private async _resolveSyncedCustomization(item: ISyncedCustomization, clientId: string): Promise<IResolvedCustomization> {
-		const baseCustomization: Customization = { ...item.customization, clientId };
+		const baseCustomization: PluginCustomization = { ...item.customization, clientId };
 		if (!item.pluginDir) {
 			return { customization: baseCustomization };
 		}

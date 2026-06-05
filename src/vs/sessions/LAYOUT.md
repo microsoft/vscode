@@ -100,7 +100,7 @@ The Sessions Part (`SessionsPart` in [browser/parts/sessionsPart.ts](src/vs/sess
 
 A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/sessionView.ts)) is a single leaf in the Sessions Part's internal grid. It hosts:
 
-- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · branch · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). Visible once the bound session is created. It is also the drag handle for the session.
+- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · branch · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). Visible once the bound session is created. It is also the drag handle for the session. Right-clicking the header opens `Menus.SessionHeaderContext`, which surfaces pin view / close (`1_view`), rename (`2_edit`), and mark read / unread (`3_read`). The same menu id is exposed to extensions via the `chatSessions/header/context` contribution point, so providers (e.g. Copilot CLI, Claude Code) can add their own rename actions alongside the built-in entries.
 - A **chat composite bar** below the header ([browser/parts/chatCompositeBar.ts](src/vs/sessions/browser/parts/chatCompositeBar.ts)) — the chat tab strip, shown only when the session has more than one chat. A single chat is already represented by the header title.
 - A **chat view** below the bars, swapped in/out based on session state.
 - A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.
@@ -148,6 +148,12 @@ Editors open as modal overlays rather than occupying grid space. The configurati
 |---------|----------|
 | Editor opens (no explicit group) | Opens in modal overlay |
 | All editors closed / Escape / backdrop click | Modal closes and is disposed |
+
+When the editor part is shown in the grid (not as a modal), its title toolbar (`MenuId.EditorTitleLayout`, right of the tabs) hosts layout actions registered in `contrib/editor/browser/editor.contribution.ts`, ordered left-to-right as: open in modal editor, **maximize / restore editor area**, a **chevron** toggle for the auxiliary bar, and **close editor area**. The auxiliary-bar chevron sits to the right of maximize/restore because it changes the right-hand side of the layout. When the auxiliary bar (secondary side bar) is visible a `chevron-right` **Push Editor Right** hides it; once hidden the same slot shows a `chevron-left` **Show Secondary Side Bar** that brings it back. `AuxiliaryBarVisibleContext` drives the flip.
+
+When the auxiliary bar is hidden the editor becomes the rightmost card and expands into the freed space; the workbench's 10px right gutter still applies, and a `.noauxiliarybar` rule in `browser/media/style.css` restores the editor's right border and right corner radii so it keeps its card appearance.
+
+The auxiliary-bar invariant (§10) is only enforced when the editor part *becomes* visible, so this toggle can collapse the side part while the editor stays open.
 
 The main editor part can be explicitly revealed for workflows that target it directly.
 
