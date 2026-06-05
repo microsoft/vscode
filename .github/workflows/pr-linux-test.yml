@@ -349,6 +349,10 @@ jobs:
       - name: Compile extensions for smoke tests
         run: npm run gulp compile-extension-media
 
+      - name: Build Copilot Chat extension for smoke tests
+        working-directory: extensions/copilot
+        run: npm run compile
+
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
         run: |
           set -e
