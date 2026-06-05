@@ -65,6 +65,14 @@ export class LayoutController extends Disposable {
 	private readonly _workingSetSequencer = new Sequencer();
 	private readonly _useModalConfigObs;
 
+	/**
+	 * Set while a working set is being restored on session switch. The editor
+	 * part is revealed programmatically in this case, so the "editor implies
+	 * auxiliary bar" invariant is suppressed to honor the session's saved
+	 * auxiliary bar visibility (e.g. the user hid it for this session).
+	 */
+	private _suppressAuxiliaryBarEnforcement = false;
+
 	constructor(
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
@@ -306,11 +314,28 @@ export class LayoutController extends Disposable {
 	// --- Auxiliary bar ---
 
 	private _enforceAuxiliaryBarWhenEditorVisible(): void {
+		if (this._suppressAuxiliaryBarEnforcement) {
+			return;
+		}
 		if (
 			this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) &&
 			!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 		) {
 			this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		}
+	}
+
+	/**
+	 * Reveals the editor part without triggering the "editor implies auxiliary
+	 * bar" invariant. Used when restoring a session's working set so the
+	 * session's saved auxiliary bar visibility is respected.
+	 */
+	private _revealEditorPartForWorkingSet(): void {
+		this._suppressAuxiliaryBarEnforcement = true;
+		try {
+			this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		} finally {
+			this._suppressAuxiliaryBarEnforcement = false;
 		}
 	}
 
@@ -468,12 +493,12 @@ export class LayoutController extends Disposable {
 			}
 
 			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				this._revealEditorPartForWorkingSet();
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
 			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				this._revealEditorPartForWorkingSet();
 			}
 		});
 	}
