@@ -230,11 +230,7 @@ export namespace IAgentSource {
 		} else {
 			return true;
 		}
-		} else {
-			return true;
-		}
 	}
-
 }
 
 /**
