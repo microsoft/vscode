@@ -292,7 +292,8 @@
 			gap: 4px;
 			outline: none !important;
 
-			> span:first-child {
+			> span:not(.codicon) {
+				min-width: 0;
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
