@@ -5,6 +5,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { NesDatagenSampleTask } from '../base/simulationOptions';
 import { IGeneratedPrompt } from './promptStep';
 import { IProcessedRow } from './replayRecording';
 import { IGeneratedResponse } from './responseStep';
@@ -26,8 +27,12 @@ export interface ISampleMetadata {
 	readonly oracleEdits: readonly (readonly [start: number, endEx: number, text: string])[];
 	readonly originalPrompt: unknown[];
 	readonly modelResponse: string;
-	/** Which datagen task produced this sample. */
-	readonly task: 'xtab' | 'cursor-same-file' | 'cursor-cross-file';
+	/**
+	 * Which datagen task produced this sample. `CursorBoth` is a CLI dispatch
+	 * mode only — each emitted sample is classified as one of the concrete
+	 * cursor variants, never `CursorBoth`.
+	 */
+	readonly task: Exclude<NesDatagenSampleTask, NesDatagenSampleTask.CursorBoth>;
 	/** Present only when {@link task} is a cursor-* task. */
 	readonly jump?: {
 		readonly fromLine: number;
@@ -63,7 +68,7 @@ export function assembleSample(
 	processedRow: IProcessedRow,
 	strategy: string,
 	modelResponse: string,
-	task: ISampleMetadata['task'] = 'xtab',
+	task: ISampleMetadata['task'] = NesDatagenSampleTask.Xtab,
 	jump?: ISampleMetadata['jump'],
 ): ISample {
 	const messages: IMessage[] = [

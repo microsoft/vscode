@@ -9,8 +9,12 @@ import { CacheMode } from './simulationContext';
 /** Number of runs that are stored in baseline.json */
 export const BASELINE_RUN_COUNT = 10;
 
-export const SAMPLE_TASK_VALUES = ['xtab', 'cursor-same-file', 'cursor-cross-file', 'cursor-both'] as const;
-export type NesDatagenSampleTask = typeof SAMPLE_TASK_VALUES[number];
+export enum NesDatagenSampleTask {
+	Xtab = 'xtab',
+	CursorSameFile = 'cursor-same-file',
+	CursorCrossFile = 'cursor-cross-file',
+	CursorBoth = 'cursor-both',
+}
 
 export type NesDatagen = {
 	readonly input: string;
@@ -326,13 +330,14 @@ export class SimulationOptions {
 
 	private static validateSampleTask(value: unknown): NesDatagenSampleTask {
 		if (value === undefined || value === null) {
-			return 'xtab';
+			return NesDatagenSampleTask.Xtab;
 		}
 		if (typeof value !== 'string') {
 			throw new Error(`--sample-task must be a string, but got: ${typeof value}`);
 		}
-		if (!(SAMPLE_TASK_VALUES as readonly string[]).includes(value)) {
-			throw new Error(`--sample-task must be one of [${SAMPLE_TASK_VALUES.join(', ')}], but got: ${value}`);
+		const allowed = Object.values(NesDatagenSampleTask) as string[];
+		if (!allowed.includes(value)) {
+			throw new Error(`--sample-task must be one of [${allowed.join(', ')}], but got: ${value}`);
 		}
 		return value as NesDatagenSampleTask;
 	}
