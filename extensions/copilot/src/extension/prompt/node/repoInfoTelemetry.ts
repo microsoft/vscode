@@ -164,7 +164,7 @@ export class RepoInfoTelemetry {
 			return results;
 		}
 
-		const allRepositories = this._gitService.repositories;
+		const allRepositories = this._gitService.repositories ?? [];
 		const totalRepoCount = allRepositories.length;
 		if (totalRepoCount === 0) {
 			return results;
