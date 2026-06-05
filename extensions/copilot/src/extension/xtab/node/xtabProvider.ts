@@ -961,7 +961,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 						{
 							editWindowLines,
 							editWindowLineRange,
-							cursorOriginalLinesOffset: cursorLineInEditWindowOffset,
+							cursorLineInEditWindowOffset,
 							cursorColumnZeroBased: promptPieces.currentDocument.cursorPosition.column - 1,
 							editWindow,
 							originalEditWindow,
@@ -1482,7 +1482,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		if (!usePrediction) {
 			return undefined;
 		}
-		const patchModelPredictionKind = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, this.expService);
+		// Only the CustomDiffPatch shape consults `patchModelPredictionKind`; skip the experiment lookup otherwise.
+		const patchModelPredictionKind = responseFormat === xtabPromptOptions.ResponseFormat.CustomDiffPatch
+			? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, this.expService)
+			: xtabPromptOptions.PatchModelPrediction.FilePath;
 		return {
 			type: 'content',
 			content: getPredictionContents(doc, cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat, patchModelPredictionKind)
