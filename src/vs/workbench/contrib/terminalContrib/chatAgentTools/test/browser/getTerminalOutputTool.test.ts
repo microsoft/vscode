@@ -245,4 +245,63 @@ suite('GetTerminalOutputTool', () => {
 		assert.ok(value.includes('changed since previous poll'));
 		assert.ok(value.endsWith('\nnew screen'));
 	});
+
+	test('returns only the tail on first poll when output exceeds the tail budget', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.OutputDeltas, true);
+		const bigLine = 'x'.repeat(200);
+		const lines: string[] = [];
+		for (let i = 0; i < 100; i++) {
+			lines.push(`${i}-${bigLine}`);
+		}
+		const output = lines.join('\n');
+		RunInTerminalTool.getExecution = () => createMockExecution(output);
+
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.ok(value.includes(`showing last `));
+		assert.ok(value.includes(`of ${output.length} characters`));
+		assert.ok(value.includes('earlier characters omitted'));
+		assert.ok(value.endsWith(`\n${lines[lines.length - 1]}`));
+		assert.ok(value.length < output.length);
+	});
+
+	test('returns only the tail on non-prefix fallback when output exceeds the tail budget', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.OutputDeltas, true);
+		const execution = createMutableMockExecution('seed');
+		RunInTerminalTool.getExecution = () => execution;
+
+		await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const bigLine = 'y'.repeat(200);
+		const lines: string[] = [];
+		for (let i = 0; i < 100; i++) {
+			lines.push(`${i}-${bigLine}`);
+		}
+		const replaced = lines.join('\n');
+		execution.setOutput(replaced);
+
+		const result = await tool.invoke(
+			createInvocation(KNOWN_TERMINAL_ID),
+			async () => 0,
+			{ report: () => { } },
+			CancellationToken.None,
+		);
+
+		const value = (result.content[0] as { value: string }).value;
+		assert.ok(value.includes('changed since previous poll'));
+		assert.ok(value.includes(`of ${replaced.length} characters`));
+		assert.ok(value.endsWith(`\n${lines[lines.length - 1]}`));
+		assert.ok(value.length < replaced.length);
+	});
 });
