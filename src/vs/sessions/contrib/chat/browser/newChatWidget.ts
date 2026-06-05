@@ -32,7 +32,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _newChatInput: NewChatInputWidget;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
-	/** Upgrades the draft to the preferred session type once its provider registers (see {@link _createNewSession}). */
+	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
 	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 
 	/**
@@ -162,11 +162,12 @@ export class NewChatWidget extends Disposable {
 	private _createNewSession(folderUri: URI, pick: IPreferredSessionType | undefined): void {
 		this._pendingPreferredUpgrade.clear();
 		const created = this._createSessionNow(folderUri, pick);
-		// Create immediately with whatever provider is available, then upgrade
-		// to the preferred type once its provider registers (it may connect
-		// lazily on reload). Cancelled if the user re-picks or the draft is sent.
-		if (created && pick && !this._isPreferredServable(folderUri, pick)) {
-			this._scheduleUpgradeToPreferred(folderUri, pick, created);
+		// Watch for late-registering providers when the draft could not be
+		// created yet (no provider serves the folder), or was created with a
+		// non-preferred fallback. Agent hosts connect lazily, so there is no
+		// timeout — the listener lives until the draft is sent or replaced.
+		if (!created || (pick && !this._isPreferredServable(folderUri, pick))) {
+			this._scheduleRecreateOnProviderChange(folderUri, pick, created);
 		}
 	}
 
@@ -185,17 +186,19 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _scheduleUpgradeToPreferred(folderUri: URI, pick: IPreferredSessionType, created: ISession): void {
+	private _scheduleRecreateOnProviderChange(folderUri: URI, pick: IPreferredSessionType | undefined, created: ISession | undefined): void {
 		const store = new DisposableStore();
 		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			if (!this._isPreferredServable(folderUri, pick)) {
-				return;
+			if (created) {
+				const active = this.sessionsManagementService.activeSession.get();
+				if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
+					return; // the draft was sent or is no longer the active session
+				}
+				if (pick && !this._isPreferredServable(folderUri, pick)) {
+					return; // the preferred provider still cannot serve the folder
+				}
 			}
-			this._pendingPreferredUpgrade.clear();
-			const active = this.sessionsManagementService.activeSession.get();
-			if (active?.sessionId === created.sessionId && !active.isCreated.get()) {
-				this._createSessionNow(folderUri, pick);
-			}
+			this._createNewSession(folderUri, pick);
 		}));
 		this._pendingPreferredUpgrade.value = store;
 	}
