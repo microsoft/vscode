@@ -43,7 +43,7 @@ jobs:
 
       - name: Install chat-lib dependencies
         working-directory: extensions/copilot/chat-lib
-        run: pnpm install --frozen-lockfile --ignore-workspace
+        run: pnpm install --ignore-workspace
 
       - name: Build chat-lib
         working-directory: extensions/copilot/chat-lib

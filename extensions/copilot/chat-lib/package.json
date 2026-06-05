@@ -68,5 +68,12 @@
 		"publish": "npm publish",
 		"test": "vitest run",
 		"test:watch": "vitest"
+	},
+	"pnpm": {
+		"overrides": {
+			"vscode-languageserver-protocol": "3.17.5",
+			"typescript": "5.8.3",
+			"@types/node": "22.16.3"
+		}
 	}
 }

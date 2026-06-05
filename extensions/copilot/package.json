@@ -7147,10 +7147,23 @@
       "@aminya/node-gyp-build": "npm:node-gyp-build@4.8.1",
       "string_decoder": "npm:string_decoder@1.2.0",
       "node-gyp": "npm:node-gyp@10.3.1",
-      "zod": "3.25.76"
+      "zod": "3.25.76",
+      "typescript": "5.8.3",
+      "@types/node": "22.16.3",
+      "vscode-languageserver-protocol": "3.17.5",
+      "openai": "6.7.0",
+      "ws": "8.20.1"
     },
     "onlyBuiltDependencies": [
-      "esbuild"
+      "@google/genai",
+      "@playwright/browser-chromium",
+      "@swc/core",
+      "@vscode/vsce-sign",
+      "electron",
+      "esbuild",
+      "keytar",
+      "protobufjs",
+      "sqlite3"
     ]
   }
 }
