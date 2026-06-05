@@ -35,8 +35,8 @@ suite('ChangesetSessionCoordinator', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(session),
 		}, { emitNotification });
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalogue(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 

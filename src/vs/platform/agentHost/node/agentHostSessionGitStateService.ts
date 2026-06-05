@@ -71,7 +71,7 @@ export class AgentHostSessionGitStateService extends Disposable {
 
 	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
 		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
+		const current = state?.changesets;
 		if (!current || current.length === 0) {
 			return;
 		}
@@ -87,7 +87,7 @@ export class AgentHostSessionGitStateService extends Disposable {
 	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
 		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
 		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
+		const current = state?.changesets;
 		if (!current || current.length === 0) {
 			return;
 		}

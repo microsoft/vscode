@@ -172,11 +172,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 		const directoryCustomizations = [];
 		for (const sessionCustomization of customizations) {
+			if (sessionCustomization.type === CustomizationType.McpServer) {
+				// TODO: Surface MCP server customizations in the editor.
+				continue;
+			}
 			if (isDirectoryCustomization(sessionCustomization)) {
 				directoryCustomizations.push(sessionCustomization);
-			} else if (sessionCustomization.type === CustomizationType.McpServer) {
-				// Bare MCP server entries aren't shown as plugin items in this view.
-				continue;
 			} else {
 				const isBundleItem = isSyntheticBundle(sessionCustomization);
 				const isClientSynced = sessionCustomization.clientId !== undefined;

@@ -11,10 +11,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, ToolCallContributorKind, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -546,7 +546,7 @@ export class ScriptedMockAgent implements IAgent {
 				// tool_ready once its deferred is in place.
 				(async () => {
 					await timeout(10);
-					// Client tools don't get auto-ready — toolStart with toolClientId only emits tool_start
+					// Client tools don't get auto-ready — toolStart with contributor only emits tool_start
 					this._onDidSessionProgress.fire(_action(session, {
 						type: ActionType.SessionToolCallStart,
 						turnId: tid,
@@ -570,7 +570,7 @@ export class ScriptedMockAgent implements IAgent {
 			}
 
 			case 'client-tool-with-permission': {
-				// Fires tool_start with toolClientId followed by a permission request.
+				// Fires tool_start with contributor followed by a permission request.
 				(async () => {
 					await timeout(10);
 					this._onDidSessionProgress.fire(_action(session, {

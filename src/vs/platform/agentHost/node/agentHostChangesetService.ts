@@ -15,13 +15,10 @@ import {
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
-	sessionChangesetLabel,
-	uncommittedChangesetLabel,
-	uncommittedChangesetDescription,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { ChangesetState, ChangesetSummary } from '../common/state/protocol/state.js';
+import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
@@ -66,15 +63,13 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 }
 
 /**
- * Builds a single static {@link ChangesetSummary} catalogue entry from a
- * persisted (or live-state-derived) file list. Returns the bare entry
- * (no counts) when `diffs` is undefined. Optional `description` is
- * threaded through when provided.
+ * Sums the per-file diff counts into the {@link ChangesSummary} shape
+ * that lives on `summary.changes`. Returns `undefined` for an undefined
+ * input so callers can distinguish "no data yet" from "data, zero changes".
  */
-function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly ISessionFileDiff[] | undefined, description?: string): ChangesetSummary {
-	const base: ChangesetSummary = description ? { label, uriTemplate: uri, description } : { label, uriTemplate: uri };
+function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): ChangesSummary | undefined {
 	if (!diffs) {
-		return base;
+		return undefined;
 	}
 	let additions = 0;
 	let deletions = 0;
@@ -82,70 +77,44 @@ function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly I
 		additions += d.diff?.added ?? 0;
 		deletions += d.diff?.removed ?? 0;
 	}
-	return { ...base, additions, deletions, files: diffs.length };
-}
-
-function defaultCatalogueWithCounts(
-	sessionUri: string,
-	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
-	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesetSummary[] {
-	return [
-		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), sessionDiffs),
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription())
-	];
+	return { additions, deletions, files: diffs.length };
 }
 
 /**
- * Build the default ordered changeset catalogue (`Branch Changes`,
- * `Uncommitted Changes`, `This Turn`) seeded from the live
- * {@link ChangesetState} for an unopened session that has no live
- * `SessionState` but already has ready changeset states (e.g. from a
- * prior `restoreStaticChangeset` call).
+ * Derives the `summary.changes` aggregate for an unopened session from
+ * the ready live {@link ChangesetState} of the catalogue entry whose
+ * `changeKind === 'session'` — typically because a previous
+ * `restoreStaticChangeset` warmed the cache before the session itself
+ * was attached.
  *
- * Returns `undefined` when no live state is ready, so `listSessions`
- * naturally leaves the `changesets` field undefined for sessions that
- * have no usable counts yet — preserving the long-standing contract that
- * unopened sessions without persisted or live data advertise no catalogue.
+ * Returns `undefined` when no live session-wide state is ready, so
+ * `listSessions` leaves the `changes` field unset for sessions without
+ * usable counts — preserving the long-standing contract that unopened
+ * sessions without live or persisted data advertise no aggregate.
  *
- * The two static entries (`Branch Changes`, `Uncommitted Changes`) are
- * git-only — `AgentService._attachGitState` strips them from the live
- * `summary.changesets` for non-git working directories. The synthesised
- * catalogue here mirrors the live-state shape so list overlays stay
- * consistent with the per-session catalogue clients subscribe to.
- *
- * The compare-turns changeset is intentionally NOT advertised in the
- * catalogue — it is subscribe-only (see
- * {@link buildDefaultChangesetCatalogue}).
+ * Only the `changeKind: 'session'` entry feeds the summary; other kinds
+ * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
+ * the session-level footprint. The static catalogue itself (built by
+ * {@link buildDefaultChangesetCatalogue}) is independent of counts and
+ * is seeded once at session creation.
  */
-export function buildCatalogueFromLiveState(
-	sessionUri: string,
-	uncommitted: ChangesetState | undefined,
+export function computeChangesSummaryFromLiveState(
 	session: ChangesetState | undefined,
-): ChangesetSummary[] | undefined {
-	const uncommittedDiffs = uncommitted?.status === ChangesetStatus.Ready ? uncommitted.files.map(f => f.edit) : undefined;
+): ChangesSummary | undefined {
 	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
-	if (!uncommittedDiffs && !sessionDiffs) {
-		return undefined;
-	}
-	return defaultCatalogueWithCounts(sessionUri, uncommittedDiffs, sessionDiffs);
+	return summariseDiffs(sessionDiffs);
 }
 
 /**
- * Build the default ordered changeset catalogue from parsed persisted
- * diffs. Returns `undefined` when both inputs are absent so unopened
- * sessions with no usable data leave `changesets` undefined — preserving
- * the existing `listSessions` behaviour for malformed metadata cases.
+ * Derives the `summary.changes` aggregate for an unopened session from
+ * parsed persisted diffs for the `changeKind: 'session'` catalogue
+ * entry. Returns `undefined` when the session-wide blob is absent so
+ * malformed metadata leaves `summary.changes` unset.
  */
-export function buildCatalogueFromPersistedDiffs(
-	sessionUri: string,
-	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
+export function computeChangesSummaryFromPersistedDiffs(
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesetSummary[] | undefined {
-	if (!uncommittedDiffs && !sessionDiffs) {
-		return undefined;
-	}
-	return defaultCatalogueWithCounts(sessionUri, uncommittedDiffs, sessionDiffs);
+): ChangesSummary | undefined {
+	return summariseDiffs(sessionDiffs);
 }
 
 /**
@@ -181,8 +150,9 @@ export interface IPersistedChangesetMetadata {
 
 /**
  * The parsed diffs returned from {@link IAgentHostChangesetService.restorePersistedStaticChangesets},
- * suitable for passing into {@link buildCatalogueFromPersistedDiffs} when
- * the caller needs to synthesise a catalogue for the session-list overlay.
+ * suitable for passing into {@link computeChangesSummaryFromPersistedDiffs}
+ * when the caller needs to synthesise a `summary.changes` aggregate for
+ * the session-list overlay.
  */
 export interface IRestoredChangesetDiffs {
 	readonly uncommitted?: readonly ISessionFileDiff[];
@@ -213,7 +183,7 @@ export interface IAgentHostChangesetService {
 	 * Registers the two static changeset URIs (`uncommitted`, `session`)
 	 * on the state manager so client subscriptions resolve to a
 	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`summary.changesets`) is seeded
+	 * completes. The catalogue itself (`state.changesets`) is seeded
 	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
 	 * deals with the state-manager-side per-changeset entries.
 	 *
@@ -778,14 +748,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/**
 	 * Translates the new file list into a sequence of changeset/* actions
-	 * (fileSet, fileRemoved) and updates the matching catalogue entry's
-	 * aggregate counts via {@link AgentHostStateManager.setSessionChangesets}.
+	 * (fileSet, fileRemoved) and — when the changeset being published is
+	 * the catalogue's `changeKind: 'session'` entry — refreshes
+	 * `summary.changes` via
+	 * {@link AgentHostStateManager.setSessionSummaryChanges} so the session
+	 * list chip stays in sync without subscribers having to attach to the
+	 * changeset.
 	 *
-	 * The catalogue entry is matched by URI: for static changesets the
-	 * `uriTemplate` is the concrete URI; for the per-turn template it
-	 * contains `{turnId}` and never matches a concrete turn URI, so per-
-	 * turn computations don't update catalogue counts (intended — the
-	 * template entry advertises the shape, not aggregates).
+	 * Counts for non-`'session'` changesets (`'uncommitted'`, `'turn'`,
+	 * `'compare-turns'`) are intentionally NOT propagated to
+	 * `summary.changes`: that field is a single session-level aggregate,
+	 * and the chip the UI renders is the session-wide footprint. Per-turn
+	 * diffs are also computed off concrete URIs that never appear as
+	 * catalogue entries, so the lookup naturally skips them.
 	 */
 	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
 		const previous = this._stateManager.getChangesetState(changesetUri);
@@ -829,26 +804,29 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			});
 		}
 
-		// Refresh the catalogue's aggregate counts so chip rendering stays
-		// in sync without subscribers having to attach to the changeset.
-		const sessionState = this._stateManager.getSessionState(session);
-		if (!sessionState) {
+		// Identify the session-wide changeset by its catalogue entry's
+		// `changeKind: 'session'` rather than by URI shape, so producers
+		// that register an alternate session-wide URI still feed the chip.
+		const catalogue = this._stateManager.getSessionState(session)?.changesets;
+		const entry = catalogue?.find(c => c.uriTemplate === changesetUri);
+		if (entry?.changeKind !== 'session') {
 			return;
 		}
-		const totals = Array.from(nextFilesById.values()).reduce(
-			(acc, d) => {
-				acc.additions += d.diff?.added ?? 0;
-				acc.deletions += d.diff?.removed ?? 0;
-				return acc;
-			},
-			{ additions: 0, deletions: 0 },
-		);
-		const existing = sessionState.summary.changesets ?? [];
-		const next = existing.map(c => c.uriTemplate === changesetUri
-			? { ...c, additions: totals.additions, deletions: totals.deletions, files: nextFilesById.size }
-			: c,
-		);
-		this._stateManager.setSessionChangesets(session, next);
+
+		// Refresh `summary.changes` so the session list chip reflects the
+		// latest session-wide footprint without subscribers having to attach
+		// to the changeset.
+		let additions = 0;
+		let deletions = 0;
+		for (const d of nextFilesById.values()) {
+			additions += d.diff?.added ?? 0;
+			deletions += d.diff?.removed ?? 0;
+		}
+		this._stateManager.setSessionSummaryChanges(session, {
+			additions,
+			deletions,
+			files: nextFilesById.size,
+		});
 	}
 
 	/**

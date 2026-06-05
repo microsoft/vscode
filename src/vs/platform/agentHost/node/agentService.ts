@@ -392,11 +392,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder. The default `session` changeset
-		// catalogue entry lives on `state.summary.changesets` (published
-		// at session-ready/restore time and refreshed after each compute
-		// pass) and must be surfaced here so a fresh `listSessions` call
-		// returns the same catalogue subscribers see via
+		// initial empty placeholder. The default changeset catalogue lives
+		// on `state.changesets` (seeded after `createSession` /
+		// `restoreSession` and refreshed after each compute pass) and the
+		// chip aggregate on `state.summary.changes`; both must be surfaced
+		// here so a fresh `listSessions` call returns the same values
+		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
@@ -408,7 +409,8 @@ export class AgentService extends Disposable implements IAgentService {
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
 					agent: liveState.summary.agent ?? s.agent,
-					changesets: liveState.summary.changesets ?? s.changesets,
+					changesets: liveState.changesets ?? s.changesets,
+					changes: liveState.summary.changes ?? s.changes,
 				};
 			}
 			return s;
@@ -543,9 +545,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Initial changeset state is established as part of session creation,
-		// never deferred to materialization. Two halves: (1) the summary
-		// catalogue is seeded by `buildDefaultChangesetCatalogue` inside
-		// `_buildInitialSummary`; (2) the backing per-changeset states are
+		// never deferred to materialization. Two halves: (1) the catalogue
+		// is seeded on `state.changesets` via `setSessionChangesets` right
+		// after `createSession`; (2) the backing per-changeset states are
 		// registered by `_changesetCoordinator.onSessionCreated` here. Both
 		// run before `SessionReady` is dispatched. Any future change must
 		// keep both halves at create time so client subscriptions resolve
@@ -556,6 +558,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// `_attachGitState` strips them once the git probe confirms the
 		// resolved working directory is not a git repo. Pinned by item-2
 		// regression tests in `agentService.test.ts`.
+		this._stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalogue(session.toString()));
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -592,7 +595,6 @@ export class AgentService extends Disposable implements IAgentService {
 			model: config?.model,
 			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
-			changesets: buildDefaultChangesetCatalogue(session.toString()),
 		};
 	}
 
@@ -1332,15 +1334,15 @@ export class AgentService extends Disposable implements IAgentService {
 			model: meta.model,
 			agent: meta.agent,
 			workingDirectory: meta.workingDirectory?.toString(),
-			changesets: buildDefaultChangesetCatalogue(sessionStr),
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
+		this._stateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalogue(sessionStr));
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
-		// summary is already on the summary above (seeded synchronously by
-		// `buildDefaultChangesetCatalogue`). The coordinator drains any
+		// itself is seeded on `state.changesets` synchronously by the
+		// `setSessionChangesets` call above. The coordinator drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
 		// `<session>/changeset/uncommitted` before this restore ran (e.g.

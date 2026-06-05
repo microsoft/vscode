@@ -23,7 +23,7 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset, type ChangesSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -176,19 +176,18 @@ export class AgentHostSessionAdapter implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
-	setChangesSummary(catalogue: readonly ChangesetSummary[] | undefined): boolean {
-		const summary = catalogue?.find(c => !c.uriTemplate.includes('{'));
-		if (!summary) {
+	setChangesSummary(changes: ChangesSummary | undefined): boolean {
+		if (!changes) {
 			return false;
 		}
 
-		const { additions, deletions, files } = summary;
+		const { additions, deletions, files } = changes;
 		const currentChangesSummary = this._changesSummary.get();
 
 		if (
-			(currentChangesSummary?.files ?? 0) === files &&
-			(currentChangesSummary?.additions ?? 0) === additions &&
-			(currentChangesSummary?.deletions ?? 0) === deletions
+			(currentChangesSummary?.files ?? 0) === (files ?? 0) &&
+			(currentChangesSummary?.additions ?? 0) === (additions ?? 0) &&
+			(currentChangesSummary?.deletions ?? 0) === (deletions ?? 0)
 		) {
 			return false;
 		}
@@ -311,11 +310,11 @@ export class AgentHostSessionAdapter implements ISession {
 			return isEqual(activeSession?.resource, this.resource);
 		});
 
-		// Set the changes summary from the catalogue. While the session is active,
+		// Set the changes summary from the aggregate. While the session is active,
 		// the changes summary will be updated through the session changeset changes.
 		// As soon as the session is no longer active, the changes summary will be
-		// updated from the catalogue.
-		this.setChangesSummary(metadata.changesets);
+		// updated from `metadata.changes` (mirroring `SessionSummary.changes`).
+		this.setChangesSummary(metadata.changes);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
 		const { changesSummary, changes } = this._createChangesObs(sessionUri, isActiveSessionObs);
@@ -492,9 +491,9 @@ export class AgentHostSessionAdapter implements ISession {
 				didChange = true;
 			}
 
-			// `metadata.changesets` (catalogue) drives the chip aggregate.
+			// `metadata.changes` (aggregate) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
-			if (metadata.changesets !== undefined && this.setChangesSummary(metadata.changesets)) {
+			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes)) {
 				didChange = true;
 			}
 
@@ -539,7 +538,7 @@ export class AgentHostSessionAdapter implements ISession {
 		return workspaceChanged;
 	}
 
-	updateChangesets(changesets: readonly ChangesetSummary[] | undefined) {
+	updateChangesets(changesets: readonly Changeset[] | undefined) {
 		if (!changesets) {
 			return;
 		}
@@ -2506,7 +2505,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			model: summary.model,
 			agent: summary.agent,
 			workingDirectory: workingDir,
-			changesets: summary.changesets,
+			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
@@ -2601,14 +2600,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			// `changes.changesets` carries the catalogue (counts + URI
-			// templates). The chip aggregate is recomputed from those counts
-			// here; per-file detail is not part of this notification path.
-			if (changes.changesets !== undefined) {
-				cached.updateChangesets(changes.changesets);
-				if (cached.setChangesSummary(changes.changesets)) {
-					didChange = true;
-				}
+			// `changes.changes` carries the chip aggregate. The catalogue
+			// itself (label / URI template / `changeKind`) arrives via the
+			// `SessionChangesetsChanged` action, handled by
+			// `_handleChangesetsChanged`.
+			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes)) {
+				didChange = true;
 			}
 
 			if (Object.prototype.hasOwnProperty.call(changes, 'activity') && cached.setActivity(changes.activity)) {
@@ -2646,7 +2643,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
-	private _handleChangesetsChanged(session: string, changesets: readonly ChangesetSummary[] | undefined): void {
+	private _handleChangesetsChanged(session: string, changesets: readonly Changeset[] | undefined): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {

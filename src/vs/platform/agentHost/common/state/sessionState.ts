@@ -38,7 +38,7 @@ import {
 // Re-export everything from the protocol state module
 export {
 	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
-	CustomizationType, MessageAttachmentKind, MessageKind,
+	CustomizationType, McpServerStatus, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -50,7 +50,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChangesetSummary, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type Changeset, type ChangesetOperation, type ChangesetState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,

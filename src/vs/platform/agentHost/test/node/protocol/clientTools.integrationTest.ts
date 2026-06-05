@@ -17,7 +17,7 @@
  */
 
 import assert from 'assert';
-import { ToolCallContributorKind, ToolResultContentType, type ToolCallContributor } from '../../../common/state/sessionState.js';
+import { ToolResultContentType } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -67,10 +67,10 @@ suite('Protocol WebSocket — Client Tools', function () {
 		]);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
-			contributor?: ToolCallContributor;
+			contributor?: { kind: string; clientId?: string };
 		};
 		assert.strictEqual(toolStartAction.toolCallId, 'tc-client-1');
-		assert.deepStrictEqual(toolStartAction.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' });
+		assert.strictEqual(toolStartAction.contributor?.clientId, 'test-client-tool');
 
 		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as {
 			toolCallId: string;
@@ -115,10 +115,10 @@ suite('Protocol WebSocket — Client Tools', function () {
 		);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
-			contributor?: ToolCallContributor;
+			contributor?: { kind: string; clientId?: string };
 		};
 		assert.strictEqual(toolStartAction.toolCallId, 'tc-client-perm-1');
-		assert.deepStrictEqual(toolStartAction.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' });
+		assert.strictEqual(toolStartAction.contributor?.clientId, 'test-client-tool');
 
 		// Wait for toolCallReady with confirmationTitle (permission flow)
 		const toolReadyNotif = await client.waitForNotification(

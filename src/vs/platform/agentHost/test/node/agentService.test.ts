@@ -579,20 +579,25 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(sessions[0].changesets, [
-				{
-					label: 'Branch Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/session`,
-					additions: 8,
-					deletions: 2,
-					files: 2,
-				},
-				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-					description: 'Show uncommitted changes in this session',
-				},
-			]);
+			assert.deepStrictEqual({
+				changesets: sessions[0].changesets,
+				changes: sessions[0].changes,
+			}, {
+				changesets: [
+					{
+						label: 'Branch Changes',
+						uriTemplate: `${sessionUri.toString()}/changeset/session`,
+						changeKind: 'session',
+					},
+					{
+						label: 'Uncommitted Changes',
+						uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+						description: 'Show uncommitted changes in this session',
+						changeKind: 'uncommitted',
+					},
+				],
+				changes: { additions: 8, deletions: 2, files: 2 },
+			});
 		});
 
 		test('listSessions silently ignores malformed persisted diffs', async () => {
@@ -661,15 +666,15 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				listCatalogueEntry: sessions[0].changesets?.find(c => c.uriTemplate === changesetUri),
+				listChanges: sessions[0].changes,
 				listSeededSnapshot: svc.stateManager.getSnapshot(changesetUri),
 			}, {
 				listCatalogueEntry: {
 					label: 'Branch Changes',
 					uriTemplate: changesetUri,
-					additions: 5,
-					deletions: 2,
-					files: 1,
+					changeKind: 'session',
 				},
+				listChanges: { additions: 5, deletions: 2, files: 1 },
 				listSeededSnapshot: undefined,
 			});
 
@@ -727,20 +732,25 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			const sessions = await svc.listSessions();
-			assert.deepStrictEqual(sessions[0].changesets, [
-				{
-					label: 'Branch Changes',
-					uriTemplate: changesetUri,
-					additions: 1,
-					deletions: 0,
-					files: 1,
-				},
-				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-					description: 'Show uncommitted changes in this session',
-				},
-			]);
+			assert.deepStrictEqual({
+				changesets: sessions[0].changesets,
+				changes: sessions[0].changes,
+			}, {
+				changesets: [
+					{
+						label: 'Branch Changes',
+						uriTemplate: changesetUri,
+						changeKind: 'session',
+					},
+					{
+						label: 'Uncommitted Changes',
+						uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+						description: 'Show uncommitted changes in this session',
+						changeKind: 'uncommitted',
+					},
+				],
+				changes: { additions: 1, deletions: 0, files: 1 },
+			});
 		});
 
 		test('listSessions does not request the diffs metadata key when a live source can answer', async () => {
@@ -828,20 +838,25 @@ suite('AgentService (node dispatcher)', () => {
 			svc.stateManager.registerChangeset(buildSessionChangesetUri(sessionUri.toString()));
 
 			const sessions = await svc.listSessions();
-			assert.deepStrictEqual(sessions[0].changesets, [
-				{
-					label: 'Branch Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/session`,
-					additions: 7,
-					deletions: 1,
-					files: 1,
-				},
-				{
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
-					description: 'Show uncommitted changes in this session',
-				},
-			]);
+			assert.deepStrictEqual({
+				changesets: sessions[0].changesets,
+				changes: sessions[0].changes,
+			}, {
+				changesets: [
+					{
+						label: 'Branch Changes',
+						uriTemplate: `${sessionUri.toString()}/changeset/session`,
+						changeKind: 'session',
+					},
+					{
+						label: 'Uncommitted Changes',
+						uriTemplate: `${sessionUri.toString()}/changeset/uncommitted`,
+						description: 'Show uncommitted changes in this session',
+						changeKind: 'uncommitted',
+					},
+				],
+				changes: { additions: 7, deletions: 1, files: 1 },
+			});
 		});
 
 		test('listSessions overlays live state manager title over SDK title', async () => {
@@ -985,7 +1000,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets?.length, 0);
+			assert.deepStrictEqual(state!.changesets?.length, 0);
 		});
 
 		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
@@ -1016,9 +1031,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
-				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+			assert.deepStrictEqual(state!.changesets, [
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main', changeKind: 'session' },
+				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 			]);
 		});
 
@@ -1050,9 +1065,9 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
-				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
-				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+			assert.deepStrictEqual(state!.changesets, [
+				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main', changeKind: 'session' },
+				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 			]);
 		});
 
@@ -2109,22 +2124,28 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			// The session has no working directory, so `_attachGitState`
 			// treats it as transient and does NOT strip the two git-only
-			// catalogue entries. The Branch Changes entry receives the
-			// persisted diff counts seeded by the changeset coordinator.
-			assert.deepStrictEqual(state!.summary.changesets, [
-				{
-					additions: 5,
-					deletions: 2,
-					files: 1,
-					label: 'Branch Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/session`,
-				},
-				{
-					description: 'Show uncommitted changes in this session',
-					label: 'Uncommitted Changes',
-					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
-				},
-			]);
+			// catalogue entries. The chip aggregate on `summary.changes`
+			// receives the persisted diff counts seeded by the changeset
+			// coordinator.
+			assert.deepStrictEqual({
+				changesets: state!.changesets,
+				changes: state!.summary.changes,
+			}, {
+				changesets: [
+					{
+						label: 'Branch Changes',
+						uriTemplate: `${sessionResource.toString()}/changeset/session`,
+						changeKind: 'session',
+					},
+					{
+						description: 'Show uncommitted changes in this session',
+						label: 'Uncommitted Changes',
+						uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
+						changeKind: 'uncommitted',
+					},
+				],
+				changes: { additions: 5, deletions: 2, files: 1 },
+			});
 
 			const changesetSnapshot = localService.stateManager.getSnapshot(`${sessionResource.toString()}/changeset/session`);
 			assert.ok(changesetSnapshot);
@@ -2158,17 +2179,19 @@ suite('AgentService (node dispatcher)', () => {
 			assert.ok(state);
 			// Catalogue is seeded by `_buildInitialSummary` / `restoreSession`.
 			// The session has no working directory, so `_attachGitState` does
-			// NOT strip the git-only entries — they remain advertised but
-			// without counts until a real compute lands.
-			assert.deepStrictEqual(state!.summary.changesets, [
+			// NOT strip the git-only entries — they remain advertised but the
+			// chip aggregate stays unset until a real compute lands.
+			assert.deepStrictEqual(state!.changesets, [
 				{
 					label: 'Branch Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/session`,
+					changeKind: 'session',
 				},
 				{
 					description: 'Show uncommitted changes in this session',
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/uncommitted`,
+					changeKind: 'uncommitted',
 				},
 			]);
 
@@ -2338,8 +2361,8 @@ suite('AgentService (node dispatcher)', () => {
 			// the two git-only entries. All three default entries are
 			// advertised (without counts) until a real compute lands.
 			return [
-				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
-				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+				{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session`, changeKind: 'session' },
+				{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 			];
 		}
 
@@ -2351,7 +2374,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = service.stateManager.getSessionState(sessionStr);
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 		});
 
@@ -2383,7 +2406,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const forkedState = service.stateManager.getSessionState(forkedStr);
 			assert.ok(forkedState);
-			assert.deepStrictEqual(forkedState!.summary.changesets, defaultCatalogue(forkedStr));
+			assert.deepStrictEqual(forkedState!.changesets, defaultCatalogue(forkedStr));
 			// Note: source-session turn was seeded directly on state, so the
 			// reducer never saw a SessionTurnStarted/Complete pair for it;
 			// the fork branch (agentService.ts:548 path) is still exercised
@@ -2419,7 +2442,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Snapshot the create-time state BEFORE materialization.
 			const stateBefore = service.stateManager.getSessionState(sessionStr);
 			assert.ok(stateBefore, 'provisional session should already have state');
-			assert.deepStrictEqual(stateBefore!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(stateBefore!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 
 			// `markSessionPersisted` (called from `_onDidMaterializeSession`)
@@ -2430,7 +2453,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const stateAfter = service.stateManager.getSessionState(sessionStr);
 			assert.ok(stateAfter, 'materialized session should still have state');
-			assert.deepStrictEqual(stateAfter!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(stateAfter!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 		});
 
@@ -2456,7 +2479,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionStr);
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(localService.stateManager, sessionStr);
 		});
 	});
