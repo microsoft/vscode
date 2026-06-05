@@ -242,11 +242,17 @@ export class Toggle extends Widget {
 	enable(): void {
 		this.domNode.setAttribute('aria-disabled', String(false));
 		this.domNode.classList.remove('disabled');
+		if (!this._opts.notFocusable) {
+			this.domNode.tabIndex = 0;
+		}
 	}
 
 	disable(): void {
 		this.domNode.setAttribute('aria-disabled', String(true));
 		this.domNode.classList.add('disabled');
+		if (!this._opts.notFocusable) {
+			this.domNode.tabIndex = -1;
+		}
 	}
 
 	setTitle(newTitle: string | IMarkdownString | HTMLElement): void {

@@ -518,6 +518,7 @@ function clipAroundFocalRanges(
 	tokenBudget: number,
 	computeTokens: (s: string) => number,
 	includeLineNumbers: xtabPromptOptions.IncludeLineNumbersOption,
+	useLeftoverBudgetFromAbove: boolean,
 	result: { snippets: string[]; docsInPrompt: Set<DocumentId> },
 ): number | undefined {
 	if (tokenBudget <= 0) {
@@ -550,7 +551,8 @@ function clipAroundFocalRanges(
 		pageSize,
 		tokenBudget,
 		computeTokens,
-		false
+		false,
+		useLeftoverBudgetFromAbove
 	);
 
 	if (budgetLeft === tokenBudget) {
@@ -613,6 +615,7 @@ function buildCodeSnippetsGreedy(
 	const initialBudget = opts.recentlyViewedDocuments.maxTokens;
 	let maxTokenBudget = initialBudget;
 	const includeLineNumbers = opts.recentlyViewedDocuments.includeLineNumbers;
+	const useLeftoverBudgetFromAbove = opts.recentlyViewedDocuments.useLeftoverBudgetFromAbove;
 
 	for (const file of recentlyViewedCodeSnippets) {
 		const lines = file.content.getLines();
@@ -622,7 +625,7 @@ function buildCodeSnippetsGreedy(
 		if (file.focalRanges !== undefined) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
-				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, result
+				pageSize, lines.length, maxTokenBudget, computeTokens, includeLineNumbers, useLeftoverBudgetFromAbove, result
 			);
 			if (budgetLeft === undefined) {
 				break;
@@ -659,6 +662,7 @@ function buildCodeSnippetsWithProportionalBudget(
 
 	const totalBudget = opts.recentlyViewedDocuments.maxTokens;
 	const includeLineNumbers = opts.recentlyViewedDocuments.includeLineNumbers;
+	const useLeftoverBudgetFromAbove = opts.recentlyViewedDocuments.useLeftoverBudgetFromAbove;
 
 	if (recentlyViewedCodeSnippets.length === 0) {
 		return { snippets: [], docsInPrompt: new Set(), tokensConsumed: 0 };
@@ -704,7 +708,7 @@ function buildCodeSnippetsWithProportionalBudget(
 		if (file.focalRanges !== undefined && file.focalRanges.length > 0) {
 			const budgetLeft = clipAroundFocalRanges(
 				file as { id: DocumentId; content: StringText; focalRanges: readonly OffsetRange[] },
-				pageSize, lines.length, effectiveBudget, computeTokens, includeLineNumbers, result
+				pageSize, lines.length, effectiveBudget, computeTokens, includeLineNumbers, useLeftoverBudgetFromAbove, result
 			);
 			unspentBudget = budgetLeft ?? effectiveBudget;
 		} else {

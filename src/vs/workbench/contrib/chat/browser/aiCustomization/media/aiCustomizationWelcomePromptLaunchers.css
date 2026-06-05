@@ -59,7 +59,7 @@
 	margin: 0;
 	padding: 0 4px;
 	font-size: var(--vscode-agents-fontSize-body1);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 }
 

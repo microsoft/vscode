@@ -169,6 +169,7 @@ class ChatModes extends Disposable implements IChatModes {
 					}
 					const uri = URI.revive(cachedMode.uri);
 					const customChatMode: ICustomAgent = {
+						id: cachedMode.id,
 						uri,
 						name: cachedMode.name,
 						description: cachedMode.description,

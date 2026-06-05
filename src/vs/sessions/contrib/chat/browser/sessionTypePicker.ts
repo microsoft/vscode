@@ -134,7 +134,7 @@ export class SessionTypePicker extends Disposable {
 			refresh(this.sessionsManagementService.activeSession.get());
 		}));
 		// Re-read when the stored preference changes (e.g. handoff IPC from
-		// the main vscode window pre-seeds Copilot CLI [Local] when opening
+		// the main vscode window pre-seeds Copilot CLI when opening
 		// the agents window from an empty workspace).
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
 			if (!this.sessionsManagementService.activeSession.get()) {

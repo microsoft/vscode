@@ -77,6 +77,7 @@ export class NewChatWidget extends Disposable {
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
+			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
 			renderSessionTypePickerInControls: false,
 			supportsBackground: true,
 		}));
@@ -412,7 +413,9 @@ export class NewChatWidget extends Disposable {
 			}
 		}
 
-		this._createNewSession(folderUri, pick);
+		if (!this._store.isDisposed) {
+			this._createNewSession(folderUri, pick);
+		}
 	}
 
 	prefillInput(text: string): void {

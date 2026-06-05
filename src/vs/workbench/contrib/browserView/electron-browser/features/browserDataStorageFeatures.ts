@@ -55,7 +55,8 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
 				order: 20,
-				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global),
+				isHiddenByDefault: true,
 			}
 		});
 	}
@@ -80,7 +81,8 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
 				order: 20,
-				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace),
+				isHiddenByDefault: true,
 			}
 		});
 	}
@@ -106,7 +108,8 @@ class ClearEphemeralBrowserStorageAction extends Action2 {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Data,
 				order: 20,
-				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
+				isHiddenByDefault: true,
 			}
 		});
 	}

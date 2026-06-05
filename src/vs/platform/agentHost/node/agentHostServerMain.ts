@@ -42,7 +42,7 @@ import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
-import { AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, IAgentService, AgentHostCodexAgentBinaryPathEnvVar } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -227,6 +227,7 @@ async function main(): Promise<void> {
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
 	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
 	disposables.add(agentService);
+	diServices.set(IAgentService, agentService);
 
 	// Register agents
 	if (!options.quiet) {

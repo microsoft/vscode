@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ISession, SessionStatus } from '../common/session.js';
+import { ISessionsManagementService } from '../common/sessionsManagement.js';
 
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
@@ -45,6 +47,21 @@ export interface ISessionsListModelService {
 	markUnread(session: ISession): void;
 	isSessionRead(session: ISession): boolean;
 	markAllRead(sessions: ISession[]): void;
+
+	// -- Status icon --
+
+	/**
+	 * The status-based icon shown next to a session's title across the sessions
+	 * UI (sessions list, sessions picker, session header). Centralized here so
+	 * all surfaces stay in sync.
+	 *
+	 * Note: when motion is allowed, surfaces that host a {@link SessionStatusIcon}
+	 * (sessions list, session header) render a pixel spinner for the
+	 * `InProgress`/`NeedsInput` states instead of consulting this method; the
+	 * icons returned here are the reduced-motion fallbacks (and the glyphs used by
+	 * surfaces that don't host the widget, such as the sessions picker).
+	 */
+	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon;
 }
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
@@ -177,6 +194,27 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (changed.length > 0) {
 			this.saveSet(SessionsListModelService.READ_SESSIONS_KEY, this._readSessionIds);
 			this._onDidChange.fire({ changes: changed });
+		}
+	}
+
+	// -- Status icon --
+
+	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
+		switch (status) {
+			case SessionStatus.InProgress:
+				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+			case SessionStatus.NeedsInput:
+				return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+			case SessionStatus.Error:
+				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
+			default:
+				if (pullRequestIcon) {
+					return pullRequestIcon;
+				}
+				if (!isRead && !isArchived) {
+					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
+				}
+				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
 		}
 	}
 

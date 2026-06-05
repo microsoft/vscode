@@ -16,8 +16,11 @@ import {
 	AgentHostPermissionMode,
 	AgentHostPermissionsSetting,
 	AgentHostLocalFilePermissionsSettingId,
-} from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
-import { AgentHostPermissionService } from '../../common/agentHostPermissionService.js';
+} from '../../../../../platform/agentHost/common/agentHostResourceService.js';
+import { AgentHostResourceService } from '../../common/agentHostResourceService.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+
+const stubTextModelService = {} as unknown as ITextModelService;
 
 class CapturingConfigurationService extends TestConfigurationService {
 	override async updateValue(key: string, value: unknown, arg3?: ConfigurationTarget | unknown): Promise<void> {
@@ -47,15 +50,15 @@ function createStubFileService(opts?: {
 	} as unknown as IFileService;
 }
 
-suite('AgentHostPermissionService', () => {
+suite('AgentHostResourceService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(initial?: AgentHostPermissionsSetting, fileService = createStubFileService()): { service: AgentHostPermissionService; config: CapturingConfigurationService } {
+	function createService(initial?: AgentHostPermissionsSetting, fileService = createStubFileService()): { service: AgentHostResourceService; config: CapturingConfigurationService } {
 		const config = new CapturingConfigurationService();
 		if (initial) {
 			void config.setUserConfiguration(AgentHostLocalFilePermissionsSettingId, initial);
 		}
-		const service = disposables.add(new AgentHostPermissionService(config, fileService, new NullLogService()));
+		const service = disposables.add(new AgentHostResourceService(config, fileService, stubTextModelService, new NullLogService()));
 		return { service, config };
 	}
 
@@ -262,7 +265,7 @@ suite('AgentHostPermissionService', () => {
 				await super.updateValue(key, value, target as ConfigurationTarget);
 			}
 		})();
-		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
+		const service = disposables.add(new AgentHostResourceService(config, createStubFileService(), stubTextModelService, new NullLogService()));
 
 		const uri = URI.file('/etc/foo');
 		const promise = service.request('host', { channel: 'ahp-root://', uri: uri.toString(), read: true });
@@ -494,7 +497,7 @@ suite('AgentHostPermissionService', () => {
 			}
 			return originalInspect(key);
 		};
-		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
+		const service = disposables.add(new AgentHostResourceService(config, createStubFileService(), stubTextModelService, new NullLogService()));
 
 		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -525,7 +528,7 @@ suite('AgentHostPermissionService', () => {
 			}
 			return originalInspect(key);
 		};
-		const service = disposables.add(new AgentHostPermissionService(config, createStubFileService(), new NullLogService()));
+		const service = disposables.add(new AgentHostResourceService(config, createStubFileService(), stubTextModelService, new NullLogService()));
 
 		const promise = service.request('host', { channel: 'ahp-root://', uri: URI.file('/etc/foo').toString(), read: true });
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -551,3 +554,4 @@ suite('AgentHostPermissionService', () => {
 		assert.strictEqual(await service.check('host', URI.file('/etc/good'), AgentHostPermissionMode.Read), true);
 	});
 });
+

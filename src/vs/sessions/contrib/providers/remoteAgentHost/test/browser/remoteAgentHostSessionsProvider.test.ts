@@ -375,7 +375,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('resolveWorkspace builds workspace from URI', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
+		const uri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
 		assert.ok(ws, 'resolveWorkspace should resolve vscode-agent-host:// URIs');
@@ -579,7 +579,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('createNewSession returns session with correct fields', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.providerId, provider.id);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
@@ -593,7 +593,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
 		connection.failResolveSessionConfig = true;
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const workspaceUri = URI.parse('vscode-agent-host://auth/home/user/project');
+		const workspaceUri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
 		const session = provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
 		const resolved = provider.getSessionByResource(session.resource);
 
@@ -611,7 +611,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('clearConnection clears pending new session config', () => {
 		const provider = createProvider(disposables, connection);
 
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		provider.clearConnection();
 
 		assert.deepStrictEqual({
@@ -800,7 +800,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			values: {},
 		};
 		const provider = createProvider(disposables, connection);
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		provider.setAuthenticationPending(false);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
@@ -913,7 +913,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		provider.setAuthenticationPending(false);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
@@ -1090,7 +1090,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('non-web: resolveWorkspace includes [host] suffix in label', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
-		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
+		const uri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
 		assert.ok(ws);
@@ -1127,7 +1127,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('non-web: createNewSession workspace label includes [host] suffix', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.workspace.get()?.label, 'project [Test Host]');
 	});

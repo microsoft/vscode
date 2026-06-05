@@ -23,6 +23,33 @@ const ROOT = path.join(__dirname, '..', '..', '..');
 
 /** @type {(msg: string) => void} */
 let _log = console.log;
+let _verbose = false;
+
+/**
+ * Pretty-print a payload for verbose logs, truncating long strings.
+ * @param {unknown} obj
+ * @param {number} [maxLen]
+ */
+function _formatVerbose(obj, maxLen = 8000) {
+	let text;
+	try {
+		text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+	} catch {
+		text = String(obj);
+	}
+	if (text.length > maxLen) {
+		text = text.slice(0, maxLen) + `… [truncated, ${text.length - maxLen} more chars]`;
+	}
+	return text;
+}
+
+/**
+ * Indent each line with the verbose prefix.
+ * @param {string} text
+ */
+function _indentVerbose(text) {
+	return text.split('\n').map(l => `[mock-llm]     ${l}`).join('\n');
+}
 
 // -- Scenario fixtures -------------------------------------------------------
 
@@ -44,6 +71,8 @@ let _log = console.log;
  *   thinkingChunks: StreamChunk[],
  *   chunks: StreamChunk[],
  * } | {
+ *   kind: 'echo-last-message',
+ * } | {
  *   kind: 'user',
  *   message: string,
  * }} ScenarioTurn
@@ -62,6 +91,8 @@ let _log = console.log;
  *   kind: 'thinking',
  *   thinkingChunks: StreamChunk[],
  *   chunks: StreamChunk[],
+ * } | {
+ *   kind: 'echo-last-message',
  * }} ModelScenarioTurn
  */
 
@@ -726,6 +757,14 @@ function resolveCurrentTurn(turns, messages) {
  * @param {http.ServerResponse} res
  */
 async function handleChatCompletions(body, res) {
+	if (_verbose) {
+		_log(`[mock-llm]   chat/completions request body:`);
+		try {
+			_log(_indentVerbose(_formatVerbose(JSON.parse(body))));
+		} catch {
+			_log(_indentVerbose(_formatVerbose(body)));
+		}
+	}
 	let scenarioId = DEFAULT_SCENARIO;
 	let isScenarioRequest = false;
 	/** @type {string[]} */
@@ -801,6 +840,13 @@ async function handleChatCompletions(body, res) {
 
 		if (turn.kind === 'thinking') {
 			await streamThinkingThenContent(res, turn.thinkingChunks, turn.chunks, isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-message') {
+			const lastMsg = messages[messages.length - 1];
+			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
 			return;
 		}
 
@@ -961,13 +1007,25 @@ async function streamAnthropicContent(res, chunks, isScenarioRequest) {
  * @param {http.ServerResponse} res
  */
 async function handleMessagesApi(body, res) {
+	if (_verbose) {
+		_log(`[mock-llm]   /v1/messages request body:`);
+		try {
+			_log(_indentVerbose(_formatVerbose(JSON.parse(body))));
+		} catch {
+			_log(_indentVerbose(_formatVerbose(body)));
+		}
+	}
 	let scenarioId = DEFAULT_SCENARIO;
 	let isScenarioRequest = false;
 	/** @type {any[]} */
 	let messages = [];
+	/** @type {string[]} */
+	let requestToolNames = [];
 	try {
 		const parsed = JSON.parse(body);
 		messages = parsed.messages || [];
+		const tools = parsed.tools || [];
+		requestToolNames = tools.map((/** @type {any} */ t) => t.name).filter(Boolean);
 		const userMsgs = messages.filter((/** @type {any} */ m) => m.role === 'user');
 		if (userMsgs.length > 0) {
 			const last = userMsgs[userMsgs.length - 1];
@@ -977,7 +1035,7 @@ async function handleMessagesApi(body, res) {
 					? last.content.map((/** @type {any} */ c) => c.text || '').join('').substring(0, 100)
 					: '(structured)';
 			const ts = new Date().toISOString().slice(11, -1);
-			_log(`[mock-llm]   ${ts} → messages-api: ${messages.length} msgs, last user: "${lastContent}"`);
+			_log(`[mock-llm]   ${ts} → messages-api: ${messages.length} msgs, ${requestToolNames.length} tools, last user: "${lastContent}"`);
 		}
 
 		for (let mi = messages.length - 1; mi >= 0; mi--) {
@@ -995,12 +1053,27 @@ async function handleMessagesApi(body, res) {
 				break;
 			}
 		}
+
+		// Anthropic's Messages API also accepts a top-level `system` parameter
+		// (string or array of `{ type: 'text', text }` blocks). Some session
+		// types (e.g. Claude Code) embed the user prompt there alongside the
+		// system instructions, so scan it as a fallback when no tag was found
+		// in the messages array.
+		if (!isScenarioRequest && parsed.system !== undefined) {
+			const systemContent = typeof parsed.system === 'string'
+				? parsed.system
+				: Array.isArray(parsed.system)
+					? parsed.system.map((/** @type {any} */ c) => c.text || '').join('')
+					: '';
+			const match = systemContent.match(/\[scenario:([^\]]+)\]/);
+			if (match && SCENARIOS[match[1]]) {
+				scenarioId = match[1];
+				isScenarioRequest = true;
+			}
+		}
 	} catch { }
 
 	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
-	const chunks = isMultiTurnScenario(scenario)
-		? getFirstContentTurn(scenario)
-		: /** @type {StreamChunk[]} */ (scenario);
 
 	res.writeHead(200, {
 		'Content-Type': 'text/event-stream',
@@ -1009,7 +1082,106 @@ async function handleMessagesApi(body, res) {
 		'X-Request-Id': 'perf-benchmark-' + Date.now(),
 	});
 
+	// Multi-turn scenarios — only when the request actually has tools (matches
+	// handleChatCompletions behavior; ancillary requests like title generation
+	// have no tools and fall through to a content turn).
+	if (isMultiTurnScenario(scenario) && requestToolNames.length > 0) {
+		const { turn, turnIndex } = resolveCurrentTurn(scenario.turns, messages);
+		const modelTurnCount = scenario.turns.filter(t => t.kind !== 'user').length;
+		const ts = new Date().toISOString().slice(11, -1);
+		_log(`[mock-llm]   ${ts} → messages-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
+
+		if (turn.kind === 'tool-calls') {
+			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			return;
+		}
+
+		if (turn.kind === 'echo-last-message') {
+			const lastMsg = messages[messages.length - 1];
+			const payload = '```json\n' + JSON.stringify(lastMsg ?? null, null, 2) + '\n```';
+			await streamAnthropicContent(res, [{ content: payload, delayMs: 0 }], isScenarioRequest);
+			return;
+		}
+
+		// content / thinking — stream the chunks as text
+		await streamAnthropicContent(res, turn.chunks, isScenarioRequest);
+		return;
+	}
+
+	const chunks = isMultiTurnScenario(scenario)
+		? getFirstContentTurn(scenario)
+		: /** @type {StreamChunk[]} */ (scenario);
+
 	await streamAnthropicContent(res, chunks, isScenarioRequest);
+}
+
+/**
+ * Stream tool_use blocks as an Anthropic Messages API SSE response.
+ * Emits one `tool_use` content block per requested tool call, with the
+ * arguments delivered as `input_json_delta` chunks, then finishes with
+ * `stop_reason: 'tool_use'`.
+ *
+ * @param {http.ServerResponse} res
+ * @param {Array<{ toolNamePattern: RegExp, arguments: Record<string, any> }>} toolCalls
+ * @param {string[]} requestToolNames
+ * @param {string} scenarioId
+ * @param {boolean} isScenarioRequest
+ */
+async function streamAnthropicToolCalls(res, toolCalls, requestToolNames, scenarioId, isScenarioRequest) {
+	const messageId = `msg_mock_${Date.now()}`;
+	const model = 'claude-sonnet-4.5';
+
+	writeAnthropicEvent(res, 'message_start', {
+		message: {
+			id: messageId,
+			type: 'message',
+			role: 'assistant',
+			model,
+			content: [],
+			stop_reason: null,
+			stop_sequence: null,
+			usage: { input_tokens: 1, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+		},
+	});
+
+	for (let i = 0; i < toolCalls.length; i++) {
+		const call = toolCalls[i];
+		let toolName = requestToolNames.find(name => call.toolNamePattern.test(name));
+		if (!toolName) {
+			toolName = call.toolNamePattern.source.replace(/[\\.|?*+^${}()\[\]]/g, '');
+			_log(`[mock-llm]   No matching tool for pattern ${call.toolNamePattern}, using fallback: ${toolName}`);
+		}
+
+		const callId = `toolu_${scenarioId}_${i}_${Date.now()}`;
+		writeAnthropicEvent(res, 'content_block_start', {
+			index: i,
+			content_block: { type: 'tool_use', id: callId, name: toolName, input: {} },
+		});
+
+		const argsJson = JSON.stringify(call.arguments);
+		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
+		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
+			const fragment = argsJson.slice(pos, pos + fragmentSize);
+			writeAnthropicEvent(res, 'content_block_delta', {
+				index: i,
+				delta: { type: 'input_json_delta', partial_json: fragment },
+			});
+			await sleep(5);
+		}
+
+		writeAnthropicEvent(res, 'content_block_stop', { index: i });
+	}
+
+	writeAnthropicEvent(res, 'message_delta', {
+		delta: { stop_reason: 'tool_use', stop_sequence: null },
+		usage: { output_tokens: 1 },
+	});
+	writeAnthropicEvent(res, 'message_stop', {});
+	res.end();
+
+	if (isScenarioRequest) {
+		serverEvents.emit('scenarioCompletion');
+	}
 }
 
 /**
@@ -1092,11 +1264,14 @@ async function streamToolCalls(res, toolCalls, requestToolNames, scenarioId) {
 /**
  * Start the mock server and return a handle.
  * @param {number} port
- * @param {{ logger?: (msg: string) => void }} [options]
+ * @param {{ logger?: (msg: string) => void, verbose?: boolean }} [options]
  */
 function startServer(port = 0, options) {
 	if (options?.logger) {
 		_log = options.logger;
+	}
+	if (options?.verbose) {
+		_verbose = true;
 	}
 	return new Promise((resolve, reject) => {
 		let reqCount = 0;

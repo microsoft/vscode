@@ -118,6 +118,31 @@ export interface ChangesetFile {
 }
 
 /**
+ * Execution lifecycle of a {@link ChangesetOperation}.
+ *
+ * An operation is invoked imperatively via `invokeChangesetOperation`, but
+ * its progress and outcome are reflected back into changeset state so that
+ * every subscriber observes a consistent view (e.g. a spinner on a "Create
+ * Pull Request" button, or an inline error after a failed "revert").
+ *
+ * @category Changesets
+ */
+export const enum ChangesetOperationStatus {
+	/**
+	 * The operation is ready to be invoked. This is the default when
+	 * {@link ChangesetOperation.status} is omitted.
+	 */
+	Idle = 'idle',
+	/** An invocation of this operation is currently in flight. */
+	Running = 'running',
+	/**
+	 * The most recent invocation failed. The cause is described by
+	 * {@link ChangesetOperation.error}.
+	 */
+	Error = 'error',
+}
+
+/**
  * Where a {@link ChangesetOperation} can be invoked.
  *
  * @category Changesets
@@ -161,4 +186,21 @@ export interface ChangesetOperation {
 	confirmation?: StringOrMarkdown;
 	/** Optional generic icon hint, e.g. `"check"`, `"trash"`. */
 	icon?: string;
+	/**
+	 * Current execution status. The server sets
+	 * {@link ChangesetOperationStatus.Running | Running} while an invocation
+	 * is in flight, {@link ChangesetOperationStatus.Error | Error} when the
+	 * most recent invocation failed, and
+	 * {@link ChangesetOperationStatus.Idle | Idle} otherwise.
+	 *
+	 * Clients SHOULD reflect this state in the UI — e.g. disabling the
+	 * control or showing a spinner while `Running`, and surfacing
+	 * {@link error} while `Error`.
+	 */
+	status: ChangesetOperationStatus;
+	/**
+	 * Cause of failure. Present iff
+	 * `status === ChangesetOperationStatus.Error`; otherwise omitted.
+	 */
+	error?: ErrorInfo;
 }

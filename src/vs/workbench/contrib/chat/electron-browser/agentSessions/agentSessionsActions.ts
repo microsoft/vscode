@@ -170,7 +170,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 
 		// No real session URI to hand off (empty-workspace path triggered
 		// from the input tip): pre-seed the agents window's session-type
-		// picker so it lands on Copilot CLI [Local].
+		// picker so it lands on Copilot CLI.
 		let preferredSessionType: { providerId?: string; sessionTypeId: string } | undefined;
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
 		if (!hasRealSession) {
@@ -437,7 +437,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		// than a generic "continue in agents" upsell.
 		const useEmptyWorkspaceCopy = emptyWorkspaceEligible && !eligible;
 		const message = useEmptyWorkspaceCopy
-			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot CLI [Local] isn't available without an open folder")
+			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot CLI [Agent Host] isn't available without an open folder")
 			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window");
 		const description = useEmptyWorkspaceCopy
 			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot CLI session.")

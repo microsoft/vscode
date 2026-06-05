@@ -199,7 +199,12 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		const provider: vscode.LanguageModelChatProvider = {
 			onDidChangeLanguageModelChatInformation: this._onDidChange.event,
 			provideLanguageModelChatInformation: async (_options, _token) => {
-				return this._resolvedModelInfos ?? [];
+				const models = this._resolvedModelInfos ?? [];
+				if (models.length) {
+					return models;
+				}
+				const autoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
+				return autoModelEnabled ? [buildAutoModel()] : [];
 			},
 			provideLanguageModelChatResponse: async (_model, _messages, _options, _progress, _token) => {
 				// Implemented via chat participants.

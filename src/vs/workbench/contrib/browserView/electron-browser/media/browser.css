@@ -59,7 +59,8 @@
 		flex: 1;
 		display: flex;
 		align-items: center;
-		min-width: 0;
+		box-sizing: border-box;
+		min-width: 220px;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
 		border-radius: var(--vscode-cornerRadius-medium);
@@ -460,7 +461,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: 100% 100%;
+		background-size: cover;
 		background-repeat: no-repeat;
 	}
 

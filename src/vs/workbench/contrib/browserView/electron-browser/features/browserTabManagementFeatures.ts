@@ -393,12 +393,14 @@ class NewTabAction extends Action2 {
 			id: BrowserViewCommandId.NewTab,
 			title: localize2('browser.newTabAction', "New Tab"),
 			category: BrowserActionCategory,
+			icon: Codicon.add,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tabs,
 				order: 1,
+				isHiddenByDefault: true,
 			},
 			// When already in a browser, Ctrl/Cmd + T opens a new tab
 			keybinding: {

@@ -92,9 +92,16 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 			const description = md?.getStringValue('description');
 			const tools = md?.getStringArrayValue('tools');
 			const prompt = md?.body ?? raw;
+			let model: string | undefined = md?.getStringValue('model') ?? undefined;
+			const models = md?.getStringArrayValue('model') ?? undefined;
+			if (!model && models && Array.isArray(models) && models.length > 0) {
+				model = models[0];
+			}
+
 			configs.push({
 				name,
 				...(description ? { description } : {}),
+				...(model ? { model } : {}),
 				tools: tools && tools.length > 0 ? tools : null,
 				prompt,
 			});

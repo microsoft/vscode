@@ -704,7 +704,6 @@ type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
-	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of chat requests remaining for the user' };
 	quotaChatUnlimited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has unlimited chat requests' };
 	quotaChatHasQuota: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user currently has chat quota available' };
 	quotaChatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The raw chat quota entitlement count' };
@@ -729,7 +728,6 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
 	sku: string | undefined;
-	quotaChat: number | undefined;
 	quotaChatUnlimited: boolean | undefined;
 	quotaChatHasQuota: boolean | undefined;
 	quotaChatEntitlement: number | undefined;
@@ -985,7 +983,6 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsData.analytics_tracking_id,
 			sku: entitlements.sku,
-			quotaChat: entitlements.quotas?.chat?.percentRemaining,
 			quotaChatUnlimited: entitlements.quotas?.chat?.unlimited,
 			quotaChatHasQuota: entitlements.quotas?.chat?.hasQuota,
 			quotaChatEntitlement: entitlements.quotas?.chat?.entitlement,

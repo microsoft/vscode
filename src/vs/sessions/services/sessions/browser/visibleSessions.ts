@@ -248,9 +248,10 @@ export class VisibleSessions extends Disposable {
 	 * the active session. When `false`, the active session is left
 	 * unchanged.
 	 *
-	 * No-op if `targetSessionId` is not currently visible.
+	 * `targetSessionId` may be `undefined` to position relative to the empty
+	 * (new-session) slot. No-op if the target slot is not currently visible.
 	 */
-	insertAt(session: ISession | undefined, targetSessionId: string, side: 'left' | 'right', activate: boolean = true): void {
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: 'left' | 'right', activate: boolean = true): void {
 		const id: string | undefined = session?.sessionId;
 		const targetIdx = this._visibleList.indexOf(targetSessionId);
 		if (targetIdx < 0) {
@@ -293,6 +294,67 @@ export class VisibleSessions extends Disposable {
 				const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
 				this._activeSession.set(wrapper, tsx);
 			}
+			this._refresh(tsx);
+		});
+	}
+
+	/**
+	 * Atomically (re)build the entire grid from a persisted snapshot.
+	 *
+	 * Slots are given left-to-right; a `session` of `undefined` denotes the
+	 * empty new-session slot. The whole model — slot order, stickiness and the
+	 * active slot — is published in a single transaction so restoring multiple
+	 * sessions does not produce intermediate layouts (which would otherwise
+	 * cause the grid to visibly flicker as sessions are restored one by one).
+	 *
+	 * Any wrappers for sessions no longer present in the snapshot are disposed.
+	 *
+	 * @param slots Ordered grid slots to restore.
+	 * @param activeIndex Index into `slots` of the slot that should be active,
+	 * or `-1` for none.
+	 */
+	restoreGrid(slots: ReadonlyArray<{ readonly session: ISession | undefined; readonly sticky: boolean }>, activeIndex: number): void {
+		this._visibleList = [];
+		this._stickyIds.clear();
+
+		let activeWrapper: VisibleSession | undefined;
+		let lastNonStickySlot: string | undefined | typeof NO_RECENT = NO_RECENT;
+		for (let i = 0; i < slots.length; i++) {
+			const { session, sticky } = slots[i];
+			const id = session?.sessionId;
+			this._visibleList.push(id);
+			if (session) {
+				const wrapper = this._getOrCreateVisibleSession(session);
+				if (sticky) {
+					this._stickyIds.add(session.sessionId);
+				}
+				if (i === activeIndex) {
+					activeWrapper = wrapper;
+				}
+			}
+			if (!this._isStickySlot(id)) {
+				lastNonStickySlot = id;
+			}
+		}
+
+		// Dispose wrappers for sessions that are no longer part of the grid so
+		// the model does not leak entries from a previous (e.g. transient
+		// new-session) state.
+		for (const existingId of [...this._wrappers.keys()]) {
+			if (!this._visibleList.includes(existingId)) {
+				this._wrappers.deleteAndDispose(existingId);
+			}
+		}
+
+		// Mirror the slot-replacement bookkeeping used elsewhere: prefer the
+		// active slot when it is non-sticky, otherwise the last non-sticky slot.
+		const activeId = activeWrapper?.sessionId;
+		this._mostRecentNonStickySlot = (activeId !== undefined && !this._isStickySlot(activeId))
+			? activeId
+			: lastNonStickySlot;
+
+		transaction(tsx => {
+			this._activeSession.set(activeWrapper, tsx);
 			this._refresh(tsx);
 		});
 	}

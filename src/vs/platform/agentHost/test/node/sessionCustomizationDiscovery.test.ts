@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -52,6 +53,80 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		await fileService.writeFile(uri, VSBuffer.fromString(content));
 		return uri;
 	}
+
+	test('discovers supported agent instruction files in workspace roots', async () => {
+		const wsCopilotInstructions = await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		const wsGeminiInstructions = await seed('/workspace/GEMINI.md', 'workspace gemini instructions');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = (await discovery.directories())
+			.flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })))
+			.filter(entry => entry.type === DiscoveredType.AgentInstruction)
+			.map(entry => entry.uri.toString())
+			.sort((a, b) => a.localeCompare(b));
+
+		assert.deepStrictEqual(files, [
+			wsCopilotInstructions.toString(),
+			wsGeminiInstructions.toString(),
+		].sort((a, b) => a.localeCompare(b)));
+	});
+
+	test('does not discover agent instruction files outside supported roots', async () => {
+		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		await seed('/workspace/docs/AGENTS.md', 'unsupported root');
+		await seed('/workspace/.claude/GEMINI.md', 'unsupported filename in .claude');
+		await seed('/home/copilot-instructions.md', 'unsupported home root');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const files = (await discovery.directories())
+			.flatMap(directory => directory.files.map(uri => ({ uri, type: directory.type })))
+			.filter(entry => entry.type === DiscoveredType.AgentInstruction)
+			.map(entry => entry.uri.toString())
+			.sort((a, b) => a.localeCompare(b));
+
+		assert.deepStrictEqual(files, [
+			URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/copilot-instructions.md' }).toString(),
+		]);
+	});
+
+	test('installs watchers for roots that contain discovered customizations', async () => {
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+		await seed('/workspace/.github/skills/bar/SKILL.md', 'workspace skill');
+		await seed('/workspace/.github/instructions/rules.instructions.md', 'workspace instruction');
+		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		await seed('/workspace/.claude/CLAUDE.md', 'workspace claude instruction');
+		await seed('/home/.copilot/agents/user.agent.md', 'user agent');
+		await seed('/home/.agents/skills/user-skill/SKILL.md', 'user skill');
+		await seed('/home/.copilot/instructions/user.instructions.md', 'user instruction');
+		await seed('/home/.copilot/copilot-instructions.md', 'user copilot instructions');
+
+		const watchCalls: Array<{ resource: string; recursive: boolean }> = [];
+		const originalWatch = fileService.watch.bind(fileService);
+		disposables.add({ dispose: () => { fileService.watch = originalWatch as typeof fileService.watch; } });
+		fileService.watch = ((resource, options) => {
+			watchCalls.push({ resource: resource.toString(), recursive: options?.recursive === true });
+			return originalWatch(resource, options);
+		}) as typeof fileService.watch;
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.directories();
+
+		const watched = new Map<string, boolean>();
+		for (const call of watchCalls) {
+			const previous = watched.get(call.resource);
+			watched.set(call.resource, previous === true || call.recursive);
+		}
+		assert.strictEqual(watched.get(workspace.toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.claude').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'agents').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'skills').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(workspace, '.github', 'instructions').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'agents').toString()), false);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.agents', 'skills').toString()), true);
+		assert.strictEqual(watched.get(URI.joinPath(userHome, '.copilot', 'instructions').toString()), true);
+	});
 
 	test('discovers agents, skills, and instructions across workspace and home roots', async () => {
 		const wsAgent = await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
@@ -189,9 +264,69 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 		const first = await bundler.bundle(await discovery.directories());
+
+		let writeCalls = 0;
+		let deleteCalls = 0;
+		const originalWriteFile = fileService.writeFile.bind(fileService);
+		const originalDel = fileService.del.bind(fileService);
+		disposables.add({
+			dispose: () => {
+				fileService.writeFile = originalWriteFile as typeof fileService.writeFile;
+				fileService.del = originalDel as typeof fileService.del;
+			}
+		});
+		fileService.writeFile = ((...args: Parameters<typeof fileService.writeFile>) => {
+			writeCalls++;
+			return originalWriteFile(...args);
+		}) as typeof fileService.writeFile;
+		fileService.del = ((...args: Parameters<typeof fileService.del>) => {
+			deleteCalls++;
+			return originalDel(...args);
+		}) as typeof fileService.del;
+
 		const second = await bundler.bundle(await discovery.directories());
-		assert.ok(first && second);
-		assert.strictEqual(first.ref.nonce, second.ref.nonce);
+		assert.ok(first);
+		assert.ok(second);
+		assert.deepStrictEqual({
+			firstNonce: first.ref.nonce,
+			secondNonce: second.ref.nonce,
+			writeCalls,
+			deleteCalls,
+		}, {
+			firstNonce: first.ref.nonce,
+			secondNonce: first.ref.nonce,
+			writeCalls: 0,
+			deleteCalls: 0,
+		});
+	});
+
+	test('returns undefined without rewriting when cancelled', async () => {
+		await seed('/workspace/.github/agents/foo.agent.md', 'agent body');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const bundler = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
+
+		let writeCalls = 0;
+		let deleteCalls = 0;
+		const originalWriteFile = fileService.writeFile.bind(fileService);
+		const originalDel = fileService.del.bind(fileService);
+		disposables.add({
+			dispose: () => {
+				fileService.writeFile = originalWriteFile as typeof fileService.writeFile;
+				fileService.del = originalDel as typeof fileService.del;
+			}
+		});
+		fileService.writeFile = ((...args: Parameters<typeof fileService.writeFile>) => {
+			writeCalls++;
+			return originalWriteFile(...args);
+		}) as typeof fileService.writeFile;
+		fileService.del = ((...args: Parameters<typeof fileService.del>) => {
+			deleteCalls++;
+			return originalDel(...args);
+		}) as typeof fileService.del;
+
+		const result = await bundler.bundle(await discovery.directories(), CancellationToken.Cancelled);
+		assert.deepStrictEqual({ result, writeCalls, deleteCalls }, { result: undefined, writeCalls: 0, deleteCalls: 0 });
 	});
 
 	test('different working directories produce different bundle authorities', async () => {

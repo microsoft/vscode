@@ -235,6 +235,8 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 }
 
 export interface ICustomAgent {
+
+	readonly id: string;
 	/**
 	 * URI of a custom agent file.
 	 */

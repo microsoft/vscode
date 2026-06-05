@@ -314,6 +314,14 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+
+	/**
+	 * Renames the session.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 * @returns A promise that resolves once the rename has been dispatched. The promise is rejected if renaming fails.
+	 */
+	renameSession?: (title: string, token: CancellationToken) => Promise<void>;
 }
 
 export interface IChatSessionContentProvider {
@@ -681,6 +689,19 @@ export interface IChatSessionsService {
 	 * @returns The forked session item, or undefined if forking failed.
 	 */
 	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
+
+	/**
+	 * Returns whether the loaded session supports renaming.
+	 */
+	sessionSupportsRename(sessionResource: URI): boolean;
+
+	/**
+	 * Renames a contributed chat session.
+	 * @param sessionResource The session resource to rename.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 */
+	renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void>;
 
 	readonly onDidChangeOptionGroups: Event<string>;
 

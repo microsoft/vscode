@@ -9,7 +9,7 @@ import { getImageTelemetryEventMeasurements, type ImageTelemetryMeasurements } f
 import { FetcherId } from '../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IChatRequestTelemetryProperties, IEndpointBody } from '../../../platform/networking/common/networking';
 import { ChatCompletion } from '../../../platform/networking/common/openai';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, type TelemetryEventMeasurements, type TelemetryEventProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { isBYOKModel } from '../../byok/node/openAIEndpoint';
 
@@ -97,6 +97,19 @@ function getTurnFromBaseTelemetry(baseTelemetry: TelemetryData): number | undefi
 
 	const parsedTurnIndex = Number(turnIndex);
 	return Number.isFinite(parsedTurnIndex) ? parsedTurnIndex : undefined;
+}
+
+function sendResponseTelemetryEvent(
+	telemetryService: ITelemetryService,
+	eventName: string,
+	properties: TelemetryEventProperties,
+	measurements: TelemetryEventMeasurements,
+	imageTelemetryMeasurements: ImageTelemetryMeasurements,
+): void {
+	telemetryService.sendTelemetryEvent(eventName, { github: true, microsoft: true }, properties, measurements);
+	if (imageTelemetryMeasurements.imageCount > 0) {
+		telemetryService.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+	}
 }
 
 export class ChatMLFetcherTelemetrySender {
@@ -196,7 +209,7 @@ export class ChatMLFetcherTelemetrySender {
 				"iterationNumber": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Iteration number within the tool calling loop" }
 			}
 		*/
-		telemetryService.sendTelemetryEvent('response.success', { github: true, microsoft: true }, {
+		sendResponseTelemetryEvent(telemetryService, 'response.success', {
 			reason: chatCompletion.finishReason,
 			filterReason: chatCompletion.filterReason,
 			source: baseTelemetry?.properties.messageSource ?? 'unknown',
@@ -248,7 +261,7 @@ export class ChatMLFetcherTelemetrySender {
 			bytesReceived,
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
-		});
+		}, imageTelemetryMeasurements);
 	}
 
 	public static sendCancellationTelemetry(
@@ -339,7 +352,7 @@ export class ChatMLFetcherTelemetrySender {
 				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true }
 			}
 		*/
-		telemetryService.sendTelemetryEvent('response.cancelled', { github: true, microsoft: true }, {
+		sendResponseTelemetryEvent(telemetryService, 'response.cancelled', {
 			apiType,
 			source,
 			requestId,
@@ -371,7 +384,7 @@ export class ChatMLFetcherTelemetrySender {
 			bytesReceived,
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
-		});
+		}, imageTelemetryMeasurements);
 	}
 
 	public static sendResponseErrorTelemetry(
@@ -453,7 +466,7 @@ export class ChatMLFetcherTelemetrySender {
 				"resumeEventSeen": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a system resume event was seen during the request", "isMeasurement": true }
 			}
 		*/
-		telemetryService.sendTelemetryEvent('response.error', { github: true, microsoft: true }, {
+		sendResponseTelemetryEvent(telemetryService, 'response.error', {
 			type: processed.type,
 			reason: processed.reasonDetail || processed.reason,
 			source: telemetryProperties?.messageSource ?? 'unknown',
@@ -489,6 +502,6 @@ export class ChatMLFetcherTelemetrySender {
 			bytesReceived,
 			suspendEventSeen: suspendEventSeen ? 1 : 0,
 			resumeEventSeen: resumeEventSeen ? 1 : 0,
-		});
+		}, imageTelemetryMeasurements);
 	}
 }

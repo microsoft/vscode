@@ -16,6 +16,7 @@ import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
@@ -350,9 +351,22 @@ export interface AuthenticateParams {
 	 * {@link IAuthorizationProtectedResourceMetadata} that this token targets.
 	 */
 	readonly resource: string;
+	/**
+	 * Scopes that were used to acquire the token. Omitted for legacy clients
+	 * that can only identify tokens by protected resource.
+	 */
+	readonly scopes?: readonly string[];
 
 	/** The bearer token value (RFC 6750). */
 	readonly token: string;
+}
+
+/** Request for a previously accepted bearer token. */
+export interface IAgentHostAuthTokenRequest {
+	/** Protected resource identifier from {@link ProtectedResourceMetadata.resource}. */
+	readonly resource: string;
+	/** Required token scopes, when the caller needs a scope-specific token. */
+	readonly scopes?: readonly string[];
 }
 
 /**
@@ -780,6 +794,9 @@ export interface IAgentService {
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 
+	/** Return a bearer token previously supplied via {@link authenticate}. */
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
+
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
@@ -821,6 +838,9 @@ export interface IAgentService {
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
+
+	/** Invoke a server-defined changeset operation. */
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
@@ -1001,6 +1021,9 @@ export interface IAgentConnection {
 	// ---- Terminal lifecycle -------------------------------------------------
 	createTerminal(params: CreateTerminalParams): Promise<void>;
 	disposeTerminal(terminal: URI): Promise<void>;
+
+	// ---- Changeset operations -----------------------------------------------
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
 	// ---- Filesystem operations ----------------------------------------------
 	resourceList(uri: URI): Promise<ResourceListResult>;

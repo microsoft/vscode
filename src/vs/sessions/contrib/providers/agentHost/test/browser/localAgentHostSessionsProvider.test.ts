@@ -1050,7 +1050,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState(rawId, sessionTypeId, {
 			...state,
 			customizations: [{
-				...customizations[0],
+				...(customizations[0] as Extract<Customization, { type: CustomizationType.Plugin }>),
 				children: [{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' }],
 			}],
 		});

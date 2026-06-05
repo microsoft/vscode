@@ -10,9 +10,9 @@ import { constObservable, ISettableObservable, observableValue } from '../../../
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/views/sessionsListModelService.js';
+import { IChat, ISession, SessionStatus } from '../../common/session.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 

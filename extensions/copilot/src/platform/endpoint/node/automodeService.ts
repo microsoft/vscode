@@ -13,7 +13,7 @@ import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
-import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences } from '../../image/common/imageTelemetry';
+import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
 import { createCapiClientFetchedValue } from '../../networking/common/capiClientFetchedValue';
 import { isAbortError } from '../../networking/common/fetcherService';
@@ -191,12 +191,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (entry?.needsReEval) {
 			entry.needsReEval = false;
 		}
+		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromReferences(chatRequest?.references);
+		const imageTelemetryEventMeasurements = getImageTelemetryEventMeasurements(imageTelemetryMeasurements);
 
 		const routerResult = skipRouter
 			? { lastRoutedPrompt: chatRequest?.prompt?.trim() ?? entry?.lastRoutedPrompt }
-			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints);
-		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromReferences(chatRequest?.references);
-		const imageTelemetryEventMeasurements = getImageTelemetryEventMeasurements(imageTelemetryMeasurements);
+			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints, imageTelemetryEventMeasurements);
 		let selectedModel = routerResult.selectedModel;
 		const lastRoutedPrompt = routerResult.lastRoutedPrompt;
 		const routerFallbackReason = routerResult.fallbackReason;
@@ -314,6 +314,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		entry: AutoModelCacheEntry | undefined,
 		token: AutoModeAPIResponse,
 		knownEndpoints: IChatEndpoint[],
+		imageTelemetryEventMeasurements: Partial<ImageTelemetryMeasurements>,
 	): Promise<{ selectedModel?: IChatEndpoint; lastRoutedPrompt?: string; fallbackReason?: string; candidateModel?: string }> {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
@@ -360,7 +361,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				this._logService.info(`[AutomodeService] Filtered ${droppedModels.length} unresolvable model(s) before routing: [${droppedModels.join(', ')}]`);
 			}
 
-			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, routableModels, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest));
+			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, routableModels, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest), imageTelemetryEventMeasurements);
 
 			if (result.fallback) {
 				this._logService.info(`[AutomodeService] Router signaled fallback: ${result.fallback_reason ?? 'unknown'}, routing_method=${result.routing_method ?? 'n/a'}`);
@@ -403,7 +404,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
-		const selectedModel = (currentModelProvider && this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints))
+		const selectedModel = (currentModelProvider ? this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints) : undefined)
 			?? this._findFirstAvailableModel(availableModels, knownEndpoints);
 		if (selectedModel) {
 			return selectedModel;

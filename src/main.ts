@@ -105,6 +105,10 @@ protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-remote-resource',
 		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
+	},
+	{
+		scheme: 'vscode-managed-remote-resource',
+		privileges: { secure: true, supportFetchAPI: true, corsEnabled: true }
 	}
 ]);
 

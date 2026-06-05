@@ -16,7 +16,7 @@ import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadR
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -128,6 +128,7 @@ class MockAgentService implements IAgentService {
 	unsubscribe(_resource: URI, _clientId: string): void { }
 	async shutdown(): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	getAuthToken(): string | undefined { return undefined; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
 		this.browsedUris.push(uri);
@@ -167,6 +168,7 @@ class MockAgentService implements IAgentService {
 	}
 	async createTerminal(): Promise<void> { }
 	async disposeTerminal(): Promise<void> { }
+	async invokeChangesetOperation(): Promise<{}> { return {}; }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -833,7 +835,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: 'client-tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
@@ -890,7 +892,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: 'client-tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 
 			const transport = connectClient('client-tools', [sessionUri]);
@@ -938,7 +940,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: 'client-tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
@@ -996,7 +998,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: 'client-tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,
@@ -1048,7 +1050,7 @@ suite('ProtocolServerHandler', () => {
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: 'client-tools',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionToolCallReady,

@@ -158,6 +158,7 @@ class ZoomInAction extends Action2 {
 				group: BrowserActionGroup.Zoom,
 				order: 1,
 				when: CONTEXT_BROWSER_CAN_ZOOM_IN,
+				isHiddenByDefault: true,
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
@@ -192,6 +193,7 @@ class ZoomOutAction extends Action2 {
 				group: BrowserActionGroup.Zoom,
 				order: 2,
 				when: CONTEXT_BROWSER_CAN_ZOOM_OUT,
+				isHiddenByDefault: true,
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
@@ -229,6 +231,7 @@ class ResetZoomAction extends Action2 {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Zoom,
 				order: 3,
+				isHiddenByDefault: true,
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,

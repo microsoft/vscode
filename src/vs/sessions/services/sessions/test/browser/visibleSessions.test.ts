@@ -575,6 +575,85 @@ suite('VisibleSessions', () => {
 		});
 	});
 
+	suite('restoreGrid', () => {
+
+		test('builds the grid in order with the correct active and sticky slots', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: B, sticky: false },
+				{ session: C, sticky: false },
+			], 1);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B', 'C'],
+				active: 'B',
+				sticky: ['A'],
+			});
+		});
+
+		test('restores the empty (new-session) slot as active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: B, sticky: false },
+				{ session: undefined, sticky: false },
+			], 2);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B', undefined],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+
+		test('a later session can be inserted to the left of the empty slot without stealing active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			// Only the empty slot is available initially and it is active.
+			model.restoreGrid([
+				{ session: undefined, sticky: false },
+			], 0);
+
+			// A becomes available later and is anchored to the left of the empty slot.
+			model.insertAt(A, undefined, 'left', false);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: undefined,
+				sticky: [],
+			});
+		});
+
+		test('replaces a previous transient state and disposes orphaned wrappers', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			// Transient state: a fresh session is shown.
+			model.setActive(A);
+
+			// Restore overrides it entirely with the persisted grid.
+			model.restoreGrid([
+				{ session: B, sticky: false },
+			], 0);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['B'],
+				active: 'B',
+				sticky: [],
+			});
+		});
+	});
+
 	suite('updateSession', () => {
 
 		test('is a no-op when the session is not visible', () => {

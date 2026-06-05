@@ -26,15 +26,16 @@ import {
 	type ISSHConnectResult,
 	type ISSHKeyboardInteractivePrompt,
 	type ISSHKeyboardInteractiveRequest,
-	type ISSHRelayMessage,
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
+import type { IRelayMessage } from '../common/relayTransport.js';
 import {
 	buildAgentHostBaseCommand,
 	buildCLIDownloadUrl,
 	buildCleanupOldCLIsCommand,
 	buildFindFallbackCLICommand,
 	cleanupRemoteAgentHost,
+	extractAgentHostWebSocketURL,
 	findRunningAgentHost,
 	getRemoteCLIBin,
 	getRemoteCLIDataDir,
@@ -357,14 +358,12 @@ function startRemoteAgentHost(
 				}
 
 				if (!resolved) {
-					const match = clean.match(/ws:\/\/(?:127\.0\.0\.1|localhost):(\d+)(?:\?tkn=([^\s&]+))?/);
+					const match = extractAgentHostWebSocketURL(clean);
 					if (match) {
 						resolved = true;
 						clearTimeout(timeout);
-						const port = parseInt(match[1], 10);
-						const connectionToken = match[2] || undefined;
-						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${port}`);
-						resolve({ port, connectionToken, pid, stream });
+						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${match.port}`);
+						resolve({ port: match.port, connectionToken: match.token, pid, stream });
 					}
 				}
 			};
@@ -558,8 +557,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidReportConnectProgress = this._register(new Emitter<ISSHConnectProgress>());
 	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = this._onDidReportConnectProgress.event;
 
-	private readonly _onDidRelayMessage = this._register(new Emitter<ISSHRelayMessage>());
-	readonly onDidRelayMessage: Event<ISSHRelayMessage> = this._onDidRelayMessage.event;
+	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
+	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;

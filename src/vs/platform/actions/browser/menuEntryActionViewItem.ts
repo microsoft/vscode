@@ -464,7 +464,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 			defaultAction = submenuAction.actions[0];
 		}
 
-		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction) }));
+		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, <MenuItemAction>defaultAction, { keybinding: this._getDefaultActionKeybindingLabel(defaultAction), hoverDelegate: options?.hoverDelegate }));
 
 		const dropdownOptions: IDropdownMenuActionViewItemOptions = {
 			keybindingProvider: action => this._keybindingService.lookupKeybinding(action.id),
@@ -494,7 +494,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		}
 
 		this._defaultActionDisposables.clear();
-		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction) }));
+		this._defaultAction = this._defaultActionDisposables.add(this._instaService.createInstance(MenuEntryActionViewItem, lastAction, { keybinding: this._getDefaultActionKeybindingLabel(lastAction), hoverDelegate: this._options?.hoverDelegate }));
 		this._defaultAction.actionRunner = this._defaultActionDisposables.add(new class extends ActionRunner {
 			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
 				await action.run(undefined);

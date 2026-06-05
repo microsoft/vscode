@@ -1790,6 +1790,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!isInput) {
 			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
 			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
+			const editModelId = this.input.currentLanguageModel;
+			if (editModelId) {
+				this.inputPart.switchModelByIdentifier(editModelId);
+			}
 
 			this.inputPart?.toggleChatInputOverlay(false);
 			try {

@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
-import { CustomizationLoadStatus, type ClientPluginCustomization, type Customization } from '../common/state/sessionState.js';
+import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
 const DEFAULT_MAX_PLUGINS = 20;
@@ -68,7 +68,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],
-		progress?: (status: Customization) => void,
+		progress?: (status: PluginCustomization) => void,
 	): Promise<ISyncedCustomization[]> {
 		await this._ensureCacheLoaded();
 
@@ -77,13 +77,13 @@ export class AgentPluginManager implements IAgentPluginManager {
 			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
 				try {
 					const pluginDir = await this._syncPlugin(clientId, ref);
-					const customization: Customization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
+					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
 					progress?.(customization);
 					return { customization, pluginDir };
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
-					const customization: Customization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
+					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
 					progress?.(customization);
 					return { customization };
 				}

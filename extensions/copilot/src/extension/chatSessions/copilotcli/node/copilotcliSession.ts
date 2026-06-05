@@ -911,6 +911,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		private readonly _agentName: string | undefined,
 		private readonly _sdkSession: Session,
 		private readonly _additionalWorkspaces: IWorkspaceInfo[],
+		private readonly _sandboxEnabled: boolean,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IChatSessionMetadataStore private readonly _chatSessionMetadataStore: IChatSessionMetadataStore,
@@ -1000,7 +1001,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		});
 
-		this.previousRequest = this.previousRequest.then(() => handled);
+		this.previousRequest = this.previousRequest.then(() => handled).catch(() => { /* prevent unhandled rejection on the serialisation chain */ });
 		return handled;
 	}
 
@@ -1214,6 +1215,28 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
+		// Tracks the `messageId` of the last assistant text we forwarded to
+		// the stream (via `assistant.message_delta` or `assistant.message`).
+		// When the next text emission carries a different `messageId` — i.e.
+		// the model emitted a new assistant message in the same turn (e.g.
+		// after a tool call, or as a second phase) — we prepend `\n\n` so the
+		// two messages don't fuse into a single run-on paragraph
+		// (e.g. `"...wiring:Now add..."`). Only triggers when both sides have
+		// a defined messageId, so message emissions without an id (rare /
+		// legacy) keep their current behavior.
+		let lastEmittedAssistantMessageId: string | undefined;
+		const maybeEmitMessageSeparator = (incomingMessageId: string | undefined) => {
+			if (
+				incomingMessageId !== undefined &&
+				lastEmittedAssistantMessageId !== undefined &&
+				incomingMessageId !== lastEmittedAssistantMessageId
+			) {
+				requestStream?.markdown('\n\n');
+			}
+			if (incomingMessageId !== undefined) {
+				lastEmittedAssistantMessageId = incomingMessageId;
+			}
+		};
 		let lastUsageInfo: UsageInfoData | undefined;
 		const reportUsage = (promptTokens: number, completionTokens: number) => {
 			if (token.isCancellationRequested || !requestStream) {
@@ -1235,6 +1258,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
+				this._logSessionEvent(event);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('permission.requested', async (event) => {
 				const permissionRequest = event.data.permissionRequest;
@@ -1243,6 +1267,12 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				// Auto-approve all requests when the permission level allows it.
 				if (effectivePermissionLevel === 'autoApprove' || effectivePermissionLevel === 'autopilot') {
 					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${effectivePermissionLevel})`);
+					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
+					return;
+				}
+
+				if (permissionRequest.kind === 'shell' && this._sandboxEnabled) {
+					this.logService.trace(`[CopilotCLISession] Auto Approving shell request (sandbox is enabled)`);
 					this._sdkSession.respondToPermission(requestId, { kind: 'approve-once' });
 					return;
 				}
@@ -1420,6 +1450,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					if (event.data.parentToolCallId) {
 						return;
 					}
+					maybeEmitMessageSeparator(event.data.messageId);
 					chunkMessageIds.add(event.data.messageId);
 					assistantMessageChunks.push(event.data.deltaContent);
 					wroteResponseContent = true;
@@ -1434,6 +1465,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					}
 					assistantMessageChunks.push(event.data.content);
 					flushPendingInvocationMessages();
+					maybeEmitMessageSeparator(event.data.messageId);
 					wroteResponseContent = true;
 					requestStream?.markdown(event.data.content);
 				}
@@ -2167,6 +2199,86 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
+	 * Log a summary of interesting SDK session events to the extension log so
+	 * tool inputs/outputs (including sandboxed shell results) are visible
+	 * without needing to instrument the runtime.
+	 */
+	private _logSessionEvent(event: { type?: string; data?: unknown }): void {
+		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLISessionEventLoggingEnabled)) {
+			return;
+		}
+		const type = event.type;
+		if (!type) {
+			return;
+		}
+		// Tool/permission/assistant event payloads are heterogeneous unions in the
+		// SDK; access fields through a loose record cast so this helper can be
+		// shape-agnostic.
+		const data = (event.data ?? {}) as Record<string, unknown>;
+		const get = (...keys: string[]): unknown => {
+			for (const key of keys) {
+				const value = data[key];
+				if (value !== undefined) {
+					return value;
+				}
+			}
+			return undefined;
+		};
+		const getNested = (key: string, sub: string): unknown => {
+			const value = data[key];
+			return value && typeof value === 'object' ? (value as Record<string, unknown>)[sub] : undefined;
+		};
+		try {
+			switch (type) {
+				case 'tool.execution_started': {
+					const name = getNested('toolDescription', 'name') ?? get('toolName') ?? 'unknown';
+					const input = truncateForLog(JSON.stringify(get('input', 'arguments') ?? {}));
+					this.logService.info(`[CopilotCLISession] tool.execution_started ${name} input=${input}`);
+					break;
+				}
+				case 'tool.execution_complete': {
+					const name = getNested('toolDescription', 'name') ?? get('toolName', 'toolCallId') ?? 'unknown';
+					const success = get('success');
+					const sandboxed = get('sandboxed');
+					const result = data.result as Record<string, unknown> | undefined;
+					const content = truncateForLog(typeof result?.content === 'string' ? result.content : '');
+					const rawError = data.error;
+					const errorMessage = typeof rawError === 'string'
+						? rawError
+						: rawError && typeof rawError === 'object' && typeof (rawError as Record<string, unknown>).message === 'string'
+							? (rawError as { message: string }).message
+							: undefined;
+					if (errorMessage) {
+						this.logService.warn(`[CopilotCLISession] tool.execution_complete ${name} success=${success} sandboxed=${sandboxed} error=${errorMessage} content=${content}`);
+					} else {
+						this.logService.info(`[CopilotCLISession] tool.execution_complete ${name} success=${success} sandboxed=${sandboxed} content=${content}`);
+					}
+					break;
+				}
+				case 'permission.requested': {
+					const kind = getNested('permissionRequest', 'kind');
+					this.logService.info(`[CopilotCLISession] permission.requested kind=${kind}`);
+					break;
+				}
+				case 'assistant.message': {
+					const text = truncateForLog(typeof get('content', 'text') === 'string' ? get('content', 'text') as string : '');
+					this.logService.debug(`[CopilotCLISession] assistant.message ${text}`);
+					break;
+				}
+				case 'session.error':
+				case 'turn.error': {
+					this.logService.error(`[CopilotCLISession] ${type}: ${truncateForLog(JSON.stringify(data))}`);
+					break;
+				}
+				default:
+					this.logService.trace(`[CopilotCLISession] event ${type}`);
+			}
+		} catch (e) {
+			this.logService.warn(`[CopilotCLISession] _logSessionEvent failed for ${type}: ${e}`);
+		}
+	}
+
+	/**
 	 * Buffer an SDK event for Mission Control. Called from the per-send
 	 * on('*') handler so that events are captured on every turn.
 	 */
@@ -2870,4 +2982,12 @@ function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { catego
 		});
 	}
 	return details.length > 0 ? details : undefined;
+}
+
+function truncateForLog(value: unknown, maxLen = 2000): string {
+	const text = typeof value === 'string' ? value : String(value);
+	if (text.length <= maxLen) {
+		return text;
+	}
+	return text.slice(0, maxLen) + `… [truncated, ${text.length - maxLen} more chars]`;
 }

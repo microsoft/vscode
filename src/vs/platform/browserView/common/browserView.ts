@@ -30,8 +30,7 @@ export enum BrowserViewCommandId {
 	OpenSettings = `${commandPrefix}.openSettings`,
 
 	// Favorites
-	AddFavorite = `${commandPrefix}.addFavorite`,
-	RemoveFavorite = `${commandPrefix}.removeFavorite`,
+	ToggleFavorite = `${commandPrefix}.toggleFavorite`,
 
 	// History
 	ShowHistory = `${commandPrefix}.showHistory`,

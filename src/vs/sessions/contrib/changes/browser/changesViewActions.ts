@@ -13,7 +13,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys } from '../common/changes.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ChangesViewPane } from './changesView.js';
@@ -107,39 +107,6 @@ class OpenPullRequestAction extends Action2 {
 
 registerAction2(OpenPullRequestAction);
 
-class OpenFileAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.openFile';
-
-	constructor() {
-		super({
-			id: OpenFileAction.ID,
-			title: localize2('openFile', "Open File"),
-			icon: Codicon.goToFile,
-			f1: false,
-			menu: {
-				id: MenuId.AgentsChangeInlineToolbar,
-				group: 'navigation',
-				order: 1,
-				alt: {
-					id: 'workbench.action.agentSessions.openChanges',
-					title: localize2('openChanges', "Open Changes"),
-					icon: Codicon.gitCompare,
-				},
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					ChangesContextKeys.ChangeKind.isEqualTo('file'))
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		await Promise.all(resources.map(resource => editorService.openEditor({ resource })));
-	}
-}
-
-registerAction2(OpenFileAction);
-
 class OpenChangesAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openChanges';
 
@@ -171,3 +138,56 @@ class OpenChangesAction extends Action2 {
 }
 
 registerAction2(OpenChangesAction);
+
+const openSingleFileDiffEnabled = ContextKeyExpr.equals(`config.${SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING}`, true);
+
+class OpenFileAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openFile';
+
+	constructor() {
+		super({
+			id: OpenFileAction.ID,
+			title: localize2('openFile', "Open File"),
+			icon: Codicon.goToFile,
+			f1: false,
+			menu: [
+				// When opening a file already shows a single file diff, the "Open
+				// Changes" alt action is redundant and is therefore omitted.
+				{
+					id: MenuId.AgentsChangeInlineToolbar,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ChangesContextKeys.ChangeKind.isEqualTo('file'),
+						openSingleFileDiffEnabled)
+				},
+				// Default behavior: the alt action ("Open Changes") opens a diff
+				// editor for the selected change(s).
+				{
+					id: MenuId.AgentsChangeInlineToolbar,
+					group: 'navigation',
+					order: 1,
+					alt: {
+						id: OpenChangesAction.ID,
+						title: localize2('openChanges', "Open Changes"),
+						icon: Codicon.gitCompare,
+					},
+					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
+						ChangesContextKeys.ChangeKind.isEqualTo('file'),
+						openSingleFileDiffEnabled.negate())
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		await Promise.all(resources.map(resource => editorService.openEditor({ resource })));
+	}
+}
+
+registerAction2(OpenFileAction);
+
+

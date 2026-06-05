@@ -7,10 +7,10 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../agentHost/common/state/protocol/state.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test' };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
 }
 import {
 	parseComponentPathConfig,

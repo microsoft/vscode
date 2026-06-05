@@ -88,7 +88,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 		await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', copilotRequestId: 'sdk-1', toolIdEditMap: {} }]);
 
 		// persistCopilotCLIResponseModelId must merge responseModelId and creditsUsed into the same entry
-		await persistCopilotCLIResponseModelId('session-1', 'req-1', 'claude-sonnet-4.6', store, nullLog, 16.4);
+		await persistCopilotCLIResponseModelId('session-1', 'req-1', 'claude-sonnet-4.6', false, store, nullLog, 16.4);
 
 		const details = await store.getRequestDetails('session-1');
 		expect(details).toEqual([{
@@ -97,13 +97,14 @@ describe('persistCopilotCLIResponseModelId', () => {
 			toolIdEditMap: {},
 			responseModelId: 'claude-sonnet-4.6',
 			creditsUsed: 16.4,
+			isUsingAutoModel: false,
 		}]);
 	});
 
 	it('skips write when both responseModelId and creditsUsed are undefined', async () => {
 		const store = new MockChatSessionMetadataStore();
 
-		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, store, nullLog, undefined);
+		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, false, store, nullLog, undefined);
 
 		const details = await store.getRequestDetails('session-1');
 		expect(details).toEqual([]);
@@ -113,7 +114,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 		const store = new MockChatSessionMetadataStore();
 		await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', copilotRequestId: 'sdk-1', toolIdEditMap: {} }]);
 
-		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, store, nullLog, 5);
+		await persistCopilotCLIResponseModelId('session-1', 'req-1', undefined, false, store, nullLog, 5);
 
 		const details = await store.getRequestDetails('session-1');
 		expect(details[0].creditsUsed).toBe(5);
@@ -125,7 +126,7 @@ describe('persistCopilotCLIResponseModelId', () => {
 		const store = new MockChatSessionMetadataStore();
 		await store.updateRequestDetails('session-1', [{ vscodeRequestId: 'req-1', copilotRequestId: 'sdk-1', toolIdEditMap: {} }]);
 
-		const promise = persistCopilotCLIResponseModelId('session-1', 'req-1', 'model-1', store, nullLog, 10);
+		const promise = persistCopilotCLIResponseModelId('session-1', 'req-1', 'model-1', false, store, nullLog, 10);
 
 		// The return value must be a Promise (not void/undefined)
 		expect(promise).toBeInstanceOf(Promise);

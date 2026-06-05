@@ -5,7 +5,7 @@
 
 // Registers `IAgentHostService` for the desktop workbench. When the window
 // is attached to a remote authority, the renderer talks to the agent host
-// running on the remote (via `VSCodeRemoteAgentHostServiceClient`);
+// running on the remote (via `EditorRemoteAgentHostServiceClient`);
 // otherwise it uses the local utility-process agent host
 // (`LocalAgentHostServiceClient`).
 

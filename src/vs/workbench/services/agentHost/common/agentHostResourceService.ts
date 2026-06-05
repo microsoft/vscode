@@ -4,24 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer, decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { extUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { normalizeRemoteAgentHostAddress } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import {
 	AgentHostAccessMode,
+	AgentHostLocalFilePermissionsSettingId,
 	AgentHostPermissionMode,
 	AgentHostPermissionsSetting,
-	IAgentHostPermissionService,
+	AgentHostResourcePermissionError,
+	IAgentHostResourceService,
 	IPendingResourceRequest,
-	AgentHostLocalFilePermissionsSettingId,
-} from '../../../../platform/agentHost/common/agentHostPermissionService.js';
-import { ResourceRequestParams } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+	IResourceListResult,
+	IResourceReadResult,
+	LOCAL_AGENT_HOST_ADDRESS,
+} from '../../../../platform/agentHost/common/agentHostResourceService.js';
+import { normalizeRemoteAgentHostAddress } from '../../../../platform/agentHost/common/agentHostUri.js';
+import {
+	ContentEncoding,
+	ResourceCopyParams, ResourceDeleteParams, ResourceMkdirParams, ResourceMoveParams,
+	ResourceRequestParams, ResourceResolveParams, ResourceResolveResult, ResourceType, ResourceWriteParams,
+} from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { ROOT_STATE_URI } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
@@ -43,7 +54,11 @@ interface IInMemoryGrant {
 }
 
 /**
- * Default implementation of {@link IAgentHostPermissionService}.
+ * Default implementation of {@link IAgentHostResourceService} — the unified
+ * owner of agent-host-facing filesystem operations and the permission
+ * policy that gates them. Reads transparently fall back to
+ * {@link ITextModelService} so virtual resources (untitled documents,
+ * notebook cells, ...) work without the host having to know about them.
  *
  * Permission storage shape (in user settings):
  *
@@ -52,43 +67,147 @@ interface IInMemoryGrant {
  *   "localhost:3000": {
  *     "file:///Users/me/.gitconfig": "r",
  *     "file:///Users/me/.agentConfig": "rw"
- *   }
+ *   },
+ *   "local": { ... }
  * }
  * ```
  *
- * - Keys are addresses normalized via {@link normalizeRemoteAgentHostAddress}.
+ * - Keys are addresses normalized via {@link normalizeRemoteAgentHostAddress},
+ *   with the in-process local agent host keyed under `'local'`.
  * - Values are URI strings → `r` | `rw`. Descendant URIs are covered by a
- *   parent grant (e.g. a grant for `.config/` covers `.config/foo.json`).
+ *   parent grant.
  */
-export class AgentHostPermissionService extends Disposable implements IAgentHostPermissionService {
+export class AgentHostResourceService extends Disposable implements IAgentHostResourceService {
 	declare readonly _serviceBrand: undefined;
 
-	/**
-	 * In-memory grants. Two kinds, both stored here so they share the
-	 * `connectionClosed` cleanup pass:
-	 *
-	 * - **Implicit reads** added by `grantImplicitRead` (read-only, kept alive
-	 *   by an explicit disposable revocation handle from the caller).
-	 * - **Session grants** from the user clicking "Allow" in the prompt
-	 *   (read or write, cleared when the connection closes or the window
-	 *   reloads). These have no caller-held disposable.
-	 *
-	 * Keyed by an opaque handle so callers can revoke independently.
-	 */
 	private readonly _inMemoryGrants = new Map<string, IInMemoryGrant>();
-
-	/** All pending requests across every connection. */
-	private readonly _pending = observableValue<readonly IInternalPendingRequest[]>('agentHostPermissions.pending', []);
+	private readonly _pending = observableValue<readonly IInternalPendingRequest[]>('agentHostResources.pending', []);
 
 	readonly allPending: IObservable<readonly IPendingResourceRequest[]> = this._pending;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
+
+	// ---- Gated FS operations ------------------------------------------------
+
+	async list(address: string, uri: URI): Promise<IResourceListResult> {
+		await this._gate(address, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		const stat = await this._fileService.resolve(uri);
+		if (!stat.isDirectory) {
+			throw new Error(`Resource is not a directory: ${uri.toString()}`);
+		}
+		return {
+			entries: (stat.children ?? []).map(c => ({
+				name: c.name,
+				type: c.isDirectory ? 'directory' : 'file',
+			})),
+		};
+	}
+
+	async read(address: string, uri: URI): Promise<IResourceReadResult> {
+		await this._gate(address, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		try {
+			const content = await this._fileService.readFile(uri);
+			return { bytes: content.value };
+		} catch (err) {
+			const virtual = await this._readVirtual(uri);
+			if (virtual) {
+				return { bytes: virtual };
+			}
+			throw err;
+		}
+	}
+
+	async write(address: string, params: ResourceWriteParams): Promise<void> {
+		const uri = URI.parse(params.uri);
+		await this._gate(address, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
+		const buf = params.encoding === ContentEncoding.Base64
+			? decodeBase64(params.data)
+			: VSBuffer.fromString(params.data);
+		try {
+			if (params.createOnly) {
+				await this._fileService.createFile(uri, buf, { overwrite: false });
+			} else {
+				await this._fileService.writeFile(uri, buf);
+			}
+		} catch (err) {
+			if (await this._writeVirtual(uri, buf)) {
+				return;
+			}
+			throw err;
+		}
+	}
+
+	async del(address: string, params: ResourceDeleteParams): Promise<void> {
+		const uri = URI.parse(params.uri);
+		await this._gate(address, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
+		await this._fileService.del(uri, { recursive: !!params.recursive });
+	}
+
+	async move(address: string, params: ResourceMoveParams): Promise<void> {
+		const source = URI.parse(params.source);
+		const destination = URI.parse(params.destination);
+		await this._gate(address, source, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: source.toString(), write: true });
+		await this._gate(address, destination, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: destination.toString(), write: true });
+		await this._fileService.move(source, destination, !params.failIfExists);
+	}
+
+	async copy(address: string, params: ResourceCopyParams): Promise<void> {
+		const source = URI.parse(params.source);
+		const destination = URI.parse(params.destination);
+		await this._gate(address, source, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: source.toString(), read: true });
+		await this._gate(address, destination, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: destination.toString(), write: true });
+		await this._fileService.copy(source, destination, !params.failIfExists);
+	}
+
+	async resolve(address: string, params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		const uri = URI.parse(params.uri);
+		await this._gate(address, uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true });
+		let stat;
+		try {
+			stat = await this._fileService.stat(uri);
+		} catch (err) {
+			const virtual = await this._statVirtual(uri);
+			if (virtual) {
+				return virtual;
+			}
+			throw err;
+		}
+		let type: ResourceType;
+		if (stat.isSymbolicLink && params.followSymlinks === false) {
+			type = ResourceType.Symlink;
+		} else if (stat.isDirectory) {
+			type = ResourceType.Directory;
+		} else {
+			type = ResourceType.File;
+		}
+		return {
+			uri: uri.toString(),
+			type,
+			...(stat.size !== undefined ? { size: stat.size } : {}),
+			...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+			...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+			...(stat.etag ? { etag: stat.etag } : {}),
+		};
+	}
+
+	async mkdir(address: string, params: ResourceMkdirParams): Promise<void> {
+		const uri = URI.parse(params.uri);
+		await this._gate(address, uri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: uri.toString(), write: true });
+		const existing = await this._fileService.stat(uri).catch(() => undefined);
+		if (existing && !existing.isDirectory) {
+			throw new Error(`Path exists and is not a directory: ${uri.toString()}`);
+		}
+		await this._fileService.createFolder(uri);
+	}
+
+	// ---- Permission requests / observables ---------------------------------
 
 	async check(address: string, uri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
 		const normalized = normalizeRemoteAgentHostAddress(address);
@@ -99,7 +218,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 	async request(address: string, params: ResourceRequestParams): Promise<void> {
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		const canonical = await this._canonicalize(URI.parse(params.uri));
-		// Per AHP: a request with neither flag set is treated as read.
 		const wantsWrite = params.write === true;
 		const wantsRead = params.read === true || !wantsWrite;
 
@@ -122,10 +240,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 
 	grantImplicitRead(address: string, uri: URI): IDisposable {
 		const handle = generateUuid();
-		// Implicit grants are usually for paths that exist (e.g. plugin
-		// directories on disk). Kick off realpath in the background; consumers
-		// await this promise before comparing so a symlinked grant root still
-		// covers descendant requests that resolve through the symlink.
 		const lexical = extUri.normalizePath(uri);
 		const realpath = this._fileService.realpath(lexical).then(
 			real => real ?? lexical,
@@ -164,6 +278,76 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 
 	// ---- internals ---------------------------------------------------------
 
+	private async _gate(
+		address: string,
+		uri: URI,
+		mode: AgentHostPermissionMode,
+		deniedRequest: ResourceRequestParams,
+	): Promise<void> {
+		if (!await this.check(address, uri, mode)) {
+			throw new AgentHostResourcePermissionError(deniedRequest);
+		}
+	}
+
+	private async _readVirtual(uri: URI): Promise<VSBuffer | undefined> {
+		try {
+			const ref = await this._textModelService.createModelReference(uri);
+			try {
+				return VSBuffer.fromString(ref.object.textEditorModel.getValue());
+			} finally {
+				ref.dispose();
+			}
+		} catch {
+			return undefined;
+		}
+	}
+
+	/**
+	 * Write {@link bytes} as text into the resolved text model for {@link uri},
+	 * if one can be resolved and is writable. Returns `true` when the model was
+	 * updated, `false` otherwise (no provider, readonly, decode failure).
+	 */
+	private async _writeVirtual(uri: URI, bytes: VSBuffer): Promise<boolean> {
+		try {
+			const ref = await this._textModelService.createModelReference(uri);
+			try {
+				if (ref.object.isReadonly()) {
+					return false;
+				}
+				ref.object.textEditorModel.setValue(bytes.toString());
+				return true;
+			} finally {
+				ref.dispose();
+			}
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Resolve {@link uri} via {@link ITextModelService} and synthesize a
+	 * {@link ResourceResolveResult} so virtual resources stat as `File` with
+	 * a size matching their text content. Returns `undefined` if no model
+	 * can be resolved.
+	 */
+	private async _statVirtual(uri: URI): Promise<ResourceResolveResult | undefined> {
+		try {
+			const ref = await this._textModelService.createModelReference(uri);
+			try {
+				const size = VSBuffer.fromString(ref.object.textEditorModel.getValue()).byteLength;
+				return {
+					uri: uri.toString(),
+					type: ResourceType.File,
+					size,
+				};
+			} finally {
+				ref.dispose();
+			}
+		} catch {
+			return undefined;
+		}
+	}
+
 	/**
 	 * Resolve {@link uri} against the local filesystem, collapsing `..`
 	 * segments and following symlinks so the policy check sees the same
@@ -177,8 +361,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 		if (real) {
 			return real;
 		}
-		// File doesn't exist (yet). Realpath the parent so symlinks in the
-		// directory chain are still resolved.
 		const parent = extUri.dirname(normalized);
 		if (extUri.isEqual(parent, normalized)) {
 			return normalized;
@@ -189,16 +371,12 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 			: normalized;
 	}
 
-	/**
-	 * Policy check against in-memory + persisted grants. Asynchronous
-	 * because in-memory grants from {@link grantImplicitRead} carry an
-	 * unresolved realpath promise — see {@link IInMemoryGrant.realpath}.
-	 */
 	private async _isCovered(address: string, canonicalUri: URI, mode: AgentHostPermissionMode): Promise<boolean> {
+		if (address === LOCAL_AGENT_HOST_ADDRESS) {
+			return true;
+		}
 		const requireWrite = mode === AgentHostPermissionMode.Write;
 
-		// Persisted grants are synchronous; check them first to short-circuit
-		// without awaiting any in-memory realpath promises.
 		for (const grant of this._readPersistedGrants(address)) {
 			if (requireWrite && grant.mode !== AgentHostAccessMode.ReadWrite) {
 				continue;
@@ -208,8 +386,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 			}
 		}
 
-		// In-memory grants — await each candidate's realpath so symlinked
-		// grant roots compare against the canonicalized request URI.
 		const candidates: Promise<URI>[] = [];
 		for (const grant of this._inMemoryGrants.values()) {
 			if (grant.address !== address) {
@@ -254,11 +430,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 			? AgentHostAccessMode.ReadWrite
 			: AgentHostAccessMode.Read;
 
-		// Always add an in-memory grant so the host's retry of the original
-		// operation hits a covered check synchronously. For "persist", the
-		// settings write is fire-and-forget; the in-memory cover hides any
-		// latency in the configuration service propagating the update.
-		// `request.uri` is already canonical (canonicalized in `request()`).
 		this._inMemoryGrants.set(generateUuid(), {
 			address: request.address,
 			realpath: Promise.resolve(request.uri),
@@ -267,7 +438,7 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 
 		if (scope === 'persist') {
 			void this._persistGrant(request.address, request.uri, request.mode).catch(err => {
-				this._logService.warn('[AgentHostPermissionService] Failed to persist grant', err);
+				this._logService.warn('[AgentHostResourceService] Failed to persist grant', err);
 			});
 		}
 
@@ -305,7 +476,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 			? AgentHostAccessMode.ReadWrite
 			: AgentHostAccessMode.Read;
 
-		// If a covering ancestor already grants enough, do nothing.
 		for (const grant of this._readPersistedGrants(address)) {
 			const covers = grant.mode === AgentHostAccessMode.ReadWrite || requested === AgentHostAccessMode.Read;
 			if (covers && extUri.isEqualOrParent(uri, grant.uri)) {
@@ -317,7 +487,7 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 		const forAddress: Record<string, AgentHostAccessMode> = { ...(value[address] ?? {}) };
 		const uriKey = uri.toString();
 		if (forAddress[uriKey] === AgentHostAccessMode.ReadWrite) {
-			return; // Already at the strongest level.
+			return;
 		}
 		forAddress[uriKey] = requested;
 
@@ -328,13 +498,6 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 		);
 	}
 
-	/**
-	 * Inspect the setting and pick the scope to write back to. The setting
-	 * is registered with `ConfigurationScope.APPLICATION`, so APPLICATION is
-	 * the canonical home; we still honour pre-existing values in the
-	 * user-* scopes so a hand-edited entry isn't silently relocated, but
-	 * fresh writes default to APPLICATION.
-	 */
 	private _inspectScopedSetting(): { target: ConfigurationTarget; value: AgentHostPermissionsSetting } {
 		const inspected = this._configurationService.inspect<AgentHostPermissionsSetting>(AgentHostLocalFilePermissionsSettingId);
 		if (inspected.applicationValue !== undefined) {
@@ -353,4 +516,4 @@ export class AgentHostPermissionService extends Disposable implements IAgentHost
 	}
 }
 
-registerSingleton(IAgentHostPermissionService, AgentHostPermissionService, InstantiationType.Delayed);
+registerSingleton(IAgentHostResourceService, AgentHostResourceService, InstantiationType.Delayed);

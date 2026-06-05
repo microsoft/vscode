@@ -263,7 +263,9 @@ export class ChatContextUsageWidget extends Disposable {
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const maxInputTokens = modelMetadata?.maxInputTokens;
+		const modelConfiguration = this.languageModelsService.getModelConfiguration(modelId);
+		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
+		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);

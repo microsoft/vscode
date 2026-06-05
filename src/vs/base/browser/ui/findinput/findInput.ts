@@ -334,16 +334,15 @@ export class FindInput extends Widget {
 
 	public setActions(actions: ReadonlyArray<IAction> | undefined, actionViewItemProvider?: IActionViewItemProvider): void {
 		this.inputBox.setActions(actions, actionViewItemProvider);
+		this.updateInputBoxPadding();
 	}
 
 	private updateInputBoxPadding(controlsHidden = false) {
-		if (controlsHidden) {
-			this.inputBox.paddingRight = 0;
-		} else {
-			this.inputBox.paddingRight =
-				((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
-				+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
-		}
+		const togglesWidth = controlsHidden
+			? 0
+			: ((this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0))
+			+ this.additionalToggles.reduce((r, t) => r + t.width(), 0);
+		this.inputBox.paddingRight = togglesWidth + this.inputBox.actionsWidth;
 	}
 
 	public clear(): void {

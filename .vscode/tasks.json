@@ -101,7 +101,27 @@
 				"group": "buildWatchers",
 				"close": false
 			},
-			"problemMatcher": "$esbuild-watch"
+			"problemMatcher": [
+				"$esbuild-watch",
+				{
+					"owner": "typescript",
+					"applyTo": "closedDocuments",
+					"fileLocation": [
+						"relative",
+						"${workspaceFolder}/extensions/copilot"
+					],
+					"pattern": {
+						"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
+						"file": 1,
+						"location": 2,
+						"message": 3
+					},
+					"background": {
+						"beginsPattern": "File change detected\\. Starting incremental compilation",
+						"endsPattern": "Found \\d+ errors?\\. Watching for file changes"
+					}
+				}
+			]
 		},
 		{
 			"label": "VS Code - Build",

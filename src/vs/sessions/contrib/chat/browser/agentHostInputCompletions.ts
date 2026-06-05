@@ -163,10 +163,11 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			}
 			case 'skill': {
 				return {
-					label: item.insertText,
+					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
+					documentation: attachment.description,
 					kind: CompletionItemKind.Text,
 				};
 			}

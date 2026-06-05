@@ -727,6 +727,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				messageSource: opts.isKeepAliveProbe ? 'chat.cacheKeepAlive' : this.options.intent?.id && this.options.intent.id !== UnknownIntent.ID ? `${messageSourcePrefix}.${this.options.intent.id}` : `${messageSourcePrefix}.user`,
 				subType: this.options.request.subAgentInvocationId ? `subagent` : this.options.request.isSystemInitiated ? 'system-initiated' : undefined,
 				parentRequestId: this.options.request.parentRequestId,
+				turnIndex: this.options.conversation.turns.length.toString(),
 				iterationNumber: opts.iterationNumber.toString(),
 			},
 			interactionTypeOverride: this.options.request.subAgentInvocationId ? 'conversation-subagent' : undefined,

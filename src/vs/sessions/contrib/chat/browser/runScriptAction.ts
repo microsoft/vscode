@@ -177,7 +177,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private _registerActionViewItemProvider(): void {
 		const that = this;
 		this._register(this._actionViewItemService.register(
-			Menus.TitleBarSessionMenu,
+			Menus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
 			(action, options, instantiationService) => {
 				if (!(action instanceof SubmenuItemAction)) {
@@ -837,14 +837,15 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	}
 }
 
-// Register the Run split button submenu on the workbench title bar (background sessions only)
-MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+// Register the Run split button submenu on the workbench title bar (background sessions only).
+// Placed in the center-right toolbar, immediately before the "Open in VS Code" action (order 7).
+MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
 	icon: Codicon.play,
 	group: 'navigation',
-	order: 8,
+	order: 6,
 	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
 });
 
@@ -858,9 +859,9 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
-				order: 8,
+				order: 6,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
 			}]
 		});

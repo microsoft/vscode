@@ -16,10 +16,11 @@ import { IAICustomizationWorkspaceService, applySourceFilter, AICustomizationSou
 import { HookType, HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { ICustomAgent, IPromptsService, matchesSessionType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor, matchesInstructionFileFilter, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 import { getFriendlyName, isChatExtensionItem } from './aiCustomizationItemSource.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 /**
  * Adapts the rich promptsService model to the same provider-shaped items
@@ -55,9 +56,10 @@ export class PromptsServiceCustomizationItemProvider implements ICustomizationIt
 		return itemSets.flat();
 	}
 
-	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomizationAgentRef[]> {
+	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]> {
+		const sessionType = getChatSessionType(sessionResource);
 		const agents = await this.promptsService.getCustomAgents(token);
-		return agents.map(agent => ({ uri: agent.uri, name: agent.name, description: agent.description } satisfies ICustomizationAgentRef));
+		return agents.filter(agent => matchesSessionType(agent.sessionTypes, sessionType));
 	}
 
 	private async provideCustomizations(promptType: PromptsType, token: CancellationToken = CancellationToken.None): Promise<readonly ICustomizationItem[]> {

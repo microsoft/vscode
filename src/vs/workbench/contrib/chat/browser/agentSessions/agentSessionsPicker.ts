@@ -12,7 +12,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
-import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
+import { IAgentSession, isAgentHostAgentSessionItem, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, type IAgentSessionsFilter, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
@@ -23,7 +23,7 @@ interface ISessionPickItem extends IQuickPickItem {
 }
 
 export const archiveButton: IQuickInputButton = {
-	iconClass: ThemeIcon.asClassName(Codicon.archive),
+	iconClass: ThemeIcon.asClassName(Codicon.check),
 	tooltip: localize('archiveSession', "Archive")
 };
 
@@ -56,6 +56,8 @@ export function getSessionButtons(session: IAgentSession): IQuickInputButton[] {
 	if (isLocalAgentSessionItem(session)) {
 		buttons.push(renameButton);
 		buttons.push(deleteButton);
+	} else if (isAgentHostAgentSessionItem(session)) {
+		buttons.push(renameButton);
 	}
 	buttons.push(session.isArchived() ? unarchiveButton : archiveButton);
 

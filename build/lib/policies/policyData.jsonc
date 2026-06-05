@@ -556,7 +556,7 @@
                 }
             },
             "type": "boolean",
-            "default": false,
+            "default": true,
             "included": true
         },
         {

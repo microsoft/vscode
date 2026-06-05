@@ -37,7 +37,7 @@ import {
 
 // Re-export everything from the protocol state module
 export {
-	ChangesetOperationScope, ChangesetStatus, CustomizationLoadStatus,
+	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
 	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
@@ -47,7 +47,7 @@ export {
 	SessionInputQuestionKind,
 	SessionInputResponseKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChangesetSummary, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
@@ -71,6 +71,7 @@ export {
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
+	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type ToolResultSubagentContent,

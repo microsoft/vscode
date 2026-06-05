@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ToolCallContributorKind, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
@@ -553,7 +553,7 @@ export class ScriptedMockAgent implements IAgent {
 						toolCallId: 'tc-client-1',
 						toolName: 'runTests',
 						displayName: 'Run Tests',
-						toolClientId: 'test-client-tool',
+						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
 					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-client-1', 'Running tests...', { toolInput: '{}' }));
@@ -579,7 +579,7 @@ export class ScriptedMockAgent implements IAgent {
 						toolCallId: 'tc-client-perm-1',
 						toolName: 'runTests',
 						displayName: 'Run Tests',
-						toolClientId: 'test-client-tool',
+						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
 					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-client-perm-1', 'Run tests on project', { confirmationTitle: 'Allow Run Tests?' }));
@@ -840,7 +840,7 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 		toolCallId,
 		toolName,
 		displayName,
-		toolClientId: opts?.toolClientId,
+		contributor: opts?.toolClientId ? { kind: ToolCallContributorKind.Client, clientId: opts.toolClientId } : undefined,
 		_meta: Object.keys(meta).length ? meta : undefined,
 	}, opts?.parentToolCallId)];
 	if (!opts?.toolClientId) {

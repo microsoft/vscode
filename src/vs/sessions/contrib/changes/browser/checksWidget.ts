@@ -150,7 +150,7 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
 export class CIStatusWidget extends Disposable {
 
 	static readonly HEADER_HEIGHT = 34; // total header height in px
-	static readonly MIN_BODY_HEIGHT = 84; // at least 3 checks (3 * 28)
+	static readonly MIN_BODY_HEIGHT = 3 * CICheckListDelegate.ITEM_HEIGHT + 2; // at least 3 checks (3 * 28) + 2px
 	static readonly PREFERRED_BODY_HEIGHT = 112; // preferred 4 checks (4 * 28)
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
@@ -327,25 +327,25 @@ export class CIStatusWidget extends Disposable {
 
 		if (counts.running > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-running'));
-			badge.appendChild(renderIcon(Codicon.circleFilled));
+			badge.appendChild(renderIcon(Codicon.circleFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.running}`;
 		}
 
 		if (counts.failed > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-failure'));
-			badge.appendChild(renderIcon(Codicon.error));
+			badge.appendChild(renderIcon(Codicon.errorCompact));
 			dom.append(badge, $('span')).textContent = `${counts.failed}`;
 		}
 
 		if (counts.pending > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-pending'));
-			badge.appendChild(renderIcon(Codicon.circleFilled));
+			badge.appendChild(renderIcon(Codicon.circleFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.pending}`;
 		}
 
 		if (counts.successful > 0) {
 			const badge = dom.append(this._countsNode, $('.ci-status-widget-count-badge.ci-status-success'));
-			badge.appendChild(renderIcon(Codicon.passFilled));
+			badge.appendChild(renderIcon(Codicon.passFilledCompact));
 			dom.append(badge, $('span')).textContent = `${counts.successful}`;
 		}
 	}
@@ -483,26 +483,26 @@ function getCheckCounts(checks: readonly IGitHubCICheck[]): ICICheckCounts {
 function getCheckIcon(check: IGitHubCICheck): ThemeIcon {
 	switch (check.status) {
 		case GitHubCheckStatus.InProgress:
-			return Codicon.sync;
+			return Codicon.syncCompact;
 		case GitHubCheckStatus.Queued:
-			return Codicon.circleFilled;
+			return Codicon.circleFilledCompact;
 		case GitHubCheckStatus.Completed:
 			switch (check.conclusion) {
 				case GitHubCheckConclusion.Success:
-					return Codicon.passFilled;
+					return Codicon.passFilledCompact;
 				case GitHubCheckConclusion.Failure:
 				case GitHubCheckConclusion.TimedOut:
 				case GitHubCheckConclusion.ActionRequired:
-					return Codicon.error;
+					return Codicon.errorCompact;
 				case GitHubCheckConclusion.Cancelled:
-					return Codicon.circleSlash;
+					return Codicon.circleSlashCompact;
 				case GitHubCheckConclusion.Skipped:
 					return Codicon.debugStepOver;
 				default:
-					return Codicon.circleFilled;
+					return Codicon.circleFilledCompact;
 			}
 		default:
-			return Codicon.circleFilled;
+			return Codicon.circleFilledCompact;
 	}
 }
 

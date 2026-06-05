@@ -7,7 +7,7 @@
  * Integration tests for client-provided tool handling through the protocol layer.
  *
  * These tests verify that:
- * - tool_start with toolClientId emits only a toolCallStart (no auto-ready)
+ * - tool_start with client contributor emits only a toolCallStart (no auto-ready)
  * - tool_ready without confirmationTitle transitions to Running (auto-confirmed)
  * - tool_ready with confirmationTitle transitions to PendingConfirmation
  * - toolCallComplete dispatched by the client flows through to the agent
@@ -17,7 +17,7 @@
  */
 
 import assert from 'assert';
-import { ToolResultContentType } from '../../../common/state/sessionState.js';
+import { ToolCallContributorKind, ToolResultContentType, type ToolCallContributor } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -52,7 +52,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 		client.close();
 	});
 
-	// ---- Client tool: tool_start with toolClientId --------------------------
+	// ---- Client tool: tool_start with client contributor --------------------
 
 	test('client tool_start emits toolCallStart then toolCallReady (auto-confirmed)', async function () {
 		this.timeout(10_000);
@@ -67,10 +67,10 @@ suite('Protocol WebSocket — Client Tools', function () {
 		]);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
-			toolClientId?: string;
+			contributor?: ToolCallContributor;
 		};
 		assert.strictEqual(toolStartAction.toolCallId, 'tc-client-1');
-		assert.strictEqual(toolStartAction.toolClientId, 'test-client-tool');
+		assert.deepStrictEqual(toolStartAction.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' });
 
 		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as {
 			toolCallId: string;
@@ -109,16 +109,16 @@ suite('Protocol WebSocket — Client Tools', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-client-perm');
 		dispatchTurnStarted(client, sessionUri, 'turn-cp', 'client-tool-with-permission', 1);
 
-		// Wait for toolCallStart (should have toolClientId)
+		// Wait for toolCallStart (should have client contributor)
 		const toolStartNotif = await client.waitForNotification(
 			n => isActionNotification(n, 'session/toolCallStart'),
 		);
 		const toolStartAction = getActionEnvelope(toolStartNotif).action as {
 			toolCallId: string;
-			toolClientId?: string;
+			contributor?: ToolCallContributor;
 		};
 		assert.strictEqual(toolStartAction.toolCallId, 'tc-client-perm-1');
-		assert.strictEqual(toolStartAction.toolClientId, 'test-client-tool');
+		assert.deepStrictEqual(toolStartAction.contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' });
 
 		// Wait for toolCallReady with confirmationTitle (permission flow)
 		const toolReadyNotif = await client.waitForNotification(

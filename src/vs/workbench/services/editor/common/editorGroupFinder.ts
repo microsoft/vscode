@@ -41,7 +41,10 @@ function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions |
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
 	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
 	const editorInput = isEditorInputWithOptions(editor) ? editor.editor : isEditorInput(editor) ? editor : undefined;
-	const requiresModal = editorInput instanceof EditorInput && editorInput.hasCapability(EditorInputCapabilities.RequiresModal);
+	// The `RequiresModal` capability is honored unless the user has explicitly
+	// disabled modal editors via `workbench.editor.useModal: 'off'`, in which
+	// case the user preference wins.
+	const requiresModal = editorInput instanceof EditorInput && editorInput.hasCapability(EditorInputCapabilities.RequiresModal) && modalEditorMode !== 'off';
 	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all' && !requiresModal) {
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
 		// or when the setting is configured to open all editors modal or when the
@@ -100,8 +103,9 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	const editor = isEditorInputWithOptions(input) ? input.editor : input;
 	const options = input.options;
 
-	// Group: Force modal if the editor has the RequiresModal capability
-	if (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.RequiresModal)) {
+	// Group: Force modal if the editor has the RequiresModal capability,
+	// but respect `workbench.editor.useModal: 'off'` as an explicit opt-out.
+	if (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.RequiresModal) && configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
 		group = editorGroupService.createModalEditorPart(options?.modal)
 			.then(part => part.activeGroup);
 	}

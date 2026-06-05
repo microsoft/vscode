@@ -86,6 +86,7 @@ suite('AICustomizationItemsModel', () => {
 
 			function customAgentFromPromptPath(promptFile: IPromptPath): ICustomAgent {
 				return {
+					id: promptFile.uri.toString(),
 					uri: promptFile.uri,
 					name: promptFile.name ?? basename(promptFile.uri),
 					description: promptFile.description,

@@ -10,6 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
+	BASELINE_TURN_ID,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
@@ -491,18 +492,21 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		try {
 			const sessionUri = URI.parse(session);
-			const [originalPair, modifiedPair] = await Promise.all([
-				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId),
+			const originalIsBaseline = originalTurnId === BASELINE_TURN_ID;
+			const [originalCurrentRef, modifiedPair] = await Promise.all([
+				originalIsBaseline
+					? this._checkpointService.getBaselineCheckpointRef(sessionUri)
+					: this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
 				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId),
 			]);
-			if (!originalPair || !modifiedPair) {
+			if (!originalCurrentRef || !modifiedPair) {
 				// One of the turns has no checkpoint — either it's an
 				// unknown id, the session isn't git-backed, or the
 				// baseline / capture failed. No edit-tracker fallback
 				// exists for between-two-turns comparisons.
-				const missing = !originalPair && !modifiedPair
+				const missing = !originalCurrentRef && !modifiedPair
 					? 'both turns'
-					: !originalPair ? 'original turn' : 'modified turn';
+					: !originalCurrentRef ? (originalIsBaseline ? 'baseline' : 'original turn') : 'modified turn';
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
 					status: ChangesetStatus.Error,
@@ -510,7 +514,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				});
 				return compareUri;
 			}
-			if (originalPair.current === modifiedPair.current) {
+			if (originalCurrentRef === modifiedPair.current) {
 				// Same endpoint on both sides — diff is empty by
 				// construction (covers compare(turn, turn) and the no-op
 				// turn case where two adjacent turns share a ref).
@@ -528,7 +532,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			const diffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
 				sessionUri: session,
-				fromRef: originalPair.current,
+				fromRef: originalCurrentRef,
 				toRef: modifiedPair.current,
 			});
 			if (diffs === undefined) {
@@ -540,7 +544,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
 					status: ChangesetStatus.Error,
-					error: { errorType: 'computeFailed', message: `Failed to compute compare-turns diff from git (${originalPair.current}..${modifiedPair.current}).` },
+					error: { errorType: 'computeFailed', message: `Failed to compute compare-turns diff from git (${originalCurrentRef}..${modifiedPair.current}).` },
 				});
 				return compareUri;
 			}
