@@ -39,7 +39,7 @@ The sessions system is organized in three layers, each with stricter import perm
 Defines the foundational interfaces that all providers and consumers share:
 
 - **`ISession`** (`session.ts`) — Universal session facade. A self-contained observable object representing a session; consumers never reach back to provider internals. Each session has a globally unique ID built via `toSessionId(providerId, resource)` and groups one or more `IChat` instances.
-- **`ISessionsProvider`** (`sessionsProvider.ts`) — Contract every provider implements. Covers workspace discovery, session CRUD, sending requests, model enumeration/selection/presentation (`getModels`, `getModelPickerOptions`, `onDidChangeModels`, `setModel`), and firing change events.
+- **`ISessionsProvider`** (`sessionsProvider.ts`) — Contract every provider implements. Covers workspace discovery, session CRUD, sending requests, model enumeration/selection/presentation (`getModels`, `getModelPickerOptions`, `onDidChangeModels`, `setModel`), optional fork adoption for providers with self-managed session lists, and firing change events.
 - **`ISessionsManagementService`** (`sessionsManagement.ts`) — The session **model** service. Aggregates sessions from all providers, owns the canonical `activeSession` (+ `setActiveSession`, called by the view), the pending new-session draft (`createNewSession`/`isNewChatSession`), send (`sendNewChatRequest`/`createAndSendNewChatRequest`/`sendRequest`), CRUD (archive/delete/rename), recency history, and the active-session context keys. It performs **no** view/layout mutation and never imports the core view or part.
 
 > **Model vs view.** Opening sessions, the visible-session slots and their arrangement, focus, Back/Forward navigation, and per-session view persistence live in **`ISessionsViewService`** (core — see `browser/sessionsViewService.ts`), not the management service. The split mirrors `IEditorService.activeEditor` (model) vs `IEditorGroupsService.activeGroup` + focus (view). See [Model vs View](#model-vs-view-session-services).
@@ -223,6 +223,17 @@ purely a management/UI concern. In the new-session composer the gesture is
 **Alt+Enter** (or **Alt-click** the Send button); plain Enter / click sends in
 the foreground. The background gesture is only offered for the new-session
 composer, not when sending a new chat within an existing session.
+
+### Forking a Local Chat
+
+The shared workbench chat fork action owns conversation cloning: it serializes
+the source chat, truncates to the selected checkpoint, cleans transient request
+state, and creates a new raw `vscode-local-chat` model. Normal Chat can open
+that raw resource directly. In the Agents window, the forked resource must first
+become a provider-owned `ISession`; `SessionsManagementService.adoptForkedChat`
+resolves the source chat to its owning session/provider and calls the optional
+`ISessionsProvider.adoptForkedChat` hook when the provider needs to materialize
+the already-created chat resource into its session list.
 
 For callers outside the new-session composer,
 `createAndSendNewChatRequest(folderUri, options, createOptions?)` creates a fresh

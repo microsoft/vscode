@@ -248,6 +248,68 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ observed: agentSessionsService.observed.map(uri => uri.toString()) }, { observed: [session.resource.toString()] });
 	});
 
+	test('getSessionForChatResource resolves primary and child chat resources', () => {
+		const primaryChat: IChat = { ...stubChat, resource: URI.parse('test:///primary-chat') };
+		const childChat: IChat = { ...stubChat, resource: URI.parse('test:///child-chat') };
+		const session = stubSession({
+			sessionId: 'multi',
+			providerId: 'test',
+			resource: primaryChat.resource,
+			chats: constObservable([primaryChat, childChat]),
+			mainChat: constObservable(primaryChat),
+		});
+		const { service } = createSessionsManagementService(session, disposables);
+
+		assert.deepStrictEqual({
+			primary: service.getSessionForChatResource(primaryChat.resource)?.sessionId,
+			child: service.getSessionForChatResource(childChat.resource)?.sessionId,
+			missing: service.getSessionForChatResource(URI.parse('test:///missing'))?.sessionId,
+		}, {
+			primary: 'multi',
+			child: 'multi',
+			missing: undefined,
+		});
+	});
+
+	test('adoptForkedChat dispatches to the provider that owns the source chat', async () => {
+		const sourceChat: IChat = { ...stubChat, resource: URI.parse('test:///source-chat') };
+		const forkedChat = URI.parse('test:///forked-chat');
+		const sourceSession = stubSession({
+			sessionId: 'source',
+			providerId: 'test',
+			resource: URI.parse('test:///source-session'),
+			chats: constObservable([sourceChat]),
+			mainChat: constObservable(sourceChat),
+		});
+		const forkedSession = stubSession({ sessionId: 'forked', providerId: 'test', resource: forkedChat });
+		const calls: { sessionId: string; sourceChatUri: URI; forkedChatUri: URI }[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async adoptForkedChat(sessionId: string, sourceChatUri: URI, forkedChatUri: URI): Promise<ISession> {
+				calls.push({ sessionId, sourceChatUri, forkedChatUri });
+				return forkedSession;
+			}
+		}(sourceSession);
+		const { service } = createSessionsManagementService(sourceSession, disposables, provider);
+
+		const adopted = await service.adoptForkedChat(sourceChat.resource, forkedChat);
+
+		assert.deepStrictEqual({
+			adopted: adopted?.sessionId,
+			calls: calls.map(call => ({
+				sessionId: call.sessionId,
+				sourceChatUri: call.sourceChatUri.toString(),
+				forkedChatUri: call.forkedChatUri.toString(),
+			})),
+		}, {
+			adopted: 'forked',
+			calls: [{
+				sessionId: 'source',
+				sourceChatUri: sourceChat.resource.toString(),
+				forkedChatUri: forkedChat.toString(),
+			}],
+		});
+	});
+
 	test('does not change active session when added session is not displayed in any widget', async () => {
 		const originalSession = stubSession({ sessionId: 'original', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());

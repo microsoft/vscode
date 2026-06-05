@@ -237,4 +237,14 @@ export interface ISessionsProvider {
 	 * @param options Options for the request, including the query and any attached context entries.
 	 */
 	sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession>;
+
+	/**
+	 * Adopt an already-created forked chat resource into this provider's session
+	 * list, returning the provider-owned session that should be opened.
+	 *
+	 * This is used by providers whose session list is separate from the raw chat
+	 * model store. Providers that create forked sessions directly do not need to
+	 * implement it.
+	 */
+	adoptForkedChat?(sessionId: string, sourceChatUri: URI, forkedChatUri: URI): Promise<ISession>;
 }

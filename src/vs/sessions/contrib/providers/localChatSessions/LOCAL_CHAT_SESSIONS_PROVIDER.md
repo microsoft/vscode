@@ -122,6 +122,15 @@ A `MutableDisposable` on `LocalSession` ensures repeated `trackModel` calls don'
 - **`setModel`** — only meaningful for the current new session before send; updates pre-send model id.
 - **`createNewChat`** — for the current new session, returns the already-prepared `IChat` and updates `mainChat`. For an existing committed session, creates a subsequent (child) chat linked to the primary via `parentResource`.
 - **`deleteChat`** — removes a single child chat from a multi-chat session after a confirmation dialog; deleting the primary (or the last remaining chat) removes the whole session. An unknown/stale chat URI is a no-op.
+- **`adoptForkedChat`** — materializes a forked local chat model created by the shared chat fork action into this provider's session list. The fork becomes a new primary local session, is persisted in `sessions.localChat.sessions`, and is surfaced through `onDidChangeSessions` so the Agents window can open it through `ISessionsManagementService`.
+
+## Forking
+
+Local chat fork data is still produced by the shared workbench fork action (`ForkConversationAction`): it serializes the source chat, truncates to the selected checkpoint, cleans transient request state, generates fresh IDs/timestamps, and creates a new `vscode-local-chat` model via `IChatService.loadSessionFromData()`.
+
+Normal Chat can open that raw chat resource directly. The Agents window cannot: it needs every visible chat to belong to an `ISession` owned by a sessions provider. `adoptForkedChat` is the bridge between those two models. It takes the already-created forked chat resource, wraps it in a `LocalSession`, adds it to `_sessionCache`, persists provider metadata, and fires `added` before live model tracking emits later `changed` events.
+
+Forking from any chat in a multi-chat local session creates a standalone primary session. It does not add the fork as another child chat of the original session.
 
 ## Multi-Chat Support
 
