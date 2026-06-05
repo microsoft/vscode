@@ -94,6 +94,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		_commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
+		private readonly harnessLabel?: string,
 	) {
 		super();
 
@@ -115,7 +116,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));
 
 		const heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
-		heading.textContent = localize('welcomeHeading', "Agent Customizations");
+		const headingText = this.harnessLabel
+			? localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel)
+			: localize('welcomeHeading', "Agent Customizations");
+		heading.textContent = headingText;
 
 		const subtitle = DOM.append(welcomeInner, $('p.welcome-prompts-subtitle'));
 		subtitle.textContent = localize('welcomeSubtitle', "Tailor how agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");

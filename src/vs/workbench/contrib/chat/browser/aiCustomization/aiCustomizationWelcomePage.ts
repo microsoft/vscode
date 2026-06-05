@@ -51,13 +51,14 @@ export class AICustomizationWelcomePage extends Disposable {
 		commandService: ICommandService,
 		workspaceService: IAICustomizationWorkspaceService,
 		hoverService: IHoverService,
+		harnessLabel?: string,
 	) {
 		super();
 
 		this.container = DOM.append(parent, $('.welcome-page-host'));
 		this.container.style.height = '100%';
 		this.container.style.overflow = 'hidden';
-		this.implementation = this._register(new PromptLaunchersAICustomizationWelcomePage(this.container, welcomePageFeatures, callbacks, commandService, workspaceService, hoverService));
+		this.implementation = this._register(new PromptLaunchersAICustomizationWelcomePage(this.container, welcomePageFeatures, callbacks, commandService, workspaceService, hoverService, harnessLabel));
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
