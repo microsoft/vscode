@@ -13,6 +13,7 @@ function stubMcpCustomization(): McpServerCustomization {
 	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///plugin', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
 }
 import {
+	IParsedHookCommand,
 	parseComponentPathConfig,
 	resolveComponentDirs,
 	normalizeMcpServerConfiguration,
@@ -280,6 +281,53 @@ suite('pluginParsers', () => {
 			};
 			const result = convertBareEnvVarsToVsCodeSyntax(def);
 			assert.strictEqual((result.configuration as { command: string }).command, '${lowercase}');
+		});
+	});
+
+	suite('IParsedHookCommand.isEquals', () => {
+
+		test('returns true for structurally equivalent commands', () => {
+			const left: IParsedHookCommand = {
+				command: 'echo hi',
+				windows: 'Write-Host hi',
+				linux: 'echo hi',
+				osx: 'echo hi',
+				cwd: URI.file('/workspace'),
+				env: { A: '1' },
+				timeout: 10,
+				sourceUri: URI.file('/workspace/.github/hooks.yml')
+			};
+			const right: IParsedHookCommand = {
+				command: 'echo hi',
+				windows: 'Write-Host hi',
+				linux: 'echo hi',
+				osx: 'echo hi',
+				cwd: URI.file('/workspace'),
+				env: { A: '1' },
+				timeout: 10,
+				sourceUri: URI.file('/workspace/.github/hooks.yml')
+			};
+
+			assert.strictEqual(IParsedHookCommand.isEquals(left, right), true);
+		});
+
+		test('returns false when any field differs', () => {
+			const left: IParsedHookCommand = {
+				command: 'echo hi',
+				cwd: URI.file('/workspace'),
+				env: { A: '1' },
+				timeout: 10,
+				sourceUri: URI.file('/workspace/.github/hooks.yml')
+			};
+			const right: IParsedHookCommand = {
+				command: 'echo bye',
+				cwd: URI.file('/workspace/other'),
+				env: { A: '2' },
+				timeout: 20,
+				sourceUri: URI.file('/workspace/.github/other-hooks.yml')
+			};
+
+			assert.strictEqual(IParsedHookCommand.isEquals(left, right), false);
 		});
 	});
 });

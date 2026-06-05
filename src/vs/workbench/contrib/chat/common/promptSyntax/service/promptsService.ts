@@ -212,6 +212,26 @@ export namespace IAgentSource {
 			return { storage: promptPath.storage };
 		}
 	}
+
+	export function isEquals(a: IAgentSource | undefined, b: IAgentSource | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		if (a.storage !== b.storage) {
+			return false;
+		}
+		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {
+			return a.extensionId === b.extensionId;
+		} else if (a.storage === PromptsStorage.plugin && b.storage === PromptsStorage.plugin) {
+			return a.pluginUri.toString() === b.pluginUri.toString();
+		} else {
+			return true;
+		}
+	}
+
 }
 
 /**
