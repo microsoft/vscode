@@ -8,7 +8,12 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, Logger } from '../../../../automation';
-import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+
+// Selector for the send button in the Agents Window new-session homepage.
+// Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
+// (without the `:not(.disabled)` filter so we can observe the disabled state).
+const AGENTS_SEND_BUTTON_SELECTOR = '.sessions-chat-widget .new-chat-widget-container .sessions-chat-send-button .monaco-button';
 
 /**
  * Per-test scenarios. Each test uses a unique scenario id so that the mock
@@ -63,29 +68,36 @@ export function setup(logger: Logger) {
 			registerScenario(LOCAL_SCENARIO_ID, new ScenarioBuilder().emit(LOCAL_REPLY).build());
 			registerScenario(CLAUDE_SCENARIO_ID, new ScenarioBuilder().emit(CLAUDE_REPLY).build());
 
-			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg), verbose: true });
-			logger.log(`Mock LLM server started at ${mockServer.url}`);
+			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`), verbose: true });
+			logger.log(`[Agents Window] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
+			logger.log(`[Agents Window] env: VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_QUALITY=${process.env.VSCODE_QUALITY ?? '<unset>'}, BUILD_SOURCEBRANCH=${process.env.BUILD_SOURCEBRANCH ?? '<unset>'}, GITHUB_RUN_ID=${process.env.GITHUB_RUN_ID ?? '<unset>'}, GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? '<unset>'}`);
 		});
 
-		installAllHandlers(logger, opts => ({
-			...opts,
-			extraEnv: {
-				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
-			},
-		}));
+		installAllHandlers(logger, opts => {
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			logger.log(`[Agents Window] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
+			return {
+				...opts,
+				extraEnv: {
+					...(opts.extraEnv ?? {}),
+					...copilotEnv,
+				},
+			};
+		});
 
 		before(async function () {
 			// One-time setup: write VS Code settings and open the Agents Window
 			// with the smoke-test workspace folder pre-selected. Subsequent tests
 			// reuse this window and just start fresh sessions.
 			const app = this.app as Application;
+			logger.log(`[Agents Window] one-time setup begin; workspace=${app.workspacePathOrFolder}; mock URL=${mockServer.url}; requestCount=${mockServer.requestCount()}`);
 
 			// Reset any uncommitted changes left by earlier smoke test suites
 			// (e.g. the Tasks test modifies .vscode/tasks.json). A dirty
 			// workspace prevents worktree creation and triggers the
 			// "uncommitted changes" confirmation flow which aborts the session.
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+			logger.log(`[Agents Window] reset workspace via 'git checkout .'`);
 
 			// overrideProxyUrl redirects all Copilot SDK traffic to our mock server
 			// and enables HMAC auth — no real GitHub token required.
@@ -105,35 +117,53 @@ export function setup(logger: Logger) {
 				['github.copilot.chat.cli.sandbox.enabled', '"on"'],
 				['github.copilot.chat.cli.sessionEventLogging.enabled', 'true'],
 			]);
+			logger.log(`[Agents Window] user settings written; requestCount=${mockServer.requestCount()}`);
 
 			// `--enable-smoke-test-driver` (set by the runner) skips the auth dialog.
 			const windowsBefore = app.code.driver.getAllWindows().length;
+			logger.log(`[Agents Window] windowsBefore=${windowsBefore}; opening current folder in Agents Window`);
 			await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
+			logger.log(`[Agents Window] command dispatched; awaiting new Agents Window to appear (current windows=${app.code.driver.getAllWindows().length})`);
 			await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
+			logger.log(`[Agents Window] switched to Agents Window (current windows=${app.code.driver.getAllWindows().length}); requestCount=${mockServer.requestCount()}`);
 		});
 
 		after(async function () {
 			if (mockServer) {
+				logger.log(`[Agents Window] closing mock LLM server; total requestCount=${mockServer.requestCount()}`);
 				await mockServer.close();
 			}
 		});
 
 		it('Test Copilot CLI session', async function () {
 			const app = this.app as Application;
+			logger.log(`[Agents Window/Copilot] starting test; requestCount=${mockServer.requestCount()}`);
 
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
+			try {
+				logger.log(`[Agents Window/Copilot] waiting for new session view`);
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				logger.log(`[Agents Window/Copilot] selecting session type 'Copilot CLI'`);
+				await app.workbench.agentsWindow.selectSessionType('Copilot CLI');
 
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);
+				const requestsBefore = mockServer.requestCount();
+				logger.log(`[Agents Window/Copilot] submitting prompt; requestCount=${requestsBefore}`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${COPILOT_SCENARIO_ID}]`);
+				logger.log(`[Agents Window/Copilot] prompt submitted; waiting for assistant text '${COPILOT_REPLY}'; requestCount=${mockServer.requestCount()}`);
 
-			const text = await app.workbench.agentsWindow.waitForAssistantText(COPILOT_REPLY);
-			logger.log(`Agents Window (Copilot) response: ${text}`);
+				const text = await app.workbench.agentsWindow.waitForAssistantText(COPILOT_REPLY);
+				logger.log(`[Agents Window/Copilot] response (length=${text.length}): ${text}`);
+				logger.log(`[Agents Window/Copilot] mock server requestCount after response: ${mockServer.requestCount()} (before=${requestsBefore})`);
 
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Copilot session'
-			);
+				assert.ok(
+					mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the Copilot session (before=${requestsBefore}, after=${mockServer.requestCount()})`
+				);
+			} catch (error) {
+				logger.log(`[Agents Window/Copilot] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				logger.log(`[Agents Window/Copilot] mock server requestCount at failure: ${mockServer.requestCount()}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window/Copilot', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
 		});
 
 		it.skip('Test Copilot CLI session (sandbox)', async function () {
@@ -203,40 +233,68 @@ export function setup(logger: Logger) {
 
 		it('Test Claude session', async function () {
 			const app = this.app as Application;
+			logger.log(`[Agents Window/Claude] starting test; requestCount=${mockServer.requestCount()}`);
 
-			await app.workbench.agentsWindow.startNewSession();
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Claude');
+			try {
+				logger.log(`[Agents Window/Claude] starting new session (Ctrl+L)`);
+				await app.workbench.agentsWindow.startNewSession();
+				logger.log(`[Agents Window/Claude] waiting for new session view`);
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				logger.log(`[Agents Window/Claude] selecting session type 'Claude'`);
+				await app.workbench.agentsWindow.selectSessionType('Claude');
 
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
+				const requestsBefore = mockServer.requestCount();
+				logger.log(`[Agents Window/Claude] submitting prompt; requestCount=${requestsBefore}`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${CLAUDE_SCENARIO_ID}]`);
+				logger.log(`[Agents Window/Claude] prompt submitted; waiting for assistant text '${CLAUDE_REPLY}'; requestCount=${mockServer.requestCount()}`);
 
-			const text = await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_REPLY);
-			logger.log(`Agents Window (Claude) response: ${text}`);
+				const text = await app.workbench.agentsWindow.waitForAssistantText(CLAUDE_REPLY);
+				logger.log(`[Agents Window/Claude] response (length=${text.length}): ${text}`);
+				logger.log(`[Agents Window/Claude] mock server requestCount after response: ${mockServer.requestCount()} (before=${requestsBefore})`);
 
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Claude session'
-			);
+				assert.ok(
+					mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the Claude session (before=${requestsBefore}, after=${mockServer.requestCount()})`
+				);
+			} catch (error) {
+				logger.log(`[Agents Window/Claude] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				logger.log(`[Agents Window/Claude] mock server requestCount at failure: ${mockServer.requestCount()}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window/Claude', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
 		});
 
 		it('Test Local session', async function () {
 			const app = this.app as Application;
+			logger.log(`[Agents Window/Local] starting test; requestCount=${mockServer.requestCount()}`);
 
-			await app.workbench.agentsWindow.startNewSession();
-			await app.workbench.agentsWindow.waitForNewSessionView();
-			await app.workbench.agentsWindow.selectSessionType('Local');
+			try {
+				logger.log(`[Agents Window/Local] starting new session (Ctrl+L)`);
+				await app.workbench.agentsWindow.startNewSession();
+				logger.log(`[Agents Window/Local] waiting for new session view`);
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				logger.log(`[Agents Window/Local] selecting session type 'Local'`);
+				await app.workbench.agentsWindow.selectSessionType('Local');
 
-			const requestsBefore = mockServer.requestCount();
-			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
+				const requestsBefore = mockServer.requestCount();
+				logger.log(`[Agents Window/Local] submitting prompt; requestCount=${requestsBefore}`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${LOCAL_SCENARIO_ID}]`);
+				logger.log(`[Agents Window/Local] prompt submitted; waiting for assistant text '${LOCAL_REPLY}'; requestCount=${mockServer.requestCount()}`);
 
-			const text = await app.workbench.agentsWindow.waitForAssistantText(LOCAL_REPLY);
-			logger.log(`Agents Window (Local) response: ${text}`);
+				const text = await app.workbench.agentsWindow.waitForAssistantText(LOCAL_REPLY);
+				logger.log(`[Agents Window/Local] response (length=${text.length}): ${text}`);
+				logger.log(`[Agents Window/Local] mock server requestCount after response: ${mockServer.requestCount()} (before=${requestsBefore})`);
 
-			assert.ok(
-				mockServer.requestCount() > requestsBefore,
-				'expected the mock LLM server to have received a new request from the Local session'
-			);
+				assert.ok(
+					mockServer.requestCount() > requestsBefore,
+					`expected the mock LLM server to have received a new request from the Local session (before=${requestsBefore}, after=${mockServer.requestCount()})`
+				);
+			} catch (error) {
+				logger.log(`[Agents Window/Local] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				logger.log(`[Agents Window/Local] mock server requestCount at failure: ${mockServer.requestCount()}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window/Local', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
 		});
 	});
 }
