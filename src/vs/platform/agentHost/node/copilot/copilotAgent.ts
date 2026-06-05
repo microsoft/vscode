@@ -2077,7 +2077,7 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			id,
 			uri,
 			name: resourceBasename(resourceDirname(file)),
-			description: skillInfo.description,
+			...(skillInfo.description ? { description: skillInfo.description } : {}),
 		};
 	}
 	if (type === DiscoveredType.Instruction) {
