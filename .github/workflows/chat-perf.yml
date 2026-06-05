@@ -97,6 +97,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Install system dependencies
         run: |
           sudo apt update -y
@@ -111,19 +114,19 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install build dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-workspace
         working-directory: build
 
       - name: Transpile source
-        run: npm run transpile-client
+        run: pnpm run transpile-client
 
       - name: Build copilot extension
-        run: npm run compile
+        run: pnpm run compile
         working-directory: extensions/copilot
 
       - name: Download Electron
@@ -196,6 +199,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Install system dependencies
         run: |
           sudo apt update -y
@@ -210,7 +216,7 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -369,6 +375,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Install system dependencies
         run: |
           sudo apt update -y
@@ -383,7 +392,7 @@ jobs:
             libasound2t64 libxshmfence1 libgtk-3-0
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -467,6 +476,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Download perf summary data
         uses: actions/download-artifact@v8
         with:

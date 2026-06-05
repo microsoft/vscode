@@ -38,18 +38,18 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 }
 
 if (process.env.npm_execpath?.includes('yarn')) {
-	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
+	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `pnpm i` instead. ***\x1b[0;0m');
 	throw new Error();
 }
 
-const npmUserAgent = process.env.npm_config_user_agent;
-const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
-if (npmVersionMatch) {
-	const npmMajor = parseInt(npmVersionMatch[1]);
-	if (npmMajor >= 12) {
-		console.error(`\x1b[1;31m*** Please use npm version < 12.0.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
-		throw new Error();
-	}
+// This repository uses pnpm as its package manager. Reject npm so that
+// contributors do not accidentally create a package-lock.json or an
+// incompatible node_modules layout.
+const userAgent = process.env.npm_config_user_agent ?? '';
+if (!process.env['VSCODE_SKIP_PACKAGE_MANAGER_CHECK'] && userAgent && !/\bpnpm\//.test(userAgent)) {
+	console.error('\x1b[1;31m*** This repository uses pnpm. Please run `pnpm i` instead of `npm i`. ***\x1b[0;0m');
+	console.error('\x1b[1;31m*** Enable it via `corepack enable` (or install pnpm) and re-run. ***\x1b[0;0m');
+	throw new Error();
 }
 
 // Fast path: if nothing changed since last successful install, skip everything.
@@ -115,8 +115,11 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-	child_process.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
+	// The node-gyp helper lives in its own standalone project (build/npm/gyp).
+	// Install it with pnpm, ignoring the surrounding workspace so it stays
+	// isolated from the root install.
+	const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+	child_process.execSync(`${pnpm} install --ignore-workspace`, {
 		env: process.env,
 		cwd: path.join(import.meta.dirname, 'gyp'),
 		stdio: 'inherit'

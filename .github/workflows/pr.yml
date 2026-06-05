@@ -31,6 +31,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Setup pnpm
+        run: corepack enable
+
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
 
@@ -55,16 +58,17 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          VSCODE_INSTALL_FROZEN: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create node_modules archive
@@ -76,7 +80,7 @@ jobs:
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
       - name: Type check /build/ scripts
-        run: npm run typecheck
+        run: pnpm run typecheck
         working-directory: build
 
       - name: Prepare built-in extensions cache key
@@ -98,7 +102,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: pnpm exec npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -191,11 +195,14 @@ jobs:
         with:
           node-version-file: extensions/copilot/.nvmrc
 
+      - name: Setup pnpm
+        run: corepack enable
+
       - name: Restore build cache
         uses: actions/cache/restore@v5
         id: build-cache
         with:
-          key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
+          key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/pnpm-lock.yaml') }}
           path: extensions/copilot/.build/build_cache
 
       - name: Extract build cache
@@ -206,7 +213,7 @@ jobs:
       - name: Install dependencies
         if: steps.build-cache.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Ensure no duplicate cache keys
         working-directory: extensions/copilot
@@ -275,11 +282,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
+      - name: Setup pnpm
+        run: corepack enable
+
       - name: Restore build cache
         uses: actions/cache/restore@v5
         id: build-cache
         with:
-          key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
+          key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/pnpm-lock.yaml') }}
           path: extensions/copilot/.build/build_cache
 
       - name: Extract build cache
@@ -288,12 +298,12 @@ jobs:
         run: tar -xzf .build/build_cache/cache.tgz
 
       - name: Install root dependencies
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-workspace
 
       - name: Install dependencies
         if: steps.build-cache.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Create build cache archive
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -307,31 +317,31 @@ jobs:
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
         working-directory: extensions/copilot
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Compile
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
-        run: npm run simulate-ci
+        run: pnpm run simulate-ci
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
-        run: npm run test:prompt
+        run: pnpm run test:prompt
 
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:completions-core
+        run: xvfb-run -a pnpm run test:completions-core
 
       - name: Archive simulation output
         if: always()
@@ -378,11 +388,14 @@ jobs:
       - name: Install setuptools
         run: pip install setuptools
 
+      - name: Setup pnpm
+        run: corepack enable
+
       - name: Restore build cache
         uses: actions/cache/restore@v5
         id: build-cache
         with:
-          key: copilot-windows-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
+          key: copilot-windows-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/pnpm-lock.yaml') }}
           path: extensions/copilot/.build/build_cache
 
       - name: Extract build cache
@@ -391,12 +404,12 @@ jobs:
         run: 7z.exe x .build/build_cache/cache.7z -aoa
 
       - name: Install root dependencies
-        run: npm ci --ignore-scripts --no-workspaces
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-workspace
 
       - name: Install dependencies
         if: steps.build-cache.outputs.cache-hit != 'true'
         working-directory: extensions/copilot
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Create build cache archive
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -409,30 +422,30 @@ jobs:
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
         working-directory: extensions/copilot
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Compile
         working-directory: extensions/copilot
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run vitest unit tests
         working-directory: extensions/copilot
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
-        run: npm run simulate-ci
+        run: pnpm run simulate-ci
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
-        run: npm run test:prompt
+        run: pnpm run test:prompt
 
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
-        run: npm run test:completions-core
+        run: pnpm run test:completions-core
 
 

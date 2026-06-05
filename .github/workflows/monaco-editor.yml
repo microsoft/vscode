@@ -28,6 +28,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
         run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.ts)" >> $GITHUB_OUTPUT
@@ -60,20 +63,20 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Download Playwright
-        run: npm run playwright-install
+        run: pnpm run playwright-install
 
       - name: Run Monaco Editor Checks
-        run: npm run monaco-compile-check
+        run: pnpm run monaco-compile-check
 
       - name: Editor Distro & ESM
-        run: npm run gulp editor-distro
+        run: pnpm run gulp editor-distro
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
-        run: npm run esm-check
+        run: pnpm run esm-check
 
       - name: Typings validation prep
         run: |
@@ -89,13 +92,13 @@ jobs:
 
       - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: npm run bundle-webpack
+        run: pnpm run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Run Editor Tests
         timeout-minutes: 5
         working-directory: ./test/monaco
-        run: npm run test
+        run: pnpm run test

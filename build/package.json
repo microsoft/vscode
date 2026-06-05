@@ -75,10 +75,18 @@
     "tree-sitter-typescript": "^0.23.2",
     "vscode-gulp-watch": "^5.0.3"
   },
-  "overrides": {
-    "path-scurry": {
-      "lru-cache": "11.2.1"
+  "pnpm": {
+    "overrides": {
+      "path-scurry>lru-cache": "11.2.1",
+      "yauzl": "^3.3.1"
     },
-    "yauzl": "^3.3.1"
+    "onlyBuiltDependencies": [
+      "@vscode/ripgrep",
+      "@vscode/ripgrep-universal",
+      "@vscode/vsce-sign",
+      "esbuild",
+      "node-gyp-build",
+      "tree-sitter"
+    ]
   }
 }

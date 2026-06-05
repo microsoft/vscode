@@ -33,6 +33,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Prepare node_modules cache key
         shell: pwsh
         run: |
@@ -64,15 +67,15 @@ jobs:
 
           for ($i = 1; $i -le 5; $i++) {
             try {
-              exec { npm ci }
+              exec { pnpm install --frozen-lockfile }
               break
             }
             catch {
               if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
+                Write-Error "pnpm install --frozen-lockfile failed after 5 attempts"
                 throw
               }
-              Write-Host "npm ci failed attempt $i, retrying..."
+              Write-Host "pnpm install --frozen-lockfile failed attempt $i, retrying..."
               Start-Sleep -Seconds 2
             }
           }
@@ -118,14 +121,14 @@ jobs:
 
       - name: Transpile client and extensions
         shell: pwsh
-        run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
+        run: pnpm run gulp "transpile-client-esbuild" "transpile-extensions"
 
       - name: Download Electron and Playwright
         shell: pwsh
         run: |
           for ($i = 1; $i -le 3; $i++) {
             try {
-              npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
+              pnpm exec npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
               break
             }
             catch {
@@ -149,7 +152,7 @@ jobs:
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests }}
         shell: pwsh
-        run: npm run test-node
+        run: pnpm run test-node
         timeout-minutes: 15
 
       - name: 🧪 Run unit tests (Browser, Chromium)
@@ -165,7 +168,7 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm run gulp `
+          exec { pnpm run gulp `
             compile-extension:configuration-editing `
             compile-extension:css-language-features-server `
             compile-extension:emmet `
@@ -228,29 +231,29 @@ jobs:
       - name: Compile smoke tests
         working-directory: test/smoke
         shell: pwsh
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Compile extensions for smoke tests
         shell: pwsh
-        run: npm run gulp compile-extension-media
+        run: pnpm run gulp compile-extension-media
 
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing
+        run: pnpm run smoketest-no-compile -- --tracing
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --web --tracing --headless
+        run: pnpm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --remote --tracing
+        run: pnpm run smoketest-no-compile -- --remote --tracing
 
       - name: Diagnostics after smoke test run
         shell: pwsh
