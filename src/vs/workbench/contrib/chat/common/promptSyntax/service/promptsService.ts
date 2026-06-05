@@ -16,6 +16,7 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 /**
  * A single structured debug detail entry from the instructions context computer.
@@ -226,10 +227,9 @@ export namespace IAgentSource {
 		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {
 			return ExtensionIdentifier.equals(a.extensionId, b.extensionId);
 		} else if (a.storage === PromptsStorage.plugin && b.storage === PromptsStorage.plugin) {
-			return a.pluginUri.toString() === b.pluginUri.toString();
-		} else {
-			return true;
+			return isEqual(a.pluginUri, b.pluginUri);
 		}
+		return true;
 	}
 }
 
