@@ -765,8 +765,17 @@ export class WorkspacePicker extends Disposable {
 		// merging is no longer meaningful.
 		allBrowseActions.forEach((action, index) => {
 			const provider = allProviders.find(p => p.id === action.providerId);
-			const connectionStatus = provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
-			const isUnavailable = !!connectionStatus && !RemoteAgentHostConnectionStatus.isConnected(connectionStatus);
+			const agentHostProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
+			const connectionStatus = agentHostProvider?.connectionStatus?.get();
+			// `incompatible` always disables the action — the user can't fix
+			// a protocol mismatch by clicking. Otherwise, if the provider
+			// supports connect-on-demand (e.g. WSL boots the distro on first
+			// browse), keep the action live even while disconnected.
+			const isIncompatible = RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus);
+			const isUnavailable = isIncompatible
+				|| (!!connectionStatus
+					&& !RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
+					&& !agentHostProvider?.canConnectOnDemand);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.browseSelectAction', "Select..."),

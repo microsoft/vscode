@@ -135,6 +135,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	readonly canConnectOnDemand: boolean;
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
@@ -213,6 +214,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
+		this.canConnectOnDemand = !!config.connectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -358,6 +360,9 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 			this._authenticationSettled = true;
 		}
 		this._authenticationPending.set(pending, undefined);
+		if (!pending) {
+			this._resumeNewSessionAfterAuthenticationSettles();
+		}
 	}
 
 	/**
@@ -407,10 +412,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
 		this._defaultDirectory = undefined;
-		if (this._newSession) {
-			// Setter on the MutableDisposable handles disposal of the old value.
-			this._newSession = undefined;
-		}
+		this._disposeAllNewSessions();
 
 		if (this._sessionTypes.length > 0) {
 			this._sessionTypes = [];
@@ -542,6 +544,14 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
 		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
+			return undefined;
+		}
+		// Only claim URIs that belong to *this* connection. Without this
+		// check, every agent-host provider matches every agent-host URI
+		// and the workspace picker's first-match-wins lookup attributes
+		// the folder to whichever provider is iterated first — so a folder
+		// picked from WSL ends up labelled with another host's name.
+		if (repositoryUri.authority !== this._connectionAuthority) {
 			return undefined;
 		}
 		return this._buildWorkspaceFromUri(repositoryUri);

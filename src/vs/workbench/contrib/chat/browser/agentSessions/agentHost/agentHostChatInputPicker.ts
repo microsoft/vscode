@@ -34,6 +34,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -92,8 +93,15 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		description: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: item.value === currentValue ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
+}
+
+function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
+	if (typeof currentValue === 'boolean') {
+		return currentValue === (itemValue === 'true');
+	}
+	return itemValue === currentValue;
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -120,20 +128,6 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 	}
 	slot.classList.toggle('disabled', disabled);
 	return trigger;
-}
-
-function toBackendSessionUri(sessionResource: URI): URI | undefined {
-	const scheme = sessionResource.scheme;
-	const prefix = 'agent-host-';
-	if (!scheme.startsWith(prefix)) {
-		return undefined;
-	}
-	const provider = scheme.substring(prefix.length);
-	if (!provider) {
-		return undefined;
-	}
-	const rawId = sessionResource.path.replace(/^\//, '');
-	return URI.from({ scheme: provider, path: `/${rawId}` });
 }
 
 /**
@@ -241,7 +235,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const backendSession = provisionalBackend
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
@@ -381,6 +375,11 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _labelFor(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (schema.type === 'boolean') {
+			return value === true
+				? localize('agentHostChatInputPicker.boolean.onLabel', "On")
+				: localize('agentHostChatInputPicker.boolean.offLabel', "Off");
+		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
@@ -421,7 +420,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schema) {
 				return undefined;
 			}
-			const backendSession = toBackendSessionUri(sessionResource);
+			const backendSession = toAgentHostBackendSessionUri(sessionResource);
 			if (!backendSession) {
 				return undefined;
 			}
@@ -497,9 +496,15 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private async _getItems(schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		if (schema.type === 'boolean') {
+			return [
+				{ value: 'true', label: localize('agentHostChatInputPicker.boolean.true', "On") },
+				{ value: 'false', label: localize('agentHostChatInputPicker.boolean.false', "Off") },
+			];
+		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const backendSession = this._subRef.value?.backendSession
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 		if (schema.enumDynamic && backendSession) {
 			try {
 				const result = await this._agentHostService.sessionConfigCompletions({
@@ -537,11 +542,13 @@ export class AgentHostChatInputPicker extends Disposable {
 	}
 
 	private _readCurrentValues(): Record<string, unknown> | undefined {
+		const sessionResource = this._widget.viewModel?.sessionResource;
+		const overlay = sessionResource ? this._provisional.getResolvedConfig(sessionResource) : undefined;
 		const state = this._subRef.value?.sub.value;
 		if (state && !(state instanceof Error)) {
-			return state.config?.values;
+			return { ...(state.config?.values ?? {}), ...(overlay?.values ?? {}) };
 		}
-		return this._initialResolved?.result.values;
+		return overlay?.values ?? this._initialResolved?.result.values;
 	}
 
 	private async _setValue(backendSession: URI, value: string): Promise<void> {
@@ -550,8 +557,12 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		const normalizedValue = normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
+		const ctx = this._readContext();
+		const normalizedValue = ctx?.schema.type === 'boolean'
+			? value === 'true'
+			: normalizeConfigValue(this._property, value, isAutoApprovePolicyRestricted(this._configurationService));
 		const partial = { [this._property]: normalizedValue };
+		const nextConfig = { ...(this._readCurrentValues() ?? {}), ...partial };
 
 		if (isUntitledChatSession(sessionResource)) {
 			// Route through the provisional service so the workbench-owned
@@ -578,6 +589,12 @@ export class AgentHostChatInputPicker extends Disposable {
 			type: ActionType.SessionConfigChanged,
 			config: partial,
 		});
+		void this._provisional.refreshResolvedConfig(
+			sessionResource,
+			backendSession.scheme,
+			this._readWorkingDirectory(),
+			nextConfig,
+		);
 	}
 }
 
