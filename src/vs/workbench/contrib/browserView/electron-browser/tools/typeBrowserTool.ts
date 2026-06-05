@@ -37,7 +37,7 @@ export const TypeBrowserToolData: IToolData = {
 			},
 			submit: {
 				type: 'boolean',
-				description: 'Whether to press Enter after typing text. Only applicable when "text" is provided. Default is false.'
+				description: 'Whether to press Enter after typing text. Ignored when "key" is provided. Default is false.'
 			},
 			key: {
 				type: 'string',
