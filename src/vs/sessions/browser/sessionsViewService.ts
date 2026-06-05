@@ -130,11 +130,6 @@ export interface ISessionsViewService {
 	 *   showing the empty placeholder. No-op when the empty placeholder is
 	 *   already showing (no session active). Returns the restored pending
 	 *   draft, or `undefined` when none.
-	 *   When `options.inheritWorkspaceFromActiveSession` is set, a fresh draft
-	 *   is created for the workspace of the session being switched away from
-	 *   instead of defaulting to the last composed new session's workspace.
-	 *   Use this for explicit user-initiated "new session" gestures (e.g.
-	 *   Ctrl/Cmd+N, the New button).
 	 * - With `options.folderUri`: create a concrete draft session for that
 	 *   folder (via {@link ISessionsManagementService.createNewSession}) and
 	 *   show it as the active session. Returns the created draft.

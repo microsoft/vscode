@@ -120,8 +120,8 @@ export class NewChatWidget extends Disposable {
 		// Create initial session for any workspace already selected at construct time.
 		// If the selection arrives later (provider registers asynchronously), the
 		// picker fires onDidSelectWorkspace and our listener handles it.
-		// Skip if an active session already exists (restored by openNewSessionView
-		// from a pending new session when navigating back from another session).
+		// Skip if an active session already exists (restored by openNewSession
+		// from a new-session draft when navigating back from another session).
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (!this._syncWorkspacePickerFromActiveSession() && restoredFolderUri) {
 			this._createNewSession(restoredFolderUri, this._newChatInput.sessionTypePicker.selectedPick);
@@ -131,7 +131,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * If a pending session was restored by {@link openNewSessionView}, sync
+	 * If a new-session draft was restored by {@link openNewSession}, sync
 	 * the workspace picker to match the session's workspace. The picker may
 	 * have restored a workspace from a different provider (e.g. remote vs
 	 * local), so overwrite it with the session's actual workspace without
