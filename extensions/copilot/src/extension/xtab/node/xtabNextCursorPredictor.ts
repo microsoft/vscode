@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { RequestType } from '@vscode/copilot-api';
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -35,6 +36,14 @@ export type CursorJumpPrediction =
 	| { readonly kind: 'differentFile'; readonly filePath: string; readonly lineNumber: number };
 
 const DEFAULT_CURSOR_JUMP_MODEL_NAME = 'copilot-suggestions-himalia-001';
+
+/**
+ * System prompt used for the next-cursor-line prediction (NCLP) model. Kept
+ * as an exported constant so that training-data generation can mirror it
+ * verbatim — drift between this string and the datagen prompt would corrupt
+ * the training distribution.
+ */
+export const NEXT_CURSOR_PREDICTION_SYSTEM_MESSAGE = `Your task is to predict the line number where the developer is most likely to make their next edit. If you jump in the current file, just output the line number. If you want to jump to another file, output the filepath (relative to workspace root), colon, then line number. If you don't think anywhere is a good next line jump target, just output the current line number of the cursor. Make sure to output no explanation, reasoning, extra spaces, etc.`;
 
 export class XtabNextCursorPredictor {
 
@@ -83,11 +92,15 @@ export class XtabNextCursorPredictor {
 	}
 
 
-	public async predictNextCursorPosition(promptPieces: PromptPieces, parentTracer: ILogger, telemetryBuilder: StatelessNextEditTelemetryBuilder | undefined, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
-
-		const tracer = parentTracer.createSubLogger('predictNextCursorPosition');
-
-		const systemMessage = `Your task is to predict the line number where the developer is most likely to make their next edit. If you jump in the current file, just output the line number. If you want to jump to another file, output the filepath (relative to workspace root), colon, then line number. If you don't think anywhere is a good next line jump target, just output the current line number of the cursor. Make sure to output no explanation, reasoning, extra spaces, etc.`;
+	/**
+	 * Build the chat messages and `keptRange` for the cursor-prediction prompt
+	 * without making any network call. Extracted from {@link predictNextCursorPosition}
+	 * so that test/datagen tooling can capture the exact production prompt
+	 * (and the kept-line range used to validate the assistant's response)
+	 * without spinning up a mock endpoint.
+	 */
+	public buildCursorPredictionPrompt(promptPieces: PromptPieces): Result<{ messages: Raw.ChatMessage[]; keptRange: OffsetRange }, Error> {
+		const systemMessage = NEXT_CURSOR_PREDICTION_SYSTEM_MESSAGE;
 
 		const maxTokens = this.configService.getExperimentBasedConfig(ConfigKey.Advanced.InlineEditsNextCursorPredictionCurrentFileMaxTokens, this.expService);
 
@@ -113,7 +126,6 @@ export class XtabNextCursorPredictor {
 		);
 
 		if (currentFileContentR.isError()) {
-			tracer.trace(`Failed to construct tagged file: ${currentFileContentR.err}`);
 			return Result.fromString(currentFileContentR.err);
 		}
 
@@ -163,7 +175,23 @@ export class XtabNextCursorPredictor {
 			userMsg: userMessage
 		});
 
+		return Result.ok({ messages, keptRange: clippedTaggedCurrentDoc.keptRange });
+	}
+
+
+	public async predictNextCursorPosition(promptPieces: PromptPieces, parentTracer: ILogger, telemetryBuilder: StatelessNextEditTelemetryBuilder | undefined, cancellationToken: CancellationToken): Promise<Result<CursorJumpPrediction, Error>> {
+
+		const tracer = parentTracer.createSubLogger('predictNextCursorPosition');
+
+		const promptR = this.buildCursorPredictionPrompt(promptPieces);
+		if (promptR.isError()) {
+			tracer.trace(`Failed to construct tagged file: ${promptR.err.message}`);
+			return Result.fromString(promptR.err.message);
+		}
+		const { messages, keptRange } = promptR.val;
+
 		telemetryBuilder?.setCursorJumpPrompt(messages);
+		telemetryBuilder?.setCursorJumpKeptRange(keptRange);
 
 		const modelName = this.determineModelName();
 		telemetryBuilder?.setCursorJumpModelName(modelName);
@@ -210,7 +238,7 @@ export class XtabNextCursorPredictor {
 		try {
 			telemetryBuilder?.setCursorJumpResponse(response.value);
 			const trimmed = response.value.trim();
-			return this.parseResponse(trimmed, clippedTaggedCurrentDoc.keptRange);
+			return this.parseResponse(trimmed, keptRange);
 		} catch (err: unknown) {
 			tracer.trace(`Failed to parse predicted line number from response '${response.value}': ${err}`);
 			return Result.fromString(`failedToParseLine:"${response.value}". Error ${ErrorUtils.fromUnknown(err).message}`);

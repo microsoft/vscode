@@ -26,6 +26,15 @@ export interface ISampleMetadata {
 	readonly oracleEdits: readonly (readonly [start: number, endEx: number, text: string])[];
 	readonly originalPrompt: unknown[];
 	readonly modelResponse: string;
+	/** Which datagen task produced this sample. */
+	readonly task: 'xtab' | 'cursor-same-file' | 'cursor-cross-file';
+	/** Present only when {@link task} is a cursor-* task. */
+	readonly jump?: {
+		readonly fromLine: number;
+		readonly toLine: number;
+		readonly toFilePath?: string;
+		readonly distance: number;
+	};
 }
 
 export interface ISample {
@@ -54,6 +63,8 @@ export function assembleSample(
 	processedRow: IProcessedRow,
 	strategy: string,
 	modelResponse: string,
+	task: ISampleMetadata['task'] = 'xtab',
+	jump?: ISampleMetadata['jump'],
 ): ISample {
 	const messages: IMessage[] = [
 		{ role: 'system', content: prompt.system },
@@ -72,6 +83,8 @@ export function assembleSample(
 		oracleEdits: processedRow.nextUserEdit?.edit ?? [],
 		originalPrompt: processedRow.row.prompt,
 		modelResponse,
+		task,
+		jump,
 	};
 
 	return { messages, metadata };

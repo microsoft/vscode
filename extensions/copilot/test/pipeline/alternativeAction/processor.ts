@@ -14,6 +14,58 @@ import { binarySearch, log } from './util';
 
 export namespace Processor {
 
+	export interface ISplitRecording {
+		readonly currentFile: { readonly id: number; readonly relativePath: string };
+		readonly recordingPriorToRequest: LogEntry[];
+		readonly recordingAfterRequest: LogEntry[];
+		readonly idToFileMap: ReadonlyMap<number, string>;
+	}
+
+	/**
+	 * Split a recording at its NES request bookmark and resolve the active
+	 * document at that moment. Exposed so callers (in particular nes-datagen
+	 * NCLP detectors) can reason about what the user did *after* the request
+	 * without re-implementing the same splitting logic that
+	 * {@link createScoringForAlternativeAction} performs internally.
+	 *
+	 * Returns `undefined` if the recording cannot be split (missing
+	 * `requestTime`, empty entries, no resolvable active document, etc.).
+	 */
+	export function splitRecording(altAction: IAlternativeAction): ISplitRecording | undefined {
+		const processedRecording = splitRecordingAtRequestTime(altAction);
+		if (!processedRecording) {
+			return undefined;
+		}
+
+		const { recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
+		if (currentFileId === undefined) {
+			return undefined;
+		}
+
+		const idToFileMap = documentIndexMapping(recordingPriorToRequest);
+		// Cross-file targets in the post-request portion may reference docs
+		// the user only encountered after the bookmark; merge those in too so
+		// detectors can resolve them by id.
+		for (const entry of recordingAfterRequest) {
+			if (entry.kind === 'documentEncountered' && !idToFileMap.has(entry.id)) {
+				idToFileMap.set(entry.id, entry.relativePath);
+			}
+		}
+
+		const currentFilePath = idToFileMap.get(currentFileId);
+		if (!currentFilePath) {
+			return undefined;
+		}
+
+		return {
+			currentFile: { id: currentFileId, relativePath: currentFilePath },
+			recordingPriorToRequest,
+			recordingAfterRequest,
+			idToFileMap,
+		};
+	}
+
 	export function createScoringForAlternativeAction(
 		altAction: IAlternativeAction,
 		proposedEdits: IStringReplacement[],

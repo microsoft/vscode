@@ -409,6 +409,18 @@ export interface IStatelessNextEditTelemetry {
 	readonly cursorJumpModelName: string | undefined;
 	readonly cursorJumpPrompt: string | undefined;
 	readonly cursorJumpResponse: string | undefined;
+	/**
+	 * Raw chat messages used to construct the cursor-jump prompt, kept
+	 * structured (not JSON-stringified) so debug/test tooling can read them
+	 * back without parsing. Not emitted to telemetry sinks.
+	 */
+	readonly cursorJumpRawMessages: Raw.ChatMessage[] | undefined;
+	/**
+	 * Document-line offset range the model can reference in its response.
+	 * Used by debug/test tooling to validate predicted line numbers without
+	 * re-running the predictor.
+	 */
+	readonly cursorJumpKeptRange: OffsetRange | undefined;
 
 	/* diff history info */
 	readonly nDiffsInPrompt: number | undefined;
@@ -510,6 +522,8 @@ export class StatelessNextEditTelemetryBuilder {
 			cursorJumpModelName: this._cursorJumpModelName,
 			cursorJumpPrompt: this._cursorJumpPrompt ? JSON.stringify(this._cursorJumpPrompt.map(({ role, content }) => ({ role, content }))) : undefined,
 			cursorJumpResponse: this._cursorJumpResponse,
+			cursorJumpRawMessages: this._cursorJumpPrompt,
+			cursorJumpKeptRange: this._cursorJumpKeptRange,
 			nDiffsInPrompt: this._nDiffsInPrompt,
 			diffTokensInPrompt: this._diffTokensInPrompt,
 			nNeighborSnippetsComputed: this._nNeighborSnippetsComputed,
@@ -620,6 +634,18 @@ export class StatelessNextEditTelemetryBuilder {
 	public setCursorJumpPrompt(prompt: Raw.ChatMessage[] | undefined): this {
 		this._cursorJumpPrompt = prompt;
 		return this;
+	}
+	public getCursorJumpPrompt(): Raw.ChatMessage[] | undefined {
+		return this._cursorJumpPrompt;
+	}
+
+	private _cursorJumpKeptRange: OffsetRange | undefined;
+	public setCursorJumpKeptRange(keptRange: OffsetRange | undefined): this {
+		this._cursorJumpKeptRange = keptRange;
+		return this;
+	}
+	public getCursorJumpKeptRange(): OffsetRange | undefined {
+		return this._cursorJumpKeptRange;
 	}
 
 	private _cursorJumpResponse: string | undefined;

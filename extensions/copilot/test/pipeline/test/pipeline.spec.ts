@@ -107,7 +107,7 @@ suite.skip('from csv to input rows to pipeline', () => {
 				input: inputRowsFilePath,
 				output: path.join(fixtures, 'output.jsonl'),
 				rowOffset: 0,
-				workerMode: false
+				workerMode: false, sampleTask: 'xtab', sameFileJumpMinAbove: 5, sameFileJumpMinBelow: 5
 			},
 			configFile: configFilePath,
 			verbose: true,

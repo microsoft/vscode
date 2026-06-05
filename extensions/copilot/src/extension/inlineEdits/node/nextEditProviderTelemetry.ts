@@ -356,6 +356,9 @@ export class LlmNESTelemetryBuilder extends Disposable {
 		this._statelessNextEditTelemetry = statelessNextEditTelemetry;
 		return this;
 	}
+	public getStatelessNextEditTelemetry(): IStatelessNextEditTelemetry | undefined {
+		return this._statelessNextEditTelemetry;
+	}
 
 	private _hasNextEdit: boolean = false;
 	public setHasNextEdit(hasNextEdit: boolean): this {
