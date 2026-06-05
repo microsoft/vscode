@@ -18,21 +18,22 @@ import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../plat
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
+import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
-import { IBackgroundRequestOptions, IChatEndpoint, IEndpointBody, ISubagentRequestOptions, postRequest, stringifyUrlOrRequestMetadata } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IEndpointBody, InteractionTypeOverride, postRequest, stringifyUrlOrRequestMetadata } from '../../../platform/networking/common/networking';
 import { CAPIChatMessage, ChatCompletion, FilterReason, FinishedCompletionReason, rawMessageToCAPI } from '../../../platform/networking/common/openai';
 import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/chatStream';
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
-import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, StdAttr, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
+import { collectSystemTextsFromRequestBody, CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, normalizeProviderMessages, normalizeResponseModel, StdAttr, stringifyToolDefinitionsForOTel, stringifyToolsRawForTelemetry, toSystemInstructions, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
-import { ITelemetryService, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryProperties, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { isEncryptedThinkingDelta } from '../../../platform/thinking/common/thinking';
 import { calculateLineRepetitionStats, isRepetitive } from '../../../util/common/anomalyDetection';
@@ -70,9 +71,10 @@ export abstract class AbstractChatMLFetcher extends Disposable implements IChatM
 		return {
 			temperature: this.options.temperature,
 			top_p: this.options.topP,
-			// we disallow `stream=false` because we don't support non-streamed response
+			// Default to streaming; callers can override via requestOptions.stream
+			// to opt into non-streaming (e.g. for background summarization).
+			stream: true,
 			...requestOptions,
-			stream: true
 		};
 	}
 
@@ -136,7 +138,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	 * Note: the returned array of strings may be less than `n` (e.g., in case there were errors during streaming)
 	 */
 	public async fetchMany(opts: IFetchMLOptions, token: CancellationToken): Promise<ChatResponses> {
-		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, requestKindOptions, conversationId, turnId, useWebSocket, ignoreStatefulMarker } = opts;
+		let { debugName, endpoint: chatEndpoint, finishedCb, location, messages, requestOptions, source, telemetryProperties, userInitiatedRequest, interactionTypeOverride, conversationId, turnId, topLevelTurnId, useWebSocket, ignoreStatefulMarker } = opts;
+		const interactionType = interactionTypeOverride ?? locationToIntent(location);
 		if (useWebSocket && this._consecutiveWebSocketRetryFallbacks >= ChatMLFetcherImpl._maxConsecutiveWebSocketFallbacks) {
 			this._logService.debug(`[ChatWebSocketManager] Disabling WebSocket for request due to ${this._consecutiveWebSocketRetryFallbacks} consecutive WebSocket failures with successful HTTP fallback.`);
 			useWebSocket = false;
@@ -171,7 +174,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			requestId: ourRequestId,
 			postOptions
 		});
-
+		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromMessages(messages);
 
 		const baseTelemetry = TelemetryData.createAndMarkAsIssued({
 			...telemetryProperties,
@@ -201,6 +204,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		let actualStatusCode: number | undefined;
 		let suspendEventSeen: boolean | undefined;
 		let resumeEventSeen: boolean | undefined;
+		let actualModelCallId: string | undefined;
 		let otelInferenceSpan: ISpanHandle | undefined;
 		try {
 			let response: ChatResults | ChatRequestFailed | ChatRequestCanceled;
@@ -215,8 +219,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			} else {
 				let tokenCountPromise: Promise<number> | undefined;
 				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
-				const copilotToken = await this._authenticationService.getCopilotToken();
-				usernameToScrub = copilotToken.username;
+				let copilotToken: CopilotToken | undefined;
+				try {
+					copilotToken = await this._authenticationService.getCopilotToken();
+				} catch {
+					// BYOK / air-gapped: no Copilot token available. Continue without one.
+				}
+				usernameToScrub = copilotToken?.username ?? this._authenticationService.copilotToken?.username;
+
 				const fetchResult = await this._fetchAndStreamChat(
 					chatEndpoint,
 					requestBody,
@@ -236,8 +246,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					telemetryProperties,
 					opts.useFetcher,
 					canRetryOnce,
-					requestKindOptions,
+					interactionTypeOverride,
 					opts.summarizedAtRoundId,
+					opts.modeChanged,
 				);
 				response = fetchResult.result;
 				actualFetcher = fetchResult.fetcher;
@@ -245,6 +256,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				actualStatusCode = fetchResult.statusCode;
 				suspendEventSeen = fetchResult.suspendEventSeen;
 				resumeEventSeen = fetchResult.resumeEventSeen;
+				actualModelCallId = fetchResult.modelCallId;
 				otelInferenceSpan = fetchResult.otelSpan;
 				// Tag span with debug name so orphaned spans (title, progressMessages, etc.) are identifiable
 				otelInferenceSpan?.setAttribute(GenAiAttr.AGENT_NAME, debugName);
@@ -260,31 +272,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						const userContent = typeof lastUserMsg.content === 'string'
 							? lastUserMsg.content
 							: JSON.stringify(lastUserMsg.content);
-						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent));
+						otelInferenceSpan.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userContent, this._otelService.config.maxAttributeSizeChars));
 					}
-					// System instructions — check messages array, top-level system (Anthropic), or instructions (Responses API)
-					const systemMsg = capiMessages?.find(m => m.role === 'system');
-					const systemContent = systemMsg?.content
-						?? (requestBody as Record<string, unknown>).system
-						?? (requestBody as Record<string, unknown>).instructions;
-					if (systemContent) {
-						let systemText: string;
-						if (typeof systemContent === 'string') {
-							systemText = systemContent;
-						} else if (Array.isArray(systemContent)) {
-							// Anthropic format: array of content blocks — extract text only,
-							// dropping metadata like cache_control so the value is stable across turns.
-							systemText = (systemContent as Array<{ text?: string }>)
-								.map(b => b.text ?? '')
-								.join('\n');
-						} else {
-							systemText = JSON.stringify(systemContent);
-						}
-						// Format as OTel GenAI system instruction JSON schema
-						const systemInstructions = toSystemInstructions(systemText);
-						if (systemInstructions) {
-							otelInferenceSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, JSON.stringify(systemInstructions));
-						}
+					// System instructions go on a dedicated attribute; stripped from
+					// input messages below to avoid rendering the prompt twice.
+					const systemTexts = collectSystemTextsFromRequestBody(requestBody);
+					const systemInstructions = toSystemInstructions(systemTexts);
+					if (systemInstructions) {
+						otelInferenceSpan.setAttribute(GenAiAttr.SYSTEM_INSTRUCTIONS, truncateForOTel(JSON.stringify(systemInstructions), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 
@@ -292,8 +287,30 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				if (otelInferenceSpan) {
 					const capiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<Record<string, unknown>> | undefined;
 					if (capiMessages) {
-						// Normalize provider-specific content (Anthropic tool_use/tool_result, OpenAI tool messages) to OTel schema
-						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(capiMessages))));
+						// Normalize provider-specific content to OTel schema; exclude
+						// system entries since they are emitted via `system_instructions`.
+						const nonSystemMessages = capiMessages.filter(m => (m as { role?: unknown }).role !== 'system');
+						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(normalizeProviderMessages(nonSystemMessages)), this._otelService.config.maxAttributeSizeChars));
+					}
+					// Tool definitions: emit on every chat span so trace viewers can render the
+					// tool catalog per LLM call (issue #299934). Includes `parameters` per
+					// OTel GenAI semantic conventions (issue #300318).
+					const toolDefsJson = stringifyToolDefinitionsForOTel(requestBody.tools);
+					if (toolDefsJson) {
+						otelInferenceSpan.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson, this._otelService.config.maxAttributeSizeChars));
+					}
+					// Cache-relevant request options. Anything in this blob, when changed
+					// between two requests, will invalidate the prompt cache even when
+					// the messages array is byte-identical. The Cache Explorer uses
+					// this to surface "options changed" drift alongside the message
+					// signature diff.
+					const requestOptions = pickCacheRelevantRequestOptions(requestBody);
+					if (requestOptions) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_OPTIONS, truncateForOTel(JSON.stringify(requestOptions), this._otelService.config.maxAttributeSizeChars));
+					}
+					const requestShape = pickRequestShapeMetadata(requestBody);
+					if (requestShape) {
+						otelInferenceSpan.setAttribute(CopilotChatAttr.REQUEST_SHAPE, truncateForOTel(JSON.stringify(requestShape), this._otelService.config.maxAttributeSizeChars));
 					}
 				}
 				tokenCount = await countTokens();
@@ -309,7 +326,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
 			switch (response.type) {
 				case FetchResponseKind.Success: {
-					const result = await this.processSuccessfulResponse(response, messages, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen);
+					const result = await this.processSuccessfulResponse(response, messages, imageTelemetryMeasurements, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
 
 					// Handle FilteredRetry case with augmented messages
 					if (result.type === ChatFetchResponseType.FilteredRetry) {
@@ -367,11 +384,21 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 					// Record OTel token usage metrics if available
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
+						// Store copilot_usage for per-request credits display, scoped to the turn.
+						// Skip background requests — they are not part of an active user turn.
+						if (typeof result.usage.copilot_usage?.total_nano_aiu === 'number' && turnId && interactionType !== 'conversation-background') {
+							this._chatQuotaService.setLastCopilotUsage(result.usage.copilot_usage.total_nano_aiu, topLevelTurnId ?? turnId);
+						}
+
+						// Normalize once so span attributes, metric attributes, and the inference
+						// details event all report the same value (issue #318805).
+						const normalizedResponseModel = normalizeResponseModel(chatEndpoint.model, result.resolvedModel);
+
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,
 							requestModel: chatEndpoint.model,
-							responseModel: result.resolvedModel,
+							responseModel: normalizedResponseModel,
 						};
 						if (result.usage.prompt_tokens) {
 							GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs);
@@ -384,16 +411,25 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						otelInferenceSpan?.setAttributes({
 							[GenAiAttr.USAGE_INPUT_TOKENS]: result.usage.prompt_tokens ?? 0,
 							[GenAiAttr.USAGE_OUTPUT_TOKENS]: result.usage.completion_tokens ?? 0,
-							[GenAiAttr.RESPONSE_MODEL]: result.resolvedModel ?? chatEndpoint.model,
+							[GenAiAttr.RESPONSE_MODEL]: normalizedResponseModel ?? chatEndpoint.model,
 							[GenAiAttr.RESPONSE_ID]: result.requestId,
 							[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
 							...(result.usage.prompt_tokens_details?.cached_tokens
 								? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.usage.prompt_tokens_details.cached_tokens }
 								: {}),
+							...(result.usage.prompt_tokens_details?.cache_creation_input_tokens
+								? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: result.usage.prompt_tokens_details.cache_creation_input_tokens }
+								: {}),
 							[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: timeToFirstToken,
 							...(result.serverRequestId ? { [CopilotChatAttr.SERVER_REQUEST_ID]: result.serverRequestId } : {}),
 							...(result.usage.completion_tokens_details?.reasoning_tokens
-								? { [GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens }
+								? {
+									[GenAiAttr.USAGE_REASONING_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens,
+									[GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: result.usage.completion_tokens_details.reasoning_tokens,
+								}
+								: {}),
+							...(typeof result.usage.copilot_usage?.total_nano_aiu === 'number'
+								? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: result.usage.copilot_usage.total_nano_aiu }
 								: {}),
 						});
 					}
@@ -411,7 +447,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						}
 						parts.push(...toolCalls);
 						if (parts.length > 0) {
-							otelInferenceSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }])));
+							otelInferenceSpan.setAttribute(GenAiAttr.OUTPUT_MESSAGES, truncateForOTel(JSON.stringify([{ role: 'assistant', parts }]), this._otelService.config.maxAttributeSizeChars));
 						}
 						// Capture reasoning/thinking text if present
 						const hasThinking = streamRecorder.deltas.some(d => d.thinking);
@@ -424,7 +460,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 									return Array.isArray(t.text) ? t.text.join('') : (t.text ?? '');
 								});
 							const reasoningText = thinkingTexts.join('');
-							otelInferenceSpan.setAttribute(CopilotChatAttr.REASONING_CONTENT, truncateForOTel(reasoningText || '[encrypted]'));
+							otelInferenceSpan.setAttribute(CopilotChatAttr.REASONING_CONTENT, truncateForOTel(reasoningText || '[encrypted]', this._otelService.config.maxAttributeSizeChars));
 						}
 					}
 
@@ -439,7 +475,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						},
 						result.type === ChatFetchResponseType.Success ? {
 							id: result.requestId,
-							model: result.resolvedModel,
+							model: normalizeResponseModel(chatEndpoint.model, result.resolvedModel),
 							finishReasons: ['stop'],
 							inputTokens: result.usage?.prompt_tokens,
 							outputTokens: result.usage?.completion_tokens,
@@ -469,7 +505,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							model: chatEndpoint.model,
 							apiType: chatEndpoint.apiType,
 							transport,
+							interactionType,
+							conversationId: telemetryProperties.conversationId ?? conversationId,
 							associatedRequestId: telemetryProperties.associatedRequestId,
+							parentRequestId: telemetryProperties.parentRequestId,
 							retryAfterError: telemetryProperties.retryAfterError,
 							retryAfterErrorGitHubRequestId: telemetryProperties.retryAfterErrorGitHubRequestId,
 							connectivityTestError: telemetryProperties.connectivityTestError,
@@ -491,6 +530,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							isAuto: isAutoModel(chatEndpoint),
 							bytesReceived: actualBytesReceived,
 							issuedTime: baseTelemetry.issuedTime,
+							imageTelemetryMeasurements,
 						});
 					pendingLoggedChatRequest?.resolveWithCancelation();
 					// Set canceled status on OTel span
@@ -524,6 +564,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							bytesReceived: actualBytesReceived,
 							baseTelemetry,
 							streamRecorder,
+							imageTelemetryMeasurements,
 							retryReason: 'server_error',
 							debugNamePrefix: 'retry-server-error-',
 							pendingLoggedChatRequest,
@@ -531,6 +572,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							usernameToScrub,
 							suspendEventSeen,
 							resumeEventSeen,
+							interactionType,
 						});
 						if (retryResult) {
 							return retryResult;
@@ -545,7 +587,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						maxResponseTokens,
 						timeToFirstToken,
 						isVisionRequest: this.filterImageMessages(messages),
+						imageTelemetryMeasurements,
 						transport,
+						interactionType,
 						fetcher: actualFetcher,
 						bytesReceived: actualBytesReceived,
 						issuedTime: baseTelemetry.issuedTime,
@@ -593,6 +637,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					bytesReceived: err.bytesReceived,
 					baseTelemetry,
 					streamRecorder,
+					imageTelemetryMeasurements,
 					retryReason: 'network_error',
 					debugNamePrefix: 'retry-error-',
 					pendingLoggedChatRequest,
@@ -600,6 +645,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					usernameToScrub,
 					suspendEventSeen,
 					resumeEventSeen,
+					interactionType,
 				});
 				if (retryResult) {
 					return retryResult;
@@ -615,7 +661,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						model: chatEndpoint.model,
 						apiType: chatEndpoint.apiType,
 						transport,
+						interactionType,
+						conversationId: telemetryProperties.conversationId ?? conversationId,
 						associatedRequestId: telemetryProperties.associatedRequestId,
+						parentRequestId: telemetryProperties.parentRequestId,
 						retryAfterError: telemetryProperties.retryAfterError,
 						retryAfterErrorGitHubRequestId: telemetryProperties.retryAfterErrorGitHubRequestId,
 						connectivityTestError: telemetryProperties.connectivityTestError,
@@ -636,6 +685,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						isAuto: isAutoModel(chatEndpoint),
 						bytesReceived: err.bytesReceived,
 						issuedTime: baseTelemetry.issuedTime,
+						imageTelemetryMeasurements,
 					}
 				);
 			} else {
@@ -648,7 +698,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					maxResponseTokens,
 					timeToFirstToken: timeToError,
 					isVisionRequest: this.filterImageMessages(messages),
+					imageTelemetryMeasurements,
 					transport,
+					interactionType,
 					fetcher: actualFetcher,
 					bytesReceived: err.bytesReceived,
 					issuedTime: baseTelemetry.issuedTime,
@@ -728,6 +780,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		bytesReceived: number | undefined;
 		baseTelemetry: TelemetryData;
 		streamRecorder: FetchStreamRecorder;
+		imageTelemetryMeasurements: ImageTelemetryMeasurements;
 		retryReason: 'network_error' | 'server_error';
 		debugNamePrefix: string;
 		pendingLoggedChatRequest: ReturnType<IRequestLogger['logChatRequest']>;
@@ -735,6 +788,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		usernameToScrub: string | undefined;
 		suspendEventSeen: boolean | undefined;
 		resumeEventSeen: boolean | undefined;
+		interactionType: string;
 	}): Promise<{ retryResult?: ChatResponses; connectivityTestError?: string; connectivityTestErrorGitHubRequestId?: string }> {
 		const {
 			opts,
@@ -749,6 +803,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			bytesReceived,
 			baseTelemetry,
 			streamRecorder,
+			imageTelemetryMeasurements,
 			retryReason,
 			debugNamePrefix,
 			pendingLoggedChatRequest,
@@ -756,6 +811,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			usernameToScrub,
 			suspendEventSeen,
 			resumeEventSeen,
+			interactionType,
 		} = params;
 
 		// net::ERR_NETWORK_CHANGED: https://github.com/microsoft/vscode/issues/260297
@@ -788,7 +844,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				maxResponseTokens,
 				timeToFirstToken: timeToError,
 				isVisionRequest: this.filterImageMessages(opts.messages),
+				imageTelemetryMeasurements,
 				transport,
+				interactionType,
 				fetcher: actualFetcher,
 				bytesReceived,
 				issuedTime: baseTelemetry.issuedTime,
@@ -835,7 +893,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -848,9 +906,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryProperties?: TelemetryProperties | undefined,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
-		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
+		interactionTypeOverride?: InteractionTypeOverride,
 		summarizedAtRoundId?: string,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle }> {
+		modeChanged?: boolean,
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle; modelCallId?: string }> {
 		const isPowerSaveBlockerEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ChatRequestPowerSaveBlocker, this._experimentationService);
 		const blockerHandle = isPowerSaveBlockerEnabled && location !== ChatLocation.Other ? this._powerService.acquirePowerSaveBlocker() : undefined;
 
@@ -887,8 +946,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				telemetryProperties,
 				useFetcher,
 				canRetryOnce,
-				requestKindOptions,
+				interactionTypeOverride,
 				summarizedAtRoundId,
+				modeChanged,
 			);
 			return { ...fetchResult, suspendEventSeen: suspendEventSeen || undefined, resumeEventSeen: resumeEventSeen || undefined };
 		} catch (err) {
@@ -912,7 +972,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
 		secretKey: string | undefined,
-		copilotToken: CopilotToken,
+		copilotToken: CopilotToken | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -925,9 +985,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryProperties?: TelemetryProperties | undefined,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
-		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
+		interactionTypeOverride?: InteractionTypeOverride,
 		summarizedAtRoundId?: string,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle }> {
+		modeChanged?: boolean,
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; otelSpan?: ISpanHandle; modelCallId?: string }> {
 
 		if (cancellationToken.isCancellationRequested) {
 			return { result: { type: FetchResponseKind.Canceled, reason: 'before fetch request' } };
@@ -966,9 +1027,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._logService.debug(`modelMaxResponseTokens ${request.max_tokens ?? 2048}`);
 			this._logService.debug(`chat model ${chatEndpointInfo.model}`);
 
-			secretKey ??= copilotToken.token;
-			if (!secretKey) {
-				// If no key is set we error
+			// BYOK endpoints that own their `Authorization` (see IChatEndpoint.ownsAuthorization)
+			// opt out of the CAPI Copilot-token fallback to avoid leaking the user's bearer to a
+			// third-party URL and to keep the wire request from carrying an unintended
+			// `Authorization: Bearer …` alongside their own auth header.
+			if (!chatEndpointInfo.ownsAuthorization) {
+				secretKey ??= copilotToken?.token;
+			}
+			if (!secretKey && !chatEndpointInfo.ownsAuthorization) {
 				const urlOrRequestMetadata = stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata);
 				this._logService.error(`Failed to send request to ${urlOrRequestMetadata} due to missing key`);
 				sendCommunicationErrorTelemetry(this._telemetryService, `Failed to send request to ${urlOrRequestMetadata} due to missing key`);
@@ -998,8 +1064,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					countTokens,
 					userInitiatedRequest,
 					telemetryProperties,
-					requestKindOptions,
+					interactionTypeOverride,
 					summarizedAtRoundId,
+					modeChanged,
 				);
 				return { ...wsResult, otelSpan };
 			}
@@ -1018,7 +1085,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				telemetryProperties,
 				useFetcher,
 				canRetryOnce,
-				requestKindOptions,
+				interactionTypeOverride,
 			);
 			return { ...httpResult, otelSpan };
 
@@ -1047,7 +1114,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		turnId: string,
@@ -1056,27 +1123,22 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		countTokens: () => Promise<number>,
 		userInitiatedRequest: boolean | undefined,
 		telemetryProperties: TelemetryProperties | undefined,
-		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
+		interactionTypeOverride: InteractionTypeOverride | undefined,
 		summarizedAtRoundId: string | undefined,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled }> {
+		modeChanged: boolean | undefined,
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; modelCallId?: string }> {
 		const intent = locationToIntent(location);
-		const agentInteractionType = requestKindOptions?.kind === 'subagent' ?
-			'conversation-subagent' :
-			requestKindOptions?.kind === 'background' ?
-				'conversation-background' :
-				intent === 'conversation-agent' ? intent : undefined;
+		const agentInteractionType = interactionTypeOverride ?? intent;
 		const additionalHeaders: Record<string, string> = {
-			'Authorization': `Bearer ${secretKey}`,
+			...(secretKey ? { 'Authorization': `Bearer ${secretKey}` } : {}),
 			'X-Request-Id': ourRequestId,
 			'OpenAI-Intent': intent,
 			'X-GitHub-Api-Version': '2025-05-01',
 			'X-Interaction-Id': this._interactionService.interactionId,
-			...(chatEndpointInfo.getExtraHeaders ? chatEndpointInfo.getExtraHeaders(location) : {}),
+			...(chatEndpointInfo.getExtraHeaders ? chatEndpointInfo.getExtraHeaders(location, interactionTypeOverride) : {}),
 		};
-		if (agentInteractionType) {
-			additionalHeaders['X-Interaction-Type'] = agentInteractionType;
-			additionalHeaders['X-Agent-Task-Id'] = ourRequestId;
-		}
+		additionalHeaders['X-Interaction-Type'] = agentInteractionType;
+		additionalHeaders['X-Agent-Task-Id'] = ourRequestId;
 		if (request.messages?.some((m: CAPIChatMessage) => Array.isArray(m.content) ? m.content.some(c => 'image_url' in c) : false) && chatEndpointInfo.supportsVision) {
 			additionalHeaders['Copilot-Vision-Request'] = 'true';
 		}
@@ -1113,12 +1175,24 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
+			if (key === 'tools') {
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
+				continue;
+			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
+		if (request.tools) {
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+				headerRequestId: ourRequestId,
+				conversationId,
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
+			}), telemetryData.measurements);
+		}
+
 		const requestStart = Date.now();
-		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId }, cancellationToken);
+		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, model: chatEndpointInfo.model, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId, modeChanged }, cancellationToken);
 
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
 		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, modelRequestId.serverExperiments, getResponsesApiCompactionThresholdFromBody(request));
@@ -1220,7 +1294,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			result: {
 				type: FetchResponseKind.Success,
 				chatCompletions,
-			}
+			},
+			modelCallId,
 		};
 	}
 
@@ -1229,7 +1304,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		request: IEndpointBody,
 		baseTelemetryData: TelemetryData,
 		finishedCb: FinishedCallback,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		ourRequestId: string,
 		nChoices: number | undefined,
@@ -1238,8 +1313,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryProperties: TelemetryProperties | undefined,
 		useFetcher: FetcherId | undefined,
 		canRetryOnce: boolean | undefined,
-		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
-	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number }> {
+		interactionTypeOverride: InteractionTypeOverride | undefined,
+	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; modelCallId?: string }> {
 		// Generate unique ID to link input and output messages
 		const modelCallId = generateUuid();
 
@@ -1254,7 +1329,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			{ ...telemetryProperties, modelCallId },
 			useFetcher,
 			canRetryOnce,
-			requestKindOptions,
+			interactionTypeOverride,
 		);
 
 		if (cancellationToken.isCancellationRequested) {
@@ -1337,7 +1412,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				chatCompletions,
 			},
 			fetcher: response.fetcher,
-			bytesReceived: response.bytesReceived
+			bytesReceived: response.bytesReceived,
+			modelCallId,
 		};
 	}
 
@@ -1345,14 +1421,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		chatEndpoint: IChatEndpoint,
 		ourRequestId: string,
 		request: IEndpointBody,
-		secretKey: string,
+		secretKey: string | undefined,
 		location: ChatLocation,
 		cancellationToken: CancellationToken,
 		userInitiatedRequest?: boolean,
 		telemetryProperties?: TelemetryProperties,
 		useFetcher?: FetcherId,
 		canRetryOnce?: boolean,
-		requestKindOptions?: IBackgroundRequestOptions | ISubagentRequestOptions,
+		interactionTypeOverride?: InteractionTypeOverride,
 	): Promise<Response> {
 
 		// If request contains an image, we include this header.
@@ -1377,6 +1453,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			if (key === 'messages' || key === 'input') {
 				continue;
 			} // Skip messages (PII)
+			if (key === 'tools') {
+				telemetryData.properties[`request.option.${key}`] = stringifyToolsRawForTelemetry(value as ReadonlyArray<unknown> | undefined) ?? 'undefined';
+				continue;
+			}
 			telemetryData.properties[`request.option.${key}`] = JSON.stringify(value) ?? 'undefined';
 		}
 
@@ -1386,6 +1466,14 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		telemetryData.properties['headerRequestId'] = ourRequestId;
 
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
+
+		if (request.tools) {
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.options.tools', multiplexProperties({
+				headerRequestId: ourRequestId,
+				conversationId: telemetryProperties?.conversationId,
+				messagesJson: stringifyToolsRawForTelemetry(request.tools)!,
+			}), telemetryData.measurements);
+		}
 
 		const requestStart = Date.now();
 		const intent = locationToIntent(location);
@@ -1402,7 +1490,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			useFetcher,
 			canRetryOnce,
 			location,
-			requestKindOptions,
+			interactionTypeOverride,
 		}).then(response => {
 			const apim = response.headers.get('apim-request-id');
 			if (apim) {
@@ -1482,6 +1570,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		requestId = modelRequestIdObj.headerRequestId || requestId;
 		modelRequestIdObj.headerRequestId = requestId;
 
+		this._chatQuotaService.processQuotaHeaders(response.headers);
+
 		telemetryData.properties.error = `Response status was ${response.status}`;
 		telemetryData.properties.status = String(response.status);
 		this._telemetryService.sendGHTelemetryEvent('request.shownWarning', telemetryData.properties, telemetryData.measurements);
@@ -1549,7 +1639,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					this._authenticationService.resetCopilotToken(response.status);
 					await this._authenticationService.getCopilotToken();
 				}
-
 
 				const retryAfter = response.headers.get('retry-after');
 
@@ -1714,6 +1803,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	private async processSuccessfulResponse(
 		response: ChatResults,
 		messages: Raw.ChatMessage[],
+		imageTelemetryMeasurements: ImageTelemetryMeasurements,
 		requestBody: IEndpointBody,
 		requestId: string,
 		maxResponseTokens: number,
@@ -1723,11 +1813,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		baseTelemetry: TelemetryData,
 		chatEndpointInfo: IChatEndpoint,
 		userInitiatedRequest: boolean | undefined,
+		interactionType: string,
 		transport: string,
 		fetcher: FetcherId | undefined,
 		bytesReceived: number | undefined,
 		suspendEventSeen: boolean | undefined,
 		resumeEventSeen: boolean | undefined,
+		modelCallId: string | undefined,
 	): Promise<ChatResponses | ChatFetchRetriableError<string[]>> {
 
 		const completions: ChatCompletion[] = [];
@@ -1739,6 +1831,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					chatCompletion,
 					baseTelemetry,
 					userInitiatedRequest,
+					interactionType,
 					chatEndpointInfo,
 					requestBody,
 					maxResponseTokens,
@@ -1746,11 +1839,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					timeToFirstToken,
 					timeToFirstTokenEmitted: (baseTelemetry && streamRecorder.firstTokenEmittedTime) ? streamRecorder.firstTokenEmittedTime - baseTelemetry.issuedTime : -1,
 					hasImageMessages: this.filterImageMessages(messages),
+					imageTelemetryMeasurements,
 					transport,
 					fetcher,
 					bytesReceived,
 					suspendEventSeen,
 					resumeEventSeen,
+					modelCallId,
 				}
 			);
 
@@ -1768,6 +1863,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				value: successfulCompletions.map(c => getTextPart(c.message.content)),
 				requestId,
 				serverRequestId: successfulCompletions[0].requestId.headerRequestId,
+				modelCallId,
 			};
 		}
 
@@ -2052,7 +2148,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				data: { capiError },
 			};
 		}
-		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured') {
+		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
 			// Refresh the copilot token so isChatQuotaExceeded reflects the new state,
 			// matching the HTTP 402 handler behavior.
 			if (!this._authenticationService.copilotToken?.isChatQuotaExceeded) {
@@ -2125,7 +2221,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		if (codePrefix === 'rate_limited' || codePrefix === 'user_model_rate_limited' || codePrefix === 'user_global_rate_limited' || codePrefix === 'integration_rate_limited' || codePrefix === 'model_overloaded' || codePrefix === 'agent_mode_limit_exceeded') {
 			return { type: ChatFetchResponseType.RateLimited, reason: message, requestId, serverRequestId, retryAfter: undefined, rateLimitKey: '', isAuto, capiError };
 		}
-		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured') {
+		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
 			return { type: ChatFetchResponseType.QuotaExceeded, reason: message, requestId, serverRequestId, capiError, retryAfter: undefined };
 		}
 		if (code === 'content_filter') {
@@ -2219,4 +2315,65 @@ export function locationToIntent(location: ChatLocation): string {
 		case ChatLocation.MessagesProxy:
 			return 'messages-proxy';
 	}
+}
+
+/**
+ * Curate the cache-relevant subset of a request body. Anything in the
+ * returned object that differs between two requests will invalidate the
+ * prompt cache even when the message array itself is byte-identical
+ * (e.g. switching from `tool_choice: 'auto'` to `'required'`, raising
+ * `reasoning_effort`, enabling thinking, changing the response format).
+ *
+ * Strict allowlist on purpose: we never want a future provider-specific
+ * body field (especially anything resembling auth headers, API keys, or
+ * personal identifiers) to silently leak into the OTel attribute or the
+ * on-disk debug log via a catch-all. New cache-keying knobs must be
+ * added explicitly here.
+ */
+function pickCacheRelevantRequestOptions(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	for (const key of [
+		'tool_choice', 'reasoning', 'reasoning_effort', 'thinking', 'thinking_budget',
+		'output_config', 'response_format', 'text', 'truncation', 'context_management',
+		'frequency_penalty', 'presence_penalty', 'top_logprobs', 'logit_bias',
+		'store', 'stream', 'stream_options', 'prediction', 'seed', 'parallel_tool_calls',
+		'service_tier', 'metadata', 'verbosity', 'snippy', 'state', 'intent', 'intent_threshold',
+		'include',
+	] as const) {
+		const value = (body as Record<string, unknown>)[key];
+		if (value !== undefined) {
+			out[key] = value;
+		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Sanitized request-shape metadata for debug views. This intentionally omits
+ * identifiers such as `previous_response_id` itself and never includes message
+ * or tool contents; it only records whether a Responses API continuation marker
+ * was present and which top-level input item kinds were sent on the wire.
+ */
+function pickRequestShapeMetadata(body: IEndpointBody): Record<string, unknown> | undefined {
+	const out: Record<string, unknown> = {};
+	if (Array.isArray(body.input)) {
+		out.api = 'responses';
+		out.inputItemCount = body.input.length;
+		out.inputItemTypes = body.input.map(item => {
+			if (item && typeof item === 'object') {
+				const type = (item as Record<string, unknown>).type;
+				if (typeof type === 'string') {
+					return type;
+				}
+			}
+			return 'unknown';
+		});
+	} else if (Array.isArray(body.messages)) {
+		out.api = 'messages';
+		out.messageCount = body.messages.length;
+	}
+	if (typeof body.previous_response_id === 'string') {
+		out.hasPreviousResponseId = true;
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
 }

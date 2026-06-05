@@ -11,7 +11,6 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -21,11 +20,17 @@ import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 
 // Register actions and browser features
-import './browserViewActions.js';
+import './features/webContentsViewRendererFeature.js';
+import './features/browserNavigationFeatures.js';
+import './features/browserWelcomeFeature.js';
+import './features/browserFavoritesFeature.js';
+import './features/browserHistoryFeature.js';
 import './features/browserDataStorageFeatures.js';
 import './features/browserDevToolsFeature.js';
 import './features/browserEditorChatFeatures.js';
+import './features/browserEditorErrorFeatures.js';
 import './features/browserEditorZoomFeature.js';
+import './features/browserEditorEmulationFeatures.js';
 import './features/browserEditorFindFeature.js';
 import './features/browserTabManagementFeatures.js';
 
@@ -50,7 +55,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -70,10 +75,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
 					}
 
-					const browserInput = instantiationService.createInstance(BrowserEditorInput, {
-						...options?.viewState,
-						id: parsed.id
-					});
+					const browserInput = browserViewWorkbenchService.getOrCreateLazy(parsed.id, options?.viewState);
 
 					// Start resolving the input right away. This will create the browser view.
 					// This allows browser views to be loaded in the background.
@@ -82,8 +84,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					return {
 						editor: browserInput,
 						options: {
-							...options,
-							pinned: !!browserInput.url // pin if navigated
+							pinned: !!browserInput.url, // pin if navigated
+							...options
 						}
 					};
 				}

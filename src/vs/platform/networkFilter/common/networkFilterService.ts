@@ -19,8 +19,9 @@ export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterSer
  * Service that filters network requests made by agent tools (fetch tool,
  * integrated browser) based on the configured allowed/denied domain lists.
  *
- * Filtering is only active when the `chat.agent.networkFilter` setting is
- * enabled.  When both domain lists are empty, all domains are denied.
+ * Filtering is active for all callers when the `chat.agent.networkFilter` setting
+ * is enabled.
+ * When both domain lists are empty, all domains are denied.
  * When a domain appears on the denied list it is always blocked, even if it
  * also matches an entry on the allowed list.
  */
@@ -51,7 +52,7 @@ export interface IAgentNetworkFilterService {
 export class AgentNetworkFilterService extends Disposable implements IAgentNetworkFilterService {
 	readonly _serviceBrand: undefined;
 
-	private enabled = false;
+	private networkFilterEnabled = false;
 	private allowedPatterns: string[] = [];
 	private deniedPatterns: string[] = [];
 	private readonly domainCache = new LRUCache<string, boolean>(100);
@@ -78,15 +79,17 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 	}
 
 	private readConfiguration(): void {
-		this.enabled = this.configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) ?? false;
+		const networkFilterEnabled = this.configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) ?? false;
+
+		this.networkFilterEnabled = networkFilterEnabled;
 		this.allowedPatterns = this.configurationService.getValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
 		this.deniedPatterns = this.configurationService.getValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
 		this.domainCache.clear();
 	}
 
 	isUriAllowed(uri: URI): boolean {
-		// When the network filter is disabled, allow all requests.
-		if (!this.enabled) {
+		// When domain filtering is inactive, allow all requests.
+		if (!this.shouldFilter()) {
 			return true;
 		}
 
@@ -107,6 +110,11 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 		}
 
 		return result;
+	}
+	// Determines whether network filtering should be applied for a given request
+	// based on the global network filter setting.
+	private shouldFilter(): boolean {
+		return this.networkFilterEnabled;
 	}
 
 	formatError(uri: URI): string {

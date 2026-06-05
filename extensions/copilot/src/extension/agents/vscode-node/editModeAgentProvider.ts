@@ -66,7 +66,7 @@ export class EditModeAgentProvider extends Disposable implements vscode.ChatCust
 	): Promise<vscode.ChatResource[]> {
 		const content = buildAgentMarkdown(BASE_EDIT_MODE_AGENT_CONFIG);
 		const fileUri = await this._writeCacheFile(content);
-		return [{ uri: fileUri }];
+		return [{ uri: fileUri, sessionTypes: ['local'] }];
 	}
 
 	private async _writeCacheFile(content: string): Promise<vscode.Uri> {

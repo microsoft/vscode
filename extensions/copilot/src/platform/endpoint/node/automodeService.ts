@@ -13,6 +13,7 @@ import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
+import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
 import { createCapiClientFetchedValue } from '../../networking/common/capiClientFetchedValue';
 import { isAbortError } from '../../networking/common/fetcherService';
@@ -63,14 +64,18 @@ class AutoModeTokenBank extends Disposable {
 		this._fetchedValue = this._register(createCapiClientFetchedValue<AutoModeAPIResponse>(capiClientService, envService, {
 			request: async () => {
 				const authToken = (await authService.getCopilotToken()).token;
-				const autoModeHint = expService.getTreatmentVariable<string>(expName) || 'auto';
+				const extValue = expService.getTreatmentVariable<string>(expName);
+				const model_hints = [extValue || 'auto'];
+				if (location === ChatLocation.Editor && model_hints[0] !== 'auto') {
+					model_hints.push('auto');
+				}
 				return {
 					headers: {
 						'Content-Type': 'application/json',
 						'Authorization': `Bearer ${authToken}`,
 					},
 					method: 'POST' as const,
-					json: { auto_mode: { model_hints: [autoModeHint] } },
+					json: { auto_mode: { model_hints } },
 				};
 			},
 			requestMetadata: { type: RequestType.AutoModels },
@@ -186,10 +191,12 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		if (entry?.needsReEval) {
 			entry.needsReEval = false;
 		}
+		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromReferences(chatRequest?.references);
+		const imageTelemetryEventMeasurements = getImageTelemetryEventMeasurements(imageTelemetryMeasurements);
 
 		const routerResult = skipRouter
 			? { lastRoutedPrompt: chatRequest?.prompt?.trim() ?? entry?.lastRoutedPrompt }
-			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints);
+			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints, imageTelemetryEventMeasurements);
 		let selectedModel = routerResult.selectedModel;
 		const lastRoutedPrompt = routerResult.lastRoutedPrompt;
 		const routerFallbackReason = routerResult.fallbackReason;
@@ -202,13 +209,30 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						"owner": "lramos15",
 						"comment": "Reports when the auto mode router is skipped or fails and falls back to default model selection",
 						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The reason the router was skipped or failed, e.g. emptyPrompt, emptyCandidateList, noMatchingEndpoint, routerError, routerTimeout, or a server error code" },
-						"hasImage": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request contained an attached image" }
+						"hasImage": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request contained an attached image" },
+						"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+						"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+						"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+						"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+						"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+						"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+						"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+						"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+						"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+						"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+						"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+						"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+						"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+						"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+						"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+						"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+						"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true }
 					}
 				*/
 				this._telemetryService.sendMSFTTelemetryEvent('automode.routerFallback', {
 					reason: routerFallbackReason,
-					hasImage: String(hasImage(chatRequest)),
-				});
+					hasImage: String(imageTelemetryMeasurements.imageCount > 0),
+				}, imageTelemetryEventMeasurements);
 			}
 			selectedModel = this._selectDefaultModel(entry?.endpoint?.modelProvider, token.available_models, knownEndpoints);
 		}
@@ -225,7 +249,24 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
 					"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The router's top candidate model (candidate_models[0])" },
 					"actualModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model actually selected after all client-side overrides" },
-					"overrideReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the actual model differs from the candidate: none or clientOverride" }
+					"overrideReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the actual model differs from the candidate: none or clientOverride" },
+					"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
+					"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
+					"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
+					"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
+					"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
+					"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+					"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
+					"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
+					"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
+					"imageGifCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of GIF input images", "isMeasurement": true },
+					"imageWebpCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of WebP input images", "isMeasurement": true },
+					"imageUnknownMimeCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose MIME type is unknown or unsupported", "isMeasurement": true },
+					"imageClipboardCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from clipboard or paste", "isMeasurement": true },
+					"imageScreenshotCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from screenshot capture", "isMeasurement": true },
+					"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
+					"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
+					"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true }
 				}
 			*/
 			const candidateModel = routerResult.candidateModel;
@@ -235,7 +276,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				candidateModel,
 				actualModel: selectedModel.model,
 				overrideReason,
-			});
+			}, imageTelemetryEventMeasurements);
 		}
 
 		// Reuse the cached endpoint if the session token and model haven't changed
@@ -273,6 +314,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		entry: AutoModelCacheEntry | undefined,
 		token: AutoModeAPIResponse,
 		knownEndpoints: IChatEndpoint[],
+		imageTelemetryEventMeasurements: Partial<ImageTelemetryMeasurements>,
 	): Promise<{ selectedModel?: IChatEndpoint; lastRoutedPrompt?: string; fallbackReason?: string; candidateModel?: string }> {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
@@ -299,7 +341,27 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				turn_number: (entry?.turnCount ?? 0) + 1,
 			};
 			const routingMethod = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRoutingMethod, this._expService) || undefined;
-			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, token.available_models, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest));
+
+			// Filter available_models to only those the client can actually serve.
+			// The AutoModels API and Models API are separate CAPI calls that can be
+			// out of sync (e.g. a new model appears in available_models before the
+			// Models API returns it). Sending unresolvable models to the router
+			// causes it to recommend models the client must silently discard.
+			const knownModelIds = new Set(knownEndpoints.map(e => e.model));
+			const routableModels: string[] = [];
+			const droppedModels: string[] = [];
+			for (const m of token.available_models) {
+				(knownModelIds.has(m) ? routableModels : droppedModels).push(m);
+			}
+			if (!routableModels.length) {
+				this._logService.warn(`[AutomodeService] No available_models matched knownEndpoints. available_models=[${token.available_models.join(', ')}], knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}]`);
+				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint' };
+			}
+			if (droppedModels.length) {
+				this._logService.info(`[AutomodeService] Filtered ${droppedModels.length} unresolvable model(s) before routing: [${droppedModels.join(', ')}]`);
+			}
+
+			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, routableModels, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest), imageTelemetryEventMeasurements);
 
 			if (result.fallback) {
 				this._logService.info(`[AutomodeService] Router signaled fallback: ${result.fallback_reason ?? 'unknown'}, routing_method=${result.routing_method ?? 'n/a'}`);
@@ -310,11 +372,15 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				return { lastRoutedPrompt: prompt, fallbackReason: 'emptyCandidateList' };
 			}
 
-			// Prefer same-provider model, then fall back to the router's top candidate
-			const selectedModel = (entry?.endpoint && this._findSameProviderModel(entry.endpoint.modelProvider, result.candidate_models, knownEndpoints))
-				?? knownEndpoints.find(e => e.model === result.candidate_models[0]);
+			// Trust the router's ranked candidate list directly.
+			// Same-provider preference is intentionally NOT applied here — the router
+			// already accounts for available models and re-runs after /compact, so
+			// overriding its pick with same-provider negates cost-saving decisions.
+			// Same-provider is still used in _selectDefaultModel (the non-router fallback).
+			const selectedModel = this._findFirstAvailableModel(result.candidate_models, knownEndpoints);
 
 			if (!selectedModel) {
+				this._logService.warn(`[AutomodeService] None of the router's candidate_models matched knownEndpoints: [${result.candidate_models.join(', ')}]`);
 				return { lastRoutedPrompt: prompt, fallbackReason: 'noMatchingEndpoint' };
 			}
 
@@ -338,14 +404,38 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	}
 
 	private _selectDefaultModel(currentModelProvider: string | undefined, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
-		const selectedModel = (currentModelProvider && this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints))
+		const selectedModel = (currentModelProvider ? this._findSameProviderModel(currentModelProvider, availableModels, knownEndpoints) : undefined)
 			?? this._findFirstAvailableModel(availableModels, knownEndpoints);
-		if (!selectedModel) {
-			const errorMsg = 'Auto mode failed: no available model found in known endpoints.';
-			this._logService.error(errorMsg);
-			throw new Error(errorMsg);
+		if (selectedModel) {
+			return selectedModel;
 		}
-		return selectedModel;
+		// AutoModels (cached up to 6h in the CopilotToken) and the Models API
+		// (refreshed every 10min) are independent CAPI calls and can drift, so
+		// `available_models` may have zero overlap with `knownEndpoints` (e.g.
+		// a model was removed server-side after the token was minted). Rather
+		// than throwing "Auto mode failed: no available model found in known
+		// endpoints" and breaking the chat, fall back to the first known
+		// endpoint so the user can keep working. Emit telemetry so we can
+		// monitor how often this happens.
+		const fallbackEndpoint = knownEndpoints[0];
+		this._logService.warn(
+			`[AutomodeService] No available_models matched knownEndpoints; using fallback endpoint '${fallbackEndpoint.model}'. ` +
+			`available_models=[${availableModels.join(', ')}], knownEndpoints=[${knownEndpoints.map(e => e.model).join(', ')}]`,
+		);
+		/* __GDPR__
+			"automode.noEndpointFallback" : {
+				"owner": "aashnagarg",
+				"comment": "Reports when AutoModels available_models has no overlap with knownEndpoints and the client falls back to the first known endpoint instead of failing.",
+				"availableModelCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of models in the AutoModels response" },
+				"knownEndpointCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of known endpoints from the Models API" },
+				"fallbackModel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The model selected as the safe fallback" }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('automode.noEndpointFallback',
+			{ fallbackModel: fallbackEndpoint.model },
+			{ availableModelCount: availableModels.length, knownEndpointCount: knownEndpoints.length },
+		);
+		return fallbackEndpoint;
 	}
 
 	private _isRouterEnabled(chatRequest: ChatRequest | undefined): boolean {

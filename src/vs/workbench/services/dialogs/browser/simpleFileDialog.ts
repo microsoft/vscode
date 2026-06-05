@@ -531,9 +531,6 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		});
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	private async handleValueChange(value: string) {
 		try {
@@ -949,7 +946,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			if (stat?.isDirectory) {
 				// Can't do this
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
-				return Promise.resolve(false);
+				return false;
 			} else if (stat) {
 				// Replacing a file.
 				// Show a yes/no prompt
@@ -958,37 +955,54 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			} else if (!(isValidBasename(resources.basename(uri), this.isWindows))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
-				return Promise.resolve(false);
+				return false;
 			} else if (!statDirname) {
 				// Folder to save in doesn't exist
 				const message = nls.localize('remoteFileDialog.validateCreateDirectory', 'The folder {0} does not exist. Would you like to create it?', resources.basename(resources.dirname(uri)));
 				return this.yesNoPrompt(uri, message);
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
-				return Promise.resolve(false);
+				return false;
 			} else if (statDirname.readonly) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateReadonlyFolder', 'This folder cannot be used as a save destination. Please choose another folder');
-				return Promise.resolve(false);
+				return false;
 			}
 		} else { // open
 			if (!stat) {
+				// For a folder-only picker, offer to create the folder if the parent exists.
+				if (this.allowFolderSelection && !this.allowFileSelection
+					&& statDirname?.isDirectory && !statDirname.readonly
+					&& isValidBasename(resources.basename(uri), this.isWindows)) {
+					const message = nls.localize('remoteFileDialog.validateCreateDirectoryOpen', 'The folder {0} does not exist. Would you like to create it?', resources.basename(uri));
+					const shouldCreate = await this.yesNoPrompt(uri, message);
+					if (!shouldCreate) {
+						return false;
+					}
+					try {
+						await this.fileService.createFolder(uri);
+						return true;
+					} catch (e) {
+						this.filePickBox.validationMessage = nls.localize('remoteFileDialog.createFolderFailed', 'Could not create folder: {0}', e.message);
+						return false;
+					}
+				}
 				// File or folder doesn't exist
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
-				return Promise.resolve(false);
+				return false;
 			} else if (uri.path === '/' && this.isWindows) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.windowsDriveLetter', 'Please start the path with a drive letter.');
-				return Promise.resolve(false);
+				return false;
 			} else if (stat.isDirectory && !this.allowFolderSelection) {
 				// Folder selected when folder selection not permitted
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFileOnly', 'Please select a file.');
-				return Promise.resolve(false);
+				return false;
 			} else if (!stat.isDirectory && !this.allowFileSelection) {
 				// File selected when file selection not permitted
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolderOnly', 'Please select a folder.');
-				return Promise.resolve(false);
+				return false;
 			}
 		}
-		return Promise.resolve(true);
+		return true;
 	}
 
 	// Returns true if there is a file at the end of the URI.

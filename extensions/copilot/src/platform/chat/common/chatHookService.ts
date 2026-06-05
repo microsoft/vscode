@@ -172,6 +172,14 @@ export interface SessionStartHookInput {
 	 * The source of the session start. Always "new".
 	 */
 	readonly source: 'new';
+	/**
+	 * The model identifier (e.g. "claude-sonnet-4-6").
+	 */
+	readonly model: string;
+	/**
+	 * The agent or mode name, if applicable.
+	 */
+	readonly agent_type?: string;
 }
 
 /**

@@ -262,7 +262,11 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 				// (the overlay either doesn't cover the element, or is also covered by another overlay).
 				const clientX = overlapCenter.x - this.targetWindow.scrollX;
 				const clientY = overlapCenter.y - this.targetWindow.scrollY;
-				const elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
+				let elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
+				// Account for shadow roots
+				if (elementAtPoint?.shadowRoot && !overlay.element.contains(elementAtPoint)) {
+					elementAtPoint = elementAtPoint.shadowRoot.elementFromPoint(clientX, clientY);
+				}
 				if (elementAtPoint && overlay.element.contains(elementAtPoint)) {
 					overlappingOverlays.push({
 						type: overlay.type,

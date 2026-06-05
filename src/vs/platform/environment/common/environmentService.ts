@@ -148,23 +148,18 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
-	get agentPluginsPath(): string {
-		const cliAgentPluginsDir = this.args['agent-plugins-dir'];
-		if (cliAgentPluginsDir) {
-			return resolve(cliAgentPluginsDir);
-		}
-
-		const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
-		if (vscodeAgentPlugins) {
-			return vscodeAgentPlugins;
+	get appSharedDataHome(): URI {
+		const cliSharedDataDir = this.args['shared-data-dir'];
+		if (cliSharedDataDir) {
+			return URI.file(resolve(cliSharedDataDir));
 		}
 
 		const vscodePortable = env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
-			return join(vscodePortable, 'agent-plugins');
+			return URI.file(join(vscodePortable, 'shared-data'));
 		}
 
-		return joinPath(this.userHome, this.productService.dataFolderName, 'agent-plugins').fsPath;
+		return joinPath(this.userHome, this.productService.sharedDataFolderName);
 	}
 
 	@memoize

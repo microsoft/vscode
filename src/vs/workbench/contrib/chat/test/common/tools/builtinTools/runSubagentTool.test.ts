@@ -53,6 +53,7 @@ suite('RunSubagentTool', () => {
 
 			const promptsService = new MockPromptsService();
 			const customMode: ICustomAgent = {
+				id: 'file:///test/custom-agent.md',
 				uri: URI.parse('file:///test/custom-agent.md'),
 				name: 'CustomAgent',
 				description: 'A test custom agent',
@@ -60,7 +61,8 @@ suite('RunSubagentTool', () => {
 				agentInstructions: { content: 'Custom agent body', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
 			};
 			promptsService.setCustomModes([customMode]);
 
@@ -339,7 +341,6 @@ suite('RunSubagentTool', () => {
 				maxInputTokens: 128000,
 				maxOutputTokens: 8192,
 				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
 				multiplierNumeric,
 				capabilities: { toolCalling: true },
 			};
@@ -384,8 +385,10 @@ suite('RunSubagentTool', () => {
 		}
 
 		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			const id = `file:///test/${name}.md`;
 			return {
-				uri: URI.parse(`file:///test/${name}.md`),
+				uri: URI.parse(id),
+				id,
 				name,
 				description: `Agent ${name}`,
 				tools: ['tool1'],
@@ -393,7 +396,8 @@ suite('RunSubagentTool', () => {
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
 			};
 		}
 
@@ -614,7 +618,6 @@ suite('RunSubagentTool', () => {
 				maxInputTokens: 128000,
 				maxOutputTokens: 8192,
 				isDefaultForLocation: {},
-				modelPickerCategory: undefined,
 				multiplierNumeric,
 				capabilities: { toolCalling: true },
 			};
@@ -659,8 +662,10 @@ suite('RunSubagentTool', () => {
 		}
 
 		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			const id = `file:///test/${name}.md`;
 			return {
-				uri: URI.parse(`file:///test/${name}.md`),
+				id,
+				uri: URI.parse(id),
 				name,
 				description: `Agent ${name}`,
 				tools: ['tool1'],
@@ -668,7 +673,8 @@ suite('RunSubagentTool', () => {
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
 				target: Target.Undefined,
-				visibility: { userInvocable: true, agentInvocable: true }
+				visibility: { userInvocable: true, agentInvocable: true },
+				enabled: true
 			};
 		}
 

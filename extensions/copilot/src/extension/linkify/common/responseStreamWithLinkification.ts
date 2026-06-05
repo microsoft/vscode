@@ -79,6 +79,11 @@ export class ResponseStreamWithLinkification implements FinalizableChatResponseS
 		return this;
 	}
 
+	info(value: string | MarkdownString): ChatResponseStream {
+		this.enqueue(() => this._progress.info(value), false);
+		return this;
+	}
+
 	hookProgress(hookType: ChatHookType, stopReason?: string, systemMessage?: string): ChatResponseStream {
 		this.enqueue(() => this._progress.hookProgress(hookType, stopReason, systemMessage), false);
 		return this;

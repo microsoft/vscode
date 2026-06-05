@@ -11,7 +11,7 @@ import { HookCommandResultKind, IHookCommandResult, IHookExecutor } from '../../
 import { IHooksOutputChannel } from '../../../platform/chat/common/hooksOutputChannel';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr, IOTelService, SpanKind, SpanStatusCode, truncateForOTel } from '../../../platform/otel/common/index';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { raceTimeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -153,25 +153,30 @@ export class ChatHookService implements IChatHookService {
 					const inputForLog = this._redactForLogging(commandInput as Record<string, unknown>);
 					this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
 
+					const hookToolName = (commandInput as { tool_name?: unknown }).tool_name;
+					const hookToolNamesJson = typeof hookToolName === 'string' ? JSON.stringify([hookToolName]) : undefined;
+
 					const span = this._otelService.startSpan(`execute_hook ${hookType}`, {
 						kind: SpanKind.INTERNAL,
 						attributes: {
 							[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_HOOK,
-							'copilot_chat.hook_type': hookType,
+							[CopilotChatAttr.HOOK_TYPE]: hookType,
 							'copilot_chat.hook_command': hookCommand.command,
 							...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}),
+							...(hookToolNamesJson ? { [GitHubCopilotAttr.HOOK_TOOL_NAMES]: hookToolNamesJson } : {}),
 						},
 					});
 
 					try {
 						// Capture hook input for debug panel resolve
 						try {
-							span.setAttribute('copilot_chat.hook_input', truncateForOTel(JSON.stringify(commandInput)));
+							span.setAttribute(CopilotChatAttr.HOOK_INPUT, truncateForOTel(JSON.stringify(commandInput), this._otelService.config.maxAttributeSizeChars));
 						} catch { /* swallow serialization errors */ }
 
 						const sw = StopWatch.create();
 						const commandResult = await this._hookExecutor.executeCommand(hookCommand, commandInput, effectiveToken);
 						const elapsed = sw.elapsed();
+						span.setAttribute(GitHubCopilotAttr.HOOK_DURATION_SECONDS, elapsed / 1000);
 
 						this._logCommandResult(requestId, hookType, commandResult, elapsed);
 
@@ -179,7 +184,14 @@ export class ChatHookService implements IChatHookService {
 						const resultKind = commandResult.kind === HookCommandResultKind.Success ? 'success'
 							: commandResult.kind === HookCommandResultKind.NonBlockingError ? 'non_blocking_error'
 								: 'error';
-						span.setAttribute('copilot_chat.hook_result_kind', resultKind);
+						span.setAttribute(CopilotChatAttr.HOOK_RESULT_KIND, resultKind);
+
+						const hookDecision = commandResult.kind === HookCommandResultKind.Error
+							? 'block'
+							: commandResult.kind === HookCommandResultKind.NonBlockingError
+								? 'non_blocking_error'
+								: 'pass';
+						span.setAttribute(GitHubCopilotAttr.HOOK_DECISION, hookDecision);
 
 						if (commandResult.kind === HookCommandResultKind.Error || commandResult.kind === HookCommandResultKind.NonBlockingError) {
 							hasError = true;
@@ -195,7 +207,7 @@ export class ChatHookService implements IChatHookService {
 							try {
 								const output = typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result);
 								if (output) {
-									span.setAttribute('copilot_chat.hook_output', truncateForOTel(output));
+									span.setAttribute(CopilotChatAttr.HOOK_OUTPUT, truncateForOTel(output, this._otelService.config.maxAttributeSizeChars));
 								}
 							} catch { /* swallow serialization errors */ }
 						}
@@ -205,6 +217,10 @@ export class ChatHookService implements IChatHookService {
 
 						// If stopReason is set (including empty string for "stop without message"), stop processing remaining hooks
 						if (result.stopReason !== undefined) {
+							// A stop signal from a successful hook still counts as a block.
+							if (hookDecision === 'pass') {
+								span.setAttribute(GitHubCopilotAttr.HOOK_DECISION, 'block');
+							}
 							this._log(requestId, hookType, `Stopping: ${result.stopReason}`);
 							this._logService.debug(`[ChatHookService] Stopping after hook: ${result.stopReason}`);
 							break;

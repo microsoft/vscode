@@ -21,6 +21,7 @@ export const GenAiProviderName = {
 	OPENAI: 'openai',
 	ANTHROPIC: 'anthropic',
 	AZURE_AI_OPENAI: 'azure.ai.openai',
+	GEMINI: 'gemini',
 } as const;
 
 // gen_ai.token.type values
@@ -64,8 +65,10 @@ export const GenAiAttr = {
 	USAGE_OUTPUT_TOKENS: 'gen_ai.usage.output_tokens',
 	USAGE_CACHE_READ_INPUT_TOKENS: 'gen_ai.usage.cache_read.input_tokens',
 	USAGE_CACHE_CREATION_INPUT_TOKENS: 'gen_ai.usage.cache_creation.input_tokens',
-	/** Custom: reasoning/thinking token count (not yet standardized in GenAI conventions) */
+	/** Legacy: reasoning/thinking token count. Prefer `USAGE_REASONING_OUTPUT_TOKENS`; this key is kept for backwards compatibility. */
 	USAGE_REASONING_TOKENS: 'gen_ai.usage.reasoning_tokens',
+	/** Reasoning/thinking output token count (semantic-convention-aligned). Dual-emitted alongside `USAGE_REASONING_TOKENS`. */
+	USAGE_REASONING_OUTPUT_TOKENS: 'gen_ai.usage.reasoning.output_tokens',
 
 	// Conversation
 	CONVERSATION_ID: 'gen_ai.conversation.id',
@@ -117,6 +120,10 @@ export const CopilotChatAttr = {
 	REASONING_CONTENT: 'copilot_chat.reasoning_content',
 	/** User's actual typed message text, extracted from prompt context */
 	USER_REQUEST: 'copilot_chat.user_request',
+	/** Cache-relevant request options as a JSON blob (tool_choice, reasoning_effort, thinking, response_format, etc.). Used by Cache Explorer. */
+	REQUEST_OPTIONS: 'copilot_chat.request.options',
+	/** Request-shape metadata as a JSON blob (e.g. Responses API previous-response continuation and input item types). Used by Cache Explorer. */
+	REQUEST_SHAPE: 'copilot_chat.request.shape',
 	/** Resolved context section (code snippets, file contents, etc.) */
 	PROMPT_CONTEXT: 'copilot_chat.prompt_context',
 	/** Custom instructions section */
@@ -147,6 +154,20 @@ export const CopilotChatAttr = {
 	REPO_REMOTE_URL: 'copilot_chat.repo.remote_url',
 	/** File path relative to the repository root */
 	FILE_RELATIVE_PATH: 'copilot_chat.file.relative_path',
+	/** Hook type / event name (e.g. PreToolUse, PostToolUse, Stop) */
+	HOOK_TYPE: 'copilot_chat.hook_type',
+	/** Serialized hook command input (truncated; emitters may or may not gate on captureContent — used by the Agent Debug Log panel) */
+	HOOK_INPUT: 'copilot_chat.hook_input',
+	/** Serialized hook command output (truncated; emitters may or may not gate on captureContent — used by the Agent Debug Log panel) */
+	HOOK_OUTPUT: 'copilot_chat.hook_output',
+	/** Hook result kind: 'success', 'error', or 'non_blocking_error' */
+	HOOK_RESULT_KIND: 'copilot_chat.hook_result_kind',
+	/** Custom chat mode name (when a custom mode is active) */
+	MODE_NAME: 'copilot_chat.mode_name',
+	/** Aggregated session cost in USD (Claude agent) */
+	TOTAL_COST_USD: 'copilot_chat.total_cost_usd',
+	/** Per-request cost from copilot_usage.total_nano_aiu */
+	COPILOT_USAGE_NANO_AIU: 'copilot_chat.copilot_usage_nano_aiu',
 } as const;
 
 export type EditSource = 'inline_chat' | 'chat_editing' | 'chat_editing_hunk' | 'apply_patch' | 'replace_string' | 'code_mapper';
@@ -160,3 +181,110 @@ export const StdAttr = {
 	SERVER_ADDRESS: 'server.address',
 	SERVER_PORT: 'server.port',
 } as const;
+
+/**
+ * Attribute keys emitted by the Copilot CLI SDK's native OTel instrumentation
+ * (read by the bridge processor and the debug panel; the extension itself does
+ * not produce these).
+ */
+export const CopilotCliSdkAttr = {
+	HOOK_TYPE: 'github.copilot.hook.type',
+	HOOK_INVOCATION_ID: 'github.copilot.hook.invocation_id',
+} as const;
+
+/**
+ * Canonical `github.copilot.*` attribute namespace for Copilot Chat. These
+ * attributes are dual-emitted alongside the legacy `copilot_chat.*` keys; new
+ * dashboards should prefer this namespace.
+ */
+export const GitHubCopilotAttr = {
+	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
+	AGENT_TYPE: 'github.copilot.agent.type',
+
+	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
+	GIT_REPOSITORY: 'github.copilot.git.repository',
+	/** Git HEAD branch. Dual of `copilot_chat.repo.head_branch_name`. */
+	GIT_BRANCH: 'github.copilot.git.branch',
+	/** Git HEAD commit. Dual of `copilot_chat.repo.head_commit_hash`. */
+	GIT_COMMIT_SHA: 'github.copilot.git.commit_sha',
+	/** GitHub `owner` segment derived from the remote URL (gated like the URL itself). */
+	GITHUB_ORG: 'github.copilot.github.org',
+
+	/** Hook decision result (`block` | `approve` | `non_blocking_error` | `pass`). */
+	HOOK_DECISION: 'github.copilot.hook.decision',
+	/** Hook duration in seconds (float). */
+	HOOK_DURATION_SECONDS: 'github.copilot.hook.duration',
+	/** JSON-encoded array of tool names a hook applies to (plural). */
+	HOOK_TOOL_NAMES: 'github.copilot.hook.tool_names',
+
+	/** SHA-256 hex of an MCP server name (always emitted). */
+	MCP_SERVER_NAME_HASH: 'github.copilot.mcp.server.name_hash',
+	/** Raw MCP server name (gated on captureContent). */
+	MCP_SERVER_NAME: 'github.copilot.mcp.server.name',
+
+	/** Shell command (truncated to 256 chars; gated on captureContent). */
+	TOOL_PARAM_COMMAND: 'github.copilot.tool.parameters.command',
+	/** File path argument (gated on captureContent). */
+	TOOL_PARAM_FILE_PATH: 'github.copilot.tool.parameters.file_path',
+	/** Edit operation kind (`create`, `update`, `str_replace`, `insert`). */
+	TOOL_PARAM_EDIT_TYPE: 'github.copilot.tool.parameters.edit_type',
+	/** Skill identifier for the invoked tool. */
+	TOOL_PARAM_SKILL_NAME: 'github.copilot.tool.parameters.skill_name',
+	/** SHA-256 hex of the MCP server name for an MCP tool call (always emitted). */
+	TOOL_PARAM_MCP_SERVER_NAME_HASH: 'github.copilot.tool.parameters.mcp_server_name_hash',
+	/** Raw MCP server name for an MCP tool call (gated). */
+	TOOL_PARAM_MCP_SERVER_NAME: 'github.copilot.tool.parameters.mcp_server_name',
+	/** MCP tool name (the part after the `mcp_<server>_` prefix). */
+	TOOL_PARAM_MCP_TOOL_NAME: 'github.copilot.tool.parameters.mcp_tool_name',
+} as const;
+
+export type AgentType = 'builtin' | 'plugin' | 'custom';
+export type HookDecision = 'block' | 'approve' | 'non_blocking_error' | 'pass';
+export type EditOperationType = 'create' | 'update' | 'str_replace' | 'insert';
+
+/** Max length for the `tool.parameters.command` attribute. */
+export const TOOL_PARAM_COMMAND_MAX_LEN = 256;
+
+/** Tool names treated as shell-command tools for parameter extraction. */
+export const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
+	'bash',
+	'powershell',
+	'local_shell',
+	'runInTerminal',
+	'run_in_terminal',
+	// Claude
+	'Bash',
+]);
+
+/**
+ * Tool names treated as file tools for parameter extraction. Covers VS Code's
+ * `ToolName` enum values (snake_case, see `extension/tools/common/toolNames.ts`)
+ * and the camelCase / Claude-style variants seen on external surfaces.
+ */
+export const FILE_TOOL_NAMES: ReadonlySet<string> = new Set([
+	// camelCase / Claude-style names
+	'view',
+	'create',
+	'edit',
+	'str_replace',
+	'str_replace_editor',
+	'insert',
+	'readFile',
+	'createFile',
+	'replaceString',
+	'applyPatch',
+	// VS Code tool names (ToolName enum)
+	'read_file',
+	'create_file',
+	'apply_patch',
+	'insert_edit_into_file',
+	'replace_string_in_file',
+	'multi_replace_string_in_file',
+	'edit_notebook_file',
+	// Claude (capitalized)
+	'Read',
+	'Edit',
+	'MultiEdit',
+	'Write',
+	'NotebookEdit',
+]);

@@ -272,6 +272,12 @@ export class LlmNESTelemetryBuilder extends Disposable {
 		return this.editCollectingInfo?.originalSelectionLine;
 	}
 
+	/** Refresh the request bookmark so the telemetry `requestTime` lines up with the
+	 * moment the document/selection were snapshotted for prompt construction. */
+	public setRequestBookmark(bookmark: DebugRecorderBookmark): void {
+		this._requestBookmark = bookmark;
+	}
+
 	/**
 	 * @param _doc passing an observable document allows to track edits and selections
 	 */
@@ -282,7 +288,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 		private readonly _providerId: string,
 		private readonly _doc: IObservableDocument | undefined,
 		private readonly _debugRecorder?: DebugRecorder,
-		private readonly _requestBookmark?: DebugRecorderBookmark,
+		private _requestBookmark?: DebugRecorderBookmark,
 	) {
 		super();
 		this._startTime = Date.now();
@@ -753,6 +759,7 @@ class IdleDetector {
 			if (isFirstSelectionRun) {
 				isFirstSelectionRun = false;
 				for (const doc of docs) {
+					// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
 					this._selectionSnapshots.set(doc.id.uri, doc.primarySelectionLine.get());
 				}
 				return;
@@ -770,6 +777,7 @@ class IdleDetector {
 			// Find the doc whose selection line actually changed from what we last saw
 			for (const doc of docs) {
 				const currentDocId = doc.id.uri;
+				// eslint-disable-next-line local/code-no-observable-get-in-reactive-context
 				const currentLine = doc.primarySelectionLine.get();
 				const previousLine = this._selectionSnapshots.get(currentDocId);
 
@@ -1115,6 +1123,9 @@ export class TelemetrySender implements IDisposable {
 				"promptCharCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of characters in the prompt", "isMeasurement": true },
 				"nDiffsInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of diffs included in the prompt", "isMeasurement": true },
 				"diffTokensInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens consumed by diffs in the prompt", "isMeasurement": true },
+				"nNeighborSnippetsComputed": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total number of neighbor (similar files) snippets computed before budget filtering", "isMeasurement": true },
+				"nNeighborSnippetsInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of neighbor (similar files) snippets actually included in the prompt", "isMeasurement": true },
+				"neighborSnippetIndicesInPrompt": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "JSON-encoded array of original input indices (ascending) of neighbor snippets included in the prompt" },
 				"hadLowLogProbSuggestion": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the suggestion had low log probability", "isMeasurement": true },
 				"nEditsSuggested": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of edits suggested", "isMeasurement": true },
 				"hasNextEdit": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether next edit provider returned an edit (if an edit was previously rejected, this field is false)", "isMeasurement": true },
@@ -1177,6 +1188,7 @@ export class TelemetrySender implements IDisposable {
 				xtabAggressivenessLevel,
 				userAggressivenessSetting,
 				modelConfig,
+				neighborSnippetIndicesInPrompt: telemetry.neighborSnippetIndicesInPrompt,
 			},
 			{
 				requestN,
@@ -1237,6 +1249,8 @@ export class TelemetrySender implements IDisposable {
 				xtabUserHappinessScore,
 				nDiffsInPrompt: telemetry.nDiffsInPrompt,
 				diffTokensInPrompt: telemetry.diffTokensInPrompt,
+				nNeighborSnippetsComputed: telemetry.nNeighborSnippetsComputed,
+				nNeighborSnippetsInPrompt: telemetry.nNeighborSnippetsInPrompt,
 			}
 		);
 	}

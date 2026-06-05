@@ -257,3 +257,4 @@ extends:
 
     publishExtension: ${{ parameters.publishExtension }}
     ghReleasePublishVSIX: true
+    ghTagPrefix: 'copilot/'

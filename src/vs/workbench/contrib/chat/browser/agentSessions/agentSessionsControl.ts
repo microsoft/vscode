@@ -801,8 +801,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	focus(): void {
 		this.sessionsList?.domFocus();
 
-		if ((this.sessionsList?.getFocus().length ?? 0) === 0) {
-			this.sessionsList?.focusFirst();
+		try {
+			if ((this.sessionsList?.getFocus().length ?? 0) === 0) {
+				this.sessionsList?.focusFirst();
+			}
+		} catch {
+			// Tree model may be temporarily inconsistent during async refresh.
 		}
 	}
 
@@ -837,8 +841,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return false;
 		}
 
-		if (this.sessionsList.getRelativeTop(session) === null) {
-			this.sessionsList.reveal(session, 0.5); // only reveal when not already visible
+		try {
+			if (this.sessionsList.getRelativeTop(session) === null) {
+				this.sessionsList.reveal(session, 0.5); // only reveal when not already visible
+			}
+		} catch {
+			// Tree model may be temporarily inconsistent during async refresh.
+			return false;
 		}
 
 		this.sessionsList.setFocus([session]);

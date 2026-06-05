@@ -13,6 +13,23 @@ const os = require('os');
 let deactivateMarkerFile;
 
 /**
+ * @param {string} command
+ * @param {number} timeoutMs
+ */
+async function waitForCommand(command, timeoutMs) {
+	const started = Date.now();
+	while (Date.now() - started < timeoutMs) {
+		const commands = await vscode.commands.getCommands(true);
+		if (commands.includes(command)) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 250));
+	}
+
+	throw new Error(`Timed out waiting for command '${command}'`);
+}
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
@@ -71,6 +88,30 @@ function activate(context) {
 			fs.writeFileSync(pidFile, String(pid), 'utf-8');
 
 			return { pid, markerFile: deactivateMarkerFile };
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.copilotcli';
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('github.copilot.chat').update('backgroundAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('github.copilot.chat').update('claudeAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
 		})
 	);
 }

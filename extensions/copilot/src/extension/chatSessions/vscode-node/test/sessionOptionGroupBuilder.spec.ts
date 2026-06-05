@@ -106,6 +106,7 @@ function makeRef(name: string, type: number = 0 /* Head */): { name: string; typ
 
 function createMockChatSessionInputState(groups: readonly vscode.ChatSessionProviderOptionGroup[]): vscode.ChatSessionInputState {
 	return {
+		onDidDispose: Event.None,
 		onDidChange: Event.None,
 		groups,
 		sessionResource: undefined

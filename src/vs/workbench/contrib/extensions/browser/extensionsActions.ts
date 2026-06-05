@@ -26,10 +26,10 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExtensionService, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonSecondaryBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -1816,10 +1816,23 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
-			this.enabled = this.configurationService.getValue<boolean>(CHAT_AI_DISABLED_SETTING) === true
-				&& this.extension.enablementState !== EnablementState.DisabledWorkspace;
+		if (!this.extension?.local) {
+			return;
 		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+			return;
+		}
+		const inspect = this.configurationService.inspect(CHAT_AI_DISABLED_SETTING);
+		if (inspect?.workspaceValue === true) {
+			return;
+		}
+		this.enabled = inspect.value === true;
 	}
 
 	override async run(): Promise<void> {
@@ -1827,7 +1840,7 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 	}
 }
 
-class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
+export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 
 	static readonly ID = 'extensions.enableAIInWorkspace';
 	static readonly LABEL = localize('enableAIInWorkspaceAction', "Enable AI Features (Workspace)");
@@ -1835,24 +1848,53 @@ class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(EnableAIFeaturesInWorkspaceAction.ID, EnableAIFeaturesInWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('enableAIInWorkspaceActionToolTip', "Enable AI features in this workspace");
 		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+				this.update();
+			}
+		}));
 	}
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
-			this.enabled = this.extension.enablementState === EnablementState.DisabledWorkspace;
+		if (!this.extension?.local) {
+			return;
 		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
+			return;
+		}
+		const inspect = this.configurationService.inspect(CHAT_AI_DISABLED_SETTING);
+		if (inspect.value === false) {
+			return;
+		}
+		if (inspect?.workspaceValue === true) {
+			this.enabled = true;
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+			return;
+		}
+		this.enabled = true;
+		return;
 	}
 
 	override async run(): Promise<void> {
 		if (!this.extension) {
 			return;
 		}
-		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
+		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
+		if (this.configurationService.getValue<boolean>(CHAT_AI_DISABLED_SETTING) === true) {
+			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false, ConfigurationTarget.WORKSPACE);
+		}
 	}
 }
 
@@ -2729,17 +2771,32 @@ export class ExtensionStatusAction extends ExtensionAction {
 		@IWorkbenchExtensionEnablementService private readonly workbenchExtensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionFeaturesManagementService private readonly extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super('extensions.status', '', `${ExtensionStatusAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
 		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this._register(this.extensionFeaturesManagementService.onDidChangeAccessData(() => this.update()));
 		this._register(allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => this.update()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.update();
+			}
+		}));
 		this.update();
 	}
 
 	update(): void {
-		this.updateThrottler.queue(() => this.computeAndUpdateStatus());
+		this.recomputeStatus();
+	}
+
+	/**
+	 * Recomputes the status and returns a promise that resolves when the
+	 * computation is done. Use this when callers need to await time-sensitive
+	 * status content (e.g. the delayed auto-update message) before reading it.
+	 */
+	recomputeStatus(): Promise<void> {
+		return this.updateThrottler.queue(() => this.computeAndUpdateStatus());
 	}
 
 	private async computeAndUpdateStatus(): Promise<void> {
@@ -2787,8 +2844,10 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.outdated) {
+			let hasConsentWarning = false;
 			const message = await this.extensionsWorkbenchService.shouldRequireConsentToUpdate(this.extension);
 			if (message) {
+				hasConsentWarning = true;
 				const markdown = new MarkdownString();
 				markdown.appendMarkdown(`${message} `);
 				markdown.appendMarkdown(
@@ -2800,6 +2859,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 								: createCommandUri('extension.open', this.extension.identifier.id).toString()
 					));
 				this.updateStatus({ icon: warningIcon, message: markdown }, true);
+			}
+			if (this.extensionsWorkbenchService.isAutoUpdateDelayed(this.extension)) {
+				const updateAt = fromNow(Date.now() + this.extensionsWorkbenchService.getAutoUpdateDelayRemaining(this.extension), false, true);
+				// Do not override the higher-priority warning class with the info class.
+				this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('autoUpdateDelayed', "This extension is not updated yet because new versions are auto updated 2 hours after they are published. It will be auto updated {0}.", updateAt)) }, !hasConsentWarning);
 			}
 		}
 
@@ -3092,14 +3156,24 @@ export class InstallSpecificVersionOfExtensionAction extends Action {
 		const extensionPick = await this.quickInputService.pick(this.getExtensionEntries(), { placeHolder: localize('selectExtension', "Select Extension"), matchOnDetail: true });
 		if (extensionPick && extensionPick.extension) {
 			const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extensionPick.extension, true);
-			await action.run();
+			// TODO: replace with `using` once available
+			try {
+				await action.run();
+			} finally {
+				action.dispose();
+			}
 			await this.extensionsWorkbenchService.openSearch(extensionPick.extension.identifier.id);
 		}
 	}
 
 	private isEnabled(extension: IExtension): boolean {
 		const action = this.instantiationService.createInstance(InstallAnotherVersionAction, extension, true);
-		return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		// TODO: replace with `using` once available
+		try {
+			return action.enabled && !!extension.local && this.extensionEnablementService.isEnabled(extension.local);
+		} finally {
+			action.dispose();
+		}
 	}
 
 	private async getExtensionEntries(): Promise<IExtensionPickItem[]> {
@@ -3367,10 +3441,10 @@ registerColor('extensionButton.hoverBackground', {
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
 registerColor('extensionButton.border', {
-	dark: buttonBorder,
-	light: buttonBorder,
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
+	dark: buttonSecondaryBorder,
+	light: buttonSecondaryBorder,
+	hcDark: buttonSecondaryBorder,
+	hcLight: buttonSecondaryBorder
 }, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));

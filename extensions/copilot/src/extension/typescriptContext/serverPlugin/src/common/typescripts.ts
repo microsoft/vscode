@@ -451,7 +451,7 @@ namespace tss {
 		}
 	}
 
-	export type DirectSuperSymbolInfo = { extends?: { symbol: tt.Symbol; name: string } | undefined; implements?: { symbol: tt.Symbol; name: string }[] }
+	export type DirectSuperSymbolInfo = { extends?: { symbol: tt.Symbol; name: string } | undefined; implements?: { symbol: tt.Symbol; name: string }[] };
 
 	export class Symbols {
 

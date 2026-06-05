@@ -38,7 +38,7 @@ import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/brows
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
-import { isMacintosh, isNative } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -68,7 +68,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	//#region IView
 
-	readonly minimumWidth: number = 170;
+	// On web the titlebar hosts an additional host filter combo alongside the
+	// sidebar toggle; use a wider minimum so those controls always fit within
+	// the sidebar's rendered area (below this the sidebar snaps closed).
+	readonly minimumWidth: number = isWeb ? 270 : 170;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
@@ -110,7 +113,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, trailingSeparator: false, borderWidth: () => 0 },
+			{ hasTitle: false, trailingSeparator: false, borderWidth: () => 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -121,7 +124,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
 			Menus.SidebarTitle,
-			Menus.TitleBarLeftLayout,
 			notificationService,
 			storageService,
 			contextMenuService,

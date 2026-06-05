@@ -204,6 +204,11 @@ export const skillAttributes: Record<string, IAttributeDefinition> = {
 		type: 'map',
 		description: localize('promptHeader.skill.metadata', 'Additional metadata for the skill.'),
 	},
+	[PromptHeaderAttributes.context]: {
+		type: 'scalar',
+		description: localize('promptHeader.skill.context', 'Controls how the skill is loaded. Set to \'fork\' to spawn a subagent with the skill instructions instead of returning them inline.'),
+		enums: [{ name: 'fork', description: localize('promptHeader.skill.context.fork', 'Spawn a subagent with the skill instructions injected as system context.') }],
+	},
 };
 
 const allAttributeNames: Record<PromptsType, string[]> = {

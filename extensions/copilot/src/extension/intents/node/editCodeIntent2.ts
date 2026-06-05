@@ -16,6 +16,7 @@ import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { requestHasNotebookRefs } from '../../../platform/notebook/common/helpers';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { IOTelService } from '../../../platform/otel/common/otelService';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -30,6 +31,7 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { AgentIntentInvocation } from './agentIntent';
 import { EditCodeIntentOptions } from './editCodeIntent';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
 	instaService.invokeFunction(async accessor => {
@@ -89,8 +91,10 @@ export class EditCode2IntentInvocation extends AgentIntentInvocation {
 		@IExperimentationService expService: IExperimentationService,
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
+		@ISessionTranscriptService sessionTranscriptService: ISessionTranscriptService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, sessionTranscriptService, authenticationService);
 	}
 
 	public override async getAvailableTools(): Promise<vscode.LanguageModelToolInformation[]> {

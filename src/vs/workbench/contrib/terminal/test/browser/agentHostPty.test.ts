@@ -8,42 +8,39 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, IStateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { IRootState, TerminalClaimKind, type ITerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IActionEnvelope, ISessionAction, ITerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
+import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
-import { hasKey } from '../../../../../base/common/types.js';
-
+import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 // ---- Mock IAgentConnection --------------------------------------------------
 
 class MockAgentConnection implements IAgentConnection {
-	declare readonly _serviceBrand: undefined;
+
 	readonly clientId = 'test-client';
 
 	private _seq = 0;
-	private readonly _onDidAction = new Emitter<IActionEnvelope>();
-	readonly onDidAction: Event<IActionEnvelope> = this._onDidAction.event;
+	private readonly _onDidAction = new Emitter<ActionEnvelope>();
+	readonly onDidAction: Event<ActionEnvelope> = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
 
-	readonly dispatchedActions: (ISessionAction | ITerminalAction)[] = [];
-	readonly createdTerminals: ICreateTerminalParams[] = [];
+	readonly dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
+	readonly createdTerminals: CreateTerminalParams[] = [];
 	readonly disposedTerminals: URI[] = [];
 	readonly subscribedResources: URI[] = [];
 
-	private _terminalState: ITerminalState = {
-		title: 'Test Terminal',
-		content: [],
-		claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+	private _terminalState: TerminalState = {
+		title: 'Test Terminal', content: [], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 	};
 
-	constructor(initialState?: Partial<ITerminalState>) {
+	constructor(initialState?: Partial<TerminalState>) {
 		if (initialState) {
 			this._terminalState = { ...this._terminalState, ...initialState };
 		}
@@ -53,7 +50,7 @@ class MockAgentConnection implements IAgentConnection {
 		return ++this._seq;
 	}
 
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+	async createTerminal(params: CreateTerminalParams): Promise<void> {
 		this.createdTerminals.push(params);
 	}
 
@@ -61,62 +58,61 @@ class MockAgentConnection implements IAgentConnection {
 		this.disposedTerminals.push(terminal);
 	}
 
+	async invokeChangesetOperation(): Promise<{}> { return {}; }
+
 	/** Simulate the server sending an action to the client */
-	fireAction(action: IStateAction, serverSeq = 1): void {
-		this._onDidAction.fire({ action, serverSeq, origin: { clientId: 'server', clientSeq: 0 } });
+	fireAction(channel: URI, action: StateAction, serverSeq = 1): void {
+		this._onDidAction.fire({ channel: channel.toString(), action, serverSeq, origin: { clientId: 'server', clientSeq: 0 } });
 	}
 
 	// ---- Unused IAgentService methods (stubs) -----
-	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
+	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
+	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
+	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
-	async resourceList(_uri: URI): Promise<IResourceListResult> { return { entries: [] }; }
-	async resourceRead(_uri: URI): Promise<IResourceReadResult> { return { data: '', encoding: 'utf-8' } as IResourceReadResult; }
-	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
-	async resourceCopy(_params: IResourceCopyParams): Promise<IResourceCopyResult> { return {}; }
-	async resourceDelete(_params: IResourceDeleteParams): Promise<IResourceDeleteResult> { return {}; }
-	async resourceMove(_params: IResourceMoveParams): Promise<IResourceMoveResult> { return {}; }
+	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }
+	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return { data: '', encoding: 'utf-8' } as ResourceReadResult; }
+	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
+	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
+	async resourceDelete(_params: ResourceDeleteParams): Promise<ResourceDeleteResult> { return {}; }
+	async resourceMove(_params: ResourceMoveParams): Promise<ResourceMoveResult> { return {}; }
+	async resourceResolve(_params: ResourceResolveParams): Promise<ResourceResolveResult> { throw new Error('Not implemented'); }
+	async resourceMkdir(_params: ResourceMkdirParams): Promise<ResourceMkdirResult> { return {}; }
+	async createResourceWatch(_params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> { throw new Error('Not implemented'); }
+	async watchResource(_params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> { throw new Error('Not implemented'); }
 
 	// ---- IAgentConnection new API (stubs for tests) -----
-	readonly rootState: IAgentSubscription<IRootState> = {
-		value: undefined,
-		verifiedValue: undefined,
-		onDidChange: Event.None,
-		onWillApplyAction: Event.None,
-		onDidApplyAction: Event.None,
+	readonly rootState: IAgentSubscription<RootState> = {
+		value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None,
 	};
 	getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
-		const onDidChange = new Emitter<ITerminalState>();
-		const onWillApplyAction = new Emitter<IActionEnvelope>();
-		const onDidApplyAction = new Emitter<IActionEnvelope>();
-		const sub: IAgentSubscription<ITerminalState> = {
-			value: this._terminalState,
-			verifiedValue: this._terminalState,
-			onDidChange: onDidChange.event,
-			onWillApplyAction: onWillApplyAction.event,
-			onDidApplyAction: onDidApplyAction.event,
+		const onDidChange = new Emitter<TerminalState>();
+		const onWillApplyAction = new Emitter<ActionEnvelope>();
+		const onDidApplyAction = new Emitter<ActionEnvelope>();
+		const sub: IAgentSubscription<TerminalState> = {
+			value: this._terminalState, verifiedValue: this._terminalState, onDidChange: onDidChange.event, onWillApplyAction: onWillApplyAction.event, onDidApplyAction: onDidApplyAction.event,
 		};
 		// Wire onDidAction to the subscription's events
 		const listener = this._onDidAction.event(envelope => {
-			if (hasKey(envelope.action, { terminal: true }) && (envelope.action as { terminal: string }).terminal === _resource.toString()) {
+			if (envelope.channel === _resource.toString()) {
 				onWillApplyAction.fire(envelope);
 				onDidApplyAction.fire(envelope);
 			}
 		});
 		return {
-			object: sub as IAgentSubscription<T>,
-			dispose: () => { listener.dispose(); onDidChange.dispose(); onWillApplyAction.dispose(); onDidApplyAction.dispose(); },
+			object: sub as IAgentSubscription<T>, dispose: () => { listener.dispose(); onDidChange.dispose(); onWillApplyAction.dispose(); onDidApplyAction.dispose(); },
 		};
 	}
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 		return undefined;
 	}
-	dispatch(action: ISessionAction | ITerminalAction): void {
-		this.dispatchedActions.push(action);
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.dispatchedActions.push({ channel, action });
 	}
 
 	dispose(): void {
@@ -151,7 +147,7 @@ suite('AgentHostPty', () => {
 
 		assert.strictEqual(result, undefined, 'start() should succeed');
 		assert.strictEqual(conn.createdTerminals.length, 1);
-		assert.strictEqual(conn.createdTerminals[0].terminal, terminalUri.toString());
+		assert.strictEqual(conn.createdTerminals[0].channel, terminalUri.toString());
 		assert.strictEqual(conn.createdTerminals[0].name, 'test');
 		assert.deepStrictEqual(conn.createdTerminals[0].claim, { kind: TerminalClaimKind.Client, clientId: 'test-client' });
 	});
@@ -193,9 +189,9 @@ suite('AgentHostPty', () => {
 		// Wait for the async barrier
 		await new Promise(resolve => setTimeout(resolve, 10));
 
-		const inputActions = conn.dispatchedActions.filter(a => a.type === ActionType.TerminalInput);
+		const inputActions = conn.dispatchedActions.filter(a => a.action.type === ActionType.TerminalInput);
 		assert.strictEqual(inputActions.length, 1);
-		assert.strictEqual((inputActions[0] as { data: string }).data, 'hello');
+		assert.strictEqual((inputActions[0].action as { data: string }).data, 'hello');
 	});
 
 	test('resize() dispatches terminal/resized action', async () => {
@@ -208,10 +204,10 @@ suite('AgentHostPty', () => {
 
 		await new Promise(resolve => setTimeout(resolve, 10));
 
-		const resizeActions = conn.dispatchedActions.filter(a => a.type === ActionType.TerminalResized);
+		const resizeActions = conn.dispatchedActions.filter(a => a.action.type === ActionType.TerminalResized);
 		assert.strictEqual(resizeActions.length, 1);
-		assert.strictEqual((resizeActions[0] as { cols: number; rows: number }).cols, 120);
-		assert.strictEqual((resizeActions[0] as { cols: number; rows: number }).rows, 40);
+		assert.strictEqual((resizeActions[0].action as { cols: number; rows: number }).cols, 120);
+		assert.strictEqual((resizeActions[0].action as { cols: number; rows: number }).rows, 40);
 	});
 
 	test('resize() skips duplicate dimensions', async () => {
@@ -225,7 +221,7 @@ suite('AgentHostPty', () => {
 
 		await new Promise(resolve => setTimeout(resolve, 10));
 
-		const resizeActions = conn.dispatchedActions.filter(a => a.type === ActionType.TerminalResized);
+		const resizeActions = conn.dispatchedActions.filter(a => a.action.type === ActionType.TerminalResized);
 		assert.strictEqual(resizeActions.length, 1);
 	});
 
@@ -240,7 +236,7 @@ suite('AgentHostPty', () => {
 		}));
 
 		await pty.start();
-		conn.fireAction({ type: ActionType.TerminalData, terminal: terminalUri.toString(), data: 'hello world\r\n' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'hello world\r\n' });
 
 		assert.deepStrictEqual(dataReceived, ['existing output\n' /* skip replay since content is '' */, 'hello world\r\n'].filter(x => x !== 'existing output\n'));
 		// Since initial content is empty, only the streamed data should be received
@@ -256,7 +252,7 @@ suite('AgentHostPty', () => {
 		disposables.add(pty.onProcessExit!(e => { exitCode = e; }));
 
 		await pty.start();
-		conn.fireAction({ type: ActionType.TerminalExited, terminal: terminalUri.toString(), exitCode: 42 });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
 
 		assert.strictEqual(exitCode, 42);
 	});
@@ -267,7 +263,7 @@ suite('AgentHostPty', () => {
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
 
 		await pty.start();
-		conn.fireAction({ type: ActionType.TerminalCwdChanged, terminal: terminalUri.toString(), cwd: '/home/user/project' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCwdChanged, cwd: '/home/user/project' });
 
 		const cwd = await pty.getCwd();
 		assert.strictEqual(cwd, '/home/user/project');
@@ -286,7 +282,7 @@ suite('AgentHostPty', () => {
 		}));
 
 		await pty.start();
-		conn.fireAction({ type: ActionType.TerminalTitleChanged, terminal: terminalUri.toString(), title: 'npm test' });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalTitleChanged, title: 'npm test' });
 
 		assert.strictEqual(changedTitle, 'npm test');
 	});
@@ -302,7 +298,7 @@ suite('AgentHostPty', () => {
 		}));
 
 		await pty.start();
-		conn.fireAction({ type: ActionType.TerminalData, terminal: 'agenthost-terminal:///other', data: 'should not appear' });
+		conn.fireAction(URI.parse('agenthost-terminal:///other'), { type: ActionType.TerminalData, data: 'should not appear' });
 
 		assert.deepStrictEqual(dataReceived, []);
 	});
@@ -340,5 +336,118 @@ suite('AgentHostPty', () => {
 		await pty.start();
 		const cwd = await pty.getInitialCwd();
 		assert.strictEqual(cwd, '/home/user');
+	});
+
+	test('reconnect() re-subscribes with new connection and replays content', async () => {
+		const conn1 = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'old output\n' }] });
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+
+		await pty.start();
+
+		// Create a new connection with different content (simulating server-side changes during disconnect)
+		const conn2 = new MockAgentConnection({
+			content: [{ type: 'unclassified', value: 'old output\nnew output after reconnect\n' }], cwd: '/home/reconnected', title: 'Reconnected Terminal',
+		});
+		disposables.add(conn2);
+
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => {
+			dataReceived.push(typeof e === 'string' ? e : e.data);
+		}));
+
+		const result = await pty.reconnect(conn2);
+
+		assert.strictEqual(result, true, 'reconnect() should succeed');
+		// Should have clear sequence + replayed content
+		assert.ok(dataReceived.some(d => d.includes('\x1b[2J')), 'should clear buffer before replay');
+		assert.ok(dataReceived.some(d => d.includes('new output after reconnect')), 'should replay new content');
+
+		const cwd = await pty.getCwd();
+		assert.strictEqual(cwd, '/home/reconnected');
+	});
+
+	test('reconnect() streams new actions from new connection', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+
+		const dataReceived: string[] = [];
+		disposables.add(pty.onProcessData!(e => {
+			dataReceived.push(typeof e === 'string' ? e : e.data);
+		}));
+
+		await pty.reconnect(conn2);
+		dataReceived.length = 0; // clear replay data
+
+		// New actions from conn2 should be received
+		conn2.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'post-reconnect data' });
+
+		assert.deepStrictEqual(dataReceived, ['post-reconnect data']);
+
+		// Old connection actions should NOT be received
+		conn1.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'stale data' });
+		assert.deepStrictEqual(dataReceived, ['post-reconnect data']);
+	});
+
+	test('reconnect() times out when subscription never hydrates', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		await pty.start();
+
+		// Create a connection whose subscription never fires onDidChange
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		// Override getSubscription to return a subscription that never hydrates
+		conn2.getSubscription = <T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> => {
+			const onDidChange = new Emitter<TerminalState>();
+			const onDidApplyAction = new Emitter<ActionEnvelope>();
+			disposables.add(onDidChange);
+			disposables.add(onDidApplyAction);
+			const sub: IAgentSubscription<TerminalState> = {
+				value: undefined, // never hydrated
+				verifiedValue: undefined, onDidChange: onDidChange.event, onWillApplyAction: Event.None, onDidApplyAction: onDidApplyAction.event,
+			};
+			return {
+				object: sub as IAgentSubscription<T>, dispose: () => { onDidChange.dispose(); onDidApplyAction.dispose(); },
+			};
+		};
+
+		// Suppress the expected console.warn from reconnect failure
+		const origWarn = console.warn;
+		console.warn = () => { };
+		try {
+			const result = await pty.reconnect(conn2);
+			assert.strictEqual(result, false, 'reconnect() should fail on timeout');
+		} finally {
+			console.warn = origWarn;
+		}
+	}).timeout(15000); // Allow for the 10s hydration timeout
+
+	test('reconnect() dispatches input to new connection', async () => {
+		const conn1 = new MockAgentConnection();
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection();
+		disposables.add(conn2);
+		await pty.reconnect(conn2);
+
+		pty.input('after reconnect');
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		const inputActions = conn2.dispatchedActions.filter(a => a.action.type === ActionType.TerminalInput);
+		assert.strictEqual(inputActions.length, 1);
+		assert.strictEqual((inputActions[0].action as { data: string }).data, 'after reconnect');
+
+		// conn1 should not have received the input
+		const oldInputActions = conn1.dispatchedActions.filter(a => a.action.type === ActionType.TerminalInput);
+		assert.strictEqual(oldInputActions.length, 0);
 	});
 });

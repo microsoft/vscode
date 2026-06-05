@@ -374,7 +374,7 @@ export class RunnableResult {
 	public addSnippet(code: SnippetProvider, location: SnippetLocation, key: string | undefined): void;
 	public addSnippet(code: SnippetProvider, location: SnippetLocation, key: string | undefined, ifRoom: false): void;
 	public addSnippet(code: SnippetProvider, location: SnippetLocation, key: string | undefined, ifRoom: true): boolean;
-	public addSnippet(code: SnippetProvider, location: SnippetLocation, key: string | undefined, ifRoom: boolean): boolean
+	public addSnippet(code: SnippetProvider, location: SnippetLocation, key: string | undefined, ifRoom: boolean): boolean;
 	public addSnippet(code: SnippetProvider, location: SnippetLocation, key: string | undefined, ifRoom: boolean = false): boolean {
 		const budget = location === SnippetLocation.Primary ? this.primaryBudget : this.secondaryBudget;
 		if (code.isEmpty()) {
@@ -684,7 +684,7 @@ class CacheBasedContextRunnable implements ContextRunnable {
 export type SymbolData = {
 	symbol: tt.Symbol;
 	name?: string;
-}
+};
 
 enum SymbolEmitDataKind {
 	symbol = 'symbol',
@@ -695,12 +695,12 @@ type SymbolEmitData = {
 	kind: SymbolEmitDataKind.symbol;
 	symbol: tt.Symbol;
 	name?: string;
-}
+};
 
 type TypeAliasEmitData = {
 	kind: SymbolEmitDataKind.typeAlias;
 	node: tt.TypeAliasDeclaration;
-}
+};
 
 type EmitData = SymbolEmitData | TypeAliasEmitData;
 

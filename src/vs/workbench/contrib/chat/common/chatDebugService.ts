@@ -63,7 +63,9 @@ export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
 	readonly durationInMillis?: number;
 }
 
@@ -349,12 +351,14 @@ export interface IChatDebugEventModelTurnContent {
 	readonly status?: string;
 	readonly durationInMillis?: number;
 	readonly timeToFirstTokenInMillis?: number;
+	readonly requestId?: string;
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
+	readonly requestOptions?: string;
 	readonly errorMessage?: string;
 	readonly sections?: readonly IChatDebugMessageSection[];
 }

@@ -28,49 +28,129 @@ suite('GitHubService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('getRepository returns cached model for same key', () => {
-		const model1 = service.getRepository('owner', 'repo');
-		const model2 = service.getRepository('owner', 'repo');
-		assert.strictEqual(model1, model2);
+	test('createRepositoryModelReference returns shared model for same key', () => {
+		const ref1 = store.add(service.createRepositoryModelReference('owner', 'repo'));
+		const ref2 = store.add(service.createRepositoryModelReference('owner', 'repo'));
+		assert.strictEqual(ref1.object, ref2.object);
 	});
 
-	test('getRepository returns different models for different repos', () => {
-		const model1 = service.getRepository('owner', 'repo1');
-		const model2 = service.getRepository('owner', 'repo2');
-		assert.notStrictEqual(model1, model2);
+	test('createRepositoryModelReference returns different models for different repos', () => {
+		const ref1 = store.add(service.createRepositoryModelReference('owner', 'repo1'));
+		const ref2 = store.add(service.createRepositoryModelReference('owner', 'repo2'));
+		assert.notStrictEqual(ref1.object, ref2.object);
 	});
 
-	test('getPullRequest returns cached model for same key', () => {
-		const model1 = service.getPullRequest('owner', 'repo', 1);
-		const model2 = service.getPullRequest('owner', 'repo', 1);
-		assert.strictEqual(model1, model2);
+	test('createRepositoryModelReference disposes model when last reference is released', () => {
+		const ref1 = service.createRepositoryModelReference('owner', 'repo');
+		const ref2 = service.createRepositoryModelReference('owner', 'repo');
+		const model = ref1.object;
+		assert.strictEqual(ref2.object, model);
+
+		// Release one reference; model must still be alive and shared.
+		ref1.dispose();
+		const ref3 = store.add(service.createRepositoryModelReference('owner', 'repo'));
+		assert.strictEqual(ref3.object, model);
+
+		// Release remaining references; the next acquire should create a new model.
+		ref2.dispose();
+		ref3.dispose();
+		const ref4 = store.add(service.createRepositoryModelReference('owner', 'repo'));
+		assert.notStrictEqual(ref4.object, model);
 	});
 
-	test('getPullRequest returns different models for different PRs', () => {
-		const model1 = service.getPullRequest('owner', 'repo', 1);
-		const model2 = service.getPullRequest('owner', 'repo', 2);
-		assert.notStrictEqual(model1, model2);
+	test('createPullRequestModelReference returns shared model for same key', () => {
+		const ref1 = store.add(service.createPullRequestModelReference('owner', 'repo', 1));
+		const ref2 = store.add(service.createPullRequestModelReference('owner', 'repo', 1));
+		assert.strictEqual(ref1.object, ref2.object);
 	});
 
-	test('getPullRequestCI returns cached model for same key', () => {
-		const model1 = service.getPullRequestCI('owner', 'repo', 'abc123');
-		const model2 = service.getPullRequestCI('owner', 'repo', 'abc123');
-		assert.strictEqual(model1, model2);
+	test('createPullRequestModelReference returns different models for different PRs', () => {
+		const ref1 = store.add(service.createPullRequestModelReference('owner', 'repo', 1));
+		const ref2 = store.add(service.createPullRequestModelReference('owner', 'repo', 2));
+		assert.notStrictEqual(ref1.object, ref2.object);
 	});
 
-	test('getPullRequestCI returns different models for different refs', () => {
-		const model1 = service.getPullRequestCI('owner', 'repo', 'abc');
-		const model2 = service.getPullRequestCI('owner', 'repo', 'def');
-		assert.notStrictEqual(model1, model2);
+	test('createPullRequestModelReference disposes model when last reference is released', () => {
+		const ref1 = service.createPullRequestModelReference('owner', 'repo', 1);
+		const ref2 = service.createPullRequestModelReference('owner', 'repo', 1);
+		const model = ref1.object;
+		assert.strictEqual(ref2.object, model);
+
+		ref1.dispose();
+		const ref3 = store.add(service.createPullRequestModelReference('owner', 'repo', 1));
+		assert.strictEqual(ref3.object, model);
+
+		ref2.dispose();
+		ref3.dispose();
+		const ref4 = store.add(service.createPullRequestModelReference('owner', 'repo', 1));
+		assert.notStrictEqual(ref4.object, model);
 	});
 
-	test('disposing service does not throw', () => {
-		service.getRepository('owner', 'repo');
-		service.getPullRequest('owner', 'repo', 1);
-		service.getPullRequestCI('owner', 'repo', 'abc');
+	test('createPullRequestReviewThreadsModelReference returns shared model for same key', () => {
+		const ref1 = store.add(service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1));
+		const ref2 = store.add(service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1));
+		assert.strictEqual(ref1.object, ref2.object);
+	});
 
-		// Disposing the service should not throw and should clean up models
-		assert.doesNotThrow(() => service.dispose());
+	test('createPullRequestReviewThreadsModelReference returns different models for different PRs', () => {
+		const ref1 = store.add(service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1));
+		const ref2 = store.add(service.createPullRequestReviewThreadsModelReference('owner', 'repo', 2));
+		assert.notStrictEqual(ref1.object, ref2.object);
+	});
+
+	test('createPullRequestReviewThreadsModelReference disposes model when last reference is released', () => {
+		const ref1 = service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1);
+		const ref2 = service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1);
+		const model = ref1.object;
+		assert.strictEqual(ref2.object, model);
+
+		ref1.dispose();
+		const ref3 = store.add(service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1));
+		assert.strictEqual(ref3.object, model);
+
+		ref2.dispose();
+		ref3.dispose();
+		const ref4 = store.add(service.createPullRequestReviewThreadsModelReference('owner', 'repo', 1));
+		assert.notStrictEqual(ref4.object, model);
+	});
+
+	test('createPullRequestCIModelReference returns shared model for same key', () => {
+		const ref1 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc'));
+		const ref2 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc'));
+		assert.strictEqual(ref1.object, ref2.object);
+	});
+
+	test('createPullRequestCIModelReference returns different models for different head refs', () => {
+		const ref1 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc'));
+		const ref2 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'def'));
+		assert.notStrictEqual(ref1.object, ref2.object);
+	});
+
+	test('createPullRequestCIModelReference returns different models for different pull requests', () => {
+		const ref1 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc'));
+		const ref2 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 2, 'abc'));
+		assert.notStrictEqual(ref1.object, ref2.object);
+	});
+
+	test('createPullRequestCIModelReference exposes the requested head ref on the model', () => {
+		const ref = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc123'));
+		assert.strictEqual(ref.object.headSha, 'abc123');
+	});
+
+	test('createPullRequestCIModelReference disposes model when last reference is released', () => {
+		const ref1 = service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc');
+		const ref2 = service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc');
+		const model = ref1.object;
+		assert.strictEqual(ref2.object, model);
+
+		ref1.dispose();
+		const ref3 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc'));
+		assert.strictEqual(ref3.object, model);
+
+		ref2.dispose();
+		ref3.dispose();
+		const ref4 = store.add(service.createPullRequestCIModelReference('owner', 'repo', 1, 'abc'));
+		assert.notStrictEqual(ref4.object, model);
 	});
 });
 

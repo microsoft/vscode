@@ -3,24 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import gulp from 'gulp';
+import { gulp, rename, replace, filter, flatmap, gunzip, jsonEditor } from './lib/gulp/facade.ts';
 import * as path from 'path';
 import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
+import * as task from './lib/gulp/task.ts';
 import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import product from '../product.json' with { type: 'json' };
-import rename from 'gulp-rename';
-import replace from 'gulp-replace';
-import filter from 'gulp-filter';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import { readISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
-import flatmap from 'gulp-flatmap';
-import gunzip from 'gulp-gunzip';
 import { untar } from './lib/util.ts';
 import File from 'vinyl';
 import * as fs from 'fs';
@@ -34,8 +29,7 @@ import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
-import { getCopilotExcludeFilter, copyCopilotNativeDeps, prepareBuiltInCopilotExtensionShims } from './lib/copilot.ts';
-import jsonEditor from 'gulp-json-editor';
+import { getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -53,7 +47,6 @@ const BUILD_TARGETS = [
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
 	{ platform: 'linux', arch: 'x64' },
-	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },
 	{ platform: 'alpine', arch: 'arm64' },
 	// legacy: we use to ship only one alpine so it was put in the arch, but now we ship
@@ -170,10 +163,52 @@ function extractAlpinefromDocker(nodeVersion: string, platform: string, arch: st
 	return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } as fs.Stats })]);
 }
 
+// WSL1 binfmt_elf rejects PT_LOAD segments with p_align > PAGE_SIZE (0x1000).
+// Node 24 linux-x64 ships an `lpstub` LOAD segment aligned to 2 MiB for hugepage
+// remapping; clamp it so the binary still loads under WSL1.
+function patchElfLoadAlign(): NodeJS.ReadWriteStream {
+	return es.mapSync<File, File>(file => {
+		if (!file.contents || !Buffer.isBuffer(file.contents)) {
+			return file;
+		}
+		const buf = file.contents;
+		if (buf.length < 64) {
+			return file;
+		}
+		if (buf[0] !== 0x7f || buf[1] !== 0x45 || buf[2] !== 0x4c || buf[3] !== 0x46) {
+			return file;
+		}
+		if (buf[4] !== 2 /* ELFCLASS64 */ || buf[5] !== 1 /* ELFDATA2LSB */) {
+			return file;
+		}
+		const e_phoff = Number(buf.readBigUInt64LE(0x20));
+		const e_phentsize = buf.readUInt16LE(0x36);
+		const e_phnum = buf.readUInt16LE(0x38);
+		if (e_phentsize !== 56) {
+			return file;
+		}
+		const PT_LOAD = 1;
+		const MAX_ALIGN = 0x1000n;
+		for (let i = 0; i < e_phnum; i++) {
+			const off = e_phoff + i * e_phentsize;
+			if (off + e_phentsize > buf.length) {
+				break;
+			}
+			if (buf.readUInt32LE(off) !== PT_LOAD) {
+				continue;
+			}
+			if (buf.readBigUInt64LE(off + 48) > MAX_ALIGN) {
+				buf.writeBigUInt64LE(MAX_ALIGN, off + 48);
+			}
+		}
+		return file;
+	});
+}
+
 const { nodeVersion, internalNodeVersion } = getNodeVersion();
 
 BUILD_TARGETS.forEach(({ platform, arch }) => {
-	gulp.task(task.define(`node-${platform}-${arch}`, () => {
+	task.task(task.define(`node-${platform}-${arch}`, () => {
 		const nodePath = path.join('.build', 'node', `v${nodeVersion}`, `${platform}-${arch}`);
 
 		if (!fs.existsSync(nodePath)) {
@@ -187,18 +222,16 @@ BUILD_TARGETS.forEach(({ platform, arch }) => {
 	}));
 });
 
-const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
+const defaultNodeTask = task.task(`node-${process.platform}-${process.arch}`);
 
 if (defaultNodeTask) {
 	// eslint-disable-next-line local/code-no-any-casts
-	gulp.task(task.define('node', defaultNodeTask as any));
+	task.task(task.define('node', defaultNodeTask as any));
 }
 
 function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefined {
 
-	if (arch === 'armhf') {
-		arch = 'armv7l';
-	} else if (arch === 'alpine') {
+	if (arch === 'alpine') {
 		platform = 'alpine';
 		arch = 'x64';
 	}
@@ -238,14 +271,16 @@ function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefi
 				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
 				.pipe(rename('node.exe'));
 		case 'darwin':
-		case 'linux':
-			return (product.nodejsRepository !== 'https://nodejs.org' ?
+		case 'linux': {
+			const downloaded = (product.nodejsRepository !== 'https://nodejs.org' ?
 				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName!, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
 				.pipe(util.setExecutableBit('**'))
 				.pipe(rename('node'));
+			return platform === 'linux' && arch === 'x64' ? downloaded.pipe(patchElfLoadAlign()) : downloaded;
+		}
 		case 'alpine':
 			return product.nodejsRepository !== 'https://nodejs.org' ?
 				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName!, checksumSha256 })
@@ -339,12 +374,15 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
-		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
+		const cleanedDeps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
+		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch, 'remote/node_modules'), { base: 'remote', dot: true, allowEmpty: true });
+		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds)
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);
@@ -429,6 +467,38 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 	};
 }
 
+function hasAuthenticodeSignature(filePath: string): Promise<boolean> {
+	return new Promise((resolve, reject) => {
+		const proc = cp.spawn('signtool.exe', ['verify', '/pa', filePath]);
+		proc.on('error', reject);
+		proc.on('exit', code => resolve(code === 0));
+	});
+}
+
+async function stripAuthenticodeSignature(filePath: string): Promise<void> {
+	// ESRP's `signtool /as` (append) fails with 0x800700C1 on PEs whose existing
+	// Authenticode signature was invalidated by rcedit. Strip cleanly first so
+	// rcedit operates on an unsigned PE.
+	if (!await hasAuthenticodeSignature(filePath)) {
+		return;
+	}
+	await new Promise<void>((resolve, reject) => {
+		const proc = cp.spawn('signtool.exe', ['remove', '/s', filePath]);
+		let out = '';
+		proc.stdout?.on('data', chunk => out += chunk.toString());
+		proc.stderr?.on('data', chunk => out += chunk.toString());
+		proc.on('error', reject);
+		proc.on('exit', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				process.stderr.write(out);
+				reject(new Error(`signtool remove /s failed for ${filePath} (exit ${code})`));
+			}
+		});
+	});
+}
+
 function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(BUILD_ROOT, destinationFolderName);
 
@@ -443,8 +513,10 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 		const patchPromises = deps.map<Promise<unknown>>(async dep => {
 			const basename = path.basename(dep);
+			const fullPath = path.join(cwd, dep);
 
-			await rcedit(path.join(cwd, dep), {
+			await stripAuthenticodeSignature(fullPath);
+			await rcedit(fullPath, {
 				'file-version': baseVersion,
 				'version-string': {
 					'CompanyName': 'Microsoft Corporation',
@@ -463,14 +535,13 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
-function copyCopilotNativeDepsTaskREH(platform: string, arch: string, destinationFolderName: string) {
+function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destinationFolderName: string) {
 	return async () => {
 		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
 		const nodeModulesDir = path.join(outputDir, 'node_modules');
-		copyCopilotNativeDeps(platform, arch, nodeModulesDir);
 
 		const builtInCopilotExtensionDir = path.join(outputDir, 'extensions', 'copilot');
-		prepareBuiltInCopilotExtensionShims(platform, arch, builtInCopilotExtensionDir, nodeModulesDir);
+		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, nodeModulesDir);
 	};
 }
 
@@ -507,7 +578,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 		util.rimraf(`out-vscode-${type}-min`),
 		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
-	gulp.task(minifyTask);
+	task.task(minifyTask);
 
 	BUILD_TARGETS.forEach(buildTarget => {
 		const dashed = (str: string) => (str ? `-${str}` : ``);
@@ -520,10 +591,10 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 
 			const packageTasks: task.Task[] = [
 				compileNativeExtensionsBuildTask,
-				gulp.task(`node-${platform}-${arch}`) as task.Task,
+				task.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName),
-				copyCopilotNativeDepsTaskREH(platform, arch, destinationFolderName)
+				prepareCopilotRipgrepShimTaskREH(platform, arch, destinationFolderName)
 			];
 
 			if (platform === 'win32') {
@@ -531,7 +602,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			}
 
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
-			gulp.task(serverTaskCI);
+			task.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
 				compileBuildWithManglingTask,
@@ -542,7 +613,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 				minified ? minifyTask : bundleTask,
 				serverTaskCI
 			));
-			gulp.task(serverTask);
+			task.task(serverTask);
 		});
 	});
 });

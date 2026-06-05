@@ -40,6 +40,62 @@ export interface IBackgroundSummarizationResult {
 }
 
 /**
+ * Thresholds used by {@link shouldKickOffBackgroundSummarization}. Exported so
+ * tests can reference the same numbers without repeating them.
+ */
+export const BackgroundSummarizationThresholds = {
+	/** Minimum of the jittered warm-cache range. */
+	warmJitterMin: 0.78,
+	/** Width of the jittered warm-cache range; together with `warmJitterMin` yields [0.78, 0.82). */
+	warmJitterSpan: 0.04,
+	/**
+	 * Cold-cache emergency ratio. Above this we kick off even without a warmed
+	 * cache to avoid forcing a foreground sync compaction on the next render.
+	 * Tuned low enough that long-running sessions stay ahead of the budget
+	 * without relying on foreground compaction.
+	 */
+	emergency: 0.90,
+	/**
+	 * Minimum context ratio for applying a previously-completed background
+	 * summary on the next render. Below this we discard the stale summary —
+	 * typically because the user switched to a model with a larger context
+	 * window (or increased the configured context size), and applying it would
+	 * surface a surprising "Compacted conversation" notice with plenty of
+	 * headroom remaining.
+	 */
+	applyMinRatio: 0.65,
+} as const;
+
+/**
+ * Decide whether to kick off post-render background compaction.
+ *
+ * Prompt-cache parity matters, so we:
+ *   - require a completed tool call in this turn ("warm" cache) before
+ *     firing at the normal, jittered ~0.80 threshold;
+ *   - allow an emergency kick-off at >= 0.90 even with a cold cache to
+ *     avoid forcing a foreground sync compaction on the next render.
+ *
+ * The jitter range straddles the historical 0.80 threshold (not "lower the
+ * bar") — the goal is to avoid always firing at the exact same boundary,
+ * not to kick off systematically earlier.
+ *
+ * `rng` is only consumed on the warm-cache branch, which keeps deterministic
+ * tests straightforward.
+ */
+export function shouldKickOffBackgroundSummarization(
+	postRenderRatio: number,
+	cacheWarm: boolean,
+	rng: () => number,
+): boolean {
+	const t = BackgroundSummarizationThresholds;
+	if (!cacheWarm) {
+		return postRenderRatio >= t.emergency;
+	}
+	const jittered = t.warmJitterMin + rng() * t.warmJitterSpan;
+	return postRenderRatio >= jittered;
+}
+
+/**
  * Tracks a single background summarization pass for one chat session.
  *
  * The singleton `AgentIntent` owns one instance per session (keyed by
@@ -57,13 +113,23 @@ export class BackgroundSummarizer {
 
 	readonly modelMaxPromptTokens: number;
 
+	/**
+	 * Identity of the endpoint this summarizer was created for (provider +
+	 * model + apiType, composed by the caller). Used by
+	 * {@link AgentIntent.getOrCreateBackgroundSummarizer} to detect a
+	 * mid-session endpoint switch — a summary computed against one endpoint's
+	 * prefix is cancelled rather than applied to a different endpoint.
+	 */
+	readonly endpointId: string | undefined;
+
 	get state(): BackgroundSummarizationState { return this._state; }
 	get error(): unknown { return this._error; }
 
 	get token() { return this._cts?.token; }
 
-	constructor(modelMaxPromptTokens: number) {
+	constructor(modelMaxPromptTokens: number, endpointId?: string) {
 		this.modelMaxPromptTokens = modelMaxPromptTokens;
+		this.endpointId = endpointId;
 	}
 
 	start(work: (token: CancellationToken) => Promise<IBackgroundSummarizationResult>, parentToken?: CancellationToken): void {

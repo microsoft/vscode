@@ -68,6 +68,7 @@
 
 .changes-view-body .changes-files-header-toolbar {
 	flex: 1;
+	min-width: 0;
 }
 
 .changes-view-body .changes-files-header-toolbar .action-label {
@@ -86,17 +87,19 @@
 	}
 }
 
-.changes-view-body .changes-files-count {
+.changes-view-body .changes-files-header-right-toolbar {
 	flex-shrink: 0;
-	font-size: 11px;
-	padding: 2px 0;
-	border-radius: 4px;
-	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
-	color: var(--vscode-descriptionForeground);
-	line-height: 1;
-	font-weight: 600;
-	min-width: 16px;
-	text-align: center;
+	display: flex;
+	align-items: center;
+}
+
+.changes-view-body .changes-files-header-right-toolbar .changes-diff-stats-action .action-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	font-weight: 500;
+	padding: 2px 4px;
 }
 
 /* Overview section (header) - hidden since actions moved outside card */
@@ -129,6 +132,14 @@
 	color: var(--vscode-chat-linesRemovedForeground);
 	font-size: 11px;
 	font-weight: 500;
+}
+
+.changes-view-body .changes-files-header-right-toolbar .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-view-body .changes-files-header-right-toolbar .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
 }
 
 /* Actions container */
@@ -194,7 +205,7 @@
 	padding: 4px;
 	width: auto;
 	min-width: 0;
-	border-radius: 0px 4px 4px 0px;
+	border-radius: 0px var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0px;
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
@@ -211,17 +222,18 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
 	padding: 2px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	display: inline-flex;
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
+	border-color: var(--vscode-button-secondaryBorder);
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
-	border-radius: 4px 0px 0px 4px;
+	border-radius: var(--vscode-cornerRadius-small) 0px 0px var(--vscode-cornerRadius-small);
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary:hover {
@@ -266,7 +278,7 @@
 }
 
 .changes-view-body .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Action bar in list rows */
@@ -354,6 +366,15 @@
 
 .changes-file-list .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Primary action button */
+.changes-view-body .chat-editing-session-actions .monaco-button.monaco-text-button {
+	gap: 2px;
+
+	.codicon {
+		margin: 0;
+	}
 }
 
 /* Line counts in buttons */

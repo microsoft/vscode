@@ -97,6 +97,19 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._logService.warn('Attempted to register a terminal instance with an undefined tool session ID');
 			return;
 		}
+		// If the instance is already registered with the same tool session id, skip to avoid
+		// accumulating duplicate `onDidDisposeSession`/`onDisposed` listeners (see #309906).
+		const existingToolSessionId = this._toolSessionIdByTerminalInstance.get(instance);
+		if (existingToolSessionId === terminalToolSessionId) {
+			return;
+		}
+		// The instance was previously registered under a different tool session id. Clean up the
+		// stale listener + mapping before installing the new ones so we keep at most one set of
+		// listeners per instance, regardless of how often it is re-registered.
+		if (existingToolSessionId !== undefined) {
+			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(existingToolSessionId);
+			this._terminalInstancesByToolSessionId.delete(existingToolSessionId);
+		}
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
 		this._toolSessionIdByTerminalInstance.set(instance, terminalToolSessionId);
 		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);

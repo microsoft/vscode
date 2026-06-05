@@ -32,9 +32,9 @@ import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../cont
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IAgentSkill, IChatPromptSlashCommand, ICustomAgent, IInstructionFile, IPromptFileContext, IPromptPath, IPromptsService, PromptsStorage } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType, PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
-import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
+import { ChatRequestParser, IChatParserContext } from '../../contrib/chat/common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../contrib/chat/browser/attachments/chatVariables.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionOptionsMap, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
@@ -45,9 +45,9 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
-import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
@@ -56,6 +56,10 @@ interface AgentData {
 	id: string;
 	extensionId: ExtensionIdentifier;
 	hasFollowups?: boolean;
+}
+
+interface UnresolvedAnchor {
+	readonly response: IChatResponseModel;
 }
 
 export class MainThreadChatTask implements IChatTask {
@@ -117,7 +121,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
-	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
+	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, UnresolvedAnchor>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -224,6 +228,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			model: agent.model,
 			userInvocable: agent.visibility.userInvocable,
 			disableModelInvocation: !agent.visibility.agentInvocable,
+			enabled: agent.enabled,
 		};
 	}
 
@@ -250,6 +255,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			pluginUri: skill.pluginUri,
 			sessionTypes: skill.sessionTypes,
 			userInvocable: skill.userInvocable,
+			disableModelInvocation: skill.disableModelInvocation,
 		};
 	}
 
@@ -271,12 +277,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		return {
 			uri: hookFile.uri,
 			sessionTypes: hookFile.sessionTypes,
+			source: this._toChatResourceSource(hookFile.storage),
+			extensionId: hookFile.extension?.identifier.value,
+			pluginUri: hookFile.pluginUri,
 		};
 	}
 
 	private _toPluginDto(plugin: IAgentPlugin): IPluginDto {
 		return {
-			uri: plugin.uri
+			uri: plugin.uri,
 		};
 	}
 
@@ -357,7 +366,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						chatSessionContext,
 					}, token);
 
-					if (rpcResult?.errorCallstack) {
+					// Suppress expected operational errors (rate limiting, quota exceeded, and other
+					// user-actionable conditions flagged via `isExpectedError`) from error telemetry
+					// to avoid noise in error reporting.
+					// See https://github.com/microsoft/vscode/issues/311582 (rate-limited precedent),
+					// https://github.com/microsoft/vscode/issues/311583 (spawn git ENOENT),
+					// https://github.com/microsoft/vscode/issues/311584 (network connectivity),
+					// https://github.com/microsoft/vscode/issues/311585 (EPERM/permission errors),
+					// https://github.com/microsoft/vscode/issues/311586 (UNC host access),
+					// https://github.com/microsoft/vscode/issues/311587 (cloud agent not enabled).
+					if (rpcResult?.errorCallstack && !rpcResult.errorDetails?.isRateLimited && !rpcResult.errorDetails?.isQuotaExceeded && !rpcResult.errorDetails?.isExpectedError) {
 						type ChatAgentErrorEvent = { callstack: string; msg: string; errorName: string; agent: string; agentExtensionId: string };
 						type ChatAgentErrorClassification = {
 							owner: 'bryanchen-d';
@@ -554,11 +572,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				continue;
 			}
 
-			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
+			if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId && response) {
 				if (!this._unresolvedAnchors.has(requestId)) {
 					this._unresolvedAnchors.set(requestId, new Map());
 				}
-				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
+				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, { response });
 			}
 
 			chatProgressParts.push(revivedProgress);
@@ -568,15 +586,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {
-		const anchor = this._unresolvedAnchors.get(requestId)?.get(handle);
-		if (!anchor) {
+		const unresolvedAnchorsForRequest = this._unresolvedAnchors.get(requestId);
+		if (!unresolvedAnchorsForRequest) {
 			return;
 		}
 
-		this._unresolvedAnchors.get(requestId)?.delete(handle);
+		const unresolvedAnchor = unresolvedAnchorsForRequest.get(handle);
+		if (!unresolvedAnchor) {
+			return;
+		}
+
+		unresolvedAnchorsForRequest.delete(handle);
+		if (unresolvedAnchorsForRequest.size === 0) {
+			this._unresolvedAnchors.delete(requestId);
+		}
+
 		if (resolveAnchor) {
 			const revivedAnchor = revive(resolveAnchor) as IChatContentInlineReference;
-			anchor.inlineReference = revivedAnchor.inlineReference;
+			unresolvedAnchor.response.resolveInlineReference(handle, revivedAnchor);
 		}
 	}
 
@@ -604,7 +631,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), model.getValue()).parts;
+				const context = {
+					sessionType: getChatSessionType(widget.viewModel.model.sessionResource),
+				} satisfies IChatParserContext;
+				const parsedRequest = this._instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(widget), getSelectedToolAndToolSetsForWidget(widget), model.getValue(), ChatAgentLocation.Chat, context).parts;
 				const agentPart = parsedRequest.find((part): part is ChatRequestAgentPart => part instanceof ChatRequestAgentPart);
 				const thisAgentId = this._agents.get(handle)?.id;
 				if (agentPart?.agent.id !== thisAgentId) {
@@ -686,6 +716,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				// Convert UriComponents to URI and register any inline content
 				return contributions.map(c => {
 					return {
+						name: c.name,
+						description: c.description,
+						sessionTypes: c.sessionTypes,
+						when: c.when,
 						uri: URI.revive(c.uri),
 					};
 				});
@@ -709,10 +743,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
-		// In the sessions window, only the Copilot CLI harness is accepted via the
-		// extension API. Other harnesses (e.g. Claude) are not shown in sessions.
+		// In the sessions window, only accept harnesses for session types that
+		// have a registered content provider (i.e., can actually run sessions).
 		// AHP remote servers register directly via registerExternalHarness.
-		if (this._environmentService.isSessionsWindow && chatSessionType !== 'copilotcli') {
+		if (this._environmentService.isSessionsWindow && !this._chatSessionService.getContentProviderSchemes().includes(chatSessionType)) {
 			return;
 		}
 
@@ -728,8 +762,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		// Build the item provider that calls back to the ExtHost
 		const itemProvider: ICustomizationItemProvider = {
 			onDidChange: emitter.event,
-			provideChatSessionCustomizations: async (token) => {
-				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
+			provideChatSessionCustomizations: async (sessionResource, token) => {
+				const items = await this._proxy.$provideChatSessionCustomizations(handle, sessionResource, token);
 				if (!items) {
 					return undefined;
 				}
@@ -737,10 +771,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,
+					source: item.source,
 					description: item.description,
 					groupKey: item.groupKey,
 					badge: item.badge,
 					badgeTooltip: item.badgeTooltip,
+					extensionId: item.extensionId,
+					pluginUri: item.pluginUri ? URI.revive(item.pluginUri) : undefined,
+					userInvocable: item.userInvocable,
 				}));
 			},
 		};
@@ -776,7 +814,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			getStorageSourceFilter: () => ({
 				// Extension-provided harnesses manage their own items via the provider,
 				// so we show all sources for storage-filter-based flows.
-				sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin, PromptsStorage.extension, BUILTIN_STORAGE],
+				sources: AICustomizationSources.all
 			}),
 			itemProvider,
 		};

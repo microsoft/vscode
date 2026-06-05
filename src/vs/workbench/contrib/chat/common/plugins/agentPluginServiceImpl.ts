@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { untildify } from '../../../../../base/common/labels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { autorun, derived, derivedOpts, IObservable, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, ObservablePromise, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import {
 	posix,
 	win32
@@ -48,11 +49,12 @@ import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer,
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
-import { EnablementModel, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, EnablementModel, IEnablementModel } from '../enablement.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService } from './agentPluginService.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
+import { type IMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 
 // Re-export shared helpers so existing consumers (including tests) continue to work.
 export { shellQuotePluginRootInCommand, resolveMcpServersMap, convertBareEnvVarsToVsCodeSyntax } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
@@ -96,6 +98,8 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IPluginMarketplaceService pluginMarketplaceService: IPluginMarketplaceService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 
@@ -111,6 +115,18 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			discovery.start(this.enablementModel);
 		}
 
+		// Policy-driven enforcement, applied after discovery so that enterprise
+		// policy is honored regardless of which discovery source surfaces a
+		// plugin (local paths, marketplace, CLI install dir).
+		const enabledPluginsPolicy = observableFromEvent(this,
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
+			() => configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins).policyValue,
+		);
+		const strictMarketplaces = observableConfigValue<boolean>(ChatConfiguration.StrictMarketplaces, false, configurationService);
+		// Re-evaluate marketplace trust when the policy-delivered extra
+		// marketplaces change (consulted under strict mode).
+		const extraMarketplacesChanged = observableSignalFromEvent('extraMarketplaces',
+			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)));
 
 		this.plugins = derived(read => {
 			if (!pluginsEnabled.read(read)) {
@@ -118,6 +134,69 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			}
 			return this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
 		});
+
+		// Mark policy-blocked plugins rather than hiding them: a blocked plugin
+		// stays visible (shown as disabled) but its `enablement` is forced to
+		// disabled (see `_toPlugin`), so it is inactive and cannot be re-enabled.
+		this._register(autorun(reader => {
+			const plugins = this.plugins.read(reader);
+			const policy = enabledPluginsPolicy.read(reader);
+			const strict = strictMarketplaces.read(reader);
+			extraMarketplacesChanged.read(reader);
+			const trustedExtras = strict
+				? parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).extraValues)
+				: [];
+			transaction(tx => {
+				for (const plugin of plugins) {
+					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, strict, trustedExtras, pluginMarketplaceService, logService), tx);
+				}
+			});
+		}));
+	}
+
+	/**
+	 * Determines whether a plugin is blocked by enterprise policy:
+	 * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
+	 *   is set, only plugins whose ID appears with value `true` are allowed.
+	 * - If `chat.plugins.strictMarketplaces` is on, only plugins from a
+	 *   marketplace listed in `chat.plugins.extraMarketplaces` are allowed.
+	 *
+	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
+	 * paths from `chat.pluginLocations`) are never blocked — they are user-side
+	 * concerns outside the enterprise enforcement boundary. Copilot-CLI-installed
+	 * plugins under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` are
+	 * gated using their install-path identity even when they lack rich
+	 * marketplace metadata.
+	 */
+	private _isBlockedByPolicy(
+		plugin: IAgentPlugin,
+		enabledPluginsPolicy: Record<string, boolean> | undefined,
+		strictMarketplaces: boolean,
+		trustedExtras: readonly IMarketplaceReference[],
+		pluginMarketplaceService: IPluginMarketplaceService,
+		logService: ILogService,
+	): boolean {
+		const identity = getPolicyIdentity(plugin);
+		if (!identity) {
+			return false;
+		}
+		const pluginId = `${identity.name}@${identity.marketplace}`;
+		if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
+			if (enabledPluginsPolicy[pluginId] !== true) {
+				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
+				return true;
+			}
+		}
+		if (strictMarketplaces) {
+			const trusted = identity.marketplaceReference
+				? pluginMarketplaceService.isMarketplaceTrusted(identity.marketplaceReference)
+				: isCliBucketTrusted(identity.marketplace, trustedExtras);
+			if (!trusted) {
+				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — marketplace not trusted under strict mode`);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private _dedupeAndSort(plugins: readonly IAgentPlugin[]): readonly IAgentPlugin[] {
@@ -138,7 +217,103 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 	}
 }
 
-type PluginEntry = IAgentPlugin;
+/**
+ * A discovered plugin. Extends the public {@link IAgentPlugin} with a settable
+ * `policyBlocked` observable that the service writes to when enterprise policy
+ * blocks the plugin.
+ */
+interface PluginEntry extends IAgentPlugin {
+	readonly policyBlocked: ISettableObservable<boolean>;
+}
+
+/**
+ * Marks a plugin as blocked (or unblocked) by enterprise policy. Safe to call
+ * for any {@link IAgentPlugin}; entries without a settable observable (e.g. test
+ * doubles) are ignored.
+ */
+function setPolicyBlocked(plugin: IAgentPlugin, blocked: boolean, tx: ITransaction): void {
+	const obs = plugin.policyBlocked as ISettableObservable<boolean> | undefined;
+	if (obs && typeof obs.set === 'function') {
+		obs.set(blocked, tx);
+	}
+}
+
+/**
+ * The policy-relevant identity of a plugin, used to gate against
+ * `chat.plugins.enabledPlugins` and `chat.plugins.strictMarketplaces`. Returns
+ * `undefined` for plugins that aren't subject to enterprise policy (e.g.
+ * user-configured filesystem entries, extension-contributed plugins).
+ */
+interface IPolicyIdentity {
+	readonly name: string;
+	readonly marketplace: string;
+	readonly marketplaceReference?: IMarketplaceReference;
+}
+
+/** Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by `_resolveEnterprisePluginId`. */
+const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
+
+function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
+	const m = plugin.fromMarketplace;
+	if (m) {
+		return { name: m.name, marketplace: m.marketplace, marketplaceReference: m.marketplaceReference };
+	}
+	// Copilot-CLI-installed plugins live at `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
+	// We honor enterprise policy for those by deriving the identity from the install path,
+	// using the same convention as `_resolveEnterprisePluginId`. The reserved `_direct` bucket
+	// means "not from a marketplace" and is therefore not gated.
+	if (plugin.uri.scheme !== 'file') {
+		return undefined;
+	}
+	const idx = plugin.uri.path.indexOf(COPILOT_CLI_INSTALL_PATH_FRAGMENT);
+	if (idx === -1) {
+		return undefined;
+	}
+	const segments = plugin.uri.path.slice(idx + COPILOT_CLI_INSTALL_PATH_FRAGMENT.length).split('/').filter(s => s.length > 0);
+	if (segments.length !== 2) {
+		return undefined;
+	}
+	const [marketplace, name] = segments;
+	if (marketplace === '_direct') {
+		return undefined;
+	}
+	return { name, marketplace };
+}
+
+/**
+ * Under strict mode, decide whether a Copilot-CLI-installed plugin's bucket
+ * name (the `<marketplace>` segment of its install path) corresponds to a
+ * trusted marketplace listed in `chat.plugins.extraMarketplaces`. Uses
+ * heuristics covering common CLI bucket-naming conventions (GitHub repo name,
+ * shorthand `owner/repo`, raw reference value, canonical id tail).
+ */
+function isCliBucketTrusted(bucket: string, trustedExtras: readonly IMarketplaceReference[]): boolean {
+	return trustedExtras.some(ref => {
+		if (ref.githubRepo && ref.githubRepo.split('/').pop() === bucket) {
+			return true;
+		}
+		if (ref.displayLabel === bucket || ref.displayLabel.endsWith(`/${bucket}`)) {
+			return true;
+		}
+		if (ref.canonicalId.endsWith(`/${bucket}`) || ref.canonicalId.endsWith(`/${bucket}.git`)) {
+			return true;
+		}
+		return false;
+	});
+}
+
+/**
+ * Minimal shape of a parsed plugin manifest. Known fields are typed; unknown
+ * keys (e.g. `commands`, `skills`, `hooks`, `mcpServers`) remain `unknown` and
+ * are parsed by the component readers.
+ *
+ * NOTE: `name` is typed as `string | undefined` to express intent, but
+ * consumers must still runtime-validate it (manifests are untrusted JSON).
+ */
+interface IPluginManifest {
+	readonly name?: string;
+	readonly [key: string]: unknown;
+}
 
 /**
  * Describes a single discovered plugin source, before the shared
@@ -147,8 +322,10 @@ type PluginEntry = IAgentPlugin;
 interface IPluginSource {
 	readonly uri: URI;
 	readonly fromMarketplace: IMarketplacePlugin | undefined;
-	/** Called when remove is invoked on the plugin */
-	remove(): void;
+	/** Repository root that serves as the boundary for component path resolution. */
+	readonly repositoryUri?: URI;
+	/** Called when remove is invoked on the plugin; absent for policy-managed plugins */
+	remove?(): void;
 }
 
 /**
@@ -203,7 +380,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			if (!seenPluginUris.has(key)) {
 				seenPluginUris.add(key);
 				const format = await detectPluginFormat(source.uri, this._fileService);
-				plugins.push(this._toPlugin(source.uri, format, source.fromMarketplace, () => source.remove()));
+				plugins.push(await this._toPlugin(source.uri, format, source.fromMarketplace, source.repositoryUri, source.remove));
 			}
 		}
 
@@ -222,7 +399,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 	}
 
-	private _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, removeCallback: () => void): IAgentPlugin {
+	private async _toPlugin(uri: URI, format: IPluginFormatConfig, fromMarketplace: IMarketplacePlugin | undefined, repositoryUri: URI | undefined, removeCallback: (() => void) | undefined): Promise<IAgentPlugin> {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -235,11 +412,19 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		}
 
 		const store = new DisposableStore();
-		const enablement = derived(r => this._enablementModel.readEnabled(key, r));
+		// Set by the service when enterprise policy blocks this plugin; when set,
+		// the plugin is forced disabled regardless of the user's enablement choice.
+		const policyBlocked = observableValue<boolean>('policyBlocked', false);
+		const enablement = derived(r => policyBlocked.read(r)
+			? ContributionEnablementState.DisabledProfile
+			: this._enablementModel.readEnabled(key, r));
 
-		// Track current component directories for the file watcher. These are
-		// updated whenever the manifest is read (inside each component reader).
-		const manifest = observableValue<Record<string, unknown> | undefined>('agentPluginManifest', undefined);
+		// Read the manifest up front so its `name` field can be used in the
+		// plugin label (for direct installs that have no marketplace metadata).
+		// Component directories are tracked via observers downstream and
+		// re-read whenever the manifest changes on disk.
+		const initialManifest = await this._readManifest(uri, format);
+		const manifest = observableValue<IPluginManifest | undefined>('agentPluginManifest', initialManifest);
 
 		const observeComponent = <T>(
 			prop: string,
@@ -258,7 +443,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 				}
 
 				const paths = parseComponentPathConfig(section);
-				const dirs = resolveComponentDirs(uri, defaultPath, paths);
+				const dirs = resolveComponentDirs(uri, defaultPath, paths, repositoryUri);
 				for (const d of dirs) {
 					const watcher = this._fileService.createWatcher(d, { recursive: false, excludes: [] });
 					reader.store.add(watcher);
@@ -309,7 +494,8 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 			'.mcp.json',
 		);
 
-		// Read the manifest initially and re-read whenever manifest files change.
+		// Re-read the manifest whenever it changes on disk. The initial value
+		// was already populated above before constructing the observable.
 		const readManifest = async () => {
 			manifest.set(await this._readManifest(uri, format), undefined);
 		};
@@ -321,12 +507,15 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		store.add(manifestWatcher);
 		store.add(manifestWatcher.onDidChange(() => readManifest()));
 
-		readManifest();
+		const manifestName = typeof initialManifest?.name === 'string' && initialManifest.name.trim()
+			? initialManifest.name.trim()
+			: undefined;
 
 		const plugin: PluginEntry = {
 			uri,
-			label: fromMarketplace?.name ?? basename(uri),
+			label: fromMarketplace?.name ?? manifestName ?? basename(uri),
 			enablement,
+			policyBlocked,
 			remove: removeCallback,
 			hooks,
 			commands,
@@ -342,10 +531,10 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 		return plugin;
 	}
 
-	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<Record<string, unknown> | undefined> {
+	private async _readManifest(pluginUri: URI, format: IPluginFormatConfig): Promise<IPluginManifest | undefined> {
 		const json = await this._readJsonFile(joinPath(pluginUri, format.manifestPath));
-		if (json && typeof json === 'object') {
-			return json as Record<string, unknown>;
+		if (json && typeof json === 'object' && !Array.isArray(json)) {
+			return json as IPluginManifest;
 		}
 		return undefined;
 	}
@@ -472,6 +661,7 @@ export abstract class AbstractAgentPluginDiscovery extends Disposable implements
 export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 
 	private readonly _pluginLocationsConfig: IObservable<Record<string, boolean>>;
+	private readonly _enterpriseEnabledPluginsConfig: IObservable<Record<string, boolean>>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -483,6 +673,17 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	) {
 		super(fileService, pathService, logService, workspaceContextService);
 		this._pluginLocationsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginLocations, {}, _configurationService);
+		// Enterprise-managed plugin-ID entries (delivered via the `ChatEnabledPlugins` policy).
+		// These are plugin IDs in `<plugin>@<marketplace>` form, distinct from filesystem paths.
+		// Read via `inspect()` so user-set entries survive when the policy is also set —
+		// `getValue()` alone would surface only the policy value.
+		this._enterpriseEnabledPluginsConfig = observableFromEvent(this,
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EnabledPlugins)),
+			() => {
+				const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.EnabledPlugins);
+				return { ...inspected.defaultValue, ...inspected.userValue, ...inspected.policyValue };
+			},
+		);
 	}
 
 	public override start(enablementModel: IEnablementModel): void {
@@ -490,6 +691,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
 		this._register(autorun(reader => {
 			this._pluginLocationsConfig.read(reader);
+			this._enterpriseEnabledPluginsConfig.read(reader);
 			scheduler.schedule();
 		}));
 		scheduler.schedule();
@@ -497,40 +699,60 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
 		const sources: IPluginSource[] = [];
-		const config = this._pluginLocationsConfig.get();
 		const userHome = await this._getUserHome();
 
-		for (const [path, enabled] of Object.entries(config)) {
-			if (!path.trim() || enabled === false) {
+		// User-configured filesystem paths in `chat.pluginLocations` — removable
+		// by re-writing the user setting. Filesystem-only; an entry that happens
+		// to look like `name@marketplace` is treated as a relative path, not an ID.
+		for (const [key, enabled] of Object.entries(this._pluginLocationsConfig.get())) {
+			const trimmed = key.trim();
+			if (!trimmed || enabled === false) {
 				continue;
 			}
-
-			const resources = this._resolvePluginPath(path.trim(), userHome);
-			for (const resource of resources) {
-				let stat;
-				try {
-					stat = await this._fileService.resolve(resource);
-				} catch {
-					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve plugin path: ${resource.toString()}`);
-					continue;
-				}
-
-				if (!stat.isDirectory) {
-					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Plugin path is not a directory: ${resource.toString()}`);
-					continue;
-				}
-
-				const fromMarketplace = this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
-				const configKey = path;
-				sources.push({
-					uri: stat.resource,
-					fromMarketplace,
-					remove: () => this._removePluginPath(configKey),
-				});
+			for (const resource of this._resolvePluginPath(trimmed, userHome)) {
+				await this._addPluginSource(sources, resource, 'plugin path', () => this._removePluginPath(key));
 			}
 		}
 
+		// Enterprise-managed plugin IDs in `chat.plugins.enabledPlugins` (delivered
+		// via the `ChatEnabledPlugins` policy) — IDs of the form
+		// `<plugin>@<marketplace>`, resolved to the Copilot CLI install convention.
+		// Non-removable from the UI (enterprise-managed).
+		for (const [key, enabled] of Object.entries(this._enterpriseEnabledPluginsConfig.get())) {
+			const trimmed = key.trim();
+			if (!trimmed || enabled === false) {
+				continue;
+			}
+			const resource = this._resolveEnterprisePluginId(trimmed, userHome);
+			if (!resource) {
+				this._logService.debug(`[ConfiguredAgentPluginDiscovery] Skipping enterprise plugin entry that is not in <plugin>@<marketplace> form: ${trimmed}`);
+				continue;
+			}
+			await this._addPluginSource(sources, resource, 'enterprise plugin path');
+		}
+
 		return sources;
+	}
+
+	private async _addPluginSource(sources: IPluginSource[], resource: URI, label: string, remove?: () => void): Promise<void> {
+		let stat;
+		try {
+			stat = await this._fileService.resolve(resource);
+		} catch {
+			this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve ${label}: ${resource.toString()}`);
+			return;
+		}
+
+		if (!stat.isDirectory) {
+			this._logService.debug(`[ConfiguredAgentPluginDiscovery] ${label} is not a directory: ${resource.toString()}`);
+			return;
+		}
+
+		sources.push({
+			uri: stat.resource,
+			fromMarketplace: this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource),
+			remove,
+		});
 	}
 
 	private async _getUserHome(): Promise<string> {
@@ -539,17 +761,15 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	}
 
 	/**
-	 * Resolves a plugin path to one or more resource URIs. Supports:
-	 * - Absolute paths (used directly)
-	 * - Tilde paths (expanded to user home directory)
-	 * - Relative paths (resolved against each workspace folder)
+	 * Resolves a user-configured plugin path to one or more resource URIs.
+	 * Supports absolute paths, tilde paths (expanded to user home), and
+	 * workspace-relative paths.
 	 */
 	private _resolvePluginPath(path: string, userHome: string): URI[] {
 		if (path.startsWith('~')) {
 			path = untildify(path, userHome);
 		}
 
-		// Handle absolute paths
 		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
 			return [URI.file(path)];
 		}
@@ -557,6 +777,20 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		return this._workspaceContextService.getWorkspace().folders.map(
 			folder => joinPath(folder.uri, path)
 		);
+	}
+
+	/**
+	 * Resolves an enterprise plugin ID of the form `<plugin>@<marketplace>` to
+	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
+	 * Returns `undefined` for anything that doesn't match the ID shape.
+	 */
+	private _resolveEnterprisePluginId(id: string, userHome: string): URI | undefined {
+		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
+		if (!idMatch) {
+			return undefined;
+		}
+		const [, plugin, marketplace] = idMatch;
+		return URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`);
 	}
 
 	/**
@@ -632,9 +866,12 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 				continue;
 			}
 
+			const repositoryUri = this._pluginRepositoryService.getRepositoryUri(entry.plugin.marketplaceReference, entry.plugin.marketplaceType);
+
 			sources.push({
 				uri: stat.resource,
 				fromMarketplace: entry.plugin,
+				repositoryUri,
 				remove: () => {
 					this._enablementModel.remove(stat.resource.toString());
 					this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri);
@@ -653,6 +890,180 @@ export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscover
 		}
 
 		return sources;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Copilot CLI plugin discovery
+// ---------------------------------------------------------------------------
+
+/**
+ * Directory under the Copilot CLI home where installed plugins are cached.
+ * Layout is two levels deep: `<marketplace>/<plugin>/`. Direct (non-marketplace)
+ * installs use the reserved marketplace segment `_direct`.
+ *
+ * See `src/plugins/manager.ts` in the copilot-agent-runtime repo.
+ */
+const COPILOT_CLI_INSTALLED_PLUGINS_DIR = '.copilot/installed-plugins';
+
+/**
+ * Discovers plugins installed by the Copilot CLI under
+ * `~/.copilot/installed-plugins/<marketplace>/<plugin>/`. Each leaf directory
+ * is treated as a plugin root, allowing CLI-installed plugins (both
+ * marketplace and direct) to surface in VS Code without a separate install.
+ */
+export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IDialogService private readonly _dialogService: IDialogService,
+	) {
+		super(fileService, pathService, logService, workspaceContextService);
+	}
+
+	public override start(enablementModel: IEnablementModel): void {
+		this._enablementModel = enablementModel;
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+
+		const watcherStore = this._register(new DisposableStore());
+		const setupWatchers = async () => {
+			watcherStore.clear();
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			const root = await this._getInstalledPluginsDir();
+
+			// Walk up to the deepest existing ancestor and watch each directory
+			// from there down. Non-recursive watchers fail if the target doesn't
+			// exist, so we need to watch an existing parent (e.g. ~/.copilot or
+			// userHome) to detect the first-ever plugin install.
+			const dirsToWatch: URI[] = [];
+			let candidate: URI | undefined = root;
+			while (candidate) {
+				dirsToWatch.unshift(candidate);
+				const parent = joinPath(candidate, '..');
+				if (parent.toString() === candidate.toString()) {
+					break;
+				}
+				if (await this._pathExists(parent)) {
+					dirsToWatch.unshift(parent);
+					break;
+				}
+				candidate = parent;
+			}
+
+			for (const dir of dirsToWatch) {
+				if (!(await this._pathExists(dir))) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => {
+					scheduler.schedule();
+					// Re-attach watchers in case directories appeared/disappeared.
+					setupWatchers().catch(() => { /* watchers are best-effort */ });
+				}));
+			}
+
+			// Watch each marketplace bucket non-recursively for plugin
+			// install/uninstall events.
+			let rootStat;
+			try {
+				rootStat = await this._fileService.resolve(root);
+			} catch {
+				return;
+			}
+			if (!rootStat.children) {
+				return;
+			}
+			for (const marketplaceDir of rootStat.children) {
+				if (!marketplaceDir.isDirectory) {
+					continue;
+				}
+				const watcher = this._fileService.createWatcher(marketplaceDir.resource, { recursive: false, excludes: [] });
+				watcherStore.add(watcher);
+				watcherStore.add(watcher.onDidChange(() => scheduler.schedule()));
+			}
+		};
+
+		setupWatchers().catch(() => { /* watchers are best-effort */ });
+		scheduler.schedule();
+	}
+
+	private async _getInstalledPluginsDir(): Promise<URI> {
+		const userHome = await this._pathService.userHome();
+		return joinPath(userHome, COPILOT_CLI_INSTALLED_PLUGINS_DIR);
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const root = await this._getInstalledPluginsDir();
+
+		let rootStat;
+		try {
+			rootStat = await this._fileService.resolve(root);
+		} catch {
+			// Directory doesn't exist — Copilot CLI hasn't installed any plugins.
+			return [];
+		}
+
+		if (!rootStat.isDirectory || !rootStat.children) {
+			return [];
+		}
+
+		const sources: IPluginSource[] = [];
+		// Each immediate child is a marketplace bucket (e.g. `_direct`,
+		// `<marketplace-name>`); each grandchild is a plugin root.
+		for (const marketplaceDir of rootStat.children) {
+			if (!marketplaceDir.isDirectory) {
+				continue;
+			}
+
+			let marketplaceStat;
+			try {
+				marketplaceStat = await this._fileService.resolve(marketplaceDir.resource);
+			} catch {
+				continue;
+			}
+
+			if (!marketplaceStat.children) {
+				continue;
+			}
+
+			for (const pluginDir of marketplaceStat.children) {
+				if (!pluginDir.isDirectory) {
+					continue;
+				}
+				sources.push({
+					uri: pluginDir.resource,
+					fromMarketplace: undefined,
+					remove: () => this._promptRemove(pluginDir.resource),
+				});
+			}
+		}
+
+		return sources;
+	}
+
+	private async _promptRemove(resource: URI): Promise<void> {
+		const { confirmed } = await this._dialogService.confirm({
+			message: localize('copilotCliPlugin.remove.confirm', "This plugin was installed by the Copilot CLI. Remove it from disk?"),
+			detail: localize('copilotCliPlugin.remove.detail', "The plugin directory '{0}' will be moved to the trash. You can reinstall it later via the Copilot CLI.", resource.fsPath),
+			primaryButton: localize('copilotCliPlugin.remove.primary', "Remove"),
+		});
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			await this._fileService.del(resource, { recursive: true, useTrash: true });
+			this._enablementModel.remove(resource.toString());
+		} catch (error) {
+			this._logService.error('[CopilotCliAgentPluginDiscovery] Failed to remove plugin', error);
+		}
 	}
 }
 

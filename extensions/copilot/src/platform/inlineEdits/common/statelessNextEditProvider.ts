@@ -26,7 +26,7 @@ import { InlineEditRequestLogContext } from './inlineEditLogContext';
 import { stringifyChatMessages } from './utils/stringifyChatMessages';
 import { IXtabHistoryEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
 
-export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>
+export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>;
 
 export class WithStatelessProviderTelemetry<T> {
 	constructor(
@@ -36,7 +36,7 @@ export class WithStatelessProviderTelemetry<T> {
 	}
 }
 
-export type EditStreamingWithTelemetry = AsyncGenerator<WithStatelessProviderTelemetry<StreamedEdit>, WithStatelessProviderTelemetry<NoNextEditReason>, void>
+export type EditStreamingWithTelemetry = AsyncGenerator<WithStatelessProviderTelemetry<StreamedEdit>, WithStatelessProviderTelemetry<NoNextEditReason>, void>;
 
 export type StreamedEdit = {
 	readonly targetDocument: DocumentId;
@@ -49,7 +49,7 @@ export type StreamedEdit = {
 	 * in either the original location or the jump target location.
 	 */
 	readonly originalWindow?: OffsetRange;
-}
+};
 
 export type PushEdit = (edit: Result<StreamedEdit, NoNextEditReason>) => void;
 
@@ -414,6 +414,12 @@ export interface IStatelessNextEditTelemetry {
 	readonly nDiffsInPrompt: number | undefined;
 	readonly diffTokensInPrompt: number | undefined;
 
+	/* neighbor (similar files) snippets info */
+	readonly nNeighborSnippetsComputed: number | undefined;
+	readonly nNeighborSnippetsInPrompt: number | undefined;
+	/** JSON-encoded array of original input indices of snippets included in the prompt. */
+	readonly neighborSnippetIndicesInPrompt: string | undefined;
+
 	/* lint errors info */
 	readonly lintErrors: string | undefined;
 
@@ -432,7 +438,7 @@ export type FetchResultWithStats = {
 	readonly response: FetchResponse<string>;
 	readonly fetchTime: number;
 	readonly fetchResult: ChatFetchResponseType;
-}
+};
 
 export class StatelessNextEditTelemetryBuilder {
 
@@ -506,6 +512,9 @@ export class StatelessNextEditTelemetryBuilder {
 			cursorJumpResponse: this._cursorJumpResponse,
 			nDiffsInPrompt: this._nDiffsInPrompt,
 			diffTokensInPrompt: this._diffTokensInPrompt,
+			nNeighborSnippetsComputed: this._nNeighborSnippetsComputed,
+			nNeighborSnippetsInPrompt: this._nNeighborSnippetsInPrompt,
+			neighborSnippetIndicesInPrompt: this._neighborSnippetIndicesInPrompt,
 			lintErrors: this._lintErrors,
 			terminalOutput: this._terminalOutput,
 			similarFilesContext: this._similarFilesContext,
@@ -700,6 +709,24 @@ export class StatelessNextEditTelemetryBuilder {
 	private _diffTokensInPrompt: number | undefined;
 	public setDiffTokensInPrompt(n: number): this {
 		this._diffTokensInPrompt = n;
+		return this;
+	}
+
+	private _nNeighborSnippetsComputed: number | undefined;
+	public setNNeighborSnippetsComputed(n: number): this {
+		this._nNeighborSnippetsComputed = n;
+		return this;
+	}
+
+	private _nNeighborSnippetsInPrompt: number | undefined;
+	public setNNeighborSnippetsInPrompt(n: number): this {
+		this._nNeighborSnippetsInPrompt = n;
+		return this;
+	}
+
+	private _neighborSnippetIndicesInPrompt: string | undefined;
+	public setNeighborSnippetIndicesInPrompt(indices: readonly number[]): this {
+		this._neighborSnippetIndicesInPrompt = JSON.stringify(indices);
 		return this;
 	}
 

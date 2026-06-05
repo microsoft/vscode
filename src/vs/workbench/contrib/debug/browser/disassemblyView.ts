@@ -116,7 +116,7 @@ export class DisassemblyView extends EditorPane {
 		this.menu = menuService.createMenu(MenuId.DebugDisassemblyContext, contextKeyService);
 		this._register(this.menu);
 		this._disassembledInstructions = undefined;
-		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000 }));
+		this._onDidChangeStackFrame = this._register(new Emitter<void>({ leakWarningThreshold: 1000, leakWarningName: 'DisassemblyView._onDidChangeStackFrame' }));
 		this._previousDebuggingState = _debugService.state;
 		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug')) {

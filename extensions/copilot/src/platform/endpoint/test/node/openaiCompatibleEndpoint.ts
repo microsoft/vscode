@@ -73,7 +73,7 @@ export type IModelConfig = {
 		max_completion_tokens?: number | null;
 		intent?: boolean | null;
 	};
-}
+};
 
 export class OpenAICompatibleTestEndpoint extends ChatEndpoint {
 	constructor(

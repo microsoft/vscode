@@ -1205,6 +1205,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			contentOptions: {
 				allowMultipleAPIAcquire: true,
 				allowScripts: true,
+				forwardUntrustedKeypressEvents: false,
 				localResourceRoots: this.localResourceRootsCache,
 			},
 			extension: undefined,

@@ -3,30 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContentsView, webContents } from 'electron';
+import { screen, WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData } from '../common/browserView.js';
-import { BrowserViewElementInspector } from './browserViewElementInspector.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewOpenOptions } from '../common/browserView.js';
+import { BrowserViewEmulator } from './browserViewEmulator.js';
+import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { ICodeWindow } from '../../window/electron-main/window.js';
+import { ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
-import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
 import { BrowserSession } from './browserSession.js';
+import { IBrowserHistoryItemHandle } from '../common/browserHistory.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
-import { hasKey } from '../../../base/common/types.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { logBrowserOpen } from '../common/browserViewTelemetry.js';
+
+enum NewPageLocation {
+	Foreground = 'foreground',
+	Background = 'background',
+	NewWindow = 'newWindow'
+}
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
  * This class encapsulates all operations and events for a single browser view.
  */
-export class BrowserView extends Disposable implements ICDPTarget {
+export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
@@ -36,13 +42,27 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
-	private readonly _debugger: BrowserViewDebugger;
-	private readonly _inspector: BrowserViewElementInspector;
-	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
+	private _currentHistoryHandle: IBrowserHistoryItemHandle | undefined;
+	private _explicitNavigationPending = false;
+
+	readonly debugger: BrowserViewDebugger;
+	readonly emulator: BrowserViewEmulator;
+	readonly inspector: BrowserViewInspector;
+
+	private _ownerWindow: ICodeWindow;
+	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
+
+	/**
+	 * Resize a full-page screenshot so its largest dimension never exceeds this many pixels. A very tall
+	 * or wide page would otherwise request an enormous bitmap, which is costly to allocate/encode and
+	 * can stress the browser process. We downscale via `scale` (rather than cropping) so the whole page
+	 * still fits in the result.
+	 */
+	private static readonly MAX_FULL_PAGE_SCREENSHOT_DIMENSION = 2576;
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
@@ -68,9 +88,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private readonly _onDidChangeFavicon = this._register(new Emitter<IBrowserViewFaviconChangeEvent>());
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent> = this._onDidChangeFavicon.event;
 
-	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageRequest>());
-	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest> = this._onDidRequestNewPage.event;
-
 	private readonly _onDidFindInPage = this._register(new Emitter<IBrowserViewFindInPageResult>());
 	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult> = this._onDidFindInPage.event;
 
@@ -79,27 +96,33 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 	constructor(
 		public readonly id: string,
+		public readonly owner: IBrowserViewOwner,
 		public readonly session: BrowserSession,
-		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
+		createChildView: (url: string, electronOptions: Electron.WebContentsViewConstructorOptions | undefined, openOptions: IBrowserViewOpenOptions) => BrowserView,
 		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
-		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+		const webPreferences: Electron.WebPreferences = {
 			...options?.webPreferences,
 
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
+
+			// NOTE: When `sandbox` is enabled, `nodeIntegrationInSubFrames` doesn't actually enable node integration or prevent sandboxing.
+			//       It allows preload scripts to run in subframes, which is important for our features like keyboard shortcut forwarding.
+			nodeIntegrationInSubFrames: true,
+
 			webviewTag: false,
 			session: this.session.electronSession,
 
-			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
-			type: 'browserView'
+			focusOnNavigation: false
 		};
 
 		this._view = new WebContentsView({
@@ -107,14 +130,33 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+
+		// Use a default size of 1024x768.
+		this._view.setBounds({ x: -10000, y: -10000, width: 1024, height: 768 });
 		this._view.setBackgroundColor('#FFFFFF');
+
+		this._ownerWindow = this.windowsMainService.getWindowById(owner.mainWindowId)!;
+		if (!this._ownerWindow) {
+			throw new Error(`Window with ID ${owner.mainWindowId} not found`);
+		}
+		this._register(this._ownerWindow.onDidClose(() => this.dispose()));
+		this._register(this._ownerWindow.onWillLoad((e) => {
+			if (e.reason === LoadReason.LOAD) {
+				this.dispose(); // Dispose when switching workspaces.
+			} else if (e.reason === LoadReason.RELOAD) {
+				this.setVisible(false); // Hide when reloading.
+			}
+		}));
+
+		this._view.setVisible(false);
+		this._ownerWindow.win?.contentView.addChildView(this._view);
 
 		this._view.webContents.setWindowOpenHandler((details) => {
 			const location = (() => {
 				switch (details.disposition) {
-					case 'background-tab': return BrowserNewPageLocation.Background;
-					case 'foreground-tab': return BrowserNewPageLocation.Foreground;
-					case 'new-window': return BrowserNewPageLocation.NewWindow;
+					case 'background-tab': return NewPageLocation.Background;
+					case 'foreground-tab': return NewPageLocation.Foreground;
+					case 'new-window': return NewPageLocation.NewWindow;
 					default: return undefined;
 				}
 			})();
@@ -127,15 +169,21 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			return {
 				action: 'allow',
 				createWindow: (options) => {
-					const childView = createChildView(options);
-					const resource = BrowserViewUri.forId(childView.id);
+					logBrowserOpen(this.telemetryService, (() => {
+						switch (location) {
+							case NewPageLocation.NewWindow: return 'browserLinkNewWindow';
+							case NewPageLocation.Background: return 'browserLinkBackground';
+							case NewPageLocation.Foreground: return 'browserLinkForeground';
+						}
+					})());
 
-					// Fire event for the workbench to open this view
-					this._onDidRequestNewPage.fire({
-						resource,
-						url: details.url,
-						location,
-						position: { x: options.x, y: options.y, width: options.width, height: options.height }
+					const childView = createChildView(details.url, options, {
+						pinned: true,
+						background: location === NewPageLocation.Background,
+						parentViewId: id,
+						auxiliaryWindow: location === NewPageLocation.NewWindow
+							? { x: options.x, y: options.y, width: options.width, height: options.height }
+							: undefined,
 					});
 
 					// Return the webContents so Electron can complete the window.open() call
@@ -155,8 +203,9 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this.dispose();
 		});
 
-		this._debugger = new BrowserViewDebugger(this, this.logService);
-		this._inspector = this._register(new BrowserViewElementInspector(this));
+		this.debugger = new BrowserViewDebugger(this, this.logService);
+		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
+		this.inspector = this._register(new BrowserViewInspector(this));
 
 		this.setupEventListeners();
 	}
@@ -201,6 +250,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				try {
 					this._lastFavicon = await this._faviconRequestCache.get(url)!;
 					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+					this._currentHistoryHandle?.update({ favicon: this._lastFavicon });
 					// On success, stop searching
 					return;
 				} catch (e) {
@@ -212,16 +262,25 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			if (this._lastFavicon) {
 				this._lastFavicon = undefined;
 				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+				this._currentHistoryHandle?.update({ favicon: null });
+			}
+		});
+		webContents.on('will-navigate', (event) => {
+			// URL.parse (vs `new URL`) tolerates about:/blob:/empty strings without throwing.
+			const host = URL.parse(event.url)?.host;
+			const currHost = URL.parse(this.webContents.getURL())?.host;
+			if (host !== currHost) {
+				this._lastFavicon = undefined;
 			}
 		});
 
 		// Title events
 		webContents.on('page-title-updated', (_event, title) => {
 			this._onDidChangeTitle.fire({ title });
+			this._currentHistoryHandle?.update({ title });
 		});
 
-		const fireNavigationEvent = () => {
-			const url = webContents.getURL();
+		const fireNavigationEvent = (url: string, createNewHistoryItem: boolean) => {
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -229,6 +288,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				canGoForward: webContents.navigationHistory.canGoForward(),
 				certificateError: this.session.trust.getCertificateError(url)
 			});
+			if (createNewHistoryItem) {
+				this._trackVisit(url);
+			} else {
+				this._currentHistoryHandle?.update({ url });
+			}
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
@@ -286,8 +350,8 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 
 		// Navigation events (when URL actually changes)
-		webContents.on('did-navigate', fireNavigationEvent);
-		webContents.on('did-navigate-in-page', fireNavigationEvent);
+		webContents.on('did-navigate', (_, url) => fireNavigationEvent(url, true));
+		webContents.on('did-navigate-in-page', (_, url) => fireNavigationEvent(url, false));
 
 		webContents.on('did-navigate', () => {
 			// Chromium resets the zoom factor to its per-origin default (100%) when
@@ -310,10 +374,18 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this._onDidChangeFocus.fire({ focused: false });
 		});
 
-		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
-		webContents.ipc.on('vscode:browserView:keydown', (_event, keyEvent: IBrowserViewKeyDownEvent) => {
+		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
 			this._onDidKeyCommand.fire(keyEvent);
+		};
+
+		// Forward key down events that weren't handled by the page to the workbench for shortcut handling.
+		webContents.ipc.on('vscode:browserView:keydown', onCommandKeydown);
+		webContents.on('devtools-opened', () => {
+			// Avoid double-registration if the webContents is reused.
+			webContents.devToolsWebContents?.ipc.off('vscode:browserView:keydown', onCommandKeydown);
+			webContents.devToolsWebContents?.ipc.on('vscode:browserView:keydown', onCommandKeydown);
 		});
+
 		// If the page won't be able to handle events, forward key down events directly.
 		webContents.on('before-input-event', (event, input) => {
 			if (input.type !== 'keyDown') {
@@ -322,7 +394,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 			const pageIsAvailable = this._view.getVisible()
 				&& !webContents.isCrashed()
-				&& !this._debugger.isPaused;
+				&& !this.debugger.isPaused;
 			if (pageIsAvailable) {
 				return;
 			}
@@ -387,12 +459,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		});
 	}
 
-	private consumePopupPermission(location: BrowserNewPageLocation): boolean {
+	private consumePopupPermission(location: NewPageLocation): boolean {
 		switch (location) {
-			case BrowserNewPageLocation.Foreground:
-			case BrowserNewPageLocation.Background:
+			case NewPageLocation.Foreground:
+			case NewPageLocation.Background:
 				return true;
-			case BrowserNewPageLocation.NewWindow:
+			case NewPageLocation.NewWindow:
 				// Each user gesture allows one popup window within 1 second
 				if (this._lastUserGestureTimestamp > Date.now() - 1000) {
 					this._lastUserGestureTimestamp = -Infinity;
@@ -401,6 +473,25 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 				return false;
 		}
+	}
+
+	/**
+	 * Record a successful navigation in the session's history and remember the
+	 * resulting handle so subsequent title/favicon updates can refine it.
+	 */
+	private _trackVisit(url: string): void {
+		if (!isTrackableHistoryUrl(url)) {
+			this._currentHistoryHandle = undefined;
+			return;
+		}
+		const userInitiated = this._explicitNavigationPending;
+		this._explicitNavigationPending = false;
+		this._currentHistoryHandle = this.session.history.add(
+			url,
+			this._view.webContents.getTitle(),
+			this._lastFavicon,
+			userInitiated,
+		);
 	}
 
 	get webContents(): Electron.WebContents {
@@ -428,7 +519,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastError: this._lastError,
 			certificateError: this.session.trust.getCertificateError(url),
 			storageScope: this.session.storageScope,
-			browserZoomIndex: this._browserZoomIndex
+			storageKeys: this.session.history.storageKeys,
+			browserZoomIndex: this._browserZoomIndex,
+			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
+			device: this.emulator.device
 		};
 	}
 
@@ -443,16 +538,21 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * Update the layout bounds of this view
 	 */
 	layout(bounds: IBrowserViewBounds): void {
-		if (this._window?.win?.id !== bounds.windowId) {
+		if (this._currentWindow?.win?.id !== bounds.windowId) {
 			const newWindow = this._windowById(bounds.windowId);
 			if (newWindow) {
-				this._window?.win?.contentView.removeChildView(this._view);
-				this._window = newWindow;
+				this._currentWindow?.win?.contentView.removeChildView(this._view);
+				this._currentWindow = newWindow;
 				newWindow.win?.contentView.addChildView(this._view);
 			}
 		}
 
 		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
+
+		if (bounds.emulation) {
+			this.emulator.applyScreenEmulation(bounds.width, bounds.height, bounds.emulation.scale, bounds.zoomFactor);
+		}
+
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
@@ -477,7 +577,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		// If the view is focused, pass focus back to the window when hiding
 		if (!visible && this._view.webContents.isFocused()) {
-			this._window?.win?.webContents.focus();
+			this._currentWindow?.win?.webContents.focus();
 		}
 
 		this._view.setVisible(visible);
@@ -492,25 +592,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	}
 
 	/**
-	 * Start element inspection mode. Sets up a CDP overlay that highlights elements
-	 * on hover. When the user clicks, the element data is returned and the overlay is removed.
-	 * @param token Cancellation token to abort the inspection.
-	 */
-	async getElementData(token: CancellationToken): Promise<IElementData | undefined> {
-		return this._inspector.getElementData(token);
-	}
-
-	/**
-	 * Get element data for the currently focused element.
-	 */
-	async getFocusedElementData(): Promise<IElementData | undefined> {
-		return this._inspector.getFocusedElementData();
-	}
-
-	/**
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		this._explicitNavigationPending = true;
 		await this._view.webContents.loadURL(url);
 	}
 
@@ -568,11 +653,23 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		if (!this._view.getVisible()) {
+			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
+			this._view.setVisible(true);
+			this._view.setVisible(false);
+		}
+
 		const quality = options?.quality ?? 80;
+		const format = options?.format ?? 'jpeg';
+
+		if (options?.fullPage && !options.screenRect && !options.pageRect) {
+			return this._captureFullPageScreenshot(format, quality);
+		}
+
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
-			const visualViewportScale = await this._inspector.getVisualViewportScale();
+			const visualViewportScale = await this.inspector.getVisualViewportScale();
 			options.screenRect = {
 				x: options.pageRect.x * visualViewportScale * zoomFactor,
 				y: options.pageRect.y * visualViewportScale * zoomFactor,
@@ -580,10 +677,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				height: options.pageRect.height * visualViewportScale * zoomFactor
 			};
 		}
+		if (options?.awaitNextPaint) {
+			await this._waitForNextPaint();
+		}
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
 			stayHidden: true
 		});
-		const buffer = image.toJPEG(quality);
+		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
 		if (!options?.screenRect) {
@@ -592,10 +692,81 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return screenshot;
 	}
 
+	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
+	private async _captureFullPageScreenshot(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
+		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as { cssContentSize?: { width: number; height: number } };
+		// Size in CSS pixels
+		const size = metrics.cssContentSize;
+		if (!size) {
+			throw new Error('Page.getLayoutMetrics did not return a cssContentSize');
+		}
+		const zoomFactor = this._view.webContents.getZoomFactor();
+		const clipWidth = size.width * zoomFactor;
+		const clipHeight = size.height * zoomFactor;
+		// CDP renders the screenshot at device pixels, so the output bitmap dimensions are roughly
+		// `clip.width * scale * devicePixelRatio`. Divide by DPR here so `MAX_FULL_PAGE_SCREENSHOT_DIMENSION`
+		// is an upper bound on the final image pixel size (not just the CSS-pixel clip size).
+		// We read the DPR from the display hosting the view's window (rather than evaluating
+		// `window.devicePixelRatio` in the page) so this works without a renderer round-trip and
+		// while the page is paused at a breakpoint. Fall back to the primary display if no host
+		// window can be resolved (e.g. during teardown).
+		const hostWindow = this._hostWindow;
+		const display = hostWindow ? screen.getDisplayMatching(hostWindow.getBounds()) : screen.getPrimaryDisplay();
+		const devicePixelRatio = display.scaleFactor;
+		const maxClipDimension = BrowserView.MAX_FULL_PAGE_SCREENSHOT_DIMENSION / Math.max(devicePixelRatio, 1);
+		const scale = Math.min(1, maxClipDimension / Math.max(clipWidth, clipHeight));
+		try {
+			const result = await this.debugger.sendCommand('Page.captureScreenshot', {
+				format,
+				...(format === 'jpeg' ? { quality } : {}),
+				captureBeyondViewport: true,
+				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
+				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
+				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
+				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
+				// visual content from the top at the bottom, instead of showing the bottom of the page.
+				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
+				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
+				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream
+				//   in Chromium).
+				clip: { x: 0, y: 0, width: clipWidth, height: clipHeight, scale }
+			}) as { data: string };
+			return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
+		} finally {
+			// `Page.captureScreenshot` with `captureBeyondViewport` resets and
+			// disables pinch-to-zoom until the next navigation. Re-enable it so
+			// the user can still pinch-to-zoom even immediately after
+			// capturing a full-page screenshot.
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to restore visual zoom level limits after full-page screenshot.', error);
+			});
+		}
+	}
+
+	private async _waitForNextPaint(): Promise<void> {
+		const WAIT_TIMEOUT_MS = 100;
+		try {
+			await Promise.race([
+				this.debugger.sendCommand('Runtime.evaluate', {
+					expression: 'new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))',
+					awaitPromise: true
+				}),
+				new Promise<void>(resolve => setTimeout(resolve, WAIT_TIMEOUT_MS))
+			]);
+		} catch {
+			// `Runtime.evaluate` can throw if the page navigates while we're waiting;
+			// just proceed in that case.
+		}
+	}
+
 	/**
 	 * Focus this view
 	 */
-	async focus(): Promise<void> {
+	async focus(force?: boolean): Promise<void> {
+		// By default, only focus the view if its window is already focused.
+		if (!force && !this._currentWindow?.win?.isFocused()) {
+			return;
+		}
 		this._view.webContents.focus();
 	}
 
@@ -673,32 +844,16 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * This can be an auxiliary window, depending on where the view is currently hosted.
 	 */
 	getElectronWindow(): Electron.BrowserWindow | undefined {
-		return this._window?.win ?? undefined;
+		return this._currentWindow?.win ?? undefined;
 	}
 
 	/**
-	 * Get the main code window hosting this browser view, if any. This is used for routing commands from the browser view to the correct window.
-	 * If the browser view is hosted in an auxiliary window, this will return the parent code window of that auxiliary window.
+	 * The Electron window that currently hosts this view, if any. Before `layout()` is first
+	 * called this is the owner window; after that it's whichever window the view was last moved
+	 * to. Returns `undefined` if no host window can be resolved (e.g. during teardown).
 	 */
-	getTopCodeWindow(): ICodeWindow | undefined {
-		return this._window && hasKey(this._window, { parentId: true }) ? this._codeWindowById(this._window.parentId) : undefined;
-	}
-
-	// ============ ICDPTarget implementation ============
-
-	/**
-	 * Get CDP target info using Electron's real targetId.
-	 */
-	getTargetInfo(): Promise<CDPTargetInfo> {
-		return this._debugger.getTargetInfo();
-	}
-
-	/**
-	 * Attach to receive debugger events.
-	 * @returns A connection that can be disposed to detach
-	 */
-	attach(): Promise<ICDPConnection> {
-		return this._debugger.attach();
+	private get _hostWindow(): Electron.BrowserWindow | undefined {
+		return this._currentWindow?.win ?? this._ownerWindow.win ?? undefined;
 	}
 
 	override dispose(): void {
@@ -708,10 +863,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._isDisposed = true;
 
 		// Dispose debugger. This detaches debug sessions first.
-		this._debugger.dispose();
+		this.debugger.dispose();
 
-		// Remove from parent window
-		this._window?.win?.contentView.removeChildView(this._view);
+		// Remove from parent window (guard against already-destroyed window)
+		const currentWin = this._currentWindow?.win;
+		if (currentWin && !currentWin.isDestroyed()) {
+			currentWin.contentView.removeChildView(this._view);
+		}
 
 		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
 		this._onDidClose.fire();
@@ -748,4 +906,18 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
 	}
+}
+
+/** True iff this URL should be recorded in browser history. */
+function isTrackableHistoryUrl(url: string): boolean {
+	if (!url) {
+		return false;
+	}
+	// Cheap scheme filter avoids URL parsing on the hot path.
+	const colon = url.indexOf(':');
+	if (colon <= 0) {
+		return false;
+	}
+	const scheme = url.substring(0, colon).toLowerCase();
+	return scheme === 'http' || scheme === 'https' || scheme === 'file';
 }
