@@ -49,11 +49,11 @@ class CursorJumpCapturingFetcher implements IChatMLFetcher {
 	onDidMakeChatMLRequest = Event.None;
 	private readonly _response = {
 		type: ChatFetchResponseType.Success,
-		requestId: 'nclp-capture-id',
-		serverRequestId: 'nclp-capture-server-id',
+		requestId: 'cursor-jump-capture-id',
+		serverRequestId: 'cursor-jump-capture-server-id',
 		usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
 		value: '',
-		resolvedModel: 'nclp-capture-model',
+		resolvedModel: 'cursor-jump-capture-model',
 	} as const;
 
 	async fetchOne(): Promise<ChatResponse> {

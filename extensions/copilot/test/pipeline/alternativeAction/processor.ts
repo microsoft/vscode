@@ -24,7 +24,7 @@ export namespace Processor {
 	/**
 	 * Split a recording at its NES request bookmark and resolve the active
 	 * document at that moment. Exposed so callers (in particular nes-datagen
-	 * NCLP detectors) can reason about what the user did *after* the request
+	 * cursor-jump detectors) can reason about what the user did *after* the request
 	 * without re-implementing the same splitting logic that
 	 * {@link createScoringForAlternativeAction} performs internally.
 	 *

@@ -33,7 +33,7 @@ export interface IProcessedRow {
 	readonly recordingInfo: IRecordingInformation;
 	/**
 	 * Log entries that occurred *after* the NES request bookmark, in original
-	 * order. Used by NCLP detectors to spot the user's next cursor move/jump.
+	 * order. Used by cursor-jump detectors to spot the user's next cursor move/jump.
 	 */
 	readonly recordingAfterRequest: readonly LogEntry[];
 	/**
@@ -51,13 +51,13 @@ export interface IProcessedRow {
 	/**
 	 * State of the user's primary cursor at request-bookmark time. `undefined`
 	 * if no selection on the active doc was ever recorded prior to the
-	 * bookmark, in which case NCLP same-file detection cannot run.
+	 * bookmark, in which case cursor-jump same-file detection cannot run.
 	 */
 	readonly cursorAtRequest: { readonly offset: number; readonly lineNumber: number } | undefined;
 	/**
 	 * Snapshot of every observed doc's content at request-bookmark time, keyed
 	 * by recording-log document id. Computed by walking `recordingPriorToRequest`
-	 * and applying all `setContent`/`changed` events. NCLP cross-file detection
+	 * and applying all `setContent`/`changed` events. Cursor-jump cross-file detection
 	 * uses this as the base content for the jump target so we can resolve the
 	 * target line even when the target was opened before the request.
 	 */
@@ -168,7 +168,7 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 	// active doc within the pre-request portion. Multi-cursor selections use
 	// the primary (first) range — matches `IObservableDocument._primarySelectionLine`
 	// semantics. If no selection event exists for the active doc, leave as
-	// undefined so NCLP detectors can skip the row.
+	// undefined so cursor-jump detectors can skip the row.
 	const cursorAtRequest = (() => {
 		for (let i = split.recordingPriorToRequest.length - 1; i >= 0; i--) {
 			const entry = split.recordingPriorToRequest[i];

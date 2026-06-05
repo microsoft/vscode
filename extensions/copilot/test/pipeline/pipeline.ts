@@ -15,8 +15,8 @@ import { StringText } from '../../src/util/vs/editor/common/core/text/abstractTe
 import { applyConfigFile, loadConfigFile } from '../base/simulationContext';
 import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
-import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/nclpPromptStep';
-import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/nclpResponseStep';
+import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
+import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
 import { assembleSample, ISample, ISampleMetadata, resolveOutputPath, writeSamples } from './output';
 import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';

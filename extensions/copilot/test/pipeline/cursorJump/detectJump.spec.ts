@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { LogDocumentId, LogEntry } from '../logRecordingTypes';
 import { detectCrossFileJump, detectSameFileJump, normalizeRelativePathForModel } from './detectJump';
-import { generateCrossFileResponse, generateSameFileResponse } from './nclpResponseStep';
+import { generateCrossFileResponse, generateSameFileResponse } from './cursorJumpResponseStep';
 import { OffsetRange } from '../../../src/util/vs/editor/common/core/ranges/offsetRange';
 
 const ACTIVE: LogDocumentId = 1 as LogDocumentId;
@@ -169,7 +169,7 @@ describe('normalizeRelativePathForModel', () => {
 	});
 });
 
-describe('nclp response formatting', () => {
+describe('cursor-jump response formatting', () => {
 	it('formats a same-file jump as line number', () => {
 		const r = generateSameFileResponse(
 			{ kind: 'sameFile', fromLine: 10, toLine: 30, toOffset: 999 },

@@ -38,8 +38,8 @@ export type CursorJumpPrediction =
 const DEFAULT_CURSOR_JUMP_MODEL_NAME = 'copilot-suggestions-himalia-001';
 
 /**
- * System prompt used for the next-cursor-line prediction (NCLP) model. Kept
- * as an exported constant so that training-data generation can mirror it
+ * System prompt used for the cursor-jump (next-cursor-line) prediction model.
+ * Kept as an exported constant so that training-data generation can mirror it
  * verbatim — drift between this string and the datagen prompt would corrupt
  * the training distribution.
  */
