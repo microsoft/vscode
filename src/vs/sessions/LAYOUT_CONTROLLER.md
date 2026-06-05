@@ -1,7 +1,7 @@
 # Layout Controller — Per-Session Layout State
 
 This document specifies the behaviour of `LayoutController`
-([contrib/layout/browser/sessionLayoutController.ts](src/vs/sessions/contrib/layout/browser/sessionLayoutController.ts)),
+([contrib/layout/browser/sessionLayoutController.ts](contrib/layout/browser/sessionLayoutController.ts)),
 the contribution that manages workbench layout as the user switches between sessions.
 
 It is the detailed companion to [LAYOUT.md §10 Per-Session Layout State](LAYOUT.md#10-per-session-layout-state).
