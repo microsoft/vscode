@@ -716,11 +716,10 @@
 
 	.browser-url-display {
 		flex: 1;
-		min-width: 0;
+		min-width: 60px;
 		display: block;
 		box-sizing: border-box;
 		padding: 4px 6px;
-		min-width: 60px;
 		font-size: 13px;
 		line-height: normal;
 		color: var(--vscode-input-foreground);
