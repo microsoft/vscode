@@ -62,9 +62,9 @@ export const strokeThickness = registerSize('strokeThickness',
 
 // ------ Spacing ramp
 //
-// A fixed ramp of spacing tokens used for padding, margins and gaps. The token
-// name encodes the value in tenths of a pixel (e.g. `size200` is 20px), matching
-// the design system's spacing ramp.
+// A fixed ramp of spacing tokens used for padding, margins and gaps. Numeric tokens
+// encode the value in tenths of a pixel (e.g. `size200` is 20px). `sizeNone`
+// represents 0px, matching the design system's spacing ramp.
 
 export const spacingNone = registerSize('spacing.sizeNone',
 	sizeForAllThemes(0, 'px'),
