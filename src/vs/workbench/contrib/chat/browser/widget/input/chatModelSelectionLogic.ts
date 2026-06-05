@@ -100,6 +100,27 @@ export function isModelValidForSession(
 }
 
 /**
+ * Find a model in `pool` that matches `previous` by family, then id, then
+ * name (case-insensitive). Used to carry a selection across model pools
+ * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
+ * Returns `undefined` when no candidate matches.
+ */
+export function findBestMatchingModel(
+	previous: ILanguageModelChatMetadataAndIdentifier | undefined,
+	pool: readonly ILanguageModelChatMetadataAndIdentifier[],
+): ILanguageModelChatMetadataAndIdentifier | undefined {
+	if (!previous || pool.length === 0) {
+		return undefined;
+	}
+	const family = previous.metadata.family?.trim().toLowerCase();
+	const id = previous.metadata.id?.trim().toLowerCase();
+	const name = previous.metadata.name?.trim().toLowerCase();
+	return (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
+		?? (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+		?? (name ? pool.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
+}
+
+/**
  * Find the default model for a given location from a list of models.
  * Prefers the model marked as default for the location, falls back to the first model.
  */
@@ -201,14 +222,14 @@ export function resolveModelFromSyncState(
 	sessionType: string | undefined,
 	context?: IModelSelectionContext,
 ): { action: 'keep' | 'apply' | 'default' } {
-	// Already the same model — nothing to do
-	if (currentModel && currentModel.identifier === stateModel.identifier) {
-		return { action: 'keep' };
-	}
-
-	// Validate the state model belongs to this session's model pool
+	// Validate the state model belongs to this session's model pool first.
 	if (!isModelValidForSession(stateModel, allModels, sessionType)) {
 		return { action: 'default' };
+	}
+
+	// Already the same model and valid for the new pool — nothing to do
+	if (currentModel && currentModel.identifier === stateModel.identifier) {
+		return { action: 'keep' };
 	}
 
 	// When a UI context is available, also validate mode and inline-chat compatibility

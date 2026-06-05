@@ -2663,6 +2663,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Extracts the raw model id from a language-model service identifier.
 	 * E.g. "agent-host-copilot:claude-sonnet-4-20250514" → "claude-sonnet-4-20250514".
+	 * Foreign extension-host identifiers (`${vendor}/${id}`) are dropped so
+	 * the agent host falls back to its default model.
 	 */
 	private _extractRawModelId(languageModelIdentifier: string | undefined): string | undefined {
 		if (!languageModelIdentifier) {
@@ -2671,6 +2673,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const prefix = this._config.sessionType + ':';
 		if (languageModelIdentifier.startsWith(prefix)) {
 			return languageModelIdentifier.substring(prefix.length);
+		}
+		if (languageModelIdentifier.includes('/')) {
+			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
+			return undefined;
 		}
 		return languageModelIdentifier;
 	}
