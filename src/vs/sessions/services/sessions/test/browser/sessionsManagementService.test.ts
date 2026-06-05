@@ -25,7 +25,8 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../common/session.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ISessionChangeEvent, ISendRequestOptions, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
@@ -168,6 +169,9 @@ class TestSessionsProvider extends mock<ISessionsProvider>() {
 	override createNewSession(): ISession { return this._session; }
 	override getSessionTypes(): ISessionType[] { return [...this.sessionTypes]; }
 	override async renameChat(): Promise<void> { }
+	override getModels(): readonly ILanguageModelChatMetadataAndIdentifier[] { return []; }
+	override getModelPickerOptions(): ISessionModelPickerOptions { return { useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }; }
+	override readonly onDidChangeModels = Event.None;
 	override setModel(): void { }
 	override async archiveSession(): Promise<void> { }
 	override async unarchiveSession(): Promise<void> { }

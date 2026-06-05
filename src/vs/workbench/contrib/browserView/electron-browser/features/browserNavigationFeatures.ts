@@ -100,8 +100,23 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
-				menuOptions: { shouldForwardArgs: true }
+				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
+				menuOptions: { shouldForwardArgs: true },
+				responsiveBehavior: {
+					enabled: true,
+					kind: 'last',
+					minItems: 0,
+
+					// The URL bar is the flexible element, so the actions toolbar's own
+					// element width does not reflect the room it could occupy.
+					// So we pass manual calculations based on the navbar's overall width and the URL bar's width.
+					observedElement: this.element,
+					getAvailableWidth: () => {
+						const toolbarBounds = this.element.getBoundingClientRect();
+						const urlBarBounds = this._urlBar.element.getBoundingClientRect();
+						return Math.max(0, toolbarBounds.right - urlBarBounds.left - 220 - 24 /* 220px min width, 8px padding on both sides plus 8px gap */);
+					}
+				},
 			}
 		));
 		actionsToolbar.context = editor;
@@ -376,7 +391,8 @@ class OpenInExternalBrowserAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tools,
-				order: 3
+				order: 10,
+				isHiddenByDefault: true,
 			}
 		});
 	}
@@ -410,7 +426,8 @@ class OpenBrowserSettingsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Settings,
-				order: 2
+				order: 2,
+				isHiddenByDefault: true,
 			}
 		});
 	}

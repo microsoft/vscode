@@ -46,9 +46,16 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 
 		// `/abc` → typed = 'abc'; empty after just '/' → typed = ''.
 		const typed = leading.typed;
-
+		const skillsSeen = new Set<string>();
 		return candidates
-			.filter(skill => !typed.length || skill.name.startsWith(typed))
+			.filter(skill => {
+				const uri = skill.uri.toString();
+				if ((!typed.length || skill.name.startsWith(typed)) && !skillsSeen.has(uri)) {
+					skillsSeen.add(uri);
+					return true;
+				}
+				return false;
+			})
 			.map(skill => ({
 				insertText: '/' + skill.name + ' ',
 				rangeStart: leading.rangeStart,
@@ -71,8 +78,17 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			return [];
 		}
 		const customizations = await agent.getSessionCustomizations(session);
-		return customizations
-			.filter(c => c.enabled)
-			.flatMap(c => (c.children ?? []).filter(child => child.type === CustomizationType.Skill));
+		const result: SkillCustomization[] = [];
+		for (const c of customizations) {
+			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+				continue;
+			}
+			for (const child of c.children) {
+				if (child.type === CustomizationType.Skill) {
+					result.push(child);
+				}
+			}
+		}
+		return result;
 	}
 }
