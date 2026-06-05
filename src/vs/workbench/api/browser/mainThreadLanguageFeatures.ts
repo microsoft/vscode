@@ -1415,7 +1415,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		}
 
 		if (this._supportsHandleEvents) {
-			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
+			await this._proxy.$handleInlineCompletionEndOfLifetime(this.handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: i.pid, idx: i.idx })));
 		}
 
 		if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
