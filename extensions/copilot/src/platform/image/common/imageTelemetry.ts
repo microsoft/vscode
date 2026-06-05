@@ -14,6 +14,9 @@ export interface ImageTelemetryMeasurements {
 	maxImageWidth: number;
 	maxImageHeight: number;
 	maxImagePixels: number;
+	minImageWidth: number;
+	minImageHeight: number;
+	minImagePixels: number;
 	totalImagePixels: number;
 	imagePngCount: number;
 	imageJpegCount: number;
@@ -25,8 +28,13 @@ export interface ImageTelemetryMeasurements {
 	imageFileCount: number;
 	imageUrlCount: number;
 	imageUnknownSourceCount: number;
-	ocrTextLength: number;
-	ocrConfidence: number;
+	ocrImageCount: number;
+	ocrTotalTextLength: number;
+	ocrMaxTextLength: number;
+	ocrTotalWordCount: number;
+	ocrTotalLineCount: number;
+	ocrMaxConfidence: number;
+	ocrDurationMs: number;
 }
 
 export interface ImageOcrProperties {
@@ -64,6 +72,9 @@ function createEmptyImageTelemetryMeasurements(): ImageTelemetryMeasurements {
 		maxImageWidth: 0,
 		maxImageHeight: 0,
 		maxImagePixels: 0,
+		minImageWidth: 0,
+		minImageHeight: 0,
+		minImagePixels: 0,
 		totalImagePixels: 0,
 		imagePngCount: 0,
 		imageJpegCount: 0,
@@ -75,8 +86,13 @@ function createEmptyImageTelemetryMeasurements(): ImageTelemetryMeasurements {
 		imageFileCount: 0,
 		imageUrlCount: 0,
 		imageUnknownSourceCount: 0,
-		ocrTextLength: 0,
-		ocrConfidence: 0,
+		ocrImageCount: 0,
+		ocrTotalTextLength: 0,
+		ocrMaxTextLength: 0,
+		ocrTotalWordCount: 0,
+		ocrTotalLineCount: 0,
+		ocrMaxConfidence: 0,
+		ocrDurationMs: 0,
 	};
 }
 
@@ -209,6 +225,9 @@ function addImageDimensions(measurements: ImageTelemetryMeasurements, dimensions
 	measurements.maxImageWidth = Math.max(measurements.maxImageWidth, dimensions.width);
 	measurements.maxImageHeight = Math.max(measurements.maxImageHeight, dimensions.height);
 	measurements.maxImagePixels = Math.max(measurements.maxImagePixels, pixels);
+	measurements.minImageWidth = measurements.minImageWidth === 0 ? dimensions.width : Math.min(measurements.minImageWidth, dimensions.width);
+	measurements.minImageHeight = measurements.minImageHeight === 0 ? dimensions.height : Math.min(measurements.minImageHeight, dimensions.height);
+	measurements.minImagePixels = measurements.minImagePixels === 0 ? pixels : Math.min(measurements.minImagePixels, pixels);
 	measurements.totalImagePixels += pixels;
 }
 

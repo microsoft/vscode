@@ -19,7 +19,7 @@ import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
 import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
-import { extractOcrFromMessages, type OcrResult } from '../../../platform/image/node/ocrService';
+import { extractOcrFromMessages, type OcrAggregateResult } from '../../../platform/image/node/ocrService';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getRequestId, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
@@ -178,7 +178,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		const imageTelemetryMeasurements = getImageTelemetryMeasurementsFromMessages(messages);
 		// Kick off OCR in parallel with the LLM request so it has zero impact on user-visible latency.
 		// The result is only used for telemetry; we never block the response on it.
-		const ocrPromise: Promise<OcrResult | undefined> = imageTelemetryMeasurements.imageCount > 0
+		const ocrPromise: Promise<OcrAggregateResult | undefined> = imageTelemetryMeasurements.imageCount > 0
 			? extractOcrFromMessages(messages).catch(() => undefined)
 			: Promise.resolve(undefined);
 
@@ -1810,7 +1810,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		response: ChatResults,
 		messages: Raw.ChatMessage[],
 		imageTelemetryMeasurements: ImageTelemetryMeasurements,
-		ocrPromise: Promise<OcrResult | undefined>,
+		ocrPromise: Promise<OcrAggregateResult | undefined>,
 		requestBody: IEndpointBody,
 		requestId: string,
 		maxResponseTokens: number,
@@ -1835,8 +1835,13 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		// so by the time the response is back it's usually already complete.
 		const ocrResult = await ocrPromise;
 		if (ocrResult) {
-			imageTelemetryMeasurements.ocrTextLength = ocrResult.text.length;
-			imageTelemetryMeasurements.ocrConfidence = ocrResult.confidence;
+			imageTelemetryMeasurements.ocrImageCount = ocrResult.imageCount;
+			imageTelemetryMeasurements.ocrTotalTextLength = ocrResult.totalTextLength;
+			imageTelemetryMeasurements.ocrMaxTextLength = ocrResult.maxTextLength;
+			imageTelemetryMeasurements.ocrTotalWordCount = ocrResult.totalWordCount;
+			imageTelemetryMeasurements.ocrTotalLineCount = ocrResult.totalLineCount;
+			imageTelemetryMeasurements.ocrMaxConfidence = ocrResult.maxConfidence;
+			imageTelemetryMeasurements.ocrDurationMs = ocrResult.durationMs;
 		}
 
 		for await (const chatCompletion of response.chatCompletions) {

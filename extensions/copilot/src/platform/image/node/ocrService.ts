@@ -5,9 +5,21 @@
 
 import type { Worker } from 'tesseract.js';
 
-export interface OcrResult {
-	text: string;
+export interface OcrPerImageResult {
+	textLength: number;
+	wordCount: number;
+	lineCount: number;
 	confidence: number;
+}
+
+export interface OcrAggregateResult {
+	imageCount: number;
+	totalTextLength: number;
+	maxTextLength: number;
+	totalWordCount: number;
+	totalLineCount: number;
+	maxConfidence: number;
+	durationMs: number;
 }
 
 let workerPromise: Promise<Worker> | undefined;
@@ -23,11 +35,7 @@ async function getWorker(): Promise<Worker> {
 	return workerPromise;
 }
 
-/**
- * Run OCR on a single image and return the extracted text and confidence score.
- * Returns undefined if OCR fails or produces no meaningful output.
- */
-export async function extractTextFromImage(imageData: Uint8Array): Promise<OcrResult | undefined> {
+async function runOcrOnImage(imageData: Uint8Array): Promise<OcrPerImageResult | undefined> {
 	try {
 		const worker = await getWorker();
 		const result = await worker.recognize(imageData);
@@ -36,7 +44,9 @@ export async function extractTextFromImage(imageData: Uint8Array): Promise<OcrRe
 			return undefined;
 		}
 		return {
-			text,
+			textLength: text.length,
+			wordCount: result.data.words?.length ?? 0,
+			lineCount: result.data.lines?.length ?? 0,
 			confidence: result.data.confidence ?? 0,
 		};
 	} catch {
@@ -44,10 +54,8 @@ export async function extractTextFromImage(imageData: Uint8Array): Promise<OcrRe
 	}
 }
 
-/**
- * Extract the first image's binary data from an array of chat messages containing data URLs.
- */
-export function extractFirstImageBytes(messages: readonly { content?: unknown }[]): Uint8Array | undefined {
+export function extractAllImageBytes(messages: readonly { content?: unknown }[]): Uint8Array[] {
+	const out: Uint8Array[] = [];
 	for (const message of messages) {
 		if (!Array.isArray(message.content)) {
 			continue;
@@ -66,21 +74,48 @@ export function extractFirstImageBytes(messages: readonly { content?: unknown }[
 			}
 			const match = /^data:image\/(?:jpeg|png|gif|webp);base64,(.+)$/.exec(url);
 			if (match) {
-				return Buffer.from(match[1], 'base64');
+				out.push(Buffer.from(match[1], 'base64'));
 			}
 		}
 	}
-	return undefined;
+	return out;
 }
 
 /**
- * Run OCR on the first image found in messages.
- * Designed to run in parallel with the LLM request for zero user-visible latency impact.
+ * Run OCR on every image attached to the request and return aggregate signals
+ * suitable for multimodal routing telemetry. Runs in parallel with the LLM request
+ * so it does not add user-visible latency.
  */
-export async function extractOcrFromMessages(messages: readonly { content?: unknown }[]): Promise<OcrResult | undefined> {
-	const imageBytes = extractFirstImageBytes(messages);
-	if (!imageBytes) {
+export async function extractOcrFromMessages(messages: readonly { content?: unknown }[]): Promise<OcrAggregateResult | undefined> {
+	const images = extractAllImageBytes(messages);
+	if (images.length === 0) {
 		return undefined;
 	}
-	return extractTextFromImage(imageBytes);
+	const start = Date.now();
+	const aggregate: OcrAggregateResult = {
+		imageCount: 0,
+		totalTextLength: 0,
+		maxTextLength: 0,
+		totalWordCount: 0,
+		totalLineCount: 0,
+		maxConfidence: 0,
+		durationMs: 0,
+	};
+	for (const bytes of images) {
+		const r = await runOcrOnImage(bytes);
+		if (!r) {
+			continue;
+		}
+		aggregate.imageCount++;
+		aggregate.totalTextLength += r.textLength;
+		aggregate.maxTextLength = Math.max(aggregate.maxTextLength, r.textLength);
+		aggregate.totalWordCount += r.wordCount;
+		aggregate.totalLineCount += r.lineCount;
+		aggregate.maxConfidence = Math.max(aggregate.maxConfidence, r.confidence);
+	}
+	aggregate.durationMs = Date.now() - start;
+	if (aggregate.imageCount === 0) {
+		return undefined;
+	}
+	return aggregate;
 }

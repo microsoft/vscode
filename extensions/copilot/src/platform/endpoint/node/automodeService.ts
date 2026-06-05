@@ -216,6 +216,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
 						"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
 						"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+						"minImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Smallest known input image width in the request", "isMeasurement": true },
+						"minImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Smallest known input image height in the request", "isMeasurement": true },
+						"minImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Smallest known input image pixel count in the request", "isMeasurement": true },
 						"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
 						"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
 						"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
@@ -227,8 +230,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 						"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
 						"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
 						"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
-						"ocrTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character length of OCR-extracted text from the first attached image (zero if OCR did not run)", "isMeasurement": true },
-						"ocrConfidence": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Confidence score (0-100) reported by the OCR engine for the first attached image (zero if OCR did not run)", "isMeasurement": true }
+						"ocrImageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of attached images for which OCR produced any text (zero if OCR did not run)", "isMeasurement": true },
+						"ocrTotalTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of OCR-extracted character lengths across all attached images (zero if OCR did not run)", "isMeasurement": true },
+						"ocrMaxTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest OCR-extracted character length from a single attached image (zero if OCR did not run)", "isMeasurement": true },
+						"ocrTotalWordCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of OCR-extracted word counts across all attached images (zero if OCR did not run)", "isMeasurement": true },
+						"ocrTotalLineCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of OCR-extracted line counts across all attached images (zero if OCR did not run)", "isMeasurement": true },
+						"ocrMaxConfidence": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum confidence score (0-100) reported by the OCR engine across all attached images (zero if OCR did not run)", "isMeasurement": true },
+						"ocrDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total wall-clock milliseconds spent running OCR on attached images (zero if OCR did not run)", "isMeasurement": true }
 					}
 				*/
 				this._telemetryService.sendMSFTTelemetryEvent('automode.routerFallback', {
@@ -258,6 +266,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"maxImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image width in the request", "isMeasurement": true },
 					"maxImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image height in the request", "isMeasurement": true },
 					"maxImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image pixel count in the request", "isMeasurement": true },
+					"minImageWidth": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Smallest known input image width in the request", "isMeasurement": true },
+					"minImageHeight": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Smallest known input image height in the request", "isMeasurement": true },
+					"minImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Smallest known input image pixel count in the request", "isMeasurement": true },
 					"totalImagePixels": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of known input image pixel counts in the request", "isMeasurement": true },
 					"imagePngCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of PNG input images", "isMeasurement": true },
 					"imageJpegCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of JPEG input images", "isMeasurement": true },
@@ -269,8 +280,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"imageFileCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from local file attachment", "isMeasurement": true },
 					"imageUrlCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images sourced from URL", "isMeasurement": true },
 					"imageUnknownSourceCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Count of input images whose source could not be determined", "isMeasurement": true },
-					"ocrTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character length of OCR-extracted text from the first attached image (zero if OCR did not run)", "isMeasurement": true },
-					"ocrConfidence": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Confidence score (0-100) reported by the OCR engine for the first attached image (zero if OCR did not run)", "isMeasurement": true }
+					"ocrImageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of attached images for which OCR produced any text (zero if OCR did not run)", "isMeasurement": true },
+					"ocrTotalTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of OCR-extracted character lengths across all attached images (zero if OCR did not run)", "isMeasurement": true },
+					"ocrMaxTextLength": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest OCR-extracted character length from a single attached image (zero if OCR did not run)", "isMeasurement": true },
+					"ocrTotalWordCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of OCR-extracted word counts across all attached images (zero if OCR did not run)", "isMeasurement": true },
+					"ocrTotalLineCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of OCR-extracted line counts across all attached images (zero if OCR did not run)", "isMeasurement": true },
+					"ocrMaxConfidence": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum confidence score (0-100) reported by the OCR engine across all attached images (zero if OCR did not run)", "isMeasurement": true },
+					"ocrDurationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total wall-clock milliseconds spent running OCR on attached images (zero if OCR did not run)", "isMeasurement": true }
 				}
 			*/
 			const candidateModel = routerResult.candidateModel;
