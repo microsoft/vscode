@@ -41,36 +41,51 @@ describe('detectSameFileJump', () => {
 		resolveActiveDocLineAt: (_i: number, offset: number) => lineFor(offset),
 	});
 
-	it('detects a far-below jump', () => {
-		const r = detectSameFileJump([selChanged(ACTIVE, 999)], baseOpts(_ => 30));
+	it('detects a far-below edit', () => {
+		const r = detectSameFileJump([changed(ACTIVE, 999, 999, 'x')], baseOpts(_ => 30));
 		expect(r.isOk()).toBe(true);
 		if (r.isOk()) {
 			expect(r.val).toEqual({ kind: 'sameFile', fromLine: 10, toLine: 30, toOffset: 999 });
 		}
 	});
 
-	it('rejects a jump within threshold', () => {
-		const r = detectSameFileJump([selChanged(ACTIVE, 50)], baseOpts(_ => 12));
+	it('rejects an edit within threshold', () => {
+		const r = detectSameFileJump([changed(ACTIVE, 50, 50, 'x')], baseOpts(_ => 12));
 		expect(r.isError() && r.err).toBe('jumpWithinThreshold');
 	});
 
-	it('filters settle-after-edit and continues to next event', () => {
+	it('ignores selection-only events; uses the first edit as ground truth', () => {
+		// Cursor wanders far via navigation (selectionChanged) but no edit
+		// happens there; the actual edit is local — within threshold.
 		const r = detectSameFileJump(
-			[
-				changed(ACTIVE, 50, 50, 'abc'),
-				selChanged(ACTIVE, 53), // settle at end of insert (50+3)
-				selChanged(ACTIVE, 999), // real jump
-			],
-			baseOpts(off => off === 999 ? 50 : 5),
+			[selChanged(ACTIVE, 9999), changed(ACTIVE, 100, 100, 'x')],
+			baseOpts(off => off === 100 ? 10 : 999),
+		);
+		expect(r.isError() && r.err).toBe('jumpWithinThreshold');
+	});
+
+	it('uses the first edit of a multi-edit changed event', () => {
+		const r = detectSameFileJump(
+			[changedMulti(ACTIVE, [[800, 800, 'a'], [50, 50, 'b']])],
+			baseOpts(off => off === 800 ? 40 : 5),
 		);
 		expect(r.isOk()).toBe(true);
 		if (r.isOk()) {
-			expect(r.val.toLine).toBe(50);
+			expect(r.val.toOffset).toBe(800);
+			expect(r.val.toLine).toBe(40);
 		}
 	});
 
+	it('bails with editsAnotherFileFirst when another doc is edited first', () => {
+		const r = detectSameFileJump(
+			[changed(OTHER, 0, 0, 'x'), changed(ACTIVE, 999, 999, 'x')],
+			baseOpts(_ => 30),
+		);
+		expect(r.isError() && r.err).toBe('editsAnotherFileFirst');
+	});
+
 	it('returns leftActiveDocBeforeJump when focus moves away first', () => {
-		const r = detectSameFileJump([focused(OTHER), selChanged(ACTIVE, 999)], baseOpts(_ => 50));
+		const r = detectSameFileJump([focused(OTHER), changed(ACTIVE, 999, 999, 'x')], baseOpts(_ => 50));
 		expect(r.isError() && r.err).toBe('leftActiveDocBeforeJump');
 	});
 
@@ -83,9 +98,9 @@ describe('detectSameFileJump', () => {
 describe('detectCrossFileJump', () => {
 	const noPriorContent = () => undefined;
 
-	it('detects a cross-file selection with a fresh setContent in post-request slice', () => {
+	it('detects a cross-file edit with a fresh setContent in post-request slice', () => {
 		const r = detectCrossFileJump(
-			[setContent(OTHER, 'line0\nline1\nline2'), selChanged(OTHER, 12)],
+			[setContent(OTHER, 'line0\nline1\nline2'), changed(OTHER, 12, 12, 'x')],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'src/foo.ts']]), getDocContentAtRequest: noPriorContent },
 		);
 		expect(r.isOk()).toBe(true);
@@ -97,7 +112,7 @@ describe('detectCrossFileJump', () => {
 
 	it('resolves target line from pre-request snapshot when no post-request setContent', () => {
 		const r = detectCrossFileJump(
-			[selChanged(OTHER, 12)],
+			[changed(OTHER, 12, 12, 'x')],
 			{
 				activeDocLogId: ACTIVE,
 				idToRelativePath: new Map([[OTHER, 'foo.ts']]),
@@ -112,19 +127,18 @@ describe('detectCrossFileJump', () => {
 
 	it('reports crossFileTargetLineUnresolved when neither snapshot nor setContent exist', () => {
 		const r = detectCrossFileJump(
-			[selChanged(OTHER, 12)],
+			[changed(OTHER, 12, 12, 'x')],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'foo.ts']]), getDocContentAtRequest: noPriorContent },
 		);
 		expect(r.isError() && r.err).toBe('crossFileTargetLineUnresolved');
 	});
 
-	it('applies multi-replacement post-request changed events in offset-descending order', () => {
-		// base "0123456789"; recorder emits replacements relative to the same
-		// base, ascending. Applying them ascending in-place would mis-place the
-		// inserted newline (→ line 1 at offset 7); the correct descending order
-		// yields the newline at index 8 (→ line 0 at offset 7).
+	it('applies prior multi-replacement changed events in offset-descending order', () => {
+		// base "0123456789"; prior edit on OTHER inserts AAAA + a newline. The
+		// later changed event at offset 7 then sees the newline at index 8,
+		// so line 0.
 		const r = detectCrossFileJump(
-			[changedMulti(OTHER, [[1, 2, 'AAAA'], [5, 6, '\n']]), selChanged(OTHER, 7)],
+			[changedMulti(OTHER, [[1, 2, 'AAAA'], [5, 6, '\n']]), changed(OTHER, 7, 7, 'x')],
 			{
 				activeDocLogId: ACTIVE,
 				idToRelativePath: new Map([[OTHER, 'foo.ts']]),
@@ -137,30 +151,58 @@ describe('detectCrossFileJump', () => {
 		}
 	});
 
-	it('rejects when no other doc is touched', () => {
+	it('uses the first edit of a multi-edit changed event', () => {
 		const r = detectCrossFileJump(
-			[selChanged(ACTIVE, 0)],
+			[changedMulti(OTHER, [[6, 6, 'a'], [0, 0, 'b']])],
+			{
+				activeDocLogId: ACTIVE,
+				idToRelativePath: new Map([[OTHER, 'foo.ts']]),
+				getDocContentAtRequest: (id) => (id === OTHER ? '012\n456\n89' : undefined),
+			},
+		);
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val.toLine).toBe(1); // offset 6 on '012\n456\n89' = line 1
+		}
+	});
+
+	it('ignores cross-file focused / selectionChanged without a changed', () => {
+		const r = detectCrossFileJump(
+			[focused(OTHER), selChanged(OTHER, 0)],
+			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'foo.ts']]), getDocContentAtRequest: noPriorContent },
+		);
+		expect(r.isError() && r.err).toBe('noCrossFileEdit');
+	});
+
+	it('skips active-doc edits and picks the first non-active-doc edit', () => {
+		const r = detectCrossFileJump(
+			[changed(ACTIVE, 0, 0, 'a'), changed(OTHER, 5, 5, 'b')],
+			{
+				activeDocLogId: ACTIVE,
+				idToRelativePath: new Map([[OTHER, 'foo.ts']]),
+				getDocContentAtRequest: (id) => (id === OTHER ? 'line0\nline1' : undefined),
+			},
+		);
+		expect(r.isOk()).toBe(true);
+		if (r.isOk()) {
+			expect(r.val.toLine).toBe(0);
+		}
+	});
+
+	it('rejects when no other doc is edited', () => {
+		const r = detectCrossFileJump(
+			[changed(ACTIVE, 0, 0, 'a')],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map(), getDocContentAtRequest: noPriorContent },
 		);
-		expect(r.isError() && r.err).toBe('noCrossFileJump');
+		expect(r.isError() && r.err).toBe('noCrossFileEdit');
 	});
 
 	it('rejects when target path is not in mapping', () => {
 		const r = detectCrossFileJump(
-			[selChanged(OTHER, 0)],
+			[changed(OTHER, 0, 0, 'x')],
 			{ activeDocLogId: ACTIVE, idToRelativePath: new Map(), getDocContentAtRequest: noPriorContent },
 		);
 		expect(r.isError() && r.err).toBe('crossFileTargetNotEncountered');
-	});
-
-	it('rejects focused-only without a selectionChanged', () => {
-		// background peek / split editors can emit `focused` without ever
-		// landing a cursor; the detector should treat that as no confirmed jump.
-		const r = detectCrossFileJump(
-			[focused(OTHER)],
-			{ activeDocLogId: ACTIVE, idToRelativePath: new Map([[OTHER, 'foo.ts']]), getDocContentAtRequest: noPriorContent },
-		);
-		expect(r.isError() && r.err).toBe('crossFileTargetNoSelection');
 	});
 });
 

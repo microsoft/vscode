@@ -202,15 +202,18 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 }
 
 /**
- * Build a per-row line-offset resolver for the same-file detector. For each
- * candidate `selectionChanged`, the resolver replays the `changed` events
- * before it against a copy of the active doc content and returns the
- * 0-based line number for the requested offset against that snapshot.
+ * Build a per-row line-offset resolver for the same-file detector. For a
+ * candidate event at `entryIndex`, the resolver replays the `changed`
+ * events strictly before it against a copy of the active doc content and
+ * returns the 0-based line number for the requested offset against that
+ * snapshot. The strict-less-than bound matters when `entryIndex` itself is
+ * a `changed` event — its own edit offsets are pre-edit and must not be
+ * applied first.
  */
 function buildLineResolver(p: IProcessedRow): (entryIndex: number, offset: number) => number {
 	return (entryIndex: number, offset: number): number => {
 		let c = p.activeDocument.value.get().value;
-		for (let i = 0; i <= entryIndex; i++) {
+		for (let i = 0; i < entryIndex; i++) {
 			const e = p.recordingAfterRequest[i];
 			if (e?.kind === 'changed' && e.id === p.activeDocLogId) {
 				// Apply offset-descending so multi-replacement events don't

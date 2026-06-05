@@ -45,14 +45,18 @@ export interface ISameFileDetectorOptions {
 }
 
 /**
- * Find the first intentional same-file cursor jump after the request bookmark.
+ * Find the first user-driven same-file edit after the request bookmark.
  *
- * Filters out "selection settle" events that fire as a side effect of the
- * user typing: if a `selectionChanged` on the active doc lands at exactly the
- * end of the most recent run of `changed` events on that doc (i.e. cursor
- * parked where insertion finished), it is classified as a settle and
- * skipped. This is a structural test, not a time-based heuristic — so it
- * survives slow autoformat / language-server cascades.
+ * Ground truth for the cursor-jump model is the location of the next EDIT,
+ * not the next cursor landing — peek, navigation, and IDE auto-scroll all
+ * move the cursor without representing the user's intent. We therefore key
+ * off `changed` events on the active doc and ignore selection-only events.
+ *
+ * The start offset of the first edit in the `changed` event is taken as the
+ * jump target; the line is resolved against the active doc snapshot
+ * just-before applying that event. If a `changed` event on a different doc
+ * (or a `focused` away from the active doc) happens first, the detector
+ * bails so the cross-file detector can claim that sample instead.
  */
 export function detectSameFileJump(
 	recordingAfterRequest: readonly LogEntry[],
@@ -62,40 +66,26 @@ export function detectSameFileJump(
 		return Result.error('noPostRequestActivity');
 	}
 
-	let lastActiveDocChangeEndOffset: number | undefined = undefined;
-
 	for (let i = 0; i < recordingAfterRequest.length; i++) {
 		const entry = recordingAfterRequest[i];
 		switch (entry.kind) {
 			case 'changed': {
+				if (entry.edit.length === 0) {
+					break;
+				}
 				if (entry.id !== opts.activeDocLogId) {
-					break;
+					return Result.error('editsAnotherFileFirst');
 				}
-				if (entry.edit.length > 0) {
-					const last = entry.edit[entry.edit.length - 1];
-					lastActiveDocChangeEndOffset = last[0] + last[2].length;
-				}
-				break;
-			}
-			case 'selectionChanged': {
-				if (entry.id !== opts.activeDocLogId || entry.selection.length === 0) {
-					break;
-				}
-				const primaryOffset = entry.selection[0][0];
-				const isSettle = lastActiveDocChangeEndOffset !== undefined && primaryOffset === lastActiveDocChangeEndOffset;
-				lastActiveDocChangeEndOffset = undefined;
-				if (isSettle) {
-					break;
-				}
-
-				const newLine = opts.resolveActiveDocLineAt(i, primaryOffset);
+				const firstEdit = entry.edit[0];
+				const editOffset = firstEdit[0];
+				const newLine = opts.resolveActiveDocLineAt(i, editOffset);
 				const fromLine = opts.cursorAtRequest.lineNumber;
 				const tooFarAbove = newLine < fromLine - opts.minLinesAbove;
 				const tooFarBelow = newLine > fromLine + opts.minLinesBelow;
 				if (!tooFarAbove && !tooFarBelow) {
 					return Result.error('jumpWithinThreshold');
 				}
-				return Result.ok({ kind: 'sameFile', fromLine, toLine: newLine, toOffset: primaryOffset });
+				return Result.ok({ kind: 'sameFile', fromLine, toLine: newLine, toOffset: editOffset });
 			}
 			case 'focused': {
 				if (entry.id !== opts.activeDocLogId) {
@@ -121,12 +111,20 @@ export interface ICrossFileDetectorOptions {
 }
 
 /**
- * Find the first cross-file cursor jump after the request bookmark.
+ * Find the first user-driven edit on a non-active doc after the request
+ * bookmark.
  *
- * `documentEncountered` alone is NOT enough — extensions and peek-defn can
- * silently introduce docs into the recording. We require an explicit
- * `focused` or `selectionChanged` on a non-active doc so background peek /
- * split editors don't pollute the dataset.
+ * Ground truth for the cursor-jump model is the location of the next EDIT,
+ * not the next cursor landing. Background peek / split editors emit
+ * `focused` and even `selectionChanged` on docs the user never edits;
+ * keying off `changed` ensures we only emit samples where the user
+ * actually committed to working in another file.
+ *
+ * The start offset of the first edit in the `changed` event is taken as the
+ * jump target; the line is resolved against that doc's snapshot
+ * just-before applying the event (request-time snapshot, falling back to
+ * the first post-request `setContent`, with any prior `changed` events
+ * applied).
  */
 export function detectCrossFileJump(
 	recordingAfterRequest: readonly LogEntry[],
@@ -136,54 +134,35 @@ export function detectCrossFileJump(
 		return Result.error('noPostRequestActivity');
 	}
 
-	let targetDocId: LogDocumentId | undefined;
-	let targetLine: number | undefined;
-	let selectionEntryIndex: number | undefined;
-
 	for (let i = 0; i < recordingAfterRequest.length; i++) {
 		const entry = recordingAfterRequest[i];
-		if (entry.kind === 'focused' && entry.id !== opts.activeDocLogId) {
-			targetDocId = entry.id;
-		} else if (entry.kind === 'selectionChanged' && entry.id !== opts.activeDocLogId && entry.selection.length > 0) {
-			if (targetDocId === undefined) {
-				targetDocId = entry.id;
-			}
-			if (entry.id === targetDocId) {
-				selectionEntryIndex = i;
-				targetLine = resolveCrossFileLine(
-					recordingAfterRequest,
-					i,
-					entry.id,
-					entry.selection[0][0],
-					opts.getDocContentAtRequest,
-				);
-				break;
-			}
+		if (entry.kind !== 'changed' || entry.id === opts.activeDocLogId || entry.edit.length === 0) {
+			continue;
 		}
+
+		const targetDocId = entry.id;
+		const editOffset = entry.edit[0][0];
+
+		const relPath = opts.idToRelativePath.get(targetDocId);
+		if (!relPath) {
+			return Result.error('crossFileTargetNotEncountered');
+		}
+
+		const targetLine = resolveCrossFileLine(
+			recordingAfterRequest,
+			i,
+			targetDocId,
+			editOffset,
+			opts.getDocContentAtRequest,
+		);
+		if (targetLine === undefined) {
+			return Result.error('crossFileTargetLineUnresolved');
+		}
+
+		return Result.ok({ kind: 'crossFile', toDocLogId: targetDocId, toRelativePath: relPath, toLine: targetLine });
 	}
 
-	if (targetDocId === undefined) {
-		return Result.error('noCrossFileJump');
-	}
-
-	// Treat focused-without-selectionChanged as "no confirmed jump": background
-	// peek / split editors can produce focused events without the user ever
-	// landing a cursor there, and downstream formatting needs a real line
-	// number anyway.
-	if (selectionEntryIndex === undefined) {
-		return Result.error('crossFileTargetNoSelection');
-	}
-
-	const relPath = opts.idToRelativePath.get(targetDocId);
-	if (!relPath) {
-		return Result.error('crossFileTargetNotEncountered');
-	}
-
-	if (targetLine === undefined) {
-		return Result.error('crossFileTargetLineUnresolved');
-	}
-
-	return Result.ok({ kind: 'crossFile', toDocLogId: targetDocId, toRelativePath: relPath, toLine: targetLine });
+	return Result.error('noCrossFileEdit');
 }
 
 /**
