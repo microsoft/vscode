@@ -942,6 +942,19 @@
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 }
 
+.copilot-prototype-dashboard-info-dismiss {
+	flex-shrink: 0;
+	align-self: flex-start;
+	cursor: pointer;
+	opacity: 0.7;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.copilot-prototype-dashboard-info-dismiss:hover {
+	opacity: 1;
+}
+
 .copilot-prototype-dashboard-info-icon {
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);

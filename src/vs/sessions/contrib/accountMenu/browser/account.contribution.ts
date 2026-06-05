@@ -789,6 +789,7 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 	private container: HTMLElement | undefined;
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private isMenuVisible = false;
+	private _pooledBannerDismissed = false;
 
 	constructor(
 		action: IAction,
@@ -895,10 +896,12 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 		const hasOverage = sku === 'Pro/Pro+' || sku === 'Max';
 		const isEnterprise = sku === 'Ent/Bus' || sku === 'Ent/Bus ULB';
 		const isUnlimitedEnt = sku === 'Ent/Bus';
+		const isEntULB = sku === 'Ent/Bus ULB';
 		const hasApproached = state === 'Monthly Approached';
 		const hasExhausted = state === 'Monthly Exhausted';
+		const isOverageApproached = state === 'Overage Approached';
 		const isOverageExhausted = state === 'Overage Exhausted';
-		const showCallout = hasApproached || hasExhausted || isOverageExhausted;
+		const showCallout = hasApproached || hasExhausted || isOverageApproached || isOverageExhausted;
 
 		// Plan title
 		let planName: string;
@@ -916,7 +919,7 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 		let pctUsed: number;
 		switch (state) {
 			case 'Monthly Approached': pctUsed = 75; break;
-			case 'Monthly Exhausted': case 'Overage Exhausted': pctUsed = 100; break;
+			case 'Monthly Exhausted': case 'Overage Approached': case 'Overage Exhausted': pctUsed = 100; break;
 			case 'Monthly Reset': case 'Overage Reset': pctUsed = 0; break;
 			default: pctUsed = 50; break;
 		}
@@ -936,16 +939,20 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 
 		const actions = append(header, $('div.sessions-account-titlebar-panel-header-actions'));
 
-		// CTA in header — one button max, prioritize non-Upgrade over Upgrade
-		if (showCallout && !isEnterprise) {
+		// CTA in header — one button max.
+		if (isEntULB && (hasApproached || hasExhausted)) {
+			// Enterprise ULB: admin-managed budget — surface a primary "Request More Usage" CTA.
+			const ctaBtn = append(actions, $('button.sessions-ubb-header-cta.primary'));
+			ctaBtn.textContent = localize('requestMoreUsage', "Request More Usage");
+		} else if (showCallout && !isEnterprise) {
 			let ctaLabel: string | undefined;
-			if (isOverageExhausted) {
+			if (isOverageApproached || isOverageExhausted) {
 				ctaLabel = localize('increaseBudget', "Increase Budget");
-			} else if (isProNoO && (hasExhausted || hasApproached)) {
-				ctaLabel = localize('configureBudget', "Configure Budget");
 			} else if (isFree) {
 				ctaLabel = localize('upgrade', "Upgrade");
 			}
+			// Pro/Pro+ No O has no header CTA — its "Configure" action lives inline on the
+			// Additional Budget row (see below), next to the "Not configured" state.
 			if (ctaLabel) {
 				const ctaBtn = append(actions, $('button.sessions-ubb-header-cta'));
 				ctaBtn.textContent = ctaLabel;
@@ -959,17 +966,50 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 		signOutBtn.classList.add(...ThemeIcon.asClassNameArray(Codicon.signOut));
 		signOutBtn.title = localize('signOut', "Sign Out");
 
-		// === Callout (text + inline Learn more only, no buttons) ===
-		if (showCallout && !isEnterprise) {
+		// Non-ULB pooled enterprise: explain the shared-pool context in a dismissable banner at the top.
+		// The Agents window has no inline code suggestions, so that detail is intentionally omitted here.
+		if (isUnlimitedEnt && !this._pooledBannerDismissed) {
+			const banner = append(panel, $('div.sessions-ubb-callout.dismissable'));
+			const bannerBody = append(banner, $('div.sessions-ubb-callout-body'));
+			append(bannerBody, $('span.sessions-ubb-callout-icon')).classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+			append(bannerBody, $('span.sessions-ubb-callout-text')).textContent =
+				localize('ubbEntPooledLine', "Your usage draws from your organization's shared credit pool.");
+			const dismiss = append(bannerBody, $('span.sessions-ubb-callout-dismiss'));
+			dismiss.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+			dismiss.tabIndex = 0;
+			dismiss.title = localize('dismiss', "Dismiss");
+			dismiss.addEventListener('click', () => { this._pooledBannerDismissed = true; banner.remove(); });
+		}
+
+		// === Callout (text only, no buttons or links) ===
+		if (showCallout && !isUnlimitedEnt) {
 			const callout = append(panel, $('div.sessions-ubb-callout'));
 			const calloutBody = append(callout, $('div.sessions-ubb-callout-body'));
 			const calloutIconEl = append(calloutBody, $('span.sessions-ubb-callout-icon'));
 			calloutIconEl.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 			const textContainer = append(calloutBody, $('span.sessions-ubb-callout-text'));
 
-			if (isOverageExhausted) {
+			if (isEntULB) {
+				// Enterprise ULB — match the main dashboard "limit" language (no admin sentence).
+				if (hasExhausted) {
+					append(textContainer, $('span.sessions-ubb-callout-title')).textContent =
+						localize('ubbCreditsReachedTitle', "Credits Reached.");
+					append(textContainer, $('span')).textContent =
+						' ' + localize('ubbEntExhaustedMsg', "Copilot is paused until the limit resets.");
+				} else {
+					append(textContainer, $('span.sessions-ubb-callout-title')).textContent =
+						localize('ubbCreditsApproachingTitle', "Credits at {0}%.", pctUsed);
+					append(textContainer, $('span')).textContent =
+						' ' + localize('ubbEntApproachingMsg', "Copilot will pause when the limit is reached.");
+				}
+			} else if (isOverageApproached) {
 				append(textContainer, $('span.sessions-ubb-callout-title')).textContent =
-					localize('ubbOverageReachedTitle', "Additional Spend Reached.");
+					localize('ubbOverageApproachingTitle', "Additional Budget at {0}%.", 75);
+				append(textContainer, $('span')).textContent =
+					' ' + localize('ubbOverageApproachingMsg', "Increase your budget to keep going.");
+			} else if (isOverageExhausted) {
+				append(textContainer, $('span.sessions-ubb-callout-title')).textContent =
+					localize('ubbOverageReachedTitle', "Additional Budget Reached.");
 				append(textContainer, $('span')).textContent =
 					' ' + localize('ubbOverageExhaustedMsg', "Increase your budget to keep building.");
 			} else if (hasExhausted) {
@@ -983,7 +1023,7 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 						' ' + localize('ubbPaidOverageActiveMsg', "Your additional budget will keep Copilot going.");
 				} else {
 					append(textContainer, $('span')).textContent =
-						' ' + localize('ubbPaidExhaustedMsg', "Configure overage spend to keep building.");
+						' ' + localize('ubbPaidExhaustedMsg', "Configure additional budget to keep building.");
 				}
 			} else {
 				append(textContainer, $('span.sessions-ubb-callout-title')).textContent =
@@ -996,20 +1036,27 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 						' ' + localize('ubbPaidOverageApproachMsg', "Your additional budget will keep Copilot going.");
 				} else {
 					append(textContainer, $('span')).textContent =
-						' ' + localize('ubbPaidApproachingMsg', "Configure overage spend to keep going.");
+						' ' + localize('ubbPaidApproachingMsg', "Configure additional budget to keep going.");
 				}
 			}
-			const learnMoreLink = append(textContainer, $('a.sessions-ubb-callout-link'));
-			learnMoreLink.textContent = ' ' + localize('learnMore', "Learn more");
-			learnMoreLink.tabIndex = 0;
 		}
 
 		// === Quota ===
 		const quota = append(panel, $('div.sessions-ubb-quota'));
 
 		if (isUnlimitedEnt) {
-			append(quota, $('div.sessions-ubb-quota-desc')).textContent =
-				localize('includedOrg', "Included with your organization's plan.");
+			// Non-ULB pooled enterprise (#319589): there is no per-user denominator, so surface the
+			// aggregate monthly credits consumed as a single value. The shared-pool context is
+			// explained in the dismissable banner at the top of the panel.
+			const creditsUsed = 1284;
+			const titleRow = append(quota, $('div.sessions-ubb-quota-row'));
+			append(titleRow, $('span.sessions-ubb-quota-title')).textContent = planName;
+			append(titleRow, $('span.sessions-ubb-quota-pct')).textContent = creditsUsed.toLocaleString();
+			const detailRow = append(quota, $('div.sessions-ubb-quota-row'));
+			append(detailRow, $('span.sessions-ubb-quota-reset')).textContent =
+				localize('ubbResetDate', "Resets May 31 at 5:00 PM");
+			append(detailRow, $('span.sessions-ubb-quota-credits-label')).textContent =
+				localize('creditsUsed', "Credits used");
 		} else {
 			// Row 1: plan title + percentage
 			const titleRow = append(quota, $('div.sessions-ubb-quota-row'));
@@ -1022,6 +1069,28 @@ class TitleBarUBBWidget extends BaseActionViewItem {
 				localize('ubbResetDate', "Resets May 31 at 5:00 PM");
 			append(detailRow, $('span.sessions-ubb-quota-credits-label')).textContent =
 				localize('creditsUsed', "Credits used");
+		}
+
+		// === Additional Budget (overage) ===
+		// Always shown for individual SKUs that have (or can configure) an additional budget; dimmed when not in use.
+		// Enterprise SKUs never show this — their budget is admin-managed.
+		// No reset line — it shares the monthly reset already shown under Credits above.
+		if (!isFree && !isEnterprise && (hasOverage || isProNoO)) {
+			const overageActive = hasExhausted || isOverageApproached || isOverageExhausted;
+			const overagePct = isOverageExhausted ? 100 : isOverageApproached ? 75 : hasExhausted ? 10 : 0;
+			const additional = append(panel, $('div.sessions-ubb-quota'));
+			if (!overageActive) { additional.classList.add('dimmed'); }
+			const addRow = append(additional, $('div.sessions-ubb-quota-row'));
+			append(addRow, $('span.sessions-ubb-quota-title')).textContent =
+				localize('ubbAdditionalBudget', "Additional Budget");
+			if (isProNoO) {
+				// No additional budget configured — offer an inline tertiary "Configure" action
+				// in place of the value (the header CTA is intentionally omitted for this state).
+				const configureBtn = append(addRow, $('button.sessions-ubb-quota-configure'));
+				configureBtn.textContent = localize('configure', "Configure");
+			} else {
+				append(addRow, $('span.sessions-ubb-quota-pct')).textContent = `${overagePct}%`;
+			}
 		}
 
 		// === Codebase Semantic Index ===

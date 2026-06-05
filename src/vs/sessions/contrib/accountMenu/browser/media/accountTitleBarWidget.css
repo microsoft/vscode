@@ -636,6 +636,16 @@
 	background: var(--vscode-button-secondaryHoverBackground);
 }
 
+.sessions-ubb-header-cta.primary {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-border, transparent);
+}
+
+.sessions-ubb-header-cta.primary:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
 /* UBB Callout Banner */
 .sessions-ubb-callout {
 	display: flex;
@@ -680,6 +690,19 @@
 	text-decoration: underline;
 }
 
+.sessions-ubb-callout-dismiss {
+	flex-shrink: 0;
+	align-self: flex-start;
+	cursor: pointer;
+	opacity: 0.7;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-ubb-callout-dismiss:hover {
+	opacity: 1;
+}
+
 /* UBB Callout Actions Row */
 .sessions-ubb-callout-actions {
 	display: flex;
@@ -709,6 +732,10 @@
 	padding: 8px 10px;
 }
 
+.sessions-ubb-quota.dimmed {
+	opacity: 0.55;
+}
+
 .sessions-ubb-quota-title {
 	font-size: 13px;
 	font-weight: 600;
@@ -735,6 +762,21 @@
 .sessions-ubb-quota-credits-label {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-ubb-quota-configure {
+	padding: 0;
+	border: none;
+	background: none;
+	font-size: 12px;
+	font-family: inherit;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.sessions-ubb-quota-configure:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
 }
 
 .sessions-ubb-quota-desc {
