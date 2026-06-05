@@ -229,6 +229,7 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
+	border-color: var(--vscode-button-secondaryBorder);
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
