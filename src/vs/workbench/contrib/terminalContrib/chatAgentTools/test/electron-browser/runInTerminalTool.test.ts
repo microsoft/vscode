@@ -87,6 +87,13 @@ suite('RunInTerminalTool', () => {
 	let chatServiceDisposeEmitter: Emitter<{ sessionResources: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
 	let capturedSteeringRequests: { sessionResource: URI; message: string }[];
+	let sendRequestSignal: { promise: Promise<void>; resolve: () => void };
+	let lastUtilityAliasResolution: Promise<unknown> = Promise.resolve();
+	function renewSendRequestSignal() {
+		let resolve!: () => void;
+		const promise = new Promise<void>(r => { resolve = r; });
+		sendRequestSignal = { promise, resolve };
+	}
 	let sandboxEnabled: boolean;
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
@@ -151,6 +158,8 @@ suite('RunInTerminalTool', () => {
 		chatServiceDisposeEmitter = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
 		capturedSteeringRequests = [];
+		renewSendRequestSignal();
+		lastUtilityAliasResolution = Promise.resolve();
 		chatSessions = new Map<string, ChatModel>();
 
 		instantiationService = workbenchInstantiationService({
@@ -163,6 +172,9 @@ suite('RunInTerminalTool', () => {
 			getSession: (sessionResource: URI) => chatSessions.get(sessionResource.toString()),
 			sendRequest: async (sessionResource: URI, message: string) => {
 				capturedSteeringRequests.push({ sessionResource, message });
+				const signal = sendRequestSignal;
+				renewSendRequestSignal();
+				signal.resolve();
 				return { kind: 'rejected', reason: 'test' };
 			},
 			acquireExistingSession: () => ({
@@ -234,7 +246,11 @@ suite('RunInTerminalTool', () => {
 			},
 		});
 		instantiationService.stub(ILanguageModelsService, {
-			selectLanguageModels: async () => [],
+			selectLanguageModels: async () => {
+				const p = Promise.resolve([] as string[]);
+				lastUtilityAliasResolution = p;
+				return p;
+			},
 		} as unknown as ILanguageModelsService);
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
@@ -250,12 +266,26 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.AutoApprove, value);
 	}
 
-	// Flush microtasks so async steering-request dispatch (which awaits the
-	// utility-small model resolution) completes before assertions.
-	async function flushSteeringRequests() {
-		for (let i = 0; i < 5; i++) {
-			await Promise.resolve();
+	// Wait until at least `count` steering requests have been dispatched.
+	// Synchronizes on a deferred resolved by the stubbed `sendRequest`, so the
+	// assertion doesn't depend on a fixed number of microtask hops.
+	async function waitForSteeringRequest(count = 1) {
+		while (capturedSteeringRequests.length < count) {
+			await sendRequestSignal.promise;
 		}
+	}
+
+	// For "no request expected" assertions: ensure the steering dispatch path
+	// has had a chance to run and decide not to send. Anchors on the
+	// utility-small alias resolution promise (which the dispatch chain awaits)
+	// rather than a fixed microtask count.
+	async function waitForSteeringDispatchToSettle() {
+		await lastUtilityAliasResolution;
+		// Drain the small chain of .then() callbacks (utilitySmallIdPromise →
+		// resolveSendOptions → sendRequest) that follow the alias resolution.
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
 	}
 
 	function setConfig(key: string, value: unknown) {
@@ -2573,12 +2603,12 @@ suite('RunInTerminalTool', () => {
 
 		inputNeededEmitter.fire();
 		inputNeededEmitter.fire();
-		await flushSteeringRequests();
+		await waitForSteeringRequest(1);
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected duplicate rapid input-needed events to be suppressed');
 
 		output = 'Confirm (y/N):';
 		inputNeededEmitter.fire();
-		await flushSteeringRequests();
+		await waitForSteeringRequest(2);
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
@@ -2625,7 +2655,7 @@ suite('RunInTerminalTool', () => {
 		// terminal is gone.
 		isDisposed = true;
 		inputNeededEmitter.fire();
-		await flushSteeringRequests();
+		await waitForSteeringDispatchToSettle();
 		strictEqual(capturedSteeringRequests.length, 0, 'Closing the terminal should not produce a spurious input-needed chat turn');
 	});
 
@@ -2669,14 +2699,14 @@ suite('RunInTerminalTool', () => {
 			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'mkdir -p foo && cd foo && npm init', toolSpecificData, outputMonitor, output);
 
 		inputNeededEmitter.fire();
-		await flushSteeringRequests();
+		await waitForSteeringDispatchToSettle();
 		strictEqual(capturedSteeringRequests.length, 0, 'Should not re-notify for output the agent already received via the foreground inputNeeded race');
 
 		// Once the prompt actually changes (new data has arrived), a fresh notification
 		// should be sent so the agent learns about the new prompt state.
 		output = 'version: (1.0.0) ';
 		inputNeededEmitter.fire();
-		await flushSteeringRequests();
+		await waitForSteeringRequest(1);
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a new notification once the prompt output changes');
 	});
 
@@ -2728,7 +2758,7 @@ suite('RunInTerminalTool', () => {
 
 		// Fire inputNeeded — this simulates the output monitor detecting a prompt
 		inputNeededEmitter.fire();
-		await flushSteeringRequests();
+		await waitForSteeringRequest(1);
 		strictEqual(capturedSteeringRequests.length, 1, 'Should send steering request for input needed');
 
 		// The key assertion: fg terminal association is preserved (not deleted)

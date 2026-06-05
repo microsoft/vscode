@@ -2387,7 +2387,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	/**
-	 * Resolves the `copilot/copilot-utility-small` alias identifier for use as
+	 * Resolves the opaque language-model identifier published under the
+	 * `copilot/copilot-utility-small` alias (vendor `copilot`, id
+	 * `copilot-utility-small`). `selectLanguageModels` returns an array of
+	 * resolved identifier strings; we use the first match directly as
 	 * `userSelectedModelId` on terminal-tool steering messages (background
 	 * completion / input-needed / disposal notifications). The alias is
 	 * published by the copilot extension and already honors the
@@ -2800,7 +2803,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			return utilitySmallId;
 		}, err => {
-			this._logService.debug(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model. Error: ${err}`);
+			this._logService.warn(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model`, err);
 			return undefined;
 		});
 		const resolveSendOptions = async (): Promise<typeof sendOptions> => {
