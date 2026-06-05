@@ -66,6 +66,9 @@ export function setup(logger: Logger) {
 			await app.workbench.settingsEditor.addUserSettings([
 				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
 				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
+				// Use token auth (not HMAC) so the CLI SDK can call /models and
+				// /models/session against the mock server without HMAC validation.
+				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
 				['chat.allowAnonymousAccess', 'true'],
 				['github.copilot.chat.githubMcpServer.enabled', 'false'],
 				['chat.mcp.discovery.enabled', 'false'],
@@ -81,7 +84,7 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it.skip('Test Copilot CLI session', async function () {
+		it('Test Copilot CLI session', async function () {
 			const app = this.app as Application;
 			const requestsBefore = mockServer.requestCount();
 
