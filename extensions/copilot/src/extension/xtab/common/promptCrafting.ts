@@ -451,6 +451,7 @@ export function expandRangeToPageRange(
 	maxTokens: number,
 	computeTokens: (s: string) => number,
 	prioritizeAboveCursor: boolean,
+	useLeftoverBudgetFromAbove: boolean,
 ): { firstPageIdx: number; lastPageIdxIncl: number; budgetLeft: number } {
 
 	const totalNOfPages = Math.ceil(currentDocLines.length / pageSize);
@@ -490,7 +491,10 @@ export function expandRangeToPageRange(
 			tokenBudget = newTokenBudget;
 		}
 
-		tokenBudget = halfOfAvailableTokenBudget;
+		// Code below the cursor gets its own half of the budget plus, when
+		// enabled, any budget left unused by the code above the cursor.
+		const leftoverFromAbove = useLeftoverBudgetFromAbove ? tokenBudget : 0;
+		tokenBudget = halfOfAvailableTokenBudget + leftoverFromAbove;
 
 		for (let i = lastPageIdxIncl + 1; i < totalNOfPages && tokenBudget > 0; ++i) {
 			const tokenCountForPage = computeTokensForPage(i);
@@ -550,6 +554,7 @@ export function clipPreservingRange(
 		availableTokenBudget,
 		computeTokens,
 		opts.prioritizeAboveCursor,
+		opts.useLeftoverBudgetFromAbove,
 	);
 
 	const linesOffsetStart = firstPageIdx * pageSize;

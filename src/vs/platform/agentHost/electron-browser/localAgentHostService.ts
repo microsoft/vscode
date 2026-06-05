@@ -20,13 +20,13 @@ import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
@@ -81,9 +81,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -97,7 +96,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// frames for every request/response/notification on the in-process MessagePort
 		// channel, mirroring the AHP transport JSONL logs produced by remote agent hosts.
 		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
-			? this._register(instantiationService.createInstance(AhpJsonlLogger, {
+			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
 				connectionId: this.clientId,
 				transport: 'local',
@@ -144,7 +143,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// Serve filesystem reverse-RPCs from the local file service. The
 		// agent host registers an authority on its
 		// AgentHostClientFileSystemProvider that calls back through this channel.
-		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService, this._ahpLogger));
+		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, this._instantiationService.createInstance(AgentHostClientResourceChannel, this._ahpLogger));
 		this._clientEventually.complete(client);
 		this._updateTelemetryLevel();
 		this._updateSessionSyncEnabled();
@@ -223,6 +222,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 	disposeTerminal(terminal: URI): Promise<void> {
 		return this._proxy.disposeTerminal(terminal);
+	}
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._proxy.invokeChangesetOperation(params);
 	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();

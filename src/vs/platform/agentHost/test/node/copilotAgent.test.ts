@@ -31,7 +31,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentSessionMetadata } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type Customization, type MarkdownResponsePart, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -54,7 +54,7 @@ class TestAgentPluginManager implements IAgentPluginManager {
 
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
 
-	async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[], _progress?: (status: Customization) => void): Promise<ISyncedCustomization[]> {
+	async syncCustomizations(_clientId: string, _customizations: ClientPluginCustomization[], _progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]> {
 		return [];
 	}
 }
@@ -91,6 +91,9 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		return this.dirtyWorkingDirectories.has(workingDirectory.fsPath);
 	}
+	async commitAll(): Promise<void> { }
+	async hasUpstream(): Promise<boolean> { return false; }
+	async pushBranch(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
 	async computeSessionFileDiffs(): Promise<undefined> { return undefined; }
 	async showBlob(): Promise<undefined> { return undefined; }
@@ -508,7 +511,7 @@ suite('CopilotAgent', () => {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listSessions();
 
-				configurationService.updateRootConfig({ [AgentHostConfigKey.DisableCustomTerminalTool]: true });
+				configurationService.updateRootConfig({ [AgentHostConfigKey.EnableCustomTerminalTool]: true });
 				await Promise.resolve();
 
 				assert.strictEqual(client.stopCount, 0);
@@ -678,7 +681,7 @@ suite('CopilotAgent', () => {
 		class SpyingPluginManager extends TestAgentPluginManager {
 			public readonly calls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
 
-			override async syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], _progress?: (status: Customization) => void): Promise<ISyncedCustomization[]> {
+			override async syncCustomizations(clientId: string, customizations: ClientPluginCustomization[], _progress?: (status: PluginCustomization) => void): Promise<ISyncedCustomization[]> {
 				this.calls.push({ clientId, customizations: [...customizations] });
 				return [];
 			}
@@ -781,10 +784,10 @@ suite('CopilotAgent', () => {
 				const updatesWithChildren = actions
 					.filter(a => a.type === ActionType.SessionCustomizationUpdated)
 					.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => true)
-					.filter(a => a.customization.children !== undefined);
+					.filter(a => (a.customization as PluginCustomization).children !== undefined);
 
 				assert.strictEqual(updatesWithChildren.length > 0, true, 'expected SessionCustomizationUpdated to carry parsed children');
-				const agentChildren = updatesWithChildren.at(-1)!.customization.children!.filter(c => c.type === CustomizationType.Agent);
+				const agentChildren = (updatesWithChildren.at(-1)!.customization as PluginCustomization).children!.filter(c => c.type === CustomizationType.Agent);
 				assert.deepStrictEqual(agentChildren, [{
 					type: CustomizationType.Agent,
 					id: customizationId(URI.joinPath(pluginDir, 'agents', 'helper.md').toString()),
@@ -808,6 +811,8 @@ suite('CopilotAgent', () => {
 			const instructionFile = URI.joinPath(workspace, '.github', 'instructions', 'team', 'nested.instructions.md');
 			await fileService.writeFile(agentFile, VSBuffer.fromString('agent body'));
 			await fileService.writeFile(instructionFile, VSBuffer.fromString('instruction body'));
+			const agentsMdFile = URI.joinPath(workspace, 'AGENTS.md');
+			await fileService.writeFile(agentsMdFile, VSBuffer.fromString('agents md body'));
 
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
@@ -825,8 +830,9 @@ suite('CopilotAgent', () => {
 				const customizations = await agent.getSessionCustomizations(session);
 				const discoveredDirectories = customizations.filter(customization => customization.type === CustomizationType.Directory);
 
-				assert.strictEqual(discoveredDirectories.length, 2);
+				assert.strictEqual(discoveredDirectories.length, 3);
 				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), [
+					workspace.toString(),
 					URI.joinPath(workspace, '.github', 'agents').toString(),
 					URI.joinPath(workspace, '.github', 'instructions').toString(),
 				].sort());
@@ -850,6 +856,55 @@ suite('CopilotAgent', () => {
 					uri: instructionFile.toString(),
 					name: 'nested.instructions.md',
 				}]);
+
+				const agentInstructionsDirectory = discoveredDirectories.find(customization => customization.uri === workspace.toString());
+				assert.ok(agentInstructionsDirectory);
+				assert.strictEqual(agentInstructionsDirectory.contents, CustomizationType.Rule);
+				assert.deepStrictEqual(agentInstructionsDirectory.children, [{
+					type: CustomizationType.Rule,
+					id: customizationId(agentsMdFile.toString()),
+					uri: agentsMdFile.toString(),
+					name: 'AGENTS.md',
+					alwaysApply: true,
+				} satisfies RuleCustomization]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getSessionCustomizations clears discovered files when the root disappears', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			const agentsRoot = URI.joinPath(workspace, '.github', 'agents');
+			await fileService.createFolder(agentsRoot);
+			await fileService.writeFile(URI.joinPath(agentsRoot, 'helper.agent.md'), VSBuffer.fromString('agent body'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-cleared');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				const before = await agent.getSessionCustomizations(session);
+				assert.deepStrictEqual(before.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+
+				await fileService.del(agentsRoot, { recursive: true });
+
+				let after = await agent.getSessionCustomizations(session);
+				for (let i = 0; i < 20 && after.filter(customization => customization.type === CustomizationType.Directory).length > 0; i++) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+					after = await agent.getSessionCustomizations(session);
+				}
+				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), []);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -993,7 +1048,7 @@ suite('CopilotAgent', () => {
 			const { agent, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client });
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
-				configurationService.updateRootConfig({ [AgentHostConfigKey.DisableCustomTerminalTool]: true });
+				configurationService.updateRootConfig({ [AgentHostConfigKey.EnableCustomTerminalTool]: false });
 
 				const result = await agent.createSession({
 					session: AgentSession.uri('copilotcli', 'sdk-terminal-defaults'),

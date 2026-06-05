@@ -101,6 +101,17 @@ export interface IActiveSession extends ISession {
 }
 
 /**
+ * Sessions split into recently opened and other (never opened) groups, used to
+ * populate the sessions picker.
+ */
+export interface IRecentlyOpenedSessions {
+	/** Sessions opened in this workspace, most recently opened first. */
+	readonly recent: ISession[];
+	/** Sessions never opened in this workspace, most recently updated first. */
+	readonly other: ISession[];
+}
+
+/**
  * An active session item extends IChatSessionItem with repository information.
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
@@ -119,6 +130,18 @@ export interface ISessionsManagementService {
 	 * Get a session by its resource URI.
 	 */
 	getSession(resource: URI): ISession | undefined;
+
+	/**
+	 * Get all sessions from all registered providers, split into two groups:
+	 * - `recent`: sessions that have been opened in this workspace, ordered by
+	 *   how recently they were opened (most recently opened first), capped at a
+	 *   fixed maximum.
+	 * - `other`: the remaining sessions, sorted by their last update time (most
+	 *   recently updated first).
+	 *
+	 * Used to populate the sessions picker.
+	 */
+	getRecentlyOpenedSessions(): IRecentlyOpenedSessions;
 
 	/**
 	 * Get all session types from all registered providers.
@@ -249,11 +272,12 @@ export interface ISessionsManagementService {
 	openChat(session: ISession, chatUri: URI): Promise<void>;
 
 	/**
-	 * Restore the last active session from persisted state.
-	 * Waits until the session provider is available and then opens the session.
-	 * Falls back to the new-session view if the session is not found.
+	 * Restore the sessions that were visible in the grid from persisted state.
+	 * Restores their order, sticky (pinned) state and the active session,
+	 * waiting until each session's provider makes it available. Falls back to
+	 * the new-session view when nothing can be restored.
 	 */
-	restoreLastActiveSession(): Promise<void>;
+	restoreVisibleSessions(): Promise<void>;
 
 	/**
 	 * Switch to the new-session view.

@@ -29,7 +29,7 @@ import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsService, isSessionInProgressStatus, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isAgentHostTarget, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -150,6 +150,10 @@ interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData
 
 export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === AgentSessionProviders.Local;
+}
+
+export function isAgentHostAgentSessionItem(session: IAgentSession): boolean {
+	return isAgentHostTarget(session.providerType);
 }
 
 export function isAgentSession(obj: unknown): obj is IAgentSession {
