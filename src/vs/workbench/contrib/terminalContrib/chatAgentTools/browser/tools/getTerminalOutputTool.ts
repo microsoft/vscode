@@ -129,7 +129,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 		}
 		const tail = this._tailOf(output, GetTerminalOutputTool._tailCharBudget);
 		const omitted = output.length - tail.length;
-		return `${prefix}; showing last ${tail.length} of ${output.length} characters (${omitted} earlier characters omitted):\n${tail}`;
+		return `${prefix}; showing last ${tail.length} of ${output.length} characters (${omitted} earlier characters omitted). If you need the omitted earlier output, re-run the command and redirect output to a file, then read that file:\n${tail}`;
 	}
 
 	private _tailOf(output: string, charBudget: number): string {
