@@ -591,8 +591,20 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
+	$highlight(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto>;
 	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
 	$removeLanguageStatus(handle: number): void;
+}
+
+export interface ISyntaxTokenDto {
+	readonly length: number;
+	readonly foreground: number;
+	readonly fontStyle: number;
+}
+
+export interface ISyntaxHighlightingResultDto {
+	readonly tokens: ISyntaxTokenDto[];
+	readonly colorMap: string[];
 }
 
 export interface MainThreadMessageOptions {
@@ -2585,6 +2597,7 @@ export interface ExtHostFileSystemEventServiceShape {
 
 export interface ExtHostLanguagesShape {
 	$acceptLanguageIds(ids: string[]): void;
+	$acceptSyntaxHighlightingThemeChanged(): void;
 }
 
 export interface ExtHostHeapServiceShape {

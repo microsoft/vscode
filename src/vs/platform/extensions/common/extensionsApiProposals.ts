@@ -246,6 +246,9 @@ const _allApiProposals = {
 	documentFiltersExclusive: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.documentFiltersExclusive.d.ts',
 	},
+	documentSyntaxHighlighting: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.documentSyntaxHighlighting.d.ts',
+	},
 	editSessionIdentityProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts',
 	},
