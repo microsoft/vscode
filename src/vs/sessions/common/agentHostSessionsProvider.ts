@@ -37,6 +37,16 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	disconnect?(): Promise<void>;
 
+	/**
+	 * When `true`, the workspace picker keeps this provider's browse
+	 * action(s) enabled even while {@link connectionStatus} reports
+	 * `disconnected` — the assumption being that clicking the action
+	 * itself triggers a connect attempt (e.g. booting a stopped WSL
+	 * distro). The `incompatible` state is still treated as unavailable
+	 * because the user can't recover from it via a click.
+	 */
+	readonly canConnectOnDemand?: boolean;
+
 	// -- Dynamic Session Config --
 
 	/** Fires when dynamic configuration for a session changes. */
@@ -135,6 +145,15 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 }
 
 export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+
+/**
+ * Experimental setting id controlling whether the local agent host acts as the
+ * default sessions provider. When enabled (and `chat.agentHost.enabled` is
+ * true), the local agent host's session types are surfaced before those of
+ * other providers. Defaults to `false`.
+ */
+export const LocalAgentHostDefaultProviderSettingId = 'chat.agentHost.defaultSessionsProvider';
+
 export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
 export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;

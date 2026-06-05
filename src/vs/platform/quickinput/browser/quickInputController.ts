@@ -908,10 +908,10 @@ export class QuickInputController extends Disposable {
 				const container = this.layoutService.getContainer(anchorWindow).getBoundingClientRect();
 				let anchor = getAnchorRect(target);
 
-				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
-
+				let listHeightRatio = 0.2;
 				if (this.controller.anchorPosition === 'overlay') {
 					width = anchor.width + 12;
+					listHeightRatio = 0.4;
 					anchor = {
 						...anchor,
 						top: anchor.top - 7 - anchor.height,
@@ -920,6 +920,9 @@ export class QuickInputController extends Disposable {
 				} else {
 					width = 380;
 				}
+
+				const maxListHeight = listHeightRatio * 1000;
+				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.

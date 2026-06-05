@@ -18,7 +18,6 @@ import type { ISandboxDependencyStatus, IWindowsMxcConfig, IWindowsMxcFilesystem
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../common/terminalSandboxService.js';
 
 suite('TerminalSandboxEngine', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -127,7 +126,7 @@ suite('TerminalSandboxEngine', () => {
 			getWorkspaceStorageReadRoot: () => Promise.resolve(undefined),
 			getWriteRoots: () => [URI.file('/workspace')],
 			onDidChangeRoots: rootsEmitter.event,
-			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true }),
+			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, socatInstalled: true }),
 			getWindowsMxcFilesystemPolicy: (): Promise<IWindowsMxcFilesystemPolicy | undefined> => Promise.resolve(undefined),
 			getWindowsMxcEnvironment: (): Promise<string[] | undefined> => Promise.resolve(undefined),
 			buildWindowsMxcSandboxPayload: (commandLine, policy, workingDirectory, containerName, containment): Promise<IWindowsMxcConfig | undefined> => Promise.resolve(buildMockWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment)),
@@ -294,7 +293,7 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowWrite.includes('/workspace-a'), 'Refreshed config should drop the old write root');
 	});
 
-	test('resolves filesystem paths and expands home on Linux when writing the config', async () => {
+	test('preserves filesystem symlink paths and resolves their targets on Linux when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
 			allowWrite: ['/write-link'],
@@ -317,13 +316,20 @@ suite('TerminalSandboxEngine', () => {
 		const configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
-		ok(config.filesystem.allowWrite.includes('/real/workspace'), 'Workspace write root symlink should be resolved');
-		ok(config.filesystem.allowWrite.includes('/real/write'), 'Configured allowWrite symlink should be resolved');
-		ok(config.filesystem.allowRead.includes('/real/read'), 'Configured allowRead should expand ~ and resolve symlink');
-		ok(config.filesystem.allowRead.includes('/real/gnupg'), 'Command runtime allowRead should expand ~ and resolve symlink');
-		ok(config.filesystem.allowWrite.includes('/real/gnupg'), 'Command runtime allowWrite should expand ~ and resolve symlink');
-		ok(config.filesystem.denyRead.includes('/real/deny-read'), 'Configured denyRead should expand ~ and resolve symlink');
-		ok(config.filesystem.denyWrite.includes('/real/deny-write'), 'Configured denyWrite symlink should be resolved');
+		ok(config.filesystem.allowWrite.includes('/workspace-link'), 'Workspace write root symlink should be preserved');
+		ok(config.filesystem.allowWrite.includes('/real/workspace'), 'Workspace write root symlink target should be included');
+		ok(config.filesystem.allowWrite.includes('/write-link'), 'Configured allowWrite symlink should be preserved');
+		ok(config.filesystem.allowWrite.includes('/real/write'), 'Configured allowWrite symlink target should be included');
+		ok(config.filesystem.allowRead.includes('/home/user/read-link'), 'Configured allowRead should expand ~ and preserve the symlink');
+		ok(config.filesystem.allowRead.includes('/real/read'), 'Configured allowRead symlink target should be included');
+		ok(config.filesystem.allowRead.includes('/home/user/.gnupg'), 'Command runtime allowRead symlink should be preserved');
+		ok(config.filesystem.allowRead.includes('/real/gnupg'), 'Command runtime allowRead symlink target should be included');
+		ok(config.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Command runtime allowWrite symlink should be preserved');
+		ok(config.filesystem.allowWrite.includes('/real/gnupg'), 'Command runtime allowWrite symlink target should be included');
+		ok(config.filesystem.denyRead.includes('/home/user/deny-read-link'), 'Configured denyRead should expand ~ and preserve the symlink');
+		ok(config.filesystem.denyRead.includes('/real/deny-read'), 'Configured denyRead symlink target should be included');
+		ok(config.filesystem.denyWrite.includes('/deny-write-link'), 'Configured denyWrite symlink should be preserved');
+		ok(config.filesystem.denyWrite.includes('/real/deny-write'), 'Configured denyWrite symlink target should be included');
 	});
 
 	test('keeps filesystem paths without symlinks when writing the config', async () => {
@@ -474,7 +480,7 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(config.version, '0.5.0-alpha');
 	});
 
-	test('resolves Windows filesystem symlinks when writing MXC config', async () => {
+	test('preserves Windows filesystem symlink paths and resolves their targets when writing MXC config', async () => {
 		enableWindowsSandbox();
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
 			allowWrite: ['C:\\configured\\write-link'],
@@ -496,11 +502,16 @@ suite('TerminalSandboxEngine', () => {
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
-		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/workspace'), 'Workspace write root symlink should be resolved on Windows');
-		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-write'), 'Configured Windows allowWrite symlink should be resolved');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-read'), 'Configured Windows allowRead symlink should be resolved');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/tools-node'), 'Windows policy readonly symlink should be resolved');
-		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-secret'), 'Configured Windows denyRead symlink should be resolved');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace-link'), 'Workspace write root symlink should be preserved on Windows');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/workspace'), 'Workspace write root symlink target should be included on Windows');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/write-link'), 'Configured Windows allowWrite symlink should be preserved');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-write'), 'Configured Windows allowWrite symlink target should be included');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/read-link'), 'Configured Windows allowRead symlink should be preserved');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-read'), 'Configured Windows allowRead symlink target should be included');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/tools/node'), 'Windows policy readonly symlink should be preserved');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/tools-node'), 'Windows policy readonly symlink target should be included');
+		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/secret-link'), 'Configured Windows denyRead symlink should be preserved');
+		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-secret'), 'Configured Windows denyRead symlink target should be included');
 	});
 
 	test('wrapCommand uses arm64 MXC executable on Windows arm64', async () => {
@@ -572,7 +583,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('checkForSandboxingPrereqs reports missing dependencies', async () => {
-		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true };
+		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, socatInstalled: true };
 		const host = createHost({
 			checkSandboxDependencies: () => Promise.resolve(status),
 		});
@@ -583,44 +594,8 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(result.failedCheck, 'dependencies');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap');
 
-		status = { bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true };
+		status = { bubblewrapInstalled: true, socatInstalled: true };
 		const result2 = await engine.checkForSandboxingPrereqs(true);
 		strictEqual(result2.failedCheck, undefined);
-	});
-
-	test('checkForSandboxingPrereqs reports remediation when Ubuntu AppArmor remediation is supported', async () => {
-		const host = createHost({
-			checkSandboxDependencies: () => Promise.resolve({
-				bubblewrapInstalled: true,
-				bubblewrapUsable: false,
-				bubblewrapError: 'Creating new namespace failed',
-				supportsUbuntuAppArmorRemediation: true,
-				socatInstalled: true,
-			}),
-		});
-		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
-
-		const result = await engine.checkForSandboxingPrereqs();
-
-		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
-		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
-		strictEqual(result.detail, 'Creating new namespace failed');
-		strictEqual(result.missingDependencies, undefined);
-	});
-
-	test('checkForSandboxingPrereqs omits the AppArmor remediation on unsupported Linux releases', async () => {
-		const host = createHost({
-			checkSandboxDependencies: () => Promise.resolve({
-				bubblewrapInstalled: true,
-				bubblewrapUsable: false,
-				supportsUbuntuAppArmorRemediation: false,
-				socatInstalled: true,
-			}),
-		});
-		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
-
-		const result = await engine.checkForSandboxingPrereqs();
-
-		strictEqual(result.remediations, undefined);
 	});
 });

@@ -46,6 +46,7 @@ class MockProtocolClient extends Disposable {
 	readonly connectionState = 'connecting' as const;
 	readonly initializeResult = undefined;
 	readonly telemetryCapabilities = undefined;
+	readonly triggerVscodeUpgradeCalls: string[] = [];
 
 	public connectDeferred = new DeferredPromise<void>();
 
@@ -55,6 +56,11 @@ class MockProtocolClient extends Disposable {
 
 	async connect(): Promise<void> {
 		return this.connectDeferred.p;
+	}
+
+	async triggerVscodeUpgrade(method: string) {
+		this.triggerVscodeUpgradeCalls.push(method);
+		return { ok: true, upgradeStarted: true };
 	}
 
 	fireClose(): void {
@@ -516,6 +522,38 @@ suite('RemoteAgentHostService', () => {
 				transport,
 			);
 		}
+
+		test('keeps incompatible managed connection addressable for server upgrade', async () => {
+			const mockClient = disposables.add(new MockProtocolClient('ssh:remote.example'));
+			await service.addManagedConnection(
+				{
+					name: 'SSH Host',
+					connection: {
+						type: RemoteAgentHostEntryType.SSH,
+						address: 'ssh:remote.example',
+						sshConfigHost: 'remote',
+						hostName: 'remote.example',
+					},
+				},
+				mockClient as unknown as Parameters<typeof service.addManagedConnection>[1],
+				undefined,
+				RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
+			);
+
+			const upgradeResult = await service.triggerServerUpgrade('ssh:remote.example', '_vscodeUpgrade');
+
+			assert.deepStrictEqual({
+				status: service.connections[0].status,
+				connectedConnection: service.getConnection('ssh:remote.example'),
+				upgradeCalls: mockClient.triggerVscodeUpgradeCalls,
+				upgradeResult,
+			}, {
+				status: RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['0.3.0'], ['^0.2.0'], '_vscodeUpgrade'),
+				connectedConnection: undefined,
+				upgradeCalls: ['_vscodeUpgrade'],
+				upgradeResult: { ok: true, upgradeStarted: true },
+			});
+		});
 
 		test('disposes transportDisposable when entry is removed via removeRemoteAgentHost', async () => {
 			const t = makeTransportDisposable();

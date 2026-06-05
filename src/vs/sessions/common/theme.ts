@@ -15,7 +15,7 @@ import { registerColor, transparent } from '../../platform/theme/common/colorUti
 import { contrastBorder, focusBorder } from '../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
-import { buttonBackground, buttonBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
+import { buttonBackground, buttonSecondaryBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // ============================================================================
@@ -126,7 +126,7 @@ export const agentsNewSessionButtonForeground = registerColor(
 );
 
 export const agentsNewSessionButtonBorder = registerColor(
-	'agentsNewSessionButton.border', buttonBorder,
+	'agentsNewSessionButton.border', buttonSecondaryBorder,
 	localize('agentsNewSessionButton.border', 'Border color of the New Session button in the agent sessions sidebar.')
 );
 
@@ -169,7 +169,7 @@ export const activeSessionViewBackground = registerColor(
 );
 
 export const inactiveSessionViewBackground = registerColor(
-	'inactiveSessionView.background', agentsChatInputBackground,
+	'inactiveSessionView.background', agentsBackground,
 	localize('inactiveSessionView.background', 'Background color of an inactive session view in the agent sessions window.')
 );
 

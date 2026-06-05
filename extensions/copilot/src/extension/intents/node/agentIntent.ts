@@ -19,7 +19,7 @@ import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
-import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -69,6 +69,7 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -99,8 +100,17 @@ export function isTodoToolExplicitlyEnabled(request: vscode.ChatRequest): boolea
  *
  * @internal - exported for testing
  */
-export function isBackgroundTodoAgentEnabled(configurationService: IConfigurationService, experimentationService: IExperimentationService, request: vscode.ChatRequest): boolean {
-	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
+export function isBackgroundTodoAgentEnabled(
+	endpoint: IChatEndpoint,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+	authenticationService: IAuthenticationService,
+	request: vscode.ChatRequest): boolean {
+	const token = authenticationService.copilotToken;
+
+	// Only enable for a signed in no-free plan user talking to the CAPI endpoint.
+	const isEnabledForToken = token !== undefined && !token.isFreeUser && !token.isNoAuthUser && isCAPIEndpoint(endpoint);
+	return isEnabledForToken && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
 		&& !isTodoToolExplicitlyEnabled(request);
 }
 
@@ -148,6 +158,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
+	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
+
 	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -180,10 +192,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// BYOK endpoints that own their `Authorization` have no Copilot token for the
-	// agentic proxy or override models the subagents rely on, so disable them
-	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
-	if (model.ownsAuthorization) {
+	// The specialized subagents must only run when
+	// the main agent is on CAPI.
+	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
@@ -198,8 +209,13 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		// The execution subagent is powered by gemini-3-flash, so it can only be
 		// offered when that model is actually available to the user. If it isn't
 		// in the user's endpoints, keep the tool disabled regardless of the setting.
-		const allEndpoints = await endpointProvider.getAllChatEndpoints();
-		const hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		// Skip the (potentially expensive) endpoint lookup when the tool would be
+		// disabled anyway based on model family or the experiment setting.
+		let hasGemini3Flash = false;
+		if (isGptOrAnthropic && executionSubagentEnabled) {
+			const allEndpoints = await endpointProvider.getAllChatEndpoints();
+			hasGemini3Flash = allEndpoints.some(ep => ep.family.toLowerCase().includes('gemini-3-flash'));
+		}
 		allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled && hasGemini3Flash;
 	}
 
@@ -217,7 +233,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
-	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, request)) {
+	if (isBackgroundTodoAgentEnabled(model, configurationService, experimentationService, authenticationService, request)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -378,12 +394,12 @@ export class AgentIntent extends EditCodeIntent {
 			// Do NOT pass the request `token` as parentToken — it may be cancelled
 			// by the framework after the turn ends, which would immediately abort
 			// the background pass even on a normal completion.
-			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
-				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+			const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+			if (todoProcessor !== undefined) {
 				const currentTurn = conversation.getLatestTurn();
 				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
 				const executionContext = invocation instanceof AgentIntentInvocation ? invocation.getBackgroundTodoExecutionContext() : undefined;
-				if (todoProcessor && executionContext) {
+				if (executionContext) {
 					todoProcessor.requestFinalReview(currentTurn.id, executionContext);
 					await todoProcessor.waitForCompletion();
 				}
@@ -562,6 +578,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -923,7 +940,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		// ── Background todo processing ──────────────────────────────────
-		this._maybeStartBackgroundTodoPass(promptContext, token);
+		this._maybeStartBackgroundTodoPass(endpoint, promptContext, token);
 
 		const lastMessage = result.messages.at(-1);
 		if (lastMessage?.role === Raw.ChatRole.User) {
@@ -1344,6 +1361,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	 * Kick off a background todo pass if the policy says to run.
 	 */
 	private _maybeStartBackgroundTodoPass(
+		endpoint: IChatEndpoint,
 		promptContext: IBuildPromptContext,
 		token: vscode.CancellationToken,
 	): void {
@@ -1368,10 +1386,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			telemetryService: this.telemetryService,
 			promptContext,
 		};
-		this._backgroundTodoExecutionContext = executionContext;
 
 		const { decision, reason, delta } = processor.shouldRun({
-			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request),
 			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
 			isAgentPrompt: this.prompt === AgentPrompt,
 			promptContext,
@@ -1382,6 +1399,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
 			// Coalesce into the queue so the latest context is not lost.
+			this._backgroundTodoExecutionContext = executionContext;
 			processor.requestRegularPass(delta, executionContext, token, turnId);
 			return;
 		}
@@ -1390,6 +1408,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
+		this._backgroundTodoExecutionContext = executionContext;
 		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 

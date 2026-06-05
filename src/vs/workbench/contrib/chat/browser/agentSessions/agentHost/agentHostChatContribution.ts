@@ -174,10 +174,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const syncProvider = agentRegistration.syncProvider;
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
-		// `[Local]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
+		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: localize('agentHostHarnessLabel.local', "{0} [Local]", agent.displayName),
+			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [],
 			hideGenerateButton: true,
