@@ -10,7 +10,7 @@ import { IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
-import { ChatRequestTurn2, ChatResponseConfirmationPart, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
 import { normalizeInitialSessionOptions, parseSessionLogChunksSafely, validateMetadata } from '../copilotCloudSessionsProvider';
@@ -316,75 +316,6 @@ describe('ChatSessionContentBuilder Task API history', () => {
 		const req = history[0] as ChatRequestTurn2;
 		expect(req.prompt).toBe('Original prompt from creation');
 	});
-
-	describe('inline "Create pull request" confirmation', () => {
-		const inlineRepo = { owner: 'octocat', repo: 'hello-world' };
-
-		const buildHistory = async (state: string, opts: { hasPullRequest?: boolean; inline?: { owner: string; repo: string } } = {}) => {
-			const events: AgentTaskSessionEvent[] = [
-				userMessage('Do the thing'),
-				evt('assistant.message', { messageId: 'turn-1', content: 'All done.' }),
-			];
-			return newBuilder().buildTaskHistory(
-				makeTask([{ state }]),
-				events,
-				opts.hasPullRequest ? createPullRequest() : undefined,
-				Promise.resolve([]),
-				opts.inline,
-			);
-		};
-
-		const findConfirmationPart = (history: ReadonlyArray<vscode.ChatRequestTurn | ChatResponseTurn2>): ChatResponseConfirmationPart | undefined => {
-			for (const turn of history) {
-				if (turn instanceof ChatResponseTurn2) {
-					for (const part of turn.response) {
-						if (part instanceof ChatResponseConfirmationPart) {
-							return part;
-						}
-					}
-				}
-			}
-			return undefined;
-		};
-
-		it('appends a "Create pull request" confirmation for completed PR-less tasks', async () => {
-			const history = await buildHistory('completed', { inline: inlineRepo });
-			const confirmation = findConfirmationPart(history);
-			expect(confirmation).toBeInstanceOf(ChatResponseConfirmationPart);
-			expect(confirmation?.buttons).toEqual(['Create pull request']);
-			expect(confirmation?.data).toEqual({
-				kind: 'create-pr',
-				taskId: 'task-1',
-				owner: inlineRepo.owner,
-				repo: inlineRepo.repo,
-			});
-		});
-
-		it('appends a "Create pull request" confirmation for idle PR-less tasks', async () => {
-			const history = await buildHistory('idle', { inline: inlineRepo });
-			expect(findConfirmationPart(history)).toBeInstanceOf(ChatResponseConfirmationPart);
-		});
-
-		it('omits the confirmation while the task is still in_progress', async () => {
-			const history = await buildHistory('in_progress', { inline: inlineRepo });
-			expect(findConfirmationPart(history)).toBeUndefined();
-		});
-
-		it('omits the confirmation while the task is queued', async () => {
-			const history = await buildHistory('queued', { inline: inlineRepo });
-			expect(findConfirmationPart(history)).toBeUndefined();
-		});
-
-		it('omits the confirmation when the task already has a pull request', async () => {
-			const history = await buildHistory('completed', { hasPullRequest: true, inline: inlineRepo });
-			expect(findConfirmationPart(history)).toBeUndefined();
-		});
-
-		it('omits the confirmation when the caller does not pass owner/repo (v1 backend)', async () => {
-			const history = await buildHistory('completed');
-			expect(findConfirmationPart(history)).toBeUndefined();
-		});
-	});
 });
 
 // --- TaskApiBackend (v2) -------------------------------------------------------------------
@@ -503,39 +434,6 @@ describe('validateMetadata (ConfirmationMetadata discriminator)', () => {
 			prompt: 'do thing',
 			chatContext: minimalChatContext,
 		})).not.toThrow();
-	});
-
-	it('accepts a well-formed create-pr confirmation', () => {
-		expect(() => validateMetadata({
-			kind: 'create-pr',
-			taskId: 'task-1',
-			owner: 'octocat',
-			repo: 'hello-world',
-		})).not.toThrow();
-	});
-
-	it('rejects a create-pr confirmation missing taskId', () => {
-		expect(() => validateMetadata({
-			kind: 'create-pr',
-			owner: 'octocat',
-			repo: 'hello-world',
-		})).toThrow(/taskId/);
-	});
-
-	it('rejects a create-pr confirmation missing owner', () => {
-		expect(() => validateMetadata({
-			kind: 'create-pr',
-			taskId: 'task-1',
-			repo: 'hello-world',
-		})).toThrow(/owner/);
-	});
-
-	it('rejects a create-pr confirmation missing repo', () => {
-		expect(() => validateMetadata({
-			kind: 'create-pr',
-			taskId: 'task-1',
-			owner: 'octocat',
-		})).toThrow(/repo/);
 	});
 
 	it('rejects null or non-object input', () => {

@@ -40,7 +40,7 @@ import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsMan
 import { ChatSessionContentBuilder, SessionResponseLogChunk } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { JobsApiBackend } from './jobsApiBackend';
-import { TaskApiBackend, TaskApiHttpClient, parseRepoFromTaskUrl } from './taskApiBackend';
+import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -49,32 +49,21 @@ const CLOUD_SESSIONS_AUTH_OPTIONS: AuthOptions = { createIfNone: { detail: l10n.
 
 /**
  * Payload carried on a `stream.confirmation(...)` part rendered by the cloud-sessions
- * provider. The original use-case is the pre-delegation prompt
- * (`kind: 'delegation'`), where the user picks Authorize / Commit / Push / Delegate
- * before we hand off to the cloud agent. A second case (`kind: 'create-pr'`) is
- * appended to a completed v2 task's history when the task has no pull artifact, so
- * the user can ask the Task API to materialise a PR after the fact.
+ * provider for the pre-delegation prompt (`kind: 'delegation'`), where the user picks
+ * Authorize / Commit / Push / Delegate before we hand off to the cloud agent.
  *
  * The discriminator MUST be set on every confirmation we emit so `handleConfirmationData`
  * can route correctly; legacy stored confirmations without `kind` are treated as
  * `delegation` for backwards-compat.
  */
 type ConfirmationMetadata =
-	| DelegationConfirmationMetadata
-	| CreatePullRequestConfirmationMetadata;
+	| DelegationConfirmationMetadata;
 
 interface DelegationConfirmationMetadata {
 	readonly kind: 'delegation';
 	readonly prompt: string;
 	readonly references?: readonly vscode.ChatPromptReference[];
 	readonly chatContext: vscode.ChatContext;
-}
-
-interface CreatePullRequestConfirmationMetadata {
-	readonly kind: 'create-pr';
-	readonly taskId: string;
-	readonly owner: string;
-	readonly repo: string;
 }
 
 type InitialSessionOption = {
@@ -99,18 +88,6 @@ export function validateMetadata(metadata: unknown): asserts metadata is Confirm
 		}
 		if (typeof m.chatContext !== 'object' || m.chatContext === null) {
 			throw new Error('Invalid confirmation metadata: missing or invalid chatContext.');
-		}
-		return;
-	}
-	if (kind === 'create-pr') {
-		if (typeof m.taskId !== 'string' || !m.taskId) {
-			throw new Error('Invalid confirmation metadata: missing or invalid taskId.');
-		}
-		if (typeof m.owner !== 'string' || !m.owner) {
-			throw new Error('Invalid confirmation metadata: missing or invalid owner.');
-		}
-		if (typeof m.repo !== 'string' || !m.repo) {
-			throw new Error('Invalid confirmation metadata: missing or invalid repo.');
 		}
 		return;
 	}
@@ -207,6 +184,9 @@ const ACTIVE_SESSION_POLL_INTERVAL_MS = 5 * 1000; // 5 seconds
 const SEEN_DELEGATION_PROMPT_KEY = 'seenDelegationPromptBefore';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.chat.cloudSessions.openRepository';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
+const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
+/** Context key gating the chat-input "Create pull request" toolbar action: true while the viewed cloud task is settled and has no PR yet. */
+const CAN_CREATE_PULL_REQUEST_CONTEXT_KEY = 'github.copilot.chat.cloudTaskCanCreatePullRequest';
 const USER_SELECTED_REPOS_KEY = 'userSelectedRepositories';
 const USER_SELECTED_REPOS_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 
@@ -643,6 +623,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			this.refresh();
 			this._onDidChangeChatSessionProviderOptions.fire();
 		}));
+
+		this._register(vscode.commands.registerCommand(CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleCreatePullRequestForTaskCommand(sessionItemOrResource)));
 	}
 
 	private getRefreshIntervalTime(hasHistoricalSessions: boolean): number {
@@ -1393,6 +1375,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
+		// Reset the input-toolbar "Create pull request" gate; provideTaskChatSessionContent
+		// re-enables it only for a settled, PR-less task.
+		this.setCanCreatePullRequestContext(false);
 		const identity = this._backend.parseSessionId(resource);
 
 		// Task-keyed (v2): render exactly one task as a turn-by-turn thread from `task.sessions[]`.
@@ -1542,26 +1527,23 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		// Best-effort PR decoration for the header card.
 		let pullRequest: PullRequestSearchItem | undefined;
 		if (taskContent.pullArtifact) {
-			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact);
+			pullRequest = await resolvePullArtifact(this._octoKitService, this.logService, taskContent.pullArtifact, [...(taskContent.task.sessions || [])]);
 		}
 
 		const storedReferences: Promise<vscode.ChatPromptReference[]> = Promise.resolve([...(this.sessionReferencesMap.get(resource) ?? [])]);
 		const builder = new ChatSessionContentBuilder(CopilotCloudSessionsProvider.TYPE, this._gitService, this.logService);
-		// Offer the inline "Create pull request" confirmation button only for v2 tasks that
-		// settled without a pull artifact. We need owner/repo for the create-pr API call,
-		// which we derive from `task.html_url`.
-		const inlineCreatePullRequest = !taskContent.pullArtifact
-			? parseRepoFromTaskUrl(taskContent.task.html_url)
-			: undefined;
 		const history = await builder.buildTaskHistory(
 			taskContent.task,
 			events,
 			pullRequest,
 			storedReferences,
-			inlineCreatePullRequest ? { owner: inlineCreatePullRequest.owner, repo: inlineCreatePullRequest.name } : undefined,
 		);
 
 		const latestTurn = taskContent.task.sessions?.[taskContent.task.sessions.length - 1];
+		const isSettled = !!latestTurn?.state && latestTurn.state !== 'in_progress' && latestTurn.state !== 'queued';
+		// Gate the chat-input "Create pull request" toolbar action: offer it only while this
+		// settled task has produced no pull request yet.
+		this.setCanCreatePullRequestContext(isSettled && !taskContent.pullArtifact);
 		const activeResponseCallback = latestTurn && (latestTurn.state === 'in_progress' || latestTurn.state === 'queued')
 			? this._createTaskStreamCallback(taskId, { mode: 'current', seedEventIds: new Set(events.map(e => e.id)) })
 			: undefined;
@@ -2041,14 +2023,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return {};
 		}
 
-		// Route on the metadata discriminator before parsing the button selection: the
-		// "Create pull request" confirmation has its own one-button flow and does not
-		// share the Authorize/Commit/Push/Delegate selection state machine below.
-		if (metadata.kind === 'create-pr') {
-			await this.handleCreatePullRequestConfirmation(request, metadata, stream, token);
-			return {};
-		}
-
 		// Delegation flow: the prompt is expected to be "<buttonLabel>: <message>"
 		// (the workbench builds this from the clicked confirmation button + message text).
 		if (!request.prompt || request.prompt.indexOf(':') === -1) {
@@ -2136,53 +2110,74 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	/**
-	 * Handle a click on the inline "Create pull request" confirmation appended to a
-	 * completed v2 task's history. Calls the Task API's `create-pr` endpoint, then
-	 * refreshes the session so the next render replaces the inline button with a
-	 * proper PR card (resolved via `pullArtifact`).
+	 * Handle a click on the chat input "Create pull request" toolbar action (contributed to
+	 * `chat/input/editing/sessionToolbar` and registered as
+	 * {@link CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID}). The toolbar passes the session resource
+	 * as the first argument, from which we resolve the task id. Calls the Task API's `create-pr`
+	 * endpoint, then refreshes the session so the next render shows a proper PR card (resolved
+	 * via `pullArtifact`) and hides the toolbar action.
 	 */
-	private async handleCreatePullRequestConfirmation(
-		_request: vscode.ChatRequest,
-		metadata: CreatePullRequestConfirmationMetadata,
-		stream: vscode.ChatResponseStream,
-		token: vscode.CancellationToken,
-	): Promise<void> {
+	private async handleCreatePullRequestForTaskCommand(sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri): Promise<void> {
 		const backend = this._backend;
 		if (backend.kind !== 'task') {
-			stream.warning(vscode.l10n.t('Creating a pull request from a task is only supported on the v2 cloud agent backend.'));
+			vscode.window.showWarningMessage(vscode.l10n.t('Creating a pull request from a task is only supported on the v2 cloud agent backend.'));
 			return;
 		}
-		if (token.isCancellationRequested) {
+		const resource = sessionItemOrResource instanceof vscode.Uri ? sessionItemOrResource : sessionItemOrResource?.resource;
+		const taskId = resource ? SessionIdForTask.parse(resource)?.taskId : undefined;
+		if (!taskId) {
+			this.logService.error('[handleCreatePullRequestForTaskCommand] Could not resolve task id from the session resource.');
 			return;
 		}
-		stream.progress(vscode.l10n.t('Creating pull request'));
+
 		try {
-			const result = await backend.createPullRequestForTask(metadata.owner, metadata.repo, metadata.taskId);
-			/* __GDPR__
-				"copilotcloud.chat.createPRFromTask" : {
-					"owner": "joshspicer",
-					"comment": "Event sent when the user clicks the inline 'Create pull request' button on a completed v2 cloud task.",
-					"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the create-pull-request call succeeded or failed." }
-				}
-			*/
-			this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
-				outcome: 'success'
-			});
-			const prNumber = (result as { pull_request?: { number?: number } } | undefined)?.pull_request?.number;
-			if (typeof prNumber === 'number') {
-				stream.markdown(vscode.l10n.t('Pull request [#{0}](command:github.copilot.chat.openPullRequestReroute?{1}) created.', prNumber, encodeURIComponent(JSON.stringify([prNumber]))));
-			} else {
-				stream.markdown(vscode.l10n.t('Pull request created.'));
-			}
+			await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Creating pull request') },
+				async () => {
+					// TODO: The `create-pr` endpoint requires `{owner, repo}` in its path, which we
+					// derive best-effort from the task's `html_url`. This may need another resolution
+					// strategy for payloads that omit `html_url` once the backend supports repo ids.
+					const taskContent = await backend.fetchTaskContent(taskId);
+					const repo = parseRepoFromTaskUrl(taskContent?.task.html_url);
+					if (!repo) {
+						throw new Error(vscode.l10n.t('Unable to determine the repository for this task.'));
+					}
+					const result = await backend.createPullRequestForTask(repo.owner, repo.name, taskId);
+					/* __GDPR__
+						"copilotcloud.chat.createPRFromTask" : {
+							"owner": "joshspicer",
+							"comment": "Event sent when the user clicks the inline 'Create pull request' button on a completed v2 cloud task.",
+							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the create-pull-request call succeeded or failed." }
+						}
+					*/
+					this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
+						outcome: 'success'
+					});
+					const prNumber = (result as { pull_request?: { number?: number } } | undefined)?.pull_request?.number;
+					if (typeof prNumber === 'number') {
+						vscode.window.showInformationMessage(vscode.l10n.t('Pull request #{0} created.', prNumber));
+					} else {
+						vscode.window.showInformationMessage(vscode.l10n.t('Pull request created.'));
+					}
+				},
+			);
 		} catch (error) {
-			this.logService.error(`[handleCreatePullRequestConfirmation] Failed to create PR for task ${metadata.taskId}: ${error}`);
+			this.logService.error(`[handleCreatePullRequestForTaskCommand] Failed to create PR for task ${taskId}: ${error}`);
 			this.telemetry.sendMSFTTelemetryEvent('copilotcloud.chat.createPRFromTask', {
 				outcome: 'failure'
 			});
-			stream.warning(vscode.l10n.t('Failed to create pull request: {0}', error instanceof Error ? error.message : String(error)));
+			vscode.window.showErrorMessage(vscode.l10n.t('Failed to create pull request: {0}', error instanceof Error ? error.message : String(error)));
 			return;
 		}
 		this.refresh();
+	}
+
+	/**
+	 * Toggle the {@link CAN_CREATE_PULL_REQUEST_CONTEXT_KEY} context key that gates the
+	 * chat-input "Create pull request" toolbar action.
+	 */
+	private setCanCreatePullRequestContext(canCreate: boolean): void {
+		void vscode.commands.executeCommand('setContext', CAN_CREATE_PULL_REQUEST_CONTEXT_KEY, canCreate);
 	}
 
 	private setWorkspaceContext(key: string, value: string) {

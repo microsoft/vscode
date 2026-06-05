@@ -66,8 +66,8 @@ function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTa
 	return task.artifacts?.find(
 		(a): a is AgentTaskArtifact & { data: AgentTaskGitHubResourceData } =>
 			a.provider === 'github'
-			&& a.type === 'pull'
-			&& typeof (a.data as AgentTaskGitHubResourceData).id === 'number',
+			&& a.type === 'github_resource'
+			&& (a.data as AgentTaskGitHubResourceData).type === 'pull',
 	);
 }
 

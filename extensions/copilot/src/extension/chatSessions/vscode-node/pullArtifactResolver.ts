@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AgentTaskSession } from '@vscode/copilot-api';
 import { PullRequestSearchItem } from '../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -28,21 +29,32 @@ export async function resolvePullArtifact(
 	octokit: IOctoKitService,
 	log: ILogService,
 	ref: PullArtifactRef,
+	agentTaskSessions?: AgentTaskSession[],
 ): Promise<PullRequestSearchItem | undefined> {
 	if (ref.preResolved) {
 		return ref.preResolved;
 	}
 	if (ref.globalId) {
-		try {
-			const pr = await octokit.getPullRequestFromGlobalId(ref.globalId, {});
-			if (pr) {
-				return pr;
-			}
-		} catch (e) {
-			log.trace(`resolvePullArtifact: getPullRequestFromGlobalId failed for ${ref.globalId}: ${e}`);
+		const data = await getPullRequestFromGlobalId(octokit, log, ref.globalId);
+		if (data) {
+			return data;
 		}
 	}
-	// Fallback to listing the repo's open PRs and matching by databaseId or headRef. We list
+	// Fallback 1: Get global ID from a task sessions
+	if (agentTaskSessions && agentTaskSessions.length > 0) {
+		// TODO: update package with new type
+		const session = agentTaskSessions.filter((s: AgentTaskSession & { resource_global_id?: string }) => !!s.resource_global_id)?.[0];
+		if (session && (session as AgentTaskSession & { resource_global_id?: string }).resource_global_id) {
+			const globalId = (session as AgentTaskSession & { resource_global_id?: string }).resource_global_id;
+			if (globalId) {
+				const data = await getPullRequestFromGlobalId(octokit, log, globalId);
+				if (data) {
+					return data;
+				}
+			}
+		}
+	}
+	// Fallback 2: Listing the repo's open PRs and matching by databaseId or headRef. We list
 	// once and try both predicates so the round trip pays off when either signal is available.
 	if ((ref.databaseId !== undefined || ref.headRef) && ref.repo.owner && ref.repo.name) {
 		try {
@@ -66,28 +78,17 @@ export async function resolvePullArtifact(
 	return undefined;
 }
 
-/**
- * Retrying variant. Useful immediately after a task creates a PR — GitHub may take a
- * few seconds before the GraphQL node id resolves or the PR appears in the user's open
- * list.
- */
-export async function resolvePullArtifactWithRetry(
+const getPullRequestFromGlobalId = async (
 	octokit: IOctoKitService,
 	log: ILogService,
-	ref: PullArtifactRef,
-	opts: ResolveOptions = {},
-): Promise<PullRequestSearchItem | undefined> {
-	const attempts = opts.attempts ?? 5;
-	const spacingMs = opts.spacingMs ?? 2_000;
-	for (let i = 1; i <= attempts; i++) {
-		const resolved = await resolvePullArtifact(octokit, log, ref);
-		if (resolved) {
-			return resolved;
+	globalId: string
+) => {
+	try {
+		const pr = await octokit.getPullRequestFromGlobalId(globalId, {});
+		if (pr) {
+			return pr;
 		}
-		if (i < attempts) {
-			await new Promise(resolve => setTimeout(resolve, spacingMs));
-		}
+	} catch (e) {
+		log.trace(`resolvePullArtifact: getPullRequestFromGlobalId failed for ${globalId}: ${e}`);
 	}
-	log.warn(`resolvePullArtifactWithRetry: could not resolve PR after ${attempts} attempts (globalId=${ref.globalId ?? 'n/a'}, headRef=${ref.headRef ?? 'n/a'}, repo=${ref.repo.owner}/${ref.repo.name})`);
-	return undefined;
-}
+};
