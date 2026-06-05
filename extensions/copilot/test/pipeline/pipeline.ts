@@ -343,15 +343,16 @@ export async function runInputPipelineParallel(opts: SimulationOptions): Promise
 		// Merge results. Stream each worker's result file so a single large file
 		// (e.g. > 2 GiB / > V8 max-string-length) can be consumed without doing
 		// a whole-file readFile.
+		//
+		// A parse error mid-stream is fatal: by that point we have already
+		// pushed an unknown number of valid records from the failing file into
+		// `allSamples`, so swallowing the error would produce a silently
+		// truncated training-data file. Re-throw so the run exits non-zero and
+		// the user knows the output is incomplete.
 		const allSamples: ISample[] = [];
 		for (const resultPath of resultPaths) {
-			try {
-				for await (const sample of streamJsonRecords<ISample>(resultPath)) {
-					allSamples.push(sample);
-				}
-			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				console.error(`  Warning: could not read result file ${resultPath}: ${message}`);
+			for await (const sample of streamJsonRecords<ISample>(resultPath)) {
+				allSamples.push(sample);
 			}
 		}
 
