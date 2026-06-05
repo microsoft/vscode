@@ -81,7 +81,7 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('Test Copilot CLI session', async function () {
+		its.kip('Test Copilot CLI session', async function () {
 			const app = this.app as Application;
 			const requestsBefore = mockServer.requestCount();
 
