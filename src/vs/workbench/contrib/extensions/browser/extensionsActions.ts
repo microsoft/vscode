@@ -3443,8 +3443,8 @@ registerColor('extensionButton.hoverBackground', {
 registerColor('extensionButton.border', {
 	dark: buttonSecondaryBorder,
 	light: buttonSecondaryBorder,
-	hcDark: contrastBorder,
-	hcLight: contrastBorder
+	hcDark: buttonSecondaryBorder,
+	hcLight: buttonSecondaryBorder
 }, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));
