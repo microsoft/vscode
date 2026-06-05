@@ -1140,7 +1140,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 						return;
 					}
 					case 'resourceWrite': {
-						if (!p.uri || !p.data) { throw new Error('Missing uri or data'); }
+						if (!p.uri || p.data === undefined) { throw new Error('Missing uri or data'); }
 						await this._resourceService.write(addr, p as unknown as Parameters<typeof this._resourceService.write>[1]);
 						sendResult({});
 						return;

@@ -30,14 +30,14 @@ class FakePermissionService extends Disposable implements IAgentHostResourceServ
 	readonly pending: ISettableObservable<readonly IPendingResourceRequest[]> = observableValue('pending', []);
 	readonly allPending: IObservable<readonly IPendingResourceRequest[]> = this.pending;
 
-	list = async () => ({ entries: [] });
-	read = async () => ({ bytes: undefined as unknown as never });
-	write = async () => { /* */ };
-	del = async () => { /* */ };
-	move = async () => { /* */ };
-	copy = async () => { /* */ };
-	resolve = async () => ({ uri: '', type: 'file' as never });
-	mkdir = async () => { /* */ };
+	list = async () => { throw new Error('not implemented'); };
+	read = async () => { throw new Error('not implemented'); };
+	write = async () => { throw new Error('not implemented'); };
+	del = async () => { throw new Error('not implemented'); };
+	move = async () => { throw new Error('not implemented'); };
+	copy = async () => { throw new Error('not implemented'); };
+	resolve = async () => { throw new Error('not implemented'); };
+	mkdir = async () => { throw new Error('not implemented'); };
 	check = async () => true;
 	request = async () => { /* */ };
 	pendingFor = () => this.pending;
