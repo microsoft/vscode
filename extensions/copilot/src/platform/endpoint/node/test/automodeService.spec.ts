@@ -1158,6 +1158,69 @@ describe('AutomodeService', () => {
 			});
 		});
 
+		it('should emit overrideReason=baseModelRedirect when the router picks gpt-4.1', async () => {
+			enableRouter();
+			const gpt41Endpoint = createEndpoint('gpt-4.1', 'OpenAI');
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+
+			mockRouterResponse(
+				['gpt-4.1', 'gpt-5.3-codex'],
+				{ chosen_model: 'gpt-4.1', candidate_models: ['gpt-4.1', 'gpt-5.3-codex'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-telemetry-redirect'
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt41Endpoint, codexEndpoint]);
+
+			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
+			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
+			expect(selectionEvent).toBeDefined();
+			expect(selectionEvent![1]).toMatchObject({
+				candidateModel: 'gpt-4.1',
+				actualModel: 'gpt-5.3-codex',
+				overrideReason: 'baseModelRedirect',
+			});
+		});
+
+		it('should emit overrideReason=clientOverride when vision fallback swaps the redirected model', async () => {
+			enableRouter();
+			// Router picks gpt-4.1 -> redirected to gpt-5.3-codex (no vision) ->
+			// vision fallback to a vision-capable model. The final model is the
+			// vision model, so the redirect must NOT own the override reason.
+			const gpt41Endpoint = createEndpoint('gpt-4.1', 'OpenAI');
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI', { supportsVision: false });
+			const visionEndpoint = createEndpoint('gpt-4o', 'OpenAI', { supportsVision: true });
+
+			mockRouterResponse(
+				['gpt-4.1', 'gpt-5.3-codex', 'gpt-4o'],
+				{ chosen_model: 'gpt-4.1', candidate_models: ['gpt-4.1', 'gpt-5.3-codex', 'gpt-4o'] }
+			);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'describe this image',
+				sessionId: 'session-telemetry-redirect-vision',
+				references: [{ id: 'img', value: { mimeType: 'image/png', data: createPngBytes(7, 11), isPasted: true } }] as any
+			};
+
+			await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt41Endpoint, codexEndpoint, visionEndpoint]);
+
+			const telemetryCalls = mockTelemetryService.sendMSFTTelemetryEvent.mock.calls;
+			const selectionEvent = telemetryCalls.find((call: unknown[]) => call[0] === 'automode.routerModelSelection');
+			expect(selectionEvent).toBeDefined();
+			expect(selectionEvent![1]).toMatchObject({
+				candidateModel: 'gpt-4.1',
+				actualModel: 'gpt-4o',
+				overrideReason: 'clientOverride',
+			});
+		});
+
 		it('should not emit routerModelSelection when router fails', async () => {
 			enableRouter();
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
@@ -1312,4 +1375,76 @@ describe('AutomodeService', () => {
 			);
 		});
 	});
+
+	describe('base model redirect (gpt-4.1 -> gpt-5.3-codex)', () => {
+		it('redirects an auto-selected gpt-4.1 to an authorized gpt-5.3-codex', async () => {
+			const gpt41Endpoint = createEndpoint('gpt-4.1', 'OpenAI');
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			mockApiResponse(['gpt-4.1', 'gpt-5.3-codex']);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-redirect-basic'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt41Endpoint, codexEndpoint]);
+			expect(result.model).toBe('gpt-5.3-codex');
+		});
+
+		it('leaves a non-gpt-4.1 selection untouched', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			mockApiResponse(['gpt-4o', 'gpt-5.3-codex']);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-redirect-noop'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt4oEndpoint, codexEndpoint]);
+			expect(result.model).toBe('gpt-4o');
+		});
+
+		it('keeps gpt-4.1 when gpt-5.3-codex is known but not authorized by the session token', async () => {
+			const gpt41Endpoint = createEndpoint('gpt-4.1', 'OpenAI');
+			const codexEndpoint = createEndpoint('gpt-5.3-codex', 'OpenAI');
+			// gpt-5.3-codex is a known endpoint but is NOT in available_models, so the
+			// session token was not minted for it and the redirect must not fire.
+			mockApiResponse(['gpt-4.1']);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-redirect-unauthorized'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt41Endpoint, codexEndpoint]);
+			expect(result.model).toBe('gpt-4.1');
+			expect(mockLogService.warn).toHaveBeenCalledWith(
+				expect.stringContaining('keeping original selection')
+			);
+		});
+
+		it('matches the dated gpt-4.1 id and resolves the codex target by family', async () => {
+			const gpt41Endpoint = createEndpoint('gpt-4.1-2025-04-14', 'OpenAI');
+			const codexEndpoint = createEndpoint('gpt-5.3-codex-2026', 'OpenAI', { family: 'gpt-5.3-codex' });
+			mockApiResponse(['gpt-4.1-2025-04-14', 'gpt-5.3-codex-2026']);
+
+			automodeService = createService();
+			const chatRequest: Partial<ChatRequest> = {
+				location: ChatLocation.Panel,
+				prompt: 'test prompt',
+				sessionId: 'session-redirect-family'
+			};
+
+			const result = await automodeService.resolveAutoModeEndpoint(chatRequest as ChatRequest, [gpt41Endpoint, codexEndpoint]);
+			expect(result.model).toBe('gpt-5.3-codex-2026');
+		});
+	});
 });
+

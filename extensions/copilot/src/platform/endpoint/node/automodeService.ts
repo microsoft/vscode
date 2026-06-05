@@ -11,7 +11,7 @@ import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycl
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../vscodeTypes';
 import { IAuthenticationService } from '../../authentication/common/authentication';
-import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { getImageTelemetryEventMeasurements, getImageTelemetryMeasurementsFromReferences, type ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
@@ -237,6 +237,9 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			selectedModel = this._selectDefaultModel(entry?.endpoint?.modelProvider, token.available_models, knownEndpoints);
 		}
 
+		const preOverrideModel = selectedModel.model;
+		selectedModel = this._applyBaseModelRedirect(selectedModel, token.available_models, knownEndpoints);
+		const redirectedModel = selectedModel.model !== preOverrideModel ? selectedModel.model : undefined;
 		selectedModel = this._applyVisionFallback(chatRequest, selectedModel, token.available_models, knownEndpoints);
 
 		// Emit the final model selection alongside the router's recommendation
@@ -249,7 +252,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The conversation ID" },
 					"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The router's top candidate model (candidate_models[0])" },
 					"actualModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model actually selected after all client-side overrides" },
-					"overrideReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the actual model differs from the candidate: none or clientOverride" },
+					"overrideReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the actual model differs from the candidate: none, baseModelRedirect (the deprecated gpt-4.1 base model was redirected to gpt-5.3-codex), or clientOverride (any other client-side override, e.g. vision fallback)" },
 					"imageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of input images attached to the request", "isMeasurement": true },
 					"totalImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Sum of byte sizes for attached input images when known", "isMeasurement": true },
 					"maxImageBytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Largest known input image byte size in the request", "isMeasurement": true },
@@ -270,7 +273,15 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				}
 			*/
 			const candidateModel = routerResult.candidateModel;
-			const overrideReason = candidateModel === selectedModel.model ? 'none' : 'clientOverride';
+			// Surface the base-model redirect (deprecated gpt-4.1 -> gpt-5.3-codex)
+			// as its own reason so it can be measured independently, but only when
+			// it actually produced the final model. If a later override (e.g. the
+			// vision fallback, which runs after the redirect) swapped the model
+			// again, the redirect is no longer the reason `actualModel` differs, so
+			// we fall back to the generic 'clientOverride'.
+			const overrideReason = redirectedModel === selectedModel.model
+				? 'baseModelRedirect'
+				: (candidateModel === selectedModel.model ? 'none' : 'clientOverride');
 			this._telemetryService.sendMSFTTelemetryEvent('automode.routerModelSelection', {
 				conversationId: conversationId ?? '',
 				candidateModel,
@@ -468,6 +479,41 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * GPT-4.1 was the former base model; GPT-5.3 Codex becomes the new base
+	 * model. Any auto selection that lands on GPT-4.1 is transparently
+	 * redirected to GPT-5.3 Codex.
+	 *
+	 * The redirect target is restricted to `availableModels` (the models the
+	 * current session token is authorized to serve) so we never swap to a model
+	 * the token wasn't minted for. `availableModels` and `knownEndpoints` are
+	 * independent CAPI calls that can drift; honouring the token here keeps the
+	 * discount lookup and server-side authorization consistent, mirroring
+	 * {@link _applyVisionFallback}. If no authorized GPT-5.3 Codex endpoint is
+	 * available we leave the original selection untouched so the user can still
+	 * get a response.
+	 */
+	private _applyBaseModelRedirect(selectedModel: IChatEndpoint, availableModels: string[], knownEndpoints: IChatEndpoint[]): IChatEndpoint {
+		const isGpt41 = selectedModel.model === CHAT_MODEL.GPT41 || selectedModel.model === 'gpt-4.1' || selectedModel.family === 'gpt-4.1';
+		if (!isGpt41) {
+			return selectedModel;
+		}
+		// Match the canonical base model by exact id, or by `family` for dated
+		// ids whose family is the canonical 'gpt-5.3-codex'. We deliberately do
+		// not prefix-match the id (unlike `isGpt53Codex`) so we never redirect
+		// onto an id-only preview/spark variant like 'gpt-5.3-codex-spark-preview'
+		// that doesn't carry the canonical family.
+		const redirectTarget = availableModels
+			.map(model => knownEndpoints.find(e => e.model === model))
+			.find((e): e is IChatEndpoint => !!e && (e.model === CHAT_MODEL.GPT53CODEX || e.family === CHAT_MODEL.GPT53CODEX));
+		if (!redirectTarget) {
+			this._logService.warn(`[AutomodeService] Auto selected deprecated base model '${selectedModel.model}' but no available '${CHAT_MODEL.GPT53CODEX}' endpoint is authorized; keeping original selection.`);
+			return selectedModel;
+		}
+		this._logService.trace(`[AutomodeService] Redirecting deprecated base model '${selectedModel.model}' to new base model '${redirectTarget.model}'.`);
+		return redirectTarget;
 	}
 
 	/**

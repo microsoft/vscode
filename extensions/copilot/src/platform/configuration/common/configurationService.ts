@@ -520,6 +520,7 @@ export const HARD_TOOL_LIMIT = 128;
 // It is also not recommended to use this as a type as it will never be an exhaustive list
 export const enum CHAT_MODEL {
 	GPT41 = 'gpt-4.1-2025-04-14',
+	GPT53CODEX = 'gpt-5.3-codex',
 	GPT4OMINI = 'gpt-4o-mini',
 	NES_XTAB = 'copilot-nes-xtab', // xtab model hosted in prod in proxy
 	CUSTOM_NES = 'custom-nes',
