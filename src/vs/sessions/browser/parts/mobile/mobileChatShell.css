@@ -439,7 +439,7 @@
 
 /* Make the chat input full-width and edge-to-edge styled */
 .agent-sessions-workbench.phone-layout .sessions-chat-input-area {
-	border-radius: var(--vscode-cornerRadius-xLarge) !important;
+	border-radius: 16px !important;
 	max-width: 100% !important;
 }
 
