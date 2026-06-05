@@ -37,6 +37,16 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	disconnect?(): Promise<void>;
 
+	/**
+	 * When `true`, the workspace picker keeps this provider's browse
+	 * action(s) enabled even while {@link connectionStatus} reports
+	 * `disconnected` — the assumption being that clicking the action
+	 * itself triggers a connect attempt (e.g. booting a stopped WSL
+	 * distro). The `incompatible` state is still treated as unavailable
+	 * because the user can't recover from it via a click.
+	 */
+	readonly canConnectOnDemand?: boolean;
+
 	// -- Dynamic Session Config --
 
 	/** Fires when dynamic configuration for a session changes. */
