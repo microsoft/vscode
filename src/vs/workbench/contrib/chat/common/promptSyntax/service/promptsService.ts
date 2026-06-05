@@ -224,9 +224,12 @@ export namespace IAgentSource {
 			return false;
 		}
 		if (a.storage === PromptsStorage.extension && b.storage === PromptsStorage.extension) {
-			return a.extensionId === b.extensionId;
+			return ExtensionIdentifier.equals(a.extensionId, b.extensionId);
 		} else if (a.storage === PromptsStorage.plugin && b.storage === PromptsStorage.plugin) {
 			return a.pluginUri.toString() === b.pluginUri.toString();
+		} else {
+			return true;
+		}
 		} else {
 			return true;
 		}
