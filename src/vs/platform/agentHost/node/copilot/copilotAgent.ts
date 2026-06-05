@@ -2067,7 +2067,7 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 			id,
 			uri,
 			name: agentInfo.name,
-			description: agentInfo.description,
+			...(agentInfo.description ? { description: agentInfo.description } : {}),
 		};
 	}
 	if (type === DiscoveredType.Skill) {
