@@ -1,0 +1,113 @@
+# pnpm workspace definition for the VS Code monorepo.
+#
+# The root package (".") is always an implicit workspace member.
+#
+# IMPORTANT: members are listed EXPLICITLY (mirroring build/npm/dirs.ts) rather
+# than with broad globs such as `extensions/*`. Broad globs would pull in
+# manifest-only extensions (themes) and the copilot simulation test fixtures,
+# which must not participate in dependency installation.
+#
+# The native, Node-runtime trees `build`, `remote`, and `remote/web` (and their
+# distro equivalents under .build/distro/npm) are intentionally NOT members.
+# They are installed separately with their own .npmrc (node runtime) and their
+# own lockfiles so that native modules are built against Node headers, while the
+# workspace builds native modules against Electron headers. See
+# build/npm/postinstall.ts.
+packages:
+  # Build tooling (pure JS, safe under the Electron-runtime workspace)
+  - 'build/rspack'
+  - 'build/vite'
+
+  # Built-in extensions that require dependency installation
+  - 'extensions'
+  - 'extensions/configuration-editing'
+  - 'extensions/copilot'
+  - 'extensions/css-language-features'
+  - 'extensions/css-language-features/server'
+  - 'extensions/debug-auto-launch'
+  - 'extensions/debug-server-ready'
+  - 'extensions/emmet'
+  - 'extensions/extension-editing'
+  - 'extensions/git'
+  - 'extensions/git-base'
+  - 'extensions/github'
+  - 'extensions/github-authentication'
+  - 'extensions/grunt'
+  - 'extensions/gulp'
+  - 'extensions/html-language-features'
+  - 'extensions/html-language-features/server'
+  - 'extensions/ipynb'
+  - 'extensions/jake'
+  - 'extensions/json-language-features'
+  - 'extensions/json-language-features/server'
+  - 'extensions/markdown-language-features'
+  - 'extensions/markdown-math'
+  - 'extensions/media-preview'
+  - 'extensions/merge-conflict'
+  - 'extensions/mermaid-markdown-features'
+  - 'extensions/microsoft-authentication'
+  - 'extensions/notebook-renderers'
+  - 'extensions/npm'
+  - 'extensions/php-language-features'
+  - 'extensions/references-view'
+  - 'extensions/search-result'
+  - 'extensions/simple-browser'
+  - 'extensions/tunnel-forwarding'
+  - 'extensions/terminal-suggest'
+  - 'extensions/typescript-language-features'
+  - 'extensions/vscode-api-tests'
+  - 'extensions/vscode-colorize-tests'
+  - 'extensions/vscode-colorize-perf-tests'
+  - 'extensions/vscode-test-resolver'
+
+  # Test harnesses
+  - 'test/automation'
+  - 'test/integration/browser'
+  - 'test/monaco'
+  - 'test/smoke'
+  - 'test/mcp'
+
+  # Repo-local development extensions
+  - '.vscode/extensions/vscode-selfhost-import-aid'
+  - '.vscode/extensions/vscode-selfhost-test-provider'
+  - '.vscode/extensions/vscode-extras'
+  - '.vscode/extensions/vscode-pr-pinger'
+
+# pnpm blocks dependency lifecycle (install/build) scripts by default. The
+# following packages legitimately need to run them (native module compilation or
+# postinstall binary download). This replaces npm's `ignore-scripts=false`.
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@playwright/browser-chromium'
+  - '@swc/core'
+  - '@vscode/deviceid'
+  - '@vscode/fs-copyfile'
+  - '@vscode/native-watchdog'
+  - '@vscode/policy-watcher'
+  - '@vscode/ripgrep'
+  - '@vscode/ripgrep-universal'
+  - '@vscode/spdlog'
+  - '@vscode/sqlite3'
+  - '@vscode/vsce-sign'
+  - '@vscode/windows-ca-certs'
+  - '@vscode/windows-mutex'
+  - '@vscode/windows-process-tree'
+  - '@vscode/windows-registry'
+  - 'bufferutil'
+  - 'cpu-features'
+  - 'electron'
+  - 'esbuild'
+  - 'fsevents'
+  - 'keytar'
+  - 'kerberos'
+  - 'native-is-elevated'
+  - 'native-keymap'
+  - 'node-gyp-build'
+  - 'node-pty'
+  - 'protobufjs'
+  - 'ssh2'
+  - 'tree-sitter'
+  - 'tree-sitter-javascript'
+  - 'tree-sitter-typescript'
+  - 'utf-8-validate'
+  - 'windows-foreground-love'

@@ -1,6 +1,7 @@
 .DS_Store
 .cache
 npm-debug.log
+pnpm-debug.log*
 Thumbs.db
 node_modules/
 .tmp/

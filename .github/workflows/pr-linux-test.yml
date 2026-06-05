@@ -33,6 +33,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Setup system services
         run: |
           set -e
@@ -76,7 +79,7 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile --ignore-workspace && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1
@@ -94,7 +97,7 @@ jobs:
           source ./build/azure-pipelines/linux/setup-env.sh
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1
@@ -256,14 +259,14 @@ jobs:
         continue-on-error: true
 
       - name: Transpile client and extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
+        run: pnpm run gulp transpile-client-esbuild transpile-extensions
 
       - name: Download Electron and Playwright
         run: |
           set -e
 
           for i in {1..3}; do # try 3 times (matching retryCountOnTaskFailure: 3)
-            if npm exec -- npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
+            if pnpm exec npm-run-all2 -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"; then
               echo "Download successful on attempt $i"
               break
             fi
@@ -289,19 +292,19 @@ jobs:
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 15
-        run: npm run test-node
+        run: pnpm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        run: pnpm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
 
       - name: Build integration tests
         run: |
           set -e
-          npm run gulp \
+          pnpm run gulp \
             compile-extension:configuration-editing \
             compile-extension:css-language-features-server \
             compile-extension:emmet \
@@ -344,10 +347,10 @@ jobs:
 
       - name: Compile smoke tests
         working-directory: test/smoke
-        run: npm run compile
+        run: pnpm run compile
 
       - name: Compile extensions for smoke tests
-        run: npm run gulp compile-extension-media
+        run: pnpm run gulp compile-extension-media
 
       # Remove the musl-libc Claude Code native binary so the bundled
       # @anthropic-ai/claude-agent-sdk in extensions/copilot falls through to the
@@ -376,19 +379,19 @@ jobs:
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        run: pnpm run smoketest-no-compile -- --tracing
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --web --tracing --headless
+        run: pnpm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --remote --tracing
+        run: pnpm run smoketest-no-compile -- --remote --tracing
         env:
           DISPLAY: ":10"
 

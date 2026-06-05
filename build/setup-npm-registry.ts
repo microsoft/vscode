@@ -7,40 +7,60 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 /**
- * Recursively find all package-lock.json files in a directory
+ * Recursively find all `.npmrc` files in a directory (skipping `node_modules`).
  */
-async function* getPackageLockFiles(dir: string): AsyncGenerator<string> {
-	const files = await fs.readdir(dir);
+async function* getNpmrcFiles(dir: string): AsyncGenerator<string> {
+	const entries = await fs.readdir(dir, { withFileTypes: true });
 
-	for (const file of files) {
-		const fullPath = path.join(dir, file);
-		const stat = await fs.stat(fullPath);
+	for (const entry of entries) {
+		if (entry.name === 'node_modules' || entry.name === '.git') {
+			continue;
+		}
 
-		if (stat.isDirectory()) {
-			yield* getPackageLockFiles(fullPath);
-		} else if (file === 'package-lock.json') {
+		const fullPath = path.join(dir, entry.name);
+
+		if (entry.isDirectory()) {
+			yield* getNpmrcFiles(fullPath);
+		} else if (entry.name === '.npmrc') {
 			yield fullPath;
 		}
 	}
 }
 
 /**
- * Replace the registry URL in a package-lock.json file
+ * Point an `.npmrc` at a custom registry by setting/replacing its `registry=` line.
+ * pnpm (like npm) reads the `registry` setting from `.npmrc`, so unlike the old
+ * npm flow we no longer need to rewrite resolved URLs inside lockfiles.
  */
 async function setup(url: string, file: string): Promise<void> {
+	const registryLine = `registry=${url}`;
 	let contents = await fs.readFile(file, 'utf8');
-	contents = contents.replace(/https:\/\/registry\.[^.]+\.org\//g, url);
+
+	if (/^registry=.*$/m.test(contents)) {
+		contents = contents.replace(/^registry=.*$/m, registryLine);
+	} else {
+		contents = contents.replace(/\s*$/, '') + `\n${registryLine}\n`;
+	}
+
 	await fs.writeFile(file, contents);
 }
 
 /**
- * Main function to set up custom NPM registry
+ * Main function to set up a custom npm/pnpm registry across all `.npmrc` files.
  */
 async function main(url: string, dir?: string): Promise<void> {
 	const root = dir ?? process.cwd();
 
-	for await (const file of getPackageLockFiles(root)) {
-		console.log(`Enabling custom NPM registry: ${path.relative(root, file)}`);
+	// Ensure the root has an `.npmrc` so the registry is always applied.
+	const rootNpmrc = path.join(root, '.npmrc');
+	try {
+		await fs.access(rootNpmrc);
+	} catch {
+		await fs.writeFile(rootNpmrc, '');
+	}
+
+	for await (const file of getNpmrcFiles(root)) {
+		console.log(`Enabling custom registry: ${path.relative(root, file)}`);
 		await setup(url, file);
 	}
 }

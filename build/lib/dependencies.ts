@@ -8,27 +8,20 @@ import path from 'path';
 import cp from 'child_process';
 const root = fs.realpathSync(path.dirname(path.dirname(import.meta.dirname)));
 
-function getNpmProductionDependencies(folder: string): string[] {
+function getPnpmProductionDependencies(folder: string): string[] {
 	let raw: string;
 
 	try {
-		raw = cp.execSync('npm ls --all --omit=dev --parseable', { cwd: folder, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
+		// pnpm prints one absolute path per dependency (the root project path is
+		// included and filtered out below). `--prod` excludes devDependencies,
+		// `--depth Infinity` walks the whole production tree and `--parseable`
+		// yields plain paths. Standalone (non-workspace) projects such as
+		// `remote` must not attach to the root workspace.
+		raw = cp.execSync('pnpm list --prod --depth Infinity --parseable --ignore-workspace', { cwd: folder, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' }, stdio: [null, null, null] });
 	} catch (err) {
-		const regex = /^npm ERR! .*$/gm;
-		let match: RegExpExecArray | null;
-
-		while (match = regex.exec(err.message)) {
-			if (/ELSPROBLEMS/.test(match[0])) {
-				continue;
-			} else if (/invalid: xterm/.test(match[0])) {
-				continue;
-			} else if (/A complete log of this run/.test(match[0])) {
-				continue;
-			} else {
-				throw err;
-			}
+		if (!err.stdout) {
+			throw err;
 		}
-
 		raw = err.stdout;
 	}
 
@@ -38,14 +31,14 @@ function getNpmProductionDependencies(folder: string): string[] {
 }
 
 export function getProductionDependencies(folderPath: string): string[] {
-	const result = getNpmProductionDependencies(folderPath);
+	const result = getPnpmProductionDependencies(folderPath);
 	// Account for distro npm dependencies
 	const realFolderPath = fs.realpathSync(folderPath);
 	const relativeFolderPath = path.relative(root, realFolderPath);
 	const distroFolderPath = `${root}/.build/distro/npm/${relativeFolderPath}`;
 
 	if (fs.existsSync(distroFolderPath)) {
-		result.push(...getNpmProductionDependencies(distroFolderPath));
+		result.push(...getPnpmProductionDependencies(distroFolderPath));
 	}
 
 	return [...new Set(result)];

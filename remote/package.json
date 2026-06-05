@@ -52,14 +52,30 @@
     "yazl": "^2.4.3",
     "zod": "^3.25.76"
   },
-  "overrides": {
-    "node-gyp-build": "4.8.1",
-    "kerberos@2.1.1": {
-      "node-addon-api": "7.1.0"
+  "pnpm": {
+    "overrides": {
+      "node-gyp-build": "4.8.1",
+      "kerberos@2.1.1>node-addon-api": "7.1.0",
+      "ssh2>cpu-features": "0.0.0",
+      "yauzl": "^3.3.1"
     },
-    "ssh2": {
-      "cpu-features": "0.0.0"
-    },
-    "yauzl": "^3.3.1"
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@vscode/deviceid",
+      "@vscode/native-watchdog",
+      "@vscode/ripgrep",
+      "@vscode/ripgrep-universal",
+      "@vscode/spdlog",
+      "@vscode/sqlite3",
+      "@vscode/windows-process-tree",
+      "@vscode/windows-registry",
+      "bufferutil",
+      "cpu-features",
+      "kerberos",
+      "node-gyp-build",
+      "node-pty",
+      "ssh2",
+      "utf-8-validate"
+    ]
   }
 }

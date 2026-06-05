@@ -34,21 +34,24 @@ jobs:
             extensions/copilot/package-lock.json
             extensions/copilot/chat-lib/package-lock.json
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Extract chat-lib
         shell: bash
         working-directory: extensions/copilot
         run: |
-          npm ci
-          npm run extract-chat-lib
+          pnpm install --frozen-lockfile
+          pnpm run extract-chat-lib
           rm -rf node_modules
 
       - name: Install chat-lib dependencies
         working-directory: extensions/copilot/chat-lib
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build chat-lib
         working-directory: extensions/copilot/chat-lib
-        run: npm run build
+        run: pnpm run build
 
       - name: Test chat-lib
         working-directory: extensions/copilot/chat-lib

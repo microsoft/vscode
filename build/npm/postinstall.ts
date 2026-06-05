@@ -7,11 +7,10 @@ import * as fs from 'fs';
 import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
-import { dirs } from './dirs.ts';
+import { standaloneDirs } from './dirs.ts';
 import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
 
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
+const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 function log(dir: string, message: string) {
 	if (process.stdout.isTTY) {
@@ -52,7 +51,7 @@ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOp
 	});
 }
 
-async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): Promise<void> {
+async function pnpmInstallAsync(dir: string, opts?: child_process.SpawnOptions): Promise<void> {
 	const finalOpts: child_process.SpawnOptions = {
 		env: { ...process.env },
 		...(opts ?? {}),
@@ -60,7 +59,13 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		shell: true,
 	};
 
-	const command = process.env['npm_command'] || 'install';
+	// Standalone (non-workspace) installs must ignore the surrounding root
+	// workspace so they resolve against their own package.json/.npmrc/lockfile.
+	// CI sets VSCODE_INSTALL_FROZEN=1 to require an up-to-date lockfile.
+	const args = ['install', '--ignore-workspace'];
+	if (process.env['VSCODE_INSTALL_FROZEN']) {
+		args.push('--frozen-lockfile');
+	}
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const syncOpts: child_process.SpawnSyncOptions = {
@@ -83,12 +88,12 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 			'-v', `${process.env['VSCODE_NPMRC_PATH']}:/root/.npmrc`,
 			'-w', path.resolve('/root/vscode', dir),
 			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
-			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
+			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && corepack enable && npm i -g node-gyp-build && pnpm install --ignore-workspace --frozen-lockfile\"`
 		], syncOpts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], syncOpts);
 	} else {
 		log(dir, 'Installing dependencies...');
-		const output = await spawnAsync(npm, command.split(' '), finalOpts);
+		const output = await spawnAsync(pnpm, args, finalOpts);
 		if (output.trim()) {
 			for (const line of output.trim().split('\n')) {
 				log(dir, line);
@@ -156,36 +161,6 @@ function removeParcelWatcherPrebuild(dir: string) {
 	}
 }
 
-function getNpmrcConfigKeys(npmrcPath: string): string[] {
-	if (!fs.existsSync(npmrcPath)) {
-		return [];
-	}
-	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
-	const keys: string[] = [];
-	for (const line of lines) {
-		const trimmedLine = line.trim();
-		if (trimmedLine && !trimmedLine.startsWith('#')) {
-			const eqIndex = trimmedLine.indexOf('=');
-			if (eqIndex > 0) {
-				keys.push(trimmedLine.substring(0, eqIndex).trim());
-			}
-		}
-	}
-	return keys;
-}
-
-function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
-	const dirNpmrcPath = path.join(root, dir, '.npmrc');
-	if (fs.existsSync(dirNpmrcPath)) {
-		return;
-	}
-
-	for (const key of rootNpmrcConfigKeys) {
-		const envKey = `npm_config_${key.replace(/-/g, '_')}`;
-		delete env[envKey];
-	}
-}
-
 function ensureAgentHarnessLink(sourceRelativePath: string, linkPath: string): 'existing' | 'junction' | 'symlink' | 'hard link' {
 	if (fs.existsSync(linkPath)) {
 		return 'existing';
@@ -212,31 +187,6 @@ function ensureAgentHarnessLink(sourceRelativePath: string, linkPath: string): '
 	}
 }
 
-async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: number): Promise<void> {
-	const errors: Error[] = [];
-	let index = 0;
-
-	async function worker() {
-		while (index < tasks.length) {
-			const i = index++;
-			try {
-				await tasks[i]();
-			} catch (err) {
-				errors.push(err as Error);
-			}
-		}
-	}
-
-	await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
-
-	if (errors.length > 0) {
-		for (const err of errors) {
-			console.error(err.message);
-		}
-		process.exit(1);
-	}
-}
-
 async function main() {
 	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
 		log('.', 'All dependencies up to date, skipping postinstall.');
@@ -247,71 +197,52 @@ async function main() {
 
 	const _state = computeState();
 
-	const nativeTasks: (() => Promise<void>)[] = [];
-	const parallelTasks: (() => Promise<void>)[] = [];
+	// The root pnpm workspace (root + extensions + test harnesses) has already
+	// been installed by the `pnpm install` that triggered this postinstall.
+	// Here we only install the standalone, Node-runtime projects that are kept
+	// out of the workspace so their native modules build against Node (not
+	// Electron) headers. The native ones (build, remote) must run sequentially
+	// to avoid node-gyp conflicts.
+	removeParcelWatcherPrebuild('');
 
-	for (const dir of dirs) {
-		if (dir === '') {
-			removeParcelWatcherPrebuild(dir);
-			continue; // already executed in root
-		}
-
+	for (const dir of standaloneDirs) {
 		if (dir === 'build') {
-			nativeTasks.push(() => {
-				const env: NodeJS.ProcessEnv = { ...process.env };
-				if (process.env['CC']) { env['CC'] = 'gcc'; }
-				if (process.env['CXX']) { env['CXX'] = 'g++'; }
-				if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
-				if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
-				setNpmrcConfig('build', env);
-				return npmInstallAsync('build', { env });
-			});
+			const env: NodeJS.ProcessEnv = { ...process.env };
+			if (process.env['CC']) { env['CC'] = 'gcc'; }
+			if (process.env['CXX']) { env['CXX'] = 'g++'; }
+			if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
+			if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
+			setNpmrcConfig('build', env);
+			await pnpmInstallAsync('build', { env });
 			continue;
 		}
 
 		if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
-			const remoteDir = dir;
-			nativeTasks.push(() => {
-				const env: NodeJS.ProcessEnv = { ...process.env };
-				if (process.env['VSCODE_REMOTE_CC']) {
-					env['CC'] = process.env['VSCODE_REMOTE_CC'];
-				} else {
-					delete env['CC'];
-				}
-				if (process.env['VSCODE_REMOTE_CXX']) {
-					env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
-				} else {
-					delete env['CXX'];
-				}
-				if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
-				if (process.env['CFLAGS']) { delete env['CFLAGS']; }
-				if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
-				if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
-				if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
-				if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
-				setNpmrcConfig('remote', env);
-				return npmInstallAsync(remoteDir, { env });
-			});
+			const env: NodeJS.ProcessEnv = { ...process.env };
+			if (process.env['VSCODE_REMOTE_CC']) {
+				env['CC'] = process.env['VSCODE_REMOTE_CC'];
+			} else {
+				delete env['CC'];
+			}
+			if (process.env['VSCODE_REMOTE_CXX']) {
+				env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+			} else {
+				delete env['CXX'];
+			}
+			if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+			if (process.env['CFLAGS']) { delete env['CFLAGS']; }
+			if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
+			if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+			if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
+			if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+			setNpmrcConfig('remote', env);
+			await pnpmInstallAsync(dir, { env });
 			continue;
 		}
 
-		const taskDir = dir;
-		parallelTasks.push(() => {
-			const env = { ...process.env };
-			clearInheritedNpmrcConfig(taskDir, env);
-			return npmInstallAsync(taskDir, { env });
-		});
+		// remote/web and the distro projects have no native modules.
+		await pnpmInstallAsync(dir, { env: { ...process.env } });
 	}
-
-	// Native dirs (build, remote) run sequentially to avoid node-gyp conflicts
-	for (const task of nativeTasks) {
-		await task();
-	}
-
-	// JS-only dirs run in parallel
-	const concurrency = Math.min(os.cpus().length, 8);
-	log('.', `Running ${parallelTasks.length} npm installs with concurrency ${concurrency}...`);
-	await runWithConcurrency(parallelTasks, concurrency);
 
 	child_process.execSync('git config pull.rebase merges');
 	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');

@@ -20,6 +20,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
 
@@ -44,7 +47,7 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1
@@ -99,6 +102,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
@@ -116,7 +122,7 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile --ignore-workspace && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1
@@ -134,7 +140,7 @@ jobs:
           source ./build/azure-pipelines/linux/setup-env.sh
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1
@@ -171,6 +177,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
@@ -190,7 +199,7 @@ jobs:
           python3 -m pip install --break-system-packages setuptools
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1
@@ -232,6 +241,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Setup pnpm
+        run: corepack enable
       - name: Prepare node_modules cache key
         shell: pwsh
         run: |
@@ -253,15 +265,15 @@ jobs:
           $ErrorActionPreference = "Stop"
           for ($i = 1; $i -le 5; $i++) {
             try {
-              exec { npm ci }
+              exec { pnpm install --frozen-lockfile }
               break
             }
             catch {
               if ($i -eq 5) {
-                Write-Error "npm ci failed after 5 attempts"
+                Write-Error "pnpm install --frozen-lockfile failed after 5 attempts"
                 throw
               }
-              Write-Host "npm ci failed attempt $i, retrying..."
+              Write-Host "pnpm install --frozen-lockfile failed attempt $i, retrying..."
               Start-Sleep -Seconds 2
             }
           }

@@ -18,11 +18,27 @@ export function collectInputFiles(): string[] {
 
 	for (const dir of dirs) {
 		const base = dir === '' ? root : path.join(root, dir);
-		for (const file of ['package.json', 'package-lock.json', '.npmrc']) {
+		for (const file of ['package.json', '.npmrc']) {
 			const filePath = path.join(base, file);
 			if (fs.existsSync(filePath)) {
 				files.push(filePath);
 			}
+		}
+	}
+
+	// pnpm lockfiles: the root workspace lockfile plus the standalone
+	// (non-workspace) project lockfiles, and the workspace definition.
+	for (const lock of [
+		'pnpm-lock.yaml',
+		'pnpm-workspace.yaml',
+		'build/pnpm-lock.yaml',
+		'build/npm/gyp/pnpm-lock.yaml',
+		'remote/pnpm-lock.yaml',
+		'remote/web/pnpm-lock.yaml',
+	]) {
+		const filePath = path.join(root, lock);
+		if (fs.existsSync(filePath)) {
+			files.push(filePath);
 		}
 	}
 
@@ -44,13 +60,13 @@ const packageJsonRelevantKeys = new Set([
 	'peerDependencies',
 	'peerDependenciesMeta',
 	'overrides',
+	'pnpm',
+	'packageManager',
 	'engines',
 	'workspaces',
 	'bundledDependencies',
 	'bundleDependencies',
 ]);
-
-const packageLockJsonIgnoredKeys = new Set(['version']);
 
 function normalizeFileContent(filePath: string): string {
 	const raw = fs.readFileSync(filePath, 'utf8');
@@ -65,18 +81,6 @@ function normalizeFileContent(filePath: string): string {
 			}
 		}
 		return JSON.stringify(filtered, null, '\t') + '\n';
-	}
-	if (basename === 'package-lock.json') {
-		const json = JSON.parse(raw);
-		for (const key of packageLockJsonIgnoredKeys) {
-			delete json[key];
-		}
-		if (json.packages?.['']) {
-			for (const key of packageLockJsonIgnoredKeys) {
-				delete json.packages[''][key];
-			}
-		}
-		return JSON.stringify(json, null, '\t') + '\n';
 	}
 	return raw;
 }
