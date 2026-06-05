@@ -12,6 +12,7 @@ import * as objects from '../../../util/vs/base/common/objects';
 import { IObservable, observableFromEventOpts } from '../../../util/vs/base/common/observable';
 import * as types from '../../../util/vs/base/common/types';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
+import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { packageJson } from '../../env/common/packagejson';
 import { ImportChanges } from '../../inlineEdits/common/dataTypes/importFilteringOptions';
 import { JointCompletionsProviderStrategy, JointCompletionsProviderTriggerChangeStrategy } from '../../inlineEdits/common/dataTypes/jointCompletionsProviderOptions';
@@ -22,7 +23,6 @@ import { DuplicateAdditionsMode, EarlyDivergenceCancellationMode, LANGUAGE_CONTE
 import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
-import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IValidator, vBoolean, vNumber, vString } from './validator';
 
@@ -799,6 +799,7 @@ export namespace ConfigKey {
 		 */
 		export const InlineEditsNesMimicGhostTextBehavior = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.nesMimicGhostTextBehavior', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsXtabProviderUsePrediction = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.usePrediction', ConfigType.ExperimentBased, true, vBoolean());
+		export const InlineEditsXtabProviderPatchModelPredictionKind = defineTeamInternalSetting<xtabPromptOptions.PatchModelPrediction>('chat.advanced.inlineEdits.xtabProvider.patchModelPredictionKind', ConfigType.ExperimentBased, xtabPromptOptions.PatchModelPrediction.FilePath, xtabPromptOptions.PatchModelPrediction.VALIDATOR);
 		export const InlineEditsXtabLanguageContextEnabledLanguages = defineTeamInternalSetting<LanguageContextLanguages>('chat.advanced.inlineEdits.xtabProvider.languageContext.enabledLanguages', ConfigType.Simple, LANGUAGE_CONTEXT_ENABLED_LANGUAGES);
 		export const InlineEditsXtabLanguageContextTraitsPosition = defineTeamInternalSetting<'before' | 'after'>('chat.advanced.inlineEdits.xtabProvider.languageContext.traitsPosition', ConfigType.ExperimentBased, 'before');
 		export const InlineEditsDiagnosticsExplorationEnabled = defineTeamInternalSetting<boolean | undefined>('chat.advanced.inlineEdits.inlineEditsDiagnosticsExplorationEnabled', ConfigType.Simple, false);

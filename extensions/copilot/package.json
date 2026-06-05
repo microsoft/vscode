@@ -6209,18 +6209,6 @@
           "group": "1_edit@4"
         }
       ],
-      "chatSessions/header/context": [
-        {
-          "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        },
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        }
-      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
