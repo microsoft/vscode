@@ -102,7 +102,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 	private _formatOutput(id: string, terminalInstanceId: number, output: string): string {
 		if (!this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.OutputDeltas)) {
 			this._lastOutputSnapshotByExecutionId.clear();
-			return `Output of terminal ${id}:\n${output}`;
+			return this._formatTailOrFull(output, `Output of terminal ${id}`);
 		}
 
 		const previousOutputSnapshot = this._lastOutputSnapshotByExecutionId.get(id);
