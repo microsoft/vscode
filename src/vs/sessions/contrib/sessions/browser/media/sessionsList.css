@@ -91,7 +91,7 @@
 	flex-direction: row;
 	height: 100%;
 	box-sizing: border-box;
-	padding: 8px 6px;
+	padding: 8px 6px 8px 12px;
 
 	&.archived {
 		color: var(--vscode-descriptionForeground);
