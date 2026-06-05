@@ -2,7 +2,7 @@ pr: none
 
 schedules:
   - cron: "0 18 * * *"
-    displayName: Daily at 18:00 UTC (10:00 AM PST)
+    displayName: Daily at 18:00 UTC (Pacific Time)
     branches:
       include:
         - main
