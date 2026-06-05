@@ -26,27 +26,14 @@ import {
 } from '../browserEditor.js';
 
 /**
- * Presentation of one URL bar primary ("Enter") action for a given input
- * text. Lets the host label the action contextually — e.g. "Go to {url}" vs
- * "Search Bing for {query}" — and run the matching navigation, without the
- * generic widget needing to know about search settings. The host may return
- * more than one (e.g. both Search and Go to for ambiguous input).
+ * Quick-pick item used by the URL picker. The built-in "Go to" fallback entry
+ * leaves {@link apply} unset and is handled inline; host- and
+ * provider-contributed items carry their own {@link apply} callback that runs
+ * against the editor's input.
  */
-export interface IBrowserUrlPrimaryAction {
-	/** Label shown on the primary picker item (e.g. "Search Bing for cats"). */
-	readonly label: string;
-	/** Leading icon for the primary picker item. */
-	readonly icon: ThemeIcon;
-	/**
-	 * Optional inline buttons rendered on the primary picker item's row
-	 * (e.g. a gear button next to the search entry that opens the search
-	 * engine setting). Triggering a button runs its action in-place and
-	 * leaves the picker open.
-	 */
-	readonly buttons?: readonly IBrowserUrlSuggestionAction[];
-	/** Perform this action against the editor's input. */
-	run(input: BrowserEditorInput): void;
-}
+export type IUrlPickerItem = IQuickPickItem & {
+	apply?(input: BrowserEditorInput): void | Promise<void>;
+};
 
 /**
  * The minimal surface {@link BrowserUrlBarWidget} needs from its owning
@@ -57,27 +44,20 @@ export interface IBrowserUrlBarHost {
 	readonly input: BrowserEditorInput | undefined;
 	ensureBrowserFocus(): void;
 	/**
-	 * Resolve the built-in primary action(s) for the given (trimmed, non-empty)
-	 * text. Returning multiple actions lets the bar offer a choice (e.g. Search
-	 * then Go to for ambiguous input). When omitted or empty, the widget falls
-	 * back to a plain "Go to {text}" entry.
+	 * Resolve the built-in primary picker item(s) for the given (trimmed,
+	 * non-empty) text. The first item is treated as the default action when
+	 * the user commits the text directly (e.g. presses Enter without picking a
+	 * suggestion). Returning multiple items lets the bar offer a choice (e.g.
+	 * Search then Go to for ambiguous input). When omitted or empty, the
+	 * widget falls back to a plain "Go to {text}" entry.
 	 */
-	getPrimaryActions?(text: string): readonly IBrowserUrlPrimaryAction[];
+	getPrimaryActions?(text: string): readonly IUrlPickerItem[];
 	/**
 	 * The placeholder shown in the URL display and picker. When omitted the
 	 * widget uses a plain "Enter a URL" placeholder.
 	 */
 	getPlaceholder?(): string;
 }
-
-/**
- * Quick-pick item used by the URL picker. The built-in "Go to" entry leaves
- * {@link apply} unset and is handled inline; provider-contributed items carry
- * their own {@link apply} callback that runs against the editor's input.
- */
-type IUrlPickerItem = IQuickPickItem & {
-	apply?(input: BrowserEditorInput): void | Promise<void>;
-};
 
 /**
  * The URL bar widget: a contenteditable display showing the current URL,
@@ -299,7 +279,7 @@ export class BrowserUrlBarWidget extends Disposable {
 					// this value, so we don't want it discarded just because
 					// `model.url` won't catch up until navigation commits.
 					this._suppressBlurRevert = true;
-					this._host.input?.navigate(value);
+					this._navigateText(value);
 					this._host.ensureBrowserFocus();
 				}
 				return;
@@ -424,7 +404,7 @@ export class BrowserUrlBarWidget extends Disposable {
 
 	/**
 	 * Build the synchronous primary picker item(s) for the current value: the
-	 * host's contextual actions (e.g. Search and/or Go to), or a plain
+	 * host's contextual items (e.g. Search and/or Go to), or a plain
 	 * "Go to <value>" fallback. Provider-contributed suggestions are loaded
 	 * asynchronously by {@link _loadProviderSuggestions} and appended below.
 	 */
@@ -432,22 +412,9 @@ export class BrowserUrlBarWidget extends Disposable {
 		const items: (IUrlPickerItem | IQuickPickSeparator)[] = [];
 		const trimmed = value.trim();
 		if (trimmed) {
-			const actions = this._host.getPrimaryActions?.(trimmed) ?? [];
-			if (actions.length > 0) {
-				for (const action of actions) {
-					const item: IUrlPickerItem = {
-						id: trimmed,
-						label: action.label,
-						iconClass: ThemeIcon.asClassName(action.icon),
-						apply: input => action.run(input),
-					};
-					if (action.buttons && action.buttons.length > 0) {
-						// Pass the action objects through directly so
-						// onDidTriggerItemButton hands them back to us by reference.
-						item.buttons = action.buttons;
-					}
-					items.push(item);
-				}
+			const primaryItems = this._host.getPrimaryActions?.(trimmed) ?? [];
+			if (primaryItems.length > 0) {
+				items.push(...primaryItems);
 			} else {
 				items.push({
 					id: trimmed,
@@ -457,6 +424,28 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}
 		return items;
+	}
+
+	/**
+	 * Navigate from raw text the user committed directly (e.g. Enter on the
+	 * display, or accepting with no suggestion selected). Routes through the
+	 * host's default primary item so search-vs-URL resolution stays in the nav
+	 * bar; falls back to navigating the text as a URL when the host has no
+	 * primary items.
+	 */
+	private _navigateText(text: string): void {
+		const input = this._host.input;
+		const trimmed = text.trim();
+		if (!trimmed || !input) {
+			return;
+		}
+		const primaryItems = this._host.getPrimaryActions?.(trimmed);
+		const defaultItem = primaryItems?.[0];
+		if (defaultItem?.apply) {
+			void Promise.resolve(defaultItem.apply(input));
+		} else {
+			input.navigate(trimmed);
+		}
 	}
 
 	/** Convert a provider suggestion to its picker-item representation. */
@@ -728,10 +717,7 @@ export class BrowserUrlBarWidget extends Disposable {
 				}
 				return;
 			}
-			const url = (active?.id ?? fallbackUrl).trim();
-			if (url && input) {
-				input.navigate(url);
-			}
+			this._navigateText(active?.id ?? fallbackUrl);
 		}));
 		disposables.add(picker.onDidHide(({ reason }) => {
 			this._urlDisplay.style.visibility = '';

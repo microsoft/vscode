@@ -89,6 +89,12 @@ type IntegratedBrowserNavigationEvent = {
 	isLocalhost: boolean;
 };
 
+/**
+ * Telemetry source for an address-bar-initiated navigation: whether the user
+ * typed a URL or ran a web search. Defaults to `'urlInput'` when omitted.
+ */
+export type BrowserNavigationSource = 'urlInput' | 'searchInput';
+
 type IntegratedBrowserNavigationClassification = {
 	navigationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the navigation was triggered' };
 	isLocalhost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the URL is a localhost address' };
@@ -262,7 +268,7 @@ export interface IBrowserViewModel extends IDisposable {
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
-	loadURL(url: string, options?: { fromSearch?: boolean }): Promise<void>;
+	loadURL(url: string, options?: { source?: BrowserNavigationSource }): Promise<void>;
 	goBack(): Promise<void>;
 	goForward(): Promise<void>;
 	reload(hard?: boolean): Promise<void>;
@@ -548,20 +554,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.setVisible(this.id, visible);
 	}
 
-	async loadURL(url: string, options?: { fromSearch?: boolean }): Promise<void> {
-		this.logNavigationTelemetry(options?.fromSearch ? 'searchInput' : 'urlInput', url);
+	async loadURL(url: string, options?: { source?: BrowserNavigationSource }): Promise<void> {
+		this.logNavigationTelemetry(options?.source ?? 'urlInput', url);
 		this._onWillNavigate.fire(url);
 
-		// Search inputs are already fully-qualified URLs produced by the
-		// search engine; only fix up bare URL inputs.
-		if (!options?.fromSearch) {
-			// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
-			if (/^localhost(:|\/|$)/i.test(url)) {
-				url = 'http://' + url;
-			} else if (!URL.parse(url)?.protocol) {
-				// No scheme — default to http://; sites typically upgrade to https://.
-				url = 'http://' + url;
-			}
+		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
+		if (/^localhost(:|\/|$)/i.test(url)) {
+			url = 'http://' + url;
+		} else if (!URL.parse(url)?.protocol) {
+			// No scheme — default to http://; sites typically upgrade to https://.
+			url = 'http://' + url;
 		}
 
 		return this.browserViewService.loadURL(this.id, url);

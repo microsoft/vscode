@@ -29,6 +29,7 @@ import {
 	BrowserSearchEnabledSettingId,
 	BrowserSearchEngineId,
 	BrowserSearchEngineSettingId,
+	buildSearchUrl,
 	DEFAULT_BROWSER_SEARCH_ENGINE,
 	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
@@ -46,7 +47,7 @@ import {
 	IBrowserEditorWidget,
 	IBrowserUrlSuggestionAction,
 } from '../browserEditor.js';
-import { BrowserUrlBarWidget, IBrowserUrlBarHost, IBrowserUrlPrimaryAction } from '../widgets/browserUrlBarWidget.js';
+import { BrowserUrlBarWidget, IBrowserUrlBarHost, IUrlPickerItem } from '../widgets/browserUrlBarWidget.js';
 
 const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -142,18 +143,21 @@ class BrowserNavigationBar extends Disposable {
 	}
 
 	/**
-	 * The URL bar's primary action(s) for the given text, mirroring Chrome/Edge.
-	 * With search enabled: a URL reads "{url}" (globe icon) first with a search
-	 * fallback after, a clear query reads "{query} - {engine} Search" (search
-	 * icon), and an ambiguous input offers both — Search first, then Go to — so
-	 * the user can pick. Each action navigates with an explicit mode so its
-	 * label and behaviour always agree.
+	 * The URL bar's primary picker item(s) for the given text, mirroring
+	 * Chrome/Edge. With search enabled: a URL reads "{url}" (globe icon) first
+	 * with a search fallback after, a clear query reads "{query} - {engine}
+	 * Search" (search icon), and an ambiguous input offers both — Search first,
+	 * then Go to — so the user can pick. The destination URL is resolved here
+	 * (search text → search-engine URL) so {@link BrowserEditorInput.navigate}
+	 * receives a plain URL; the telemetry source is passed through so a
+	 * search-initiated navigation is tracked as such.
 	 */
-	private _resolvePrimaryActions(text: string): IBrowserUrlPrimaryAction[] {
-		const goTo: IBrowserUrlPrimaryAction = {
+	private _resolvePrimaryActions(text: string): IUrlPickerItem[] {
+		const goTo: IUrlPickerItem = {
+			id: text,
 			label: text,
-			icon: Codicon.globe,
-			run: input => input.navigate(text, { as: 'url' }),
+			iconClass: ThemeIcon.asClassName(Codicon.globe),
+			apply: input => input.navigate(text),
 		};
 		if (!this._searchEnabled) {
 			return [goTo];
@@ -165,11 +169,12 @@ class BrowserNavigationBar extends Disposable {
 			tooltip: localize('browser.configureSearchEngine', "Configure Search Engine"),
 			run: () => { this._preferencesService.openSettings({ query: `@id:workbench.browser.addressBarSearch.*` }); },
 		};
-		const search: IBrowserUrlPrimaryAction = {
+		const search: IUrlPickerItem = {
+			id: text,
 			label: localize('browser.searchFor', "{0} - {1} Search", text, getBrowserSearchEngineLabel(engineId)),
-			icon: Codicon.search,
+			iconClass: ThemeIcon.asClassName(Codicon.search),
 			buttons: [configureEngineButton],
-			run: input => input.navigate(text, { as: 'search' }),
+			apply: input => input.navigate(buildSearchUrl(text, engineId), { source: 'searchInput' }),
 		};
 		switch (resolveAddressBarInputType(text)) {
 			case 'url':

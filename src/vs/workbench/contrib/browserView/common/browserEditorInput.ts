@@ -9,7 +9,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
+import { BrowserViewSharingState, BrowserNavigationSource, IBrowserEditorViewState, IBrowserViewWorkbenchService } from './browserView.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -23,8 +23,6 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { BrowserSearchEnabledSettingId, BrowserSearchEngineId, BrowserSearchEngineSettingId, buildSearchUrl, DEFAULT_BROWSER_SEARCH_ENGINE, resolveAddressBarNavigation } from './browserSearch.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -55,16 +53,6 @@ export interface IBeforeDisposeBrowserEditorEvent {
 	veto(): void;
 }
 
-/**
- * Options for {@link BrowserEditorInput.navigate}. By default the input text is
- * classified automatically to decide between web search and URL navigation;
- * `as` forces one mode, used when the URL bar offers an explicit Search vs
- * Go to choice for ambiguous input.
- */
-export interface IBrowserNavigateOptions {
-	readonly as?: 'search' | 'url';
-}
-
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
 	static readonly EDITOR_ID = 'workbench.editor.browser';
@@ -90,7 +78,6 @@ export class BrowserEditorInput extends EditorInput {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._id = options.id;
@@ -170,32 +157,20 @@ export class BrowserEditorInput extends EditorInput {
 		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
-	navigate(url: string, options?: IBrowserNavigateOptions): void {
-		// Resolve the raw address bar text to a concrete destination: either a
-		// search-engine URL or the text itself navigated as a URL. This is the
-		// single entry point for all URL bar navigation (display Enter, picker
-		// accept, favorites, tab restore), so search routing is applied
-		// consistently. Callers may force the mode via `options.as` (e.g. the
-		// URL bar offering an explicit Search vs Go to choice for ambiguous
-		// input); otherwise the input is classified automatically.
-		const engineId = this.configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
-		let resolved: { isSearch: boolean; url: string };
-		if (options?.as === 'search') {
-			resolved = { isSearch: true, url: buildSearchUrl(url, engineId) };
-		} else if (options?.as === 'url') {
-			resolved = { isSearch: false, url: url.trim() };
-		} else {
-			const searchEnabled = this.configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
-			resolved = resolveAddressBarNavigation(url, searchEnabled, engineId);
-		}
-
+	navigate(url: string, options?: { source?: BrowserNavigationSource }): void {
+		// `navigate` is a pure "load this URL" entry point: callers (the URL bar,
+		// favorites, history, tab restore) pass an already-resolved destination.
+		// Address bar search routing (query → search-engine URL) happens in the
+		// nav bar before calling here. `options.source` is forwarded purely for
+		// telemetry so a search-initiated navigation is tracked as such.
+		const destination = url.trim();
 		if (this._model) {
-			void this._model.loadURL(resolved.url, { fromSearch: resolved.isSearch });
+			void this._model.loadURL(destination, options);
 		} else {
 			// If the model isn't created yet, update the initial data so that the URL is correct when the model is created
 			this._initialData = {
 				id: this._id,
-				url: resolved.url
+				url: destination
 			};
 			this._onDidChangeLabel.fire();
 		}

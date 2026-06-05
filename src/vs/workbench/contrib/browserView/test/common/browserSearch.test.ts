@@ -10,7 +10,6 @@ import {
 	buildSearchUrl,
 	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
-	resolveAddressBarNavigation,
 } from '../../common/browserSearch.js';
 
 suite('BrowserSearch - resolveAddressBarInput', () => {
@@ -228,34 +227,3 @@ suite('BrowserSearch - getBrowserSearchEngineLabel', () => {
 	});
 });
 
-suite('BrowserSearch - resolveAddressBarNavigation', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('navigates as a URL when search is disabled, regardless of input', () => {
-		assert.deepStrictEqual(
-			[
-				resolveAddressBarNavigation('  example.com  ', false, BrowserSearchEngineId.Bing),
-				resolveAddressBarNavigation('how to make pasta', false, BrowserSearchEngineId.Bing),
-			],
-			[
-				{ isSearch: false, url: 'example.com' },
-				{ isSearch: false, url: 'how to make pasta' },
-			],
-		);
-	});
-
-	test('routes queries to search and URLs to navigation when search is enabled', () => {
-		assert.deepStrictEqual(
-			[
-				resolveAddressBarNavigation('how to make pasta', true, BrowserSearchEngineId.Bing),
-				resolveAddressBarNavigation('https://example.com', true, BrowserSearchEngineId.Bing),
-				resolveAddressBarNavigation('example.com', true, BrowserSearchEngineId.Bing),
-			],
-			[
-				{ isSearch: true, url: 'https://www.bing.com/search?q=how+to+make+pasta' },
-				{ isSearch: false, url: 'https://example.com' },
-				{ isSearch: false, url: 'example.com' },
-			],
-		);
-	});
-});

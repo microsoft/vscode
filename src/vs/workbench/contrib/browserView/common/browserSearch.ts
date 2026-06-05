@@ -46,7 +46,7 @@ function encodeQuery(query: string): string {
 }
 
 /**
- * Ordered list of supported search engines. The first entry is the default.
+ * Ordered list of supported search engines.
  */
 export const BROWSER_SEARCH_ENGINES: readonly IBrowserSearchEngine[] = [
 	{
@@ -420,44 +420,4 @@ export function getBrowserSearchEngineLabel(engineId: BrowserSearchEngineId): st
 		BROWSER_SEARCH_ENGINES.find((e) => e.id === engineId) ??
 		BROWSER_SEARCH_ENGINES[0];
 	return engine.label;
-}
-
-/**
- * The action the address bar will take for a given raw input, given the
- * current search settings.
- */
-export interface IAddressBarNavigation {
-	/** Whether the input is being routed to a web search rather than navigated as a URL. */
-	readonly isSearch: boolean;
-	/**
-	 * The destination to load. When {@link isSearch} is `true` this is a fully
-	 * qualified search-engine URL; otherwise it is the (trimmed) raw input,
-	 * which the model fixes up (e.g. prepending `http://`) before loading.
-	 */
-	readonly url: string;
-}
-
-/**
- * Decide whether a raw address bar input should be navigated as a URL or sent
- * to the configured search engine, and produce the destination to load.
- *
- * Search is only considered when {@link searchEnabled} is `true`. Inputs
- * classified as `'query'` or `'unknown'` (see {@link resolveAddressBarInputType})
- * are routed to search; everything else is navigated as a URL. This is the
- * single source of truth shared by the navigation path and the URL bar's
- * primary-action presentation so the two never disagree.
- */
-export function resolveAddressBarNavigation(
-	rawInput: string,
-	searchEnabled: boolean,
-	engineId: BrowserSearchEngineId,
-): IAddressBarNavigation {
-	const trimmed = rawInput.trim();
-	if (searchEnabled) {
-		const kind = resolveAddressBarInputType(trimmed);
-		if (kind === 'query' || kind === 'unknown') {
-			return { isSearch: true, url: buildSearchUrl(trimmed, engineId) };
-		}
-	}
-	return { isSearch: false, url: trimmed };
 }
