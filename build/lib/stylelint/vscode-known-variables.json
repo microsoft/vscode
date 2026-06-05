@@ -1020,7 +1020,6 @@
 		"--vscode-shadow-active-tab",
 		"--vscode-shadow-depth-x",
 		"--vscode-shadow-depth-y",
-		"--vscode-shadow-hover",
 		"--vscode-shadow-lg",
 		"--vscode-shadow-md",
 		"--vscode-shadow-sm",
