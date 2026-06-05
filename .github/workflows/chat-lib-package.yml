@@ -29,10 +29,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22.x
-          cache: npm
-          cache-dependency-path: |
-            extensions/copilot/package-lock.json
-            extensions/copilot/chat-lib/package-lock.json
 
 
       - name: Setup pnpm
@@ -41,13 +37,13 @@ jobs:
         shell: bash
         working-directory: extensions/copilot
         run: |
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-workspace
           pnpm run extract-chat-lib
           rm -rf node_modules
 
       - name: Install chat-lib dependencies
         working-directory: extensions/copilot/chat-lib
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-workspace
 
       - name: Build chat-lib
         working-directory: extensions/copilot/chat-lib
