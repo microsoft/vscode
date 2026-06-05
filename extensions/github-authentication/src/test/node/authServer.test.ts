@@ -12,7 +12,7 @@ suite('LoopbackAuthServer', () => {
 	let port: number;
 
 	setup(async () => {
-		server = new LoopbackAuthServer(__dirname, 'http://localhost:8080', 'https://code.visualstudio.com');
+		server = new LoopbackAuthServer(__dirname, 'http://localhost:8080', 'https://code.visualstudio.com', false);
 		port = await server.start();
 	});
 
@@ -55,6 +55,38 @@ suite('LoopbackAuthServer', () => {
 		);
 		assert.strictEqual(response.status, 302);
 		assert.strictEqual(response.headers.get('location'), `/?redirect_uri=https%3A%2F%2Fcode.visualstudio.com&app_name=${encodeURIComponent(env.appName)}`);
+		await Promise.race([
+			server.waitForOAuthResponse().then(result => {
+				assert.strictEqual(result.code, 'valid-code');
+				assert.strictEqual(result.state, server.state);
+			}),
+			new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+		]);
+	});
+});
+
+suite('LoopbackAuthServer (portable mode)', () => {
+	let server: LoopbackAuthServer;
+	let port: number;
+
+	setup(async () => {
+		server = new LoopbackAuthServer(__dirname, 'http://localhost:8080', 'https://code.visualstudio.com', true);
+		port = await server.start();
+	});
+
+	teardown(async () => {
+		await server.stop();
+	});
+
+	test('should redirect to success page without redirect_uri on /callback', async () => {
+		server.state = 'valid-state';
+		const response = await fetch(
+			`http://localhost:${port}/callback?code=valid-code&state=${server.state}&nonce=${server.nonce}`,
+			{ redirect: 'manual' }
+		);
+		assert.strictEqual(response.status, 302);
+		// In portable mode, should redirect to success page without redirect_uri
+		assert.strictEqual(response.headers.get('location'), `/?app_name=${encodeURIComponent(env.appName)}`);
 		await Promise.race([
 			server.waitForOAuthResponse().then(result => {
 				assert.strictEqual(result.code, 'valid-code');

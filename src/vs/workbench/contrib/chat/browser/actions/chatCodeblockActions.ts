@@ -29,13 +29,14 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
-import { reviewEdits } from '../../../inlineChat/browser/inlineChatController.js';
+import { reviewEdits } from './reviewEdits.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../chat.js';
+import { ChatCopyActionViewItem } from './chatCopyActions.js';
 import { DefaultChatTextEditor, ICodeBlockActionContext, ICodeCompareBlockActionContext } from '../widget/chatContentParts/codeBlockPart.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { ApplyCodeBlockOperation, InsertCodeBlockOperation } from './codeBlockOperations.js';
@@ -59,7 +60,7 @@ export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockAct
 }
 
 export function isCodeCompareBlockActionContext(thing: unknown): thing is ICodeCompareBlockActionContext {
-	return typeof thing === 'object' && thing !== null && 'element' in thing;
+	return typeof thing === 'object' && thing !== null && 'element' in thing && 'diffEditor' in thing && 'toggleDiffViewMode' in thing;
 }
 
 function isResponseFiltered(context: ICodeBlockActionContext) {
@@ -102,6 +103,14 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
+		const copyCodeBlockActionRendering = this._register(actionViewItemService.register(MenuId.ChatCodeBlock, 'workbench.action.chat.copyCodeBlock', (action, options) => {
+			if (!(action instanceof MenuItemAction)) {
+				return undefined;
+			}
+
+			return instantiationService.createInstance(ChatCopyActionViewItem, action, options);
+		}));
+
 		const disposable = actionViewItemService.register(MenuId.ChatCodeBlock, APPLY_IN_EDITOR_ID, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -123,6 +132,7 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 		});
 
 		// Reduces flicker a bit on reload/restart
+		markAsSingleton(copyCodeBlockActionRendering);
 		markAsSingleton(disposable);
 	}
 }
@@ -190,6 +200,7 @@ export function registerChatCodeBlockActions() {
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: undefined,
 				});
 			}
 		}
@@ -257,6 +268,7 @@ export function registerChatCodeBlockActions() {
 				presentation: 'codeBlock',
 				applyCodeBlockSuggestionId: undefined,
 				source: undefined,
+				sourceRequestId: undefined,
 			});
 		}
 
@@ -414,6 +426,7 @@ export function registerChatCodeBlockActions() {
 					presentation: 'codeBlock',
 					applyCodeBlockSuggestionId: undefined,
 					source: undefined,
+					sourceRequestId: undefined,
 				});
 			}
 		}
@@ -635,11 +648,12 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate(), EditorContextKeys.readOnly.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
-					order: 1,
+					order: 10,
+					when: EditorContextKeys.readOnly.negate(),
 				}
 			});
 		}
@@ -688,11 +702,12 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.trash,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.editApplied.negate(), EditorContextKeys.readOnly.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
-					order: 2,
+					order: 11,
+					when: EditorContextKeys.readOnly.negate(),
 				}
 			});
 		}
@@ -702,6 +717,61 @@ export function registerChatCodeCompareBlockActions() {
 			const instaService = accessor.get(IInstantiationService);
 			const editor = instaService.createInstance(DefaultChatTextEditor);
 			editor.discard(context.element, context.edit);
+		}
+	});
+
+	registerAction2(class ToggleDiffViewModeAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.toggleCompareBlockDiffViewMode',
+				title: localize2('interactive.compare.toggleDiffViewMode', "Toggle Inline/Side-by-Side Diff"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.diffSingle,
+				toggled: {
+					condition: EditorContextKeys.diffEditorInlineMode,
+					icon: Codicon.diff,
+				},
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 1,
+				}
+			});
+		}
+
+		runWithContext(_accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): void {
+			context.toggleDiffViewMode();
+		}
+	});
+
+	registerAction2(class OpenCompareBlockInDiffEditor extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openCompareBlockInDiffEditor',
+				title: localize2('interactive.compare.openInDiffEditor', "Open in Diff Editor"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.goToFile,
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 2,
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<void> {
+			const editorService = accessor.get(IEditorService);
+			const model = context.diffEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			await editorService.openEditor({
+				original: { resource: model.original.uri },
+				modified: { resource: model.modified.uri },
+			});
 		}
 	});
 }

@@ -127,11 +127,90 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('multiple inside workspace - block', () => t('echo hello > file1.txt && echo world > file2.txt', 'all', false, 1));
 		});
 
+		suite('hasSessionAutoApproval', () => {
+			async function tWithAutoApproval(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', hasSessionAutoApproval: boolean, expectedAutoApprove: boolean, expectedDisclaimers: number = 1) {
+				configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, blockDetectedFileWrites);
+
+				const workspace = new Workspace('test', [toWorkspaceFolder(cwd)]);
+				workspaceContextService.setWorkspace(workspace);
+
+				const options: ICommandLineAnalyzerOptions = {
+					commandLine,
+					cwd,
+					shell: 'bash',
+					os: OperatingSystem.Linux,
+					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
+					terminalToolSessionId: 'test',
+					chatSessionResource: undefined,
+					hasSessionAutoApproval,
+				};
+
+				const result = await analyzer.analyze(options);
+				strictEqual(result.isAutoApproveAllowed, expectedAutoApprove, `Expected auto approve to be ${expectedAutoApprove} for: ${commandLine}`);
+				strictEqual((result.disclaimers || []).length, expectedDisclaimers, `Expected ${expectedDisclaimers} disclaimers for: ${commandLine}`);
+			}
+
+			suite('blockDetectedFileWrites: outsideWorkspace', () => {
+				// /tmp writes are allowed only when session auto-approval is enabled
+				test('/tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', true, true));
+				test('/tmp subdirectory - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/sub/file.txt', 'outsideWorkspace', true, true));
+				test('/tmp - block when auto-approval disabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'outsideWorkspace', false, false));
+
+				// Other outside-workspace paths remain blocked even with auto-approval enabled
+				test('/etc - block even when auto-approval enabled', () => tWithAutoApproval('echo hello > /etc/config.txt', 'outsideWorkspace', true, false));
+				test('/home - block even when auto-approval enabled', () => tWithAutoApproval('echo hello > /home/user/file.txt', 'outsideWorkspace', true, false));
+				test('root - block even when auto-approval enabled', () => tWithAutoApproval('echo hello > /file.txt', 'outsideWorkspace', true, false));
+
+				// Mixed writes: /tmp allowed, but other outside paths still block
+				test('mixed /tmp and /etc - block even when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/a.txt && echo world > /etc/b.txt', 'outsideWorkspace', true, false));
+				test('mixed inside-workspace and /tmp - allow when auto-approval enabled', () => tWithAutoApproval('echo hello > file.txt && echo world > /tmp/b.txt', 'outsideWorkspace', true, true));
+			});
+
+			suite('blockDetectedFileWrites: all', () => {
+				// `all` setting still blocks /tmp writes regardless of session auto-approval
+				test('/tmp - block when auto-approval enabled', () => tWithAutoApproval('echo hello > /tmp/file.txt', 'all', true, false));
+			});
+		});
+
 		suite('complex scenarios', () => {
 			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
 			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
 			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
+		});
+
+		suite('sed in-place editing', () => {
+			// Basic -i flag variants (inside workspace)
+			test('sed -i inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -I (uppercase) inside workspace - allow', () => t('sed -I \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed --in-place inside workspace - allow', () => t('sed --in-place \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+
+			// Backup suffix variants (inside workspace)
+			test('sed -i.bak inside workspace - allow', () => t('sed -i.bak \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed --in-place=.bak inside workspace - allow', () => t('sed --in-place=.bak \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -i with empty backup (macOS) inside workspace - allow', () => t('sed -i \'\' \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+
+			// Combined flags (inside workspace)
+			test('sed -ni inside workspace - allow', () => t('sed -ni \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+			test('sed -n -i inside workspace - allow', () => t('sed -n -i \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 1));
+
+			// Multiple files (inside workspace)
+			test('sed -i multiple files inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file1.txt file2.txt', 'outsideWorkspace', true, 1));
+
+			// Outside workspace
+			test('sed -i outside workspace - block', () => t('sed -i \'s/foo/bar/\' /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('sed -i absolute path outside workspace - block', () => t('sed -i \'s/foo/bar/\' /etc/config', 'outsideWorkspace', false, 1));
+			test('sed -i mixed inside/outside - block', () => t('sed -i \'s/foo/bar/\' file.txt /tmp/other.txt', 'outsideWorkspace', false, 1));
+
+			// With blockDetectedFileWrites: all
+			test('sed -i with all setting - block', () => t('sed -i \'s/foo/bar/\' file.txt', 'all', false, 1));
+
+			// With blockDetectedFileWrites: never
+			test('sed -i with never setting - allow', () => t('sed -i \'s/foo/bar/\' file.txt', 'never', true, 1));
+
+			// Without -i flag (should not detect as file write)
+			test('sed without -i - no file write detected', () => t('sed \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 0));
+			test('sed with pipe - no file write detected', () => t('cat file.txt | sed \'s/foo/bar/\'', 'outsideWorkspace', true, 0));
 		});
 
 		suite('no cwd provided', () => {
@@ -255,6 +334,64 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('single-quoted relative path with spaces inside workspace - allow', () => t('Write-Host \'hello\' > \'file with spaces.txt\'', 'outsideWorkspace', true, 1));
 			test('single-quoted absolute path outside workspace - block', () => t('Write-Host \'hello\' > \'C:\\temp\\file.txt\'', 'outsideWorkspace', false, 1));
 			test('single-quoted absolute path to different drive - block', () => t('Write-Host \'hello\' > \'D:\\data\\file.txt\'', 'outsideWorkspace', false, 1));
+		});
+
+		suite('hasSessionAutoApproval', () => {
+			async function tWithAutoApproval(commandLine: string, blockDetectedFileWrites: 'never' | 'outsideWorkspace' | 'all', hasSessionAutoApproval: boolean, expectedAutoApprove: boolean, expectedDisclaimers: number = 1) {
+				configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, blockDetectedFileWrites);
+
+				const workspace = new Workspace('test', [toWorkspaceFolder(cwd)]);
+				workspaceContextService.setWorkspace(workspace);
+
+				const options: ICommandLineAnalyzerOptions = {
+					commandLine,
+					cwd,
+					shell: 'pwsh',
+					os: OperatingSystem.Windows,
+					treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
+					terminalToolSessionId: 'test',
+					chatSessionResource: undefined,
+					hasSessionAutoApproval,
+				};
+
+				const result = await analyzer.analyze(options);
+				strictEqual(result.isAutoApproveAllowed, expectedAutoApprove, `Expected auto approve to be ${expectedAutoApprove} for: ${commandLine}`);
+				strictEqual((result.disclaimers || []).length, expectedDisclaimers, `Expected ${expectedDisclaimers} disclaimers for: ${commandLine}`);
+			}
+
+			suite('blockDetectedFileWrites: outsideWorkspace', () => {
+				// User TEMP (AppData\Local\Temp) - allow only when auto-approval is enabled
+				test('user TEMP - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\file.txt', 'outsideWorkspace', true, true));
+				test('user TEMP subdirectory - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\sub\\file.txt', 'outsideWorkspace', true, true));
+				test('user TEMP - block when auto-approval disabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\file.txt', 'outsideWorkspace', false, false));
+
+				// System Windows\Temp - allow only when auto-approval is enabled
+				test('Windows\\Temp - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Windows\\Temp\\file.txt', 'outsideWorkspace', true, true));
+				test('Windows\\Temp - block when auto-approval disabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Windows\\Temp\\file.txt', 'outsideWorkspace', false, false));
+
+				// Top-level \tmp\ - allow only when auto-approval is enabled
+				test('\\tmp - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\tmp\\file.txt', 'outsideWorkspace', true, true));
+				test('\\tmp - block when auto-approval disabled', () => tWithAutoApproval('Write-Host "hello" > C:\\tmp\\file.txt', 'outsideWorkspace', false, false));
+
+				// Top-level \Temp\ (common dev convention) - allow only when auto-approval is enabled
+				test('\\Temp - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Temp\\file.txt', 'outsideWorkspace', true, true));
+
+				// Case-insensitive matching (Windows paths are case-insensitive)
+				test('user TEMP lowercase - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\users\\foo\\appdata\\local\\temp\\file.txt', 'outsideWorkspace', true, true));
+
+				// Other outside-workspace paths remain blocked even with auto-approval enabled
+				test('C:\\Windows\\System32 - block even when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Windows\\System32\\config.txt', 'outsideWorkspace', true, false));
+				test('different drive - block even when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > D:\\data\\file.txt', 'outsideWorkspace', true, false));
+
+				// Mixed writes: TEMP allowed, but other outside paths still block
+				test('mixed TEMP and System32 - block even when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\a.txt ; Write-Host "world" > C:\\Windows\\System32\\b.txt', 'outsideWorkspace', true, false));
+				test('mixed inside-workspace and TEMP - allow when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > file.txt ; Write-Host "world" > C:\\Users\\foo\\AppData\\Local\\Temp\\b.txt', 'outsideWorkspace', true, true));
+			});
+
+			suite('blockDetectedFileWrites: all', () => {
+				// `all` setting still blocks TEMP writes regardless of session auto-approval
+				test('user TEMP - block when auto-approval enabled', () => tWithAutoApproval('Write-Host "hello" > C:\\Users\\foo\\AppData\\Local\\Temp\\file.txt', 'all', true, false));
+			});
 		});
 	});
 

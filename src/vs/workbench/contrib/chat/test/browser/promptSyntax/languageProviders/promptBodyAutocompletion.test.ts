@@ -159,6 +159,10 @@ suite('PromptBodyAutocompletion', () => {
 						result: 'Use #tool:read to reference a tool.'
 					},
 					{
+						label: 'agent',
+						result: 'Use #tool:agent to reference a tool.'
+					},
+					{
 						label: 'tool1',
 						result: 'Use #tool:tool1 to reference a tool.'
 					},

@@ -7,6 +7,7 @@
 .monaco-workbench .part.titlebar {
 	display: flex;
 	flex-direction: row;
+	box-shadow: var(--vscode-shadow-md);
 }
 
 .monaco-workbench.mac .part.titlebar {
@@ -146,6 +147,10 @@
 	visibility: hidden;
 }
 
+.monaco-workbench .part.titlebar.inactive > * {
+	opacity: 0.6;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item > .action-label,
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item.monaco-dropdown-with-primary .action-label {
 	color: var(--vscode-titleBar-activeForeground);
@@ -168,7 +173,7 @@
 	border: 1px solid var(--vscode-commandCenter-border);
 	overflow: hidden;
 	margin: 0 6px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	height: 22px;
 	width: 38vw;
 	max-width: 600px;
@@ -196,6 +201,25 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick .search-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+/* Compact mode: left-aligned label, no icon, full width */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick.compact-mode {
+	margin: auto auto auto 0;
+	padding-left: 8px;
+	flex: 1;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:has(.compact-mode) > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	margin: 0;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:has(.compact-mode) > .monaco-toolbar {
+	flex: 1;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:has(.compact-mode) > .monaco-toolbar > .monaco-action-bar {
+	width: 100%;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple {
@@ -371,6 +395,19 @@
 
 .monaco-workbench .part.titlebar .window-controls-container .window-icon.window-close:hover {
 	color: white;
+}
+
+/* Center-Adjacent Toolbar (e.g., update indicator) */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container {
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	margin-right: auto;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .center-adjacent-toolbar-container.has-no-actions {
+	display: none;
 }
 
 /* Action Tool Bar Controls */

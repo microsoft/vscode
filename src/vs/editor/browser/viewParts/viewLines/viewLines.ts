@@ -412,6 +412,14 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return result;
 	}
 
+	public resetLineWidthCaches(): void {
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._visibleLines.getVisibleLine(lineNumber).resetCachedWidth();
+		}
+	}
+
 	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());

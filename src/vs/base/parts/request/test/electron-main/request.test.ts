@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
+import type * as http from 'http';
 import { AddressInfo } from 'net';
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../common/cancellation.js';
@@ -19,6 +19,7 @@ suite('Request', () => {
 	let server: http.Server;
 
 	setup(async () => {
+		const http = await import('http');
 		port = await new Promise<number>((resolvePort, rejectPort) => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {
@@ -48,6 +49,7 @@ suite('Request', () => {
 
 	teardown(async () => {
 		await new Promise<void>((resolve, reject) => {
+			server.closeAllConnections();
 			server.close(err => err ? reject(err) : resolve());
 		});
 	});
@@ -57,7 +59,8 @@ suite('Request', () => {
 			url: `http://127.0.0.1:${port}`,
 			headers: {
 				'echo-header': 'echo-value'
-			}
+			},
+			callSite: 'request.test.GET'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -73,6 +76,7 @@ suite('Request', () => {
 			type: 'POST',
 			url: `http://127.0.0.1:${port}/postpath`,
 			data: 'Some data',
+			callSite: 'request.test.POST'
 		}, CancellationToken.None);
 		assert.strictEqual(context.res.statusCode, 200);
 		assert.strictEqual(context.res.headers['content-type'], 'application/json');
@@ -90,6 +94,7 @@ suite('Request', () => {
 					type: 'GET',
 					url: `http://127.0.0.1:${port}/noreply`,
 					timeout: 123,
+					callSite: 'request.test.timeout'
 				}, CancellationToken.None);
 				assert.fail('Should fail with timeout');
 			} catch (err) {
@@ -105,6 +110,7 @@ suite('Request', () => {
 				const res = request({
 					type: 'GET',
 					url: `http://127.0.0.1:${port}/noreply`,
+					callSite: 'request.test.cancel'
 				}, source.token);
 				await new Promise(resolve => setTimeout(resolve, 100));
 				source.cancel();

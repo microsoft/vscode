@@ -11,13 +11,17 @@ import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IFileContent, IReadFileOptions } from '../../../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { FetchWebPageTool } from '../../../../electron-browser/builtInTools/fetchPageTool.js';
-import { TestFileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestFileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { MockTrustedDomainService } from '../../../../../url/test/browser/mockTrustedDomainService.js';
 import { InternalFetchWebPageToolId } from '../../../../common/tools/builtinTools/tools.js';
 import { MockChatService } from '../../../common/chatService/mockChatService.js';
 import { upcastDeepPartial } from '../../../../../../../base/test/common/mock.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { IAgentNetworkFilterService } from '../../../../../../../platform/networkFilter/common/networkFilterService.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -71,6 +75,13 @@ class ExtendedTestFileService extends TestFileService {
 	}
 }
 
+class MockAgentNetworkFilterService implements IAgentNetworkFilterService {
+	_serviceBrand: undefined;
+	onDidChange = Event.None;
+	isUriAllowed(_uri: URI): boolean { return true; }
+	formatError(uri: URI): string { return `Access to ${uri.authority} is blocked by network domain policy.`; }
+}
+
 suite('FetchWebPageTool', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -90,6 +101,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const testUrls = [
@@ -139,6 +152,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 			new MockTrustedDomainService([]),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		// Test empty array
@@ -188,10 +203,12 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const preparation = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://valid.com', 'test://valid/resource', 'invalid://invalid'] } },
+			{ parameters: { urls: ['https://valid.com', 'test://valid/resource', 'invalid://invalid'] }, toolCallId: 'test-call-1', chatSessionResource: undefined },
 			CancellationToken.None
 		);
 
@@ -200,6 +217,103 @@ suite('FetchWebPageTool', () => {
 		const messageText = typeof preparation.pastTenseMessage === 'string' ? preparation.pastTenseMessage : preparation.pastTenseMessage!.value;
 		assert.ok(messageText.includes('Fetched'), 'Should mention fetched resources');
 		assert.ok(messageText.includes('invalid://invalid'), 'Should mention invalid URL');
+	});
+
+	test('should not show confirmation dialog for file URIs inside the workspace', async () => {
+		// Use a workspace rooted at /workspaceRoot
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/workspaceRoot/plan.md'), 'Plan content'],
+			[URI.file('/workspaceRoot/subdir/notes.txt'), 'Notes content'],
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		// File inside workspace - should NOT trigger confirmation
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: [URI.file('/workspaceRoot/plan.md').toString()] }, toolCallId: 'test-file-in-ws', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.strictEqual(preparation.confirmationMessages?.title, undefined, 'File inside workspace should not show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, false, 'File inside workspace should not require post-confirmation');
+	});
+
+	test('should show confirmation dialog for file URIs outside the workspace', async () => {
+		// Use a workspace rooted at /workspaceRoot
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/tmp/external-plan.md'), 'External plan content'],
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(new ResourceMap<string>()),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]),
+			new MockChatService(),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		// File outside workspace - should still trigger confirmation
+		const preparation = await tool.prepareToolInvocation(
+			{ parameters: { urls: [URI.file('/tmp/external-plan.md').toString()] }, toolCallId: 'test-file-outside-ws', chatSessionResource: undefined },
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		assert.ok(preparation.confirmationMessages?.title, 'File outside workspace should show confirmation dialog');
+		assert.strictEqual(preparation.confirmationMessages?.confirmResults, true, 'File outside workspace should require post-confirmation');
+	});
+
+	test('workspace file mixed with untrusted web URI: only web URI triggers confirmation', async () => {
+		const workspaceRoot = URI.file('/workspaceRoot');
+		const workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+
+		const webContentMap = new ResourceMap<string>([
+			[URI.parse('https://example.com'), 'Web content']
+		]);
+		const fileContentMap = new ResourceMap<string | VSBuffer>([
+			[URI.file('/workspaceRoot/plan.md'), 'Plan content']
+		]);
+
+		const tool = new FetchWebPageTool(
+			new TestWebContentExtractorService(webContentMap),
+			new ExtendedTestFileService(fileContentMap),
+			new MockTrustedDomainService([]), // No trusted domains
+			new MockChatService(),
+			workspaceContextService,
+			new MockAgentNetworkFilterService(),
+		);
+
+		// Mix: one untrusted web URI + one workspace file URI
+		const preparation = await tool.prepareToolInvocation(
+			{
+				parameters: { urls: ['https://example.com', URI.file('/workspaceRoot/plan.md').toString()] },
+				toolCallId: 'test-mixed',
+				chatSessionResource: undefined
+			},
+			CancellationToken.None
+		);
+		assert.ok(preparation, 'Should return prepared invocation');
+		// Confirmation should only be for the web URI
+		assert.ok(preparation.confirmationMessages?.title, 'Should show confirmation for untrusted web URI');
+		// The confirmation message should mention only the web URI, not the workspace file
+		const msgValue = typeof preparation.confirmationMessages?.message === 'string'
+			? preparation.confirmationMessages.message
+			: preparation.confirmationMessages?.message?.value ?? '';
+		assert.ok(!msgValue.includes('/workspaceRoot/'), 'Confirmation message should not mention workspace file');
+		assert.ok(msgValue.includes('example.com'), 'Confirmation message should mention web URI');
 	});
 
 	test('should approve when all URLs were mentioned in chat', async () => {
@@ -226,10 +340,12 @@ suite('FetchWebPageTool', () => {
 					};
 				},
 			}),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const preparation1 = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://example.com'] }, chatSessionId: 'a' },
+			{ parameters: { urls: ['https://example.com'] }, toolCallId: 'test-call-2', chatSessionResource: LocalChatSessionUri.forSession('a') },
 			CancellationToken.None
 		);
 
@@ -237,7 +353,7 @@ suite('FetchWebPageTool', () => {
 		assert.strictEqual(preparation1.confirmationMessages?.title, undefined);
 
 		const preparation2 = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://other.com'] }, chatSessionId: 'a' },
+			{ parameters: { urls: ['https://other.com'] }, toolCallId: 'test-call-3', chatSessionResource: LocalChatSessionUri.forSession('a') },
 			CancellationToken.None
 		);
 
@@ -260,6 +376,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -308,6 +426,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -349,6 +469,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -396,6 +518,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -462,6 +586,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -502,6 +628,8 @@ suite('FetchWebPageTool', () => {
 			new ExtendedTestFileService(fileContentMap),
 			new MockTrustedDomainService(),
 			new MockChatService(),
+			new TestContextService(),
+			new MockAgentNetworkFilterService(),
 		);
 
 		const result = await tool.invoke(
@@ -546,6 +674,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -605,6 +735,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService([]),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -641,6 +773,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -683,6 +817,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -731,6 +867,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()), // Empty - all file ,
 				new MockTrustedDomainService([]),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const testUrls = [
@@ -765,6 +903,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService([]),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -791,6 +931,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(fileContentMap),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -828,6 +970,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -855,6 +999,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -887,6 +1033,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(
@@ -913,6 +1061,8 @@ suite('FetchWebPageTool', () => {
 				new ExtendedTestFileService(new ResourceMap<string | VSBuffer>()),
 				new MockTrustedDomainService(),
 				new MockChatService(),
+				new TestContextService(),
+				new MockAgentNetworkFilterService(),
 			);
 
 			const result = await tool.invoke(

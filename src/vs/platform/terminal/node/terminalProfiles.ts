@@ -16,8 +16,8 @@ import { enumeratePowerShellInstallations } from '../../../base/node/powershell.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from '../common/terminal.js';
-import { getWindowsBuildNumber } from './terminalEnvironment.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 const enum Constants {
 	UnixShellsPath = '/etc/shells'
@@ -86,7 +86,7 @@ async function detectAvailableWindowsProfiles(
 
 	// WSL 2 released in the May 2020 Update, this is where the `-d` flag was added that we depend
 	// upon
-	const allowWslDiscovery = getWindowsBuildNumber() >= 19041;
+	const allowWslDiscovery = await getWindowsBuildNumberAsync() >= 19041;
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 

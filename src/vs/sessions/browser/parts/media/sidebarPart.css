@@ -1,0 +1,127 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide traffic light spacer in fullscreen (traffic lights are not shown) */
+.monaco-workbench.fullscreen .part.sidebar .window-controls-container {
+	display: none;
+}
+
+/* Make the sidebar title area draggable to move the window */
+.agent-sessions-workbench .part.sidebar > .composite.title {
+	position: relative;
+}
+
+.agent-sessions-workbench .part.sidebar > .composite.title > .titlebar-drag-region {
+	top: 0;
+	left: 0;
+	display: block;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	-webkit-app-region: drag;
+}
+
+/* Interactive elements in the title area must not be draggable */
+.agent-sessions-workbench .part.sidebar > .composite.title .action-item {
+	-webkit-app-region: no-drag;
+}
+
+/* Toggled state for the sidebar toggle button in the sidebar title area */
+.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-label.checked {
+	background: var(--vscode-toolbar-activeBackground);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Preserve toggled background when the toggle button is hovered or focused */
+.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-label.checked:hover,
+.agent-sessions-workbench .part.sidebar > .composite.title > .global-actions-left .action-label.checked:focus {
+	background: var(--vscode-toolbar-activeBackground);
+}
+/* Sidebar Footer Container */
+.agent-sessions-workbench .part.sidebar > .sidebar-footer {
+	display: flex;
+	align-items: stretch;
+	gap: 4px;
+	padding: 6px 0 0 0;
+	margin: 0 10px 2px 10px;
+	flex-shrink: 0;
+}
+
+/* Make the toolbar fill the footer width and stack actions vertically */
+.monaco-workbench .part.sidebar > .sidebar-footer .monaco-toolbar,
+.monaco-workbench .part.sidebar > .sidebar-footer .monaco-action-bar,
+
+.monaco-workbench .part.sidebar > .sidebar-footer .actions-container {
+	width: 100%;
+	max-width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	cursor: default;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .action-item {
+	width: 100%;
+	max-width: 100%;
+	cursor: default;
+}
+
+/* ---- Phone Layout: Sidebar Drawer Overlay ---- */
+
+/* On phone, the sidebar is a full-width drawer that slides over the chat.
+	It covers the full viewport below the mobile top bar; the top bar's
+	sidebar toggle button remains visible and is used to dismiss it.
+
+	The drawer slides in/out with a transition (not a keyframe animation) so
+	that interrupted toggles retarget smoothly from the current position
+	rather than restarting. The split-view wrapper toggles `display: none`
+	via a `.visible` class; `transition-behavior: allow-discrete` defers
+	the discrete `display` change until the slide-out completes, and
+	`@starting-style` provides the offscreen origin for the slide-in. */
+.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.sidebar) {
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	bottom: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	z-index: 250;
+	transform: translateX(0);
+	transition:
+		transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
+		display 260ms allow-discrete;
+}
+
+/* Slide-in starting state (applies on each transition into .visible) */
+@starting-style {
+	.agent-sessions-workbench.phone-layout .split-view-view.visible:has(> .part.sidebar) {
+		transform: translateX(-100%);
+	}
+}
+
+/* Slide-out target: when `.visible` is removed, splitview's own rule sets
+	`display: none`. With `allow-discrete` above, the transform animates first
+	and the discrete `display` swap happens at the end of the transition. */
+.agent-sessions-workbench.phone-layout .split-view-view:not(.visible):has(> .part.sidebar) {
+	transform: translateX(-100%);
+}
+
+/* The sidebar Part inside fills its container */
+.agent-sessions-workbench.phone-layout .part.sidebar {
+	width: 100%;
+	height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench.phone-layout .split-view-view:has(> .part.sidebar) {
+		transition: none;
+	}
+}
+
+/* Increase sidebar footer action button height for touch */
+.agent-sessions-workbench.phone-layout .part.sidebar > .sidebar-footer .sidebar-action-button {
+	min-height: 44px;
+	padding: 8px 12px;
+}

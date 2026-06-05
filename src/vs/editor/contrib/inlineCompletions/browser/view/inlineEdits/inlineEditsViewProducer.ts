@@ -10,7 +10,6 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { Range } from '../../../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../../../common/core/edits/textEdit.js';
-import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { ModelPerInlineEdit } from './inlineEditsModel.js';
@@ -31,17 +30,15 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		if (!state) { return undefined; }
 		const action = state.inlineSuggestion.action;
 
-		const text = new TextModelText(textModel);
-
 		let diffEdits: TextEdit | undefined;
 
 		if (action?.kind === 'edit') {
 			const editOffset = action.stringEdit;
-
+			const t = state.inlineSuggestion.originalTextRef.getTransformer();
 			const edits = editOffset.replacements.map(e => {
 				const innerEditRange = Range.fromPositions(
-					textModel.getPositionAt(e.replaceRange.start),
-					textModel.getPositionAt(e.replaceRange.endExclusive)
+					t.getPosition(e.replaceRange.start),
+					t.getPosition(e.replaceRange.endExclusive)
 				);
 				return new TextReplacement(innerEditRange, e.newText);
 			});
@@ -51,7 +48,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		}
 
 		return new InlineEditWithChanges(
-			text,
+			state.inlineSuggestion.originalTextRef,
 			action,
 			diffEdits,
 			model.primaryPosition.read(undefined),

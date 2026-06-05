@@ -8,10 +8,11 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -20,12 +21,14 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { ConfigureLanguageModelsOptions, ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 
 type LanguageModelsProviderGroups = Mutable<ILanguageModelsProviderGroup>[];
 
@@ -34,25 +37,32 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	declare _serviceBrand: undefined;
 
 	private readonly modelsConfigurationFile: URI;
+	get configurationFile(): URI { return this.modelsConfigurationFile; }
 
-	private readonly _onDidChangeLanguageModelGroups = new Emitter<void>();
-	readonly onDidChangeLanguageModelGroups: Event<void> = this._onDidChangeLanguageModelGroups.event;
+	private readonly _onDidChangeLanguageModelGroups = this._register(new Emitter<readonly ILanguageModelsProviderGroup[]>());
+	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]> = this._onDidChangeLanguageModelGroups.event;
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
+
+	/** Resolved once the first config-file load attempt completes; assigned exactly once in the ctor. Rejections are swallowed so consumers can treat readiness as "first load attempted". */
+	private readonly _whenReady: Promise<void>;
+	get whenReady(): Promise<void> { return this._whenReady; }
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'chatLanguageModels.json');
-		this.updateLanguageModelsConfiguration();
-		this._register(fileService.watch(this.modelsConfigurationFile));
+		this.modelsConfigurationFile = userDataProfileService.currentProfile.languageModelsResource;
+		this._whenReady = this.updateLanguageModelsConfiguration().catch(() => { /* swallow: readiness signals "attempted", not "succeeded" */ });
+		// Watch the parent folder for reliable change detection across platforms (especially Windows
+		// where `fs.watch` on individual files can miss in-place writes).
+		this._register(fileService.watch(uriIdentityService.extUri.dirname(this.modelsConfigurationFile)));
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.contains(this.modelsConfigurationFile)) {
 				this.updateLanguageModelsConfiguration();
@@ -61,11 +71,29 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	}
 
 	private setLanguageModelsConfiguration(languageModelsConfiguration: LanguageModelsProviderGroups): void {
-		if (equals(this.languageModelsProviderGroups, languageModelsConfiguration)) {
-			return;
+		const changedGroups: ILanguageModelsProviderGroup[] = [];
+		const oldGroupMap = new Map(this.languageModelsProviderGroups.map(g => [`${g.vendor}:${g.name}`, g]));
+		const newGroupMap = new Map(languageModelsConfiguration.map(g => [`${g.vendor}:${g.name}`, g]));
+
+		// Find added or modified groups
+		for (const [key, newGroup] of newGroupMap) {
+			const oldGroup = oldGroupMap.get(key);
+			if (!oldGroup || !equals(oldGroup, newGroup)) {
+				changedGroups.push(newGroup);
+			}
 		}
+
+		// Find removed groups
+		for (const [key, oldGroup] of oldGroupMap) {
+			if (!newGroupMap.has(key)) {
+				changedGroups.push(oldGroup);
+			}
+		}
+
 		this.languageModelsProviderGroups = languageModelsConfiguration;
-		this._onDidChangeLanguageModelGroups.fire();
+		if (changedGroups.length > 0) {
+			this._onDidChangeLanguageModelGroups.fire(changedGroups);
+		}
 	}
 
 	private async updateLanguageModelsConfiguration(): Promise<void> {
@@ -129,9 +157,16 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		await this.updateLanguageModelsConfiguration();
 	}
 
-	async configureLanguageModels(range?: IRange): Promise<void> {
-		const editor = await this.editorGroupsService.activeGroup.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
-		if (!editor || !range) {
+	async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
+		// Mirror the surface that the chat models editor is currently shown in: if
+		// it lives inside the modal editor part, open the JSON in the modal too;
+		// otherwise fall back to the default group resolution (regular editor area).
+		const preferredGroup = this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === this.editorGroupsService.activeModalEditorPart ? MODAL_GROUP : undefined;
+		const editor = await this.editorService.openEditor({
+			resource: this.modelsConfigurationFile,
+			options: { override: DEFAULT_EDITOR_ASSOCIATION.id }
+		}, preferredGroup);
+		if (!editor || !options?.group) {
 			return;
 		}
 
@@ -140,10 +175,41 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			return;
 		}
 
-		const position = { lineNumber: range.startLineNumber, column: range.startColumn };
-		codeEditor.setPosition(position);
-		codeEditor.revealPositionNearTop(position);
-		codeEditor.focus();
+		if (options.snippet) {
+			// Insert snippet at the end of the last property line (before the closing brace line), with comma prepended
+			const model = codeEditor.getModel();
+			if (!model) {
+				return;
+			}
+			const targetRange = options.snippetTarget === 'models' ? options.group.modelsRange : options.group.range;
+			if (!targetRange) {
+				return;
+			}
+			const models = options.group.models;
+			const isModelsArray = options.snippetTarget === 'models' && Array.isArray(models);
+			const emptyModelsArray = isModelsArray && models.length === 0;
+			const insertBeforeModelsArrayEnd = emptyModelsArray || (isModelsArray && targetRange.startLineNumber === targetRange.endLineNumber);
+			const lastPropertyLine = targetRange.endLineNumber - 1;
+			const insertPosition = insertBeforeModelsArrayEnd ? {
+				lineNumber: targetRange.endLineNumber,
+				column: targetRange.endColumn - 1
+			} : {
+				lineNumber: lastPropertyLine,
+				column: model.getLineLength(lastPropertyLine) + 1
+			};
+			codeEditor.setPosition(insertPosition);
+			codeEditor.revealPositionNearTop(insertPosition);
+			codeEditor.focus();
+			SnippetController2.get(codeEditor)?.insert(emptyModelsArray ? options.snippet : ',\n' + options.snippet);
+		} else {
+			if (!options.group.range) {
+				return;
+			}
+			const position = { lineNumber: options.group.range.startLineNumber, column: options.group.range.startColumn };
+			codeEditor.setPosition(position);
+			codeEditor.revealPositionNearTop(position);
+			codeEditor.focus();
+		}
 	}
 
 	private async withLanguageModelsProviderGroups(update?: (languageModelsProviderGroups: LanguageModelsProviderGroups) => Promise<LanguageModelsProviderGroups>): Promise<LanguageModelsProviderGroups> {
@@ -161,6 +227,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			const updatedLanguageModelsProviderGroups = await update(languageModelsProviderGroups);
 			for (const group of updatedLanguageModelsProviderGroups) {
 				delete group.range;
+				delete group.modelsRange;
 			}
 			model.setValue(JSON.stringify(updatedLanguageModelsProviderGroups, undefined, '\t'));
 			await this.textFileService.save(this.modelsConfigurationFile);
@@ -231,19 +298,37 @@ export function parseLanguageModelsProviderGroups(model: ITextModel): LanguageMo
 				currentProperty = null;
 				return;
 			}
-			const array: unknown[] = [];
+			const array: unknown[] & { _parentModelsRange?: Mutable<IRange> } = [];
+			const parent = currentParent as Record<string, unknown> & { range?: IRange; modelsRange?: Mutable<IRange> };
+			if (currentProperty === 'models' && parent.range) {
+				const start = model.getPositionAt(offset);
+				const end = model.getPositionAt(offset + length);
+				parent.modelsRange = {
+					startLineNumber: start.lineNumber,
+					startColumn: start.column,
+					endLineNumber: end.lineNumber,
+					endColumn: end.column
+				};
+				array._parentModelsRange = parent.modelsRange;
+			}
 			onValue(array, offset, length);
 			previousParents.push(currentParent);
 			currentParent = array;
 			currentProperty = null;
 		},
 		onArrayEnd: (offset: number, length: number) => {
-			const parent = currentParent as { _parentConfigurationRange?: Mutable<IRange> };
+			const parent = currentParent as { _parentConfigurationRange?: Mutable<IRange>; _parentModelsRange?: Mutable<IRange> };
 			if (parent._parentConfigurationRange) {
 				const end = model.getPositionAt(offset + length);
 				parent._parentConfigurationRange.endLineNumber = end.lineNumber;
 				parent._parentConfigurationRange.endColumn = end.column;
 				delete parent._parentConfigurationRange;
+			}
+			if (parent._parentModelsRange) {
+				const end = model.getPositionAt(offset + length);
+				parent._parentModelsRange.endLineNumber = end.lineNumber;
+				parent._parentModelsRange.endColumn = end.column;
+				delete parent._parentModelsRange;
 			}
 			currentParent = previousParents.pop();
 		},
@@ -263,13 +348,11 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILanguageModelsConfigurationService languageModelsConfigurationService: ILanguageModelsConfigurationService,
 	) {
 		super();
-		const modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'models.json');
 		const registry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-		this._register(registry.registerSchemaAssociation(languageModelsSchemaId, modelsConfigurationFile.toString()));
+		this._register(registry.registerSchemaAssociation(languageModelsSchemaId, languageModelsConfigurationService.configurationFile.toString()));
 
 		this.updateSchema(registry);
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.updateSchema(registry)));
@@ -277,6 +360,32 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 
 	private updateSchema(registry: IJSONContributionRegistry): void {
 		const vendors = this.languageModelsService.getVendors();
+
+		// Build per-model configuration schemas
+		const modelSchemas: IJSONSchema[] = [];
+		const modelIds = this.languageModelsService.getLanguageModelIds();
+		for (const modelId of modelIds) {
+			const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+			if (metadata?.configurationSchema) {
+				modelSchemas.push({
+					if: {
+						properties: {
+							vendor: { const: metadata.vendor }
+						}
+					},
+					then: {
+						properties: {
+							settings: {
+								type: 'object',
+								properties: {
+									[metadata.id]: metadata.configurationSchema
+								}
+							}
+						}
+					}
+				});
+			}
+		}
 
 		const schema: IJSONSchema = {
 			type: 'array',
@@ -286,16 +395,23 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 						type: 'string',
 						enum: vendors.map(v => v.vendor)
 					},
-					name: { type: 'string' }
+					name: { type: 'string' },
+					settings: {
+						type: 'object',
+						description: localize('settings.perModelConfig', "Per-model settings"),
+					}
 				},
-				allOf: vendors.map(vendor => ({
-					if: {
-						properties: {
-							vendor: { const: vendor.vendor }
-						}
-					},
-					then: vendor.configuration
-				})),
+				allOf: [
+					...vendors.map(vendor => ({
+						if: {
+							properties: {
+								vendor: { const: vendor.vendor }
+							}
+						},
+						then: vendor.configuration
+					})),
+					...modelSchemas
+				],
 				required: ['vendor', 'name']
 			}
 		};

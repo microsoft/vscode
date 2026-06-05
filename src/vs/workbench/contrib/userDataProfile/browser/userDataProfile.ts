@@ -7,12 +7,13 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { isWeb } from '../../../../base/common/platform.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, PROFILE_EXTENSION, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, PROFILE_EXTENSION, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,7 +27,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
@@ -34,6 +35,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -43,7 +45,6 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	static readonly ID = 'workbench.contrib.userDataProfiles';
 
 	private readonly currentProfileContext: IContextKey<string>;
-	private readonly isCurrentProfileTransientContext: IContextKey<boolean>;
 	private readonly hasProfilesContext: IContextKey<boolean>;
 
 	constructor(
@@ -54,7 +55,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IURLService private readonly urlService: IURLService,
@@ -63,18 +64,15 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		super();
 
 		this.currentProfileContext = CURRENT_PROFILE_CONTEXT.bindTo(contextKeyService);
-		this.isCurrentProfileTransientContext = IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.bindTo(contextKeyService);
 
 		this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
-		this.isCurrentProfileTransientContext.set(!!this.userDataProfileService.currentProfile.isTransient);
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
 			this.currentProfileContext.set(this.userDataProfileService.currentProfile.id);
-			this.isCurrentProfileTransientContext.set(!!this.userDataProfileService.currentProfile.isTransient);
 		}));
 
 		this.hasProfilesContext = HAS_PROFILES_CONTEXT.bindTo(contextKeyService);
-		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
-		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1)));
+		this.hasProfilesContext.set(this.userDataProfilesService.profiles.filter(p => !p.isInternal).length > 1);
+		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.filter(p => !p.isInternal).length > 1)));
 
 		this.registerEditor();
 		this.registerActions();
@@ -106,7 +104,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private async openProfilesEditor(): Promise<IUserDataProfilesEditor | undefined> {
-		const editor = await this.editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
+		const editor = await this.editorService.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
 		return editor as IUserDataProfilesEditor;
 	}
 
@@ -130,10 +128,24 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(dndRegistry.registerDropHandler(new class UserDataProfileDropHandler implements IResourceDropHandler {
 			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				const uriIdentityService = accessor.get(IUriIdentityService);
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				const editorService = accessor.get(IEditorService);
+				const textEditorService = accessor.get(ITextEditorService);
+				const notificationService = accessor.get(INotificationService);
 				if (uriIdentityService.extUri.extname(resource) === `.${PROFILE_EXTENSION}`) {
+					const template = await userDataProfileImportExportService.resolveProfileTemplate(resource);
+					if (!template) {
+						notificationService.warn(localize('invalid profile', "The dropped profile is invalid."));
+						editorService.openEditor(textEditorService.createTextEditor({ resource }));
+						return true;
+					}
 					const editor = await that.openProfilesEditor();
 					if (editor) {
-						editor.createNewProfile(resource);
+						try {
+							await editor.createNewProfile(resource);
+						} catch (error) {
+							return false;
+						}
 					}
 					return true;
 				}
@@ -181,7 +193,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: ProfilesMenu,
 			group: '2_configuration',
 			order: 1,
-			when: HAS_PROFILES_CONTEXT
+			when: ContextKeyExpr.and(HAS_PROFILES_CONTEXT, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -198,7 +210,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerProfilesActions(): void {
 		this.profilesDisposable.value = new DisposableStore();
 		for (const profile of this.userDataProfilesService.profiles) {
-			if (!profile.isTransient) {
+			if (!profile.isInternal) {
 				this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
 				this.profilesDisposable.value.add(this.registerNewWindowAction(profile));
 			}
@@ -249,10 +261,12 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const hostService = accessor.get(IHostService);
 
 				const pick = await quickInputService.pick(
-					userDataProfilesService.profiles.map(profile => ({
-						label: profile.name,
-						profile
-					})),
+					userDataProfilesService.profiles
+						.filter(profile => !profile.isInternal)
+						.map(profile => ({
+							label: profile.name,
+							profile
+						})),
 					{
 						title: localize('new window with profile', "New Window with Profile"),
 						placeHolder: localize('pick profile', "Select Profile"),
@@ -269,6 +283,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const disposables = new DisposableStore();
 
 		const id = `workbench.action.openProfile.${profile.name.replace('/\s+/', '_')}`;
+		const precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
 
 		disposables.add(registerAction2(class NewWindowAction extends Action2 {
 
@@ -282,7 +297,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					menu: {
 						id: OpenProfileMenu,
 						group: '0_profiles',
-						when: HAS_PROFILES_CONTEXT
+						when: precondition
 					}
 				});
 			}
@@ -298,7 +313,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				id,
 				category: PROFILES_CATEGORY,
 				title: localize2('open', "Open {0} Profile", profile.name),
-				precondition: HAS_PROFILES_CONTEXT
+				precondition
 			},
 		}));
 
@@ -321,6 +336,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 				const items: Array<IQuickPickItem & { profile: IUserDataProfile }> = [];
 				for (const profile of that.userDataProfilesService.profiles) {
+					if (profile.isInternal) {
+						continue;
+					}
 					items.push({
 						id: profile.id,
 						label: profile.id === that.userDataProfileService.currentProfile.id ? `$(check) ${profile.name}` : profile.name,
@@ -359,7 +377,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
 							order: 1,
-							when: HAS_PROFILES_CONTEXT.negate()
+							when: ContextKeyExpr.and(HAS_PROFILES_CONTEXT.negate(), IsSessionsWindowContext.negate())
 						},
 						{
 							id: ProfilesMenu,
@@ -370,9 +388,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				});
 			}
 			run(accessor: ServicesAccessor) {
-				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const editorService = accessor.get(IEditorService);
 				const instantiationService = accessor.get(IInstantiationService);
-				return editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(instantiationService));
+				return editorService.openEditor(new UserDataProfilesEditorInput(instantiationService));
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
@@ -479,7 +497,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				const userDataProfileManagementService = accessor.get(IUserDataProfileManagementService);
 				const notificationService = accessor.get(INotificationService);
 
-				const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isTransient);
+				const profiles = userDataProfilesService.profiles.filter(p => !p.isDefault && !p.isInternal);
 				if (profiles.length) {
 					const picks = await quickInputService.pick(
 						profiles.map(profile => ({
@@ -533,8 +551,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		type UserProfilesCountEvent = {
 			count: number;
 		};
-		if (this.userDataProfilesService.profiles.length > 1) {
-			this.telemetryService.publicLog2<UserProfilesCountEvent, UserProfilesCountClassification>('profiles:count', { count: this.userDataProfilesService.profiles.length - 1 });
+		const count = this.userDataProfilesService.profiles.filter(p => !p.isInternal).length - 1;
+		if (count > 0) {
+			this.telemetryService.publicLog2<UserProfilesCountEvent, UserProfilesCountClassification>('profiles:count', { count });
 		}
 
 		const workspaceId = await this.workspaceTagsService.getTelemetryWorkspaceId(this.workspaceContextService.getWorkspace(), this.workspaceContextService.getWorkbenchState());

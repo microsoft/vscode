@@ -55,6 +55,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 	public override dispose(): void {
 		this._isDisposed = true;
+		this._tokenizeDebouncer.dispose();
 		super.dispose();
 	}
 

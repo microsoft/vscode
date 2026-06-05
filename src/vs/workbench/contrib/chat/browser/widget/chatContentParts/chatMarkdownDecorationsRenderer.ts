@@ -245,7 +245,7 @@ export class ChatMarkdownDecorationsRenderer {
 			return;
 		}
 
-		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data));
+		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
 		store.add(this.chatMarkdownAnchorService.register(inlineAnchor));
 	}
 
@@ -259,7 +259,6 @@ export class ChatMarkdownDecorationsRenderer {
 		container.appendChild(alias);
 		return container;
 	}
-
 
 	private injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
 		const command = href.match(/command:([^\)]+)/)?.[1];

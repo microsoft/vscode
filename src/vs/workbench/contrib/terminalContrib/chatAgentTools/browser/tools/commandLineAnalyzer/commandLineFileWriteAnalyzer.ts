@@ -47,13 +47,22 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
 		let fileWrites: FileWrite[] = [];
+
+		// Get file writes from redirections (via tree-sitter grammar)
 		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
-		if (capturedFileWrites.length) {
+
+		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
+
+		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
+
+		if (allCapturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
-				fileWrites = capturedFileWrites.map(e => {
+				fileWrites = allCapturedFileWrites.map(e => {
 					if (e === nullDevice) {
 						return e;
 					}
@@ -79,7 +88,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				});
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = capturedFileWrites;
+				fileWrites = allCapturedFileWrites;
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));
@@ -137,9 +146,9 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
-							if (fileUri.fsPath.match(/[$\(\){}`]/)) {
+							if (fileUri.fsPath.match(/[$\(\){}`~]/)) {
 								isAutoApproveAllowed = false;
-								this._log('File write blocked due to likely containing a variable or sub-command', fileUri.toString());
+								this._log('File write blocked due to likely containing a variable, sub-command, or tilde expansion', fileUri.toString());
 								break;
 							}
 
@@ -148,6 +157,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
 							);
 							if (!isInsideWorkspace) {
+								// Allow writes to OS temp locations when the user has opted into
+								// "Allow All Commands in this Session" via the confirmation.
+								if (options.hasSessionAutoApproval && this._isInTempDirectory(fileUri.path, options.os)) {
+									continue;
+								}
 								isAutoApproveAllowed = false;
 								this._log('File write blocked outside workspace', fileUri.toString());
 								break;
@@ -183,5 +197,22 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			isAutoApproveAllowed,
 			disclaimers,
 		};
+	}
+
+	/**
+	 * Returns true if the given URI path points inside an OS temporary directory.
+	 * On posix systems this matches `/tmp/`. On Windows this matches any `temp`
+	 * or `tmp` directory segment (case-insensitive), which covers the canonical
+	 * user temp (`...\AppData\Local\Temp\`), system temp (`C:\Windows\Temp\`),
+	 * and common dev conventions like `C:\Temp\` and `C:\tmp\`.
+	 */
+	private _isInTempDirectory(uriPath: string, os: OperatingSystem | undefined): boolean {
+		if (os === OperatingSystem.Windows) {
+			// Windows paths from URI.with({path}) keep their original backslashes,
+			// so accept either separator. Require content after the segment so the
+			// directory itself is not matched.
+			return /[\\/]te?mp[\\/].+/i.test(uriPath);
+		}
+		return uriPath.startsWith('/tmp/');
 	}
 }

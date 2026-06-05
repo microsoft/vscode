@@ -124,6 +124,8 @@ export interface IExtensionsNotification {
 	readonly message: string;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
+	readonly query?: string;
+	readonly action?: { readonly label: string; run(): void };
 	dismiss(): void;
 }
 
@@ -159,6 +161,8 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
+	isAutoUpdateDelayed(extension: IExtension): boolean;
+	getAutoUpdateDelayRemaining(extension: IExtension): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
@@ -190,7 +194,7 @@ export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
 
 export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
+	autoUpdate: AutoUpdateConfigurationValue;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;
@@ -258,6 +262,7 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
+export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
