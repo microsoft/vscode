@@ -10,7 +10,7 @@
 	height: 22px;
 	padding: 0 4px;
 	margin: 0 4px 0 2px;
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
 	-webkit-app-region: no-drag;
