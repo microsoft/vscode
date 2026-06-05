@@ -411,14 +411,18 @@ export interface IStatelessNextEditTelemetry {
 	readonly cursorJumpResponse: string | undefined;
 	/**
 	 * Raw chat messages used to construct the cursor-jump prompt, kept
-	 * structured (not JSON-stringified) so debug/test tooling can read them
-	 * back without parsing. Not emitted to telemetry sinks.
+	 * structured (not JSON-stringified) so in-process debug / datagen tooling
+	 * can read them back without parsing. Stripped from the telemetry payload
+	 * in `LlmNESTelemetryBuilder.build()` — see the destructure there — so it
+	 * never leaves the process. Do NOT add this field to any sink-bound
+	 * payload: it can contain full prompt content (source code).
 	 */
 	readonly cursorJumpRawMessages: Raw.ChatMessage[] | undefined;
 	/**
 	 * Document-line offset range the model can reference in its response.
-	 * Used by debug/test tooling to validate predicted line numbers without
-	 * re-running the predictor.
+	 * Used by in-process debug / datagen tooling to validate predicted line
+	 * numbers without re-running the predictor. Stripped from the telemetry
+	 * payload alongside `cursorJumpRawMessages`.
 	 */
 	readonly cursorJumpKeptRange: OffsetRange | undefined;
 
