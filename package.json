@@ -266,6 +266,7 @@
   "pnpm": {
     "overrides": {
       "node-gyp-build": "4.8.1",
+      "node-gyp": "10.3.1",
       "kerberos@2.1.1>node-addon-api": "7.1.0",
       "serialize-javascript": "^7.0.3",
       "ssh2>cpu-features": "0.0.0",
