@@ -30,6 +30,7 @@ export interface IWelcomePageCallbacks {
 export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	readonly container: HTMLElement;
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
+	setHarnessLabel(label: string): void;
 	focus(): void;
 	/** Called when the welcome page becomes visible after navigation — clears any transient state. */
 	reset?(): void;
@@ -51,7 +52,7 @@ export class AICustomizationWelcomePage extends Disposable {
 		commandService: ICommandService,
 		workspaceService: IAICustomizationWorkspaceService,
 		hoverService: IHoverService,
-		harnessLabel?: string,
+		harnessLabel: string,
 	) {
 		super();
 
@@ -63,6 +64,10 @@ export class AICustomizationWelcomePage extends Disposable {
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
 		this.implementation.rebuildCards(visibleSectionIds);
+	}
+
+	setHarnessLabel(label: string): void {
+		this.implementation.setHarnessLabel(label);
 	}
 
 	focus(): void {

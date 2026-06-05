@@ -38,6 +38,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	private readonly scrollable: DomScrollableElement;
 	private cardsContainer: HTMLElement | undefined;
 	private firstCard: HTMLElement | undefined;
+	private heading: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
 
 	private sentLabel: HTMLElement | undefined;
@@ -94,7 +95,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		_commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly hoverService: IHoverService,
-		private readonly harnessLabel?: string,
+		private harnessLabel: string,
 	) {
 		super();
 
@@ -115,11 +116,8 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		const welcomeInner = DOM.append(this.container, $('.welcome-prompts-inner'));
 
-		const heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
-		const headingText = this.harnessLabel
-			? localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel)
-			: localize('welcomeHeading', "Agent Customizations");
-		heading.textContent = headingText;
+		this.heading = DOM.append(welcomeInner, $('h2.welcome-prompts-heading'));
+		this.updateHeading();
 
 		const subtitle = DOM.append(welcomeInner, $('p.welcome-prompts-subtitle'));
 		subtitle.textContent = localize('welcomeSubtitle', "Tailor how agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
@@ -287,6 +285,20 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 
 		// Content changed — recompute scroll dimensions.
 		this.scrollable.scanDomNode();
+	}
+
+	setHarnessLabel(label: string): void {
+		if (this.harnessLabel === label) {
+			return;
+		}
+		this.harnessLabel = label;
+		this.updateHeading();
+	}
+
+	private updateHeading(): void {
+		if (this.heading) {
+			this.heading.textContent = localize('welcomeHeadingWithHarness', "Agent Customizations for {0}", this.harnessLabel);
+		}
 	}
 
 	focus(): void {

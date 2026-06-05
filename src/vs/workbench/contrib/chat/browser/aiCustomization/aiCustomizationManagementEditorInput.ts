@@ -36,6 +36,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	 */
 	static getOrCreate(): AICustomizationManagementEditorInput {
 		if (!AICustomizationManagementEditorInput._instance || AICustomizationManagementEditorInput._instance.isDisposed()) {
+			AICustomizationManagementEditorInput._activeHarnessLabel = '';
 			AICustomizationManagementEditorInput._instance = new AICustomizationManagementEditorInput();
 		}
 		return AICustomizationManagementEditorInput._instance;
