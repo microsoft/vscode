@@ -2387,15 +2387,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	/**
-	 * Resolves a language-model identifier for terminal-tool steering messages
-	 * (background completion / input-needed / disposal notifications).
-	 *
-	 * Calls `selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' })`
-	 * which returns an array of opaque identifier strings matching the filter.
-	 * We take the first match and pass it as `userSelectedModelId` on steering
-	 * requests. The alias is published by the Copilot extension and already
-	 * honors the `chat.utilitySmallModel` setting. Returns `undefined` if no
-	 * model matches, in which case the caller falls back to the conversation model.
+	 * Resolves the `copilot/copilot-utility-small` model identifier for
+	 * steering messages. Returns `undefined` if unavailable.
 	 */
 	private async _resolveUtilitySmallModelId(): Promise<string | undefined> {
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
@@ -2779,11 +2772,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture mode/tools from the last request so the steering message uses
-		// the same settings as the original conversation (not defaults). The
-		// model is intentionally not inherited — these steering notifications
-		// are agent-internal turns and should be billed to the copilot utility
-		// small alias when available, falling back to the conversation model.
+		// Capture mode/tools from the last request. The model is resolved
+		// separately via the utility-small alias (falling back to conversation model).
 		const lastRequest = sessionRef.object.lastRequest;
 		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
 		if (lastRequest) {
@@ -3038,11 +3028,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				disposeNotification();
 				return;
 			}
-			// When the user manually closes the terminal (e.g. killing a
-			// long-running dev server they no longer want), do not send a
-			// steering message. The user has signaled they are done with
-			// the terminal; auto-triggering another agent turn would burn
-			// credits for an action the user didn't request (#317059).
+			// Skip steering message when user manually closed the terminal (#317059).
 			if (terminalInstance.exitReason === TerminalExitReason.User) {
 				this._logService.debug(`RunInTerminalTool: Background terminal ${termId} closed by user, suppressing steering message`);
 				disposeNotification();
