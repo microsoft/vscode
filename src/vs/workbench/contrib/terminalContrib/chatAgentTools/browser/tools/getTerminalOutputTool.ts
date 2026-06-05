@@ -113,7 +113,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 			return this._formatTailOrFull(output, `Output of terminal ${id}`);
 		}
 		if (currentOutputSnapshot.length === previousOutputSnapshot.length && currentOutputSnapshot.hash === previousOutputSnapshot.hash) {
-			return `Output of terminal ${id} unchanged since previous poll (${output.length} characters already shown). No new output.`;
+			return `Output of terminal ${id} unchanged since previous poll (${output.length} total characters in buffer). No new output.`;
 		}
 
 		if (output.length > previousOutputSnapshot.length && this._hashOutput(output, previousOutputSnapshot.length) === previousOutputSnapshot.hash) {

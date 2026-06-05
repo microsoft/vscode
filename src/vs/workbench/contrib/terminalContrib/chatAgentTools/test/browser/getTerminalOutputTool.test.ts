@@ -145,7 +145,7 @@ suite('GetTerminalOutputTool', () => {
 		assert.strictEqual(result.content.length, 1);
 		assert.strictEqual(result.content[0].kind, 'text');
 		const value = (result.content[0] as { value: string }).value;
-		assert.strictEqual(value, `Output of terminal ${KNOWN_TERMINAL_ID} unchanged since previous poll (11 characters already shown). No new output.`);
+		assert.strictEqual(value, `Output of terminal ${KNOWN_TERMINAL_ID} unchanged since previous poll (11 total characters in buffer). No new output.`);
 	});
 
 	test('returns only new output when output deltas experiment is enabled', async () => {
