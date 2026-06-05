@@ -12,7 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { DiscoverySource } from '../mcpConfiguration.js';
+import { DiscoverySource, mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
@@ -68,8 +68,15 @@ export class CursorWorkspaceMcpDiscoveryAdapter extends FilesystemMcpDiscovery i
 			collection,
 			DiscoverySource.CursorWorkspace,
 			async contents => {
-				const defs = await claudeConfigToServerDefinition(collection.id, contents, folder.uri);
-				defs?.forEach(d => d.roots = [folder.uri]);
+				const defs = await claudeConfigToServerDefinition(collection.id, contents);
+				defs?.forEach(d => {
+					d.roots = [folder.uri];
+					d.variableReplacement = {
+						folder,
+						section: mcpConfigurationSection,
+						target: ConfigurationTarget.WORKSPACE_FOLDER,
+					};
+				});
 				return defs;
 			}
 		));

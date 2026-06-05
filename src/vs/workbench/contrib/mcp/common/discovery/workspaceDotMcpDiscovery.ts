@@ -12,6 +12,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { mcpConfigurationSection } from '../mcpConfiguration.js';
 import { IMcpRegistry } from '../mcpRegistryTypes.js';
 import { McpCollectionSortOrder, McpServerDefinition, McpServerTrust } from '../mcpTypes.js';
 import { IMcpDiscovery } from './mcpDiscovery.js';
@@ -76,10 +77,15 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 			let definitions: McpServerDefinition[] = [];
 			try {
 				const contents = await this._fileService.readFile(configFile);
-				const defs = await claudeConfigToServerDefinition(collectionId, contents.value, folder.uri);
+				const defs = await claudeConfigToServerDefinition(collectionId, contents.value);
 				if (defs) {
 					for (const d of defs) {
 						d.roots = [folder.uri];
+						d.variableReplacement = {
+							folder,
+							section: mcpConfigurationSection,
+							target: ConfigurationTarget.WORKSPACE_FOLDER,
+						};
 					}
 					definitions = defs;
 				}
