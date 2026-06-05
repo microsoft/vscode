@@ -5,7 +5,7 @@
 
 import { localize } from '../../../nls.js';
 import { createSchema, schemaProperty } from './agentHostSchema.js';
-import { CustomizationType, type Customization } from './state/protocol/state.js';
+import { CustomizationType, type Customization, type PluginCustomization } from './state/protocol/state.js';
 import { customizationId } from './state/sessionState.js';
 
 /**
@@ -105,7 +105,7 @@ export function getAgentHostConfiguredCustomizations(values: Record<string, unkn
  * Lifts a persisted plugin config entry into the new
  * {@link Customization} container shape.
  */
-export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): Customization {
+export function toContainerCustomization(entry: IPersistedCustomizationConfigEntry): PluginCustomization {
 	return {
 		type: CustomizationType.Plugin,
 		id: customizationId(entry.uri),

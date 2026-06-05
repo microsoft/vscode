@@ -4940,6 +4940,25 @@
               "default": true
             }
           },
+          "github.copilot.chat.cli.sandbox.enabled": {
+            "type": "string",
+            "enum": [
+              "off",
+              "on",
+              "allowNetwork"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.cli.sandbox.enabled.offDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.onDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.allowNetworkDescription%"
+            ],
+            "default": "off",
+            "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
+            "tags": [
+              "advanced",
+              "experimental"
+            ]
+          },
           "github.copilot.chat.cli.branchSupport.enabled": {
             "type": "boolean",
             "default": false,
@@ -4972,7 +4991,7 @@
           },
           "github.copilot.chat.cli.autoModel.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
@@ -6186,6 +6205,18 @@
           "group": "1_edit@4"
         }
       ],
+      "chatSessions/header/context": [
+        {
+          "command": "github.copilot.claude.sessions.rename",
+          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
+          "group": "2_edit@4"
+        },
+        {
+          "command": "github.copilot.cli.sessions.rename",
+          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
+          "group": "2_edit@4"
+        }
+      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
@@ -7001,7 +7032,7 @@
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
     "diff": "^8.0.3",
-    "dompurify": "^3.4.1",
+    "dompurify": "^3.4.8",
     "express": "^5.2.1",
     "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.4",

@@ -45,6 +45,8 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
+	// Extension-contributed endpoints are not backed by the CAPI Copilot token; treat them as owning auth to opt out of token fallback and related tool gating.
+	public readonly ownsAuthorization = true;
 
 	constructor(
 		private readonly languageModel: vscode.LanguageModelChat,
@@ -167,6 +169,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		finishedCb,
 		location,
 		source,
+		telemetryProperties,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages);
 		const ourRequestId = generateUuid();
@@ -177,6 +180,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// - Anthropic: inside AnthropicLMProvider
 		// - Gemini: inside GeminiNativeBYOKLMProvider
 		const activeTraceCtx = this._otelService.getActiveTraceContext();
+		const telemetryTurn = getTelemetryTurnFromProperties(telemetryProperties);
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
@@ -188,6 +192,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
+				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
 			}
 		};
 
@@ -305,6 +310,19 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			maxInputTokens: modelMaxPromptTokens
 		});
 	}
+}
+
+function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOptions['telemetryProperties']): number | undefined {
+	if (typeof telemetryProperties?.turnIndex !== 'string') {
+		return undefined;
+	}
+
+	if (!/^\d+$/.test(telemetryProperties.turnIndex)) {
+		return undefined;
+	}
+
+	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
+	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {
