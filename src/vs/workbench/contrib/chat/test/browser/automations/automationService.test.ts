@@ -183,6 +183,22 @@ suite('AutomationService', () => {
 		assert.strictEqual(service.runsFor(b.id).get().length, 1);
 	});
 
+	test('recordRunStart caps retained runs per automation', async () => {
+		const { service } = createService();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const b = await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		// Push 60 runs for a (cap is 50) and 5 for b — each automation's
+		// history should be bounded independently.
+		for (let i = 0; i < 60; i++) {
+			await service.recordRunStart(a.id, 'manual', 1);
+		}
+		for (let i = 0; i < 5; i++) {
+			await service.recordRunStart(b.id, 'manual', 1);
+		}
+		assert.strictEqual(service.runsFor(a.id).get().length, 50);
+		assert.strictEqual(service.runsFor(b.id).get().length, 5);
+	});
+
 	test('persists across service restarts via shared storage', async () => {
 		const sharedStorage = teardown.add(new InMemoryStorageService());
 		const firstService = teardown.add(new AutomationService(sharedStorage, new NullLogService(), NullTelemetryService));
@@ -210,13 +226,64 @@ suite('AutomationService', () => {
 		assert.strictEqual(windowB.automations.get()[0].id, created.id);
 	});
 
-	test('reading a ledger with a future schema version leaves observables empty without throwing', () => {
+	test('reading a ledger with a future schema version freezes observables and refuses to write', async () => {
 		const storage = teardown.add(new InMemoryStorageService());
+		const futureLedger = JSON.stringify({ schemaVersion: 999, revision: 7, automations: [], runs: [] });
 		// StorageScope.APPLICATION is -1
-		storage.store('chat.automations.ledger', JSON.stringify({ schemaVersion: 999, automations: [], runs: [] }), -1, 1);
+		storage.store('chat.automations.ledger', futureLedger, -1, 1);
 		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+
+		// Observables remain empty (no prior in-memory state to preserve)
+		// but the service is now in read-only mode.
 		assert.deepStrictEqual(service.automations.get(), []);
 		assert.deepStrictEqual(service.runs.get(), []);
+
+		// A subsequent mutation must not destroy the on-disk newer ledger.
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+
+		// In-memory state is also unchanged because commit short-circuits.
+		assert.deepStrictEqual(service.automations.get(), []);
+
+		// On-disk blob must still be the original future-version data.
+		assert.strictEqual(storage.get('chat.automations.ledger', -1), futureLedger);
+	});
+
+	test('refreshFromStorage preserves in-memory state when storage flips to an unsupported schema', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		await service.createAutomation({ name: 'Local', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		assert.strictEqual(service.automations.get().length, 1);
+
+		// Simulate another (newer) window writing a v999 ledger.
+		storage.store('chat.automations.ledger', JSON.stringify({ schemaVersion: 999, revision: 99, automations: [], runs: [] }), -1, 1);
+
+		// The onDidChangeValue refresh must NOT clear our observables to
+		// empty — we keep displaying what we last knew about.
+		assert.strictEqual(service.automations.get().length, 1);
+	});
+
+	test('persist bumps the revision counter on every write', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const rev1 = JSON.parse(storage.get('chat.automations.ledger', -1)!).revision;
+		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const rev2 = JSON.parse(storage.get('chat.automations.ledger', -1)!).revision;
+		assert.strictEqual(typeof rev1, 'number');
+		assert.ok(rev2 > rev1, `expected ${rev2} > ${rev1}`);
+	});
+
+	test('persist absorbs a higher on-disk revision (concurrent-write detection)', async () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const service = teardown.add(new AutomationService(storage, new NullLogService(), NullTelemetryService));
+		await service.createAutomation({ name: 'A', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const baseline = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		// Simulate another window having advanced the revision behind our
+		// back. The service must not write a stale-or-equal revision.
+		storage.store('chat.automations.ledger', JSON.stringify({ ...baseline, revision: 5000 }), -1, 1);
+		await service.createAutomation({ name: 'B', prompt: 'p', schedule: dailySchedule(), folderUri: FOLDER });
+		const after = JSON.parse(storage.get('chat.automations.ledger', -1)!);
+		assert.ok(after.revision > 5000, `expected revision > 5000, got ${after.revision}`);
 	});
 
 	test('reading a corrupt ledger leaves observables empty without throwing', () => {
