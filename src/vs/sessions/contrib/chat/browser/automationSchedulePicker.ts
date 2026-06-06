@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -117,7 +117,14 @@ export class AutomationSchedulePicker extends Disposable {
 	private _dayTrigger: HTMLElement | undefined;
 
 	private _visible = true;
-	private readonly _renderDisposables = this._register(new DisposableStore());
+	// The active render's disposables. Tracked via MutableDisposable so the
+	// class disposes the current render's contributions on its own dispose,
+	// while the *caller* of render() also owns the returned store and can
+	// dispose it deterministically (e.g. when its parent slot is torn down).
+	// Both owners ultimately call dispose() on the same DisposableStore,
+	// which is idempotent.
+	private readonly _renderState = this._register(new MutableDisposable<DisposableStore>());
+	private _customTimePromptInFlight = false;
 
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
@@ -127,17 +134,19 @@ export class AutomationSchedulePicker extends Disposable {
 	}
 
 	render(container: HTMLElement): IDisposable {
-		this._renderDisposables.clear();
+		const store = new DisposableStore();
+		this._renderState.value = store;
 
 		const root = dom.append(container, dom.$('.sessions-chat-automation-schedule'));
 		this._container = root;
-		this._renderDisposables.add({ dispose: () => root.remove() });
+		store.add({ dispose: () => root.remove() });
 
 		this._intervalTrigger = this._createTrigger(
 			root,
 			'sessions-chat-automation-interval-picker',
 			localize('automationSchedule.intervalAriaPrefix', "Schedule interval"),
 			() => this._showIntervalPicker(),
+			store,
 		);
 		this._refreshIntervalTrigger();
 
@@ -147,6 +156,7 @@ export class AutomationSchedulePicker extends Disposable {
 			'sessions-chat-automation-time-picker',
 			localize('automationSchedule.timeAriaPrefix', "Schedule time"),
 			() => this._showTimePicker(),
+			store,
 		);
 		this._refreshTimeTrigger();
 
@@ -156,13 +166,14 @@ export class AutomationSchedulePicker extends Disposable {
 			'sessions-chat-automation-day-picker',
 			localize('automationSchedule.dayAriaPrefix', "Schedule day"),
 			() => this._showDayPicker(),
+			store,
 		);
 		this._refreshDayTrigger();
 
 		this._refreshSlotVisibility();
 		this._applyVisibility();
 
-		return this._renderDisposables;
+		return store;
 	}
 
 	setVisible(visible: boolean): void {
@@ -209,6 +220,7 @@ export class AutomationSchedulePicker extends Disposable {
 		slotClass: string,
 		ariaPrefix: string,
 		onActivate: () => void,
+		store: DisposableStore,
 	): HTMLElement {
 		const slot = dom.append(container, dom.$(`.sessions-chat-picker-slot.${slotClass}`));
 		const trigger = dom.append(slot, dom.$('a.action-label'));
@@ -218,14 +230,14 @@ export class AutomationSchedulePicker extends Disposable {
 		trigger.setAttribute('aria-expanded', 'false');
 		trigger.setAttribute('data-aria-prefix', ariaPrefix);
 
-		this._renderDisposables.add(Gesture.addTarget(trigger));
+		store.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
-			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, e => {
+			store.add(dom.addDisposableListener(trigger, eventType, e => {
 				dom.EventHelper.stop(e, true);
 				onActivate();
 			}));
 		}
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
+		store.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
 				onActivate();
@@ -318,7 +330,13 @@ export class AutomationSchedulePicker extends Disposable {
 	}
 
 	private _showTimePicker(): void {
-		if (!this._timeTrigger || this.actionWidgetService.isVisible) {
+		// Block re-entry both while the action widget is visible AND while
+		// the modal custom-time prompt is in flight. After hide() is called
+		// the action widget reports isVisible=false synchronously, so a
+		// rapid second click could otherwise stack two time pickers and
+		// have a later selection silently overwritten by the awaited
+		// prompt's result.
+		if (!this._timeTrigger || this.actionWidgetService.isVisible || this._customTimePromptInFlight) {
 			return;
 		}
 		const trigger = this._timeTrigger;
@@ -347,7 +365,10 @@ export class AutomationSchedulePicker extends Disposable {
 			onSelect: item => {
 				this.actionWidgetService.hide();
 				if (item.custom) {
-					void this._promptForCustomTime();
+					this._customTimePromptInFlight = true;
+					this._promptForCustomTime().finally(() => {
+						this._customTimePromptInFlight = false;
+					});
 					return;
 				}
 				transaction(tx => {

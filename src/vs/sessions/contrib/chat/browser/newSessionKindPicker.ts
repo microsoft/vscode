@@ -34,6 +34,13 @@ interface IKindPickerItem {
 interface IKindOption {
 	readonly kind: NewSessionKind;
 	readonly label: string;
+	/**
+	 * Lower-case sentence form of {@link label}, used when the trigger
+	 * inlines into the "New <kind> in <workspace>" sentence. Localized
+	 * separately so non-English languages can supply a grammatically
+	 * correct sentence form (rather than blindly lowercasing the label).
+	 */
+	readonly sentenceLabel: string;
 	readonly description: string;
 	readonly icon: ThemeIcon;
 }
@@ -42,12 +49,14 @@ const KIND_OPTIONS: readonly IKindOption[] = [
 	{
 		kind: NewSessionKind.Session,
 		label: localize('newSessionKind.action.session', "Session"),
+		sentenceLabel: localize('newSessionKind.action.session.sentence', "session"),
 		description: localize('newSessionKind.session.desc', "Start a new chat session."),
 		icon: Codicon.commentDiscussion,
 	},
 	{
 		kind: NewSessionKind.Automation,
 		label: localize('newSessionKind.action.automation', "Automation"),
+		sentenceLabel: localize('newSessionKind.action.automation.sentence', "automation"),
 		description: localize('newSessionKind.automation.desc', "Schedule the prompt to run on a cadence."),
 		icon: Codicon.watch,
 	},
@@ -177,7 +186,7 @@ export class NewSessionKindPicker extends Disposable {
 			dom.append(this._triggerElement, renderIcon(option.icon));
 		}
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
-		labelSpan.textContent = option.label.toLowerCase();
+		labelSpan.textContent = option.sentenceLabel;
 
 		if (interactive) {
 			const chevron = dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
@@ -230,7 +239,18 @@ export class NewSessionKindPicker extends Disposable {
 		const delegate: IActionListDelegate<IKindPickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				this.setKind(item.kind);
+				// Re-validate against the live available-options set: a
+				// config change (chat.automations.enabled flipping off)
+				// between the picker opening and the user clicking would
+				// otherwise let a stale "Automation" item force the
+				// composer into automation mode despite the setting being
+				// disabled.
+				const allowed = this._availableKindOptions();
+				if (allowed.some(o => o.kind === item.kind)) {
+					this.setKind(item.kind);
+				} else {
+					this.setKind(NewSessionKind.Session);
+				}
 			},
 			onHide: () => {
 				triggerElement.setAttribute('aria-expanded', 'false');
