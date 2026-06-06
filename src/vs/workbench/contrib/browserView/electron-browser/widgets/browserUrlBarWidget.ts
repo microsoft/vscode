@@ -210,6 +210,10 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.BLUR, () => {
 			pendingMouseFocus = false;
+			// Snap the display back to the start of the URL so it doesn't stay
+			// scrolled to wherever the caret was (e.g. after arrow-keying to
+			// the end and then clicking away).
+			this._urlDisplay.scrollLeft = 0;
 			// Clear any text selection within the display so it doesn't stay
 			// highlighted after focus moves away (e.g. into the browser).
 			const sel = this._urlDisplay.ownerDocument.getSelection();
