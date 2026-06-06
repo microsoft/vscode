@@ -152,9 +152,9 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		}];
 	}
 
-	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
-		'auto' :
-		'disabled';
+	if (configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation)) {
+		body.truncation = 'auto';
+	}
 	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
 	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
 	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
