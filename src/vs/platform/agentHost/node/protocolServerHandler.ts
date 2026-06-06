@@ -755,7 +755,7 @@ export class ProtocolServerHandler extends Disposable {
 				return {
 					snapshot: {
 						resource: classified.uri,
-						state: descriptor,
+						state: descriptor as unknown as IStateSnapshot['state'],
 						fromSeq: this._stateManager.serverSeq,
 					},
 				};
