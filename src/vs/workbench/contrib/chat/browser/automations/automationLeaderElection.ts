@@ -32,6 +32,16 @@ export const DEFAULT_STALE_AFTER_MS = 90_000;
 interface ILeaderRecord {
 	readonly instanceId: string;
 	readonly heartbeatAt: number;
+	/**
+	 * Random per-write nonce used to break the leader-election TOCTOU
+	 * race. After `writeLeader`, the evaluator re-reads storage and only
+	 * promotes itself to leader if the on-disk nonce matches what it
+	 * just wrote — i.e., no other window clobbered the slot between
+	 * read and write. Older persisted records without a nonce are
+	 * treated as nonce `''` (still works because we only compare for
+	 * equality after our own write).
+	 */
+	readonly nonce: string;
 }
 
 export interface IAutomationLeaderElectionOptions {
@@ -106,24 +116,50 @@ export class AutomationLeaderElection extends Disposable {
 		const claimable =
 			!current ||
 			current.instanceId === this._instanceId ||
+			current.instanceId === '' ||
 			(now - current.heartbeatAt) > this._staleAfterMs;
 
-		if (claimable) {
-			this.writeLeader({ instanceId: this._instanceId, heartbeatAt: now });
+		if (!claimable) {
+			if (this._isLeader.get()) {
+				this.logService.info(`[AutomationLeaderElection] window ${this._instanceId} stood down for ${current!.instanceId}.`);
+			}
+			this._isLeader.set(false, undefined);
+			return;
+		}
+
+		// Generate a fresh nonce for this write attempt and confirm we
+		// won the slot by reading our own nonce back. This narrows the
+		// dual-leader window: if another window wrote between our read
+		// and write, the readback will see their nonce instead and we
+		// stand down.
+		const nonce = generateUuid();
+		const writeOk = this.writeLeader({ instanceId: this._instanceId, heartbeatAt: now, nonce });
+		if (!writeOk) {
+			this._isLeader.set(false, undefined);
+			return;
+		}
+		const verify = this.readLeader();
+		if (verify?.instanceId === this._instanceId && verify.nonce === nonce) {
 			if (!this._isLeader.get()) {
 				this.logService.info(`[AutomationLeaderElection] window ${this._instanceId} claimed leader slot.`);
 			}
 			this._isLeader.set(true, undefined);
 		} else {
 			if (this._isLeader.get()) {
-				this.logService.info(`[AutomationLeaderElection] window ${this._instanceId} stood down for ${current!.instanceId}.`);
+				this.logService.info(`[AutomationLeaderElection] window ${this._instanceId} lost leader race to ${verify?.instanceId ?? '<none>'}.`);
 			}
 			this._isLeader.set(false, undefined);
 		}
 	}
 
 	private readLeader(): ILeaderRecord | undefined {
-		const raw = this.storageService.get(LEADER_KEY, StorageScope.APPLICATION);
+		let raw: string | undefined;
+		try {
+			raw = this.storageService.get(LEADER_KEY, StorageScope.APPLICATION);
+		} catch (err) {
+			this.logService.warn('[AutomationLeaderElection] storage read failed', err);
+			return undefined;
+		}
 		if (!raw) {
 			return undefined;
 		}
@@ -132,26 +168,38 @@ export class AutomationLeaderElection extends Disposable {
 			if (typeof parsed?.instanceId !== 'string' || typeof parsed?.heartbeatAt !== 'number') {
 				return undefined;
 			}
-			return parsed;
+			// `nonce` is optional in older persisted records; coerce.
+			return { instanceId: parsed.instanceId, heartbeatAt: parsed.heartbeatAt, nonce: typeof parsed.nonce === 'string' ? parsed.nonce : '' };
 		} catch {
 			return undefined;
 		}
 	}
 
-	private writeLeader(record: ILeaderRecord): void {
-		this.storageService.store(LEADER_KEY, JSON.stringify(record), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	/** Returns true if the write succeeded, false if storage threw. */
+	private writeLeader(record: ILeaderRecord): boolean {
+		try {
+			this.storageService.store(LEADER_KEY, JSON.stringify(record), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			return true;
+		} catch (err) {
+			this.logService.warn('[AutomationLeaderElection] storage write failed', err);
+			return false;
+		}
 	}
 
 	/**
-	 * Best-effort: if we're the leader, clear the slot on dispose so the
-	 * next window doesn't have to wait `staleAfterMs` to take over after
-	 * a clean shutdown.
+	 * Best-effort: if we're the leader, write a tombstone so the next
+	 * window doesn't have to wait `staleAfterMs` to take over after a
+	 * clean shutdown. We write a tombstone (empty instanceId) rather
+	 * than removing the key so a concurrent successor's record is less
+	 * likely to be silently deleted by our stale read — and so any
+	 * window that sees the tombstone treats it as immediately claimable.
 	 */
 	private releaseIfLeader(): void {
 		const current = this.readLeader();
-		if (current?.instanceId === this._instanceId) {
-			this.storageService.remove(LEADER_KEY, StorageScope.APPLICATION);
+		if (current?.instanceId !== this._instanceId) {
+			return;
 		}
+		this.writeLeader({ instanceId: '', heartbeatAt: 0, nonce: '' });
 	}
 }
 

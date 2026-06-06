@@ -85,4 +85,74 @@ suite('AutomationLeaderElection', () => {
 		const a = createElection(storage, () => 1_000, 'window-a');
 		assert.strictEqual(a.isLeader.get(), true);
 	});
+
+	test('tombstone left on dispose is treated as immediately claimable', () => {
+		const storage = teardown.add(new InMemoryStorageService());
+		const a = createElection(storage, () => 1_000, 'window-a');
+		assert.strictEqual(a.isLeader.get(), true);
+		a.dispose();
+		// After dispose we should see a tombstone (empty instanceId)
+		// in storage, not a removed key.
+		const raw = storage.get('chat.automations.leader', -1);
+		assert.ok(raw, 'tombstone should be present after release');
+		const parsed = JSON.parse(raw!);
+		assert.strictEqual(parsed.instanceId, '');
+		// Any subsequent claim — even at the same wall clock — should
+		// succeed without waiting for staleAfterMs.
+		const b = createElection(storage, () => 1_000, 'window-b');
+		assert.strictEqual(b.isLeader.get(), true);
+	});
+
+	test('readback after writeLeader detects a competing concurrent write and stands down', () => {
+		// Custom storage that injects a competitor write immediately
+		// after every store() to LEADER_KEY. This simulates two windows
+		// reading the slot as claimable, both writing, with the second
+		// write landing after ours (the TOCTOU window in evaluate()).
+		class RacyStorage extends InMemoryStorageService {
+			competitor: string | undefined;
+			override store(key: string, value: any, scope: any, target: any, external = false): void {
+				super.store(key, value, scope, target, external);
+				if (key === 'chat.automations.leader' && this.competitor !== undefined) {
+					super.store(key, this.competitor, scope, target, external);
+				}
+			}
+		}
+		const storage = teardown.add(new RacyStorage());
+		// Set up a competing record that will overwrite ours.
+		storage.competitor = JSON.stringify({ instanceId: 'window-b', heartbeatAt: 1_000, nonce: 'b-nonce' });
+		const a = createElection(storage, () => 1_000, 'window-a');
+		// Even though A claimed the slot, the readback saw B's record
+		// instead of A's nonce, so A must NOT be leader.
+		assert.strictEqual(a.isLeader.get(), false);
+	});
+
+	test('survives a throwing storage read by leaving leadership unset', () => {
+		class ThrowingStorage extends InMemoryStorageService {
+			override get(key: string, scope: any, fallbackValue?: string): any {
+				if (key === 'chat.automations.leader') {
+					throw new Error('storage unavailable');
+				}
+				return super.get(key, scope, fallbackValue as string);
+			}
+		}
+		const storage = teardown.add(new ThrowingStorage());
+		const a = createElection(storage, () => 1_000, 'window-a');
+		// readLeader threw, the claim path can't validate via readback,
+		// so we should not be leader.
+		assert.strictEqual(a.isLeader.get(), false);
+	});
+
+	test('survives a throwing storage write by not declaring leadership', () => {
+		class ThrowingStorage extends InMemoryStorageService {
+			override store(key: string, value: any, scope: any, target: any, external = false): void {
+				if (key === 'chat.automations.leader') {
+					throw new Error('storage unavailable');
+				}
+				super.store(key, value, scope, target, external);
+			}
+		}
+		const storage = teardown.add(new ThrowingStorage());
+		const a = createElection(storage, () => 1_000, 'window-a');
+		assert.strictEqual(a.isLeader.get(), false);
+	});
 });
