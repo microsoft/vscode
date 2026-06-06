@@ -249,8 +249,8 @@ export class RemoteAgentHostLogForwarder extends Disposable {
 	/**
 	 * Write a one-time header line with the host's build info (version,
 	 * commit, date, quality) read from the connected client's root state.
-	 * Lets the user see which build is hosting the agent host at the top of
-	 * the forwarded Output channel. No-op when the root state has not arrived
+	 * Lets the user see which build is hosting the agent host in the
+	 * forwarded Output channel. No-op when the root state has not arrived
 	 * or carries no build info, and only ever writes once.
 	 */
 	private _writeHostBuildInfoHeader(): void {

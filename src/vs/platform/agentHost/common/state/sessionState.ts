@@ -13,7 +13,7 @@
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
-import { IProductService } from '../../../product/common/productService.js';
+import type { IProductService } from '../../../product/common/productService.js';
 import {
 	SessionLifecycle,
 	TerminalState,
