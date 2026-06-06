@@ -835,13 +835,23 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	const terminalContentUri = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
 		? getTerminalContentUri(tc.content)
 		: undefined;
-	if (terminalContentUri) {
+	const isTerminalTool = !!terminalContentUri || getToolKind(tc) === 'terminal';
+	if (isTerminalTool) {
+		// Set terminal toolSpecificData eagerly so the renderer shows a
+		// terminal pill (expandable command + output area) from the start,
+		// instead of falling back to the generic tool widget that only
+		// surfaces the first line of the command via the invocation message.
+		// For the SDK's built-in `bash`/`powershell` tools there's no
+		// Terminal content block (they run outside AHP's terminal infra),
+		// so the AHP-terminal fields (`terminalToolSessionId`,
+		// `terminalCommandUri`) stay undefined — the renderer treats this
+		// as a display-only terminal that still surfaces command + output.
 		invocation.toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: getTerminalInput(tc) || '' },
 			language: getTerminalLanguage(tc),
-			terminalToolSessionId: makeAhpTerminalToolSessionId(terminalContentUri, sessionResource),
-			terminalCommandUri: URI.parse(terminalContentUri),
+			terminalToolSessionId: terminalContentUri ? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource) : undefined,
+			terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : undefined,
 			terminalCommandOutput: getTerminalOutput(tc),
 		} satisfies IChatTerminalToolInvocationData;
 	} else if (isSubagentTool(tc)) {
@@ -899,6 +909,37 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
 			existing.toolSpecificData = { kind: 'subagent', description, agentName };
+			existing.notifyToolSpecificDataChanged();
+		}
+		return;
+	}
+
+	// Refresh terminal toolSpecificData as streaming text content arrives
+	// (or when terminal toolSpecificData was not set up-front because the
+	// tool transitioned through the Streaming state before reaching
+	// Running). Preserves AHP-terminal fields (`terminalToolSessionId`,
+	// `terminalCommandUri`, `terminalCommandId`) that `_reviveTerminalIfNeeded`
+	// in the session handler populates asynchronously when a Terminal
+	// content block is present.
+	const existingTerminal = existing.toolSpecificData?.kind === 'terminal'
+		? existing.toolSpecificData
+		: undefined;
+	if (existingTerminal || getToolKind(tc) === 'terminal') {
+		const nextOutput = getTerminalOutput(tc);
+		const nextCommand = getTerminalInput(tc);
+		const commandLine = nextCommand
+			? { ...existingTerminal?.commandLine, original: nextCommand }
+			: existingTerminal?.commandLine ?? { original: '' };
+		const outputChanged = nextOutput?.text !== existingTerminal?.terminalCommandOutput?.text;
+		const commandChanged = commandLine.original !== existingTerminal?.commandLine.original;
+		if (!existingTerminal || outputChanged || commandChanged) {
+			existing.toolSpecificData = {
+				...existingTerminal,
+				kind: 'terminal',
+				commandLine,
+				language: existingTerminal?.language ?? getTerminalLanguage(tc),
+				terminalCommandOutput: nextOutput,
+			};
 			existing.notifyToolSpecificDataChanged();
 		}
 	}
