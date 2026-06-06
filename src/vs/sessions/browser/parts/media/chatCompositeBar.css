@@ -68,7 +68,7 @@
 }
 
 .chat-composite-bar-session-title {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	display: flex;
@@ -263,7 +263,7 @@
 	font-size: 12px;
 	line-height: 22px;
 	height: 26px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	user-select: none;
 	flex-shrink: 0;
 	max-width: min(200px, 40cqi);
@@ -355,7 +355,7 @@
 .chat-composite-bar-tab-actions .action-item .action-label {
 	width: 16px;
 	height: 16px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--chat-tab-inactive-foreground, currentColor);
 }
 

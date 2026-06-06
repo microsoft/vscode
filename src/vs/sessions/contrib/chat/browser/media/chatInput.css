@@ -38,7 +38,7 @@
 	max-width: 800px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-agentsChatInput-border);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
@@ -71,7 +71,7 @@
 .sessions-chat-editor .monaco-editor .overflow-guard,
 .sessions-chat-editor .monaco-editor-background {
 	background-color: transparent !important;
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
 /* Toolbar */
@@ -128,7 +128,7 @@
 	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	touch-action: manipulation;
 	color: var(--vscode-icon-foreground);
@@ -305,7 +305,7 @@
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
@@ -347,7 +347,7 @@
 	font-size: 11px;
 	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
 	max-width: 200px;
 	width: fit-content;

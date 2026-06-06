@@ -12,6 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
 import { ForkConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -59,6 +60,7 @@ registerAction2(class extends ForkConversationAction {
 	protected override _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
 		return instantiationService.invokeFunction(async accessor => {
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsViewService = accessor.get(ISessionsViewService);
 			const logService = accessor.get(ILogService);
 
 			const parentSession = sessionsManagementService.getSession(parentSessionResource);
@@ -87,7 +89,7 @@ registerAction2(class extends ForkConversationAction {
 					return;
 				}
 			}
-			await sessionsManagementService.openSession(forkedSessionResource);
+			await sessionsViewService.openSession(forkedSessionResource);
 
 		});
 	}

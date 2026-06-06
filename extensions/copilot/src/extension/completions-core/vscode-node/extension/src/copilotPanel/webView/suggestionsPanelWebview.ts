@@ -4,12 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 /// <reference types="@types/vscode-webview" />
 import { provideVSCodeDesignSystem, vsCodeButton } from '@vscode/webview-ui-toolkit';
-import DOMPurify from 'dompurify';
+
+interface SanitizableHTMLElement extends HTMLElement {
+	setHTML(html: string, options: { readonly sanitizer: Sanitizer | SanitizerConfig | SanitizerPresets }): void;
+}
 
 const solutionsContainer = document.getElementById('solutionsContainer');
 const vscode = acquireVsCodeApi();
 let currentFocusIndex: number = 0;
 let solutionEventHandlersInitialized = false;
+
+const snippetSanitizerElements: SanitizerElementWithAttributes[] = [
+	{ name: 'pre', attributes: ['class', 'style', 'tabindex'] },
+	{ name: 'code' },
+	{ name: 'span', attributes: ['class', 'style'] },
+];
 
 provideVSCodeDesignSystem().register(vsCodeButton());
 
@@ -51,25 +60,81 @@ function handleSolutionUpdate(message: Message) {
 	updateLoadingContainer(message);
 
 	if (solutionsContainer) {
-		solutionsContainer.innerHTML = message.solutions
-			.map((solution, index) => {
-				const renderedCitation = solution.citation
-					? `<p>
-						<span style="vertical-align: text-bottom" aria-hidden="true">Warning</span>
-						${DOMPurify.sanitize(solution.citation.message)}
-						<a href="${DOMPurify.sanitize(solution.citation.url)}" target="_blank">Inspect source code</a>
-					  </p>`
-					: '';
-				const sanitizedSnippet = DOMPurify.sanitize(solution.htmlSnippet);
+		solutionsContainer.replaceChildren(...message.solutions.flatMap((solution, index) => createSolutionElements(solution, index)));
+	}
+}
 
-				return `<h3 class='solutionHeading' id="solution-${index + 1}-heading">Suggestion ${index + 1}</h3>
-				<div class='snippetContainer' aria-labelledby="solution-${index + 1}-heading" role="group" data-solution-index="${index}">${sanitizedSnippet
-					}</div>
-				${DOMPurify.sanitize(renderedCitation)}
-				<vscode-button role="button" class="acceptButton" id="acceptButton${index}" appearance="secondary" data-solution-index="${index}">Accept suggestion ${index + 1
-					}</vscode-button>`;
-			})
-			.join('');
+function createSolutionElements(solution: Message['solutions'][number], index: number): HTMLElement[] {
+	const solutionNumber = index + 1;
+	const heading = document.createElement('h3');
+	heading.className = 'solutionHeading';
+	heading.id = `solution-${solutionNumber}-heading`;
+	heading.textContent = `Suggestion ${solutionNumber}`;
+
+	const snippetContainer = document.createElement('div');
+	snippetContainer.className = 'snippetContainer';
+	snippetContainer.setAttribute('aria-labelledby', heading.id);
+	snippetContainer.setAttribute('role', 'group');
+	snippetContainer.dataset.solutionIndex = String(index);
+	setSnippetHtml(snippetContainer, solution.htmlSnippet);
+
+	const acceptButton = document.createElement('vscode-button');
+	acceptButton.setAttribute('role', 'button');
+	acceptButton.className = 'acceptButton';
+	acceptButton.id = `acceptButton${index}`;
+	acceptButton.setAttribute('appearance', 'secondary');
+	acceptButton.dataset.solutionIndex = String(index);
+	acceptButton.textContent = `Accept suggestion ${solutionNumber}`;
+
+	const elements: HTMLElement[] = [heading, snippetContainer];
+	const citation = solution.citation ? createCitationElement(solution.citation) : undefined;
+	if (citation) {
+		elements.push(citation);
+	}
+	elements.push(acceptButton);
+	return elements;
+}
+
+function setSnippetHtml(element: HTMLElement, html: string): void {
+	const sanitizerElement = element as unknown as SanitizableHTMLElement;
+	sanitizerElement.setHTML(html, { sanitizer: getSnippetSanitizer() });
+}
+
+let snippetSanitizer: Sanitizer | undefined;
+function getSnippetSanitizer(): Sanitizer {
+	return snippetSanitizer ??= new Sanitizer({
+		elements: snippetSanitizerElements,
+	});
+}
+
+function createCitationElement(citation: NonNullable<Message['solutions'][number]['citation']>): HTMLElement {
+	const paragraph = document.createElement('p');
+
+	const warning = document.createElement('span');
+	warning.style.verticalAlign = 'text-bottom';
+	warning.setAttribute('aria-hidden', 'true');
+	warning.textContent = 'Warning';
+	paragraph.append(warning, ' ', citation.message, ' ');
+
+	const trustedUrl = getTrustedCitationUrl(citation.url);
+	if (trustedUrl) {
+		const link = document.createElement('a');
+		link.href = trustedUrl;
+		link.target = '_blank';
+		link.rel = 'noreferrer noopener';
+		link.textContent = 'Inspect source code';
+		paragraph.append(link);
+	}
+
+	return paragraph;
+}
+
+function getTrustedCitationUrl(url: string): string | undefined {
+	try {
+		const parsedUrl = new URL(url);
+		return parsedUrl.protocol === 'https:' ? parsedUrl.href : undefined;
+	} catch {
+		return undefined;
 	}
 }
 

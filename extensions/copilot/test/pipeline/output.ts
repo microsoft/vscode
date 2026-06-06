@@ -8,6 +8,7 @@ import * as path from 'path';
 import { IGeneratedPrompt } from './promptStep';
 import { IProcessedRow } from './replayRecording';
 import { IGeneratedResponse } from './responseStep';
+import { openWriteStream } from './writeStream';
 
 export interface IMessage {
 	readonly role: 'system' | 'user' | 'assistant';
@@ -113,12 +114,17 @@ export function resolveOutputPath(inputPath: string, explicitPath: string | unde
 		return path.resolve(explicitPath);
 	}
 	const parsed = path.parse(inputPath);
-	return path.join(parsed.dir, `${parsed.name}_output.json`);
+	return path.join(parsed.dir, `${parsed.name}_output.jsonl`);
 }
 
 /**
- * Write validated samples to a JSON file.
+ * Write validated samples to a JSON Lines file (one JSON object per line).
  * Samples are sorted by rowIndex for deterministic output.
+ *
+ * JSONL was chosen over a pretty-printed JSON array specifically so the writer
+ * (and any reader) can operate one record at a time, with no surrounding
+ * brackets/commas to track. This keeps memory bounded for multi-GB outputs and
+ * avoids hitting V8's ~512 MiB max-string-length limit.
  */
 export async function writeSamples(
 	outputPath: string,
@@ -141,17 +147,28 @@ export async function writeSamples(
 
 	validSamples.sort((a, b) => a.metadata.rowIndex - b.metadata.rowIndex);
 
-	const output = validSamples.map(sample => ({
-		messages: sample.messages.map(m => ({ role: m.role, content: m.content })),
-		metadata: sample.metadata,
-	}));
-	const content = JSON.stringify(output, null, 2);
-
 	const resolvedPath = path.resolve(outputPath);
 	await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
-	await fs.writeFile(resolvedPath, content, 'utf-8');
 
-	const fileSize = Buffer.byteLength(content, 'utf-8');
+	const writer = openWriteStream(resolvedPath);
+	let fileSize = 0;
+
+	try {
+		for (const sample of validSamples) {
+			const out = {
+				messages: sample.messages.map(m => ({ role: m.role, content: m.content })),
+				metadata: sample.metadata,
+			};
+			const line = JSON.stringify(out) + '\n';
+			await writer.write(line);
+			fileSize += Buffer.byteLength(line, 'utf-8');
+		}
+		await writer.close();
+	} catch (err) {
+		try { await writer.close(); } catch { /* swallow secondary errors */ }
+		throw err;
+	}
+
 	const languageCounts = new Map<string, number>();
 	for (const sample of validSamples) {
 		const lang = sample.metadata.language || 'unknown';

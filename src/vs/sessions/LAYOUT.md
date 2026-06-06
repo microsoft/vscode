@@ -100,7 +100,7 @@ The Sessions Part (`SessionsPart` in [browser/parts/sessionsPart.ts](src/vs/sess
 
 A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/sessionView.ts)) is a single leaf in the Sessions Part's internal grid. It hosts:
 
-- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · branch · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). Visible once the bound session is created. It is also the drag handle for the session. Right-clicking the header opens `Menus.SessionHeaderContext`, which surfaces pin view / close (`1_view`), rename (`2_edit`), and mark read / unread (`3_read`). The same menu id is exposed to extensions via the `chatSessions/header/context` contribution point, so providers (e.g. Copilot CLI, Claude Code) can add their own rename actions alongside the built-in entries.
+- A **session header** at the top ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts)) — the session status icon + title, a meta row (workspace · branch · diff stats), and the session toolbars (Run, Open in VS Code, New Chat). Visible once the bound session is created. It is also the drag handle for the session. Right-clicking the header opens `Menus.SessionHeaderContext`, which surfaces pin view / close (`1_view`), rename (`2_edit`), and mark read / unread (`3_read`). The built-in rename action is registered from `contrib/sessions/browser/sessionsActions.ts` and uses `ISessionsPartService` to find the matching `SessionView`, which delegates to the header's inline rename control.
 - A **chat composite bar** below the header ([browser/parts/chatCompositeBar.ts](src/vs/sessions/browser/parts/chatCompositeBar.ts)) — the chat tab strip, shown only when the session has more than one chat. A single chat is already represented by the header title.
 - A **chat view** below the bars, swapped in/out based on session state.
 - A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.
@@ -153,7 +153,7 @@ When the editor part is shown in the grid (not as a modal), its title toolbar (`
 
 When the auxiliary bar is hidden the editor becomes the rightmost card and expands into the freed space; the workbench's 10px right gutter still applies, and a `.noauxiliarybar` rule in `browser/media/style.css` restores the editor's right border and right corner radii so it keeps its card appearance.
 
-The auxiliary-bar invariant (§10) is only enforced when the editor part *becomes* visible, so this toggle can collapse the side part while the editor stays open.
+The auxiliary-bar invariant (§10) is enforced when the editor part *becomes* visible — for example, opening a file from chat reveals the editor and also reveals the secondary side bar. The chevron toggle can still collapse the side part while the editor stays open. The one exception is **restoring a session's editor working set on session switch**: that reveal is programmatic and honors the session's saved auxiliary bar visibility, so a side bar the user hid for a session stays hidden when returning to it.
 
 The main editor part can be explicitly revealed for workflows that target it directly.
 
@@ -212,7 +212,7 @@ All session-window contributions use `WindowVisibility.Sessions` to only appear 
 
 ## 10. Per-Session Layout State
 
-`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts.
+`LayoutController` (`contrib/layout/browser/sessionLayoutController.ts`) manages layout state as the user switches between sessions. All state is persisted to workspace storage so it survives restarts. This section is a summary — see **[LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md)** for the full specification (switch trigger, multi-session handling, auto-reveal, persistence, and invariants).
 
 ### Auxiliary Bar
 

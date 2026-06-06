@@ -120,7 +120,7 @@
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Secondary sidebar toggle uses icon variants for toggle state — no background needed */

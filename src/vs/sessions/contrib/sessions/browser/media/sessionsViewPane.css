@@ -158,7 +158,7 @@
 		padding: 2px 8px;
 		font-size: 12px;
 		line-height: 18px;
-		border-radius: var(--vscode-cornerRadius-medium);
+		border-radius: var(--vscode-cornerRadius-small);
 		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
 		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
 		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
@@ -196,7 +196,7 @@
 		line-height: 1;
 		padding: 1px 3px;
 		border: 1px solid transparent;
-		border-radius: 2px;
+		border-radius: var(--vscode-cornerRadius-xSmall);
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
 		box-shadow: none;

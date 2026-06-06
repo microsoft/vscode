@@ -473,19 +473,37 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return new Promise<ITaskTerminateResponse>((resolve, reject) => {
+			const mapKey = task.getMapKey();
+			let resolved = false;
+			// The terminal can be disposed without ever firing `onExit` (the exit event is
+			// skipped when the instance is disposed while flushing its data). Resolve on
+			// whichever of `onExit`/`onDisposed` fires first and remove the task from the
+			// active tasks so callers such as task restart/rerun always proceed to re-run
+			// the task instead of hanging on a promise that never settles.
+			const finish = () => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				onExit.dispose();
+				onDisposedListener.dispose();
+				const terminatedTask = activeTerminal.task;
+				if (this._activeTasks[mapKey] === activeTerminal) {
+					delete this._activeTasks[mapKey];
+				}
+				resolve({ success: true, task: terminatedTask });
+			};
 			const onDisposedListener = terminal.onDisposed(terminal => {
 				this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
-				onDisposedListener.dispose();
+				finish();
 			});
 			const onExit = terminal.onExit(() => {
-				const task = activeTerminal.task;
 				try {
-					onExit.dispose();
-					this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
+					this._fireTaskEvent(TaskEvent.terminated(activeTerminal.task, terminal.instanceId, terminal.exitReason));
 				} catch (error) {
 					// Do nothing.
 				}
-				resolve({ success: true, task: task });
+				finish();
 			});
 			terminal.dispose();
 		});

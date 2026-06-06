@@ -153,6 +153,19 @@ export interface ITerminalChatService {
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
 
 	/**
+	 * Associate a terminal execution id (the per-invocation id used by `RunInTerminalTool`)
+	 * with a terminal instance. The association is automatically cleared when the instance is
+	 * disposed or when the returned disposable is disposed.
+	 */
+	registerTerminalInstanceWithExecutionId(terminalExecutionId: string, instance: ITerminalInstance): IDisposable;
+
+	/**
+	 * Resolve a terminal instance by its execution id (the per-invocation id used by
+	 * `RunInTerminalTool`). Returns undefined if no active execution exists for the id.
+	 */
+	getTerminalInstanceByExecutionId(terminalExecutionId: string): ITerminalInstance | undefined;
+
+	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */

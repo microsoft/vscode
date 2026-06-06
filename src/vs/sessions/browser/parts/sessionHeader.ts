@@ -123,10 +123,7 @@ export class SessionHeader extends Disposable {
 		// mousedown so that initiating a drag from the title doesn't also
 		// flip into edit mode.
 		this._register(addDisposableListener(this._titleEl, EventType.CLICK, () => {
-			if (!this._isTitleEditable() || this._renameInput) {
-				return;
-			}
-			this._startTitleEditing();
+			this.startTitleEditing();
 		}));
 
 		const titleActions = $('.chat-composite-bar-title-actions');
@@ -179,7 +176,7 @@ export class SessionHeader extends Disposable {
 				menuId: Menus.SessionHeaderContext,
 				menuActionOptions: { shouldForwardArgs: true, arg: session },
 				getAnchor: () => anchor,
-				contextKeyService: this._contextKeyService
+				contextKeyService: this._contextKeyService,
 			});
 		}));
 	}
@@ -354,6 +351,13 @@ export class SessionHeader extends Disposable {
 	 */
 	private _isTitleEditable(): boolean {
 		return !!this._session && isAgentHostProviderId(this._session.providerId);
+	}
+
+	startTitleEditing(): void {
+		if (!this._isTitleEditable() || this._renameInput) {
+			return;
+		}
+		this._startTitleEditing();
 	}
 
 	/**

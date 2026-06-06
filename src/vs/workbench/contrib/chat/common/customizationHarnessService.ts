@@ -722,7 +722,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 
 
 		const items = await harness.itemProvider.provideChatSessionCustomizations(sessionResource, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return [];
 		}
 

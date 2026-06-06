@@ -773,3 +773,66 @@ export enum SpeculativeRequestsAutoExpandEditWindowLines {
 export namespace SpeculativeRequestsAutoExpandEditWindowLines {
 	export const VALIDATOR = vEnum(SpeculativeRequestsAutoExpandEditWindowLines.Off, SpeculativeRequestsAutoExpandEditWindowLines.Smart, SpeculativeRequestsAutoExpandEditWindowLines.Always);
 }
+
+/**
+ * Shape of the predicted output we send to the patch-based model along with the prompt.
+ * In every example below, `{currentLineNumber}` is 0-based — matching `Patch.lineNumZeroBased`
+ * parsed by `XtabCustomDiffPatchResponseHandler`.
+ */
+export enum PatchModelPrediction {
+	/**
+	 * Expects changes in the current file but doesn't expect where (line number is not specified).
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:
+	 * ```
+	 */
+	FilePath = 'filePath',
+	/**
+	 * Predicts the file path, cursor line number, and a deletion of the current line.
+	 * The model is free to follow with further `-`/`+` lines as needed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * ```
+	 */
+	CurrentLine = 'currentLine',
+	/**
+	 * Expects the current line to be replaced.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo {
+	 * +
+	 * ```
+	 */
+	CurrentLineReplaced = 'currentLineReplaced',
+	/**
+	 * Expects the current line to be completed.
+	 *
+	 * Example:
+	 *
+	 * ```
+	 * path/to/file:{currentLineNumber}
+	 * -	class Foo
+	 * +	class Foo
+	 * ```
+	 */
+	CurrentLineCompleted = 'currentLineCompleted',
+}
+
+export namespace PatchModelPrediction {
+	export const VALIDATOR = vEnum(
+		PatchModelPrediction.FilePath,
+		PatchModelPrediction.CurrentLine,
+		PatchModelPrediction.CurrentLineReplaced,
+		PatchModelPrediction.CurrentLineCompleted
+	);
+}

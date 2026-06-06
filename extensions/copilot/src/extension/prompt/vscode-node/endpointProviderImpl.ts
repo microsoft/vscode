@@ -121,6 +121,14 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			}
 		}
 
+		// Utility-family aliases (published by LanguageModelAccess under the copilot vendor)
+		// have synthetic ids that don't map to any real CAPI model, so the lookup below
+		// would silently fall back to `copilot-utility`. Route them through the family
+		// resolver so the chat-participant path matches direct `getChatEndpoint(family)` callers.
+		if (model.id === 'copilot-utility-small' || model.id === 'copilot-utility') {
+			return this.getChatEndpoint(model.id);
+		}
+
 		const modelMetadata = await this._modelFetcher.getChatModelFromApiModel(model);
 		// If we fail to resolve a model since this is panel we give copilot utility. This really should never happen as the picker is powered by the same service.
 		return modelMetadata ? this.getOrCreateChatEndpointInstance(modelMetadata) : this.getChatEndpoint('copilot-utility');

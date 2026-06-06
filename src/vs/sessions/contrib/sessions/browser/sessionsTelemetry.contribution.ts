@@ -20,6 +20,7 @@ import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackR
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
@@ -48,6 +49,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -84,7 +86,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._logSessionDeleted(session)));
 		this._register(this._sessionsManagementService.onDidDeleteChat(session => this._logChatDeleted(session)));
 		this._register(this._sessionsManagementService.onDidRenameChat(session => this._logChatRenamed(session)));
-		this._register(this._sessionsManagementService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));
+		this._register(this._sessionsViewService.onDidToggleSessionStickiness(e => this._logSessionStickinessToggled(e.session, e.sticky)));
 		this._register(sessionsPartService.onDidToggleMaximizeSession(e => this._logSessionMaximizeToggled(e.session, e.maximized)));
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => this._onDidChangeSessions(e)));
 
@@ -193,7 +195,7 @@ export class SessionsTelemetryContribution extends Disposable implements IWorkbe
 		}
 
 		const allSessions = this._sessionsManagementService.getSessions();
-		const visibleSessionsCount = this._sessionsManagementService.visibleSessions.get().filter(s => s !== undefined).length;
+		const visibleSessionsCount = this._sessionsViewService.visibleSessions.get().filter(s => s !== undefined).length;
 		// Snapshot all synchronous fields now so the event reflects the state at
 		// the time of the send, not when the async file-count fetch resolves.
 		const workspace = session.workspace.get();

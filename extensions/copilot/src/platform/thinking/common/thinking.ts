@@ -56,6 +56,13 @@ export type EncryptedThinkingDelta = {
 	id: string;
 	text?: string;
 	encrypted: string;
+	/**
+	 * True only for genuine Anthropic `redacted_thinking` blocks, where `encrypted`
+	 * holds the opaque `data` blob. For regular thinking blocks `encrypted` holds the
+	 * signature and this is false/undefined, even when the thinking text is empty
+	 * (e.g. `display: "omitted"` or pruned under token budget).
+	 */
+	redacted?: boolean;
 };
 
 export function isEncryptedThinkingDelta(delta: ThinkingDelta | EncryptedThinkingDelta): delta is EncryptedThinkingDelta {
@@ -68,4 +75,10 @@ export interface ThinkingData {
 	metadata?: { [key: string]: any };
 	tokens?: number;
 	encrypted?: string;
+	/**
+	 * True only for genuine Anthropic `redacted_thinking` blocks, where `encrypted`
+	 * holds the opaque `data` blob. For regular thinking blocks `encrypted` holds the
+	 * signature and this is false/undefined, even when the thinking text is empty.
+	 */
+	redacted?: boolean;
 }

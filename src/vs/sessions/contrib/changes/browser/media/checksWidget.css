@@ -20,7 +20,7 @@
 	align-items: center;
 	padding: 4px;
 	margin-top: 4px;
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	min-height: 22px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	cursor: pointer;
@@ -160,7 +160,7 @@
 
 /* Individual check row */
 .ci-status-widget .ci-status-widget-list .monaco-list-row {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .ci-status-widget-check {

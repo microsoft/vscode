@@ -39,6 +39,7 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -59,13 +60,13 @@ const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
  * the session is already the last visible one, this is a no-op aside from
  * activation.
  */
-export async function openSessionToTheSide(sessionsManagementService: ISessionsManagementService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
-	const visible = sessionsManagementService.visibleSessions.get();
+export async function openSessionToTheSide(sessionsViewService: ISessionsViewService, session: ISession, options?: { preserveFocus?: boolean }): Promise<void> {
+	const visible = sessionsViewService.visibleSessions.get();
 	const lastVisible = visible[visible.length - 1];
 	if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-		sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+		sessionsViewService.insertAt(session, lastVisible.sessionId, 'right');
 	}
-	await sessionsManagementService.openSession(session.resource, options);
+	await sessionsViewService.openSession(session.resource, options);
 }
 
 export const SessionsViewFilterSubMenu = new MenuId('SessionsViewPaneFilterSubMenu');
@@ -104,6 +105,7 @@ export class SessionsView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -219,11 +221,11 @@ export class SessionsView extends ViewPane {
 					// Alt-click: open the session to the right of the last visible session in the grid.
 					const session = this.sessionsManagementService.getSession(resource);
 					if (session) {
-						openSessionToTheSide(this.sessionsManagementService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+						openSessionToTheSide(this.sessionsViewService, session, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 						return;
 					}
 				}
-				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
+				this.sessionsViewService.openSession(resource, { preserveFocus }).then(onOpened).catch(onUnexpectedError);
 			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
@@ -338,7 +340,7 @@ export class SessionsView extends ViewPane {
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.sessionsManagementService.openNewSessionView();
+			this.sessionsViewService.openNewSession();
 			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
 		}));
 

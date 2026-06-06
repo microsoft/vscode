@@ -70,6 +70,7 @@ export class ThinkingDataItem implements ThinkingData {
 	public metadata?: { [key: string]: any };
 	public tokens?: number;
 	public encrypted?: string;
+	public redacted?: boolean;
 
 	static createOrUpdate(item: ThinkingDataItem | undefined, delta: ThinkingDelta) {
 		if (!item) {
@@ -90,6 +91,9 @@ export class ThinkingDataItem implements ThinkingData {
 		}
 		if (isEncryptedThinkingDelta(delta)) {
 			this.encrypted = delta.encrypted;
+			if (delta.redacted !== undefined) {
+				this.redacted = delta.redacted;
+			}
 		}
 		if (delta.text !== undefined) {
 

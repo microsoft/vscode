@@ -20,6 +20,7 @@ The Agents Window (`Workbench`) provides a simplified, fixed-layout workbench ta
 | Document | Description |
 |----------|-------------|
 | [LAYOUT.md](LAYOUT.md) | Workbench layout specification — grid structure, parts, titlebar, per-session layout state |
+| [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) | Per-session layout state — how the auxiliary bar, panel, and editor working sets are captured/restored on session switch |
 | [LAYERS.md](LAYERS.md) | Import layering rules — what each layer can and cannot import, ESLint enforcement |
 | [SESSIONS.md](SESSIONS.md) | Sessions architecture — layers, provider model, core interfaces, data flow, metadata contract |
 | [MOBILE.md](MOBILE.md) | Mobile layout specification |

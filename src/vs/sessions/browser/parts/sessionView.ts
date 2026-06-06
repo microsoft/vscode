@@ -219,6 +219,10 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._currentView.value?.focus();
 	}
 
+	startTitleEditing(): void {
+		this._header.startTitleEditing();
+	}
+
 	selectWorkspace(folderUri: URI, providerId?: string): void {
 		this._currentView.value?.selectWorkspace(folderUri, providerId);
 	}

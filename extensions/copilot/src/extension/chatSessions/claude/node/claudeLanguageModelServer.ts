@@ -191,6 +191,17 @@ export class ClaudeLanguageModelServer extends Disposable {
 				tokenSource.cancel();
 			});
 
+			// If the user picked a context tier in the model picker, surface that
+			// value directly as the prompt token budget. CAPI's `tokenPricing.default.contextMax`
+			// is documented as a prompt-token limit (matching `endpoint.modelMaxPromptTokens`),
+			// and CAPI bills the tier based on actual prompt size, so no other signaling is
+			// required. Clamp to the default budget so the override never lowers it.
+			const sessionContextSize = sessionId ? this.sessionStateService.getContextSizeForSession(sessionId) : undefined;
+			const defaultPromptBudget = DEFAULT_MAX_TOKENS - DEFAULT_MAX_OUTPUT_TOKENS;
+			const modelMaxPromptTokens = sessionContextSize !== undefined
+				? Math.max(defaultPromptBudget, sessionContextSize)
+				: defaultPromptBudget;
+
 			const endpointRequestBody = requestBody as IEndpointBody;
 			const streamingEndpoint = this.instantiationService.createInstance(
 				ClaudeStreamingPassThroughEndpoint,
@@ -200,7 +211,7 @@ export class ClaudeLanguageModelServer extends Disposable {
 				headers,
 				'vscode_claude_code',
 				{
-					modelMaxPromptTokens: DEFAULT_MAX_TOKENS - DEFAULT_MAX_OUTPUT_TOKENS,
+					modelMaxPromptTokens,
 					maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS
 				},
 				sessionId

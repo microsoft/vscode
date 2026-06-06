@@ -5,14 +5,16 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
-import type { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
+import type { AgentTask, AgentTaskCreateRequest, AgentTaskGetResponse, AgentTaskListEventsResponse, AgentTaskListResponse, AgentTaskSessionEvent, AgentTaskSteerRequest, AgentTaskCreatePullRequestResponse } from '@vscode/copilot-api';
 import { IGitService } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem, SessionInfo } from '../../../../platform/github/common/githubAPI';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { ITaskApiClient, ListTaskEventsOptions, ListTasksOptions } from '../../common/taskApiTypes';
 import { ChatSessionContentBuilder } from '../copilotCloudSessionContentBuilder';
 import { normalizeInitialSessionOptions, parseSessionLogChunksSafely } from '../copilotCloudSessionsProvider';
+import { TaskApiBackend, parseRepoFromTaskUrl } from '../taskApiBackend';
 
 vi.mock('vscode', async () => {
 	const actual = await import('../../../../vscodeTypes');
@@ -313,5 +315,104 @@ describe('ChatSessionContentBuilder Task API history', () => {
 		expect(history[0]).toBeInstanceOf(ChatRequestTurn2);
 		const req = history[0] as ChatRequestTurn2;
 		expect(req.prompt).toBe('Original prompt from creation');
+	});
+});
+
+// --- TaskApiBackend (v2) -------------------------------------------------------------------
+
+class FakeTaskApiClient implements ITaskApiClient {
+	public lastCreateRequest: AgentTaskCreateRequest | undefined;
+	public createPRCalls: Array<{ owner: string; repo: string; taskId: string }> = [];
+	private readonly _createPRResult: AgentTaskCreatePullRequestResponse;
+	private readonly _createResult: AgentTask;
+
+	constructor(opts?: { createResult?: AgentTask; createPRResult?: AgentTaskCreatePullRequestResponse }) {
+		this._createResult = opts?.createResult ?? ({
+			id: 'task-created',
+			state: 'queued',
+			created_at: '2026-03-27T00:00:00Z',
+			html_url: 'https://github.com/octocat/hello-world/agents/tasks/task-created',
+		} as unknown as AgentTask);
+		this._createPRResult = opts?.createPRResult ?? ({
+			pull_request: { number: 42 },
+		} as unknown as AgentTaskCreatePullRequestResponse);
+	}
+
+	async createTask(_owner: string, _repo: string, request: AgentTaskCreateRequest): Promise<AgentTask> {
+		this.lastCreateRequest = request;
+		return this._createResult;
+	}
+	async listTasksForRepo(_owner: string, _repo: string, _options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		return { tasks: [] } as unknown as AgentTaskListResponse;
+	}
+	async listTasks(_options?: ListTasksOptions): Promise<AgentTaskListResponse> {
+		return { tasks: [] } as unknown as AgentTaskListResponse;
+	}
+	async getTask(_taskId: string): Promise<AgentTaskGetResponse> {
+		return { id: _taskId } as unknown as AgentTaskGetResponse;
+	}
+	async getTaskEvents(_taskId: string, _options?: ListTaskEventsOptions): Promise<AgentTaskListEventsResponse> {
+		return { events: [] } as unknown as AgentTaskListEventsResponse;
+	}
+	async steerTask(_taskId: string, _request: AgentTaskSteerRequest): Promise<void> { }
+	async createPRForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse> {
+		this.createPRCalls.push({ owner, repo, taskId });
+		return this._createPRResult;
+	}
+	async archiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
+		return { id: taskId } as unknown as AgentTask;
+	}
+	async unarchiveTask(_owner: string, _repo: string, taskId: string): Promise<AgentTask> {
+		return { id: taskId } as unknown as AgentTask;
+	}
+}
+
+const fakeChatStream = {} as vscode.ChatResponseStream;
+const noToken = { isCancellationRequested: false, onCancellationRequested: () => ({ dispose() { } }) } as unknown as vscode.CancellationToken;
+
+describe('TaskApiBackend', () => {
+	it('createSession sends create_pull_request: false so the v2 backend no longer auto-creates PRs', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService());
+
+		await backend.createSession({
+			owner: 'octocat',
+			repo: 'hello-world',
+			host: 'github.com',
+			title: 'New task',
+			prompt: 'Do the thing',
+			problemStatement: 'Statement',
+			baseRef: 'main',
+		}, fakeChatStream, noToken);
+
+		expect(client.lastCreateRequest?.create_pull_request).toBe(false);
+	});
+
+	it('createPullRequestForTask delegates to ITaskApiClient.createPRForTask with the same args', async () => {
+		const client = new FakeTaskApiClient();
+		const backend = new TaskApiBackend(client, new TestLogService());
+
+		const result = await backend.createPullRequestForTask('octocat', 'hello-world', 'task-1');
+
+		expect(client.createPRCalls).toEqual([{ owner: 'octocat', repo: 'hello-world', taskId: 'task-1' }]);
+		expect(result).toEqual({ pull_request: { number: 42 } });
+	});
+});
+
+describe('parseRepoFromTaskUrl', () => {
+	it('extracts owner and name from a task html_url', () => {
+		expect(parseRepoFromTaskUrl('https://github.com/octocat/hello-world/agents/tasks/abc')).toEqual({ owner: 'octocat', name: 'hello-world' });
+	});
+
+	it('returns undefined for an unparseable URL', () => {
+		expect(parseRepoFromTaskUrl('not-a-url')).toBeUndefined();
+	});
+
+	it('returns undefined when the path does not start with owner/repo', () => {
+		expect(parseRepoFromTaskUrl('https://github.com/')).toBeUndefined();
+	});
+
+	it('returns undefined when the URL is undefined', () => {
+		expect(parseRepoFromTaskUrl(undefined)).toBeUndefined();
 	});
 });

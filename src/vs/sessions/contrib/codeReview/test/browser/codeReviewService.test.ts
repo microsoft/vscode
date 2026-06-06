@@ -165,8 +165,8 @@ suite('CodeReviewService', () => {
 			}
 		}
 
-		setActiveSession(resource: URI | undefined): void {
-			this._activeSession.set(resource ? this._sessions.get(resource.toString()) as IActiveSession | undefined : undefined, undefined);
+		override setActiveSession(session: ISession | undefined): void {
+			this._activeSession.set(session as IActiveSession | undefined, undefined);
 		}
 
 		updateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[] | undefined): void {
@@ -326,7 +326,7 @@ suite('CodeReviewService', () => {
 		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
 		gitHubService.reviewThreadsFetcher.nextThreads = [makePRThread('thread-100', 'src/a.ts')];
 
-		sessionsManagement.setActiveSession(session);
+		sessionsManagement.setActiveSession(sessionsManagement.getSession(session));
 		await tick();
 
 		// Polling is owned by GitHubPullRequestPollingContribution; refresh

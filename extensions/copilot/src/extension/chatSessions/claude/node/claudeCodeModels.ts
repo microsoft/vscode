@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { formatPricingLabel, getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getModelCapabilitiesDescription } from '../../../conversation/common/languageModelAccess';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
@@ -17,6 +17,7 @@ import { tryParseClaudeModelId } from './claudeModelId';
 import type { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
 
 export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
+export const CLAUDE_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
 export interface IClaudeCodeModels {
 	readonly _serviceBrand: undefined;
@@ -214,33 +215,57 @@ export function pickReasoningEffort(endpoint: IChatEndpoint | undefined, request
 }
 
 function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModelConfigurationSchema | undefined {
+	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
+
+	// Thinking effort
 	const effortLevels = endpoint.supportsReasoningEffort?.filter(
 		(level): level is typeof SUPPORTED_EFFORT_LEVELS[number] =>
 			(SUPPORTED_EFFORT_LEVELS as readonly string[]).includes(level)
 	);
-	if (!effortLevels) {
-		return;
+	if (effortLevels && effortLevels.length > 0) {
+		const defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+		properties[CLAUDE_REASONING_EFFORT_PROPERTY] = {
+			type: 'string',
+			title: l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(level => {
+				switch (level) {
+					case 'low': return l10n.t('Faster responses with less reasoning');
+					case 'medium': return l10n.t('Balanced reasoning and speed');
+					case 'high': return l10n.t('Greater reasoning depth but slower');
+				}
+			}),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
-	const defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+	// Context size — only when CAPI provides a default context max, indicating
+	// a meaningful distinction between default and long context tiers.
+	const pricing = endpoint.tokenPricing;
+	const defaultContextMax = pricing?.default.contextMax;
+	const fullMax = endpoint.modelMaxPromptTokens;
+	if (defaultContextMax && defaultContextMax < fullMax) {
+		const hasLongContextSurcharge = !!pricing?.longContext;
+		properties[CLAUDE_CONTEXT_SIZE_PROPERTY] = {
+			type: 'number',
+			title: l10n.t('Context Size'),
+			enum: [defaultContextMax, fullMax],
+			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
+			enumDescriptions: [
+				l10n.t('Default'),
+				hasLongContextSurcharge
+					? l10n.t('Longer sessions')
+					: l10n.t('Longer sessions without compaction'),
+			],
+			default: defaultContextMax,
+			group: 'tokens',
+		};
+	}
 
-	return {
-		properties: {
-			[CLAUDE_REASONING_EFFORT_PROPERTY]: {
-				type: 'string',
-				title: l10n.t('Thinking Effort'),
-				enum: effortLevels,
-				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(level => {
-					switch (level) {
-						case 'low': return l10n.t('Faster responses with less reasoning');
-						case 'medium': return l10n.t('Balanced reasoning and speed');
-						case 'high': return l10n.t('Greater reasoning depth but slower');
-					}
-				}),
-				default: defaultEffort,
-				group: 'navigation',
-			}
-		}
-	};
+	if (Object.keys(properties).length === 0) {
+		return undefined;
+	}
+	return { properties };
 }

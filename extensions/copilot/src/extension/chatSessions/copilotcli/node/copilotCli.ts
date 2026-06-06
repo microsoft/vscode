@@ -631,22 +631,24 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		const overrideProxyUrl = this.configurationService.getConfig(ConfigKey.Shared.DebugOverrideProxyUrl);
 
 		if (overrideProxyUrl) {
-			this.logService.info('[CopilotCLISession] Proxy URL configured, skipping client-side token validation');
-			return {
-				type: 'hmac',
-				hmac: 'empty',
-				host: 'https://github.com',
-				copilotUser: {
-					endpoints: {
-						api: overrideProxyUrl,
-						// `proxy` must also point at the mock server so that SDK
-						// calls to /copilot_internal/v2/token and /models/session
-						// are routed to the mock instead of the real GitHub API
-						// (which would reject the fake HMAC with a 401).
-						proxy: overrideProxyUrl,
-					}
+			// Only respect this from user (global) settings — a malicious workspace
+			// setting could downgrade auth from HMAC to token.
+			const authTypeInspect = this.configurationService.inspectConfig(ConfigKey.Shared.DebugOverrideAuthType);
+			const authType = authTypeInspect?.globalValue ?? 'hmac';
+			this.logService.info(`[CopilotCLISession] Proxy URL configured (authType=${authType}), skipping client-side token validation`);
+			const copilotUser = {
+				endpoints: {
+					api: overrideProxyUrl,
+					// `proxy` must also point at the mock server so that SDK
+					// calls to /copilot_internal/v2/token and /models/session
+					// are routed to the mock instead of the real GitHub API.
+					proxy: overrideProxyUrl,
 				}
 			};
+			if (authType === 'token') {
+				return { type: 'token', token: 'mock-token', host: 'https://github.com', copilotUser };
+			}
+			return { type: 'hmac', hmac: 'empty', host: 'https://github.com', copilotUser };
 		}
 
 		const { resolveAuthInfoFromToken } = await this.getPackage();

@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
-import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
+import { IChatEndpoint, IChatEndpointTokenPricing } from '../../../../../platform/networking/common/networking';
 import { Emitter } from '../../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -26,6 +26,8 @@ function createMockEndpoint(overrides: {
 	apiType?: string;
 	modelProvider?: string;
 	supportsReasoningEffort?: string[];
+	tokenPricing?: IChatEndpointTokenPricing;
+	modelMaxPromptTokens?: number;
 }): IChatEndpoint {
 	const isAnthropic = overrides.modelProvider === undefined || overrides.modelProvider === 'Anthropic';
 	return {
@@ -47,7 +49,8 @@ function createMockEndpoint(overrides: {
 		isFallback: false,
 		policy: 'enabled',
 		urlOrRequestMetadata: 'mock://endpoint',
-		modelMaxPromptTokens: 128000,
+		modelMaxPromptTokens: overrides.modelMaxPromptTokens ?? 128000,
+		tokenPricing: overrides.tokenPricing,
 		tokenizer: 'cl100k_base',
 		acquireTokenizer: () => ({ encode: () => [], free: () => { } }) as any,
 		processResponseFromChatEndpoint: () => Promise.resolve({} as any),
@@ -324,6 +327,110 @@ describe('ClaudeCodeModels', () => {
 			const schema = info[0].configurationSchema!;
 			expect(schema.properties?.['reasoningEffort'].enum).toEqual(['high']);
 			expect(schema.properties!['reasoningEffort'].default).toBe('high');
+		});
+
+		it('includes contextSize when endpoint pricing exposes a default context max below modelMaxPromptTokens', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					modelMaxPromptTokens: 1_000_000,
+					tokenPricing: {
+						default: { inputPrice: 3, outputPrice: 15, cacheReadTokenPrice: 0.3, contextMax: 200_000 },
+						longContext: { inputPrice: 6, outputPrice: 22.5, cacheReadTokenPrice: 0.6 },
+					},
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			const schema = info[0].configurationSchema!;
+			expect(schema.properties?.['contextSize']).toEqual({
+				type: 'number',
+				title: 'Context Size',
+				enum: [200_000, 1_000_000],
+				enumItemLabels: ['200K', '1M'],
+				enumDescriptions: ['Default', 'Longer sessions'],
+				default: 200_000,
+				group: 'tokens',
+			});
+		});
+
+		it('omits contextSize when pricing has no default context max', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					modelMaxPromptTokens: 1_000_000,
+					tokenPricing: {
+						default: { inputPrice: 3, outputPrice: 15, cacheReadTokenPrice: 0.3 },
+					},
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeUndefined();
+		});
+
+		it('omits contextSize when default context max equals modelMaxPromptTokens', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					modelMaxPromptTokens: 200_000,
+					tokenPricing: {
+						default: { inputPrice: 3, outputPrice: 15, cacheReadTokenPrice: 0.3, contextMax: 200_000 },
+					},
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeUndefined();
+		});
+
+		it('describes the long-context option without surcharge when there is no long-context pricing tier', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					modelMaxPromptTokens: 1_000_000,
+					tokenPricing: {
+						default: { inputPrice: 3, outputPrice: 15, cacheReadTokenPrice: 0.3, contextMax: 200_000 },
+					},
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			const schema = info[0].configurationSchema!;
+			expect(schema.properties?.['contextSize'].enumDescriptions).toEqual(['Default', 'Longer sessions without compaction']);
+		});
+
+		it('includes both reasoningEffort and contextSize when supported', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium', 'high'],
+					modelMaxPromptTokens: 1_000_000,
+					tokenPricing: {
+						default: { inputPrice: 3, outputPrice: 15, cacheReadTokenPrice: 0.3, contextMax: 200_000 },
+						longContext: { inputPrice: 6, outputPrice: 22.5, cacheReadTokenPrice: 0.6 },
+					},
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			const schema = info[0].configurationSchema!;
+			expect(Object.keys(schema.properties ?? {})).toEqual(['reasoningEffort', 'contextSize']);
 		});
 	});
 

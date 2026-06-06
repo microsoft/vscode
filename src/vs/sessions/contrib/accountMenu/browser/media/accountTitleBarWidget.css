@@ -85,7 +85,7 @@
 	min-width: 18px;
 	height: 16px;
 	padding: 0 5px;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 	font-size: 10px;

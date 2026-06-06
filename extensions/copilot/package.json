@@ -3075,6 +3075,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.createPullRequestForTask.title%",
+        "icon": "$(git-pull-request-create)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -3230,6 +3236,11 @@
             ],
             "markdownDescription": "%github.copilot.nextEditSuggestions.enabled%",
             "scope": "language-overridable"
+          },
+          "github.copilot.completions.chat.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.completions.chat.enabled%"
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
@@ -5398,6 +5409,11 @@
           "command": "github.copilot.chat.checkoutPullRequestReroute",
           "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
@@ -6202,18 +6218,6 @@
           "command": "github.copilot.cli.sessions.rename",
           "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
           "group": "1_edit@4"
-        }
-      ],
-      "chatSessions/header/context": [
-        {
-          "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        },
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
         }
       ],
       "chat/multiDiff/context": [
@@ -7031,7 +7035,6 @@
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
     "diff": "^8.0.3",
-    "dompurify": "^3.4.8",
     "express": "^5.2.1",
     "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.4",
