@@ -12,7 +12,7 @@ import { Categories } from '../../../../../platform/action/common/actionCommonCa
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostEnabledSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -77,8 +77,9 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 
 /**
  * Shared implementation of "Export Agent Host Debug Logs". Collects the
- * Copilot CLI session events file (if available), the window/shared/agent-host
- * output channel logs, and the AHP transport JSONL logs.
+ * Copilot CLI session events file (if available), the window/shared/local
+ * agent-host output channel logs, remote forwarded logs, and the AHP
+ * transport JSONL logs.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
@@ -118,20 +119,18 @@ export async function collectAgentHostDebugLogs(
 		if (activeSession.isLocal) {
 			// Agent host process logger (forwarded from the utility process)
 			channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
-			channelIds.add(`agenthost.${agentHostService.clientId}`);
 			const localClientId = sanitizeFilePart(agentHostService.clientId);
 			ahpLogNameFilter = name => name.includes(localClientId);
 		} else {
 			remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
 			if (remoteConnection) {
-				channelIds.add(`agenthost.${remoteConnection.clientId}`);
+				channelIds.add(remoteAgentHostLogOutputChannelId(remoteConnection.address));
 			}
 		}
 	} else {
 		channelIds.add(AGENT_HOST_LOGGER_CHANNEL_ID);
-		channelIds.add(`agenthost.${agentHostService.clientId}`);
 		for (const connection of remoteAgentHostService.connections) {
-			channelIds.add(`agenthost.${connection.clientId}`);
+			channelIds.add(remoteAgentHostLogOutputChannelId(connection.address));
 		}
 	}
 

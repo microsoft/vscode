@@ -250,7 +250,7 @@
 	border: none;
 	background-color: transparent;
 	color: var(--vscode-foreground);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	touch-action: manipulation;
 }
 
@@ -308,7 +308,7 @@
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-width: 0;
 	overflow: hidden;
 }

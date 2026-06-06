@@ -23,7 +23,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
-import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization } from '../../common/state/sessionState.js';
+import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -323,6 +323,78 @@ suite('AgentSideEffects', () => {
 
 			const errorAction = envelopes.find(e => e.action.type === ActionType.SessionError);
 			assert.ok(errorAction, 'should dispatch session/error');
+		});
+	});
+
+	// ---- handleAction: generic /rename slash command ---------------------
+
+	suite('handleAction — /rename slash command', () => {
+
+		// `/rename` persists the new title, so these tests need a session data
+		// service whose `openDatabase` actually returns a database (the default
+		// null service throws).
+		function createRenameSideEffects(): AgentSideEffects {
+			return createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				onTurnComplete: () => { },
+			});
+		}
+
+		test('redirects /rename to a title change and completes the turn without calling the agent', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '/rename Renamed Session', origin: { kind: MessageKind.User } },
+			};
+			// Mirror production: the reducer applies the turn, then side effects run.
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(sessionUri.toString(), action);
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.sendMessageCalls, []);
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.summary.title, 'Renamed Session');
+			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+			const part = state?.turns.at(-1)?.responseParts[0];
+			assert.strictEqual(part?.kind, ResponsePartKind.Markdown);
+			assert.strictEqual(part?.kind === ResponsePartKind.Markdown ? part.content : undefined, 'Renamed: Renamed Session');
+		});
+
+		test('/rename without a title completes the turn and leaves the title unchanged', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '/rename', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(sessionUri.toString(), action);
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.sendMessageCalls, []);
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.summary.title, 'Test');
+			assert.strictEqual(stateManager.getActiveTurnId(sessionUri.toString()), undefined);
+		});
+
+		test('a message that merely starts with /rename text (no separator) is sent to the agent', async () => {
+			setupSession();
+			const renameSideEffects = createRenameSideEffects();
+			const action: SessionAction = {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: '/renamed thing', origin: { kind: MessageKind.User } },
+			};
+			stateManager.dispatchClientAction(sessionUri.toString(), action, { clientId: 'test', clientSeq: 1 });
+			renameSideEffects.handleAction(sessionUri.toString(), action);
+			await new Promise(r => setTimeout(r, 10));
+
+			assert.deepStrictEqual(agent.sendMessageCalls, [{ session: URI.parse(sessionUri.toString()), prompt: '/renamed thing', attachments: undefined }]);
 		});
 	});
 
@@ -797,6 +869,52 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages, undefined);
 		});
 
+		test('intercepts queued /rename and drains the message queued behind it', () => {
+			setupSession();
+			// `/rename` persists the new title, so use a side effects instance
+			// whose `openDatabase` returns a real database (the suite default
+			// throws).
+			const renameSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				onTurnComplete: () => { },
+			});
+			disposables.add(renameSideEffects.registerProgressListener(agent));
+
+			// Queue a `/rename` followed by a normal message while a turn is active
+			startTurn('turn-1');
+			for (const msg of [
+				{ id: 'q-rename', text: '/rename Queued Title' },
+				{ id: 'q-after', text: 'after rename' },
+			]) {
+				const setAction = {
+					type: ActionType.SessionPendingMessageSet as const,
+					kind: PendingMessageKind.Queued,
+					id: msg.id,
+					message: { text: msg.text, origin: { kind: MessageKind.User } },
+				};
+				stateManager.dispatchClientAction(sessionUri.toString(), setAction, { clientId: 'test', clientSeq: 1 });
+				renameSideEffects.handleAction(sessionUri.toString(), setAction);
+			}
+
+			// Fire idle → turn completes → `/rename` is consumed and intercepted,
+			// then the message queued behind it must be drained to the agent.
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: { type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+			});
+
+			// The `/rename` must not reach the agent; only the message behind it does
+			assert.strictEqual(agent.sendMessageCalls.length, 1);
+			assert.strictEqual(agent.sendMessageCalls[0].prompt, 'after rename');
+
+			// Both queued messages should be drained from state
+			const state = stateManager.getSessionState(sessionUri.toString());
+			assert.strictEqual(state?.queuedMessages, undefined);
+			assert.strictEqual(state?.summary.title, 'Queued Title');
+		});
+
 		test('does not consume queued message while a turn is active', () => {
 			setupSession();
 			startTurn('turn-1');
@@ -921,7 +1039,7 @@ suite('AgentSideEffects', () => {
 			agent.getSessionCustomizations = async () => currentCustomizations;
 			agent.setClientCustomizations = async (session, clientId, customizations) => {
 				agent.setClientCustomizationsCalls.push({ clientId, customizations });
-				const loading: Customization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loading } };
+				const loading: PluginCustomization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loading } };
 				currentCustomizations = [loading];
 				agent.fireProgress({
 					kind: 'action',
@@ -932,7 +1050,7 @@ suite('AgentSideEffects', () => {
 					},
 				});
 				await new Promise(resolve => setTimeout(resolve, 0));
-				const loaded: Customization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loaded } };
+				const loaded: PluginCustomization = { ...pluginAClient, load: { kind: CustomizationLoadStatus.Loaded } };
 				currentCustomizations = [loaded];
 				agent.fireProgress({
 					kind: 'action',
@@ -942,7 +1060,7 @@ suite('AgentSideEffects', () => {
 						customization: loaded,
 					},
 				});
-				return currentCustomizations.map(customization => ({ customization }));
+				return currentCustomizations.map(customization => ({ customization: customization as PluginCustomization }));
 			};
 
 			const envelopes: ActionEnvelope[] = [];
@@ -1149,7 +1267,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-conf-1', toolName: 'read', displayName: 'Read File', toolClientId: undefined,
+					toolCallId: 'tc-conf-1', toolName: 'read', displayName: 'Read File', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1197,7 +1315,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-deny-1', toolName: 'shell', displayName: 'Shell', toolClientId: undefined,
+					toolCallId: 'tc-deny-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1238,7 +1356,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-ready-1', toolName: 'runTask', displayName: 'Run Task', toolClientId: 'test-client',
+					toolCallId: 'tc-ready-1', toolName: 'runTask', displayName: 'Run Task', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1277,7 +1395,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-perm-1', toolName: 'write', displayName: 'Write File', toolClientId: 'test-client',
+					toolCallId: 'tc-perm-1', toolName: 'write', displayName: 'Write File', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1317,7 +1435,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-parent', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined,
+					toolCallId: 'tc-parent', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1336,7 +1454,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-inner', toolName: 'problems', displayName: 'Problems', toolClientId: 'client-tools',
+					toolCallId: 'tc-inner', toolName: 'problems', displayName: 'Problems', contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1416,7 +1534,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-bypass-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-bypass-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1455,7 +1573,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-ap-shell-1', toolName: 'shell', displayName: 'Shell', toolClientId: undefined,
+					toolCallId: 'tc-ap-shell-1', toolName: 'shell', displayName: 'Shell', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1494,7 +1612,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-default-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-default-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1537,7 +1655,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-mid-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-mid-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1581,7 +1699,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-auto-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-auto-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1623,7 +1741,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-env-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-env-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1664,7 +1782,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-pkg-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-pkg-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1700,7 +1818,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-lock-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-lock-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1736,7 +1854,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-git-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-git-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1777,7 +1895,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-read-1', toolName: 'read', displayName: 'Read', toolClientId: undefined,
+					toolCallId: 'tc-read-1', toolName: 'read', displayName: 'Read', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1818,7 +1936,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-read-2', toolName: 'read', displayName: 'Read', toolClientId: undefined,
+					toolCallId: 'tc-read-2', toolName: 'read', displayName: 'Read', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -1999,7 +2117,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined,
+					toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2047,7 +2165,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Start parent tool + subagent
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
@@ -2056,7 +2174,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-1',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'inner-tc-1', toolName: 'readFile', displayName: 'Read File', toolClientId: undefined,
+					toolCallId: 'inner-tc-1', toolName: 'readFile', displayName: 'Read File', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2096,7 +2214,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// Inner event arrives but `subagent_started` never does.
@@ -2104,7 +2222,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-1',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'inner-1', toolName: 'read', displayName: 'Read', toolClientId: undefined,
+					toolCallId: 'inner-1', toolName: 'read', displayName: 'Read', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2147,7 +2265,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Start parent tool + subagent
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
@@ -2183,11 +2301,11 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Start two parent tool calls with subagents
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Sub 1', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Sub 1', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating 1...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'sub1', agentDisplayName: 'Sub 1', agentDescription: 'First' });
 
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-2', toolName: 'runSubagent', displayName: 'Sub 2', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-2', toolName: 'runSubagent', displayName: 'Sub 2', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-2', invocationMessage: 'Delegating 2...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-2', agentName: 'sub2', agentDisplayName: 'Sub 2', agentDescription: 'Second' });
 
@@ -2209,7 +2327,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Sub 1', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Sub 1', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'sub', agentDisplayName: 'Sub', agentDescription: 'Has subagent' });
 
@@ -2226,7 +2344,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
@@ -2251,7 +2369,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'task', displayName: 'Task', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-1', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-1', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-1', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
 
@@ -2296,7 +2414,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// 1. Parent tool starts (the `task` invocation).
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 
 			// 2. Inner tool fires BEFORE subagent_started (race condition).
@@ -2304,7 +2422,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'inner-tc-1', toolName: 'readFile', displayName: 'Read File', toolClientId: undefined,
+					toolCallId: 'inner-tc-1', toolName: 'readFile', displayName: 'Read File', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2347,7 +2465,7 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Parent task tool spawns a subagent.
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
@@ -2357,7 +2475,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'inner-read-1', toolName: 'read', displayName: 'Read', toolClientId: undefined,
+					toolCallId: 'inner-read-1', toolName: 'read', displayName: 'Read', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2410,7 +2528,7 @@ suite('AgentSideEffects', () => {
 				};
 			}
 
-			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', toolClientId: undefined, _meta: { toolKind: undefined, language: undefined } } });
+			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.SessionToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
 			agent.fireProgress({ kind: 'subagent_started', session: sessionUri, toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
 
@@ -2420,7 +2538,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'inner-write-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'inner-write-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2462,7 +2580,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-perm-1', toolName: 'CustomTool', displayName: 'Custom Tool', toolClientId: undefined,
+					toolCallId: 'tc-perm-1', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2512,7 +2630,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-perm-2', toolName: 'CustomTool', displayName: 'Custom Tool', toolClientId: undefined,
+					toolCallId: 'tc-perm-2', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2568,7 +2686,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-perm-3', toolName: 'CustomTool', displayName: 'Custom Tool', toolClientId: undefined,
+					toolCallId: 'tc-perm-3', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2613,7 +2731,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', toolClientId: undefined,
+					toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2637,7 +2755,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri, parentToolCallId: 'tc-parent',
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'inner-perm-1', toolName: 'CustomTool', displayName: 'Custom Tool', toolClientId: undefined,
+					toolCallId: 'inner-perm-1', toolName: 'CustomTool', displayName: 'Custom Tool', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});
@@ -2690,7 +2808,7 @@ suite('AgentSideEffects', () => {
 				kind: 'action', session: sessionUri,
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
-					toolCallId: 'tc-edit-1', toolName: 'write', displayName: 'Write', toolClientId: undefined,
+					toolCallId: 'tc-edit-1', toolName: 'write', displayName: 'Write', contributor: undefined,
 					_meta: { toolKind: undefined, language: undefined },
 				},
 			});

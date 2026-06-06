@@ -51,9 +51,10 @@ export class NewChatInSessionWidget extends Disposable {
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
 			getContextFolderUri: () => this._getContextFolderUri(),
-			sendRequest: async (text: string, attachedContext?: IChatRequestVariableEntry[]) => this._send(text, attachedContext),
+			sendRequest: async ({ query, attachments }) => this._send(query, attachments),
 			canSendRequest,
 			loading,
+			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
 			minEditorHeight: 64,
 			placeholder: localize('newChatInSessionPlaceholder', 'Ask a follow-up question or start a new topic within this session...'),
 		}));

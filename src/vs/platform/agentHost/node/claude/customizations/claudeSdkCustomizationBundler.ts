@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../files/common/files.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
-import { CustomizationLoadStatus, CustomizationType, customizationId, type AgentCustomization, type Customization, type SkillCustomization } from '../../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, customizationId, type AgentCustomization, type PluginCustomization, type SkillCustomization } from '../../../common/state/sessionState.js';
 import type { ISdkResolvedCustomizations } from '../claudeSdkPipeline.js';
 
 const PLUGIN_NAME = 'claude-discovered';
@@ -58,7 +58,7 @@ export class ClaudeSdkCustomizationBundler extends Disposable {
 		this._rootUri = URI.joinPath(pluginManager.basePath, DISCOVERED_DIR, authority);
 	}
 
-	async bundle(snapshot: ISdkResolvedCustomizations): Promise<Customization | undefined> {
+	async bundle(snapshot: ISdkResolvedCustomizations): Promise<PluginCustomization | undefined> {
 		if (snapshot.commands.length === 0 && snapshot.agents.length === 0) {
 			return undefined;
 		}

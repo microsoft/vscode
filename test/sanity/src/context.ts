@@ -42,7 +42,6 @@ export class TestContext {
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
-	private readonly patchedWslNodePaths = new Set<string>();
 	private nextPort = 3010;
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
@@ -57,6 +56,7 @@ export class TestContext {
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
 		screenshotsDir: string | undefined;
+		crashDumpsDir: string | undefined;
 	}>) {
 	}
 
@@ -255,38 +255,6 @@ export class TestContext {
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * On WSL1, patches the Node.js binary used by the server to remove ELF note sections
-	 * that cause Node 24 to fail to start. No-op on WSL2.
-	 * @param wslEntryPoint The WSL path to the server entry point script.
-	 */
-	public applyWsl1Node24Workaround(wslEntryPoint: string): void {
-		if (this.getUbuntuWslVersion() !== 1) {
-			return;
-		}
-
-		const wslNodePath = wslEntryPoint.replace(/\/bin\/[^/]+$/, '/node');
-		if (this.patchedWslNodePaths.has(wslNodePath)) {
-			return;
-		}
-
-		this.patchedWslNodePaths.add(wslNodePath);
-		this.warn(`Applying WSL1 Node 24 workaround for ${wslNodePath}`);
-
-		const shellScript = [
-			'set -e',
-			`node_path='${wslNodePath}'`,
-			'backup_path="${node_path}.orig"',
-			'if [ -f "${backup_path}" ]; then exit 0; fi',
-			'if ! command -v objcopy >/dev/null 2>&1; then apt-get update && apt-get install -y binutils; fi',
-			'cp "${node_path}" "${backup_path}"',
-			'objcopy --remove-section .note.ABI-tag --remove-section .note.gnu.build-id --remove-section .note.gnu.property "${backup_path}" "${node_path}"',
-			'chmod +x "${node_path}"',
-		].join('; ');
-
-		this.runNoErrors('wsl', '-d', 'Ubuntu', 'sh', '-lc', shellScript);
 	}
 
 	/**
@@ -1260,6 +1228,19 @@ export class TestContext {
 				clearTimeout(timeoutHandle);
 			}
 		}
+	}
+
+	/**
+	 * Returns a per-test crash dump directory for the desktop app to use with
+	 * `--crash-reporter-directory`. Returns undefined if `--crash-dumps-dir` was
+	 * not provided.
+	 */
+	public getCrashDumpsDir(): string | undefined {
+		if (!this.options.crashDumpsDir || !this.currentTestName) {
+			return undefined;
+		}
+		const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return path.join(this.options.crashDumpsDir, sanitizedName);
 	}
 
 	/**
