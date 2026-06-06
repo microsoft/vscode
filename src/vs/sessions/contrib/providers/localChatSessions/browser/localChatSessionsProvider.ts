@@ -375,6 +375,7 @@ class LocalSession extends Disposable {
 
 	setModeSnapshot(mode: { readonly id: string; readonly kind: ChatModeKind | undefined } | undefined): void {
 		this._mode = undefined;
+		// The sessions surface stores a concrete mode kind; local chats default to agent mode when input state has no kind.
 		this._modeObservable.set(mode ? { id: mode.id, kind: mode.kind ?? ChatModeKind.Agent } : undefined, undefined);
 	}
 
@@ -574,7 +575,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				lastMessageDate: stored.lastMessageDate,
 				timing: { created: stored.createdAt, lastRequestStarted: undefined, lastRequestEnded: stored.lastMessageDate },
 				isActive: false,
-				lastResponseState: 0 /* ResponseModelState.Complete */,
+				lastResponseState: ResponseModelState.Complete,
 				workingDirectory,
 			};
 
@@ -902,29 +903,34 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		try {
 			const model = modelRef.object;
 			const sourceWorkspace = primary.workspace.get();
-			const workspace = sourceWorkspace ?? (model.workingDirectory ? this.resolveWorkspace(model.workingDirectory) : undefined);
+			const modelWorkingDirectory = model.workingDirectory;
+			const workingDirectory = modelWorkingDirectory ?? sourceWorkspace?.folders[0]?.root;
+			const workspace = (modelWorkingDirectory ? this.resolveWorkspace(modelWorkingDirectory) : undefined)
+				?? sourceWorkspace
+				?? (workingDirectory ? this.resolveWorkspace(workingDirectory) : undefined);
 			if (!workspace) {
 				throw new Error(`Cannot resolve workspace for forked chat ${forkedChatUri.toString()}`);
 			}
 
-			if (!model.workingDirectory && workspace.folders.length > 0) {
-				model.setWorkingDirectory(workspace.folders[0]?.root);
+			if (!model.workingDirectory && workingDirectory) {
+				model.setWorkingDirectory(workingDirectory);
 			}
 
 			const timing = model.timing;
 			const lastUpdate = model.lastMessageDate || timing.lastRequestEnded || timing.lastRequestStarted || timing.created;
+			const requestInProgress = model.requestInProgress.get();
 			const detail: IChatDetail = {
 				sessionResource: forkedChatUri,
 				title: model.title,
 				lastMessageDate: lastUpdate,
 				timing,
-				isActive: model.requestInProgress.get(),
-				lastResponseState: ResponseModelState.Complete,
-				workingDirectory: workspace.folders[0]?.root,
+				isActive: requestInProgress,
+				lastResponseState: requestInProgress ? ResponseModelState.Pending : ResponseModelState.Complete,
+				workingDirectory,
 			};
 
 			const session = LocalSession.fromHistory(detail, this.id, workspace, this.instantiationService);
-			session.setStatus(model.requestInProgress.get() ? SessionStatus.InProgress : SessionStatus.Completed);
+			session.setStatus(requestInProgress ? SessionStatus.InProgress : SessionStatus.Completed);
 			const inputState = model.inputModel.state.get();
 			session.setModelId(inputState?.selectedModel?.identifier);
 			session.setModeSnapshot(inputState?.mode);

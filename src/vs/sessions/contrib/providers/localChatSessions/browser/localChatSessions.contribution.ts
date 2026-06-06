@@ -69,10 +69,14 @@ registerAction2(class extends ForkConversationAction {
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
 			}
 
-			const adoptedSession = await sessionsManagementService.adoptForkedChat(parentSessionResource, forkedSessionResource);
-			if (adoptedSession) {
-				await sessionsViewService.openSession(adoptedSession.resource);
-				return;
+			try {
+				const adoptedSession = await sessionsManagementService.adoptForkedChat(parentSessionResource, forkedSessionResource);
+				if (adoptedSession) {
+					await sessionsViewService.openSession(adoptedSession.resource);
+					return;
+				}
+			} catch (error) {
+				logService.error(`Failed to adopt forked chat ${forkedSessionResource.toString()}`, error);
 			}
 
 			// Wait for the forked session to appear, but bound the wait so a

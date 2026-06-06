@@ -156,7 +156,7 @@ const STORAGE_KEY_SESSIONS = 'sessions.localChat.sessions';
 
 interface IReadStoredSession {
 	readonly uri: UriComponents;
-	readonly workingDirectory: UriComponents;
+	readonly workingDirectory?: UriComponents;
 	readonly parentUri?: UriComponents;
 }
 
@@ -520,11 +520,12 @@ suite('LocalChatSessionsProvider', () => {
 		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
 
 		const source = await commitNewSession(provider);
+		const forkedWorkingDirectory = URI.file('/forked/folder');
 		const forkedResource = URI.parse('vscode-local-chat://chat/forked-primary');
 		chatService.registerModel(createMockModel(forkedResource, {
 			title: 'Forked: hello',
 			timing: { created: 2_000, lastRequestStarted: 2_100, lastRequestEnded: 2_200 },
-			workingDirectory: TEST_FOLDER,
+			workingDirectory: forkedWorkingDirectory,
 		}));
 
 		const adopted = await provider.adoptForkedChat(source.sessionId, source.resource, forkedResource);
@@ -542,7 +543,7 @@ suite('LocalChatSessionsProvider', () => {
 			sessions: [source.resource.toString(), forkedResource.toString()],
 			chats: [forkedResource.toString()],
 			storedParent: undefined,
-			storedWorkingDirectory: TEST_FOLDER.toString(),
+			storedWorkingDirectory: forkedWorkingDirectory.toString(),
 		});
 	});
 
