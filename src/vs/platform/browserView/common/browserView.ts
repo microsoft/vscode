@@ -30,8 +30,10 @@ export enum BrowserViewCommandId {
 	OpenSettings = `${commandPrefix}.openSettings`,
 
 	// Favorites
-	AddFavorite = `${commandPrefix}.addFavorite`,
-	RemoveFavorite = `${commandPrefix}.removeFavorite`,
+	ToggleFavorite = `${commandPrefix}.toggleFavorite`,
+
+	// History
+	ShowHistory = `${commandPrefix}.showHistory`,
 
 	// Chat actions
 	AddElementToChat = `${commandPrefix}.addElementToChat`,
@@ -89,6 +91,8 @@ export interface IBrowserViewTheme {
 
 export interface IBrowserViewConfiguration {
 	readonly aiFeaturesDisabled?: boolean;
+	/** Maximum number of entries to retain per browser session history. */
+	readonly maxHistoryEntries?: number;
 }
 
 export interface IBrowserViewBounds {
@@ -180,6 +184,12 @@ export interface IBrowserViewCreateOptions {
 	readonly initialState?: Partial<IBrowserViewState>;
 }
 
+/** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */
+export interface IBrowserViewStorageKeys {
+	readonly history?: string;
+	readonly favicons?: string;
+}
+
 export interface IBrowserViewState {
 	url: string;
 	title: string;
@@ -194,6 +204,7 @@ export interface IBrowserViewState {
 	lastError: IBrowserViewLoadError | undefined;
 	certificateError: IBrowserViewCertificateError | undefined;
 	storageScope: BrowserViewStorageScope;
+	storageKeys: IBrowserViewStorageKeys;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
 	isAreaSelectionActive: boolean;
@@ -513,6 +524,13 @@ export interface IBrowserViewService {
 	untrustCertificate(id: string, host: string, fingerprint: string): Promise<void>;
 
 	/**
+	 * Delete entries from this view's session history.
+	 * @param id The browser view identifier
+	 * @param entryIds The IDs of the history entries to delete. If omitted, deletes all history.
+	 */
+	deleteBrowserHistory(id: string, entryIds?: readonly number[]): Promise<void>;
+
+	/**
 	 * Get captured console logs for a browser view.
 	 * Console messages are automatically captured from the moment the view is created.
 	 * @param id The browser view identifier
@@ -558,4 +576,17 @@ export interface IBrowserViewService {
 	 * @param config The configuration to apply
 	 */
 	updateConfiguration(config: IBrowserViewConfiguration): Promise<void>;
+
+	/**
+	 * Replace the calling window's contribution to the `file://` allowlist
+	 * used by integrated browser sessions. Main unions every window's
+	 * contribution into a process-wide allowlist; entries are dropped when
+	 * the window is destroyed.
+	 *
+	 * @param windowId The calling window's `vscodeWindowId`.
+	 * @param roots Normalized filesystem paths the window deems trusted —
+	 * usually `getTrustedUris()` plus, when the workspace itself is trusted,
+	 * its workspace folder paths.
+	 */
+	updateTrustedFileRoots(windowId: number, roots: readonly string[]): Promise<void>;
 }

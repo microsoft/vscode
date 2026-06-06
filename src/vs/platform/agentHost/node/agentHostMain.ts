@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeSdkPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -25,6 +25,8 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { CodexAgent } from './codex/codexAgent.js';
+import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -153,9 +155,12 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
+		diServices.set(ICodexProxyService, codexProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
+		diServices.set(IAgentService, agentService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		const diffComputeService = disposables.add(new NodeWorkerDiffComputeService(logService));
@@ -172,6 +177,15 @@ async function startAgentHost(): Promise<void> {
 		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
 		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
+		}
+		// The Codex agent provider is opt-in. Gated on the
+		// `chat.agentHost.codexAgent.path` workbench setting being non-empty,
+		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CODEX_APP_SERVER_PATH`.
+		// The codex binary is intentionally not bundled; users install it
+		// themselves (`npm install -g @openai/codex` or equivalent) and
+		// point this setting at the absolute path.
+		if (process.env[AgentHostCodexAgentBinaryPathEnvVar]) {
+			agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 		}
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
@@ -192,7 +206,10 @@ async function startAgentHost(): Promise<void> {
 	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
 	if (server instanceof UtilityProcessServer) {
 		const authorityRegistrations = new Map<unknown, IDisposable>();
-		disposables.add(server.onDidAddConnection(connection => {
+		const registerConnection = (connection: (typeof server.connections)[number]) => {
+			if (authorityRegistrations.has(connection)) {
+				return;
+			}
 			const clientId = connection.ctx;
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
@@ -200,7 +217,8 @@ async function startAgentHost(): Promise<void> {
 			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
 			const fsConnection = createAgentHostClientResourceConnection(channel);
 			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
-		}));
+		};
+		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {
 			const reg = authorityRegistrations.get(connection);
 			if (reg) {
@@ -208,6 +226,9 @@ async function startAgentHost(): Promise<void> {
 				authorityRegistrations.delete(connection);
 			}
 		}));
+		for (const connection of server.connections) {
+			registerConnection(connection);
+		}
 	}
 
 	// Expose the WebSocket client connection count to the parent process via IPC.
