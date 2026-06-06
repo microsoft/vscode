@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,8 +13,8 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationService } from '../../../../../workbench/contrib/chat/browser/automations/automationService.js';
 import { IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ISession, IChat } from '../../../../services/sessions/common/session.js';
-import { ICreateNewSessionOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionsAutomationRunner } from '../../browser/sessionsAutomationRunner.js';
 
 function hourly(): IAutomationSchedule {
@@ -35,36 +34,25 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 
 	readonly calls: IRecordedCall[] = [];
 
-	private readonly _onDidSendRequest = new Emitter<ISendRequestSentEvent>();
-	override readonly onDidSendRequest = this._onDidSendRequest.event;
-
 	/** Configure how the next createAndSendNewChatRequest behaves. */
 	nextSession: ISession | undefined;
 	nextError: Error | undefined;
-	emitNewSession = true;
+	/** Optional hook fired after the call is recorded, before returning/throwing. */
+	onSendHook: (() => Promise<void> | void) | undefined;
 
 	override async createAndSendNewChatRequest(
 		folderUri: URI,
 		options: ISendRequestOptions,
 		createOptions?: ICreateNewSessionOptions,
-	): Promise<void> {
+	): Promise<ISession | undefined> {
 		this.calls.push({ folderUri, options, createOptions });
+		if (this.onSendHook) {
+			await this.onSendHook();
+		}
 		if (this.nextError) {
 			throw this.nextError;
 		}
-		if (this.emitNewSession && this.nextSession) {
-			this._onDidSendRequest.fire({
-				session: this.nextSession,
-				chat: upcastPartial<IChat>({}),
-				isNewSession: true,
-				isNewChat: true,
-				options,
-			});
-		}
-	}
-
-	dispose(): void {
-		this._onDidSendRequest.dispose();
+		return this.nextSession;
 	}
 }
 
@@ -81,7 +69,6 @@ suite('SessionsAutomationRunner', () => {
 		const log = new NullLogService();
 		const service = teardown.add(new AutomationService(storage, log, NullTelemetryService));
 		const sessionsMgmt = new FakeSessionsManagementService();
-		teardown.add({ dispose: () => sessionsMgmt.dispose() });
 		const runner = new SessionsAutomationRunner(service, sessionsMgmt, log, NullTelemetryService);
 		return { service, sessionsMgmt, runner };
 	}
@@ -164,9 +151,34 @@ suite('SessionsAutomationRunner', () => {
 		cts.dispose();
 	});
 
-	test('completes the run even when no session was captured from onDidSendRequest', async () => {
+	test('marks the run cancelled when the token is cancelled mid-flight', async () => {
+		// Regression: previously the runner only checked the token before
+		// `createAndSendNewChatRequest`, so a cancellation that landed during
+		// the in-flight send would still stamp the run as `completed`.
 		const { service, sessionsMgmt, runner } = setup();
-		sessionsMgmt.emitNewSession = false;
+		const cts = new CancellationTokenSource();
+		sessionsMgmt.nextSession = fakeSession('s-mid');
+		sessionsMgmt.onSendHook = () => {
+			cts.cancel();
+		};
+
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
+		await runner.runOnce(a, 'schedule', 1, cts.token);
+
+		assert.strictEqual(sessionsMgmt.calls.length, 1);
+		const runs = service.runs.get();
+		assert.strictEqual(runs.length, 1);
+		assert.strictEqual(runs[0].status, 'failed');
+		assert.strictEqual(runs[0].errorMessage, 'Cancelled');
+		// Even though the service returned a session, the cancellation
+		// outcome wins and the session id is not stamped onto the run.
+		assert.strictEqual(runs[0].sessionId, undefined);
+		cts.dispose();
+	});
+
+	test('completes the run even when the service returns undefined', async () => {
+		const { service, runner } = setup();
+		// nextSession left undefined -> service returns no session.
 
 		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER_A });
 		await runner.runOnce(a, 'schedule', 1, CancellationToken.None);

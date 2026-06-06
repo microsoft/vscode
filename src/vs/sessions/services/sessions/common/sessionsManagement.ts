@@ -316,8 +316,13 @@ export interface ISessionsManagementService {
 	 * callers outside the new-session composer that want to kick off a session
 	 * programmatically. Rejects (after disposing the stranded draft) if the send
 	 * fails.
+	 *
+	 * Returns the updated session that was committed by the provider, allowing
+	 * callers to correlate the spawned session with their own bookkeeping
+	 * without listening to {@link onDidSendRequest}. Returns `undefined` if the
+	 * service was disposed mid-send.
 	 */
-	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<void>;
+	createAndSendNewChatRequest(folderUri: URI, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions): Promise<ISession | undefined>;
 
 	/**
 	 * Send a request for an existing chat within a session.
