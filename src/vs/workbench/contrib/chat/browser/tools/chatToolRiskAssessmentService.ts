@@ -28,18 +28,25 @@ export interface IToolRiskAssessment {
 
 export const IChatToolRiskAssessmentService = createDecorator<IChatToolRiskAssessmentService>('chatToolRiskAssessmentService');
 
+/**
+ * Which rubric the model uses to assess a tool call. `terminal` evaluates a
+ * shell command; `generic` evaluates file edits, reads, fetches, and other
+ * tool calls. When omitted, the kind is auto-detected from the tool id.
+ */
+export type ToolRiskPromptKind = 'terminal' | 'generic';
+
 export interface IChatToolRiskAssessmentService {
 	readonly _serviceBrand: undefined;
 	/** Returns whether the feature is enabled by configuration. */
 	isEnabled(): boolean;
 	/** Synchronously read a previously cached assessment, or undefined if none. */
-	getCached(tool: IToolData, parameters: unknown): IToolRiskAssessment | undefined;
+	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined;
 	/**
 	 * Get a cached or freshly-computed risk assessment for a tool call.
 	 * Returns `undefined` when the feature is disabled, no model is available,
 	 * or the assessment cannot be parsed.
 	 */
-	assess(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined>;
+	assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind): Promise<IToolRiskAssessment | undefined>;
 }
 
 const MAX_PARAM_BYTES = 2000;
@@ -64,16 +71,17 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		return this._configurationService.getValue<boolean>(ChatConfiguration.ToolRiskAssessmentEnabled) !== false;
 	}
 
-	getCached(tool: IToolData, parameters: unknown): IToolRiskAssessment | undefined {
-		return this._cache.get(this._cacheKey(tool, parameters))?.assessment;
+	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined {
+		return this._cache.get(this._cacheKey(tool, parameters, resolveRiskPromptKind(tool, kind)))?.assessment;
 	}
 
-	async assess(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
+	async assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind): Promise<IToolRiskAssessment | undefined> {
 		if (!this.isEnabled()) {
 			return undefined;
 		}
 
-		const key = this._cacheKey(tool, parameters);
+		const resolvedKind = resolveRiskPromptKind(tool, kind);
+		const key = this._cacheKey(tool, parameters, resolvedKind);
 
 		const cached = this._cache.get(key);
 		if (cached) {
@@ -87,7 +95,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 		const promise = (async () => {
 			try {
-				const assessment = await this._invokeModel(tool, parameters, token);
+				const assessment = await this._invokeModel(tool, parameters, resolvedKind, token);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -104,11 +112,11 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		return promise;
 	}
 
-	private _cacheKey(tool: IToolData, parameters: unknown): string {
-		return tool.id + '::' + stableStringify(normalizeRiskCacheParameters(tool, parameters));
+	private _cacheKey(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
+		return kind + '::' + tool.id + '::' + stableStringify(normalizeRiskCacheParameters(parameters, kind));
 	}
 
-	private async _invokeModel(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
+	private async _invokeModel(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
 		const modelId = this._configurationService.getValue<string>(ChatConfiguration.ToolRiskAssessmentModel) || 'copilot-utility-small';
 
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: modelId });
@@ -116,7 +124,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 			return undefined;
 		}
 
-		const prompt = buildPrompt(tool, parameters);
+		const prompt = buildPrompt(tool, parameters, kind);
 		const response = await this._languageModelsService.sendChatRequest(
 			models[0],
 			undefined,
@@ -150,19 +158,36 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 }
 
 /**
+ * Resolve which rubric to assess a tool call under. Callers that know the
+ * surface (e.g. the terminal confirmation) pass an explicit kind; otherwise it
+ * is auto-detected from the tool id so the built-in `run_in_terminal` tool
+ * keeps the terminal rubric.
+ */
+function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undefined): ToolRiskPromptKind {
+	return kind ?? (tool.id === TerminalToolId.RunInTerminal ? 'terminal' : 'generic');
+}
+
+/**
  * Compute the subset of tool parameters that are relevant to the risk
  * assessment, used as the cache key so re-invocations of the same tool call
  * hit the cache even when model-generated descriptive fields differ.
  */
-function normalizeRiskCacheParameters(tool: IToolData, parameters: unknown): unknown {
-	if (tool.id === TerminalToolId.RunInTerminal && parameters && typeof parameters === 'object') {
+function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
+	if (kind === 'terminal' && parameters && typeof parameters === 'object') {
 		const p = parameters as Record<string, unknown>;
 		return { command: p.command };
 	}
 	return parameters;
 }
 
-function buildPrompt(tool: IToolData, parameters: unknown): string {
+function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
+	const argsJson = serializeParameters(parameters);
+	return kind === 'terminal'
+		? buildTerminalPrompt(tool, argsJson)
+		: buildGenericToolPrompt(tool, argsJson);
+}
+
+function serializeParameters(parameters: unknown): string {
 	let argsJson: string;
 	try {
 		argsJson = JSON.stringify(parameters ?? {});
@@ -172,6 +197,10 @@ function buildPrompt(tool: IToolData, parameters: unknown): string {
 	if (argsJson.length > MAX_PARAM_BYTES) {
 		argsJson = argsJson.slice(0, MAX_PARAM_BYTES) + '...[truncated]';
 	}
+	return argsJson;
+}
+
+function buildTerminalPrompt(tool: IToolData, argsJson: string): string {
 	return [
 		`You assess what one terminal command does for a code-editing AI agent, and how risky it is.`,
 		`Reply with STRICT JSON only (no prose, no markdown fences):`,
@@ -223,6 +252,61 @@ function buildPrompt(tool: IToolData, parameters: unknown): string {
 		`Strict explanation rules:`,
 		`  - Cite the ACTUAL paths, commands, URLs, branches, globs from the arguments below.`,
 		`  - Decode cryptic flags (e.g. -f, -rf, --no-verify).`,
+		`  - Never use generic phrases like "may have side effects". Always name WHAT is read or changed.`,
+		`  - Plain prose. No quotes around the sentence. No markdown fences.`,
+		``,
+		`Tool: ${tool.displayName} (id: ${tool.id})`,
+		`Description: ${tool.modelDescription || tool.userDescription || ''}`,
+		`Arguments (JSON): ${argsJson}`,
+	].join('\n');
+}
+
+function buildGenericToolPrompt(tool: IToolData, argsJson: string): string {
+	return [
+		`You assess what one tool call does for a code-editing AI agent, and how risky it is.`,
+		`The tool may edit files, read files, fetch data, or perform some other action.`,
+		`Reply with STRICT JSON only (no prose, no markdown fences):`,
+		`{`,
+		`  "risk": "green" | "orange" | "red",`,
+		`  "explanation": "<one short sentence, <=18 words>"`,
+		`}`,
+		``,
+		`Rules for "risk" — apply in order; take the FIRST match:`,
+		`  1. permanently destroys source code or user data with no recovery`,
+		`     (irrecoverable deletion, wiping a database, unrecoverable overwrite)             -> red`,
+		`  2. executes code downloaded on the fly from an arbitrary or untrusted URL           -> red`,
+		`  3. sends data to a remote server or changes remote state (POST/PUT, upload, deploy) -> orange`,
+		`  4. modifies local files or workspace state (edits, creates, reversible deletes)`,
+		`     or installs packages from a standard registry                                    -> orange`,
+		`  5. otherwise (reads files, lists, searches, fetches public read-only data)          -> green`,
+		``,
+		`Read-only operations are always GREEN. Editing or creating a workspace file is`,
+		`ORANGE (reversible via undo or version control), never red. RED is reserved for`,
+		`actions whose effects cannot be undone. Installing a package from a normal`,
+		`registry is ORANGE; only running code piped straight from an arbitrary URL is RED.`,
+		``,
+		`Examples:`,
+		`  read a file's contents              -> green`,
+		`  list files in a directory           -> green`,
+		`  search the workspace for a symbol   -> green`,
+		`  fetch a public web page (GET)       -> green`,
+		`  edit an existing source file        -> orange`,
+		`  create a new file in the workspace  -> orange`,
+		`  install a package                   -> orange`,
+		`  POST data to an external API        -> orange`,
+		`  wipe a database table               -> red`,
+		`  run code from an untrusted URL      -> red`,
+		``,
+		`Write "explanation" in this exact shape:`,
+		// allow-any-unicode-next-line
+		`  - green : "<verb> <target>."  e.g. "Reads the contents of package.json."`,
+		// allow-any-unicode-next-line
+		`  - orange: "<verb> <target> — <consequence>."  e.g. "Edits src/app.ts — changes workspace source."`,
+		// allow-any-unicode-next-line
+		`  - red   : "<verb> <target> — <irreversible consequence>."  e.g. "Deletes src/app.ts — permanently removes source."`,
+		``,
+		`Strict explanation rules:`,
+		`  - Cite the ACTUAL files, paths, URLs, or values from the arguments below.`,
 		`  - Never use generic phrases like "may have side effects". Always name WHAT is read or changed.`,
 		`  - Plain prose. No quotes around the sentence. No markdown fences.`,
 		``,
