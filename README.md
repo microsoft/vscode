@@ -4,6 +4,8 @@
 
 [![Prevent yarn.lock changes in PRs](https://github.com/microsoft/vscode/actions/workflows/no-yarn-lock-changes.yml/badge.svg)](https://github.com/microsoft/vscode/actions/workflows/no-yarn-lock-changes.yml)
 
+[![Component Fixtures](https://github.com/microsoft/vscode/actions/workflows/component-fixtures.yml/badge.svg)](https://github.com/microsoft/vscode/actions/workflows/component-fixtures.yml)
+
 
 
 # Visual Studio Code - Open Source ("Code - OSS")
