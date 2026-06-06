@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -363,6 +364,42 @@ describe('createResponsesRequestBody', () => {
 				compact_threshold: 1234,
 			}]
 		})).toBe(1234);
+	});
+
+	it('omits truncation from the request body by default', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }],
+		}];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.truncation).toBeUndefined();
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('includes truncation when Responses API truncation is enabled', async () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const configService = accessor.get(IConfigurationService);
+		await configService.setConfig(ConfigKey.Advanced.UseResponsesApiTruncation, true);
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' }],
+		}];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.truncation).toBe('auto');
+
+		accessor.dispose();
+		services.dispose();
 	});
 
 	it('converts PDF document content parts to Responses input_file', () => {
