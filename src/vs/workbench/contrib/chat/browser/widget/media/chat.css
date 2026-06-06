@@ -3070,7 +3070,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	/* shimmer animation for shimmer progress */
-	&.shimmer-progress .rendered-markdown.progress-step > p {
+	&.shimmer-progress .rendered-markdown.progress-step:not(.chat-progress-partial-shimmer) > p,
+	&.shimmer-progress .rendered-markdown.progress-step.chat-progress-partial-shimmer .chat-progress-shimmer-text {
 		background: linear-gradient(90deg,
 				var(--vscode-descriptionForeground) 0%,
 				var(--vscode-descriptionForeground) 30%,

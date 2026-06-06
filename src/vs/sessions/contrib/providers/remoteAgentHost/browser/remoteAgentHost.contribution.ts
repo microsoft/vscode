@@ -16,7 +16,7 @@ import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHost
 import { IWSLRemoteAgentHostService } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { TunnelAgentHostsSettingId } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostPermissionService.js';
+import { AgentHostLocalFilePermissionsSettingId } from '../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';

@@ -215,47 +215,114 @@ const MODEL = 'gpt-4o-2024-08-06';
  * /models list, otherwise the SDK fails with "No model available".
  */
 const EXTRA_MODELS = [
+	// gpt-5.3-codex — the Copilot CLI SDK's default model.
+	// Shape matches real CAPI /models response exactly.
 	{
 		id: 'gpt-5.3-codex',
-		name: 'GPT-5.3 Codex (Mock)',
-		version: '2025-01-01',
-		vendor: 'copilot',
-		model_picker_enabled: false,
-		is_chat_default: false,
+		name: 'GPT-5.3-Codex (Mock)',
+		object: 'model',
+		version: 'gpt-5.3-codex',
+		vendor: 'OpenAI',
+		model_picker_enabled: true,
+		model_picker_category: 'powerful',
+		model_picker_price_category: 'medium',
+		is_chat_default: true,
 		is_chat_fallback: false,
-		billing: { is_premium: false, multiplier: 0 },
+		preview: false,
+		billing: { restricted_to: ['pro', 'edu', 'pro_plus', 'individual_trial', 'business', 'enterprise', 'max'], token_prices: { batch_size: 1000000, default: { cache_price: 17, context_max: 272000, input_price: 175, output_price: 1400 } } },
 		capabilities: {
 			type: 'chat',
-			family: 'gpt-4o',
+			family: 'gpt-5.3-codex',
 			tokenizer: 'o200k_base',
-			limits: { max_prompt_tokens: 10000000, max_output_tokens: 131072, max_context_window_tokens: 10000000 },
-			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false },
+			object: 'model_capabilities',
+			limits: { max_prompt_tokens: 272000, max_output_tokens: 128000, max_context_window_tokens: 400000, vision: { max_prompt_image_size: 3145728, max_prompt_images: 1, supported_media_types: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] } },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: true, structured_outputs: true, reasoning_effort: ['low', 'medium', 'high', 'xhigh'] },
 		},
-		supported_endpoints: ['/chat/completions'],
+		supported_endpoints: ['/responses'],
 	},
-	// Anthropic Claude model — required by the Claude Code session type, which
-	// filters endpoints for `modelProvider: 'Anthropic'`, `apiType: 'messages'`,
-	// `supportsToolCalls: true`, and `showInModelPicker: true`
-	// (see `ClaudeCodeModels._fetchAvailableEndpoints`). Routes to the
-	// `/v1/messages` mock handler which emits Anthropic-format SSE.
+	// Anthropic Claude model — required by the Claude Code session type.
 	{
 		id: 'claude-sonnet-4.5',
 		name: 'Claude Sonnet 4.5 (Mock)',
-		version: '2025-01-01',
+		object: 'model',
+		version: 'claude-sonnet-4.5',
 		vendor: 'Anthropic',
 		model_picker_enabled: true,
+		model_picker_category: 'versatile',
+		model_picker_price_category: 'medium',
 		is_chat_default: false,
 		is_chat_fallback: false,
-		billing: { is_premium: false, multiplier: 0 },
+		preview: false,
+		billing: { restricted_to: ['pro', 'pro_plus', 'max', 'business', 'enterprise'], token_prices: { batch_size: 1000000, default: { cache_price: 30, input_price: 300, output_price: 1500 } } },
 		capabilities: {
 			type: 'chat',
 			family: 'claude-sonnet-4.5',
 			tokenizer: 'o200k_base',
-			limits: { max_prompt_tokens: 200000, max_output_tokens: 8192, max_context_window_tokens: 200000 },
-			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: true },
+			object: 'model_capabilities',
+			limits: { max_prompt_tokens: 168000, max_output_tokens: 32000, max_context_window_tokens: 200000, max_non_streaming_output_tokens: 16000, vision: { max_prompt_image_size: 3145728, max_prompt_images: 5, supported_media_types: ['image/jpeg', 'image/png', 'image/webp'] } },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: true, max_thinking_budget: 32000, min_thinking_budget: 1024 },
 		},
-		supported_endpoints: ['/v1/messages'],
+		supported_endpoints: ['/chat/completions', '/v1/messages'],
 	},
+];
+
+/**
+ * Complete model list used by both GET /models and GET /models/{id}.
+ * Kept in a single array so the two handlers always return consistent data.
+ */
+const ALL_MODELS = [
+	{
+		id: MODEL,
+		name: 'GPT-4o (Mock)',
+		object: 'model',
+		version: 'gpt-4o-2024-08-06',
+		vendor: 'Azure OpenAI',
+		model_picker_enabled: false,
+		model_picker_price_category: 'medium',
+		is_chat_default: false,
+		is_chat_fallback: true,
+		preview: false,
+		billing: { token_prices: { batch_size: 1000000, default: { cache_price: 125, input_price: 250, output_price: 1000 } } },
+		capabilities: {
+			type: 'chat',
+			family: 'gpt-4o',
+			tokenizer: 'o200k_base',
+			object: 'model_capabilities',
+			limits: {
+				// Use a very large token limit so the Responses API compaction
+				// threshold (90% of max_prompt_tokens) is never reached during
+				// perf benchmarks.
+				max_prompt_tokens: 10000000,
+				max_output_tokens: 131072,
+				max_context_window_tokens: 10000000,
+			},
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false },
+		},
+		supported_endpoints: ['/chat/completions'],
+	},
+	{
+		id: 'gpt-4o-mini',
+		name: 'GPT-4o mini (Mock)',
+		object: 'model',
+		version: 'gpt-4o-mini-2024-07-18',
+		vendor: 'Azure OpenAI',
+		model_picker_enabled: false,
+		model_picker_price_category: 'low',
+		is_chat_default: false,
+		is_chat_fallback: false,
+		preview: false,
+		billing: { token_prices: { batch_size: 1000000, default: { cache_price: 15, input_price: 30, output_price: 120 } } },
+		capabilities: {
+			type: 'chat',
+			family: 'gpt-4o-mini',
+			tokenizer: 'o200k_base',
+			object: 'model_capabilities',
+			limits: { max_prompt_tokens: 12288, max_output_tokens: 4096, max_context_window_tokens: 128000 },
+			supports: { streaming: true, tool_calls: true, parallel_tool_calls: true },
+		},
+		supported_endpoints: ['/chat/completions'],
+	},
+	...EXTRA_MODELS,
 ];
 
 /**
@@ -502,6 +569,7 @@ function handleRequest(req, res) {
 		readBody().then(() => {
 			json(200, {
 				available_models: [MODEL, 'gpt-4o-mini', ...EXTRA_MODELS.map(m => m.id)],
+				selected_model: 'gpt-5.3-codex',
 				session_token: 'perf-session-token-' + Date.now(),
 				expires_at: Math.floor(Date.now() / 1000) + 3600,
 				discounted_costs: {},
@@ -512,68 +580,7 @@ function handleRequest(req, res) {
 
 	// -- Models (DomainService.capiModelsURL = /models) --------------
 	if (path === '/models' && req.method === 'GET') {
-		json(200, {
-			data: [
-				{
-					id: MODEL,
-					name: 'GPT-4o (Mock)',
-					version: '2024-05-13',
-					vendor: 'copilot',
-					model_picker_enabled: true,
-					is_chat_default: true,
-					is_chat_fallback: true,
-					billing: { is_premium: false, multiplier: 0 },
-					capabilities: {
-						type: 'chat',
-						family: 'gpt-4o',
-						tokenizer: 'o200k_base',
-						limits: {
-							// Use a very large token limit so the Responses API compaction
-							// threshold (90% of max_prompt_tokens) is never reached during
-							// perf benchmarks.
-							max_prompt_tokens: 10000000,
-							max_output_tokens: 131072,
-							max_context_window_tokens: 10000000,
-						},
-						supports: {
-							streaming: true,
-							tool_calls: true,
-							parallel_tool_calls: true,
-							vision: false,
-						},
-					},
-					supported_endpoints: ['/chat/completions'],
-				},
-				{
-					id: 'gpt-4o-mini',
-					name: 'GPT-4o mini (Mock)',
-					version: '2024-07-18',
-					vendor: 'copilot',
-					model_picker_enabled: false,
-					is_chat_default: false,
-					is_chat_fallback: false,
-					billing: { is_premium: false, multiplier: 0 },
-					capabilities: {
-						type: 'chat',
-						family: 'gpt-4o-mini',
-						tokenizer: 'o200k_base',
-						limits: {
-							max_prompt_tokens: 10000000,
-							max_output_tokens: 131072,
-							max_context_window_tokens: 10000000,
-						},
-						supports: {
-							streaming: true,
-							tool_calls: true,
-							parallel_tool_calls: true,
-							vision: false,
-						},
-					},
-					supported_endpoints: ['/chat/completions'],
-				},
-				...EXTRA_MODELS,
-			],
-		});
+		json(200, { data: ALL_MODELS });
 		return;
 	}
 
@@ -584,22 +591,30 @@ function handleRequest(req, res) {
 			json(200, { state: 'accepted', terms: '' });
 			return;
 		}
-		json(200, {
+		const knownModel = ALL_MODELS.find(m => m.id === modelId);
+		// TODO: give a 404 for unknown models instead of a fallback response. This requires
+		const result = knownModel || {
 			id: modelId || MODEL,
-			name: 'GPT-4o (Mock)',
+			name: `${modelId} (Mock)`,
 			version: '2024-05-13',
 			vendor: 'copilot',
-			model_picker_enabled: true,
-			is_chat_default: true,
-			is_chat_fallback: true,
+			model_picker_enabled: false,
+			is_chat_default: false,
+			is_chat_fallback: false,
+			billing: { is_premium: false, multiplier: 0 },
 			capabilities: {
 				type: 'chat',
-				family: 'gpt-4o',
+				family: modelId || 'gpt-4o',
 				tokenizer: 'o200k_base',
-				limits: { max_prompt_tokens: 10000000, max_output_tokens: 131072, max_context_window_tokens: 10000000 },
+				object: 'model_capabilities',
+				limits: { max_prompt_tokens: 272000, max_output_tokens: 128000, max_context_window_tokens: 400000 },
 				supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false },
 			},
-		});
+			supported_endpoints: ['/chat/completions'],
+		};
+		const ts = new Date().toISOString().slice(11, -1);
+		_log(`[mock-llm]   ${ts} GET /models/${modelId} → ${knownModel ? 'known' : 'fallback'}, family=${result.capabilities?.family}, endpoints=${JSON.stringify(result.supported_endpoints)}`);
+		json(200, result);
 		return;
 	}
 
@@ -641,8 +656,11 @@ function handleRequest(req, res) {
 	}
 
 	// -- Responses API (DomainService.capiResponsesURL = /responses) --
+	// The Responses API uses a different SSE event format than Chat Completions.
+	// The SDK expects events like response.created, response.output_item.added,
+	// response.output_text.delta, response.output_item.done, response.completed.
 	if (path === '/responses' && req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => handleChatCompletions(body, res));
+		readBody().then((/** @type {string} */ body) => handleResponsesApi(body, res));
 		return;
 	}
 
@@ -902,6 +920,207 @@ async function streamContent(res, chunks, isScenarioRequest) {
 
 	res.write(`data: ${JSON.stringify(makeChunk('', 0, true))}\n\n`);
 	res.write('data: [DONE]\n\n');
+	res.end();
+
+	if (isScenarioRequest) {
+		serverEvents.emit('scenarioCompletion');
+	}
+}
+
+// ----- Responses API (OpenAI) ---------------------------------------------------
+
+/**
+ * Handle a Responses API request. The Responses API uses a different SSE event
+ * format than Chat Completions — the SDK expects `response.created`,
+ * `response.output_item.added`, `response.output_text.delta`,
+ * `response.output_item.done`, and `response.completed` events.
+ *
+ * The request body uses `input` (array of items) instead of `messages`.
+ *
+ * @param {string} body
+ * @param {http.ServerResponse} res
+ */
+async function handleResponsesApi(body, res) {
+	if (_verbose) {
+		_log(`[mock-llm]   /responses request body:`);
+		try {
+			_log(_indentVerbose(_formatVerbose(JSON.parse(body))));
+		} catch {
+			_log(_indentVerbose(_formatVerbose(body)));
+		}
+	}
+
+	let scenarioId = DEFAULT_SCENARIO;
+	let isScenarioRequest = false;
+	/** @type {string[]} */
+	let requestToolNames = [];
+	try {
+		const parsed = JSON.parse(body);
+		// Responses API uses `input` array and `tools` array
+		const input = parsed.input || [];
+		const tools = parsed.tools || [];
+		requestToolNames = tools.map((/** @type {any} */ t) => t.name).filter(Boolean);
+
+		// Search input items for scenario tags (input items have role + content)
+		for (let i = input.length - 1; i >= 0; i--) {
+			const item = input[i];
+			if (item.role !== 'user') { continue; }
+			const content = typeof item.content === 'string'
+				? item.content
+				: Array.isArray(item.content)
+					? item.content.map((/** @type {any} */ c) => c.text || '').join('')
+					: '';
+			const match = content.match(/\[scenario:([^\]]+)\]/);
+			if (match && SCENARIOS[match[1]]) {
+				scenarioId = match[1];
+				isScenarioRequest = true;
+				break;
+			}
+		}
+
+		const ts = new Date().toISOString().slice(11, -1);
+		_log(`[mock-llm]   ${ts} → responses-api: ${input.length} input items, ${requestToolNames.length} tools, scenario=${scenarioId}`);
+	} catch { }
+
+	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
+
+	res.writeHead(200, {
+		'Content-Type': 'text/event-stream',
+		'Cache-Control': 'no-cache',
+		'Connection': 'keep-alive',
+		'X-Request-Id': 'perf-benchmark-' + Date.now(),
+	});
+
+	// For multi-turn tool-call scenarios, convert to Responses API tool_use format
+	if (isMultiTurnScenario(scenario) && requestToolNames.length > 0) {
+		// For now, fall back to content-only for Responses API
+		// (tool calls would need response.output_item with type: 'function_call')
+	}
+
+	// Resolve content chunks
+	const chunks = isMultiTurnScenario(scenario)
+		? getFirstContentTurn(scenario)
+		: /** @type {StreamChunk[]} */ (scenario);
+
+	await streamResponsesContent(res, chunks, isScenarioRequest);
+}
+
+/**
+ * Stream content as Responses API SSE events.
+ * @param {http.ServerResponse} res
+ * @param {StreamChunk[]} chunks
+ * @param {boolean} isScenarioRequest
+ */
+async function streamResponsesContent(res, chunks, isScenarioRequest) {
+	const responseId = `resp_mock_${Date.now()}`;
+	const outputItemId = `msg_mock_${Date.now()}`;
+	const model = 'gpt-5.3-codex';
+
+	// 1. response.created
+	res.write(`data: ${JSON.stringify({
+		type: 'response.created',
+		response: {
+			id: responseId,
+			object: 'response',
+			created_at: Math.floor(Date.now() / 1000),
+			model,
+			status: 'in_progress',
+			output: [],
+			usage: null,
+		},
+	})}\n\n`);
+
+	// 2. response.output_item.added — add a message output item
+	res.write(`data: ${JSON.stringify({
+		type: 'response.output_item.added',
+		output_index: 0,
+		item: {
+			id: outputItemId,
+			type: 'message',
+			role: 'assistant',
+			status: 'in_progress',
+			content: [],
+		},
+	})}\n\n`);
+
+	// 3. response.content_part.added — add a text content part
+	res.write(`data: ${JSON.stringify({
+		type: 'response.content_part.added',
+		output_index: 0,
+		content_index: 0,
+		part: { type: 'output_text', text: '' },
+	})}\n\n`);
+
+	// 4. Stream text deltas
+	let fullText = '';
+	for (const chunk of chunks) {
+		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
+		fullText += chunk.content;
+		res.write(`data: ${JSON.stringify({
+			type: 'response.output_text.delta',
+			output_index: 0,
+			content_index: 0,
+			delta: chunk.content,
+		})}\n\n`);
+	}
+
+	// 5. response.output_text.done
+	res.write(`data: ${JSON.stringify({
+		type: 'response.output_text.done',
+		output_index: 0,
+		content_index: 0,
+		text: fullText,
+	})}\n\n`);
+
+	// 6. response.content_part.done
+	res.write(`data: ${JSON.stringify({
+		type: 'response.content_part.done',
+		output_index: 0,
+		content_index: 0,
+		part: { type: 'output_text', text: fullText },
+	})}\n\n`);
+
+	// 7. response.output_item.done
+	res.write(`data: ${JSON.stringify({
+		type: 'response.output_item.done',
+		output_index: 0,
+		item: {
+			id: outputItemId,
+			type: 'message',
+			role: 'assistant',
+			status: 'completed',
+			content: [{ type: 'output_text', text: fullText }],
+		},
+	})}\n\n`);
+
+	// 8. response.completed — the terminal event the SDK waits for
+	res.write(`data: ${JSON.stringify({
+		type: 'response.completed',
+		response: {
+			id: responseId,
+			object: 'response',
+			created_at: Math.floor(Date.now() / 1000),
+			model,
+			status: 'completed',
+			output: [
+				{
+					id: outputItemId,
+					type: 'message',
+					role: 'assistant',
+					status: 'completed',
+					content: [{ type: 'output_text', text: fullText }],
+				},
+			],
+			usage: {
+				input_tokens: 100,
+				output_tokens: Math.max(1, Math.ceil(fullText.length / 4)),
+				total_tokens: 100 + Math.max(1, Math.ceil(fullText.length / 4)),
+				input_tokens_details: { cached_tokens: 0 },
+				output_tokens_details: { reasoning_tokens: 0 },
+			},
+		},
+	})}\n\n`);
+
 	res.end();
 
 	if (isScenarioRequest) {

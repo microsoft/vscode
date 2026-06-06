@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.124.0",
-  "distro": "31bfc4c2834d5d34dcfb8dfe445e13ba25a92f54",
+  "distro": "b85469481bdd242ea1c0b9c07894f86c2b6fa408",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -143,7 +143,7 @@
     "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.13",
     "open": "^10.1.2",
-    "playwright-core": "1.59.1",
+    "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
     "undici": "^7.24.0",

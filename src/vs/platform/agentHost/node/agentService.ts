@@ -56,6 +56,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -230,6 +231,8 @@ export class AgentService extends Disposable implements IAgentService {
 			[ISessionDataService, this._sessionDataService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, undefined);
+		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
 		services.set(ICopilotApiService, instantiationService.createInstance(CopilotApiService, undefined));
 		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
 		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
@@ -1169,8 +1172,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return contents.value.buffer;
 		} catch (err) {
 			if (proxiedUri !== originalUri) {
-				const contents = await this._fileService.readFile(originalUri);
-				return contents.value.buffer;
+				try {
+					const contents = await this._fileService.readFile(originalUri);
+					return contents.value.buffer;
+				} catch {
+					// ignore
+				}
 			}
 			throw err;
 		}
