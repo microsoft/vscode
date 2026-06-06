@@ -134,11 +134,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			return undefined;
 		}
 		const { toolId, parameters } = elicitation.riskAssessment;
-		const tool = this.languageModelToolsService.getTool(toolId);
-		if (!tool) {
-			return undefined;
-		}
-		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, tool, parameters)?.domNode;
+		return createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, toolId, parameters)?.domNode;
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {

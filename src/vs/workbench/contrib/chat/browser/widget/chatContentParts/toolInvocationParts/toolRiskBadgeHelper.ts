@@ -7,16 +7,16 @@ import { CancellationTokenSource } from '../../../../../../../base/common/cancel
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolRiskAssessmentService, ToolRiskPromptKind } from '../../../tools/chatToolRiskAssessmentService.js';
-import { IToolData } from '../../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
 
 /**
  * Creates a {@link ToolRiskBadgeWidget} for a tool confirmation surface.
  *
- * Returns `undefined` when the risk-assessment feature is disabled. Otherwise
- * returns a widget that either renders a cached assessment synchronously, or
- * shows the loading state and assesses asynchronously, hiding itself on failure
- * or when no assessment can be produced.
+ * Returns `undefined` when the risk-assessment feature is disabled or the tool
+ * is unknown. Otherwise returns a widget that either renders a cached assessment
+ * synchronously, or shows the loading state and assesses asynchronously, hiding
+ * itself on failure or when no assessment can be produced.
  *
  * The widget (and the {@link CancellationTokenSource} used for the asynchronous
  * assessment) are registered on the provided {@link DisposableStore}, so callers
@@ -32,11 +32,20 @@ export function createToolRiskBadge(
 	store: DisposableStore,
 	instantiationService: IInstantiationService,
 	riskAssessmentService: IChatToolRiskAssessmentService,
-	tool: IToolData,
+	languageModelToolsService: ILanguageModelToolsService,
+	toolId: string,
 	parameters: unknown,
 	kind?: ToolRiskPromptKind,
 ): ToolRiskBadgeWidget | undefined {
+	// Check the feature flag before resolving the tool so the (potentially
+	// expensive or unavailable) tool lookup is skipped when risk assessment is
+	// turned off.
 	if (!riskAssessmentService.isEnabled()) {
+		return undefined;
+	}
+
+	const tool = languageModelToolsService.getTool(toolId);
+	if (!tool) {
 		return undefined;
 	}
 

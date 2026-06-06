@@ -190,10 +190,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 
-		const tool = this.languageModelToolsService.getTool(this.toolInvocation.toolId);
-		const riskBadge = tool
-			? createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, tool, state.parameters, 'terminal')
-			: undefined;
+		const riskBadge = createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
