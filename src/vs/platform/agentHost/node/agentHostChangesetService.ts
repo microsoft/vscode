@@ -66,33 +66,17 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 }
 
 /**
- * Builds a single static {@link Changeset} catalogue entry from a
- * persisted (or live-state-derived) file list. Returns the bare entry
- * (no counts) when `diffs` is undefined. Optional `description` is
- * threaded through when provided.
+ * Builds a single static {@link Changeset} catalogue entry. Optional
+ * `description` is threaded through when provided.
  */
-function buildStaticCatalogueEntry(label: string, uri: string, changeKind: string, diffs: readonly ISessionFileDiff[] | undefined, description?: string): Changeset {
-	const base: Changeset = description ? { label, uriTemplate: uri, changeKind, description } : { label, uriTemplate: uri, changeKind };
-	if (!diffs) {
-		return base;
-	}
-	let additions = 0;
-	let deletions = 0;
-	for (const d of diffs) {
-		additions += d.diff?.added ?? 0;
-		deletions += d.diff?.removed ?? 0;
-	}
-	return { ...base, additions, deletions, files: diffs.length };
+function buildStaticCatalogueEntry(label: string, uri: string, changeKind: string, description?: string): Changeset {
+	return description ? { label, uriTemplate: uri, changeKind, description } : { label, uriTemplate: uri, changeKind };
 }
 
-function defaultCatalogueWithCounts(
-	sessionUri: string,
-	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
-	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): Changeset[] {
+function defaultCatalogueWithCounts(sessionUri: string): Changeset[] {
 	return [
-		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), 'session', sessionDiffs),
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), 'uncommitted', uncommittedDiffs, uncommittedChangesetDescription())
+		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), 'session'),
+		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), 'uncommitted', uncommittedChangesetDescription())
 	];
 }
 
@@ -123,12 +107,12 @@ export function buildCatalogueFromLiveState(
 	uncommitted: ChangesetState | undefined,
 	session: ChangesetState | undefined,
 ): Changeset[] | undefined {
-	const uncommittedDiffs = uncommitted?.status === ChangesetStatus.Ready ? uncommitted.files.map(f => f.edit) : undefined;
-	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
-	if (!uncommittedDiffs && !sessionDiffs) {
+	const uncommittedReady = uncommitted?.status === ChangesetStatus.Ready;
+	const sessionReady = session?.status === ChangesetStatus.Ready;
+	if (!uncommittedReady && !sessionReady) {
 		return undefined;
 	}
-	return defaultCatalogueWithCounts(sessionUri, uncommittedDiffs, sessionDiffs);
+	return defaultCatalogueWithCounts(sessionUri);
 }
 
 /**
@@ -145,7 +129,7 @@ export function buildCatalogueFromPersistedDiffs(
 	if (!uncommittedDiffs && !sessionDiffs) {
 		return undefined;
 	}
-	return defaultCatalogueWithCounts(sessionUri, uncommittedDiffs, sessionDiffs);
+	return defaultCatalogueWithCounts(sessionUri);
 }
 
 /**
@@ -778,14 +762,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/**
 	 * Translates the new file list into a sequence of changeset/* actions
-	 * (fileSet, fileRemoved) and updates the matching catalogue entry's
-	 * aggregate counts via {@link AgentHostStateManager.setSessionChangesets}.
-	 *
-	 * The catalogue entry is matched by URI: for static changesets the
-	 * `uriTemplate` is the concrete URI; for the per-turn template it
-	 * contains `{turnId}` and never matches a concrete turn URI, so per-
-	 * turn computations don't update catalogue counts (intended — the
-	 * template entry advertises the shape, not aggregates).
+	 * (fileSet, fileRemoved) and moves the changeset to `ready` once the
+	 * fresh file list has been applied.
 	 */
 	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
 		const previous = this._stateManager.getChangesetState(changesetUri);
@@ -828,27 +806,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				status: ChangesetStatus.Ready,
 			});
 		}
-
-		// Refresh the catalogue's aggregate counts so chip rendering stays
-		// in sync without subscribers having to attach to the changeset.
-		const sessionState = this._stateManager.getSessionState(session);
-		if (!sessionState) {
-			return;
-		}
-		const totals = Array.from(nextFilesById.values()).reduce(
-			(acc, d) => {
-				acc.additions += d.diff?.added ?? 0;
-				acc.deletions += d.diff?.removed ?? 0;
-				return acc;
-			},
-			{ additions: 0, deletions: 0 },
-		);
-		const existing = sessionState.summary.changesets ?? [];
-		const next = existing.map(c => c.uriTemplate === changesetUri
-			? { ...c, additions: totals.additions, deletions: totals.deletions, files: nextFilesById.size }
-			: c,
-		);
-		this._stateManager.setSessionChangesets(session, next);
 	}
 
 	/**

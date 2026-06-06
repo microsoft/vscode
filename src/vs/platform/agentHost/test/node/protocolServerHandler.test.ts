@@ -568,9 +568,7 @@ suite('ProtocolServerHandler', () => {
 				{
 					label: 'Branch Changes',
 					uriTemplate: `${sessionUri}/changeset/session`,
-					additions: 5,
-					deletions: 2,
-					files: 3,
+					changeKind: 'session',
 				},
 			],
 		});
@@ -587,9 +585,7 @@ suite('ProtocolServerHandler', () => {
 			{
 				label: 'Branch Changes',
 				uriTemplate: `${sessionUri}/changeset/session`,
-				additions: 5,
-				deletions: 2,
-				files: 3,
+				changeKind: 'session',
 			},
 		]);
 	});

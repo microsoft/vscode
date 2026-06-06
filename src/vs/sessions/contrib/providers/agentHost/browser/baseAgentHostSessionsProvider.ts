@@ -176,30 +176,12 @@ export class AgentHostSessionAdapter implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
-	setChangesSummary(catalogue: readonly Changeset[] | undefined): boolean {
-		const summary = catalogue?.find(c => !c.uriTemplate.includes('{'));
-		if (!summary) {
-			return false;
-		}
-
-		const { additions, deletions, files } = summary;
-		const currentChangesSummary = this._changesSummary.get();
-
-		if (
-			(currentChangesSummary?.files ?? 0) === files &&
-			(currentChangesSummary?.additions ?? 0) === additions &&
-			(currentChangesSummary?.deletions ?? 0) === deletions
-		) {
-			return false;
-		}
-
-		this._changesSummary.set({
-			additions: additions ?? 0,
-			deletions: deletions ?? 0,
-			files: files ?? 0
-		}, undefined);
-
-		return true;
+	setChangesSummary(_catalogue: readonly Changeset[] | undefined): boolean {
+		// Catalogue entries no longer carry aggregate counts after the
+		// protocol update that moved them to `SessionSummary.changes`. The
+		// observable is left untouched until callers thread the new summary
+		// through.
+		return false;
 	}
 
 	constructor(

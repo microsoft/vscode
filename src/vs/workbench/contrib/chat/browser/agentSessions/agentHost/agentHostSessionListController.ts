@@ -31,20 +31,12 @@ function pickDefaultChangeset(catalogue: readonly Changeset[] | undefined): Chan
 }
 
 /**
- * Maps the catalogue counts onto the aggregate-counts shape supported by
- * {@link IChatSessionItem.changes}. Returns `undefined` when the
- * catalogue entry is missing or carries no counts so the sidebar
- * doesn't render an empty chip.
+ * Catalogue entries no longer carry aggregate counts after the protocol
+ * update that moved them to {@link SessionSummary.changes}. The sidebar
+ * chip stays empty until callers thread the new summary through.
  */
-function changesetCountsToChanges(summary: Changeset | undefined): IChatSessionItem['changes'] {
-	if (!summary || summary.files === undefined || summary.files === 0) {
-		return undefined;
-	}
-	return {
-		files: summary.files,
-		insertions: summary.additions ?? 0,
-		deletions: summary.deletions ?? 0,
-	};
+function changesetCountsToChanges(_summary: Changeset | undefined): IChatSessionItem['changes'] {
+	return undefined;
 }
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {

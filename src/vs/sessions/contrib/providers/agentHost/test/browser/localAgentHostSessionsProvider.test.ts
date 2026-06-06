@@ -2213,8 +2213,8 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
 	}
 
-	function catalogueFor(rawId: string, additions: number, deletions: number, sessionType: string = 'copilotcli'): Changeset[] {
-		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), changeKind: 'session', additions, deletions, files: 1 }];
+	function catalogueFor(rawId: string, _additions: number, _deletions: number, sessionType: string = 'copilotcli'): Changeset[] {
+		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), changeKind: 'session' }];
 	}
 
 	// The adapter subscribes to its branch changeset lazily — only while the
