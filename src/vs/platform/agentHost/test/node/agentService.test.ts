@@ -985,7 +985,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets?.length, 0);
+			assert.deepStrictEqual(state!.changesets?.length, 0);
 		});
 
 		test('createSession keeps git-only catalogue entries for a git working directory', async () => {
@@ -1016,7 +1016,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
+			assert.deepStrictEqual(state!.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			]);
@@ -1050,7 +1050,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(session.toString());
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, [
+			assert.deepStrictEqual(state!.changesets, [
 				{ label: 'Branch Changes', uriTemplate: `${session.toString()}/changeset/session`, description: 'feature/x → main' },
 				{ label: 'Uncommitted Changes', uriTemplate: `${session.toString()}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 			]);
@@ -2111,7 +2111,7 @@ suite('AgentService (node dispatcher)', () => {
 			// treats it as transient and does NOT strip the two git-only
 			// catalogue entries. The Branch Changes entry receives the
 			// persisted diff counts seeded by the changeset coordinator.
-			assert.deepStrictEqual(state!.summary.changesets, [
+			assert.deepStrictEqual(state!.changesets, [
 				{
 					additions: 5,
 					deletions: 2,
@@ -2160,7 +2160,7 @@ suite('AgentService (node dispatcher)', () => {
 			// The session has no working directory, so `_attachGitState` does
 			// NOT strip the git-only entries — they remain advertised but
 			// without counts until a real compute lands.
-			assert.deepStrictEqual(state!.summary.changesets, [
+			assert.deepStrictEqual(state!.changesets, [
 				{
 					label: 'Branch Changes',
 					uriTemplate: `${sessionResource.toString()}/changeset/session`,
@@ -2351,7 +2351,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = service.stateManager.getSessionState(sessionStr);
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 		});
 
@@ -2383,7 +2383,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const forkedState = service.stateManager.getSessionState(forkedStr);
 			assert.ok(forkedState);
-			assert.deepStrictEqual(forkedState!.summary.changesets, defaultCatalogue(forkedStr));
+			assert.deepStrictEqual(forkedState!.changesets, defaultCatalogue(forkedStr));
 			// Note: source-session turn was seeded directly on state, so the
 			// reducer never saw a SessionTurnStarted/Complete pair for it;
 			// the fork branch (agentService.ts:548 path) is still exercised
@@ -2419,7 +2419,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Snapshot the create-time state BEFORE materialization.
 			const stateBefore = service.stateManager.getSessionState(sessionStr);
 			assert.ok(stateBefore, 'provisional session should already have state');
-			assert.deepStrictEqual(stateBefore!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(stateBefore!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 
 			// `markSessionPersisted` (called from `_onDidMaterializeSession`)
@@ -2430,7 +2430,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const stateAfter = service.stateManager.getSessionState(sessionStr);
 			assert.ok(stateAfter, 'materialized session should still have state');
-			assert.deepStrictEqual(stateAfter!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(stateAfter!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(service.stateManager, sessionStr);
 		});
 
@@ -2456,7 +2456,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = localService.stateManager.getSessionState(sessionStr);
 			assert.ok(state);
-			assert.deepStrictEqual(state!.summary.changesets, defaultCatalogue(sessionStr));
+			assert.deepStrictEqual(state!.changesets, defaultCatalogue(sessionStr));
 			assertBackingChangesetsComputing(localService.stateManager, sessionStr);
 		});
 	});

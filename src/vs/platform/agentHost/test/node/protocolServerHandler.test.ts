@@ -581,7 +581,7 @@ suite('ProtocolServerHandler', () => {
 		const resp = await responsePromise;
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
-		assert.deepStrictEqual(result.items[0].changesets, [
+		assert.deepStrictEqual((result.items[0] as unknown as { changesets?: unknown[] }).changesets, [
 			{
 				label: 'Branch Changes',
 				uriTemplate: `${sessionUri}/changeset/session`,

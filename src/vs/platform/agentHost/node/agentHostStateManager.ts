@@ -451,7 +451,7 @@ export class AgentHostStateManager extends Disposable {
 		// call, dirtying `_dirtySummaries` and broadcasting a redundant
 		// envelope. Producers call this after every compute pass, so
 		// duplicate calls are common.
-		if (changesetCataloguesEqual(state.summary.changesets, changesets)) {
+		if (changesetCataloguesEqual(state.changesets, changesets)) {
 			return;
 		}
 		// Take a defensive copy so callers can't mutate the catalogue array
@@ -672,7 +672,6 @@ export class AgentHostStateManager extends Disposable {
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.model !== lastNotified.model) { changes.model = current.model; }
 		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
-		if (current.changesets !== lastNotified.changesets) { changes.changesets = current.changesets; }
 
 		this._lastNotifiedSummaries.set(session, current);
 

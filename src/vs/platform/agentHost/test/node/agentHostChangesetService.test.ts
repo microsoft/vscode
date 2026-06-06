@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { BASELINE_TURN_ID, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { SessionStatus, type Changeset } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
@@ -40,8 +40,8 @@ suite('AgentHostChangesetService', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(sessionUri.toString()),
 		});
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalogue(sessionUri.toString()));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -67,7 +67,7 @@ suite('AgentHostChangesetService', () => {
 
 		// Catalogue is seeded by setupSession (mirrors what `_buildInitialSummary`
 		// does in production) — sanity check before exercising registration.
-		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
+		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.changesets, [
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 		]);
@@ -84,7 +84,7 @@ suite('AgentHostChangesetService', () => {
 		}
 
 		// Registration must not mutate the seeded catalogue.
-		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
+		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.changesets, [
 			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
 			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
 		]);
@@ -98,7 +98,7 @@ suite('AgentHostChangesetService', () => {
 		changesetService.registerStaticChangesets(sessionStr);
 		changesetService.registerStaticChangesets(sessionStr);
 
-		const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
+		const changesets = stateManager.getSessionState(sessionStr)?.changesets;
 		assert.strictEqual(changesets?.length, 2, 'expected the two default catalogue entries');
 	});
 
@@ -126,7 +126,7 @@ suite('AgentHostChangesetService', () => {
 		assert.strictEqual(state.status, 'ready');
 		assert.deepStrictEqual(state.files.map(f => f.id), ['file:///wd/a.ts', 'file:///wd/b.ts']);
 
-		const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
+		const catalogue = stateManager.getSessionState(sessionStr)?.changesets;
 		assert.deepStrictEqual(catalogue, [
 			{
 				label: 'Branch Changes',
@@ -170,7 +170,7 @@ suite('AgentHostChangesetService', () => {
 		const changesetUri = `${sessionStr}/changeset/session`;
 		const snapshot = stateManager.getSnapshot(changesetUri);
 		const state = snapshot?.state as { files: Array<{ id: string; edit: { diff?: { added?: number; removed?: number } } }> } | undefined;
-		const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
+		const catalogue = stateManager.getSessionState(sessionStr)?.changesets;
 		assert.deepStrictEqual({
 			files: state?.files.map(f => ({ id: f.id, diff: f.edit.diff })),
 			catalogue,
@@ -561,8 +561,8 @@ suite('AgentHostChangesetService', () => {
 				sessionRaw: JSON.stringify([aDiff, bDiff]),
 			});
 
-			const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
-			const sessionEntry = catalogue?.find(c => c.uriTemplate === `${sessionStr}/changeset/session`);
+			const catalogue = stateManager.getSessionState(sessionStr)?.changesets;
+			const sessionEntry = catalogue?.find((c: Changeset) => c.uriTemplate === `${sessionStr}/changeset/session`);
 			assert.deepStrictEqual(sessionEntry, {
 				label: 'Branch Changes',
 				uriTemplate: `${sessionStr}/changeset/session`,

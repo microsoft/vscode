@@ -345,7 +345,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			return undefined;
 		}
 		const liveSessionState = this._stateManager.getSessionState(sessionStr);
-		if (liveSessionState?.summary.changesets) {
+		if (liveSessionState?.changesets) {
 			return undefined;
 		}
 		return CHANGESET_DB_METADATA_KEYS;

@@ -269,7 +269,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
 				workingDirectory: s.workingDirectory?.toString(),
-				changesets: s.changesets ? [...s.changesets] : undefined,
 			});
 			return this._makeItem(rawId, {
 				title: s.summary,
@@ -322,7 +321,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			workingDirectory: workingDir,
 			createdAt: summary.createdAt,
 			modifiedAt: summary.modifiedAt,
-			changesets: summary.changesets,
 		});
 	}
 

@@ -411,7 +411,7 @@ export class AgentService extends Disposable implements IAgentService {
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
 					agent: liveState.summary.agent ?? s.agent,
-					changesets: liveState.summary.changesets ?? s.changesets,
+					changesets: liveState.changesets ?? s.changesets,
 				};
 			}
 			return s;
@@ -515,6 +515,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: localize('agentHost.forkedSessionFallback', "Forked Session");
 			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
 			const state = this._stateManager.createSession(summary);
+			this._stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalogue(session.toString()));
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
@@ -530,6 +531,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// the agent will pick up at materialization time.
 			const summary = this._buildInitialSummary(provider, session, config, created, '');
 			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
+			this._stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalogue(session.toString()));
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
 			if (initialCustomizations && initialCustomizations.length > 0) {
@@ -595,7 +597,6 @@ export class AgentService extends Disposable implements IAgentService {
 			model: config?.model,
 			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
-			changesets: buildDefaultChangesetCatalogue(session.toString()),
 		};
 	}
 
@@ -1339,10 +1340,10 @@ export class AgentService extends Disposable implements IAgentService {
 			model: meta.model,
 			agent: meta.agent,
 			workingDirectory: meta.workingDirectory?.toString(),
-			changesets: buildDefaultChangesetCatalogue(sessionStr),
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
+		this._stateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalogue(sessionStr));
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
