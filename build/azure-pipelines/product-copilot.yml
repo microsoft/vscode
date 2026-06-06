@@ -71,10 +71,7 @@ jobs:
             npm install --location=global jsonc-parser
             export NODE_PATH=$(npm root --location=global)
           fi
-          find . -name "*.json" -type f -print0 | while IFS= read -r -d '' file; do
-            if [[ $file == *"node_modules"* ]]; then
-              continue
-            fi
+          find . -maxdepth 1 -name "*.json" -type f -print0 | while IFS= read -r -d '' file; do
             echo "Minifying $file"
             node -e "console.log(JSON.stringify(require('jsonc-parser').parse(require('fs').readFileSync('$file', 'utf8')), null, 0));" > "$file.min"
             if [ ! -s "$file.min" ]; then
