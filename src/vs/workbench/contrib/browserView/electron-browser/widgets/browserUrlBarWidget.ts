@@ -488,28 +488,25 @@ export class BrowserUrlBarWidget extends Disposable {
 
 		let currentValue = picker.value;
 
-		// Preserve the user's current selection across re-renders (typing,
-		// per-provider refresh) by matching the previously active item's id.
-		// Without this, setting `picker.items` snaps activeItems back to the
-		// first row, so e.g. opening/closing a tab while the user is
-		// arrow-keyed onto an open-tab suggestion would yank them back to
-		// "Go to".
-		const restoreActiveById = (previousId: string | undefined, items: readonly (IUrlPickerItem | IQuickPickSeparator)[]) => {
-			if (previousId === undefined) {
-				return;
-			}
-			const match = items.find((i): i is IUrlPickerItem => i.type !== 'separator' && i.id === previousId);
-			if (match) {
-				picker.activeItems = [match];
-			}
-		};
-
 		// Rebuild `picker.items` from the synchronous "Go to" entry plus each
 		// provider's current cached suggestions, in provider sort order.
-		const render = () => {
-			const previousActiveId = picker.activeItems[0]?.id;
-			const items = this._buildSuggestionItems(currentValue);
-			const hasGo = items.some(i => i.type !== 'separator');
+		//
+		// `preserveSelection` distinguishes the two re-render triggers:
+		//  - User typing (`false`): reset the active item to the default
+		//    "Go to" entry. Starting/continuing a query should always default
+		//    back to "Go to" rather than sticking on a streamed-in suggestion.
+		//  - Background provider refresh (`true`): keep the user's current
+		//    selection (e.g. an arrow-keyed suggestion) so updating one
+		//    provider's results (a tab opening/closing) doesn't yank focus
+		//    back to "Go to".
+		//
+		// The active item is set explicitly rather than relying on the quick
+		// pick's implicit first-row selection, which can otherwise land on a
+		// suggestion as asynchronous results stream in.
+		const render = (preserveSelection: boolean) => {
+			const previousActiveId = preserveSelection ? picker.activeItems[0]?.id : undefined;
+			const defaultItems = this._buildSuggestionItems(currentValue);
+			const items: (IUrlPickerItem | IQuickPickSeparator)[] = [...defaultItems];
 			for (const provider of this._suggestionProviders) {
 				const state = providerStates.get(provider);
 				if (!state || state.suggestions.length === 0) {
@@ -531,10 +528,18 @@ export class BrowserUrlBarWidget extends Disposable {
 				}
 			}
 			picker.items = items;
-			if (!hasGo) {
-				picker.activeItems = [];
-			}
-			restoreActiveById(previousActiveId, items);
+
+			// Only the synchronous items from `_buildSuggestionItems` (e.g. the
+			// "Go to" entry) are eligible for default focus; provider suggestions
+			// are never auto-focused. Restore the prior selection on a background
+			// refresh; otherwise (typing, or the prior item disappeared) fall back
+			// to the first default item, or to nothing when there are none.
+			const defaultActive = defaultItems.find((i): i is IUrlPickerItem => i.type !== 'separator');
+			const restored = previousActiveId !== undefined
+				? items.find((i): i is IUrlPickerItem => i.type !== 'separator' && i.id === previousActiveId)
+				: undefined;
+			const active = restored ?? defaultActive;
+			picker.activeItems = active ? [active] : [];
 		};
 
 		// Re-fetch a single provider against the current value, cancelling
@@ -557,7 +562,7 @@ export class BrowserUrlBarWidget extends Disposable {
 						return;
 					}
 					state.suggestions = results;
-					render();
+					render(true);
 				},
 				() => { /* keep prior cached suggestions on error */ }
 			);
@@ -569,7 +574,7 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		};
 
-		render();
+		render(false);
 		refreshAllProviders();
 
 		// Per-provider state change: refresh only that provider so unrelated
@@ -595,7 +600,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		disposables.add(picker.onDidChangeValue(value => {
 			currentValue = value;
-			render();
+			render(false);
 			refreshAllProviders();
 			// Mirror the picker's typed value into the display continuously,
 			// running URL renderers so decorations stay live. The picker is
