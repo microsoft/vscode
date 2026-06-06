@@ -21,7 +21,7 @@ export interface IExtractedCdPrefix {
  * the directory matches anything — callers do that comparison themselves.
  *
  * The separator between the `cd` and the remaining command may be `&&` or a
- * newline (bash treats a bare newline as a command separator just like `&&`).
+ * newline (bash treats a bare newline as a command separator like `;`).
  * PowerShell additionally accepts `;`. The remaining command may span multiple
  * lines (the model frequently emits `cd <dir>` on its own line followed by a
  * multi-line script).

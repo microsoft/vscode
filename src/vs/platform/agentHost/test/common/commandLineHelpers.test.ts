@@ -124,6 +124,13 @@ suite('stripRedundantCdPrefix', () => {
 		assert.strictEqual(params.command, 'dir');
 	});
 
+	test('rewrites powershell with newline separator', () => {
+		const params: Record<string, unknown> = { command: 'cd /repo/project\nWrite-Host hi\ndir' };
+		const changed = stripRedundantCdPrefix('powershell', params, wd);
+		assert.strictEqual(changed, true);
+		assert.strictEqual(params.command, 'Write-Host hi\ndir');
+	});
+
 	test('matches mixed path separators (forward-slash extracted vs native fsPath wd)', () => {
 		// On Windows, the model may emit `cd C:/repo/project && …` while
 		// URI.file('C:\\repo\\project').fsPath uses backslashes. The helper
