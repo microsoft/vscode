@@ -20,7 +20,7 @@ import { IAutomationRunner } from '../../common/automations/automationRunner.js'
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeProvider, PlaceholderAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { publishAutomationToggled } from '../../common/automations/automationTelemetry.js';
-import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
+import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../common/automations/automationsEnabled.js';
 import { PlaceholderAutomationRunner } from './automationRunner.js';
 import { AutomationScheduler } from './automationScheduler.js';
 import { AutomationService } from './automationService.js';
@@ -43,6 +43,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['preview'],
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
+		},
+		[CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING]: {
+			type: 'number',
+			default: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES,
+			minimum: 1,
+			tags: ['preview'],
+			description: localize('chat.automations.runTimeoutMinutes', "Maximum number of minutes a scheduled automation run is allowed to take before the scheduler cancels it and marks it failed. Prevents a single hung run from permanently blocking subsequent scheduled runs."),
 		},
 	},
 });

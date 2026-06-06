@@ -16,6 +16,18 @@ import { RawContextKey } from '../../../../../platform/contextkey/common/context
 export const CHAT_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.enabled';
 
 /**
+ * Per-run timeout (in minutes) for a scheduled automation. If a run
+ * hasn't completed within this many minutes the scheduler cancels the
+ * run's cancellation token, marks the run row as failed, and proceeds
+ * to the next due automation so a single hung run can't permanently
+ * block the dispatch chain.
+ */
+export const CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING = 'chat.automations.runTimeoutMinutes';
+
+/** Default for {@link CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING}. */
+export const DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES = 30;
+
+/**
  * Context key mirroring {@link CHAT_AUTOMATIONS_ENABLED_SETTING}. Use this
  * in `when` clauses on menus and commands so the feature's UI only shows
  * when the setting is enabled.

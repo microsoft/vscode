@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IntervalTimer } from '../../../../../base/common/async.js';
+import { IntervalTimer, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IAutomation } from '../../common/automations/automation.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING, DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES } from '../../common/automations/automationsEnabled.js';
 import { AutomationLeaderElection, IAutomationLeaderElection } from './automationLeaderElection.js';
 
 /**
@@ -31,6 +31,12 @@ export const DEFAULT_SCHEDULER_TICK_MS = 60_000;
  */
 export const CRASH_RECOVERY_REASON = 'Interrupted by app shutdown';
 
+/**
+ * Marker stored on a `runs[]` row that gets cancelled because the
+ * scheduler's per-run timeout fired.
+ */
+export const RUN_TIMEOUT_REASON_PREFIX = 'Timed out after';
+
 export interface IAutomationSchedulerCoreOptions {
 	readonly tickIntervalMs?: number;
 	readonly now?: () => Date;
@@ -45,6 +51,13 @@ export interface IAutomationSchedulerCoreOptions {
 	 * tests don't have to think about it.
 	 */
 	readonly isFeatureEnabled?: () => boolean;
+	/**
+	 * Per-run timeout in milliseconds. Returned by a callback so tests
+	 * (and the workbench wiring) can read the setting live. A return
+	 * value of `0` or negative disables the timeout. Default is 30
+	 * minutes.
+	 */
+	readonly getRunTimeoutMs?: () => number;
 }
 
 /**
@@ -71,6 +84,7 @@ export class AutomationSchedulerCore extends Disposable {
 	private readonly _tickIntervalMs: number;
 	private readonly _now: () => Date;
 	private readonly _isFeatureEnabled: () => boolean;
+	private readonly _getRunTimeoutMs: () => number;
 
 	private readonly _timer = this._register(new IntervalTimer());
 	private readonly _runCts = this._register(new CancellationTokenSource());
@@ -97,6 +111,7 @@ export class AutomationSchedulerCore extends Disposable {
 		this._tickIntervalMs = options.tickIntervalMs ?? DEFAULT_SCHEDULER_TICK_MS;
 		this._now = options.now ?? (() => new Date());
 		this._isFeatureEnabled = options.isFeatureEnabled ?? (() => true);
+		this._getRunTimeoutMs = options.getRunTimeoutMs ?? (() => DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES * 60_000);
 
 		this._leader = options.leaderElection ?? this._register(new AutomationLeaderElection(storageService, logService));
 
@@ -142,12 +157,14 @@ export class AutomationSchedulerCore extends Disposable {
 		}
 
 		// Skip all dispatch work when the feature is disabled via the
-		// `chat.automations.enabled` setting. The next tick that occurs
-		// while the feature is enabled will pick up any due rows; we
-		// re-arm the leadership-startup work so catch-up runs after a
-		// re-enable as well.
+		// `chat.automations.enabled` setting. We intentionally do NOT
+		// reset `_didStartupForCurrentLeadership` here: that flag is
+		// scoped to actual leadership transitions (handled in the
+		// `autorun` block above), not to user-driven feature toggles.
+		// Resetting it here would cause the next post-re-enable tick to
+		// call `markStaleRunsFailed`, which would incorrectly fail any
+		// in-progress runs that were active across the toggle.
 		if (!this._isFeatureEnabled()) {
-			this._didStartupForCurrentLeadership = false;
 			return;
 		}
 
@@ -180,8 +197,61 @@ export class AutomationSchedulerCore extends Disposable {
 			// Advance the schedule first so a subsequent tick (or a
 			// concurrent leader race) does not pick the same row up.
 			await this.automationService.advanceNextRunAt(automation.id, now);
-			// runOnce never throws; failures are recorded on the run row.
-			await this.runner.runOnce(automation, trigger, leaderWindowId, this._runCts.token);
+			await this.runOneWithTimeout(automation, trigger, leaderWindowId);
+		}
+	}
+
+	/**
+	 * Runs a single automation with a per-run timeout so a hung run
+	 * can't permanently block the dispatch chain. If the timeout
+	 * fires, we cancel the per-run token (signalling the runner to
+	 * stop) and best-effort mark the run row as failed so the UI
+	 * reflects the timeout. We always resolve — `runOnce` is
+	 * documented to never throw — so the surrounding `for` loop
+	 * always advances.
+	 */
+	private async runOneWithTimeout(automation: IAutomation, trigger: 'schedule' | 'catch_up', leaderWindowId: number): Promise<void> {
+		const timeoutMs = this._getRunTimeoutMs();
+		const perRunCts = new CancellationTokenSource(this._runCts.token);
+		try {
+			if (timeoutMs <= 0) {
+				await this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token);
+				return;
+			}
+
+			let timedOut = false;
+			await raceTimeout(
+				this.runner.runOnce(automation, trigger, leaderWindowId, perRunCts.token),
+				timeoutMs,
+				() => {
+					timedOut = true;
+					this.logService.warn(`[AutomationScheduler] runOnce for automation ${automation.id} timed out after ${timeoutMs}ms; cancelling.`);
+					perRunCts.cancel();
+				},
+			);
+
+			if (!timedOut) {
+				return;
+			}
+
+			// Best-effort: mark the currently-active run row as failed
+			// so the UI doesn't show a stuck "running" indicator. If
+			// the runner never started a row (or already finished one
+			// after our cancel signalled), there's nothing to update.
+			try {
+				const active = this.automationService.getActiveRunFor(automation.id);
+				if (active) {
+					await this.automationService.updateRun(active.id, {
+						status: 'failed',
+						errorMessage: `${RUN_TIMEOUT_REASON_PREFIX} ${Math.round(timeoutMs / 60_000)} minute(s).`,
+						completedAt: this._now().toISOString(),
+					});
+				}
+			} catch (err) {
+				this.logService.warn('[AutomationScheduler] failed to mark timed-out run as failed', err);
+			}
+		} finally {
+			perRunCts.dispose();
 		}
 	}
 
@@ -210,6 +280,13 @@ export class AutomationScheduler extends Disposable implements IWorkbenchContrib
 		super();
 		this._register(new AutomationSchedulerCore(automationService, runner, storageService, logService, {
 			isFeatureEnabled: () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true,
+			getRunTimeoutMs: () => {
+				const minutes = configurationService.getValue<number>(CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING);
+				const sane = typeof minutes === 'number' && Number.isFinite(minutes) && minutes >= 1
+					? minutes
+					: DEFAULT_AUTOMATIONS_RUN_TIMEOUT_MINUTES;
+				return sane * 60_000;
+			},
 		}));
 	}
 }
