@@ -92,7 +92,7 @@ function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnTo
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
-	return rawUpdateRunningToolSpecificData(existing, tc, undefined);
+	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), undefined);
 }
 
 function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
