@@ -296,3 +296,81 @@ suite('GetErrorsTool - Tool Invocation', () => {
 		expect(msg).toMatchSnapshot();
 	});
 });
+
+suite('GetErrorsTool - normalizeDriveLetter', () => {
+	let accessor: ITestingServicesAccessor;
+	let collection: TestingServiceCollection;
+	let tool: GetErrorsTool;
+
+	beforeEach(() => {
+		collection = createExtensionUnitTestingServices();
+		const workspaceFolder = URI.file('/test/workspace');
+		const tsDoc = createTextDocumentData(URI.file('/test/workspace/file.ts'), '', 'ts').document;
+		collection.define(IWorkspaceService, new SyncDescriptor(TestWorkspaceService, [[workspaceFolder], [tsDoc]]));
+		collection.define(ILanguageDiagnosticsService, new TestLanguageDiagnosticsService());
+		const fileSystemService = new MockFileSystemService();
+		collection.define(IFileSystemService, fileSystemService);
+		accessor = collection.createTestingAccessor();
+		tool = accessor.get(IInstantiationService).createInstance(GetErrorsTool);
+	});
+
+	afterEach(() => {
+		accessor.dispose();
+	});
+
+	test.skipIf(isWindows)('non-Windows: returns the same URI instance for any path shape', () => {
+		const uris = [
+			URI.parse('file:///C:/foo/bar.ts'),
+			URI.parse('file:///c:/foo/bar.ts'),
+			URI.parse('file:///foo/bar.ts'),
+			URI.parse('file:///'),
+		];
+		for (const uri of uris) {
+			expect(tool.normalizeDriveLetter(uri)).toBe(uri);
+		}
+	});
+
+	test.skipIf(!isWindows)('Windows: lowercases an uppercase drive letter', () => {
+		const uri = URI.parse('file:///C:/foo/bar.ts');
+		const result = tool.normalizeDriveLetter(uri);
+		expect(result.path).toBe('/c:/foo/bar.ts');
+	});
+
+	test.skipIf(!isWindows)('Windows: returns same URI instance when drive letter is already lowercase', () => {
+		const uri = URI.parse('file:///c:/foo/bar.ts');
+		expect(tool.normalizeDriveLetter(uri)).toBe(uri);
+	});
+
+	test.skipIf(!isWindows)('Windows: preserves case of path components after the drive letter', () => {
+		const uri = URI.parse('file:///C:/MyProject/SrcFile.ts');
+		const result = tool.normalizeDriveLetter(uri);
+		expect(result.path).toBe('/c:/MyProject/SrcFile.ts');
+	});
+
+	test.skipIf(!isWindows)('Windows: returns URI unchanged when path has no drive letter', () => {
+		const uri = URI.parse('file:///foo/bar.ts');
+		expect(tool.normalizeDriveLetter(uri)).toBe(uri);
+	});
+
+	test.skipIf(!isWindows)('Windows: returns URI unchanged when path is too short to contain a drive letter', () => {
+		const uri = URI.parse('file:///c');
+		expect(tool.normalizeDriveLetter(uri)).toBe(uri);
+	});
+
+	test.skipIf(!isWindows)('Windows: returns URI unchanged for root path', () => {
+		const uri = URI.parse('file:///');
+		expect(tool.normalizeDriveLetter(uri)).toBe(uri);
+	});
+
+	test.skipIf(!isWindows)('Windows: normalizes drive letter when path ends right after the colon', () => {
+		const uri = URI.parse('file:///C:');
+		const result = tool.normalizeDriveLetter(uri);
+		expect(result.path).toBe('/c:');
+	});
+
+	test.skipIf(!isWindows)('Windows: returns URI unchanged when drive position holds a non-letter character', () => {
+		// digit at drive position — `toLowerCase()` is a no-op so the URI is returned as-is
+		const uri = URI.parse('file:///1:/foo/bar.ts');
+		expect(tool.normalizeDriveLetter(uri)).toBe(uri);
+	});
+});
