@@ -43,7 +43,7 @@ steps:
       key: '"copilot_build_cache" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: BUILD_CACHE_RESTORED
-    displayName: Restore copilot build cache
+    displayName: Restore node_modules cache
 
   - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
