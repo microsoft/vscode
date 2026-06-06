@@ -6,7 +6,7 @@
 import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
+import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -579,6 +579,26 @@ function modeEquals(
 	if (a === b) { return true; }
 	if (!a || !b) { return false; }
 	return a.id === b.id && a.kind === b.kind;
+}
+
+function customizationsChanged(previous: SessionState, state: SessionState): boolean {
+	if (previous.customizations !== state.customizations) {
+		return true;
+	}
+	const previousActiveCustomizations = previous.activeClient?.customizations;
+	const currentActiveCustomizations = state.activeClient?.customizations;
+	if (previousActiveCustomizations === currentActiveCustomizations) {
+		return false;
+	}
+	if (!previousActiveCustomizations || !currentActiveCustomizations) {
+		return true;
+	}
+	return arrayEquals(previousActiveCustomizations, currentActiveCustomizations, (a, b) => {
+		if (a.nonce !== undefined && a.nonce === b.nonce) {
+			return true;
+		}
+		return a === b;
+	});
 }
 
 // ============================================================================
@@ -2197,7 +2217,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `SessionState` updates fire for every turn-status / activity / meta
 		// change too — firing on all of them caused excessive picker
 		// recomputes (and a feedback loop with `setAgent`).
-		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
+		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
@@ -2216,7 +2236,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
+		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}

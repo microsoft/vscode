@@ -898,6 +898,8 @@ class SendToNewChatAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -919,7 +921,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}

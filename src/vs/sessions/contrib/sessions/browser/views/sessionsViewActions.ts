@@ -31,6 +31,7 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
 
 //  Constants
 
@@ -58,8 +59,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor) {
-		const sessionsService = accessor.get(ISessionsManagementService);
-		sessionsService.openNewSessionView();
+		const sessionsViewService = accessor.get(ISessionsViewService);
+		sessionsViewService.openNewSession();
 	}
 });
 
@@ -95,7 +96,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 		return;
 	}
 	const viewsService = accessor.get(IViewsService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsViewService = accessor.get(ISessionsViewService);
 	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
 	if (visible.length === 0) {
@@ -108,7 +109,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsManagementService.openSession(target.resource);
+	sessionsViewService.openSession(target.resource);
 };
 
 CommandsRegistry.registerCommand({
@@ -349,11 +350,12 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
 
-		sessionsManagementService.openNewSessionView();
+		sessionsViewService.openNewSession();
 
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
@@ -780,22 +782,22 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		for (let i = 0; i < sessions.length - 1; i++) {
 			const session = sessions[i];
-			const visible = sessionsManagementService.visibleSessions.get();
+			const visible = sessionsViewService.visibleSessions.get();
 			const lastVisible = visible[visible.length - 1];
 			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-				sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+				sessionsViewService.insertAt(session, lastVisible.sessionId, 'right');
 			}
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await openSessionToTheSide(sessionsManagementService, lastRequested);
+		await openSessionToTheSide(sessionsViewService, lastRequested);
 
-		const visibleAfterOpen = sessionsManagementService.visibleSessions.get();
+		const visibleAfterOpen = sessionsViewService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
 		if (opened) {
 			sessionsPartService.focusSession(opened);

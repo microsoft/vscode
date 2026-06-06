@@ -12,6 +12,7 @@ import * as objects from '../../../util/vs/base/common/objects';
 import { IObservable, observableFromEventOpts } from '../../../util/vs/base/common/observable';
 import * as types from '../../../util/vs/base/common/types';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
+import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { packageJson } from '../../env/common/packagejson';
 import { ImportChanges } from '../../inlineEdits/common/dataTypes/importFilteringOptions';
 import { JointCompletionsProviderStrategy, JointCompletionsProviderTriggerChangeStrategy } from '../../inlineEdits/common/dataTypes/jointCompletionsProviderOptions';
@@ -22,7 +23,6 @@ import { DuplicateAdditionsMode, EarlyDivergenceCancellationMode, LANGUAGE_CONTE
 import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
-import type { IModelCapabilityOverride } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IValidator, vBoolean, vNumber, vString } from './validator';
 
@@ -581,6 +581,8 @@ export namespace ConfigKey {
 	export namespace Shared {
 		/** Allows for overriding the base domain we use for making requests to the CAPI. This helps CAPI devs develop against a local instance. */
 		export const DebugOverrideProxyUrl = defineSetting<string | undefined>('advanced.debug.overrideProxyUrl', ConfigType.Simple, undefined);
+		/** Auth type to use when overrideProxyUrl or overrideCapiUrl is set. 'hmac' (default) for internal dev builds, 'token' for smoke tests / mock servers that don't support HMAC. */
+		export const DebugOverrideAuthType = defineSetting<'hmac' | 'token'>('advanced.debug.overrideAuthType', ConfigType.Simple, 'hmac');
 		export const DebugOverrideCAPIUrl = defineSetting<string | undefined>('advanced.debug.overrideCapiUrl', ConfigType.Simple, undefined);
 		export const DebugUseNodeFetchFetcher = defineSetting('advanced.debug.useNodeFetchFetcher', ConfigType.Simple, true);
 		export const DebugUseNodeFetcher = defineSetting('advanced.debug.useNodeFetcher', ConfigType.Simple, false);
@@ -797,6 +799,7 @@ export namespace ConfigKey {
 		 */
 		export const InlineEditsNesMimicGhostTextBehavior = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.nesMimicGhostTextBehavior', ConfigType.ExperimentBased, false, vBoolean());
 		export const InlineEditsXtabProviderUsePrediction = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.usePrediction', ConfigType.ExperimentBased, true, vBoolean());
+		export const InlineEditsXtabProviderPatchModelPredictionKind = defineTeamInternalSetting<xtabPromptOptions.PatchModelPrediction>('chat.advanced.inlineEdits.xtabProvider.patchModelPredictionKind', ConfigType.ExperimentBased, xtabPromptOptions.PatchModelPrediction.FilePath, xtabPromptOptions.PatchModelPrediction.VALIDATOR);
 		export const InlineEditsXtabLanguageContextEnabledLanguages = defineTeamInternalSetting<LanguageContextLanguages>('chat.advanced.inlineEdits.xtabProvider.languageContext.enabledLanguages', ConfigType.Simple, LANGUAGE_CONTEXT_ENABLED_LANGUAGES);
 		export const InlineEditsXtabLanguageContextTraitsPosition = defineTeamInternalSetting<'before' | 'after'>('chat.advanced.inlineEdits.xtabProvider.languageContext.traitsPosition', ConfigType.ExperimentBased, 'before');
 		export const InlineEditsDiagnosticsExplorationEnabled = defineTeamInternalSetting<boolean | undefined>('chat.advanced.inlineEdits.inlineEditsDiagnosticsExplorationEnabled', ConfigType.Simple, false);
@@ -1032,6 +1035,7 @@ export namespace ConfigKey {
 	export const ClaudeAgentUseSdkExtension = defineSetting<boolean>('chat.claudeAgent.useSdkExtension', ConfigType.ExperimentBased, false);
 	export const ClaudeAgentSdkExtensionInstallTimeout = defineSetting<number>('chat.claudeAgent.sdkExtensionInstallTimeout', ConfigType.Simple, 120_000);
 	export const InlineEditsEnabled = defineSetting<boolean>('nextEditSuggestions.enabled', ConfigType.ExperimentBased, true);
+	export const CompletionsInChatEnabled = defineSetting<boolean>('completions.chat.enabled', ConfigType.Simple, false);
 	export const InlineEditsEnableDiagnosticsProvider = defineSetting<boolean>('nextEditSuggestions.fixes', ConfigType.ExperimentBased, true);
 	export const InlineEditsAllowWhitespaceOnlyChanges = defineSetting<boolean>('nextEditSuggestions.allowWhitespaceOnlyChanges', ConfigType.ExperimentBased, true);
 	/** Because of migration the value returned may be `boolean | "onlyWithEdit" | "jump" | undefined` */
