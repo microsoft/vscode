@@ -1,1 +1,30 @@
-<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><style>.st0{fill:#f6f6f6;fill-opacity:0}.st1{fill:#fff}.st2{fill:#167abf}</style><path class="st0" d="M1024 1024H0V0h1024v1024z"/><path class="st1" d="M1024 85.333v853.333H0V85.333h1024z"/><path class="st2" d="M0 85.333h298.667v853.333H0V85.333zm1024 0v853.333H384V85.333h640zm-554.667 160h341.333v-64H469.333v64zm341.334 533.334H469.333v64h341.333l.001-64zm128-149.334H597.333v64h341.333l.001-64zm0-149.333H597.333v64h341.333l.001-64zm0-149.333H597.333v64h341.333l.001-64z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="roboGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="512" cy="512" r="460" fill="#0A1628" stroke="url(#roboGrad)" stroke-width="12"/>
+  <!-- Robot head outline -->
+  <path d="M512 180 C380 180 300 280 300 400 L300 520 C300 640 380 720 460 740 L460 780 L564 780 L564 740 C644 720 724 640 724 520 L724 400 C724 280 644 180 512 180Z" fill="none" stroke="url(#roboGrad)" stroke-width="28" stroke-linejoin="round"/>
+  <!-- Left eye (code bracket) -->
+  <path d="M400 420 L360 460 L400 500" fill="none" stroke="#00E5FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Right eye (code bracket) -->
+  <path d="M624 420 L664 460 L624 500" fill="none" stroke="#00E5FF" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Neural network nodes -->
+  <circle cx="480" cy="340" r="12" fill="#7C3AED"/>
+  <circle cx="544" cy="320" r="10" fill="#00E5FF"/>
+  <circle cx="600" cy="360" r="8" fill="#7C3AED"/>
+  <circle cx="420" cy="370" r="9" fill="#00E5FF"/>
+  <!-- Neural connections -->
+  <line x1="480" y1="340" x2="544" y2="320" stroke="#7C3AED" stroke-width="3" opacity="0.6"/>
+  <line x1="544" y1="320" x2="600" y2="360" stroke="#00E5FF" stroke-width="3" opacity="0.6"/>
+  <line x1="420" y1="370" x2="480" y2="340" stroke="#7C3AED" stroke-width="3" opacity="0.6"/>
+  <!-- Antenna -->
+  <line x1="512" y1="180" x2="512" y2="120" stroke="url(#roboGrad)" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="512" cy="108" r="16" fill="#00E5FF"/>
+  <!-- Mouth / circuit pattern -->
+  <path d="M430 600 L470 600 L490 580 L534 580 L554 600 L594 600" fill="none" stroke="#00E5FF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+</svg>

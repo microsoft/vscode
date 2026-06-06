@@ -1,0 +1,6 @@
+#!/bin/bash
+source ~/.nvm/nvm.sh && nvm use 22.22.1
+cd /media/mohamed/Robotics3/RoboAgent/vscode
+npm install
+npm run compile
+./scripts/code.sh

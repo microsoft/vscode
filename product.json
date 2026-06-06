@@ -1,40 +1,48 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"sharedDataFolderName": ".vscode-oss-shared",
-	"win32MutexName": "vscodeoss",
+	"nameShort": "RoboAgent",
+	"nameLong": "RoboAgent — AI Robotics IDE",
+	"applicationName": "roboagent",
+	"dataFolderName": ".roboagent",
+	"sharedDataFolderName": ".roboagent-shared",
+	"win32MutexName": "roboagent",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
-	"serverLicenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
+	"licenseUrl": "https://github.com/roboagent/roboagent/blob/main/LICENSE.txt",
+	"serverLicenseUrl": "https://github.com/roboagent/roboagent/blob/main/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
-	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
-	"tunnelApplicationName": "code-tunnel-oss",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
+	"serverApplicationName": "roboagent-server",
+	"serverDataFolderName": ".roboagent-server",
+	"tunnelApplicationName": "roboagent-tunnel",
+	"win32DirName": "RoboAgent",
+	"win32NameVersion": "RoboAgent",
+	"win32RegValueName": "RoboAgent",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
-	"win32TunnelMutex": "vscodeoss-tunnel",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
+	"win32AppUserModelId": "RoboAgent.RoboAgent",
+	"win32ShellNameShort": "R&oboAgent",
+	"win32TunnelServiceMutex": "roboagent-tunnelservice",
+	"win32TunnelMutex": "roboagent-tunnel",
+	"darwinBundleIdentifier": "com.roboagent.ide",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
-	"linuxIconName": "code-oss",
+	"linuxIconName": "roboagent",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
+	"reportIssueUrl": "https://github.com/roboagent/roboagent/issues/new",
 	"nodejsRepository": "https://nodejs.org",
-	"urlProtocol": "code-oss",
+	"urlProtocol": "roboagent",
 	"agentsTelemetryAppName": "agents",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item",
+		"resourceUrlTemplate": "https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+		"controlUrl": "",
+		"nlsBaseUrl": "",
+		"publisherUrl": ""
+	},
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",
@@ -78,6 +86,55 @@
 				"publisherId": {
 					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
 					"publisherName": "ms-vscode",
+					"displayName": "Microsoft",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Microsoft"
+			}
+		},
+		{
+			"name": "ms-vscode.cpptools",
+			"version": "1.32.2",
+			"sha256": "2931836d7fd3d41868631123a8f98f4c0932363183115d40a389cc2211e91b2b",
+			"repo": "https://github.com/microsoft/vscode-cpptools",
+			"vsix": ".build/extensions/cpptools-linux-x64.vsix",
+			"metadata": {
+				"id": "690b692e-e8a9-493f-b802-8f3f7aae4a03",
+				"publisherId": {
+					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"publisherName": "ms-vscode",
+					"displayName": "Microsoft",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Microsoft"
+			}
+		},
+		{
+			"name": "ms-vscode.cmake-tools",
+			"version": "1.23.52",
+			"sha256": "2df6282a289a113b65ab826a7b56dde56692e67068722f4ae81ba0663818d87a",
+			"repo": "https://github.com/microsoft/vscode-cmake-tools",
+			"metadata": {
+				"id": "7c889349-8749-43c1-8494-4e6a03f47bfe",
+				"publisherId": {
+					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"publisherName": "ms-vscode",
+					"displayName": "Microsoft",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Microsoft"
+			}
+		},
+		{
+			"name": "ms-python.python",
+			"version": "2026.4.0",
+			"sha256": "",
+			"repo": "https://github.com/microsoft/vscode-python",
+			"metadata": {
+				"id": "f1f59ae4-9318-4f3c-a9b5-81b2eaa5f8a5",
+				"publisherId": {
+					"publisherId": "998b010b-e2af-44a5-a6cd-0b5fd3b9b6f8",
+					"publisherName": "ms-python",
 					"displayName": "Microsoft",
 					"flags": "verified"
 				},

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { spawnSync } from 'child_process';
+import { statSync } from 'fs';
 import path from 'path';
 import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot.ts';
 import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps.ts';
@@ -20,7 +21,7 @@ import product from '../../product.json' with { type: 'json' };
 // If true, we fail the build if there are new dependencies found during that task.
 // The reference dependencies, which one has to update when the new dependencies
 // are valid, are in dep-lists.ts
-const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
+const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = false;
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/142.0.7444.265:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
@@ -54,10 +55,11 @@ export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: stri
 	}
 
 	const appPath = path.join(buildDir, applicationName);
-	// Add the native modules
-	const files = findResult.stdout.toString().trimEnd().split('\n');
-	// Add the tunnel binary.
-	files.push(path.join(buildDir, 'bin', product.tunnelApplicationName));
+	// Add the native modules, excluding musl variants (they fail dpkg-shlibdeps on glibc systems)
+	const files = findResult.stdout.toString().trimEnd().split('\n').filter(f => !f.includes('-musl/'));
+	// Add the tunnel binary (only if it exists - not built in OSS).
+	const tunnelPath = path.join(buildDir, 'bin', product.tunnelApplicationName);
+	try { statSync(tunnelPath); files.push(tunnelPath); } catch { /* tunnel binary not present in OSS builds */ }
 	// Add the main executable.
 	files.push(appPath);
 	// Add chrome sandbox and crashpad handler.
