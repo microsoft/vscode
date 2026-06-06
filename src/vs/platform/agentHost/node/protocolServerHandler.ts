@@ -696,8 +696,7 @@ export class ProtocolServerHandler extends Disposable {
 				continue;
 			}
 			const toolCall = part.toolCall;
-			const toolContributor = toolCall.contributor;
-			if (toolContributor?.kind === ToolCallContributorKind.Client && toolContributor.clientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
+			if (toolCall.contributor?.kind === ToolCallContributorKind.Client && toolCall.contributor.clientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
 				const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
 				if (toolCall.status === ToolCallStatus.Streaming) {
 					this._stateManager.dispatchServerAction(session, {
@@ -752,13 +751,14 @@ export class ProtocolServerHandler extends Disposable {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource watch not found: ${params.channel}`);
 				}
 				client.subscriptions.set(classified.uri, classified);
-				return {
-					snapshot: {
-						resource: classified.uri,
-						state: descriptor,
-						fromSeq: this._stateManager.serverSeq,
-					},
+				// ResourceWatchState is not part of Snapshot.state in the upstream protocol yet.
+				const resourceWatchSnapshot = {
+					resource: classified.uri,
+					state: descriptor,
+					fromSeq: this._stateManager.serverSeq,
 				};
+				const snapshot = resourceWatchSnapshot as unknown as IStateSnapshot;
+				return { snapshot };
 			}
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
@@ -849,7 +849,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
-					changesets: s.changesets ? [...s.changesets] : undefined,
+					changes: s.changes,
 				};
 			});
 			return { items };

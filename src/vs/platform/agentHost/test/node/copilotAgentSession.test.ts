@@ -2428,7 +2428,8 @@ suite('CopilotAgentSession', () => {
 			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
 			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
 			if (isAction(startSignal!, ActionType.SessionToolCallStart)) {
-				assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
+				const startAction = startSignal.action as SessionToolCallStartAction;
+				assert.strictEqual(startAction.contributor?.kind === ToolCallContributorKind.Client ? startAction.contributor.clientId : undefined, 'test-client');
 			}
 
 			// SDK invokes the handler — it creates a deferred and waits,

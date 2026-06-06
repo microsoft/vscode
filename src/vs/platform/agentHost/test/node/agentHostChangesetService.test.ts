@@ -40,8 +40,8 @@ suite('AgentHostChangesetService', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(sessionUri.toString()),
 		});
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalogue(sessionUri.toString()));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -67,9 +67,9 @@ suite('AgentHostChangesetService', () => {
 
 		// Catalogue is seeded by setupSession (mirrors what `_buildInitialSummary`
 		// does in production) — sanity check before exercising registration.
-		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
-			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.changesets, [
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session`, changeKind: 'session' },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 		]);
 
 		changesetService.registerStaticChangesets(sessionStr);
@@ -84,9 +84,9 @@ suite('AgentHostChangesetService', () => {
 		}
 
 		// Registration must not mutate the seeded catalogue.
-		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.summary.changesets, [
-			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.changesets, [
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session`, changeKind: 'session' },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 		]);
 	});
 
@@ -98,7 +98,7 @@ suite('AgentHostChangesetService', () => {
 		changesetService.registerStaticChangesets(sessionStr);
 		changesetService.registerStaticChangesets(sessionStr);
 
-		const changesets = stateManager.getSessionState(sessionStr)?.summary.changesets;
+		const changesets = stateManager.getSessionState(sessionStr)?.changesets;
 		assert.strictEqual(changesets?.length, 2, 'expected the two default catalogue entries');
 	});
 
@@ -126,21 +126,25 @@ suite('AgentHostChangesetService', () => {
 		assert.strictEqual(state.status, 'ready');
 		assert.deepStrictEqual(state.files.map(f => f.id), ['file:///wd/a.ts', 'file:///wd/b.ts']);
 
-		const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
-		assert.deepStrictEqual(catalogue, [
+		const sessionState = stateManager.getSessionState(sessionStr);
+		assert.deepStrictEqual(sessionState?.changesets, [
 			{
 				label: 'Branch Changes',
 				uriTemplate: changesetUri,
-				additions: 6,
-				deletions: 2,
-				files: 2,
+				changeKind: 'session',
 			},
 			{
 				label: 'Uncommitted Changes',
 				uriTemplate: `${sessionStr}/changeset/uncommitted`,
 				description: 'Show uncommitted changes in this session',
+				changeKind: 'uncommitted',
 			},
 		]);
+		assert.deepStrictEqual(sessionState?.summary.changes, {
+			additions: 6,
+			deletions: 2,
+			files: 2,
+		});
 	});
 
 	test('restoreStaticChangeset catalogue counts only emitted unique files', () => {
@@ -170,10 +174,11 @@ suite('AgentHostChangesetService', () => {
 		const changesetUri = `${sessionStr}/changeset/session`;
 		const snapshot = stateManager.getSnapshot(changesetUri);
 		const state = snapshot?.state as { files: Array<{ id: string; edit: { diff?: { added?: number; removed?: number } } }> } | undefined;
-		const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
+		const sessionState = stateManager.getSessionState(sessionStr);
 		assert.deepStrictEqual({
 			files: state?.files.map(f => ({ id: f.id, diff: f.edit.diff })),
-			catalogue,
+			catalogue: sessionState?.changesets,
+			changes: sessionState?.summary.changes,
 		}, {
 			files: [
 				{ id: 'file:///wd/a.ts', diff: { added: 3, removed: 1 } },
@@ -183,16 +188,20 @@ suite('AgentHostChangesetService', () => {
 				{
 					label: 'Branch Changes',
 					uriTemplate: changesetUri,
-					additions: 4,
-					deletions: 1,
-					files: 2,
+					changeKind: 'session',
 				},
 				{
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionStr}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
+					changeKind: 'uncommitted',
 				},
 			],
+			changes: {
+				additions: 4,
+				deletions: 1,
+				files: 2,
+			},
 		});
 	});
 
@@ -288,17 +297,20 @@ suite('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(sessionFileSets.map(e => e.action.file.edit), gitDiffs);
 			assert.deepStrictEqual(uncommittedFileSets.map(e => e.action.file.edit), gitDiffs);
 
-			// The compute pass also persists the file list under the
-			// legacy `'diffs'` slot so it survives restarts. The write
-			// is fire-and-forget through the metadata sequencer; poll
+			// The compute pass also persists a small `ChangesSummary`
+			// aggregate under the `META_CHANGES_SUMMARY` slot so a
+			// subsequent `listSessions` can render the chip without
+			// recomputing. Only the session-wide kind contributes;
+			// uncommitted recomputes never touch the DB. The write is
+			// fire-and-forget through the metadata sequencer; poll
 			// briefly until it lands.
 			let persisted: string | undefined;
 			for (let i = 0; i < 50 && !persisted; i++) {
 				await timeout(2);
-				persisted = await sessionDb.getMetadata('diffs');
+				persisted = await sessionDb.getMetadata('agentHost.changes');
 			}
-			assert.ok(persisted, 'expected the compute pass to persist diffs to the session DB');
-			assert.deepStrictEqual(JSON.parse(persisted), gitDiffs);
+			assert.ok(persisted, 'expected the session compute pass to persist a changes summary');
+			assert.deepStrictEqual(JSON.parse(persisted), { additions: 1, deletions: 0, files: 1 });
 		});
 
 		test('falls back to the edit-tracker aggregator when the git service returns undefined', async () => {
@@ -413,9 +425,10 @@ suite('AgentHostChangesetService', () => {
 				.filter(e => e.action.type === ActionType.ChangesetFileRemoved && e.channel === uncommittedUri);
 			assert.deepStrictEqual(removed, [], 'no files should be removed when the git path is unavailable');
 
-			// 2) The persisted DB blob is unchanged (compute did not overwrite it).
-			const persistedAfter = await sessionDb.getMetadata('agentHost.changeset.uncommitted');
-			assert.strictEqual(persistedAfter, undefined, 'compute must not persist anything when git is unavailable');
+			// 2) The uncommitted recompute must never touch the DB —
+			//    only the session-wide kind persists a summary.
+			const persistedAfter = await sessionDb.getMetadata('agentHost.changes');
+			assert.strictEqual(persistedAfter, undefined, 'uncommitted compute must not persist a changes summary');
 
 			// 3) Live state still reports the 3 seeded files.
 			const snapshot = localStateManager.getSnapshot(uncommittedUri);
@@ -561,15 +574,23 @@ suite('AgentHostChangesetService', () => {
 				sessionRaw: JSON.stringify([aDiff, bDiff]),
 			});
 
-			const catalogue = stateManager.getSessionState(sessionStr)?.summary.changesets;
-			const sessionEntry = catalogue?.find(c => c.uriTemplate === `${sessionStr}/changeset/session`);
-			assert.deepStrictEqual(sessionEntry, {
-				label: 'Branch Changes',
-				uriTemplate: `${sessionStr}/changeset/session`,
-				additions: 3,
-				deletions: 0,
-				files: 2,
-			}, 'catalogue counts must reflect restored files');
+			const sessionState = stateManager.getSessionState(sessionStr);
+			const sessionEntry = sessionState?.changesets?.find(c => c.uriTemplate === `${sessionStr}/changeset/session`);
+			assert.deepStrictEqual({
+				sessionEntry,
+				changes: sessionState?.summary.changes,
+			}, {
+				sessionEntry: {
+					label: 'Branch Changes',
+					uriTemplate: `${sessionStr}/changeset/session`,
+					changeKind: 'session',
+				},
+				changes: {
+					additions: 3,
+					deletions: 0,
+					files: 2,
+				},
+			}, 'restored diffs must update the chip aggregate');
 		});
 	});
 

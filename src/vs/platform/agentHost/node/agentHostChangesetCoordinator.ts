@@ -8,7 +8,6 @@ import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
 import {
 	buildSessionChangesetUri,
-	buildUncommittedChangesetUri,
 	ChangesetKind,
 	parseChangesetUri,
 } from '../common/changesetUri.js';
@@ -20,13 +19,15 @@ import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 import {
-	buildCatalogueFromLiveState,
-	buildCatalogueFromPersistedDiffs,
+	computeChangesSummaryFromLiveState,
+	computeChangesSummaryFromPersistedDiffs,
 	IAgentHostChangesetService,
+	META_CHANGES_SUMMARY,
 	META_CHANGESET_SESSION,
 	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
 } from './agentHostChangesetService.js';
+import { ChangesSummary } from '../common/state/protocol/channels-session/state.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -46,6 +47,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
+	[META_CHANGES_SUMMARY]: true,
 	[META_LEGACY_DIFFS]: true,
 };
 
@@ -120,8 +122,8 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * on the state manager so client subscriptions resolve to a
 	 * `status: computing` snapshot before the first compute pass.
 	 *
-	 * The catalogue summary (`summary.changesets`) is seeded synchronously
-	 * by `_buildInitialSummary` in {@link AgentService} via
+	 * The catalogue (`state.changesets`) is seeded synchronously by
+	 * `_buildInitialSummary` in {@link AgentService} via
 	 * {@link buildDefaultChangesetCatalogue}; this method only registers
 	 * the backing per-changeset state. Both halves run before
 	 * `SessionReady` is dispatched.
@@ -137,13 +139,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * `AgentService` already issues for title / read / archive / config
 	 * keys.
 	 */
-	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+	onSessionRestored(sessionStr: string): void {
 		this._changesets.registerStaticChangesets(sessionStr);
-		this._changesets.restorePersistedStaticChangesets(sessionStr, {
-			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
-			sessionRaw: metadata[META_CHANGESET_SESSION],
-			legacyRaw: metadata[META_LEGACY_DIFFS],
-		});
+
 		// `addSubscriber`'s 0→1 trigger may have fired before the session
 		// state existed; now that `summary.workingDirectory` is populated,
 		// drain the deferred refresh. Idempotent — the per-session
@@ -333,89 +331,98 @@ export class ChangesetSessionCoordinator extends Disposable {
 	/**
 	 * Returns the session-DB metadata keys to merge into a batched read
 	 * for `sessionStr`, OR `undefined` when live state already answers
-	 * the catalogue question (so the caller can skip loading the
-	 * potentially-large persisted blobs).
+	 * the aggregate-counts question (so the caller can skip loading the
+	 * potentially-large persisted diff blobs).
 	 *
-	 * Returning `undefined` is the fast path: live `summary.changesets`
-	 * (loaded session) or a ready live changeset state (registered but
-	 * not-yet-restored session) is authoritative.
+	 * Returning `undefined` is the fast path: a live `summary.changes`
+	 * (loaded session) or a ready live `changeKind: 'session'` changeset
+	 * state (registered but not-yet-restored session) is authoritative.
 	 */
 	getListMetadataKeys(sessionStr: string): Record<string, true> | undefined {
-		if (this._readyLiveCatalogueExists(sessionStr)) {
+		const liveSummaryChanges = this._stateManager.getSessionState(sessionStr)?.summary.changes;
+		if (liveSummaryChanges) {
 			return undefined;
 		}
-		const liveSessionState = this._stateManager.getSessionState(sessionStr);
-		if (liveSessionState?.summary.changesets) {
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
+		if (liveSession?.status === ChangesetStatus.Ready) {
 			return undefined;
 		}
 		return CHANGESET_DB_METADATA_KEYS;
 	}
 
 	/**
-	 * Decorates a single listSessions entry with the catalogue overlay.
+	 * Decorates a single listSessions entry with the `changes` aggregate
+	 * (additions / deletions / files for the session-wide changeset).
 	 * `metadata` is the already-batched DB read; if it lacks the
 	 * changeset keys (because {@link getListMetadataKeys} returned
 	 * `undefined`), this method falls through to synthesising the
-	 * catalogue from live state.
+	 * aggregate from live state.
 	 *
-	 * Precedence: live `summary.changesets` > ready live changeset state
-	 * > parsed persisted blobs > undefined (no catalogue advertised).
-	 * This mirrors the inline pre-coordinator logic.
+	 * Precedence: live `summary.changes` (already projected onto `entry`
+	 * by the caller for loaded sessions) > ready live
+	 * `changeKind: 'session'` changeset state > parsed persisted
+	 * session-wide diff blob > undefined (no aggregate advertised).
+	 * The catalogue itself is uniform across sessions and is not part of
+	 * the listSessions overlay — it is seeded on `state.changesets` once
+	 * at session creation.
 	 */
 	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
 		const sessionStr = entry.session.toString();
-		const liveSessionState = this._stateManager.getSessionState(sessionStr);
-		const liveUncommitted = this._stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
-		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-		const hasReadyLiveCatalogue = liveUncommitted?.status === ChangesetStatus.Ready
-			|| liveSession?.status === ChangesetStatus.Ready;
 
-		// Ready live state for an unopened session: synthesise the catalogue
-		// from that live state. Counts stay in lockstep with the actual
-		// changeset state for the session-list chip.
-		if (!liveSessionState && hasReadyLiveCatalogue) {
-			const catalogue = buildCatalogueFromLiveState(sessionStr, liveUncommitted, liveSession);
-			if (catalogue) {
-				return { ...entry, changesets: catalogue };
-			}
+		// Loaded session: the caller has already projected
+		// `state.summary.changes` onto the entry. Nothing to overlay.
+		if (this._stateManager.getSessionState(sessionStr)) {
 			return entry;
+		}
+
+		// Check if the metadata contains the changes summary. In the past we
+		// used to store the changesets in the session database but we have
+		// since moved to a more efficient storage mechanism by only storing
+		// the changes summary.
+		const changesSummary = metadata[META_CHANGES_SUMMARY];
+		if (changesSummary !== undefined) {
+			return { ...entry, changes: JSON.parse(changesSummary) as ChangesSummary };
+		}
+
+		// Ready live state for an unopened session: synthesise the aggregate
+		// from the live `changeKind: 'session'` changeset state. Counts stay
+		// in lockstep with the actual changeset state for the session-list
+		// chip.
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
+		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
+		if (liveChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this._changesets.persistChangesSummary(sessionStr, liveChanges);
+			return { ...entry, changes: liveChanges };
 		}
 
 		// No live source — try persisted blobs (if the caller batched them).
-		const uncommittedRaw = metadata[META_CHANGESET_UNCOMMITTED];
 		const sessionRaw = metadata[META_CHANGESET_SESSION];
 		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (uncommittedRaw === undefined && sessionRaw === undefined && legacyRaw === undefined) {
+		if (sessionRaw === undefined && legacyRaw === undefined) {
 			return entry;
 		}
+
+		// Extract the changes summary from the persisted static changesets
 		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, {
-			uncommittedRaw,
 			sessionRaw,
 			legacyRaw,
 		});
+
 		// `listSessions` must not seed full changeset state for every row;
-		// it only parses persisted blobs enough to render catalogue counts.
+		// it only parses persisted blobs enough to render the chip aggregate.
 		// Once the session is opened via `restoreSession`, the live overlay in
-		// `AgentService.listSessions` replaces this parse-only catalogue.
-		if (!liveSessionState) {
-			const catalogue = buildCatalogueFromPersistedDiffs(sessionStr, restored.uncommitted, restored.session);
-			if (catalogue) {
-				return { ...entry, changesets: catalogue };
-			}
+		// `AgentService.listSessions` replaces this parse-only aggregate.
+		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
+		if (persistedChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this._changesets.persistChangesSummary(sessionStr, persistedChanges);
+			return { ...entry, changes: persistedChanges };
 		}
 		return entry;
 	}
 
 	// ---- Internal -----------------------------------------------------------
-
-	private _readyLiveCatalogueExists(sessionStr: string): boolean {
-		const uncommitted = this._stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
-		if (uncommitted?.status === ChangesetStatus.Ready) {
-			return true;
-		}
-		const session = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-		return session?.status === ChangesetStatus.Ready;
-	}
 
 	/**
 	 * Triggers the first uncommitted refresh for `sessionStr`, deferring
