@@ -15,6 +15,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -28,6 +29,7 @@ import { IAutomation, IAutomationRun, AutomationRunStatus, AutomationRunTrigger 
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
 import { IFolderChoice, showAutomationDialog } from '../automations/automationDialog.js';
 
 const $ = DOM.$;
@@ -84,6 +86,7 @@ export class AutomationsListWidget extends Disposable {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -259,7 +262,12 @@ export class AutomationsListWidget extends Disposable {
 			'data-run-status': run.status,
 		}));
 
-		const statusIcon = DOM.append(li, $(`span.automations-history-status.codicon.codicon-${runStatusIconId(run.status)}`));
+		const statusIcon = DOM.append(li, $('span.automations-history-status.codicon'));
+		const { iconId, spin } = runStatusIcon(run.status);
+		statusIcon.classList.add(`codicon-${iconId}`);
+		if (spin) {
+			statusIcon.classList.add('codicon-modifier-spin');
+		}
 		statusIcon.setAttribute('aria-hidden', 'true');
 
 		const text = DOM.append(li, $('.automations-history-row-text'));
@@ -304,6 +312,10 @@ export class AutomationsListWidget extends Disposable {
 		const icon = automation.enabled ? Codicon.eye : Codicon.eyeClosed;
 		const button = this.createIconButton(container, icon, tooltip, false);
 		this.rowDisposables.add(DOM.addStandardDisposableListener(button, 'click', async () => {
+			if (!this._isEnabled()) {
+				await this._notifyDisabled();
+				return;
+			}
 			try {
 				await this.automationService.updateAutomation(automation.id, { enabled: !automation.enabled });
 				status(automation.enabled
@@ -325,6 +337,10 @@ export class AutomationsListWidget extends Disposable {
 	private renderDeleteAction(container: HTMLElement, automation: IAutomation): void {
 		const button = this.createIconButton(container, Codicon.trash, localize('deleteAutomation', "Delete"), false);
 		this.rowDisposables.add(DOM.addStandardDisposableListener(button, 'click', async () => {
+			if (!this._isEnabled()) {
+				await this._notifyDisabled();
+				return;
+			}
 			const result = await this.dialogService.confirm({
 				type: 'warning',
 				message: localize('confirmDeleteAutomation', "Delete automation \u201C{0}\u201D?", automation.name),
@@ -332,6 +348,13 @@ export class AutomationsListWidget extends Disposable {
 				primaryButton: localize('delete', "Delete"),
 			});
 			if (!result.confirmed) {
+				return;
+			}
+			// Re-check after the await: the user could have toggled the
+			// setting off via the command palette in the time it took
+			// them to confirm the destructive action.
+			if (!this._isEnabled()) {
+				await this._notifyDisabled();
 				return;
 			}
 			try {
@@ -355,7 +378,32 @@ export class AutomationsListWidget extends Disposable {
 		return button;
 	}
 
+	/**
+	 * Returns true when `chat.automations.enabled` is on. The list widget
+	 * is hidden from the editor on render when this flips off, but a
+	 * dialog (Create/Edit) that was already open at the moment of the
+	 * flip could otherwise still drive a mutation through. Every entry
+	 * point that calls `automationService.{create,update,delete}` checks
+	 * this guard immediately before the mutation and short-circuits with
+	 * a friendly toast if disabled, so the user can't grow the persisted
+	 * automation ledger while the feature is off.
+	 */
+	private _isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	}
+
+	private async _notifyDisabled(): Promise<void> {
+		await this.dialogService.info(
+			localize('automationsDisabledTitle', "Automations are disabled."),
+			localize('automationsDisabledDetail', "Enable \u201C{0}\u201D to make changes.", CHAT_AUTOMATIONS_ENABLED_SETTING),
+		);
+	}
+
 	private async runNow(automation: IAutomation): Promise<void> {
+		if (!this._isEnabled()) {
+			await this._notifyDisabled();
+			return;
+		}
 		if (this.runInFlight.has(automation.id)) {
 			return;
 		}
@@ -377,10 +425,21 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private async openCreateDialog(): Promise<void> {
+		if (!this._isEnabled()) {
+			await this._notifyDisabled();
+			return;
+		}
 		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 		});
 		if (!result || result.kind !== 'create') {
+			return;
+		}
+		// Re-check after the user has been interacting with the modal:
+		// they could have toggled the setting off via the command
+		// palette between opening the dialog and clicking Save.
+		if (!this._isEnabled()) {
+			await this._notifyDisabled();
 			return;
 		}
 		try {
@@ -396,11 +455,19 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	private async openEditDialog(automation: IAutomation): Promise<void> {
+		if (!this._isEnabled()) {
+			await this._notifyDisabled();
+			return;
+		}
 		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 			existing: automation,
 		});
 		if (!result || result.kind !== 'update') {
+			return;
+		}
+		if (!this._isEnabled()) {
+			await this._notifyDisabled();
 			return;
 		}
 		try {
@@ -542,12 +609,15 @@ function truncate(s: string, max: number): string {
 	return single.slice(0, Math.max(0, max - 1)) + '\u2026';
 }
 
-function runStatusIconId(status: AutomationRunStatus): string {
+function runStatusIcon(status: AutomationRunStatus): { iconId: string; spin: boolean } {
 	switch (status) {
-		case 'pending': return 'circle-outline';
-		case 'running': return 'sync~spin';
-		case 'completed': return 'check';
-		case 'failed': return 'error';
+		// 'codicon-sync~spin' as a single class isn't recognized by the
+		// codicon CSS — the spin animation lives on a separate
+		// `codicon-modifier-spin` class, so we report it out-of-band.
+		case 'pending': return { iconId: 'circle-outline', spin: false };
+		case 'running': return { iconId: 'sync', spin: true };
+		case 'completed': return { iconId: 'check', spin: false };
+		case 'failed': return { iconId: 'error', spin: false };
 	}
 }
 

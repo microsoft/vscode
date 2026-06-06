@@ -14,6 +14,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
@@ -56,6 +58,8 @@ class FakeDialogService extends mock<IDialogService>() {
 	}
 
 	override async error(): Promise<void> { /* no-op */ }
+
+	override async info(): Promise<void> { /* no-op */ }
 }
 
 class FakeWorkspaceContextService extends mock<IWorkspaceContextService>() {
@@ -109,9 +113,14 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: document.createElement('div') }));
 		instantiation.stub(IHostService, upcastPartial<IHostService>({}));
 		instantiation.stub(ILogService, log);
+		// Enable the Automations feature so mutation handlers don't
+		// short-circuit with the "feature disabled" toast. The runtime
+		// gating is exercised in a dedicated test below.
+		const configService = new TestConfigurationService({ chat: { automations: { enabled: true } } });
+		instantiation.stub(IConfigurationService, configService);
 
 		const widget = teardown.add(instantiation.createInstance(AutomationsListWidget));
-		return { widget, service, runner, dialog, workspace };
+		return { widget, service, runner, dialog, workspace, configService };
 	}
 
 	test('renders empty state when there are no automations', () => {
@@ -158,6 +167,32 @@ suite('AutomationsListWidget', () => {
 		assert.strictEqual(runner.calls.length, 1);
 		assert.strictEqual(runner.calls[0].automationId, a.id);
 		assert.strictEqual(runner.calls[0].trigger, 'manual');
+	});
+
+	test('mutating actions short-circuit when chat.automations.enabled is off', async () => {
+		const { widget, service, runner, configService, dialog } = setup();
+		const a = await service.createAutomation({ name: 'A', prompt: 'p', schedule: hourly(), folderUri: FOLDER, enabled: true });
+
+		// Flip the setting off after the widget rendered the row, then
+		// click each mutating action. None of them should reach the
+		// service / runner.
+		configService.setUserConfiguration('chat.automations.enabled', false);
+		dialog.confirmResult = true;
+
+		const buttons = widget.element.querySelectorAll('.automations-row .automations-row-action-button');
+		// Buttons are ordered: Run Now, Toggle, Edit, Delete (+History).
+		(buttons[0] as HTMLButtonElement).click(); // run now
+		(buttons[1] as HTMLButtonElement).click(); // toggle
+		(buttons[3] as HTMLButtonElement).click(); // delete
+		// Drain microtasks.
+		for (let i = 0; i < 5; i++) {
+			await Promise.resolve();
+		}
+
+		assert.strictEqual(runner.calls.length, 0, 'runNow must not call the runner when disabled');
+		const reloaded = service.getAutomation(a.id);
+		assert.ok(reloaded, 'automation must not be deleted');
+		assert.strictEqual(reloaded?.enabled, true, 'toggle must not mutate enabled flag');
 	});
 
 	test('toggle button flips enabled state', async () => {
