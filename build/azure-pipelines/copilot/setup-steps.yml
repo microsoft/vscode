@@ -41,14 +41,13 @@ steps:
   - task: Cache@2
     inputs:
       key: '"copilot_build_cache" | .build/packagelockhash'
-      path: $(Build.SourcesDirectory)/extensions/copilot/.build/build_cache
+      path: .build/node_modules_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore copilot build cache
 
-  - script: tar -xzf .build/build_cache/cache.tgz
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.BUILD_CACHE_RESTORED, 'true'))
-    displayName: Extract copilot build cache
+    displayName: Extract node_modules cache
 
   - pwsh: |
       $ErrorActionPreference = 'Stop'
@@ -95,9 +94,8 @@ steps:
   - script: |
       set -e
       mkdir -p .build
-      node build/listBuildCacheFiles.js .build/build_cache_list.txt
-      mkdir -p .build/build_cache
-      tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+      mkdir -p .build/node_modules_cache
+      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
-    displayName: Create copilot build cache archive
+    displayName: Create node_modules archive
