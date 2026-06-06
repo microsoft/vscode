@@ -15,6 +15,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AutomationsAccessibilityHelp } from '../aiCustomization/automationsAccessibilityHelp.js';
 import { IAutomationRunner } from '../../common/automations/automationRunner.js';
 import { IAutomationService } from '../../common/automations/automationService.js';
@@ -89,6 +90,7 @@ registerAction2(class ToggleChatAutomationsAction extends Action2 {
 			title: localize2('toggleChatAutomations', "Toggle Automations"),
 			category: localize2('chatCategory', "Chat"),
 			f1: true,
+			precondition: ChatContextKeys.enabled,
 		});
 	}
 
