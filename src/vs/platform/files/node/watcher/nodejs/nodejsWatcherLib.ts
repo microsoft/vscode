@@ -112,7 +112,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			this._register(await this.doWatch(stat.isDirectory()));
+			await thenRegisterOrDispose(this.doWatch(stat.isDirectory()), this._store);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);

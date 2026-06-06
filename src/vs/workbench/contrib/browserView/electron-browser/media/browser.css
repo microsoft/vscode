@@ -729,6 +729,10 @@
 		text-overflow: ellipsis;
 		outline: none !important;
 
+		&:focus-within {
+			text-overflow: clip;
+		}
+
 		&:empty::before {
 			content: attr(data-placeholder);
 			color: var(--vscode-input-placeholderForeground);
