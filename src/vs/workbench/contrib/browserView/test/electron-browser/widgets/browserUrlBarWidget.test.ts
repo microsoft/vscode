@@ -18,6 +18,7 @@ import {
 	IQuickPickItem,
 	IQuickPickItemButtonEvent,
 	IQuickPickSeparator,
+	IQuickPickSeparatorButtonEvent,
 	QuickInputHideReason,
 } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { BrowserEditorContribution, IBrowserUrlPickerActionProvider, IBrowserUrlSuggestionProvider } from '../../../electron-browser/browserEditor.js';
@@ -47,6 +48,8 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 	readonly onDidTriggerButton = this._onDidTriggerButton.event;
 	private readonly _onDidTriggerItemButton = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
 	readonly onDidTriggerItemButton = this._onDidTriggerItemButton.event;
+	private readonly _onDidTriggerSeparatorButton = this._register(new Emitter<IQuickPickSeparatorButtonEvent>());
+	readonly onDidTriggerSeparatorButton = this._onDidTriggerSeparatorButton.event;
 	private readonly _onDidAccept = this._register(new Emitter<IQuickPickDidAcceptEvent>());
 	readonly onDidAccept = this._onDidAccept.event;
 	private readonly _onDidHide = this._register(new Emitter<{ reason: QuickInputHideReason }>());
@@ -77,6 +80,10 @@ class FakeQuickPick<T extends IQuickPickItem> extends Disposable {
 
 	triggerItemButton(item: T, button: IQuickInputButton): void {
 		this._onDidTriggerItemButton.fire({ item, button });
+	}
+
+	triggerSeparatorButton(separator: IQuickPickSeparator, button: IQuickInputButton): void {
+		this._onDidTriggerSeparatorButton.fire({ separator, button });
 	}
 }
 
@@ -424,6 +431,32 @@ suite('BrowserUrlBarWidget', () => {
 				pickerVisible: picker.visible,
 			},
 			{ runCount: 1, calledWithInput: true, pickerVisible: true },
+		);
+	});
+
+	test('pressing Enter on the display navigates and preserves the typed text through the subsequent blur', () => {
+		const harness = makeHarness();
+		const { widget, display, navigated } = harness;
+		widget.focusUrlInput();
+		display.textContent = 'https://typed-into-display.test/';
+		// `StandardKeyboardEvent` reads the (deprecated) numeric `keyCode`,
+		// so pass it explicitly (Enter == 13) rather than relying on `key`.
+		display.dispatchEvent(new KeyboardEvent('keydown', { keyCode: 13, key: 'Enter', bubbles: true, cancelable: true } as KeyboardEventInit));
+		display.blur();
+		// `model.url` (canonical) hasn't caught up to the typed URL yet, but
+		// the BLUR-revert should be suppressed for an Enter-commit so the
+		// destination stays visible until the navigation commits.
+		assert.deepStrictEqual(
+			{
+				navigated: [...navigated],
+				display: display.textContent,
+				ensureBrowserFocusCalls: harness.ensureBrowserFocusCalls(),
+			},
+			{
+				navigated: ['https://typed-into-display.test/'],
+				display: 'https://typed-into-display.test/',
+				ensureBrowserFocusCalls: 1,
+			},
 		);
 	});
 

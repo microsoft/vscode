@@ -12,13 +12,14 @@ import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
-import { ChatCompletion, openAIContextManagementCompactionType, OpenAIContextManagementResponse, FilterReason, FinishedCompletionReason } from '../../../networking/common/openai';
+import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
+import type { ThinkingData } from '../../../thinking/common/thinking';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
@@ -96,6 +97,17 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 			compaction,
 		}
 	}]
+});
+
+const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
+	role: Raw.ChatRole.Assistant,
+	content: [
+		{
+			type: Raw.ChatCompletionContentPartKind.Opaque,
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking },
+		},
+		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
+	],
 });
 
 type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
@@ -363,6 +375,100 @@ describe('createResponsesRequestBody', () => {
 				compact_threshold: 1234,
 			}]
 		})).toBe(1234);
+	});
+
+	it('round-trips a genuine Responses reasoning item (id begins with "rs")', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toContainEqual({ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' });
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops foreign thinking (Messages API "thinking_N" id) so it cannot 400 the Responses request', () => {
+		// Reproduces "400 invalid_request_body: Invalid 'input[N].id': 'thinking_0'. Expected an
+		// ID that begins with 'rs'." Anthropic Messages-API thinking leaks into a Responses
+		// request (e.g. via the vscode.lm path); its id and encrypted payload are foreign and
+		// must not be round-tripped.
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('converts PDF document content parts to Responses input_file', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = { ...testEndpoint, family: 'gpt-5.4', supportsVision: true };
+		const base64Data = 'JVBERi0xLjQKMSAwIG9iago8PC9UeXBlIC9DYXRhbG9n';
+		const messages: Raw.ChatMessage[] = [{
+			role: Raw.ChatRole.User,
+			content: [{
+				type: Raw.ChatCompletionContentPartKind.Document,
+				documentData: { data: base64Data, mediaType: 'application/pdf' },
+			}],
+		}];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{
+				type: 'input_file',
+				filename: 'document.pdf',
+				file_data: `data:application/pdf;base64,${base64Data}`,
+			}],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('preserves PDF document tool results as Responses input_file follow-up content', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const base64Data = 'JVBERi0xLjQK';
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'call_pdf', type: 'function', function: { name: 'read_file', arguments: '{"path":"doc.pdf"}' } }],
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_pdf',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Document, documentData: { data: base64Data, mediaType: 'application/pdf' } }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.[1]).toMatchObject({ type: 'function_call_output', call_id: 'call_pdf', output: '' });
+		expect(body.input?.[2]).toMatchObject({
+			role: 'user',
+			content: [
+				{ type: 'input_text', text: 'PDF associated with the above tool call:' },
+				{ type: 'input_file', filename: 'document.pdf', file_data: `data:application/pdf;base64,${base64Data}` },
+			],
+		});
+
+		accessor.dispose();
+		services.dispose();
 	});
 
 	it('still slices websocket requests by stateful marker index when compaction is disabled', () => {

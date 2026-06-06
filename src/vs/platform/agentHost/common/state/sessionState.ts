@@ -32,13 +32,13 @@ import {
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
-	type UserMessage,
+	type Message,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
 export {
-	ChangesetOperationScope, ChangesetStatus, CustomizationLoadStatus,
-	CustomizationType, MessageAttachmentKind,
+	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
+	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
@@ -47,7 +47,7 @@ export {
 	SessionInputQuestionKind,
 	SessionInputResponseKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type ChangesetFile,
 	type ChangesetOperation, type ChangesetState, type ChangesetSummary, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
@@ -71,12 +71,13 @@ export {
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
+	type ToolCallContributor,
 	type ToolDefinition, type ToolResultContent,
 	type ToolResultFileEditContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
-	type UserMessage
+	type Message
 } from './protocol/state.js';
 
 export {
@@ -370,10 +371,10 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	};
 }
 
-export function createActiveTurn(id: string, userMessage: UserMessage): ActiveTurn {
+export function createActiveTurn(id: string, message: Message): ActiveTurn {
 	return {
 		id,
-		userMessage,
+		message,
 		responseParts: [],
 		usage: undefined,
 	};

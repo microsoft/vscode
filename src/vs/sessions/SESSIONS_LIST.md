@@ -14,7 +14,7 @@ The sessions list (`SessionsView` + `SessionsList`) displays every session known
 |------|---------|
 | `contrib/sessions/browser/views/sessionsView.ts` | `SessionsView` — ViewPane with header, new-session button, sort/group/filter persistence |
 | `contrib/sessions/browser/views/sessionsList.ts` | `SessionsList` — tree control, grouping/filtering logic, menu IDs, context keys |
-| `contrib/sessions/browser/views/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state (UI-only, not synced to providers) |
+| `services/sessions/browser/sessionsListModelService.ts` | `ISessionsListModelService` — pin/read state + shared status icon (UI-only, not synced to providers) |
 | `contrib/sessions/browser/views/sessionsViewActions.ts` | All registered actions (sort, group, filter, pin, archive, rename, navigate) |
 
 ---
@@ -59,7 +59,7 @@ Archived sessions always go to the "Done" section regardless of grouping mode. A
 When grouping by workspace, the list shows only **primary** workspace sections by default:
 
 - A workspace qualifies as primary if it has recent activity (last 4 days), matches the open window's folder, or contains the most recently updated session
-- Remaining workspaces collapse behind a "Show N more" toggle
+- Remaining workspaces collapse behind a "+N more workspaces" toggle
 - Within each workspace, sessions beyond 5 also show a "Show more" toggle
 - The find widget bypasses all capping
 
@@ -124,7 +124,7 @@ The sessions list defines menu IDs that contributions can target to add actions.
 
 | Menu | Constant | Where it appears | Use for |
 |------|----------|------------------|---------|
-| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", "Archive All", "Restore All". |
+| `SessionSectionToolbar` | `SessionSectionToolbarMenuId` | Toolbar on section headers (Pinned, workspace groups, Done) | Section-scoped actions like "New Session for Workspace", "Archive All", "Restore All". Section headers also show a collapsible chevron on hover/focus; the chevron uses the same ghost icon hover background token as toolbar icon buttons. |
 
 ### View Title Menus
 

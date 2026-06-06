@@ -6,10 +6,10 @@
 import { localize } from '../../../../../nls.js';
 import { $, addDisposableListener, EventType, isHTMLInputElement } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
@@ -68,10 +68,8 @@ export class BrowserUrlBarWidget extends Disposable {
 	private readonly _pickerActionProviders: IBrowserUrlPickerActionProvider[] = [];
 	private readonly _picker = this._register(new MutableDisposable<IQuickPick<IUrlPickerItem, { useSeparators: true }>>());
 
-	// One-shot suppression of the display's "focus opens picker" path. Set
-	// when we programmatically move focus to the display (e.g. picker hide
-	// restoring focus) so the picker doesn't immediately re-open.
 	private _suppressFocusOpen = false;
+	private _suppressBlurRevert = false;
 
 	constructor(
 		private readonly _host: IBrowserUrlBarHost,
@@ -212,6 +210,10 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.BLUR, () => {
 			pendingMouseFocus = false;
+			// Snap the display back to the start of the URL so it doesn't stay
+			// scrolled to wherever the caret was (e.g. after arrow-keying to
+			// the end and then clicking away).
+			this._urlDisplay.scrollLeft = 0;
 			// Clear any text selection within the display so it doesn't stay
 			// highlighted after focus moves away (e.g. into the browser).
 			const sel = this._urlDisplay.ownerDocument.getSelection();
@@ -220,6 +222,12 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 			// If the picker is open it owns the value; leave the display alone.
 			if (this._picker.value) {
+				return;
+			}
+			// One-shot bypass after an Enter-commit on the display: keep the
+			// typed value visible until the navigation commits.
+			if (this._suppressBlurRevert) {
+				this._suppressBlurRevert = false;
 				return;
 			}
 			// User left the URL bar without navigating; discard any in-progress
@@ -249,7 +257,12 @@ export class BrowserUrlBarWidget extends Disposable {
 				e.preventDefault();
 				const value = this._urlDisplay.textContent?.trim() ?? '';
 				if (value) {
+					// Suppress the next BLUR-revert: the user committed to
+					// this value, so we don't want it discarded just because
+					// `model.url` won't catch up until navigation commits.
+					this._suppressBlurRevert = true;
 					this._host.input?.navigate(value);
+					this._host.ensureBrowserFocus();
 				}
 				return;
 			}
@@ -374,7 +387,7 @@ export class BrowserUrlBarWidget extends Disposable {
 	/**
 	 * Build the synchronous "Go to <value>" picker item (when there is a
 	 * non-empty value). Provider-contributed suggestions are loaded
-	 * asynchronously by {@link _loadProviderSuggestions} and appended below.
+	 * asynchronously and appended below by the picker open flow.
 	 */
 	private _buildSuggestionItems(value: string): (IUrlPickerItem | IQuickPickSeparator)[] {
 		const items: (IUrlPickerItem | IQuickPickSeparator)[] = [];
@@ -389,63 +402,25 @@ export class BrowserUrlBarWidget extends Disposable {
 		return items;
 	}
 
-	/**
-	 * Run all suggestion providers in parallel against the current text and
-	 * push their results below the synchronous "Go to" item. Returns the full
-	 * item list (synchronous + provider) so the caller can update the picker.
-	 */
-	private async _loadProviderSuggestions(
-		value: string,
-		input: BrowserEditorInput,
-		token: CancellationToken,
-	): Promise<(IUrlPickerItem | IQuickPickSeparator)[]> {
-		const items: (IUrlPickerItem | IQuickPickSeparator)[] = this._buildSuggestionItems(value);
-		if (this._suggestionProviders.length === 0) {
-			return items;
+	/** Convert a provider suggestion to its picker-item representation. */
+	private _toPickerItem(s: IBrowserUrlSuggestion): IUrlPickerItem {
+		const item: IUrlPickerItem = {
+			id: s.id,
+			label: s.label,
+			description: s.description,
+			apply: s.apply,
+		};
+		if (s.iconPath) {
+			item.iconPath = s.iconPath;
+		} else if (s.icon) {
+			item.iconClass = ThemeIcon.asClassName(s.icon);
 		}
-		const context = { text: value, input };
-		const results = await Promise.all(
-			this._suggestionProviders.map(p =>
-				p.getSuggestions(context, token)
-					.then(r => ({ provider: p, suggestions: r }))
-					.catch(() => ({ provider: p, suggestions: [] as readonly IBrowserUrlSuggestion[] }))
-			)
-		);
-		if (token.isCancellationRequested) {
-			return items;
+		if (s.actions && s.actions.length > 0) {
+			// Per-item buttons. We pass the action objects through directly
+			// so onDidTriggerItemButton hands them back to us as the IBrowserUrlSuggestionAction.
+			item.buttons = s.actions;
 		}
-		for (const { provider, suggestions } of results) {
-			if (suggestions.length === 0) {
-				continue;
-			}
-			if (provider.label) {
-				// `buttons: []` opts the separator into being rendered as
-				// its own row (a separator without buttons is otherwise
-				// collapsed into the first item below it as a header).
-				items.push({ type: 'separator', label: provider.label, description: provider.description, buttons: [] });
-			}
-			for (const s of suggestions) {
-				const item: IUrlPickerItem = {
-					id: s.id,
-					label: s.label,
-					description: s.description,
-					apply: s.apply,
-				};
-				if (s.iconPath) {
-					item.iconPath = s.iconPath;
-				} else if (s.icon) {
-					item.iconClass = ThemeIcon.asClassName(s.icon);
-				}
-				if (s.actions && s.actions.length > 0) {
-					// Per-item buttons (e.g. delete on a bookmark). We pass
-					// the action objects through directly so onDidTriggerItemButton
-					// hands them back to us as the IBrowserUrlSuggestionAction.
-					item.buttons = s.actions;
-				}
-				items.push(item);
-			}
-		}
-		return items;
+		return item;
 	}
 
 	/**
@@ -484,45 +459,124 @@ export class BrowserUrlBarWidget extends Disposable {
 			picker.valueSelection = [0, this._canonicalUrl.length];
 		}
 		const disposables = new DisposableStore();
-		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
-		const applyItems = (value: string) => {
-			// Show the synchronous "Go to" item immediately so the picker is
-			// never blank while providers load.
-			const sync = this._buildSuggestionItems(value);
-			picker.items = sync;
-			const hasGo = sync.some(i => i.type !== 'separator');
+
+		// Each provider keeps its own cached suggestions + cancellation so a
+		// single provider's onDidChange (or a per-provider re-fetch) updates
+		// just that group, without recomputing the rest. Cancellation tokens
+		// (not just disposal) are needed so an in-flight `.then` for the
+		// previous request doesn't overwrite newer cached results.
+		type ProviderState = {
+			suggestions: readonly IBrowserUrlSuggestion[];
+			cts: MutableDisposable<CancellationTokenSource>;
+		};
+		const providerStates = new Map<IBrowserUrlSuggestionProvider, ProviderState>();
+		// Register the cancellation hook before the per-provider MutableDisposables
+		// so it runs first on picker close. `CancellationTokenSource.dispose()`
+		// only releases internal state — it does NOT cancel — so without this,
+		// in-flight provider requests would keep running after the picker is gone.
+		disposables.add(toDisposable(() => {
+			for (const state of providerStates.values()) {
+				state.cts.value?.cancel();
+			}
+		}));
+		for (const provider of this._suggestionProviders) {
+			providerStates.set(provider, {
+				suggestions: [],
+				cts: disposables.add(new MutableDisposable<CancellationTokenSource>()),
+			});
+		}
+
+		let currentValue = picker.value;
+
+		// Preserve the user's current selection across re-renders (typing,
+		// per-provider refresh) by matching the previously active item's id.
+		// Without this, setting `picker.items` snaps activeItems back to the
+		// first row, so e.g. opening/closing a tab while the user is
+		// arrow-keyed onto an open-tab suggestion would yank them back to
+		// "Go to".
+		const restoreActiveById = (previousId: string | undefined, items: readonly (IUrlPickerItem | IQuickPickSeparator)[]) => {
+			if (previousId === undefined) {
+				return;
+			}
+			const match = items.find((i): i is IUrlPickerItem => i.type !== 'separator' && i.id === previousId);
+			if (match) {
+				picker.activeItems = [match];
+			}
+		};
+
+		// Rebuild `picker.items` from the synchronous "Go to" entry plus each
+		// provider's current cached suggestions, in provider sort order.
+		const render = () => {
+			const previousActiveId = picker.activeItems[0]?.id;
+			const items = this._buildSuggestionItems(currentValue);
+			const hasGo = items.some(i => i.type !== 'separator');
+			for (const provider of this._suggestionProviders) {
+				const state = providerStates.get(provider);
+				if (!state || state.suggestions.length === 0) {
+					continue;
+				}
+				if (provider.label) {
+					// `buttons: []` opts the separator into being rendered as
+					// its own row (a separator without buttons is otherwise
+					// collapsed into the first item below it as a header).
+					items.push({
+						type: 'separator',
+						label: provider.label,
+						description: provider.description,
+						buttons: provider.actions,
+					});
+				}
+				for (const s of state.suggestions) {
+					items.push(this._toPickerItem(s));
+				}
+			}
+			picker.items = items;
 			if (!hasGo) {
 				picker.activeItems = [];
 			}
-			// Cancel any in-flight provider load and start a new one.
-			// (MutableDisposable.dispose only disposes the prior CTS; it does
-			// not cancel its token, so an in-flight `.then` could otherwise
-			// overwrite newer results with stale ones.)
-			loadCts.value?.cancel();
-			const cts = new CancellationTokenSource();
-			loadCts.value = cts;
-			const inputAtRequest = this._host.input;
-			if (!inputAtRequest) {
+			restoreActiveById(previousActiveId, items);
+		};
+
+		// Re-fetch a single provider against the current value, cancelling
+		// any in-flight request for it. On success, update its cached
+		// suggestions and re-render. Errors are swallowed (leave prior
+		// cached results in place) so one failing provider can't blank the
+		// picker.
+		const refreshProvider = (provider: IBrowserUrlSuggestionProvider) => {
+			const state = providerStates.get(provider);
+			const input = this._host.input;
+			if (!state || !input) {
 				return;
 			}
-			void this._loadProviderSuggestions(value, inputAtRequest, cts.token).then(full => {
-				if (cts.token.isCancellationRequested || this._picker.value !== picker) {
-					return;
-				}
-				picker.items = full;
-				if (!hasGo) {
-					// Empty value: don't auto-activate the first provider entry.
-					picker.activeItems = [];
-				}
-			});
+			state.cts.value?.cancel();
+			const cts = new CancellationTokenSource();
+			state.cts.value = cts;
+			void provider.getSuggestions({ text: currentValue, input }, cts.token).then(
+				results => {
+					if (cts.token.isCancellationRequested || this._picker.value !== picker) {
+						return;
+					}
+					state.suggestions = results;
+					render();
+				},
+				() => { /* keep prior cached suggestions on error */ }
+			);
 		};
-		applyItems(picker.value);
 
-		// Re-run providers if any of them reports a state change while the
-		// picker is open (e.g. a bookmark removed via a per-item action).
+		const refreshAllProviders = () => {
+			for (const provider of this._suggestionProviders) {
+				refreshProvider(provider);
+			}
+		};
+
+		render();
+		refreshAllProviders();
+
+		// Per-provider state change: refresh only that provider so unrelated
+		// groups keep their cached suggestions and selection.
 		for (const provider of this._suggestionProviders) {
 			if (provider.onDidChange) {
-				disposables.add(provider.onDidChange(() => applyItems(picker.value)));
+				disposables.add(provider.onDidChange(() => refreshProvider(provider)));
 			}
 		}
 
@@ -540,14 +594,16 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 		disposables.add(picker.onDidChangeValue(value => {
-			applyItems(value);
+			currentValue = value;
+			render();
+			refreshAllProviders();
 			// Mirror the picker's typed value into the display continuously,
 			// running URL renderers so decorations stay live. The picker is
 			// the source of truth while it's open.
 			this._renderUrl(value);
 		}));
 
-		// Mount provider-contributed picker actions (e.g. bookmark toggle).
+		// Mount provider-contributed picker actions.
 		// Re-build buttons whenever any provider reports a state change so
 		// dynamic actions (toggles, conditional buttons) stay in sync.
 		const refreshButtons = () => {
@@ -583,12 +639,20 @@ export class BrowserUrlBarWidget extends Disposable {
 			}
 		}));
 
-		// Per-item button (e.g. delete on a bookmark suggestion). We attached
-		// the IBrowserUrlSuggestionAction directly as the picker button, so
-		// the event hands it back to us by reference. Unlike onDidTriggerButton
-		// this does NOT count as "the user accepted the suggestion" — the
-		// picker stays open and the action runs in-place.
+		// Per-item button. We attached the IBrowserUrlSuggestionAction directly
+		// as the picker button, so the event hands it back to us by reference.
+		// Unlike onDidTriggerButton this does NOT count as "the user accepted the suggestion"
+		// — the picker stays open and the action runs in-place.
 		disposables.add(picker.onDidTriggerItemButton(({ button }) => {
+			const action = button as IBrowserUrlSuggestionAction;
+			const input = this._host.input;
+			if (typeof action.run === 'function' && input) {
+				void Promise.resolve(action.run(input));
+			}
+		}));
+		// Per-group separator button. Routed the same way as per-item buttons
+		// (the IBrowserUrlSuggestionAction was attached directly to the separator).
+		disposables.add(picker.onDidTriggerSeparatorButton(({ button }) => {
 			const action = button as IBrowserUrlSuggestionAction;
 			const input = this._host.input;
 			if (typeof action.run === 'function' && input) {
