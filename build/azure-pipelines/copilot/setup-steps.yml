@@ -35,9 +35,12 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Setup NPM Registry (non-Windows)
 
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts $(node -p process.platform) $(node -p process.arch) > .build/packagelockhash
+    displayName: Prepare node_modules cache key
+
   - task: Cache@2
     inputs:
-      key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
+      key: '"copilot_build_cache" | .build/packagelockhash'
       path: $(Build.SourcesDirectory)/extensions/copilot/.build/build_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore copilot build cache
