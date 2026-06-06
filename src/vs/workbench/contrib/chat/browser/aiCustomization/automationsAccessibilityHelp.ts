@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import * as nls from '../../../../../nls.js';
 import {
+	AccessibleContentProvider,
 	AccessibleViewProviderId,
 	AccessibleViewType,
-	IAccessibleViewContentProvider,
 } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,80 +36,82 @@ export class AutomationsAccessibilityHelp implements IAccessibleViewImplementati
 		CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.isEqualTo(AICustomizationManagementSection.Automations),
 	);
 
-	getProvider(accessor: ServicesAccessor): AutomationsAccessibilityHelpProvider {
-		return new AutomationsAccessibilityHelpProvider(accessor.get(IKeybindingService));
+	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
+		const keybindingService = accessor.get(IKeybindingService);
+		// Return a real {@link AccessibleContentProvider} instance — the
+		// accessible-view service performs `instanceof
+		// AccessibleContentProvider` checks (e.g. in `_updateLastProvider`
+		// and `showAccessibleViewHelp`) and falls back to
+		// `ExtensionContentProvider` semantics for anything else, which
+		// breaks `verbositySettingKey` propagation. Per the repo
+		// accessibility skill, custom subclasses are explicitly
+		// discouraged.
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.Automations,
+			{ type: AccessibleViewType.Help },
+			() => buildAutomationsHelpContent(keybindingService),
+			() => { /* no-op: the accessible view returns focus to the previously focused element. */ },
+			AccessibilityVerbositySettingId.Automations,
+		);
 	}
 }
 
-export class AutomationsAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
+/**
+ * Renders the static Automations accessibility-help content. Exported so
+ * tests can validate the rendered string without instantiating an
+ * {@link AccessibleContentProvider}.
+ */
+export function buildAutomationsHelpContent(keybindingService: IKeybindingService): string {
+	const lines: string[] = [];
 
-	readonly id = AccessibleViewProviderId.Automations;
-	readonly verbositySettingKey = AccessibilityVerbositySettingId.Automations;
-	readonly options = { type: AccessibleViewType.Help };
+	// Header
+	lines.push(nls.localize('automations.help.header', 'Accessibility Help: Automations'));
+	lines.push(nls.localize('automations.help.intro', 'Automations let you schedule agent sessions to run on a cadence you choose. When an automation is due, a fresh chat session is created in the background and the prompt is sent automatically.'));
+	lines.push('');
 
-	constructor(
-		private readonly _keybindingService: IKeybindingService,
-	) {
-		super();
-	}
+	// What you see
+	lines.push(nls.localize('automations.help.layoutHeader', 'Layout:'));
+	lines.push(nls.localize('automations.help.layoutDesc', 'The Automations section shows a list of all your automations. Each row displays the automation\u2019s name, schedule (Manual, Hourly, Daily at a time, or Weekly on a day at a time), the workspace folder it targets, the next scheduled run, and a preview of the prompt. Row action buttons follow on the right.'));
+	lines.push('');
 
-	provideContent(): string {
-		const lines: string[] = [];
+	// Row actions
+	lines.push(nls.localize('automations.help.actionsHeader', 'Row Actions (Tab between them):'));
+	lines.push(nls.localize('automations.help.actionRun', '- Run now: spawns a new agent session immediately using the automation\u2019s prompt. The trigger is recorded as Manual.'));
+	lines.push(nls.localize('automations.help.actionToggle', '- Toggle enabled: pauses or resumes scheduled runs. Disabled automations skip their scheduled tick but can still be run manually.'));
+	lines.push(nls.localize('automations.help.actionEdit', '- Edit: opens the create/edit dialog with the current values prefilled.'));
+	lines.push(nls.localize('automations.help.actionDelete', '- Delete: removes the automation after a confirmation prompt. Runs already in flight continue to completion.'));
+	lines.push(nls.localize('automations.help.actionHistory', '- Show history: expands an inline list of recent runs for the automation, including their status and any error messages.'));
+	lines.push('');
 
-		// Header
-		lines.push(nls.localize('automations.help.header', 'Accessibility Help: Automations'));
-		lines.push(nls.localize('automations.help.intro', 'Automations let you schedule agent sessions to run on a cadence you choose. When an automation is due, a fresh chat session is created in the background and the prompt is sent automatically.'));
-		lines.push('');
+	// Creating and editing
+	lines.push(nls.localize('automations.help.dialogHeader', 'Create/Edit Dialog:'));
+	lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, a Workspace folder selector with a Browse button, a Session type selector that appears when the selected folder offers more than one session type, an Agent Mode selector (Use default, Agent, Ask, Edit), and a Permission Mode selector (Use default, Default Approvals, Bypass Approvals, Autopilot). The selected Agent Mode and Permission Mode are replayed when the scheduler starts a run, so the chat opens with the same configuration every time. The Browse button opens a folder picker so you can target any folder, even one that is not currently open. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
+	lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Workspace folder are all set. Activate Cancel or press Escape to dismiss without saving.'));
+	lines.push('');
 
-		// What you see
-		lines.push(nls.localize('automations.help.layoutHeader', 'Layout:'));
-		lines.push(nls.localize('automations.help.layoutDesc', 'The Automations section shows a list of all your automations. Each row displays the automation\u2019s name, schedule (Manual, Hourly, Daily at a time, or Weekly on a day at a time), the workspace folder it targets, the next scheduled run, and a preview of the prompt. Row action buttons follow on the right.'));
-		lines.push('');
+	// History expansion
+	lines.push(nls.localize('automations.help.historyHeader', 'Run History:'));
+	lines.push(nls.localize('automations.help.historyDesc', 'Each run records its status (Pending, Running, Completed, Failed), the trigger that started it (Schedule, Manual, or Catch-up after VS Code restarts), the time it started, and the time it took. Failed runs include the failure reason.'));
+	lines.push('');
 
-		// Row actions
-		lines.push(nls.localize('automations.help.actionsHeader', 'Row Actions (Tab between them):'));
-		lines.push(nls.localize('automations.help.actionRun', '- Run now: spawns a new agent session immediately using the automation\u2019s prompt. The trigger is recorded as Manual.'));
-		lines.push(nls.localize('automations.help.actionToggle', '- Toggle enabled: pauses or resumes scheduled runs. Disabled automations skip their scheduled tick but can still be run manually.'));
-		lines.push(nls.localize('automations.help.actionEdit', '- Edit: opens the create/edit dialog with the current values prefilled.'));
-		lines.push(nls.localize('automations.help.actionDelete', '- Delete: removes the automation after a confirmation prompt. Runs already in flight continue to completion.'));
-		lines.push(nls.localize('automations.help.actionHistory', '- Show history: expands an inline list of recent runs for the automation, including their status and any error messages.'));
-		lines.push('');
+	// Status announcements
+	lines.push(nls.localize('automations.help.statusHeader', 'Screen Reader Announcements:'));
+	lines.push(nls.localize('automations.help.statusDesc', 'The Automations list announces state changes when you create, update, delete, toggle, or manually run an automation. Verbose announcements can be turned off via the accessibility.verbosity.automations setting.'));
+	lines.push('');
 
-		// Creating and editing
-		lines.push(nls.localize('automations.help.dialogHeader', 'Create/Edit Dialog:'));
-		lines.push(nls.localize('automations.help.dialogFields', 'The dialog has a Name field, a multi-line Prompt field, a Schedule selector (Manual, Hourly, Daily, Weekly), Time and Day-of-Week fields that appear when relevant, a Workspace folder selector with a Browse button, a Session type selector that appears when the selected folder offers more than one session type, an Agent Mode selector (Use default, Agent, Ask, Edit), and a Permission Mode selector (Use default, Default Approvals, Bypass Approvals, Autopilot). The selected Agent Mode and Permission Mode are replayed when the scheduler starts a run, so the chat opens with the same configuration every time. The Browse button opens a folder picker so you can target any folder, even one that is not currently open. Tab and Shift+Tab move between fields; Enter activates the Save button when the form is valid.'));
-		lines.push(nls.localize('automations.help.dialogValidation', 'Save is disabled until Name, Prompt, and Workspace folder are all set. Activate Cancel or press Escape to dismiss without saving.'));
-		lines.push('');
+	// Settings
+	lines.push(nls.localize('automations.help.settingsHeader', 'Settings ({0} opens Settings):', describeCommand(keybindingService, 'workbench.action.openSettings') || 'Ctrl+,'));
+	lines.push(nls.localize('automations.help.settingVerbosity', '- `accessibility.verbosity.automations`: Controls whether this Accessibility Help hint is announced when the Automations section is focused.'));
+	lines.push('');
 
-		// History expansion
-		lines.push(nls.localize('automations.help.historyHeader', 'Run History:'));
-		lines.push(nls.localize('automations.help.historyDesc', 'Each run records its status (Pending, Running, Completed, Failed), the trigger that started it (Schedule, Manual, or Catch-up after VS Code restarts), the time it started, and the time it took. Failed runs include the failure reason.'));
-		lines.push('');
+	// Closing
+	lines.push(nls.localize('automations.help.closingHeader', 'Closing this dialog:'));
+	lines.push(nls.localize('automations.help.closingDesc', 'Press Escape to close this dialog and return focus to the Automations list.'));
 
-		// Status announcements
-		lines.push(nls.localize('automations.help.statusHeader', 'Screen Reader Announcements:'));
-		lines.push(nls.localize('automations.help.statusDesc', 'The Automations list announces state changes when you create, update, delete, toggle, or manually run an automation. Verbose announcements can be turned off via the accessibility.verbosity.automations setting.'));
-		lines.push('');
+	return lines.join('\n');
+}
 
-		// Settings
-		lines.push(nls.localize('automations.help.settingsHeader', 'Settings ({0} opens Settings):', this._describeCommand('workbench.action.openSettings') || 'Ctrl+,'));
-		lines.push(nls.localize('automations.help.settingVerbosity', '- `accessibility.verbosity.automations`: Controls whether this Accessibility Help hint is announced when the Automations section is focused.'));
-		lines.push('');
-
-		// Closing
-		lines.push(nls.localize('automations.help.closingHeader', 'Closing this dialog:'));
-		lines.push(nls.localize('automations.help.closingDesc', 'Press Escape to close this dialog and return focus to the Automations list.'));
-
-		return lines.join('\n');
-	}
-
-	private _describeCommand(commandId: string): string | undefined {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
-		return kb?.getAriaLabel() ?? undefined;
-	}
-
-	onClose(): void {
-		// No-op; focus is returned to the previously focused element by
-		// the accessible view system.
-	}
+function describeCommand(keybindingService: IKeybindingService, commandId: string): string | undefined {
+	const kb = keybindingService.lookupKeybinding(commandId);
+	return kb?.getAriaLabel() ?? undefined;
 }
