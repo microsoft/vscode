@@ -19,6 +19,7 @@ import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
+import type { ThinkingData } from '../../../thinking/common/thinking';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
@@ -98,7 +99,7 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 	}]
 });
 
-const createThinkingAssistantMessage = (thinking: { id: string; text?: string | string[]; encrypted?: string }): Raw.ChatMessage => ({
+const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
