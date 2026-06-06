@@ -124,7 +124,7 @@
 .ai-customization-management-editor .section-list-item .section-count {
 	flex-shrink: 0;
 	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	border-radius: 8px;
 	min-width: 14px;
@@ -385,7 +385,7 @@
 }
 
 .ai-customization-group-header .group-label {
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	text-transform: capitalize;
 	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
 	overflow: hidden;
@@ -396,7 +396,7 @@
 .ai-customization-group-header .group-count {
 	flex-shrink: 0;
 	font-size: var(--vscode-agents-fontSize-label2);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	text-align: right;
 	margin-top: 2px;
@@ -486,7 +486,7 @@
 /* Shared inline badge style — used by MCP "Bridged" badge and item badges */
 .inline-badge {
 	flex-shrink: 0;
-	font-size: var(--vscode-agents-fontSize-label4);
+	font-size: var(--vscode-agents-fontSize-label3);
 	padding: 0 4px;
 	border-radius: 3px;
 	color: var(--vscode-descriptionForeground);
@@ -559,7 +559,7 @@
 
 .ai-customization-list-item .item-description.is-filename {
 	font-family: monospace;
-	font-size: var(--vscode-agents-fontSize-label4);
+	font-size: var(--vscode-agents-fontSize-label3);
 	opacity: 0.7;
 }
 
@@ -733,7 +733,7 @@
 
 .ai-customization-overview .overview-section .section-label {
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1119,7 +1119,7 @@
 	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 2px 8px;
 	border-radius: 4px;
-	font-weight: var(--vscode-agents-fontWeight-medium);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .mcp-server-item .mcp-server-status.running {

@@ -104,6 +104,7 @@ export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoCon
 export const enum RemoteAgentHostEntryType {
 	WebSocket = 'websocket',
 	SSH = 'ssh',
+	WSL = 'wsl',
 	Tunnel = 'tunnel',
 }
 
@@ -157,7 +158,15 @@ export interface IRemoteAgentHostTunnelConnection {
 	readonly authProvider?: 'github' | 'microsoft';
 }
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostTunnelConnection;
+export interface IRemoteAgentHostWSLConnection {
+	readonly type: RemoteAgentHostEntryType.WSL;
+	/** Display address: `wsl:<distro>`. */
+	readonly address: string;
+	/** WSL distro name (e.g. `Ubuntu-22.04`). */
+	readonly distro: string;
+}
+
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -170,10 +179,15 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	switch (entry.connection.type) {
 		case RemoteAgentHostEntryType.WebSocket:
 		case RemoteAgentHostEntryType.SSH:
+		case RemoteAgentHostEntryType.WSL:
 			return entry.connection.address;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
 	}
+}
+
+export function remoteAgentHostLogOutputChannelId(address: string): string {
+	return `agentHost.otlp.${address}`;
 }
 
 export const enum RemoteAgentHostInputValidationError {
@@ -252,8 +266,13 @@ export interface IRemoteAgentHostService {
 	 * Callers should put any teardown that needs to happen on entry removal
 	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
 	 * into this disposable, so a single removal path tears down the whole stack.
+	 *
+	 * `status` defaults to `connected`. Pass `incompatible` when the managed
+	 * transport is alive but the protocol handshake rejected the client version;
+	 * this keeps recovery actions (such as server upgrade) addressable without
+	 * exposing the connection as ready for session traffic.
 	 */
-	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo>;
+	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable, status?: RemoteAgentHostConnectionStatus): Promise<IRemoteAgentHostConnectionInfo>;
 
 	/**
 	 * Force the protocol client at `address` (if any) to treat its
@@ -404,9 +423,21 @@ export interface IRawRemoteAgentHostEntry {
 	readonly sshHostName?: string;
 	readonly sshUser?: string;
 	readonly sshPort?: number;
+	readonly wslDistro?: string;
 }
 
 export function rawEntryToEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry | undefined {
+	if (raw.wslDistro) {
+		return {
+			name: raw.name,
+			connectionToken: raw.connectionToken,
+			connection: {
+				type: RemoteAgentHostEntryType.WSL,
+				address: raw.address,
+				distro: raw.wslDistro,
+			},
+		};
+	}
 	if (raw.sshConfigHost || raw.sshHostName || raw.sshUser || raw.sshPort) {
 		return {
 			name: raw.name,
@@ -442,6 +473,13 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				sshHostName: entry.connection.hostName,
 				sshUser: entry.connection.user,
 				sshPort: entry.connection.port,
+			};
+		case RemoteAgentHostEntryType.WSL:
+			return {
+				address: entry.connection.address,
+				name: entry.name,
+				connectionToken: entry.connectionToken,
+				wslDistro: entry.connection.distro,
 			};
 		case RemoteAgentHostEntryType.WebSocket:
 			return {

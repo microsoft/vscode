@@ -771,6 +771,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			'chat.toolApproval',
 			{
 				confirmKind: confirmKindNames[reason.type],
+				requestId: dto.chatRequestId,
 				settingId: reason.type === ToolConfirmKind.Setting ? reason.id : undefined,
 				lmServiceScope: reason.type === ToolConfirmKind.LmServicePerTool ? reason.scope : undefined,
 				customButtonKind: reason.type === ToolConfirmKind.UserAction ? reason.selectedButtonKind : undefined,
@@ -1724,6 +1725,7 @@ function getToolSetFullReferenceName(toolSet: IToolSet) {
 
 type ToolApprovalEvent = LanguageModelToolTelemetryData & {
 	confirmKind: string;
+	requestId: string | undefined;
 	settingId: string | undefined;
 	lmServiceScope: string | undefined;
 	customButtonKind: string | undefined;
@@ -1734,6 +1736,7 @@ type ToolApprovalEvent = LanguageModelToolTelemetryData & {
 
 type ToolApprovalClassification = LanguageModelToolTelemetryClassification & {
 	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, lmServicePerTool, confirmationNotNeeded, denied, skipped). Anything other than userAction implies auto-approval. "denied" and "skipped" mean the tool did not run; otherwise it ran (note: a custom Deny button click resolves as userAction since the tool still runs and the chosen label is passed to it; see customButtonKind to distinguish).' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request turn that this tool approval is associated with, if available.' };
 	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
 	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
 	customButtonKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the user clicked a custom button on the confirmation widget, whether the button represents approve or deny semantics. Undefined when no custom button was clicked.' };

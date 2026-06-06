@@ -41,8 +41,8 @@ export const BrowserActionCategory = localize2('browserCategory', "Browser");
 export enum BrowserActionGroup {
 	Tabs = '1_tabs',
 	Zoom = '2_zoom',
-	Developer = '3_developer',
-	Page = '4_page',
+	Tools = '3_tools',
+	Data = '4_data',
 	Settings = '5_settings'
 }
 
@@ -348,6 +348,12 @@ export interface IBrowserUrlSuggestionProvider {
 	/** Sort order between providers. Lower runs first. Defaults to 0. */
 	readonly order?: number;
 	/**
+	 * Optional buttons rendered inline on the group's separator row. Only
+	 * shown when the provider returns at least one suggestion. Use these for
+	 * commands that operate on the whole group (e.g. a "manage" picker).
+	 */
+	readonly actions?: readonly IBrowserUrlSuggestionAction[];
+	/**
 	 * Fires when the set of suggestions or any suggestion's state has changed.
 	 * The navbar re-requests suggestions when this fires.
 	 */
@@ -561,7 +567,10 @@ export class BrowserEditor extends EditorPane {
 		// When closing a tab, the model gets disposed before the editor input is cleared.
 		// So we make sure we don't keep a reference to the disposed model.
 		this._inputDisposables.add(this._model.onWillDispose(() => {
-			this._model = undefined;
+			if (this._model === model) {
+				this._model = undefined;
+				this._onDidChangeModel.fire({ model: undefined, isNew: false });
+			}
 		}));
 
 		this._inputDisposables.add(this._model.onWillNavigate(() => {
@@ -738,8 +747,10 @@ export class BrowserEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 
-		this._model = undefined;
-		this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		if (this._model) {
+			this._model = undefined;
+			this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		}
 
 		this._hasUrlContext.reset();
 		this._hasErrorContext.reset();

@@ -97,7 +97,19 @@ function activate(context) {
 			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
 			await vscode.workspace.getConfiguration('github.copilot.chat').update('backgroundAgent.enabled', true, vscode.ConfigurationTarget.Global);
 			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
-			await waitForCommand(command, 30_000);
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('github.copilot.chat').update('claudeAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 60_000);
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand(command);
 		})
