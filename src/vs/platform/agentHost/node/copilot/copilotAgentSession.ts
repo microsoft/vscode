@@ -41,6 +41,7 @@ import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './cop
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
 /**
@@ -350,6 +351,19 @@ export class CopilotAgentSession extends Disposable {
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
+	/**
+	 * Memoized result of {@link getEvents}+{@link mapSessionEvents}, shared by
+	 * {@link getMessages} and {@link getSubagentMessages}. When a session is
+	 * opened for viewing, the workbench enriches history by subscribing to every
+	 * subagent child session, each of which calls back into
+	 * {@link getSubagentMessages}. Without this cache, each call re-fetches the
+	 * full SDK event log and re-runs the full mapping just to extract one
+	 * subagent's turns — O(subagents · events). The cache collapses that burst
+	 * into a single mapping. It is invalidated by {@link _invalidateMappedEvents}
+	 * on any live activity ({@link _emitAction}) and on dispose, so it only
+	 * serves the idle session-open window.
+	 */
+	private _mappedSessionEvents: Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
 	/**
 	 * Steering messages that have been accepted by the SDK but not yet
@@ -461,6 +475,8 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Wraps a {@link SessionAction} in an {@link AgentSignal} envelope and emits it. */
 	private _emitAction(action: SessionAction, parentToolCallId?: string): void {
+		// Any live state mutation makes the memoized event mapping stale.
+		this._invalidateMappedSessionEvents();
 		this._onDidSessionProgress.fire({
 			kind: 'action',
 			session: this.sessionUri,
@@ -955,19 +971,32 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getMessages(): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getEvents();
-		let db: ISessionDatabase | undefined;
-		try {
-			db = this._databaseRef.object;
-		} catch {
-			// Database may not exist yet — that's fine
-		}
-		const result = await mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
+		const result = await this._getMappedSessionEvents();
 		return result.turns;
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
+		const result = await this._getMappedSessionEvents();
+		return result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
+	}
+
+	/**
+	 * Fetches the SDK event log and maps it to protocol turns, memoizing the
+	 * result so a burst of {@link getMessages}/{@link getSubagentMessages} calls
+	 * during session open shares a single fetch+map. See
+	 * {@link _mappedSessionEvents}.
+	 */
+	private _getMappedSessionEvents(): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
+		if (!this._mappedSessionEvents) {
+			this._mappedSessionEvents = this._computeMappedSessionEvents();
+		}
+		return this._mappedSessionEvents;
+	}
+
+	private async _computeMappedSessionEvents(): Promise<{ turns: Turn[]; subagentTurnsByToolCallId: ReadonlyMap<string, Turn[]> }> {
+		const sw = StopWatch.create();
 		const events = await this._wrapper.session.getEvents();
+		const getEventsMs = sw.elapsed();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -975,7 +1004,12 @@ export class CopilotAgentSession extends Disposable {
 			// Database may not exist yet — that's fine
 		}
 		const result = await mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
-		return result.subagentTurnsByToolCallId.get(parentToolCallId) ?? [];
+		this._logService.info(`[Copilot:${this.sessionId}] mapped session events: ${events.length} event(s) → ${result.turns.length} turn(s), ${result.subagentTurnsByToolCallId.size} subagent(s) (getEvents ${Math.round(getEventsMs)}ms, total ${Math.round(sw.elapsed())}ms)`);
+		return result;
+	}
+
+	private _invalidateMappedSessionEvents(): void {
+		this._mappedSessionEvents = undefined;
 	}
 
 	async abort(): Promise<void> {

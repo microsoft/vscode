@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
@@ -1247,6 +1248,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 
+		const sw = StopWatch.create();
 		const agent = this._findProviderForSession(session);
 		if (!agent) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No agent for session: ${sessionStr}`);
@@ -1256,6 +1258,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!meta) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${sessionStr}`);
 		}
+		const metadataMs = sw.elapsed();
 
 		let turns: readonly Turn[];
 		try {
@@ -1267,6 +1270,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `Failed to restore session ${sessionStr}: ${message}`);
 		}
+		const messagesMs = sw.elapsed() - metadataMs;
 
 		// Check for persisted metadata in the session database
 		let title = meta.summary ?? 'Session';
@@ -1367,6 +1371,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// sessions that were not created in the current process lifetime.
 		// Overlay any values the user previously selected (persisted via
 		// `SessionConfigChanged`) on top of the provider's resolved defaults.
+		const configStart = sw.elapsed();
 		const restoredConfig = await this._resolveCreatedSessionConfig(agent, {
 			workingDirectory: meta.workingDirectory,
 			config: persistedConfigValues,
@@ -1377,8 +1382,9 @@ export class AgentService extends Disposable implements IAgentService {
 				restoredState.config = restoredConfig;
 			}
 		}
+		const configMs = sw.elapsed() - configStart;
 
-		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
+		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns in ${Math.round(sw.elapsed())}ms (metadata ${Math.round(metadataMs)}ms, messages ${Math.round(messagesMs)}ms, resolveConfig ${Math.round(configMs)}ms)`);
 
 		// Lazily compute git state for sessions with a working directory;
 		// attaches under `state._meta.git` once ready.
@@ -1908,11 +1914,13 @@ export class AgentService extends Disposable implements IAgentService {
 		let childTurns: readonly Turn[] = [];
 		const agent = this._findProviderForSession(parentSession);
 		if (agent) {
+			const sw = StopWatch.create();
 			try {
 				childTurns = await agent.getSessionMessages(URI.parse(subagentUri));
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}
+			this._logService.info(`[AgentService] Loaded subagent turns for ${subagentUri} in ${Math.round(sw.elapsed())}ms`);
 		}
 
 		// Use metadata from subagent content if available, otherwise synthesize

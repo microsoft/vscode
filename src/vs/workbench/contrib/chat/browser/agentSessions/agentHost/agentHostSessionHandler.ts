@@ -6,6 +6,7 @@
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -2169,70 +2170,120 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	): Promise<void> {
 		const parentSessionStr = parentSession.toString();
 
+		// Collect every subagent tool call across all response items. Each one
+		// requires a round-trip to the host to restore the child session, so we
+		// resolve them concurrently rather than serially — a session with many
+		// subagent calls (task / rubber-duck / research) otherwise pays N
+		// sequential restores on open.
+		interface ISubagentInsertion {
+			readonly item: IChatSessionHistoryItem & { type: 'response' };
+			readonly index: number;
+			readonly toolCallId: string;
+		}
+		const insertions: ISubagentInsertion[] = [];
 		for (const item of history) {
 			if (item.type !== 'response') {
 				continue;
 			}
-
-			// Collect subagent tool calls from this response's parts
-			const subagentInsertions: { index: number; toolCallId: string }[] = [];
 			for (let i = 0; i < item.parts.length; i++) {
 				const part = item.parts[i];
 				if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'subagent') {
-					subagentInsertions.push({ index: i, toolCallId: part.toolCallId });
+					insertions.push({ item, index: i, toolCallId: part.toolCallId });
 				}
 			}
+		}
 
-			// Process insertions in reverse order so indices remain valid
-			for (let j = subagentInsertions.length - 1; j >= 0; j--) {
-				const { index, toolCallId } = subagentInsertions[j];
-				const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
+		if (insertions.length === 0) {
+			return;
+		}
 
-				try {
-					const childSub = this._ensureSessionSubscription(childSessionUri);
-					let childState = this._getSessionState(childSessionUri);
-					if (!childState) {
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						await new Promise<void>(resolve => {
-							const d = childSub.onDidChange(() => { d.dispose(); resolve(); });
-						});
-						if (childSub.value instanceof Error) {
-							throw childSub.value;
-						}
-						childState = this._getSessionState(childSessionUri);
+		const sw = StopWatch.create();
+		const resolved = await Promise.all(insertions.map(async insertion => {
+			const innerParts = await this._loadSubagentInnerParts(parentSessionStr, insertion.toolCallId);
+			return { insertion, innerParts };
+		}));
+
+		// Apply insertions per response item in reverse index order so the
+		// splice points computed above remain valid as earlier inserts grow the
+		// array.
+		const byItem = new Map<IChatSessionHistoryItem, { index: number; innerParts: IChatProgress[] }[]>();
+		for (const { insertion, innerParts } of resolved) {
+			if (innerParts.length === 0) {
+				continue;
+			}
+			let list = byItem.get(insertion.item);
+			if (!list) {
+				list = [];
+				byItem.set(insertion.item, list);
+			}
+			list.push({ index: insertion.index, innerParts });
+		}
+		for (const [item, list] of byItem) {
+			if (item.type !== 'response') {
+				continue;
+			}
+			list.sort((a, b) => b.index - a.index);
+			for (const { index, innerParts } of list) {
+				item.parts.splice(index + 1, 0, ...innerParts);
+			}
+		}
+
+		this._logService.info(`[AgentHost] Enriched ${insertions.length} subagent call(s) for ${parentSessionStr} in ${Math.round(sw.elapsed())}ms`);
+	}
+
+	/**
+	 * Restores a single subagent child session and returns its completed tool
+	 * calls (plus any file-edit parts) as progress parts to splice into the
+	 * parent response. Returns an empty array on failure or when the child has
+	 * no renderable tool calls. Always releases the child subscription it
+	 * acquires.
+	 */
+	private async _loadSubagentInnerParts(parentSessionStr: string, toolCallId: string): Promise<IChatProgress[]> {
+		const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
+		try {
+			const childSub = this._ensureSessionSubscription(childSessionUri);
+			try {
+				let childState = this._getSessionState(childSessionUri);
+				if (!childState) {
+					if (childSub.value instanceof Error) {
+						throw childSub.value;
 					}
-					if (childState) {
-						const innerParts: IChatProgress[] = [];
-						for (const turn of childState.turns) {
-							for (const rp of turn.responseParts) {
-								if (rp.kind === ResponsePartKind.ToolCall) {
-									const tc = rp.toolCall;
-									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
-										const completedTc = tc as ICompletedToolCall;
-										const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
-										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
-										if (fileEditParts.length > 0) {
-											serialized.presentation = ToolInvocationPresentation.Hidden;
-										}
-										innerParts.push(serialized);
-										innerParts.push(...fileEditParts);
-									}
+					await new Promise<void>(resolve => {
+						const d = childSub.onDidChange(() => { d.dispose(); resolve(); });
+					});
+					if (childSub.value instanceof Error) {
+						throw childSub.value;
+					}
+					childState = this._getSessionState(childSessionUri);
+				}
+				if (!childState) {
+					return [];
+				}
+				const innerParts: IChatProgress[] = [];
+				for (const turn of childState.turns) {
+					for (const rp of turn.responseParts) {
+						if (rp.kind === ResponsePartKind.ToolCall) {
+							const tc = rp.toolCall;
+							if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+								const completedTc = tc as ICompletedToolCall;
+								const fileEditParts = completedToolCallToEditParts(completedTc, this._config.connectionAuthority);
+								const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
+								if (fileEditParts.length > 0) {
+									serialized.presentation = ToolInvocationPresentation.Hidden;
 								}
+								innerParts.push(serialized);
+								innerParts.push(...fileEditParts);
 							}
 						}
-						if (innerParts.length > 0) {
-							// Insert inner tool calls right after the subagent tool call
-							item.parts.splice(index + 1, 0, ...innerParts);
-						}
 					}
-				} catch (err) {
-					this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
-				} finally {
-					this._releaseSessionSubscription(childSessionUri);
 				}
+				return innerParts;
+			} finally {
+				this._releaseSessionSubscription(childSessionUri);
 			}
+		} catch (err) {
+			this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
+			return [];
 		}
 	}
 
