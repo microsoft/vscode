@@ -112,7 +112,12 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			this._register(await this.doWatch(stat.isDirectory()));
+			// `doWatch` is async and the watcher may be disposed while we
+			// await it. Use `thenRegisterOrDispose` so the resulting handle
+			// is disposed instead of registered (and leaked) when this
+			// happens, avoiding a "disposable added to a disposed store"
+			// warning during teardown.
+			await thenRegisterOrDispose(this.doWatch(stat.isDirectory()), this._store);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);
