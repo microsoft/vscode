@@ -1242,7 +1242,17 @@ suite('WebPageLoader', () => {
 		const uri = URI.parse('https://learn.microsoft.com/en-us/docs');
 
 		const loader = createWebPageLoader(uri);
-		setupDebuggerMock();
+		// Use AX nodes that exceed MIN_CONTENT_LENGTH so the test only passes
+		// if the markdown branch short-circuits before accessibility extraction.
+		const longAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'This is a long accessibility tree content that exceeds the minimum content length requirement of one hundred characters easily.' }
+			}
+		];
+		setupDebuggerMock({ axNodes: longAXNodes });
 
 		// Get the onHeadersReceived listener to simulate markdown response
 		const headersListener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];

@@ -194,10 +194,12 @@ export class WebPageLoader extends Disposable {
 				}
 			}
 
-			// Detect markdown responses for direct extraction without DOM rendering
-			if (details.resourceType === 'mainFrame' && contentType?.split(';')[0].trim() === 'text/markdown') {
-				this._receivedMarkdown = true;
-				this.trace(`Received text/markdown response, will extract raw content`);
+			// Track whether the current main-frame response is markdown (redirects can change content-type)
+			if (details.resourceType === 'mainFrame') {
+				this._receivedMarkdown = contentType?.split(';')[0].trim() === 'text/markdown';
+				if (this._receivedMarkdown) {
+					this.trace('Received text/markdown response, will extract document text content directly');
+				}
 			}
 
 			if (hasAttachment && attachmentHeaderName) {
@@ -443,11 +445,11 @@ export class WebPageLoader extends Disposable {
 			const cts = new CancellationTokenSource();
 			try {
 				await raceTimeout((async () => {
-					// If the server returned text/markdown, extract the raw body directly
-					// without DOM-based extraction — the content is already in the ideal format.
+					// If the server returned text/markdown, the document is already plain text.
+					// Extract it directly from the document instead of running accessibility/DOM heuristics.
 					if (this._receivedMarkdown) {
-						this.trace(`Extracting raw markdown content from response body`);
-						result = await this._window.webContents.executeJavaScript('document.body?.innerText ?? document.documentElement?.textContent ?? ""') ?? '';
+						this.trace('Extracting markdown text content from document');
+						result = await this._window.webContents.executeJavaScript('document.body?.textContent ?? document.documentElement?.textContent ?? ""') ?? '';
 						return;
 					}
 
