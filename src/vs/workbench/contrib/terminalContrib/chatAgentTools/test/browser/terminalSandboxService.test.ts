@@ -318,12 +318,11 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
 	});
 
-	test('should report repair actions when Ubuntu AppArmor remediation is supported', async () => {
+	test('should report the repair action when bubblewrap is unusable', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: true,
 			bubblewrapUsable: false,
 			bubblewrapError: 'No permissions to create namespace',
-			supportsUbuntuAppArmorRemediation: true,
 			socatInstalled: true,
 		};
 
@@ -331,11 +330,11 @@ suite('TerminalSandboxService - network domains', () => {
 		const result = await sandboxService.checkForSandboxingPrereqs();
 
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
-		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace]);
 		strictEqual(result.detail, 'No permissions to create namespace');
 	});
 
-	test('should run approved Ubuntu bubblewrap remediation commands', async () => {
+	test('should run the approved bubblewrap remediation command', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
 			let sentCommand: string | undefined;
@@ -361,13 +360,10 @@ suite('TerminalSandboxService - network domains', () => {
 			return sentCommand;
 		};
 
-		deepStrictEqual([
-			await runAndCapture(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile),
-			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction),
-		], [
-			'sudo apt update && sudo apt install -y apparmor-profiles apparmor-utils && sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict',
+		strictEqual(
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace),
 			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
-		]);
+		);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {

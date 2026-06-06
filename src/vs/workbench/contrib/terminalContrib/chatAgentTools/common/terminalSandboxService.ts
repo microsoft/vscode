@@ -289,10 +289,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	async runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
 		let command: string;
 		switch (remediation) {
-			case TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile:
-				command = 'sudo apt update && sudo apt install -y apparmor-profiles apparmor-utils && sudo install -m 0644 /usr/share/apparmor/extra-profiles/bwrap-userns-restrict /etc/apparmor.d/bwrap-userns-restrict && sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict';
-				break;
-			case TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction:
+			case TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace:
 				command = 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0';
 				break;
 			default:

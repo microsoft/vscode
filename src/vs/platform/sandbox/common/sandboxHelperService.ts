@@ -12,7 +12,6 @@ export interface ISandboxDependencyStatus {
 	readonly bubblewrapUsable: boolean;
 	readonly socatInstalled: boolean;
 	readonly bubblewrapError?: string;
-	readonly supportsUbuntuAppArmorRemediation?: boolean;
 }
 
 export interface IWindowsMxcFilesystemPolicy {

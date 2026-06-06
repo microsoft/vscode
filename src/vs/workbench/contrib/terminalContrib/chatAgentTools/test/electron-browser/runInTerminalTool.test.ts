@@ -538,15 +538,15 @@ suite('RunInTerminalTool', () => {
 				enabled: true,
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
-				remediations: [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction],
+				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace],
 			};
 
 			const result = await executeToolTest({ command: 'echo hello' });
 			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 
 			ok(result?.confirmationMessages, 'Expected confirmation messages for bubblewrap repair');
-			strictEqual(result?.confirmationMessages?.customOptions?.length, 3, 'Expected recommended repair, fallback, and cancel choices');
-			strictEqual(terminalData?.sandboxRemediations?.length, 2, 'Expected repair options in terminal invocation data');
+			strictEqual(result?.confirmationMessages?.customOptions?.length, 2, 'Expected repair and cancel choices');
+			strictEqual(terminalData?.sandboxRemediations?.length, 1, 'Expected one repair option in terminal invocation data');
 			strictEqual(terminalData?.missingSandboxDependencies, undefined, 'Should not classify unusable bubblewrap as missing');
 		});
 
@@ -559,7 +559,7 @@ suite('RunInTerminalTool', () => {
 						enabled: true,
 						sandboxConfigPath: '/tmp/sandbox.json',
 						failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
-						remediations: [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile],
+						remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace],
 					};
 				}
 				return {

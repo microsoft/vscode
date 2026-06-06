@@ -358,7 +358,7 @@ export class TerminalSandboxEngine extends Disposable {
 			return [];
 		}
 
-		if (!this._sandboxDependencyStatus || !this._sandboxDependencyStatus.bubblewrapInstalled || !this._sandboxDependencyStatus.socatInstalled) {
+		if (!this._sandboxDependencyStatus) {
 			this._sandboxDependencyStatus = await this._host.checkSandboxDependencies();
 		}
 
@@ -417,9 +417,7 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _getBubblewrapRemediations(): readonly TerminalSandboxPreCheckRemediation[] | undefined {
-		return this._sandboxDependencyStatus?.supportsUbuntuAppArmorRemediation
-			? [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]
-			: undefined;
+		return [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace];
 	}
 
 	private _quoteShellArgument(value: string): string {

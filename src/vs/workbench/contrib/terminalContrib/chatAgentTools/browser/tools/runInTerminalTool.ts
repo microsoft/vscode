@@ -987,18 +987,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		} else if (sandboxRemediations) {
 			const customOptions = [];
-			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile)) {
-				customOptions.push({ id: TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, label: localize('runInTerminal.bubblewrap.repairAppArmor', "Apply AppArmor Fix"), kind: ConfirmationOptionKind.Approve });
-			}
-			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction)) {
-				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction, label: localize('runInTerminal.bubblewrap.disableRestriction', "Disable Restriction and Retry"), kind: ConfirmationOptionKind.Approve });
+			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace)) {
+				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace, label: localize('runInTerminal.bubblewrap.applyFix', "Apply Fix and Retry"), kind: ConfirmationOptionKind.Approve });
 			}
 			customOptions.push({ id: 'cancel', label: localize('runInTerminal.bubblewrap.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny });
 			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.bubblewrap.title', "Repair Bubblewrap Sandbox"),
-				message: new MarkdownString(sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile)
-					? localize('runInTerminal.bubblewrap.message', "Bubblewrap is installed but cannot create the required sandbox namespace. Apply the recommended AppArmor fix, or disable Ubuntu's unprivileged user namespace restriction and retry. Disabling the restriction reduces system security.")
-					: localize('runInTerminal.bubblewrap.disableOnly.message', "Bubblewrap is installed but cannot create the required sandbox namespace. You may disable Ubuntu's unprivileged user namespace restriction and retry. This reduces system security.")),
+				message: new MarkdownString(localize('runInTerminal.bubblewrap.message', "Bubblewrap is installed but cannot create the required sandbox namespace. Apply the system configuration fix and retry?")),
 				customOptions,
 			};
 		}
@@ -1770,9 +1765,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (refreshedPrereqs.failedCheck !== undefined) {
 				return {
 					content: [{
-						kind: 'text', value: selectedRemediation === TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile
-							? localize('runInTerminal.bubblewrap.profileDidNotResolve', "The AppArmor repair completed, but bubblewrap still cannot create the required sandbox namespace. Run the command again and choose Disable Restriction and Retry only if you accept the reduced system security.")
-							: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. The command was not executed.")
+						kind: 'text', value: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. The command was not executed.")
 					}],
 				};
 			}

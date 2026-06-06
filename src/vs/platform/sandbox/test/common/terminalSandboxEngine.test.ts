@@ -588,13 +588,40 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(result2.failedCheck, undefined);
 	});
 
-	test('checkForSandboxingPrereqs reports remediation when Ubuntu AppArmor remediation is supported', async () => {
+	test('checkForSandboxingPrereqs caches missing dependencies until force refresh', async () => {
+		let callCount = 0;
+		let status: ISandboxDependencyStatus = { bubblewrapInstalled: false, bubblewrapUsable: false, socatInstalled: true };
+		const host = createHost({
+			checkSandboxDependencies: () => {
+				callCount++;
+				return Promise.resolve(status);
+			},
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		const first = await engine.checkForSandboxingPrereqs();
+		const second = await engine.checkForSandboxingPrereqs();
+
+		strictEqual(first.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies);
+		strictEqual(second.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies);
+		strictEqual(callCount, 1, 'Missing dependencies should be checked once and cached');
+
+		status = { bubblewrapInstalled: true, bubblewrapUsable: true, socatInstalled: true };
+		const cached = await engine.checkForSandboxingPrereqs();
+		strictEqual(cached.failedCheck, TerminalSandboxPrerequisiteCheck.Dependencies, 'Non-forced checks should keep using the cached missing status');
+		strictEqual(callCount, 1);
+
+		const refreshed = await engine.checkForSandboxingPrereqs(true);
+		strictEqual(refreshed.failedCheck, undefined);
+		strictEqual(callCount, 2, 'Force refresh should re-check dependencies after install or repair');
+	});
+
+	test('checkForSandboxingPrereqs reports remediation when bubblewrap is unusable', async () => {
 		const host = createHost({
 			checkSandboxDependencies: () => Promise.resolve({
 				bubblewrapInstalled: true,
 				bubblewrapUsable: false,
 				bubblewrapError: 'Creating new namespace failed',
-				supportsUbuntuAppArmorRemediation: true,
 				socatInstalled: true,
 			}),
 		});
@@ -603,24 +630,8 @@ suite('TerminalSandboxEngine', () => {
 		const result = await engine.checkForSandboxingPrereqs();
 
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
-		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.InstallUbuntuAppArmorProfile, TerminalSandboxPreCheckRemediation.DisableUbuntuUserNamespaceRestriction]);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace]);
 		strictEqual(result.detail, 'Creating new namespace failed');
 		strictEqual(result.missingDependencies, undefined);
-	});
-
-	test('checkForSandboxingPrereqs omits the AppArmor remediation on unsupported Linux releases', async () => {
-		const host = createHost({
-			checkSandboxDependencies: () => Promise.resolve({
-				bubblewrapInstalled: true,
-				bubblewrapUsable: false,
-				supportsUbuntuAppArmorRemediation: false,
-				socatInstalled: true,
-			}),
-		});
-		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
-
-		const result = await engine.checkForSandboxingPrereqs();
-
-		strictEqual(result.remediations, undefined);
 	});
 });

@@ -24,8 +24,7 @@ export const enum TerminalSandboxPrerequisiteCheck {
 }
 
 export const enum TerminalSandboxPreCheckRemediation {
-	InstallUbuntuAppArmorProfile = 'installUbuntuAppArmorProfile',
-	DisableUbuntuUserNamespaceRestriction = 'disableUbuntuUserNamespaceRestriction',
+	DisableUnprivilagedusernamespace = 'disableUserNamespaceRestriction',
 }
 
 export interface ITerminalSandboxPrerequisiteCheckResult {
