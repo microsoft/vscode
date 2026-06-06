@@ -445,7 +445,18 @@ function renderForm(
 	};
 
 	disposables.add(DOM.addStandardDisposableListener(sessionTypeSelect, 'change', () => {
-		const [providerId, sessionTypeId] = sessionTypeSelect.value.split('|', 2);
+		// `split('|', 2)` would silently drop everything after the second
+		// pipe, corrupting both providerId and sessionTypeId whenever
+		// either contains a `|`. Provider IDs come from external services
+		// and are opaque strings, so we split on the FIRST pipe only and
+		// keep the remainder as the session-type id.
+		const raw = sessionTypeSelect.value;
+		const pipeIdx = raw.indexOf('|');
+		if (pipeIdx === -1) {
+			return;
+		}
+		const providerId = raw.slice(0, pipeIdx);
+		const sessionTypeId = raw.slice(pipeIdx + 1);
 		if (providerId && sessionTypeId) {
 			state.providerId = providerId;
 			state.sessionTypeId = sessionTypeId;

@@ -30,6 +30,7 @@ import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 
 const $ = DOM.$;
@@ -86,10 +87,47 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Agents, label: localize('agents', "Agents"), icon: agentIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Skills, label: localize('skills', "Skills"), icon: skillIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
-			{ id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 },
+		);
+		// Conditionally include the Automations tile so it tracks the
+		// same setting the management editor already gates against.
+		// Without this, the tile is a dead link when the setting is off:
+		// clicking it routes to the management editor, which then hides
+		// the Automations section and falls back to its welcome page.
+		if (this._isAutomationsEnabled()) {
+			this.sections.push({ id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
+		}
+		this.sections.push(
 			{ id: AICustomizationManagementSection.McpServers, label: localize('mcpServers', "MCP Servers"), icon: mcpServerIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Plugins, label: localize('plugins', "Plugins"), icon: pluginIcon, count: 0 },
 		);
+
+		// Re-render when the user toggles `chat.automations.enabled`,
+		// so the tile appears/disappears live without a reload.
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)) {
+				return;
+			}
+			const present = this.sections.some(s => s.id === AICustomizationManagementSection.Automations);
+			const desired = this._isAutomationsEnabled();
+			if (present === desired) {
+				return;
+			}
+			if (desired) {
+				// Insert before McpServers to preserve the original order.
+				const mcpIdx = this.sections.findIndex(s => s.id === AICustomizationManagementSection.McpServers);
+				const insertAt = mcpIdx === -1 ? this.sections.length : mcpIdx;
+				this.sections.splice(insertAt, 0, { id: AICustomizationManagementSection.Automations, label: localize('automations', "Automations"), icon: automationIcon, count: 0 });
+			} else {
+				const idx = this.sections.findIndex(s => s.id === AICustomizationManagementSection.Automations);
+				if (idx !== -1) {
+					this.sections.splice(idx, 1);
+				}
+			}
+			if (this.sectionsContainer) {
+				this.renderSections();
+				void this.loadCounts();
+			}
+		}));
 
 		// Listen to changes
 		this._register(this.promptsService.onDidChangeCustomAgents(() => this.loadCounts()));
@@ -218,17 +256,24 @@ export class AICustomizationOverviewView extends ViewPane {
 			}));
 		}
 
-		// Update automation count reactively
-		const automationSection = this.sections.find(s => s.id === AICustomizationManagementSection.Automations);
-		if (automationSection) {
-			this._register(autorun(reader => {
-				const automations = this.automationService.automations.read(reader);
+		// Update automation count reactively. Only re-renders the count
+		// when the Automations tile is currently included in `sections`
+		// — if the user disabled the setting the tile is gone and there
+		// is nothing to update.
+		this._register(autorun(reader => {
+			const automations = this.automationService.automations.read(reader);
+			const automationSection = this.sections.find(s => s.id === AICustomizationManagementSection.Automations);
+			if (automationSection) {
 				automationSection.count = automations.length;
 				this.updateCountElements();
-			}));
-		}
+			}
+		}));
 
 		this.updateCountElements();
+	}
+
+	private _isAutomationsEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 	}
 
 	private getSectionAriaLabel(section: ISectionSummary): string {
