@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-nXjtuhBilO++r8hfxl5VjEScSmdm07wDAk6jw228DgM=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-16BLv6/XoUIoGh6GYyw8Oe2djmnpAaz7GvreLJIfAFE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -79,6 +79,141 @@
 		const getActiveFrame = () => {
 			return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('active-frame'));
 		};
+
+		/**
+		 * The image that the context menu was last opened on, if any.
+		 * Used to make the "Copy" context menu action copy an image even when nothing is selected.
+		 * @type {HTMLImageElement | undefined}
+		 */
+		let lastContextMenuImageTarget = undefined;
+
+		/**
+		 * Timestamp (ms) of when {@link lastContextMenuImageTarget} was last set. The remembered image
+		 * is only honored for a copy that arrives shortly after the context menu was opened, so that a
+		 * later unrelated copy (e.g. a keyboard shortcut) cannot pick up a stale target.
+		 */
+		let lastContextMenuImageTargetTime = 0;
+
+		/** Timer that proactively clears {@link lastContextMenuImageTarget} once it expires. */
+		let lastContextMenuImageTargetTimer = undefined;
+
+		/** How long (ms) a remembered context-menu image stays valid for a copy action. */
+		const contextMenuImageTargetTtl = 5000;
+
+		/**
+		 * Remembers (or clears) the image the context menu was opened on. The reference is dropped
+		 * automatically after {@link contextMenuImageTargetTtl} so we never hold on to a detached DOM
+		 * node, even if no copy ever happens.
+		 *
+		 * @param {HTMLImageElement | undefined} image
+		 */
+		function setContextMenuImageTarget(image) {
+			clearTimeout(lastContextMenuImageTargetTimer);
+			lastContextMenuImageTargetTimer = undefined;
+			lastContextMenuImageTarget = image;
+			lastContextMenuImageTargetTime = image ? Date.now() : 0;
+			if (image) {
+				lastContextMenuImageTargetTimer = setTimeout(() => {
+					lastContextMenuImageTarget = undefined;
+					lastContextMenuImageTargetTime = 0;
+					lastContextMenuImageTargetTimer = undefined;
+				}, contextMenuImageTargetTtl);
+			}
+		}
+
+		/**
+		 * Copies an image element to the clipboard as a bitmap.
+		 *
+		 * Runs inside the content frame's window so that the `clipboard-write` permission and the
+		 * frame's origin apply. Tries to read the rendered image off a canvas first, then falls back
+		 * to re-fetching the source, and finally to copying the image url as text.
+		 *
+		 * @param {Window} frameWindow The content frame's window.
+		 * @param {HTMLImageElement} image The image to copy.
+		 * @param {number} retries
+		 */
+		async function copyImageToClipboard(frameWindow, image, retries = 5) {
+			const frameDocument = frameWindow.document;
+
+			// `navigator.clipboard.write` requires the document to be focused. The copy can be triggered
+			// while focus is still moving back to the webview, so nudge focus and wait briefly before
+			// retrying. The wait is kept short to preserve the transient user activation from the click.
+			if (!frameDocument.hasFocus() && retries > 0) {
+				try {
+					frameWindow.focus();
+				} catch (e) {
+					// ignore - focusing is best effort
+				}
+				setTimeout(() => { copyImageToClipboard(frameWindow, image, retries - 1); }, 20);
+				return;
+			}
+
+			const clipboard = frameWindow.navigator.clipboard;
+			// Resolve `ClipboardItem` from the content frame's realm, since that is where the write runs.
+			const ClipboardItemCtor = /** @type {typeof ClipboardItem | undefined} */ (/** @type {any} */ (frameWindow).ClipboardItem);
+			if (!clipboard || !ClipboardItemCtor) {
+				console.error('Cannot copy image: the clipboard API is not available in this webview.');
+				return;
+			}
+
+			try {
+				// Guard against allocating an unreasonably large bitmap for very large images, which
+				// could spike memory or hang the webview. A canvas allocates 4 bytes (RGBA) per pixel,
+				// so cap the backing buffer to ~256 MB and also cap any single dimension. Oversized
+				// images fall back to re-fetching the original bytes instead.
+				const maxCanvasBytes = 256 * 1024 * 1024;
+				const maxCanvasDimension = 16384;
+				const width = image.naturalWidth;
+				const height = image.naturalHeight;
+				if (!width || !height
+					|| width > maxCanvasDimension || height > maxCanvasDimension
+					|| width * height * 4 > maxCanvasBytes) {
+					throw new Error('Image is too large to copy via canvas');
+				}
+				await clipboard.write([new ClipboardItemCtor({
+					'image/png': new Promise((resolve, reject) => {
+						const canvas = frameDocument.createElement('canvas');
+						canvas.width = width;
+						canvas.height = height;
+						const context = canvas.getContext('2d');
+						if (!context) {
+							reject(new Error('Could not get canvas context'));
+							return;
+						}
+						context.drawImage(image, 0, 0);
+						canvas.toBlob((blob) => {
+							if (blob) {
+								resolve(blob);
+							} else {
+								reject(new Error('Could not create image blob'));
+							}
+							canvas.remove();
+						}, 'image/png');
+					})
+				})]);
+			} catch (e) {
+				// Drawing the image to a canvas fails for cross-origin images (tainted canvas) or when
+				// the image is too large. Fall back to re-fetching the bytes, then to copying the url.
+				// Prefer `currentSrc` so the copied content matches the rendered `srcset`/`<picture>` source.
+				const imageSrc = image.currentSrc || image.src;
+				try {
+					const response = await frameWindow.fetch(imageSrc);
+					const blob = response.ok ? await response.blob() : undefined;
+					// Only write an actual image to the clipboard. A non-ok response (e.g. a 404 html
+					// page) or a non-image blob must not be written under an image mime type.
+					if (!blob || !blob.type.startsWith('image/')) {
+						throw new Error('Fetched resource is not an image');
+					}
+					await clipboard.write([new ClipboardItemCtor({ [blob.type]: blob })]);
+				} catch (fetchError) {
+					try {
+						await clipboard.writeText(imageSrc);
+					} catch (textError) {
+						console.error(textError);
+					}
+				}
+			}
+		}
 
 		const getPendingFrame = () => {
 			return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('pending-frame'));
@@ -1184,6 +1319,11 @@
 
 						e.preventDefault();
 
+						// Remember if the context menu was opened on an image so that the "Copy" action
+						// can copy the image even when there is no active selection.
+						const targetElement = /** @type {HTMLElement | null} */ (e.target);
+						setContextMenuImageTarget(/** @type {HTMLImageElement | undefined} */ (targetElement?.closest?.('img') ?? undefined));
+
 						/** @type { Record<string, boolean>} */
 						let context = {};
 
@@ -1263,7 +1403,27 @@
 				if (!target) {
 					return;
 				}
-				assertIsDefined(target.contentDocument).execCommand(data);
+				const contentWindow = target.contentWindow;
+				const contentDocument = assertIsDefined(target.contentDocument);
+
+				// When copying with no active selection but the context menu was opened on an image,
+				// copy the image itself to the clipboard. `execCommand('copy')` only copies the current
+				// selection (which is empty for a right-clicked image), so we instead write the image
+				// bitmap to the clipboard directly. A real text selection still takes precedence, the
+				// remembered image is consumed so it cannot affect later copies, and it is only honored
+				// briefly after the context menu was opened so an unrelated later copy ignores it.
+				if (data === 'copy' && contentWindow && lastContextMenuImageTarget && lastContextMenuImageTarget.ownerDocument === contentDocument) {
+					const image = lastContextMenuImageTarget;
+					const isFresh = Date.now() - lastContextMenuImageTargetTime <= contextMenuImageTargetTtl;
+					setContextMenuImageTarget(undefined);
+					const selection = contentDocument.getSelection();
+					if (isFresh && (!selection || selection.isCollapsed)) {
+						void copyImageToClipboard(contentWindow, image);
+						return;
+					}
+				}
+
+				contentDocument.execCommand(data);
 			});
 
 			/** @type {string | undefined} */
