@@ -21,7 +21,7 @@ import {
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { ChangesetState, ChangesetSummary } from '../common/state/protocol/state.js';
+import type { Changeset, ChangesetState } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
@@ -66,13 +66,13 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 }
 
 /**
- * Builds a single static {@link ChangesetSummary} catalogue entry from a
+ * Builds a single static {@link Changeset} catalogue entry from a
  * persisted (or live-state-derived) file list. Returns the bare entry
  * (no counts) when `diffs` is undefined. Optional `description` is
  * threaded through when provided.
  */
-function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly ISessionFileDiff[] | undefined, description?: string): ChangesetSummary {
-	const base: ChangesetSummary = description ? { label, uriTemplate: uri, description } : { label, uriTemplate: uri };
+function buildStaticCatalogueEntry(label: string, uri: string, changeKind: string, diffs: readonly ISessionFileDiff[] | undefined, description?: string): Changeset {
+	const base: Changeset = description ? { label, uriTemplate: uri, changeKind, description } : { label, uriTemplate: uri, changeKind };
 	if (!diffs) {
 		return base;
 	}
@@ -89,10 +89,10 @@ function defaultCatalogueWithCounts(
 	sessionUri: string,
 	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesetSummary[] {
+): Changeset[] {
 	return [
-		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), sessionDiffs),
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription())
+		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), 'session', sessionDiffs),
+		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), 'uncommitted', uncommittedDiffs, uncommittedChangesetDescription())
 	];
 }
 
@@ -122,7 +122,7 @@ export function buildCatalogueFromLiveState(
 	sessionUri: string,
 	uncommitted: ChangesetState | undefined,
 	session: ChangesetState | undefined,
-): ChangesetSummary[] | undefined {
+): Changeset[] | undefined {
 	const uncommittedDiffs = uncommitted?.status === ChangesetStatus.Ready ? uncommitted.files.map(f => f.edit) : undefined;
 	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
 	if (!uncommittedDiffs && !sessionDiffs) {
@@ -141,7 +141,7 @@ export function buildCatalogueFromPersistedDiffs(
 	sessionUri: string,
 	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesetSummary[] | undefined {
+): Changeset[] | undefined {
 	if (!uncommittedDiffs && !sessionDiffs) {
 		return undefined;
 	}

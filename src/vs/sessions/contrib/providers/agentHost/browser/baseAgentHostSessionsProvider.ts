@@ -23,7 +23,7 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -176,7 +176,7 @@ export class AgentHostSessionAdapter implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
-	setChangesSummary(catalogue: readonly ChangesetSummary[] | undefined): boolean {
+	setChangesSummary(catalogue: readonly Changeset[] | undefined): boolean {
 		const summary = catalogue?.find(c => !c.uriTemplate.includes('{'));
 		if (!summary) {
 			return false;
@@ -539,7 +539,7 @@ export class AgentHostSessionAdapter implements ISession {
 		return workspaceChanged;
 	}
 
-	updateChangesets(changesets: readonly ChangesetSummary[] | undefined) {
+	updateChangesets(changesets: readonly Changeset[] | undefined) {
 		if (!changesets) {
 			return;
 		}
@@ -2666,7 +2666,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
-	private _handleChangesetsChanged(session: string, changesets: readonly ChangesetSummary[] | undefined): void {
+	private _handleChangesetsChanged(session: string, changesets: readonly Changeset[] | undefined): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {

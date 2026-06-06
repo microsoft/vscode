@@ -12,7 +12,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, ChangesetAction, isRootAction, isSessionAction, isChangesetAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, changesetReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, type ChangesetState, type ChangesetSummary, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, type Changeset, type ChangesetState, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -27,7 +27,7 @@ export interface IAgentHostStateManagerOptions {
  * {@link AgentHostStateManager.setSessionChangesets} to skip a redundant
  * dispatch when the catalogue has not changed in any user-visible way.
  */
-function changesetCataloguesEqual(a: readonly ChangesetSummary[] | undefined, b: readonly ChangesetSummary[] | undefined): boolean {
+function changesetCataloguesEqual(a: readonly Changeset[] | undefined, b: readonly Changeset[] | undefined): boolean {
 	if (a === b) { return true; }
 	if (!a || !b) { return false; }
 	if (a.length !== b.length) { return false; }
@@ -37,9 +37,7 @@ function changesetCataloguesEqual(a: readonly ChangesetSummary[] | undefined, b:
 		if (x.label !== y.label
 			|| x.uriTemplate !== y.uriTemplate
 			|| x.description !== y.description
-			|| x.additions !== y.additions
-			|| x.deletions !== y.deletions
-			|| x.files !== y.files) {
+			|| x.changeKind !== y.changeKind) {
 			return false;
 		}
 	}
@@ -442,7 +440,7 @@ export class AgentHostStateManager extends Disposable {
 	 * chip-row counts (`additions`, `deletions`, `files`) in sync without
 	 * forcing every observer to subscribe to the full changeset.
 	 */
-	setSessionChangesets(session: URI, changesets: readonly ChangesetSummary[] | undefined): void {
+	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
 		const state = this._sessionStates.get(session);
 		if (!state) {
 			this._logService.warn(`[AgentHostStateManager] setSessionChangesets: unknown session ${session}`);
@@ -458,7 +456,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 		// Take a defensive copy so callers can't mutate the catalogue array
 		// after dispatch; the reducer otherwise stores the reference as-is.
-		const next: ChangesetSummary[] | undefined = changesets ? [...changesets] : undefined;
+		const next: Changeset[] | undefined = changesets ? [...changesets] : undefined;
 		this.dispatchServerAction(session, {
 			type: ActionType.SessionChangesetsChanged,
 			changesets: next,

@@ -10,7 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { ChangesetSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { Changeset } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -26,7 +26,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
  * their `uriTemplate`) are skipped because they require expansion the
  * sidebar cannot perform.
  */
-function pickDefaultChangeset(catalogue: readonly ChangesetSummary[] | undefined): ChangesetSummary | undefined {
+function pickDefaultChangeset(catalogue: readonly Changeset[] | undefined): Changeset | undefined {
 	return catalogue?.find(c => !c.uriTemplate.includes('{'));
 }
 
@@ -36,7 +36,7 @@ function pickDefaultChangeset(catalogue: readonly ChangesetSummary[] | undefined
  * catalogue entry is missing or carries no counts so the sidebar
  * doesn't render an empty chip.
  */
-function changesetCountsToChanges(summary: ChangesetSummary | undefined): IChatSessionItem['changes'] {
+function changesetCountsToChanges(summary: Changeset | undefined): IChatSessionItem['changes'] {
 	if (!summary || summary.files === undefined || summary.files === 0) {
 		return undefined;
 	}
@@ -341,7 +341,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
-		changesets?: readonly ChangesetSummary[];
+		changesets?: readonly Changeset[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
