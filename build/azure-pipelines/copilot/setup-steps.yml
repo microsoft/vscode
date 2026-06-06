@@ -37,20 +37,10 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
+      key: '"copilot_build_cache" | $(Build.SourcesDirectory)/extensions/copilot/build/.cachesalt | $(Build.SourcesDirectory)/extensions/copilot/package-lock.json'
       path: $(Build.SourcesDirectory)/extensions/copilot/.build/build_cache
       cacheHitVar: BUILD_CACHE_RESTORED
     displayName: Restore copilot build cache
-
-  - script: $(Build.SourcesDirectory)/extensions/copilot/build/setup-emsdk.sh
-    displayName: Setup emsdk
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
-  - script: echo '##vso[task.prependpath]/opt/dev/emsdk/upstream/emscripten'
-    displayName: Setup emsdk path 1
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
-  - script: echo '##vso[task.prependpath]/opt/dev/emsdk'
-    displayName: Setup emsdk path 2
-    condition: and(succeeded(), ne(variables.BUILD_CACHE_RESTORED, 'true'))
 
   - script: tar -xzf .build/build_cache/cache.tgz
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
