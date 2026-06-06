@@ -1315,4 +1315,89 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 		});
 	});
+
+	suite('mutation methods on new sessions', () => {
+		const workspace = URI.file('/test/repo');
+
+		test('setMode on a new session applies a builtin mode', () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+
+			provider.setMode(sessionInfo.sessionId, 'ask');
+
+			// CopilotCLISession exposes the applied mode via its
+			// chatMode getter (the observable doesn't update for
+			// builtin-mode changes — see setMode comment).
+			const session = provider.getSession(sessionInfo.sessionId) as ICopilotChatSession & { chatMode?: { id: string; kind: string } };
+			assert.strictEqual(session?.chatMode?.kind, 'ask');
+		});
+
+		test('setMode silently drops unknown modeIds', () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const before = (provider.getSession(sessionInfo.sessionId) as ICopilotChatSession & { chatMode?: { id: string; kind: string } })?.chatMode;
+
+			provider.setMode(sessionInfo.sessionId, 'totally-not-a-mode');
+
+			const after = (provider.getSession(sessionInfo.sessionId) as ICopilotChatSession & { chatMode?: { id: string; kind: string } })?.chatMode;
+			assert.strictEqual(after, before);
+		});
+
+		test('setMode on a committed agent session is a safe no-op (regression: previously threw)', () => {
+			const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/committed' });
+			model.addSession(createMockAgentSession(resource));
+			const provider = createProvider(disposables, model);
+			const committed = provider.getSessions()[0];
+
+			// AgentSessionAdapter.setMode throws 'Method not implemented'.
+			// The provider must not propagate that throw to its caller.
+			assert.doesNotThrow(() => provider.setMode(committed.sessionId, 'agent'));
+		});
+
+		test('setPermissionLevel on a new session applies the level', () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+
+			provider.setPermissionLevel(sessionInfo.sessionId, ChatPermissionLevel.Autopilot);
+
+			const session = provider.getSession(sessionInfo.sessionId);
+			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Autopilot);
+		});
+
+		test('setPermissionLevel silently drops unknown levels', () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+			const before = provider.getSession(sessionInfo.sessionId)?.permissionLevel.get();
+
+			provider.setPermissionLevel(sessionInfo.sessionId, 'not-a-level');
+
+			const after = provider.getSession(sessionInfo.sessionId)?.permissionLevel.get();
+			assert.strictEqual(after, before);
+		});
+
+		test('setPermissionLevel on a committed agent session is a safe no-op (regression: previously threw)', () => {
+			const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/committed' });
+			model.addSession(createMockAgentSession(resource));
+			const provider = createProvider(disposables, model);
+			const committed = provider.getSessions()[0];
+
+			// AgentSessionAdapter.setPermissionLevel throws 'Method not
+			// implemented'. The provider must not propagate that throw.
+			assert.doesNotThrow(() => provider.setPermissionLevel(committed.sessionId, ChatPermissionLevel.Autopilot));
+		});
+
+		test('setModel stores an unknown modelId on a new session (deferred validation)', () => {
+			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
+			const sessionInfo = provider.createNewSession(workspace, CopilotCLISessionType.id);
+
+			// The provider stub returns undefined for any lookup, so this
+			// model is effectively "unknown" — verifying the previous
+			// store-time validation has been removed and the id is held
+			// for the apply-time validator in _updateChatSessionState.
+			provider.setModel(sessionInfo.sessionId, 'unknown/model-id');
+
+			const session = provider.getSession(sessionInfo.sessionId);
+			assert.strictEqual(session?.modelId.get(), 'unknown/model-id');
+		});
+	});
 });

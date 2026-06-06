@@ -1592,18 +1592,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
-	 * Applies a language model to the given session. The contract on
-	 * {@link ICreateNewSessionOptions.modelId} is that unknown ids should be
-	 * dropped — otherwise a stale captured id (e.g. one stored on an
-	 * automation before a model was renamed/removed) would propagate down to
-	 * `userSelectedModelId` on the eventual `chatService.sendRequest` and
-	 * fail the run with an opaque error.
+	 * Applies a language model to the given new session. The model is
+	 * stored unconditionally and validated lazily at send-time (see
+	 * `_dispatchSend`). This avoids dropping a valid model captured on
+	 * an automation before the contributing language-model extension
+	 * has finished activating.
 	 */
 	setModel(sessionId: string, modelId: string): void {
-		if (!this.languageModelsService.lookupLanguageModel(modelId)) {
-			this.logService.warn(`[CopilotChatSessionsProvider] setModel: unknown modelId '${modelId}' for session ${sessionId} — falling back to provider default`);
-			return;
-		}
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setModelId(modelId);
@@ -1615,11 +1610,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
-	 * Applies a builtin chat mode (Agent/Ask/Edit) to the given session.
-	 * Unknown modeIds are dropped silently so callers (notably the
-	 * Automations runner) can be tolerant of stored values from a
+	 * Applies a builtin chat mode (Agent/Ask/Edit) to the given new
+	 * session. Unknown modeIds are dropped silently so callers (notably
+	 * the Automations runner) can be tolerant of stored values from a
 	 * different/older provider. Custom (user-defined) modes are not yet
 	 * supported by callers and so are not resolved here.
+	 *
+	 * Only applies to in-flight new sessions: committed agent sessions
+	 * do not support mid-flight mode mutation today (the underlying
+	 * adapter throws). If the id matches a committed session we log a
+	 * warning instead of attempting the mutation.
 	 */
 	setMode(sessionId: string, modeId: string): void {
 		const mode = builtinChatModeById(modeId);
@@ -1631,15 +1631,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			newSession.setMode(mode);
 			return;
 		}
-
-		this._ensureSessionCache();
-		this._findChatSession(sessionId)?.setMode(mode);
+		this.logService.warn(`[CopilotChatSessionsProvider] setMode: session '${sessionId}' is not a new session; mode '${modeId}' will not be applied`);
 	}
 
 	/**
-	 * Applies a permission level (`default`, `autoApprove`, `autopilot`) to
-	 * the given session. Unknown values are dropped silently so callers can
-	 * be tolerant of stored values from a different/older provider.
+	 * Applies a permission level (`default`, `autoApprove`, `autopilot`)
+	 * to the given new session. Unknown values are dropped silently so
+	 * callers can be tolerant of stored values from a different/older
+	 * provider.
+	 *
+	 * Only applies to in-flight new sessions: see {@link setMode} for
+	 * rationale.
 	 */
 	setPermissionLevel(sessionId: string, level: string): void {
 		if (!isChatPermissionLevel(level)) {
@@ -1650,9 +1652,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			newSession.setPermissionLevel(level);
 			return;
 		}
-
-		this._ensureSessionCache();
-		this._findChatSession(sessionId)?.setPermissionLevel(level);
+		this.logService.warn(`[CopilotChatSessionsProvider] setPermissionLevel: session '${sessionId}' is not a new session; level '${level}' will not be applied`);
 	}
 
 	// -- Session Actions --
