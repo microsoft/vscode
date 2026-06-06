@@ -41,8 +41,8 @@ export const BrowserActionCategory = localize2('browserCategory', "Browser");
 export enum BrowserActionGroup {
 	Tabs = '1_tabs',
 	Zoom = '2_zoom',
-	Developer = '3_developer',
-	Page = '4_page',
+	Tools = '3_tools',
+	Data = '4_data',
 	Settings = '5_settings'
 }
 
@@ -110,7 +110,7 @@ export abstract class BrowserEditorContribution extends Disposable {
 	get urlRenderers(): readonly IBrowserUrlRenderer[] { return []; }
 
 	/**
-	 * Optional URL bar suggestion providers (open tabs, history, bookmarks,
+	 * Optional URL bar suggestion providers (open tabs, history, favorites,
 	 * search engines, ...). The navbar invokes each provider in sorted order
 	 * when the URL picker opens or its value changes, and renders the merged
 	 * suggestions below the built-in "Go to" entry.
@@ -118,10 +118,9 @@ export abstract class BrowserEditorContribution extends Disposable {
 	get urlSuggestionProviders(): readonly IBrowserUrlSuggestionProvider[] { return []; }
 
 	/**
-	 * Optional action providers for buttons rendered in the URL picker chrome
-	 * (e.g. a bookmark toggle). The navbar collects buttons from each provider
-	 * when the picker opens and refreshes them when a provider fires
-	 * {@link IBrowserUrlPickerActionProvider.onDidChange}.
+	 * Optional action providers for buttons rendered in the URL picker chrome.
+	 * The navbar collects buttons from each provider when the picker opens
+	 * and refreshes them when a provider fires {@link IBrowserUrlPickerActionProvider.onDidChange}.
 	 */
 	get urlPickerActionProviders(): readonly IBrowserUrlPickerActionProvider[] { return []; }
 
@@ -296,7 +295,7 @@ export interface IBrowserUrlSuggestion {
 	readonly iconPath?: { dark: URI; light?: URI };
 	/**
 	 * Optional per-item actions rendered as inline buttons on the
-	 * suggestion's row (e.g. a delete button on a bookmark suggestion).
+	 * suggestion's row (e.g. a delete button on a favorite suggestion).
 	 */
 	readonly actions?: readonly IBrowserUrlSuggestionAction[];
 	/**
@@ -309,7 +308,7 @@ export interface IBrowserUrlSuggestion {
 
 /**
  * A per-item button rendered inline on a suggestion's row (e.g. a delete
- * button on a bookmark). Extends {@link IQuickInputButton} so visual
+ * button on a favorite). Extends {@link IQuickInputButton} so visual
  * properties are configured the same way as any other picker button; adds
  * an {@link id} for identification and a {@link run} callback that receives
  * the active {@link BrowserEditorInput} so the action can operate on the
@@ -331,7 +330,7 @@ export interface IBrowserUrlSuggestionContext {
 }
 
 /**
- * A source of URL bar suggestions (open tabs, history, bookmarks, search
+ * A source of URL bar suggestions (open tabs, history, favorites, search
  * engines, ...). Contributions return providers via
  * {@link BrowserEditorContribution.urlSuggestionProviders}.
  */
@@ -349,16 +348,21 @@ export interface IBrowserUrlSuggestionProvider {
 	/** Sort order between providers. Lower runs first. Defaults to 0. */
 	readonly order?: number;
 	/**
-	 * Fires when the set of suggestions or any suggestion's state has
-	 * changed (e.g. a bookmark was removed via a per-item action). The
-	 * navbar re-requests suggestions when this fires.
+	 * Optional buttons rendered inline on the group's separator row. Only
+	 * shown when the provider returns at least one suggestion. Use these for
+	 * commands that operate on the whole group (e.g. a "manage" picker).
+	 */
+	readonly actions?: readonly IBrowserUrlSuggestionAction[];
+	/**
+	 * Fires when the set of suggestions or any suggestion's state has changed.
+	 * The navbar re-requests suggestions when this fires.
 	 */
 	readonly onDidChange?: Event<void>;
 	getSuggestions(context: IBrowserUrlSuggestionContext, token: CancellationToken): Promise<readonly IBrowserUrlSuggestion[]>;
 }
 
 /**
- * A button rendered in the URL picker chrome (e.g. a bookmark toggle).
+ * A button rendered in the URL picker chrome.
  * Extends {@link IQuickInputButton} so visual properties (icon, tooltip,
  * toggle state, location) are configured the same way as any other picker
  * button; adds an {@link id} for identification and a {@link run} callback
@@ -563,7 +567,10 @@ export class BrowserEditor extends EditorPane {
 		// When closing a tab, the model gets disposed before the editor input is cleared.
 		// So we make sure we don't keep a reference to the disposed model.
 		this._inputDisposables.add(this._model.onWillDispose(() => {
-			this._model = undefined;
+			if (this._model === model) {
+				this._model = undefined;
+				this._onDidChangeModel.fire({ model: undefined, isNew: false });
+			}
 		}));
 
 		this._inputDisposables.add(this._model.onWillNavigate(() => {
@@ -740,8 +747,10 @@ export class BrowserEditor extends EditorPane {
 	override clearInput(): void {
 		this._inputDisposables.clear();
 
-		this._model = undefined;
-		this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		if (this._model) {
+			this._model = undefined;
+			this._onDidChangeModel.fire({ model: undefined, isNew: false });
+		}
 
 		this._hasUrlContext.reset();
 		this._hasErrorContext.reset();

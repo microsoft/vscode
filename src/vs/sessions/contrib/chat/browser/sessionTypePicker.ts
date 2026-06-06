@@ -112,9 +112,12 @@ export class SessionTypePicker extends Disposable {
 			if (session) {
 				const folderUri = session.workspace.get()?.folders[0]?.root;
 				this._folderSessionTypes = folderUri ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : [];
-				// The active session's actual type wins over any stored preference
-				// for trigger-label rendering.
-				this._picked = { providerId: session.providerId, sessionTypeId: session.sessionType };
+				const concrete = { providerId: session.providerId, sessionTypeId: session.sessionType };
+				const changed = concrete.providerId !== this._picked?.providerId || concrete.sessionTypeId !== this._picked?.sessionTypeId;
+				this._picked = concrete;
+				if (changed) {
+					this._writeStoredPick(concrete);
+				}
 			} else {
 				this._folderSessionTypes = [];
 				// Preserve the stored pick when no active session exists,
@@ -134,7 +137,7 @@ export class SessionTypePicker extends Disposable {
 			refresh(this.sessionsManagementService.activeSession.get());
 		}));
 		// Re-read when the stored preference changes (e.g. handoff IPC from
-		// the main vscode window pre-seeds Copilot CLI [Local] when opening
+		// the main vscode window pre-seeds Copilot CLI when opening
 		// the agents window from an empty workspace).
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
 			if (!this.sessionsManagementService.activeSession.get()) {

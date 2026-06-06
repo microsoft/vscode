@@ -21,15 +21,15 @@ import { IChatRequestDisablement, IChatResponseModel } from '../../../common/mod
 import { fileEditsToExternalEdits, type IToolCallFileEdit } from './stateToProgressAdapter.js';
 
 /**
- * One checkpoint per tool call (or the sentinel checkpoint for a request
- * that produced no edits). Tracks the before/after content URIs needed to
- * revert / replay the edits on disk during {@link AgentHostSnapshotController.restoreSnapshot}.
+ * One checkpoint per request. Accumulates the before/after content URIs of
+ * every completed tool call's file edits so the request's edits can be
+ * undone/redone on disk during {@link AgentHostSnapshotController.restoreSnapshot}.
  */
 interface IAgentHostCheckpoint {
 	readonly requestId: string;
-	/** Tool-call ID, or `undefined` for the sentinel checkpoint at request start. */
-	readonly undoStopId: string | undefined;
 	readonly edits: IToolCallFileEdit[];
+	/** Tool-call IDs whose edits have already been folded into `edits`. */
+	readonly seenToolCallIds: Set<string>;
 }
 
 /**
@@ -48,8 +48,13 @@ interface IAgentHostCheckpoint {
  * - `entries` is always empty → the global accept/reject UI doesn't appear
  * - no diff computation, no multi-diff editor, no streaming-edits APIs
  *
- * Hydrated by the session handler via {@link addToolCallEdits} as completed
- * tool calls arrive.
+ * Undo/redo granularity is per-request: every request occupies one checkpoint
+ * regardless of how many tool calls it ran. The `stopId` parameters on
+ * {@link restoreSnapshot}, {@link getSnapshotUri}, and {@link getSnapshotContents}
+ * are accepted for interface compatibility but ignored.
+ *
+ * Hydrated by the session handler via {@link ensureRequestCheckpoint} and
+ * {@link addToolCallEdits} as turns and tool calls arrive.
  */
 export class AgentHostSnapshotController extends Disposable implements IChatEditingSession {
 
@@ -60,23 +65,14 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	readonly entries: IObservable<readonly IModifiedFileEntry[]> = constObservable([]);
 
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]> = derivedOpts(
-		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId && v.afterUndoStop === b[i].afterUndoStop) },
+		{ equalsFn: (a, b) => a.length === b.length && a.every((v, i) => v.requestId === b[i].requestId) },
 		reader => {
 			const currentIdx = this._currentCheckpointIndex.read(reader);
-			if (currentIdx >= this._checkpoints.length - 1) {
-				return [];
-			}
-			// Disable every request whose first checkpoint sits past the current
-			// index. Keep the first entry per request — if that's the sentinel
-			// (undoStopId === undefined) the entire request is disabled.
-			const disabled = new Map<string, string | undefined>();
+			const disabled: IChatRequestDisablement[] = [];
 			for (let i = currentIdx + 1; i < this._checkpoints.length; i++) {
-				const cp = this._checkpoints[i];
-				if (!disabled.has(cp.requestId)) {
-					disabled.set(cp.requestId, cp.undoStopId);
-				}
+				disabled.push({ requestId: this._checkpoints[i].requestId });
 			}
-			return [...disabled].map(([requestId, afterUndoStop]): IChatRequestDisablement => ({ requestId, afterUndoStop }));
+			return disabled;
 		},
 	);
 
@@ -102,41 +98,53 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	// ---- Hydration from protocol state --------------------------------------
 
 	/**
-	 * Ensures a sentinel checkpoint exists for the given request. Called at the
-	 * start of every turn so {@link requestDisablement} and {@link restoreSnapshot}
-	 * can reference requests that produce no file edits.
+	 * Ensures a checkpoint exists for the given request. Called at the start
+	 * of every turn (and during history hydration) so {@link requestDisablement}
+	 * and {@link restoreSnapshot} can reference every request, even ones that
+	 * produce no file edits.
 	 *
-	 * Also splices away stale checkpoints after the current index (undo branch
+	 * Splices away stale checkpoints past the current index (undo branch
 	 * semantics) when a new request arrives after a checkpoint restore.
 	 */
 	ensureRequestCheckpoint(requestId: string): void {
-		// Splice stale checkpoints if the user restored a checkpoint
+		// Idempotent on existing requests.
+		if (this._checkpoints.some(cp => cp.requestId === requestId)) {
+			return;
+		}
+
+		// Splice the forward branch when starting a brand-new request after
+		// the user restored a checkpoint.
 		const currentIdx = this._currentCheckpointIndex.get();
 		if (currentIdx < this._checkpoints.length - 1) {
 			this._checkpoints.splice(currentIdx + 1);
 		}
 
-		// Insert sentinel for this request if it doesn't exist yet
-		if (!this._checkpoints.some(cp => cp.requestId === requestId)) {
-			this._checkpoints.push({ requestId, undoStopId: undefined, edits: [] });
-		}
+		this._checkpoints.push({ requestId, edits: [], seenToolCallIds: new Set() });
+
+		// Advance the cursor to the new checkpoint. Otherwise the just-added
+		// request would appear in requestDisablement (it would sit forward of
+		// the cursor) and the chat UI would render it as a disabled turn.
+		transaction(tx => {
+			this._currentCheckpointIndex.set(this._checkpoints.length - 1, tx);
+		});
 	}
 
 	/**
-	 * Records the before/after content URIs for a completed tool call so we
-	 * can revert/replay them later. Idempotent on `toolCallId`.
+	 * Folds a completed tool call's file edits into the checkpoint for the
+	 * given request. Idempotent on `toolCallId`.
 	 */
 	addToolCallEdits(requestId: string, tc: ToolCallState): void {
 		if (tc.status !== ToolCallStatus.Completed) {
 			return;
 		}
 
-		// Deduplicate
-		if (this._checkpoints.some(cp => cp.undoStopId === tc.toolCallId)) {
+		this.ensureRequestCheckpoint(requestId);
+
+		const cp = this._checkpoints.find(c => c.requestId === requestId);
+		if (!cp || cp.seenToolCallIds.has(tc.toolCallId)) {
 			return;
 		}
-
-		this.ensureRequestCheckpoint(requestId);
+		cp.seenToolCallIds.add(tc.toolCallId);
 
 		const fileEdits = fileEditsToExternalEdits(tc);
 		if (fileEdits.length === 0) {
@@ -144,62 +152,49 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		}
 
 		const authority = this._connectionAuthority;
-		const edits: IToolCallFileEdit[] = fileEdits.map(edit => ({
-			kind: edit.kind,
-			resource: toAgentHostUri(edit.resource, authority),
-			originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
-			beforeContentUri: edit.beforeContentUri ? toAgentHostUri(edit.beforeContentUri, authority) : undefined,
-			afterContentUri: edit.afterContentUri ? toAgentHostUri(edit.afterContentUri, authority) : undefined,
-			undoStopId: edit.undoStopId,
-			diff: edit.diff,
-		}));
+		for (const edit of fileEdits) {
+			const resource = toAgentHostUri(edit.resource, authority);
+			const entry: IToolCallFileEdit = {
+				kind: edit.kind,
+				resource,
+				originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
+				beforeContentUri: edit.beforeContentUri ? toAgentHostUri(edit.beforeContentUri, authority) : undefined,
+				afterContentUri: edit.afterContentUri ? toAgentHostUri(edit.afterContentUri, authority) : undefined,
+				undoStopId: edit.undoStopId,
+				diff: edit.diff,
+			};
 
-		this._checkpoints.push({ requestId, undoStopId: tc.toolCallId, edits });
-
-		transaction(tx => {
-			this._currentCheckpointIndex.set(this._checkpoints.length - 1, tx);
-		});
+			// Multiple tool calls in one request may touch the same file
+			// (e.g. create→edit, edit→delete). Fold each new edit into the
+			// prior one for the same resource so the checkpoint stores a
+			// single net before/after pair per file. Otherwise
+			// _writeCheckpointContent would apply duplicate writes in
+			// parallel and race to leave the file in an undefined state.
+			const existingIdx = cp.edits.findIndex(e => e.resource.toString() === resource.toString());
+			if (existingIdx < 0) {
+				cp.edits.push(entry);
+			} else {
+				cp.edits[existingIdx] = mergeFileEdit(cp.edits[existingIdx], entry);
+			}
+		}
 	}
 
 	// ---- Snapshots ----------------------------------------------------------
 
-	private _findCheckpointIndex(requestId: string, stopId: string | undefined): number {
-		if (stopId !== undefined) {
-			return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === stopId);
-		}
-		// No specific stop: find the sentinel checkpoint (undoStopId === undefined)
-		// for this request, which marks the request boundary.
-		return this._checkpoints.findIndex(cp => cp.requestId === requestId && cp.undoStopId === undefined);
+	private _findCheckpointIndex(requestId: string): number {
+		return this._checkpoints.findIndex(cp => cp.requestId === requestId);
 	}
 
-	private _findCheckpoint(requestId: string, stopId: string | undefined): IAgentHostCheckpoint | undefined {
-		if (stopId !== undefined) {
-			const idx = this._findCheckpointIndex(requestId, stopId);
-			return idx >= 0 ? this._checkpoints[idx] : undefined;
-		}
-		// No specific stop: find the last non-sentinel checkpoint for this
-		// request (the one with actual edits).
-		for (let i = this._checkpoints.length - 1; i >= 0; i--) {
-			const cp = this._checkpoints[i];
-			if (cp.requestId === requestId && cp.undoStopId !== undefined) {
-				return cp;
-			}
-		}
-		return undefined;
-	}
-
-	async restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
+	async restoreSnapshot(requestId: string, _stopId: string | undefined): Promise<void> {
 		return this._undoRedoSequencer.queue(async () => {
-			const cpIdx = this._findCheckpointIndex(requestId, stopId);
+			const cpIdx = this._findCheckpointIndex(requestId);
 			if (cpIdx < 0) {
-				this._logService.warn(`[AgentHostSnapshotController] No checkpoint found for requestId=${requestId}${stopId ? `, stopId=${stopId}` : ''}`);
+				this._logService.warn(`[AgentHostSnapshotController] No checkpoint found for requestId=${requestId}`);
 				return;
 			}
 
-			// When stopId is undefined we found the sentinel (request boundary).
-			// Navigate to one before it so the request's edits are fully undone.
-			const targetIdx = stopId === undefined ? cpIdx - 1 : cpIdx;
-
+			// Restore to before this request: target one slot before it.
+			const targetIdx = cpIdx - 1;
 			const currentIdx = this._currentCheckpointIndex.get();
 			if (targetIdx < currentIdx) {
 				// Undo forward checkpoints
@@ -219,30 +214,33 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		});
 	}
 
-	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
-		const cp = this._findCheckpoint(requestId, stopId);
-		if (!cp) {
-			return undefined;
-		}
-		const uriStr = uri.toString();
-		const edit = cp.edits.find(e => e.resource.toString() === uriStr);
-		if (!edit) {
+	getSnapshotUri(requestId: string, uri: URI, _stopId: string | undefined): URI | undefined {
+		const cp = this._checkpoints.find(c => c.requestId === requestId);
+		if (!cp || !cp.edits.some(e => e.resource.toString() === uri.toString())) {
 			return undefined;
 		}
 		return URI.from({
 			scheme: Schemas.chatEditingSnapshotScheme,
 			path: uri.path,
-			query: JSON.stringify({ session: this.chatSessionResource.toString(), requestId, undoStop: stopId ?? '' }),
+			query: JSON.stringify({ session: this.chatSessionResource.toString(), requestId, undoStop: '' }),
 		});
 	}
 
-	async getSnapshotContents(requestId: string, uri: URI, stopId: string | undefined): Promise<VSBuffer | undefined> {
-		const cp = this._findCheckpoint(requestId, stopId);
+	async getSnapshotContents(requestId: string, uri: URI, _stopId: string | undefined): Promise<VSBuffer | undefined> {
+		const cp = this._checkpoints.find(c => c.requestId === requestId);
 		if (!cp) {
 			return undefined;
 		}
 		const uriStr = uri.toString();
-		const edit = cp.edits.find(e => e.resource.toString() === uriStr);
+		// Use the last edit for this file in the request — that's the
+		// "after-content" the diff viewer wants to display.
+		let edit: IToolCallFileEdit | undefined;
+		for (let i = cp.edits.length - 1; i >= 0; i--) {
+			if (cp.edits[i].resource.toString() === uriStr) {
+				edit = cp.edits[i];
+				break;
+			}
+		}
 		if (!edit) {
 			return undefined;
 		}
@@ -378,4 +376,43 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 		});
 		await Promise.all(ops);
 	}
+}
+
+/**
+ * Combines two edits to the same file (in arrival order) into a single net
+ * edit. The merged entry keeps the earlier `before` snapshot and the later
+ * `after` snapshot, and derives a net `kind` based on whether the file
+ * exists at the start and end of the combined operation.
+ *
+ * A create-then-delete collapses to a no-op edit (no before, no after) — we
+ * still keep the entry so the file is restored to "absent" on undo, but
+ * `_writeCheckpointContent` will skip the write since both URIs are absent.
+ */
+function mergeFileEdit(prev: IToolCallFileEdit, next: IToolCallFileEdit): IToolCallFileEdit {
+	const startsAbsent = prev.kind === FileEditKind.Create;
+	const endsAbsent = next.kind === FileEditKind.Delete;
+
+	let kind: FileEditKind;
+	if (startsAbsent && endsAbsent) {
+		kind = FileEditKind.Edit; // create+delete collapses to no-op
+	} else if (startsAbsent) {
+		kind = FileEditKind.Create;
+	} else if (endsAbsent) {
+		kind = FileEditKind.Delete;
+	} else {
+		kind = FileEditKind.Edit;
+	}
+
+	return {
+		kind,
+		resource: next.resource,
+		// Renames within a single request are uncommon; if the second edit
+		// is itself a rename keep its originalResource, otherwise carry
+		// forward the first one.
+		originalResource: next.originalResource ?? prev.originalResource,
+		beforeContentUri: prev.beforeContentUri,
+		afterContentUri: next.afterContentUri,
+		undoStopId: prev.undoStopId,
+		diff: next.diff ?? prev.diff,
+	};
 }

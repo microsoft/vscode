@@ -230,6 +230,8 @@ zone.js/dist/**
 @github/copilot-darwin-x64/**
 @github/copilot-linux-arm64/**
 @github/copilot-linux-x64/**
+@github/copilot-linuxmusl-arm64/**
+@github/copilot-linuxmusl-x64/**
 @github/copilot-win32-arm64/**
 @github/copilot-win32-x64/**
 
@@ -240,6 +242,8 @@ zone.js/dist/**
 @github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
 @github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
 @github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linuxmusl-x64/**
 @github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
 @github/copilot-sdk/node_modules/@github/copilot-win32-x64/**
 

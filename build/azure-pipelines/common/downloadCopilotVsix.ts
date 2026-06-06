@@ -99,7 +99,10 @@ async function unzip(zipPath: string, outputPath: string): Promise<string[]> {
 						const filePath = path.join(outputPath, entry.fileName);
 						fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
-						const ostream = fs.createWriteStream(filePath);
+						// Unix file mode is stored in the upper 16 bits of externalFileAttributes.
+						// Preserve it so executables like node-pty's spawn-helper stay executable.
+						const mode = (entry.externalFileAttributes >>> 16) & 0o777;
+						const ostream = fs.createWriteStream(filePath, mode ? { mode } : undefined);
 						ostream.on('finish', () => {
 							result.push(filePath);
 							zipfile!.readEntry();

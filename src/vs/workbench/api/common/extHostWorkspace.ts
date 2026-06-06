@@ -5,7 +5,7 @@
 
 import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
 import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -639,13 +639,29 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		queryOptions: QueryOptions<IFileQueryBuilderOptions>[] | undefined,
 		token: CancellationToken
 	): Promise<vscode.Uri[]> {
+		// Ensure the token is recognized by the RPC protocol. Tokens from extension
+		// bundles may use a different CancellationToken module and fail the instanceof
+		// check in isCancellationToken(), causing them to be serialized (without
+		// functions) rather than handled as cancellation signals.
+		let tokenToUse = token;
+		let linkedSource: CancellationTokenSource | undefined;
+		if (!CancellationToken.isCancellationToken(token)) {
+			linkedSource = new CancellationTokenSource();
+			const foreignToken = token as unknown as Partial<CancellationToken>;
+			if (typeof foreignToken.onCancellationRequested === 'function') {
+				foreignToken.onCancellationRequested(() => linkedSource!.cancel());
+			}
+			tokenToUse = linkedSource.token;
+		}
+
 		const result = await Promise.all(queryOptions?.map(option => this._proxy.$startFileSearch(
 			option.folder ?? null,
 			option.options,
-			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
+			tokenToUse).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
 		) ?? []);
 
 		const flatResult = result.flat();
+		linkedSource?.dispose();
 
 		// Dedupe entries in a flat array
 		const extUri = new ExtUri(uri => ignorePathCasing(uri, this._extHostFileSystemInfo));

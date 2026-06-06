@@ -171,6 +171,34 @@ type ChatModelPickerInteractionEvent = {
 	interaction: ChatModelPickerInteraction;
 };
 
+type ChatThinkingEffortChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the thinking effort is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
+};
+
+type ChatThinkingEffortChangeEvent = {
+	model: string | TelemetryTrustedValue<string>;
+	fromValue: string;
+	toValue: string;
+};
+
+type ChatContextSizeChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the context window size is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous context size value' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new context size value' };
+};
+
+type ChatContextSizeChangeEvent = {
+	model: string | TelemetryTrustedValue<string>;
+	fromValue: string;
+	toValue: string;
+};
+
 /**
  * Returns true if the model uses multiplier-based pricing (e.g. "2x").
  * The copilot extension always sets multiplierNumeric alongside multiplier pricing strings.
@@ -1217,6 +1245,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
+		const previousEffortValue = String(config.value ?? '');
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 
@@ -1243,6 +1272,11 @@ export class ModelPickerWidget extends Disposable {
 					tooltip: config.schema.enumDescriptions?.[index] ?? '',
 					label: displayLabel,
 					run: () => {
+						this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+							fromValue: previousEffortValue,
+							toValue: String(value),
+						});
 						this._languageModelsService.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
@@ -1304,6 +1338,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
+		const previousTokensValue = String(config.value ?? '');
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 
@@ -1317,10 +1352,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
@@ -1331,6 +1363,11 @@ export class ModelPickerWidget extends Disposable {
 					tooltip: description ?? '',
 					label: displayLabel,
 					run: () => {
+						this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+							fromValue: previousTokensValue,
+							toValue: String(value),
+						});
 						this._languageModelsService.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
@@ -1384,7 +1421,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();

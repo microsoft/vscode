@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
+import { MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, buildSubagentSessionUriPrefix, isSubagentSession, parseSubagentSessionUri, readHostBuildInfo, type MarkdownResponsePart, type SessionState } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
@@ -67,6 +67,16 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(root.activeSessions, 0);
 		// Host config is seeded with the platform root schema and defaults.
 		assert.ok(root.config, 'root state should include a seeded config');
+	});
+
+	test('seeds host build info into root state _meta when provided', () => {
+		const buildInfo = { version: '1.96.0', commit: 'abc1234', date: '2024-01-02T03:04:05Z', quality: 'insider' };
+		const localManager = disposables.add(new AgentHostStateManager(new NullLogService(), { hostBuildInfo: buildInfo }));
+		assert.deepStrictEqual(readHostBuildInfo(localManager.rootState._meta), buildInfo);
+	});
+
+	test('omits host build info from root state _meta when not provided', () => {
+		assert.strictEqual(readHostBuildInfo(manager.rootState._meta), undefined);
 	});
 
 	test('getSnapshot returns session snapshot after creation', () => {
@@ -217,7 +227,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
 		assert.strictEqual(manager.getActiveTurnId(sessionUri), 'turn-1');
@@ -241,7 +251,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
 		const activeChanged = envelopes.filter(e => e.action.type === ActionType.RootActiveSessionsChanged);
@@ -256,7 +266,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 
 		const envelopes: ActionEnvelope[] = [];
@@ -283,12 +293,12 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'a' },
+			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(session2Uri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-2',
-			userMessage: { text: 'b' },
+			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 2);
 
@@ -311,7 +321,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
@@ -352,7 +362,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
@@ -374,12 +384,12 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'a' },
+			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-2',
-			userMessage: { text: 'b' },
+			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 
 		assert.strictEqual(manager.rootState.activeSessions, 1);
@@ -402,7 +412,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnComplete,
@@ -432,7 +442,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-1',
-			userMessage: { text: 'hello' },
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionTurnCancelled,
@@ -441,7 +451,7 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(session2Uri, {
 			type: ActionType.SessionTurnStarted,
 			turnId: 'turn-2',
-			userMessage: { text: 'hi' },
+			message: { text: 'hi', origin: { kind: MessageKind.User } },
 		});
 		manager.removeSession(session2Uri);
 
@@ -457,7 +467,7 @@ suite('AgentHostStateManager', () => {
 		const turns = [
 			{
 				id: 'turn-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'world' } satisfies MarkdownResponsePart],
 				usage: undefined,
 				state: TurnState.Complete,
@@ -467,7 +477,7 @@ suite('AgentHostStateManager', () => {
 		const state = manager.restoreSession(makeSessionSummary(), turns);
 		assert.strictEqual(state.lifecycle, SessionLifecycle.Ready);
 		assert.strictEqual(state.turns.length, 1);
-		assert.strictEqual(state.turns[0].userMessage.text, 'hello');
+		assert.strictEqual(state.turns[0].message.text, 'hello');
 		assert.strictEqual((state.turns[0].responseParts[0] as MarkdownResponsePart).content, 'world');
 	});
 
@@ -584,7 +594,7 @@ suite('AgentHostStateManager', () => {
 			manager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
 
 			// Let the scheduler fire so _lastNotifiedSummaries now has status=InProgress.
