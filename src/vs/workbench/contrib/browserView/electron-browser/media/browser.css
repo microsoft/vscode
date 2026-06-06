@@ -332,11 +332,12 @@
 	}
 
 	.browser-container-wrapper {
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
 		position: relative;
 		margin-top: 1px;
 		box-sizing: border-box;
+		overflow: hidden;
 	}
 
 	.browser-container {
