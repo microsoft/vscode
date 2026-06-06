@@ -696,7 +696,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandUri, undefined, 'no AHP terminal URI for built-in bash');
 		});
 
-		test('built-in bash terminal toolSpecificData picks up text output on completion', () => {
+		test('built-in bash terminal toolSpecificData picks up streaming text output (running)', () => {
 			const tc = createToolCallState({
 				toolName: 'bash',
 				toolInput: 'echo hi',

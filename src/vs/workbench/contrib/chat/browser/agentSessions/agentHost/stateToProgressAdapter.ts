@@ -478,7 +478,11 @@ function buildTerminalToolSpecificData(
 		? { ...existing?.commandLine, original: nextCommand }
 		: existing?.commandLine ?? { original: '' };
 	const nextOutput = getTerminalOutput(tc);
+	// Spread `existing` so any field set by a prior pass (notably the
+	// async-populated AHP fields and anything we don't explicitly handle)
+	// is preserved unless we have a fresh value to override it with.
 	return {
+		...existing,
 		kind: 'terminal',
 		commandLine,
 		language: existing?.language ?? getTerminalLanguage(tc),
