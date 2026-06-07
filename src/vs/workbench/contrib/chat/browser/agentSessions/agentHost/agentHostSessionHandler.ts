@@ -2953,7 +2953,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref = undefined;
 		}
 		if (!ref) {
-			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri));
+			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri), 'AgentHostSessionHandler');
 			this._sessionSubscriptions.set(sessionUri, ref);
 		}
 		return ref.object;
