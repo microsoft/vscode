@@ -4,20 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, Chunk, PrioritizedList, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
-import { computeRoundPriority, escapeForPromptTag, IBackgroundTodoHistory, IBackgroundTodoHistoryRound, renderBackgroundTodoRound, renderRoundsGroupedByTurn } from './backgroundTodoProcessor';
-
-export interface BackgroundTodoPromptProps extends BasePromptElementProps {
-	/** Current todo list state as rendered markdown, or undefined if no todos exist yet. */
-	readonly currentTodos: string | undefined;
-	/** The user's original request message. */
-	readonly userRequest: string;
-	/** Round-first conversation history for the background todo agent. */
-	readonly history: IBackgroundTodoHistory;
-	/** When true, the prompt switches to finalize mode: the agent loop has ended and
-	 *  the bg agent should mark any in-progress items now-complete based on the full
-	 *  trajectory. See {@link BackgroundTodoProcessor.requestFinalReview}. */
-	readonly isFinalReview?: boolean;
-}
+import { BGToolCallRound, ReadOnlyTurnHistory } from './historyStore';
 
 const BACKGROUND_TODO_SYSTEM_MESSAGE = `You are a background task tracker for the main coding agent. Your only job is to maintain a structured todo list for the user's coding request.
 
@@ -25,19 +12,18 @@ Default to silence. Before calling manage_todo_list, ask yourself: "Would the ne
 
 Trajectory format:
 - The agent trajectory is split into two sections:
-  - <previous-context> contains rounds from before this background pass. They provide continuity context only — do not treat them as new work.
+  - <previous-context> contains rounds from before this background pass. They provide continuity context only. YOU MUST NOT TREAT THEM AS NEW WORK.
   - <new-activity> contains the rounds that happened since your previous background pass. Use these to decide whether the todo list should change.
-- Each <round> block carries an index attribute. Rounds are grouped inside <turn index="N"> wrappers. A turn is one user message plus all the agent work that follows it. When the turn number changes, a new user message was sent. Rounds from earlier turns represent completed previous interactions.
 - Each <round> block may contain the agent's optional <thinking>, a <tool-calls> list (with file path or category target and an optional intent note), and a <response> with the assistant text that followed.
 
 Cross-turn rules:
 - Work from previous turns is already finished. Their rounds are context for what was accomplished before, not new activity.
 - If a todo list already exists and all rounds in <new-activity> belong to the same turn as the latest user message, compare the new work against the current list. Only call the tool if statuses or items need updating based on the new work in the current turn.
 - Never recreate or re-emit a todo list just because previous turns' rounds are visible in <previous-context>. The current todo list already reflects that work.
-- If the new turn's activity is trivial (e.g. a greeting, a question, or a simple acknowledgment with no substantive tool calls), do NOT update the todo list.
+- If the new turn's activity is trivial (e.g. a greeting, a question, or a simple acknowledgment with no substantive tool calls), you MUST NOT update the todo list.
 
-Do NOT call tools when:
-- The current todo list already accurately reflects the work: same items, same statuses, same order. This is the most common case — most rounds require no update.
+You MUST NOT call tools when:
+- The current todo list already accurately reflects the work: same items, same statuses, same order.
 - No todo list exists yet and the task does not qualify for one (see below).
 - The proposed list is identical to the current todo list (same items, statuses, and order).
 - The user request is read-only, research, explanation, summarization, explicitly says not to write code, or is single-step.
@@ -80,7 +66,7 @@ Examples:
 Progress rules:
 - Exploration, search, file reads, diagnostics, and subagent findings are not completion evidence.
 - Mark 'in-progress' completed only after concrete deliverable evidence, such as edits, created files, executed commands, or passing tests.
-- Mark 'not-started' in-progress only when the agent is concretely working on that item and no other item is in progress.
+- Keep exactly one item 'in-progress' whenever any work remains: when the active item is marked 'completed', immediately promote the next item to 'in-progress', preferring the item the agent is concretely working on.
 - Completed items must never regress — once completed, an item stays completed in all future updates regardless of context. The current todo list is authoritative for completion status.
 
 List rules:
@@ -97,55 +83,108 @@ List rules:
 
 State rules:
 - Items may be worked on and completed in any order; sequential processing is not required.
-- At most one item may be 'in-progress' at a time.
+- Exactly one item must always be 'in-progress', unless every item is 'completed'.
 - Never emit multiple 'in-progress' items.
 - Completed items must never regress to 'in-progress' or 'not-started'.
-- A list with zero 'in-progress' items is valid both when all work is done and when no work has started yet.
+- A list may have zero 'in-progress' items only when every item is 'completed'. Whenever any work remains — including right after the list is first created — exactly one item must be 'in-progress'.
 
 Adding new tasks:
 - Only add a new item when genuinely new high-level work is discovered that no existing item covers.
 - Never add items that duplicate or overlap with existing in-progress or not-started items.
 - New items must follow the same granularity rules: broad phase-level outcomes, not implementation details.
+- Never create a new item that is already 'completed'. New items must always start as 'not-started' or 'in-progress'. Only an item that already exists in the list may be marked 'completed', and only after concrete deliverable evidence.
 
 Purpose:
 - The list exists so the user can see at a glance: what is done, what is happening now, and what is still ahead. Keep it simple and accurate.`;
 
-const BACKGROUND_TODO_FINAL_REVIEW_SYSTEM_MESSAGE = `You are a background task tracker performing a FINAL REVIEW. The main agent has finished its turn. Your only job is to update the existing todo list so it reflects the final trajectory.
+/**
+ * Extra system instruction appended on the final background pass of a turn.
+ * Signals that the main agent has stopped running — whether it completed its
+ * work or halted on an error — so this is the last chance to reconcile the list.
+ */
+const BACKGROUND_TODO_FINAL_REVIEW_NOTE = `This is the FINAL background pass for this turn. The main agent has stopped running — it either completed its work or halted on an error — and no further activity will follow for this turn.
 
-Default to silence. Before calling manage_todo_list, ask yourself: "Would the updated list differ from the current one in any item, status, or order?" If the answer is no, do not call the tool — respond with an empty message. When updating, call the tool exactly once with the complete updated list. Do not write commentary.
+Reconcile the todo list one last time against the full trajectory:
+- Mark an item 'completed' only when the trajectory shows concrete deliverable evidence (edits, created files, commands run, or passing tests). Do not mark an item 'completed' merely because the turn ended or the agent stopped on an error.
+- Mark a 'not-started' item 'completed' if later work clearly accomplished it.
+- Leave genuinely untouched or abandoned work as it stands; never invent progress.
+- If the list already reflects the final state, do not call the tool.`;
 
-Trajectory format:
-- The agent trajectory is presented inside a single <full-trajectory> block containing a chronological list of <round> blocks. Each round may contain the agent's optional <thinking>, a <tool-calls> list (with file path or category target and an optional intent note), and a <response> with the assistant text that followed.
-- Each <round> carries an index attribute. Rounds are grouped inside <turn index="N"> wrappers. A turn is one user message plus all the agent work that follows it. When the turn number changes, a new user message was sent.
-- This is a final review — reason about the entire trajectory, but focus completion evidence on the current (latest) turn.
 
-Cross-turn rules:
-- Rounds from earlier turns represent work that was already completed in previous interactions. Their outcomes should already be reflected in the current todo list.
-- Only use rounds from the current (latest) turn to determine whether new items should be marked completed or in-progress.
-- If the current turn had no substantive tool calls (e.g. the user just sent a greeting or asked a question), do NOT call the tool — the existing todo list is already accurate.
+export interface BackgroundTodoPromptProps extends BasePromptElementProps {
+	/** Current todo list state as rendered markdown, or undefined if no todos exist yet. */
+	readonly currentTodos: string | undefined;
+	/** Final todo list carried over from the previous turn as rendered markdown, or undefined if the previous turn had none. */
+	readonly previousTurnTodos: string | undefined;
+	/** The user's original request message. */
+	readonly userRequest: string | undefined;
+	/** Round-first conversation history for the background todo agent. */
+	readonly history: ReadOnlyTurnHistory;
+	/** When true, this is the last pass for the turn because the main agent has finished running. */
+	readonly isFinalReview?: boolean;
+}
 
-Do NOT call tools when:
-- No todo list exists.
-- The current list already accurately reflects the trajectory (same items, statuses, and order).
+export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProps> {
+	async render(_state: void, _sizing: PromptSizing) {
+		const { currentTodos, previousTurnTodos, userRequest, history, isFinalReview } = this.props;
+		const hasProcessedRounds = history.old.length > 0;
 
-Finalize rules:
-- Mark items completed only when the trajectory shows concrete deliverable evidence, such as edits, created files, commands run, or passing tests.
-- Do not complete an item merely because it is 'in-progress' or the turn ended.
-- Mark 'not-started' items completed if later work clearly accomplished them.
-- Leave genuinely untouched work as 'not-started'.
+		return (
+			<>
+				<SystemMessage priority={1000}>{BACKGROUND_TODO_SYSTEM_MESSAGE}</SystemMessage>
 
-Ordering and state rules:
-- Do not add new items or reword existing items.
-- Preserve item IDs.
-- Preserve all existing items — never drop them, especially completed ones.
-- Completed items must appear before unfinished items. If the agent completed items out of order, move completed ones above still-unfinished ones.
-- If a later item is clearly completed while an earlier item is not, reorder instead of falsely completing the earlier item.
-- At most one item may remain 'in-progress', and only if the agent genuinely paused mid-task.
-- Items may be completed in any order; do not force sequential promotion of 'not-started' items.
-- A list with zero 'in-progress' items is valid when all work is done or when the agent finished without actively starting certain items.`;
+				{isFinalReview && (
+					<SystemMessage priority={990}>{BACKGROUND_TODO_FINAL_REVIEW_NOTE}</SystemMessage>
+				)}
+
+				<UserMessage priority={950}>
+					The user asked the main agent:{'\n'}
+					{userRequest}
+				</UserMessage>
+
+				{currentTodos && (
+					<UserMessage priority={900}>
+						Current todo list:{'\n'}
+						{escapeForPromptTag(currentTodos)}
+					</UserMessage>
+				)}
+
+				{previousTurnTodos && (
+					<UserMessage priority={870}>
+						{'<previous-turn-todos>\n'}
+						This is the todo list as it stood at the end of the previous turn, shown only so you know what was already accomplished. Those items are finished — do NOT re-add or re-display the completed todos in the new list. Track only work that belongs to the current turn.{'\n'}
+						{escapeForPromptTag(previousTurnTodos)}
+						{'\n</previous-turn-todos>'}
+					</UserMessage>
+				)}
+
+				{hasProcessedRounds && (
+					<UserMessage priority={850} flexGrow={1}>
+						{'<previous-context>\n'}
+						<PrioritizedList descending={false} passPriority={true}>
+							{history.old.map(round => (
+								<PreviousContextRoundChunk
+									round={round}
+									totalPreviousRounds={history.old.length}
+								/>
+							))}
+						</PrioritizedList>
+						{'\n</previous-context>'}
+					</UserMessage>
+				)}
+
+				<UserMessage priority={880}>
+					{'<new-activity>\nUse these rounds to decide whether the todo list needs updating:\n'}
+					{renderRounds(history.new)}
+					{'\n</new-activity>'}
+				</UserMessage>
+			</>
+		);
+	}
+}
 
 interface PreviousContextRoundChunkProps extends BasePromptElementProps {
-	readonly round: IBackgroundTodoHistoryRound;
+	readonly round: BGToolCallRound;
 	readonly totalPreviousRounds: number;
 }
 
@@ -162,98 +201,82 @@ class PreviousContextRoundChunk extends PromptElement<PreviousContextRoundChunkP
 		const { round } = this.props;
 		return (
 			<Chunk priority={priority} flexGrow={1}>
-				{`<turn index="${round.turnIndex}">\n`}
 				{renderBackgroundTodoRound(round)}
-				{'\n</turn>'}
 			</Chunk>
 		);
 	}
 }
 
-/**
- * Prompt-tsx element for the background todo processor.
- *
- * The trajectory is split into two blocks:
- * - `<previous-context>` — older rounds wrapped in a PrioritizedList so
- *   prompt-tsx can prune the oldest first under budget pressure.
- * - `<new-activity>` — rounds new since the last background pass, rendered
- *   at a high fixed priority so they are never pruned.
- *
- * For final-review passes all rounds go into a single `<full-trajectory>`
- * block at high priority.
- */
-export class BackgroundTodoPrompt extends PromptElement<BackgroundTodoPromptProps> {
-	async render(_state: void, _sizing: PromptSizing) {
-		const { currentTodos, userRequest, history, isFinalReview } = this.props;
-
-		const hasPrevious = history.previousRounds.length > 0;
-		const hasNew = history.newRounds.length > 0;
-		const hasAny = hasPrevious || hasNew;
-
-		return (
-			<>
-				{isFinalReview ? (
-					<SystemMessage priority={1000}>{BACKGROUND_TODO_FINAL_REVIEW_SYSTEM_MESSAGE}</SystemMessage>
-				) : (
-					<SystemMessage priority={1000}>{BACKGROUND_TODO_SYSTEM_MESSAGE}</SystemMessage>
-				)}
-
-				<UserMessage priority={950}>
-					The user asked the main agent:{'\n'}
-					{userRequest}
-				</UserMessage>
-
-				{currentTodos && (
-					<UserMessage priority={900}>
-						Current todo list:{'\n'}
-						{escapeForPromptTag(currentTodos)}
-					</UserMessage>
-				)}
-
-				{isFinalReview && hasAny && (
-					<UserMessage priority={880} flexGrow={1}>
-						{'<full-trajectory>\n'}
-						<PrioritizedList descending={false} passPriority={true}>
-							{[...history.previousRounds, ...history.newRounds].map(round => (
-								<PreviousContextRoundChunk
-									round={round}
-									totalPreviousRounds={history.previousRounds.length + history.newRounds.length}
-								/>
-							))}
-						</PrioritizedList>
-						{'\n</full-trajectory>'}
-					</UserMessage>
-				)}
-
-				{!isFinalReview && hasPrevious && (
-					<UserMessage priority={850} flexGrow={1}>
-						{'<previous-context>\n'}
-						<PrioritizedList descending={false} passPriority={true}>
-							{history.previousRounds.map(round => (
-								<PreviousContextRoundChunk
-									round={round}
-									totalPreviousRounds={history.previousRounds.length}
-								/>
-							))}
-						</PrioritizedList>
-						{'\n</previous-context>'}
-					</UserMessage>
-				)}
-
-				{!isFinalReview && hasNew && (
-					<UserMessage priority={880}>
-						{'<new-activity>\nUse these rounds to decide whether the todo list needs updating:\n'}
-						{renderRoundsGroupedByTurn(history.newRounds)}
-						{'\n</new-activity>'}
-					</UserMessage>
-				)}
-
-				{!isFinalReview && !hasNew && hasAny && (
-					<UserMessage priority={880}>
-						No new activity since your previous background pass — only call the todo tool if the existing list still does not reflect the trajectory.
-					</UserMessage>
-				)}
-			</>
-		);
+export function renderRounds(rounds: readonly BGToolCallRound[]): string {
+	if (rounds.length === 0) {
+		return '';
 	}
+	const lines: string[] = [];
+	for (const round of rounds) {
+		lines.push(renderBackgroundTodoRound(round));
+	}
+	return lines.join('\n');
+}
+
+/**
+ * Render a round into a stable, parseable text block. Used by the
+ * prompt-tsx round chunk so the model sees a uniform shape per round.
+ */
+export function renderBackgroundTodoRound(round: BGToolCallRound): string {
+	const lines: string[] = [`<round index="${round.index}">`];
+
+	if (round.thinking) {
+		lines.push('<thinking>');
+		lines.push(escapeForPromptTag(round.thinking));
+		lines.push('</thinking>');
+	}
+
+	if (round.toolCalls.length > 0) {
+		lines.push('<tool-calls>');
+		for (const tc of round.toolCalls) {
+			const name = escapeInlineForPromptTag(tc.name);
+			const args = escapeInlineForPromptTag(tc.arguments);
+			lines.push(`Tool Call Name: ${name}`);
+			lines.push(`Arguments: ${args}`);
+		}
+		lines.push('</tool-calls>');
+	}
+
+	if (round.response) {
+		lines.push('<response>');
+		lines.push(escapeForPromptTag(round.response));
+		lines.push('</response>');
+	}
+
+	lines.push('</round>');
+	return lines.join('\n');
+}
+
+ /*
+ * Neutralize angle brackets in user-controllable text so it cannot
+ * forge or close any of the tags emitted around the trajectory
+ * (`<round>`, `<thinking>`, `<tool-calls>`, `<response>`,
+ * `<previous-context>`, `<new-activity>`, `<full-trajectory>`,
+ * `<previous-turn-todos>`).
+ */
+function escapeForPromptTag(text: string): string {
+	return text.replace(/</g, '\u2039').replace(/>/g, '\u203A');
+}
+
+function escapeInlineForPromptTag(text: string): string {
+	return escapeForPromptTag(text.replace(/\s+/g, ' ').trim());
+}
+
+/**
+ * Compute a prompt-tsx priority for a previous-context round so newer
+ * rounds survive budget pressure ahead of older history. Values are
+ * clamped to the [700, 879] range so they stay below the system
+ * message (1000), user request (950), current todos (900), and the
+ * new-activity block (880). New-activity rounds are rendered without
+ * pruning so they don't need a priority helper.
+ */
+export function computeRoundPriority(round: BGToolCallRound, totalPreviousRounds: number): number {
+	// 700 base + monotonic index boost so newer context survives longer,
+	// capped strictly below the new-activity priority.
+	return Math.min(879, 700 + Math.min(round.index, totalPreviousRounds));
 }
