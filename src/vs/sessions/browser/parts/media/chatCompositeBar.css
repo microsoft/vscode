@@ -20,9 +20,14 @@
 	box-sizing: border-box;
 }
 
-/* Tabs host: the chat tab strip, shown only when the session has multiple chats */
+/* Tabs host: the chat tab strip, shown only when the session has multiple chats.
+	Mirrors the header's max-width and centering so the tabs line up horizontally
+	with the session header above them. */
 .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0 10px;
+	max-width: 950px;
+	margin: 0 auto;
+	box-sizing: border-box;
 	container-type: inline-size;
 }
 
