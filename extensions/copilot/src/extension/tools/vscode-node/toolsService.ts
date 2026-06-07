@@ -306,6 +306,15 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
+				// For changed_files_tool, disable experimentally for gemini-3.
+				if (
+					tool.name === ToolName.GetScmChanges
+					&& endpoint.family.toLowerCase().includes('gemini-3')
+					&& !this._configurationService.getExperimentBasedConfig(ConfigKey.EnableGemini3GetChangedFilesTool, this._experimentationService)
+				) {
+					return false;
+				}
+
 				// For read_file_tool, disable experimentally for gpt-5.5.
 				if (
 					tool.name === ToolName.ReadFile

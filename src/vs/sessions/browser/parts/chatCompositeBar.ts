@@ -11,8 +11,6 @@ import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollable
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
-import { agentsPanelBackground } from '../../common/theme.js';
 import { Action } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -23,14 +21,10 @@ import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { Menus } from '../menus.js';
-import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, SessionsDataTransfers } from '../dnd.js';
-import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
+import { ISessionsViewService } from '../sessionsViewService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { applySessionBarThemeColors } from './sessionBarStyles.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -38,20 +32,20 @@ interface IChatTab {
 }
 
 /**
- * A composite bar that displays chats within an agent session as tabs.
+ * A composite bar that displays the chats within an agent session as tabs.
  * Selecting a tab loads that chat in the chat view pane instead of switching view containers.
  *
- * The bar auto-hides when there is only one chat in the session and shows when there are multiple.
+ * The bar is shown only when the session has multiple chats; a single chat is already
+ * represented by the {@link SessionHeader} title.
  *
  * The hosting view tells the bar which session is relevant via {@link setSession}.
  */
 export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
+	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
 	private readonly _tabsScrollbar: ScrollableElement;
-	private readonly _toolbar: MenuWorkbenchToolBar;
-	private readonly _inlineToolbar: MenuWorkbenchToolBar;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
@@ -61,9 +55,10 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
-	private _visible = false;
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private readonly _sessionTransfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+	private _visible = false;
 
 	get element(): HTMLElement {
 		return this._container;
@@ -73,26 +68,36 @@ export class ChatCompositeBar extends Disposable {
 		return this._visible;
 	}
 
+	get height(): number {
+		return this._visible ? this._container.offsetHeight : 0;
+	}
+
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._container = $('.chat-composite-bar');
-		this._tabsContainer = $('.chat-composite-bar-tabs');
+		this._container = $('.chat-composite-bar.session-chat-tabs-bar');
 
+		// Tabs row — only shown when the session has multiple chats.
+		this._tabsRow = $('.chat-composite-bar-tabs-row');
+		this._container.appendChild(this._tabsRow);
+
+		this._tabsContainer = $('.chat-composite-bar-tabs');
+		this._tabsContainer.setAttribute('role', 'tablist');
+		this._tabsContainer.setAttribute('aria-label', localize('chatTabsAriaLabel', "Chats"));
 		this._tabsScrollbar = this._register(new ScrollableElement(this._tabsContainer, {
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: ScrollbarVisibility.Hidden,
 			scrollYToX: true,
 			useShadows: false,
 		}));
-		this._container.appendChild(this._tabsScrollbar.getDomNode());
+		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 
 		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
 		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
@@ -106,22 +111,6 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
-		const inlineToolbarContainer = $('.chat-composite-bar-inline-toolbar');
-		this._container.appendChild(inlineToolbarContainer);
-		this._inlineToolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, inlineToolbarContainer, Menus.SessionBarInlineToolbar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-		}));
-
-		const toolbarContainer = $('.chat-composite-bar-toolbar');
-		this._container.appendChild(toolbarContainer);
-		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SessionBarToolbar, {
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			menuOptions: { shouldForwardArgs: true },
-			highlightToggledItems: true,
-		}));
-
 		// Scroll active tab into view + update scroll dimensions on resize
 		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => {
 			this._updateScrollDimensions();
@@ -129,38 +118,15 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
+		// Report height changes so the host can re-layout
+		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', () => {
+			this._onDidChangeHeight.fire();
+		}));
+		this._register(heightObserver.observe(this._container));
+
 		this._setVisible(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
-
-		this._registerDragSource();
-	}
-
-	private _registerDragSource(): void {
-		this._container.draggable = true;
-
-		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
-			const session = this._session;
-			if (!session || !e.dataTransfer) {
-				e.preventDefault();
-				return;
-			}
-
-			this._sessionTransfer.setData(
-				[new DraggedSessionIdentifier(session.sessionId, session.resource)],
-				DraggedSessionIdentifier.prototype,
-			);
-
-			const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
-			e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
-			e.dataTransfer.effectAllowed = 'move';
-
-			applyDragImage(e, this._container, session.title.get());
-		}));
-
-		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
-			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
-		}));
 	}
 
 	/**
@@ -172,8 +138,6 @@ export class ChatCompositeBar extends Disposable {
 			return;
 		}
 		this._session = session;
-		this._toolbar.context = session;
-		this._inlineToolbar.context = session;
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
@@ -189,10 +153,9 @@ export class ChatCompositeBar extends Disposable {
 			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
 			const mainChatUri = session.mainChat.read(reader).resource.toString();
 			this._rebuildTabs(chats, activeChatUri, mainChatUri);
-		}));
 
-		store.add(autorun(reader => {
-			this._setVisible(session.isCreated.read(reader));
+			// Only show the tab strip once the session is created and has multiple chats.
+			this._setVisible(session.isCreated.read(reader) && chats.length > 1);
 		}));
 	}
 
@@ -207,6 +170,8 @@ export class ChatCompositeBar extends Disposable {
 
 		this._updateActiveTab(activeChatId);
 		this._updateScrollDimensions();
+
+		this._onDidChangeHeight.fire();
 	}
 
 	private _updateScrollDimensions(): void {
@@ -338,7 +303,7 @@ export class ChatCompositeBar extends Disposable {
 
 	private _onTabClicked(chat: IChat): void {
 		if (this._session) {
-			this._sessionsManagementService.openChat(this._session, chat.resource);
+			this._sessionsViewService.openChat(this._session, chat.resource);
 		}
 	}
 
@@ -368,16 +333,6 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	private _updateStyles(): void {
-		const theme = this._themeService.getColorTheme();
-
-		const bg = theme.getColor(agentsPanelBackground);
-		const activeFg = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-		const inactiveFg = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-		const activeBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-
-		this._container.style.setProperty('--chat-bar-background', bg?.toString() ?? '');
-		this._container.style.setProperty('--chat-tab-active-foreground', activeFg?.toString() ?? '');
-		this._container.style.setProperty('--chat-tab-inactive-foreground', inactiveFg?.toString() ?? '');
-		this._container.style.setProperty('--chat-tab-active-border', activeBorder?.toString() ?? '');
+		applySessionBarThemeColors(this._container, this._themeService.getColorTheme());
 	}
 }

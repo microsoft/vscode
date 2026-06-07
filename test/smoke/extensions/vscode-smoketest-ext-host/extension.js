@@ -30,6 +30,28 @@ async function waitForCommand(command, timeoutMs) {
 }
 
 /**
+ * Wait for an extension to be installed and activated so its contributed
+ * configuration keys are registered and its commands are available.
+ * @param {string} extensionId
+ * @param {number} timeoutMs
+ */
+async function waitForExtension(extensionId, timeoutMs) {
+	const started = Date.now();
+	while (Date.now() - started < timeoutMs) {
+		const ext = vscode.extensions.getExtension(extensionId);
+		if (ext) {
+			if (!ext.isActive) {
+				await ext.activate();
+			}
+			return ext;
+		}
+		await new Promise(resolve => setTimeout(resolve, 250));
+	}
+
+	throw new Error(`Timed out waiting for extension '${extensionId}'`);
+}
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
@@ -94,10 +116,28 @@ function activate(context) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.openCopilotCliChat', async () => {
 			const command = 'workbench.action.chat.openNewSessionEditor.copilotcli';
+			// Wait for copilot-chat extension to be installed & activated so its
+			// contributed configuration keys are registered before we write them.
+			await waitForExtension('GitHub.copilot-chat', 60_000);
 			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
 			await vscode.workspace.getConfiguration('github.copilot.chat').update('backgroundAgent.enabled', true, vscode.ConfigurationTarget.Global);
 			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
-			await waitForCommand(command, 30_000);
+			await waitForCommand(command, 60_000);
+			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+			await vscode.commands.executeCommand(command);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
+			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
+			// Wait for copilot-chat extension to be installed & activated so its
+			// contributed configuration keys are registered before we write them.
+			await waitForExtension('GitHub.copilot-chat', 60_000);
+			await vscode.workspace.getConfiguration('chat').update('disableAIFeatures', false, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration('github.copilot.chat').update('claudeAgent.enabled', true, vscode.ConfigurationTarget.Global);
+			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
+			await waitForCommand(command, 60_000);
 			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 			await vscode.commands.executeCommand(command);
 		})

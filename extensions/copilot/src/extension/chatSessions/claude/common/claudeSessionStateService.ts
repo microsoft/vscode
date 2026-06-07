@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import type { TraceContext } from '../../../../platform/otel/common/otelService';
@@ -24,6 +24,7 @@ export interface SessionState {
 	folderInfo: ClaudeFolderInfo | undefined;
 	usageHandler: UsageHandler | undefined;
 	reasoningEffort: EffortLevel | undefined;
+	contextSize: number | undefined;
 	traceContext: TraceContext | undefined;
 	turnId: string | undefined;
 }
@@ -105,6 +106,18 @@ export interface IClaudeSessionStateService {
 	 * Sets the reasoning effort for a session.
 	 */
 	setReasoningEffortForSession(sessionId: string, effort: EffortLevel | undefined): void;
+
+	/**
+	 * Gets the context size for a session (user's per-request selection from the model picker).
+	 * When set, the proxy reports this value as the endpoint's modelMaxPromptTokens so internal
+	 * accounting reflects the chosen tier.
+	 */
+	getContextSizeForSession(sessionId: string): number | undefined;
+
+	/**
+	 * Sets the context size for a session.
+	 */
+	setContextSizeForSession(sessionId: string, contextSize: number | undefined): void;
 
 	/**
 	 * Gets the OTel trace context for a session (used to parent chat spans to invoke_agent).

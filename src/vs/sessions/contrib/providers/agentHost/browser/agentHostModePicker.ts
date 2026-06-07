@@ -47,6 +47,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
 	protected _triggerElement: HTMLElement | undefined;
 
@@ -79,6 +80,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
+		this._containerElement = container;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
@@ -169,16 +171,24 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	}
 
 	private _updateTrigger(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement || !this._slotElement || !this._containerElement) {
 			return;
 		}
 
 		const ctx = this._getActiveContext();
+		// Also collapse the wrapping `.action-item` that
+		// `MenuWorkbenchToolBar` created for this picker — hiding only
+		// the inner slot leaves the wrapper occupying its `min-width`
+		// floor and produces a visible empty gap in the chip row when
+		// the active session's schema doesn't expose this property
+		// (e.g. Claude agent host has no `mode`).
 		if (!ctx) {
 			this._slotElement.style.display = 'none';
+			this._containerElement.style.display = 'none';
 			return;
 		}
 		this._slotElement.style.display = '';
+		this._containerElement.style.display = '';
 
 		dom.clearNode(this._triggerElement);
 
