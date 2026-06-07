@@ -109,9 +109,19 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 	}
 
 	private async _invokeModel(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
-		const modelId = this._configurationService.getValue<string>(ChatConfiguration.ToolRiskAssessmentModel) || 'copilot-utility-small';
+		const rawModel = this._configurationService.getValue<string | undefined>(ChatConfiguration.ToolRiskAssessmentModel);
 
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: modelId });
+		// Parse the configured model value which is in `vendor/id` format.
+		// An empty string means "use the default".
+		let selector: { vendor?: string; id?: string } | undefined;
+		if (rawModel && rawModel.includes('/')) {
+			const [vendor, id] = rawModel.split('/', 2);
+			if (vendor && id) {
+				selector = { vendor, id };
+			}
+		}
+
+		const models = await this._languageModelsService.selectLanguageModels(selector ?? { id: 'copilot-utility-small' });
 		if (!models.length || token.isCancellationRequested) {
 			return undefined;
 		}
