@@ -29,6 +29,7 @@ export class BackgroundTodoAgentSessionHistoryStore {
 
 	// An index for tool calls that is sequentially incremented
 	// The assumption is that all tool calls are seen and iterated in order.
+	private index = 0;
 
 	trackPromptContext(turnId: string, promptContext: IBuildPromptContext) {
 		if (!this.turnUserRequest.has(turnId)) {
