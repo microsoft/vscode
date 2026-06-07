@@ -89,7 +89,7 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	override beforeContainerLayout(): IContainerLayoutOverride {
 		return {
-			padding: { right: 3, bottom: 3, left: 3 },
+			padding: { top: 3, right: 3, bottom: 3, left: 3 },
 
 			// Snap CSS-pixel values down so `v × hostZoom` is an exact integer:
 			// main places the WCV at `round(v × hostZoom) × systemDPR` physical
