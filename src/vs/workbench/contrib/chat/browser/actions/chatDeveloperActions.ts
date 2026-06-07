@@ -236,6 +236,11 @@ function subscriptionKindLabel(kind: StateComponents): string {
 	}
 }
 
+/** Escape a value so it is safe to embed in a markdown table cell. */
+function escapeMarkdownTableCell(value: string): string {
+	return value.replace(/\r?\n/g, '<br>').replace(/\|/g, '\\|');
+}
+
 function formatConnectionSubscriptions(label: string, details: string, connection: IAgentConnection | undefined): string {
 	let output = `## ${label}\n\n`;
 	output += `- ${details}\n`;
@@ -266,7 +271,14 @@ function formatConnectionSubscriptions(label: string, details: string, connectio
 			const holders = subscription.holders.length
 				? subscription.holders.map(h => h.count > 1 ? `${h.owner} (${h.count})` : h.owner).join(', ')
 				: '(none)';
-			output += `| ${subscription.resource.toString()} | ${subscriptionKindLabel(subscription.kind)} | ${subscription.refCount} | ${holders} | ${subscription.status} |\n`;
+			const cells = [
+				subscription.resource.toString(),
+				subscriptionKindLabel(subscription.kind),
+				String(subscription.refCount),
+				holders,
+				subscription.status,
+			].map(escapeMarkdownTableCell);
+			output += `| ${cells.join(' | ')} |\n`;
 		}
 		output += '\n';
 	}

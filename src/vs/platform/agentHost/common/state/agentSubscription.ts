@@ -653,7 +653,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * inspection/debug surfaces. Does NOT include the always-live root
 	 * state, which the connection exposes separately via {@link rootState}.
 	 */
-	getActiveSubscriptions(): IActiveSubscriptionInfo[] {
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		const out: IActiveSubscriptionInfo[] = [];
 		for (const [resource, entry] of this._subscriptions) {
 			const value = entry.sub.value;
