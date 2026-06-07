@@ -27,9 +27,8 @@ export class BackgroundTodoAgentSessionHistoryStore {
 	private turnHistories = new Map<string, TurnHistory>();
 	private turnUserRequest = new Map<string, string>();
 
-	// An index for tool calls that is sequentially incrememented
-	// The assumption is that all tool calls are seen and itereated in order.
-	private index = 0;
+	// An index for tool calls that is sequentially incremented
+	// The assumption is that all tool calls are seen and iterated in order.
 
 	trackPromptContext(turnId: string, promptContext: IBuildPromptContext) {
 		if (!this.turnUserRequest.has(turnId)) {
