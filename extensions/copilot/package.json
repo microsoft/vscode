@@ -4045,6 +4045,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.responsesApi.persistentCoT.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.persistentCoT.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.updated53CodexPrompt.enabled": {
             "type": "boolean",
             "default": true,
