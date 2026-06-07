@@ -410,7 +410,8 @@ export class AgentIntent extends EditCodeIntent {
 				if (todoProcessor) {
 					await raceTimeout(
 						todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
-						5000
+						5000,
+						() => todoProcessor.cancel()
 					);
 				}
 			}
