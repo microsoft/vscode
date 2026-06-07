@@ -122,6 +122,7 @@ export class BackgroundTodoAgentProcessor {
 
 			if (turnId !== this.currentTurnId) {
 				this.logger.error(`tracked not current turn ID ${turnId} for session ${this.sessionId}`);
+				return;
 			}
 
 			this.sessionHistoryStore.trackPromptContext(turnId, promptContext);
