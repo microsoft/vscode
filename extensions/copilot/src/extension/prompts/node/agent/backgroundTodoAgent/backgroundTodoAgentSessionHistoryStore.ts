@@ -65,7 +65,11 @@ export class BackgroundTodoAgentSessionHistoryStore {
 		if (history === undefined) {
 			return undefined;
 		}
-		return { ...history };
+		return {
+			old: [...history.old],
+			new: [...history.new],
+			unprocessedSubstantiveRoundCount: history.unprocessedSubstantiveRoundCount,
+		};
 	}
 
 	markToolCallsAsProcessed(turnId: string, toolCallRoundIds: ReadonlyArray<Readonly<BGToolCallRound>>) {
