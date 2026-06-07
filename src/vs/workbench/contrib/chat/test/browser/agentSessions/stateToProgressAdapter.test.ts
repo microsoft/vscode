@@ -494,8 +494,8 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const part = response.parts[0] as IChatMarkdownContent;
 			assert.deepStrictEqual(part.content.value,
-				'See [](vscode-agent-host://my-host/file/-/a/b.ts), ' +
-				'[](vscode-agent-host://my-host/agenthost-content/-/s/x), ' +
+				'See [](vscode-agent-host://my-host/a/b.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), ' +
+				'[](vscode-agent-host://my-host/s/x?_ah%3DeyJzY2hlbWUiOiJhZ2VudGhvc3QtY29udGVudCJ9), ' +
 				'[external](https://example.com) and ' +
 				'[rel](./foo.md).'
 			);
@@ -520,8 +520,8 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
-			assert.ok(value.includes('[](vscode-agent-host://my-host/file/-/a.ts)'));
-			assert.ok(value.includes('[](vscode-agent-host://my-host/file/-/c.ts)'));
+			assert.ok(value.includes('[](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
+			assert.ok(value.includes('[](vscode-agent-host://my-host/c.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)'));
 			// The link inside the fenced code block must NOT be rewritten.
 			assert.ok(value.includes('[fake](file:///b.ts)'));
 			assert.ok(!value.includes('[fake](vscode-agent-host'));
@@ -539,7 +539,7 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
 			assert.strictEqual(value,
-				'Real [](vscode-agent-host://my-host/file/-/a.ts) and literal `[two](file:///b.ts)` here.'
+				'Real [](vscode-agent-host://my-host/a.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0) and literal `[two](file:///b.ts)` here.'
 			);
 		});
 
@@ -558,8 +558,8 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
 			assert.strictEqual(value,
-				'Loaded [plan](vscode-agent-host://my-host/file/-/abs/repo/skills/plan/SKILL.md?vscodeLinkType%3Dskill) ' +
-				'and [](vscode-agent-host://my-host/file/-/abs/repo/foo.ts).'
+				'Loaded [plan](vscode-agent-host://my-host/abs/repo/skills/plan/SKILL.md?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0%26vscodeLinkType%3Dskill) ' +
+				'and [](vscode-agent-host://my-host/abs/repo/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).'
 			);
 		});
 
@@ -577,7 +577,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
 			const value = (response.parts[0] as IChatMarkdownContent).content.value;
-			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/file/-/a/b.png).');
+			assert.strictEqual(value, 'See ![diagram](vscode-agent-host://my-host/a/b.png?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0).');
 		});
 
 		test('error turn produces error message in history', () => {
@@ -723,7 +723,7 @@ suite('stateToProgressAdapter', () => {
 			assert.ok(invocation.pastTenseMessage);
 			assert.strictEqual(typeof invocation.pastTenseMessage, 'object');
 			const value = (invocation.pastTenseMessage as { value: string }).value;
-			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/file/-/path/to/foo.ts)');
+			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)');
 		});
 
 		test('finalizes terminal tool with output and exit code', () => {

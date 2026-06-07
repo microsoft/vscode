@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AGENT_HOST_SCHEME, AGENT_HOST_LABEL_FORMATTER, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 
 /**
@@ -26,24 +26,10 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
-	 * Replicates the stripPathSegments logic from the label service to
-	 * produce the display path that the label formatter would return.
-	 */
-	function labelFormatterDisplay(path: string, stripSegments: number): string {
-		let pos = 0;
-		for (let i = 0; i < stripSegments; i++) {
-			const next = path.indexOf('/', pos + 1);
-			if (next === -1) {
-				break;
-			}
-			pos = next;
-		}
-		return path.substring(pos);
-	}
-
-	/**
 	 * Replicates SimpleFileDialog.computeScopedPathPrefix:
 	 * compares raw URI path with formatted display path to find the prefix.
+	 * With the label-friendly agent-host scheme the URI path already IS the
+	 * display path, so the prefix is empty.
 	 */
 	function computeScopedPathPrefix(uri: URI, displayPath: string): string {
 		const fullPath = uri.path;
@@ -74,58 +60,52 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 	 * Replicates the scoped branch of SimpleFileDialog.remoteUriFrom:
 	 * re-adds the prefix to construct a proper URI.
 	 */
-	function remoteUriFrom(path: string, scheme: string, authority: string, prefix: string): URI {
-		return URI.from({ scheme, authority, path: prefix + path });
+	function remoteUriFrom(path: string, scheme: string, authority: string, prefix: string, query?: string): URI {
+		return URI.from({ scheme, authority, path: prefix + path, query });
 	}
 
-	test('computeScopedPathPrefix extracts prefix for agent host URI', () => {
+	test('computeScopedPathPrefix is empty for label-friendly agent host URI', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const uri = agentHostUri(authority, '/Users/roblou/code');
 
-		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		const prefix = computeScopedPathPrefix(uri, displayPath);
+		// The label formatter renders the path verbatim, so display === path
+		// and there is no prefix to strip.
+		const prefix = computeScopedPathPrefix(uri, uri.path);
 
-		assert.strictEqual(prefix, '/file/-');
-		assert.strictEqual(displayPath, '/Users/roblou/code');
+		assert.strictEqual(prefix, '');
+		assert.strictEqual(uri.path, '/Users/roblou/code');
 	});
 
-	test('computeScopedPathPrefix works for URI with original authority', () => {
-		const authority = agentHostAuthority('localhost:8089');
+	test('computeScopedPathPrefix is empty for URI with original authority', () => {
 		const originalUri = URI.from({ scheme: 'agenthost-content', authority: 'session1', path: '/snap/before' });
-		const uri = URI.from({
-			scheme: AGENT_HOST_SCHEME,
-			authority,
-			path: `/${originalUri.scheme}/${originalUri.authority}${originalUri.path}`,
-		});
+		const uri = toAgentHostUri(originalUri, agentHostAuthority('localhost:8089'));
 
-		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		const prefix = computeScopedPathPrefix(uri, displayPath);
+		// The wrapped path is the original path verbatim.
+		const prefix = computeScopedPathPrefix(uri, uri.path);
 
-		assert.strictEqual(prefix, '/agenthost-content/session1');
-		assert.strictEqual(displayPath, '/snap/before');
+		assert.strictEqual(prefix, '');
+		assert.strictEqual(uri.path, '/snap/before');
 	});
 
-	test('computeScopedPathPrefix returns empty for scheme without stripping', () => {
+	test('computeScopedPathPrefix returns empty for plain file URI', () => {
 		const uri = URI.from({ scheme: 'file', path: '/Users/roblou/code' });
 		// If display matches the full path, prefix is empty
 		const prefix = computeScopedPathPrefix(uri, '/Users/roblou/code');
 		assert.strictEqual(prefix, '');
 	});
 
-	test('pathFromUri strips prefix to show clean path', () => {
+	test('pathFromUri returns the label-friendly path unchanged', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const uri = agentHostUri(authority, '/Users/roblou/code');
-		const prefix = '/file/-';
 
-		assert.strictEqual(pathFromUri(uri, prefix), '/Users/roblou/code');
+		assert.strictEqual(pathFromUri(uri, ''), '/Users/roblou/code');
 	});
 
 	test('pathFromUri with trailing separator', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const uri = agentHostUri(authority, '/Users/roblou/code');
-		const prefix = '/file/-';
 
-		assert.strictEqual(pathFromUri(uri, prefix, true), '/Users/roblou/code/');
+		assert.strictEqual(pathFromUri(uri, '', true), '/Users/roblou/code/');
 	});
 
 	test('pathFromUri without prefix returns raw path', () => {
@@ -133,16 +113,19 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 		assert.strictEqual(pathFromUri(uri, ''), '/Users/roblou/code');
 	});
 
-	test('remoteUriFrom re-adds prefix to reconstruct encoded URI', () => {
+	test('remoteUriFrom reconstructs the URI with the real path and meta query', () => {
 		const authority = agentHostAuthority('localhost:8089');
-		const prefix = '/file/-';
+		const source = agentHostUri(authority, '/Users/roblou/code');
 		const cleanPath = '/Users/roblou/code';
 
-		const result = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, prefix);
+		// Production re-applies the (empty) prefix and carries the meta query
+		// from the hint URI.
+		const result = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, '', source.query);
 
 		assert.strictEqual(result.scheme, AGENT_HOST_SCHEME);
 		assert.strictEqual(result.authority, authority);
-		assert.strictEqual(result.path, '/file/-/Users/roblou/code');
+		assert.strictEqual(result.path, '/Users/roblou/code');
+		assert.strictEqual(result.toString(), source.toString());
 	});
 
 	test('full round-trip: URI -> pathFromUri -> remoteUriFrom -> same URI', () => {
@@ -150,34 +133,29 @@ suite('SimpleFileDialog - scoped path prefix', () => {
 		const originalPath = '/Users/roblou/code/vscode';
 		const uri = agentHostUri(authority, originalPath);
 
-		// Compute prefix
-		const displayPath = labelFormatterDisplay(uri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		const prefix = computeScopedPathPrefix(uri, displayPath);
+		// Display path equals the URI path, so the prefix is empty.
+		const prefix = computeScopedPathPrefix(uri, uri.path);
+		assert.strictEqual(prefix, '');
 
-		// pathFromUri extracts clean path
+		// pathFromUri returns the real path
 		const cleanPath = pathFromUri(uri, prefix);
 		assert.strictEqual(cleanPath, originalPath);
 
-		// remoteUriFrom reconstructs the original URI
-		const reconstructed = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, prefix);
-		assert.strictEqual(reconstructed.path, uri.path);
-		assert.strictEqual(reconstructed.scheme, uri.scheme);
-		assert.strictEqual(reconstructed.authority, uri.authority);
+		// remoteUriFrom reconstructs the original URI (carrying the meta query)
+		const reconstructed = remoteUriFrom(cleanPath, AGENT_HOST_SCHEME, authority, prefix, uri.query);
+		assert.strictEqual(reconstructed.toString(), uri.toString());
 	});
 
-	test('createBackItem root detection with prefix', () => {
+	test('createBackItem root detection without a prefix', () => {
 		const authority = agentHostAuthority('localhost:8089');
-		const prefix = '/file/-';
 
-		// Simulate root folder: path = prefix + '/'
-		const rootUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: prefix + '/' });
-		const pathAfterPrefix = rootUri.path.substring(prefix.length);
-		assert.strictEqual(pathAfterPrefix === '/' || pathAfterPrefix === '', true, 'root should be detected');
+		// Root folder: path is '/'
+		const rootUri = agentHostUri(authority, '/');
+		assert.strictEqual(rootUri.path === '/' || rootUri.path === '', true, 'root should be detected');
 
-		// Simulate non-root folder
-		const subUri = URI.from({ scheme: AGENT_HOST_SCHEME, authority, path: prefix + '/Users/roblou' });
-		const subPathAfterPrefix = subUri.path.substring(prefix.length);
-		assert.notStrictEqual(subPathAfterPrefix, '/');
-		assert.notStrictEqual(subPathAfterPrefix, '');
+		// Non-root folder
+		const subUri = agentHostUri(authority, '/Users/roblou');
+		assert.notStrictEqual(subUri.path, '/');
+		assert.notStrictEqual(subUri.path, '');
 	});
 });

@@ -323,8 +323,10 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	 * scoped scheme, by comparing the raw URI path with the label
 	 * service's formatted output.
 	 *
-	 * For example, an agent host URI with path `/file/-/Users/roblou`
-	 * formats as `/Users/roblou`, so the prefix is `/file/-`.
+	 * With the label-friendly agent host scheme the URI path is already the
+	 * real file path (the label formatter renders it verbatim), so this
+	 * returns an empty prefix. It is retained for schemes whose label
+	 * formatter strips leading path segments.
 	 */
 	private computeScopedPathPrefix(uri: URI): string {
 		const fullPath = uri.path;

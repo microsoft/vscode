@@ -2336,7 +2336,7 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			};
 		}), [{
 			uri: 'file:///repo/file.ts',
-			originalUri: 'vscode-agent-host://local/session-db/-/before/file.ts',
+			originalUri: 'vscode-agent-host://local/before/file.ts?_ah%3DeyJzY2hlbWUiOiJzZXNzaW9uLWRiIn0',
 			modifiedUri: 'file:///repo/file.ts',
 			insertions: 2,
 			deletions: 1,

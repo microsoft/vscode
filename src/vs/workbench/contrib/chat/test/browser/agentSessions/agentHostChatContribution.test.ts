@@ -3578,7 +3578,8 @@ suite('AgentHostChatContribution', () => {
 			const agentHostUri = URI.from({
 				scheme: 'vscode-agent-host',
 				authority: 'my-server',
-				path: '/file/-/home/user/project',
+				path: '/home/user/project',
+				query: '_ah=eyJzY2hlbWUiOiJmaWxlIn0',
 			});
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {

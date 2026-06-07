@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
@@ -13,21 +13,30 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
  *
  * The original file path is kept verbatim as the URI path so resource
  * labels, language detection, and path comparisons see a real path. The
- * original scheme, authority, and query are carried in a JSON-encoded
- * query so any remote resource can be represented without assuming
- * `file://`:
+ * original scheme, authority, and query are carried in a single
+ * url-safe-base64 `_ah` query parameter so any remote resource can be
+ * represented without assuming `file://`:
  *
  * ```
- * vscode-agent-host://[connectionAuthority][originalPath]?[meta]#[originalFragment]
+ * vscode-agent-host://[connectionAuthority][originalPath]?_ah=[meta]#[originalFragment]
  * ```
  *
- * where `meta` is {@link IAgentHostUriMeta} as JSON. For example,
+ * where `meta` is {@link IAgentHostUriMeta} as url-safe-base64-encoded
+ * JSON. Encoding the metadata as a single opaque parameter (rather than
+ * raw JSON) keeps the query a well-formed parameter list, so unrelated
+ * query parameters such as `vscodeLinkType` can coexist on the wrapped
+ * URI without corrupting the metadata. For example,
  * `file:///home/user/foo.ts` on remote `my-server` becomes:
  * ```
- * vscode-agent-host://my-server/home/user/foo.ts?{"scheme":"file"}
+ * vscode-agent-host://my-server/home/user/foo.ts?_ah=eyJzY2hlbWUiOiJmaWxlIn0
  * ```
  */
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
+
+/**
+ * Query parameter that carries the {@link IAgentHostUriMeta} payload.
+ */
+const AGENT_HOST_META_PARAM = '_ah';
 
 /**
  * Metadata carried in the query of a {@link AGENT_HOST_SCHEME} URI so the
@@ -61,11 +70,13 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
 	};
+	const params = new URLSearchParams();
+	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
 		path: originalUri.path || '/',
-		query: JSON.stringify(meta),
+		query: params.toString(),
 		fragment: originalUri.fragment,
 	});
 }
@@ -81,9 +92,10 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	}
 
 	let meta: Partial<IAgentHostUriMeta> | undefined;
-	if (agentHostUri.query) {
+	const encoded = agentHostUri.query ? new URLSearchParams(agentHostUri.query).get(AGENT_HOST_META_PARAM) : null;
+	if (encoded) {
 		try {
-			meta = JSON.parse(agentHostUri.query) as Partial<IAgentHostUriMeta>;
+			meta = JSON.parse(decodeBase64(encoded).toString()) as Partial<IAgentHostUriMeta>;
 		} catch {
 			meta = undefined;
 		}
