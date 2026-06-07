@@ -249,18 +249,31 @@ export namespace SessionType {
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Returns whether the given session type is a local agent host target.
+ */
+export function isLocalAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-');
+}
+
+/**
+ * Returns whether the given session type is a remote agent host target.
  *
  * Note: The `remote-` prefix convention is established by
  * `RemoteAgentHostContribution` which generates session types as
  * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
+export function isRemoteAgentHostTarget(target: string): boolean {
+	return target.startsWith('remote-');
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ */
 export function isAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
