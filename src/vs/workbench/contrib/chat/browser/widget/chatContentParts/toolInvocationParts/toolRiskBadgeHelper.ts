@@ -11,22 +11,15 @@ import { ILanguageModelToolsService } from '../../../../common/tools/languageMod
 import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
 
 /**
- * Creates a {@link ToolRiskBadgeWidget} for a tool confirmation surface.
+ * Creates a {@link ToolRiskBadgeWidget} for a tool confirmation surface, or `undefined` when the
+ * feature is disabled or the tool is unknown. A cached assessment renders synchronously; otherwise
+ * the badge shows a loading state and assesses asynchronously, hiding itself on failure.
  *
- * Returns `undefined` when the risk-assessment feature is disabled or the tool
- * is unknown. Otherwise returns a widget that either renders a cached assessment
- * synchronously, or shows the loading state and assesses asynchronously, hiding
- * itself on failure or when no assessment can be produced.
+ * The widget and its assessment token are registered on `store`, so disposing the store cancels
+ * any in-flight assessment. The widget is returned so terminal confirmations can attach
+ * `setDetails` / `onDidHide`; most callers only need its `domNode` as a `footerBanner`.
  *
- * The widget (and the {@link CancellationTokenSource} used for the asynchronous
- * assessment) are registered on the provided {@link DisposableStore}, so callers
- * do not need to manage their lifetime separately; disposing the store cancels
- * any in-flight assessment. The widget is returned so terminal confirmations can
- * still attach `setDetails` / `onDidHide`; most callers only need the widget's
- * `domNode` to pass as a `footerBanner`.
- *
- * `kind` selects the assessment rubric (terminal vs. generic); when omitted it
- * is auto-detected from the tool id.
+ * `kind` selects the rubric (terminal vs. generic); when omitted it is auto-detected from the tool id.
  */
 export function createToolRiskBadge(
 	store: DisposableStore,
@@ -37,9 +30,7 @@ export function createToolRiskBadge(
 	parameters: unknown,
 	kind?: ToolRiskPromptKind,
 ): ToolRiskBadgeWidget | undefined {
-	// Check the feature flag before resolving the tool so the (potentially
-	// expensive or unavailable) tool lookup is skipped when risk assessment is
-	// turned off.
+	// Check the feature flag before the tool lookup so it is skipped when disabled.
 	if (!riskAssessmentService.isEnabled()) {
 		return undefined;
 	}

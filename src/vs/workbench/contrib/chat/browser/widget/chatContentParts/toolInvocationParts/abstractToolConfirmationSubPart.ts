@@ -117,9 +117,8 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 		const contentElement = this.createContentElement();
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
-		// Risk badges describe a pending action, so they are only shown for the
-		// pre-execution confirmation — not post-approval, where the tool has
-		// already run.
+		// Risk badges describe a pending action, so they only show on the pre-execution
+		// confirmation, not after the tool has run.
 		const riskBadge = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
 			? this.createRiskBadgeDomNode(state.parameters)
 			: undefined;

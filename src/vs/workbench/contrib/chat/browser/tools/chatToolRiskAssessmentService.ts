@@ -29,9 +29,8 @@ export interface IToolRiskAssessment {
 export const IChatToolRiskAssessmentService = createDecorator<IChatToolRiskAssessmentService>('chatToolRiskAssessmentService');
 
 /**
- * Which rubric the model uses to assess a tool call. `terminal` evaluates a
- * shell command; `generic` evaluates file edits, reads, fetches, and other
- * tool calls. When omitted, the kind is auto-detected from the tool id.
+ * Which rubric the model uses to assess a tool call: `terminal` for a shell command, `generic`
+ * for file edits, reads, fetches, and everything else. When omitted, auto-detected from the tool id.
  */
 export type ToolRiskPromptKind = 'terminal' | 'generic';
 
@@ -42,11 +41,11 @@ export interface IChatToolRiskAssessmentService {
 	/** Synchronously read a previously cached assessment, or undefined if none. */
 	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined;
 	/**
-	 * Get a cached or freshly-computed risk assessment for a tool call.
-	 * Returns `undefined` when the feature is disabled, no model is available,
-	 * or the assessment cannot be parsed.
+	 * Get a cached or freshly-computed risk assessment for a tool call. Returns `undefined` when no
+	 * model is available or the assessment cannot be parsed, or when the feature is disabled unless
+	 * `options.ignoreEnablement` is set (used by the Autopilot risk gate).
 	 */
-	assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind): Promise<IToolRiskAssessment | undefined>;
+	assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind, options?: { ignoreEnablement?: boolean }): Promise<IToolRiskAssessment | undefined>;
 }
 
 const MAX_PARAM_BYTES = 2000;
@@ -75,8 +74,8 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		return this._cache.get(this._cacheKey(tool, parameters, resolveRiskPromptKind(tool, kind)))?.assessment;
 	}
 
-	async assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind): Promise<IToolRiskAssessment | undefined> {
-		if (!this.isEnabled()) {
+	async assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind, options?: { ignoreEnablement?: boolean }): Promise<IToolRiskAssessment | undefined> {
+		if (!options?.ignoreEnablement && !this.isEnabled()) {
 			return undefined;
 		}
 
@@ -158,10 +157,8 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 }
 
 /**
- * Resolve which rubric to assess a tool call under. Callers that know the
- * surface (e.g. the terminal confirmation) pass an explicit kind; otherwise it
- * is auto-detected from the tool id so the built-in `run_in_terminal` tool
- * keeps the terminal rubric.
+ * Resolve which rubric to assess a tool call under. An explicit kind wins; otherwise it is
+ * auto-detected from the tool id so `run_in_terminal` keeps the terminal rubric.
  */
 function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undefined): ToolRiskPromptKind {
 	return kind ?? (tool.id === TerminalToolId.RunInTerminal ? 'terminal' : 'generic');
