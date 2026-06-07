@@ -34,7 +34,7 @@
 	.browser-navbar {
 		display: flex;
 		align-items: center;
-		padding: 6px 8px;
+		padding: 6px 8px 3px 8px;
 		background-color: var(--vscode-editor-background);
 		flex-shrink: 0;
 		gap: 8px;
@@ -111,8 +111,6 @@
 		font-size: 12px;
 		background-color: var(--vscode-editorWidget-background);
 		color: var(--vscode-editorWidget-foreground);
-		border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
-		margin-bottom: 3px;
 
 		.browser-emulation-toolbar-groups {
 			display: flex;
@@ -335,7 +333,6 @@
 		flex: 1 1 auto;
 		min-height: 0;
 		position: relative;
-		margin-top: 1px;
 		box-sizing: border-box;
 		overflow: hidden;
 	}
@@ -596,7 +593,7 @@
 			border-radius: 0;
 			border: none;
 			top: 0 !important;
-			padding: 2px 8px 6px 12px;
+			padding: 4px 8px 4px 12px;
 			transition: none;
 			background: none !important;
 
@@ -607,6 +604,7 @@
 			.monaco-sash {
 				width: 2px !important;
 				height: calc(100% - 4px);
+				margin-top: 2px;
 				border-radius: var(--vscode-cornerRadius-circle);
 
 				&::before {
