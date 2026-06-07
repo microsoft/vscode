@@ -196,6 +196,9 @@ export class PermissionPicker extends Disposable {
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				hover: {
+					content: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
+				},
 				disabled: policyRestricted,
 			},
 		];

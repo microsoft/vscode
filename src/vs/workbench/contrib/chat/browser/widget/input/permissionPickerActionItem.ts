@@ -154,7 +154,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					hover: {
 						content: policyRestricted
 							? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
-							: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
+							: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
 					},
 					run: async () => {
 						if (!await maybeConfirmElevatedPermissionLevel(ChatPermissionLevel.Autopilot, this.dialogService, storageService)) {
