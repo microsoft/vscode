@@ -8,7 +8,7 @@ import { ToolName } from '../../../../tools/common/toolNames';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Tag } from '../../base/tag';
-import { MathIntegrationRules } from '../../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../../panel/editorIntegrationRules';
 import { ApplyPatchInstructions, DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, McpToolInstructions, ReminderInstructionsProps } from '../defaultAgentInstructions';
 import { FileLinkificationInstructionsOptimized } from '../fileLinkificationInstructions';
 import { CUSTOM_TOOL_SEARCH_NAME, ToolSearchToolPromptOptimized } from '../toolSearchInstructions';
@@ -148,7 +148,7 @@ export abstract class Gpt55PromptBase extends PromptElement<DefaultAgentPromptPr
 			</Tag>
 			{largePromptSectionsEnabled && <>
 				<Tag name='special_formatting'>
-					<MathIntegrationRules />
+					<ResponseRenderingRules />
 				</Tag>
 				{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
 				{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}

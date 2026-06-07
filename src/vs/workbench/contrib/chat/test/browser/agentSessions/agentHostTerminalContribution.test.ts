@@ -40,10 +40,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
 
-	public dispatchedActions: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
+	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
 
-	override dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push(action);
+	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		this.dispatchedActions.push({ channel, action });
 	}
 
 	private _rootStateValue: RootState | undefined = undefined;
@@ -91,8 +91,12 @@ class MockTerminalProfileResolverService extends mock<ITerminalProfileResolverSe
 	};
 	public lastOptions: IShellLaunchConfigResolveOptions | undefined;
 
+	/** Optional hook invoked inside getDefaultProfile, before it resolves. */
+	public onResolve: (() => void) | undefined;
+
 	override async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		this.lastOptions = options;
+		this.onResolve?.();
 		if (this.profile instanceof Error) {
 			throw this.profile;
 		}
@@ -143,9 +147,9 @@ function rootStateWithoutDefaultShellKey(): RootState {
 	});
 }
 
-function rootStateWithDisableCustomTerminalToolKey(): RootState {
+function rootStateWithEnableCustomTerminalToolKey(): RootState {
 	return makeRootStateWithSchema({
-		[AgentHostConfigKey.DisableCustomTerminalTool]: { type: 'boolean', title: 'Use SDK Terminal Tool' },
+		[AgentHostConfigKey.EnableCustomTerminalTool]: { type: 'boolean', title: 'Use Agent Host Terminal Tool' },
 	});
 }
 
@@ -241,7 +245,7 @@ suite('AgentHostTerminalContribution', () => {
 		// The host-start fire from setRootState's onDidChange listener should
 		// have produced exactly one dispatch with the resolved path.
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		const action = agentHostService.dispatchedActions[0];
+		const action = agentHostService.dispatchedActions[0].action;
 		assert.strictEqual(action.type, ActionType.RootConfigChanged);
 		assert.deepStrictEqual((action as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DefaultShell]: '/usr/bin/bash',
@@ -285,7 +289,7 @@ suite('AgentHostTerminalContribution', () => {
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, initialCount + 1);
-		const last = agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
+		const last = agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1].action;
 		assert.deepStrictEqual((last as IRootConfigChangedAction).config, {
 			[AgentHostConfigKey.DefaultShell]: '/usr/bin/pwsh',
 		});
@@ -324,6 +328,23 @@ suite('AgentHostTerminalContribution', () => {
 		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 	});
 
+	test('skips dispatch when the schema retracts the key while resolving', async () => {
+		const { agentHostService, resolver } = setup(disposables);
+		resolver.profile = { profileName: 'Bash', path: '/usr/bin/bash', args: [], isDefault: true };
+
+		// While getDefaultProfile is in flight (e.g. a host restart / schema
+		// refresh lands), swap to a schema that no longer advertises
+		// defaultShell. The post-await schema gate must catch this and bail.
+		resolver.onResolve = () => {
+			agentHostService.setRootState(rootStateWithoutDefaultShellKey());
+		};
+
+		agentHostService.setRootState(rootStateWithDefaultShellKey());
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+	});
+
 	test('uses the local OS when resolving the profile', async () => {
 		const { agentHostService, resolver } = setup(disposables);
 		agentHostService.setRootState(rootStateWithDefaultShellKey());
@@ -333,38 +354,38 @@ suite('AgentHostTerminalContribution', () => {
 		assert.strictEqual(resolver.lastOptions?.remoteAuthority, undefined);
 	});
 
-	test('dispatches inverted disableCustomTerminalTool from the VS Code setting', async () => {
+	test('dispatches enableCustomTerminalTool from the VS Code setting', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
 		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 
-		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		agentHostService.setRootState(rootStateWithEnableCustomTerminalToolKey());
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
 
-	test('dispatches disableCustomTerminalTool false by default', async () => {
+	test('dispatches enableCustomTerminalTool true when the setting is enabled', async () => {
 		const { agentHostService } = setup(disposables);
 
-		agentHostService.setRootState(rootStateWithDisableCustomTerminalToolKey());
+		agentHostService.setRootState(rootStateWithEnableCustomTerminalToolKey());
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.DisableCustomTerminalTool]: false,
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.EnableCustomTerminalTool]: true,
 		});
 	});
 
-	test('re-dispatches disableCustomTerminalTool when the enabled setting changes', async () => {
+	test('re-dispatches enableCustomTerminalTool when the enabled setting changes', async () => {
 		const { agentHostService, configurationService } = setup(disposables);
-		const rootState = rootStateWithDisableCustomTerminalToolKey();
-		rootState.config!.values[AgentHostConfigKey.DisableCustomTerminalTool] = false;
+		const rootState = rootStateWithEnableCustomTerminalToolKey();
+		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
 		agentHostService.setRootState(rootState);
 		await flush();
-		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
 
 		configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, false);
 		configurationService.onDidChangeConfigurationEmitter.fire({
@@ -373,10 +394,51 @@ suite('AgentHostTerminalContribution', () => {
 			source: 1, // ConfigurationTarget.USER
 			change: { keys: [AgentHostCustomTerminalToolEnabledSettingId], overrides: [] },
 		});
+		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
-		assert.deepStrictEqual((agentHostService.dispatchedActions[0] as IRootConfigChangedAction).config, {
-			[AgentHostConfigKey.DisableCustomTerminalTool]: true,
+		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
+			[AgentHostConfigKey.EnableCustomTerminalTool]: false,
 		});
 	});
+
+	test('does not re-dispatch when another window changes the shared root config value (no schema change)', async () => {
+		const { agentHostService } = setup(disposables);
+
+		// Schema hydrates → initial push for defaultShell.
+		agentHostService.setRootState(rootStateWithDefaultShellKey());
+		await flush();
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+
+		// Another window writes a *different* value into the shared root config.
+		// The schema is unchanged - only the value differs. This must NOT trigger
+		// a re-push, otherwise two windows with different settings ping-pong
+		// forever (the loop this guards against).
+		const updated = rootStateWithDefaultShellKey();
+		updated.config!.values[AgentHostConfigKey.DefaultShell] = 'C:/other/window/shell.exe';
+		agentHostService.setRootState(updated);
+		await flush();
+
+		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
+	});
+
+	test('does not re-dispatch enableCustomTerminalTool on a value-only root-state change', async () => {
+		const { agentHostService } = setup(disposables);
+
+		// Schema hydrates with our preferred value already present → no push.
+		const rootState = rootStateWithEnableCustomTerminalToolKey();
+		rootState.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = true;
+		agentHostService.setRootState(rootState);
+		await flush();
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
+
+		// Another window flips the shared value. Schema unchanged → no fight.
+		const updated = rootStateWithEnableCustomTerminalToolKey();
+		updated.config!.values[AgentHostConfigKey.EnableCustomTerminalTool] = false;
+		agentHostService.setRootState(updated);
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions as readonly unknown[], []);
+	});
 });
+

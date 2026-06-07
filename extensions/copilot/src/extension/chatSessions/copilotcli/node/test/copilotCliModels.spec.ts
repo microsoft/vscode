@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticationSession } from 'vscode';
+import type { AuthenticationSession, LanguageModelChatInformation } from 'vscode';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 import { ConfigKey } from '../../../../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../../../platform/configuration/common/defaultsOnlyConfigurationService';
@@ -38,6 +38,26 @@ const FAKE_MODELS: CopilotCLIModelInfo[] = [
 	{ id: 'gpt-4o', name: 'GPT-4o', maxContextWindowTokens: 128000, supportsVision: true },
 	{ id: 'gpt-3.5', name: 'GPT-3.5', maxContextWindowTokens: 16000, supportsVision: false },
 ];
+
+
+function buildAutoModel(defaultModel?: CopilotCLIModelInfo): LanguageModelChatInformation {
+	return {
+		id: 'auto',
+		name: 'Auto',
+		tooltip: 'Auto selects the best model based on your request complexity and model performance. Model use through Auto is billed at a 10% discount.',
+		family: defaultModel?.id ?? '',
+		version: '',
+		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
+		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		isUserSelectable: true,
+		capabilities: {
+			imageInput: defaultModel?.supportsVision,
+			toolCalling: true,
+		},
+		targetChatSessionType: 'copilotcli',
+		isDefault: true,
+	};
+}
 
 function createMockSDK(models: CopilotCLIModelInfo[] = FAKE_MODELS): ICopilotCLISDK {
 	return {
@@ -77,6 +97,10 @@ class MockAuthenticationService {
 
 	get anyGitHubSession(): AuthenticationSession | undefined {
 		return this._anyGitHubSession;
+	}
+
+	get hasCopilotTokenSource(): boolean {
+		return !!this._anyGitHubSession;
 	}
 
 	setSession(session: AuthenticationSession | undefined): void {
@@ -383,18 +407,18 @@ describe('CopilotCLIModels', () => {
 			expect(result[0]).toEqual(expect.objectContaining({ id: 'auto', name: 'Auto' }));
 		});
 
-		it('returns only auto when not authenticated', async () => {
+		it('returns an empty array when not authenticated', async () => {
 			const configService = new MockConfigurationService();
 			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, true);
 			const { models } = createModels({ hasSession: false, configService });
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
-			// Allow microtasks to settle (the eager fetch will fail/return empty)
+			// Allow microtasks to settle (the eager fetch is skipped when no token source)
 			await new Promise(r => setTimeout(r, 0));
 
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toEqual([expect.objectContaining({ id: 'auto', name: 'Auto' })]);
+			expect(result).toEqual([buildAutoModel()]);
 		});
 
 		it('returns only auto while models are still being fetched', async () => {
@@ -415,9 +439,9 @@ describe('CopilotCLIModels', () => {
 			const lm = createLmMock();
 			models.registerLanguageModelChatProvider(lm.mock as any);
 
-			// Models are still pending — should only get auto
+			// Models are still pending — provider has no resolved infos yet
 			const result = await lm.getProvider().provideLanguageModelChatInformation({}, undefined);
-			expect(result).toEqual([expect.objectContaining({ id: 'auto', name: 'Auto' })]);
+			expect(result).toEqual([buildAutoModel()]);
 
 			// Flush microtasks so getPackage()/getAuthInfo() resolve and getAvailableModels is called,
 			// which captures resolveModels.
@@ -549,7 +573,7 @@ describe('CopilotCLIModels', () => {
 			expect(result[0]).toEqual(expect.objectContaining({ id: 'gpt-4o' }));
 		});
 
-		it('returns empty list when not authenticated and auto model disabled', async () => {
+		it('returns an empty array when not authenticated and auto model disabled', async () => {
 			const configService = new MockConfigurationService();
 			await configService.setConfig(ConfigKey.Advanced.CLIAutoModelEnabled, false);
 			const { models } = createModels({ hasSession: false, configService });

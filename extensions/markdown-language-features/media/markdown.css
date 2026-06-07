@@ -134,7 +134,8 @@ body.showEditorSelection .code-line {
 	z-index: 2;
 }
 
-.diff-change-indicator-arrow:hover > .diff-change-indicator-tooltip {
+.diff-change-indicator-arrow:hover > .diff-change-indicator-tooltip,
+.diff-change-indicator-arrow > .diff-change-indicator-tooltip:hover {
 	display: block;
 }
 
@@ -179,12 +180,13 @@ body.showEditorSelection .code-line {
 	cursor: pointer;
 }
 
-.diff-modification-gutter:hover > .diff-change-indicator-tooltip {
+.diff-modification-gutter:hover > .diff-change-indicator-tooltip,
+.diff-modification-gutter > .diff-change-indicator-tooltip:hover {
 	display: block;
 }
 
 .diff-modification-gutter > .diff-change-indicator-tooltip {
-	left: 8px;
+	left: 4px;
 	top: 0;
 	right: auto;
 	width: max-content;
@@ -201,14 +203,18 @@ body.showEditorSelection .code-line {
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, rgba(127, 127, 127, 0.35)));
 	border-radius: 3px;
-	max-height: 400px;
-	overflow: auto;
+	max-height: min(400px, 80vh);
+	overflow-y: auto;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .diff-change-indicator-tooltip pre {
 	margin: 0;
 	font-size: 0.9em;
+	background: transparent;
+	border: 0;
 	white-space: pre-wrap;
 	word-break: break-word;
 	color: var(--vscode-editor-foreground);
@@ -217,31 +223,29 @@ body.showEditorSelection .code-line {
 .diff-tooltip-deleted {
 	background-color: var(--vscode-diffEditor-removedTextBackground);
 	border-left: 4px solid var(--vscode-diffEditorGutter-removedLineBackground, var(--vscode-diffEditor-removedTextBackground));
-	padding: 4px 8px;
+	padding: 2px 6px;
 }
 
 .diff-tooltip-added {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 	border-left: 4px solid var(--vscode-diffEditorGutter-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground));
-	padding: 4px 8px;
+	padding: 2px 6px;
 }
 
-.diff-tooltip-unchanged {
-	padding: 4px 8px;
-	border-left: 4px solid transparent;
+.diff-tooltip-inner-deleted,
+.diff-tooltip-inner-added {
+	box-decoration-break: clone;
 }
 
-.diff-inline-deleted {
+.diff-tooltip-inner-deleted {
 	background-color: var(--vscode-diffEditor-removedTextBackground);
 	text-decoration: line-through;
 	text-decoration-color: var(--vscode-editor-foreground);
 }
 
-.diff-inline-added {
+.diff-tooltip-inner-added {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
-
-
 
 body.showEditorSelection :not(tr,ul,ol).code-active-line:before,
 body.showEditorSelection :not(tr,ul,ol).code-line:hover:before {

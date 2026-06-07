@@ -239,6 +239,9 @@ suite('PluginInstallService', () => {
 
 		instantiationService.stub(IAgentPluginRepositoryService, {
 			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
+				if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+					return state.pluginSourceInstallUris.get(plugin.sourceDescriptor.kind) ?? URI.file(`/cache/agentPlugins/${plugin.sourceDescriptor.kind}/default`);
+				}
 				return URI.joinPath(state.ensureRepositoryResult, plugin.source);
 			},
 			getRepositoryUri: () => state.ensureRepositoryResult,
@@ -280,6 +283,12 @@ suite('PluginInstallService', () => {
 					return state.configuredMarketplaces;
 				}
 				return undefined;
+			},
+			inspect: (key: string) => {
+				if (key === ChatConfiguration.PluginMarketplaces) {
+					return { userValue: state.configuredMarketplaces, defaultValue: undefined, policyValue: undefined };
+				}
+				return { userValue: undefined, defaultValue: undefined, policyValue: undefined };
 			},
 			updateValue: async (key: string, value: unknown) => {
 				if (key === ChatConfiguration.PluginMarketplaces) {

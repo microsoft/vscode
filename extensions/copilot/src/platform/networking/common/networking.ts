@@ -150,6 +150,26 @@ export function stringifyUrlOrRequestMetadata(urlOrRequestMetadata: string | Req
 	return JSON.stringify(urlOrRequestMetadata);
 }
 
+/**
+ * Whether the given value is {@link RequestMetadata} (routed through CAPI) rather
+ * than a literal URL string (fetched directly, e.g. BYOK / custom endpoints).
+ *
+ * This is the exact discriminant used by `networkRequest`: a `RequestMetadata`
+ * object is dispatched via {@link ICAPIClientService.makeRequest}, whereas a
+ * `string` URL is sent straight to {@link IFetcherService.fetch}.
+ */
+export function isCAPIRequestMetadata(urlOrRequestMetadata: string | RequestMetadata): urlOrRequestMetadata is RequestMetadata {
+	return typeof urlOrRequestMetadata !== 'string';
+}
+
+/**
+ * Whether requests for this endpoint are routed through CAPI (the Copilot proxy)
+ * rather than fetched directly from a literal URL (BYOK / custom endpoints).
+ */
+export function isCAPIEndpoint(endpoint: IEndpoint): boolean {
+	return isCAPIRequestMetadata(endpoint.urlOrRequestMetadata);
+}
+
 export interface IEmbeddingsEndpoint extends IEndpoint {
 	readonly maxBatchSize: number;
 }
@@ -251,6 +271,8 @@ export type IChatRequestTelemetryProperties = {
 	parentHeaderRequestId?: string;
 	/** For a subagent: The modelCallId from the parent agent's model call that triggered this subagent invocation. */
 	parentModelCallId?: string;
+	/** The conversation turn index, matching the panel.request turn measurement. */
+	turnIndex?: string;
 	/** The 0-based iteration number of the tool-calling loop that produced this request. */
 	iterationNumber?: string;
 };
@@ -261,15 +283,36 @@ export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 }
 
 /**
- * Normalized token pricing in AICs per million tokens.
+ * A single tier of normalized token pricing in AICs per million tokens.
  */
-export interface IChatEndpointTokenPricing {
+export interface ITokenPriceTier {
 	/** Cost in AICs per million input tokens */
 	readonly inputPrice: number;
 	/** Cost in AICs per million output tokens */
 	readonly outputPrice: number;
 	/** Cost in AICs per million cached (read) tokens */
 	readonly cacheReadTokenPrice: number;
+	/**
+	 * The largest prompt size (in tokens) billed at this tier's rates.
+	 * Derived from CAPI `billing.token_prices.<tier>.context_max`.
+	 * Present only when CAPI provides a `long_context` tier.
+	 */
+	readonly contextMax?: number;
+}
+
+/**
+ * Normalized token pricing in AICs per million tokens, mirroring the CAPI
+ * tiered structure with explicit `default` and optional `longContext` tiers.
+ */
+export interface IChatEndpointTokenPricing {
+	/** Default-context tier pricing. */
+	readonly default: ITokenPriceTier;
+	/**
+	 * Long-context tier pricing, present only when its rates differ from the
+	 * default tier. When absent the model either has no long-context tier or
+	 * its prices match the default tier.
+	 */
+	readonly longContext?: ITokenPriceTier;
 }
 
 export interface IChatEndpoint extends IEndpoint {
@@ -296,8 +339,8 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly restrictedToSkus?: string[];
 	/**
 	 * Normalized token pricing in AICs per million tokens.
-	 * Computed from the raw billing token_prices by dividing by 1_000_000_000
-	 * and normalizing to per-million-token rates based on batch_size.
+	 * Computed from the raw billing token_prices and normalized
+	 * to per-million-token rates based on batch_size.
 	 */
 	readonly tokenPricing?: IChatEndpointTokenPricing;
 	readonly priceCategory?: string;
@@ -305,6 +348,15 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
 	readonly maxPromptImages?: number;
+	/**
+	 * When true, this endpoint owns its own credentials via {@link IEndpoint.getExtraHeaders}
+	 * (e.g. a BYOK target with a user-supplied `api-key`, `x-api-key`, or `Authorization`) and
+	 * the chat fetcher must not fall back to the CAPI Copilot token for the `Authorization`
+	 * header. Prevents leaking the user's CAPI bearer token to third-party endpoints, and
+	 * avoids over-sending an unintended `Authorization: Bearer …` to gateways (strict
+	 * APIM policies, etc.) that validate the header.
+	 */
+	readonly ownsAuthorization?: boolean;
 	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service
@@ -383,7 +435,7 @@ export function createCapiRequestBody(options: ICreateEndpointBodyOptions, model
 export interface INetworkRequestOptions {
 	readonly requestType: 'GET' | 'POST';
 	readonly endpointOrUrl: IEndpoint | string | RequestMetadata;
-	readonly secretKey: string;
+	readonly secretKey: string | undefined;
 	readonly intent: string;
 	readonly requestId: string;
 	readonly body?: IEndpointBody;
@@ -435,7 +487,7 @@ function networkRequest(
 	const agentInteractionType = options.interactionTypeOverride ?? intent;
 
 	const headers: ReqHeaders = {
-		Authorization: `Bearer ${secretKey}`,
+		...(secretKey ? { Authorization: `Bearer ${secretKey}` } : {}),
 		'X-Request-Id': requestId,
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
 		'X-GitHub-Api-Version': '2026-01-09',
@@ -472,7 +524,7 @@ function networkRequest(
 		// pass the controller abort signal to the request
 		request.signal = abort.signal;
 	}
-	if (typeof endpoint.urlOrRequestMetadata === 'string') {
+	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
@@ -488,7 +540,7 @@ function networkRequest(
 		});
 		return requestPromise;
 	} else {
-		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
+		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata);
 	}
 }
 

@@ -25,8 +25,8 @@ import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvision
 // ---- Mocks -----------------------------------------------------------------
 
 interface IDispatchedAction {
+	readonly channel: string;
 	readonly type: string;
-	readonly session: string;
 	readonly config: Record<string, unknown>;
 }
 
@@ -53,8 +53,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposed.push(session);
 	}
 
-	override dispatch(action: Parameters<IAgentHostService['dispatch']>[0]): void {
-		this.dispatched.push(action as IDispatchedAction);
+	override dispatch(channel: Parameters<IAgentHostService['dispatch']>[0], action: Parameters<IAgentHostService['dispatch']>[1]): void {
+		this.dispatched.push({ channel, ...action } as IDispatchedAction);
 	}
 
 	override async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -156,7 +156,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(agentHost.dispatched.length, 1, 'dispatched before re-resolve await');
 		assert.strictEqual(agentHost.dispatched[0].type, ActionType.SessionConfigChanged);
 		assert.deepStrictEqual(agentHost.dispatched[0].config, { isolation: 'worktree' });
-		assert.strictEqual(agentHost.dispatched[0].session, expectedBackendUri('b').toString());
+		assert.strictEqual(agentHost.dispatched[0].channel, expectedBackendUri('b').toString());
 
 		// Unblock so the queued re-resolve completes and the outer promise settles.
 		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
@@ -179,6 +179,49 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(overlay?.values, resolved.values);
 		assert.strictEqual(agentHost.resolveCalls.length, 1);
 		assert.deepStrictEqual(agentHost.resolveCalls[0].config, { isolation: 'worktree' });
+	});
+
+	test('refreshResolvedConfig stores a schema overlay for running sessions', async () => {
+		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-j' });
+		const resolved: ResolveSessionConfigResult = {
+			schema: makeSchema(true),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		agentHost.resolveQueue = [resolved];
+
+		let changeFires = 0;
+		cleanup.add(provisional.onDidChange(uri => { if (uri.toString() === ui.toString()) { changeFires++; } }));
+
+		await provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'folder' });
+
+		assert.deepStrictEqual({
+			overlay: provisional.getResolvedConfig(ui),
+			changeFires,
+			resolveConfig: agentHost.resolveCalls[0].config,
+		}, {
+			overlay: resolved,
+			changeFires: 1,
+			resolveConfig: { isolation: 'folder' },
+		});
+	});
+
+	test('refreshResolvedConfig ignores stale running-session responses', async () => {
+		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-k' });
+		const first = new DeferredPromise<ResolveSessionConfigResult>();
+		const second = new DeferredPromise<ResolveSessionConfigResult>();
+		cleanup.add({ dispose: () => { first.cancel(); second.cancel(); } });
+		agentHost.resolveQueue = [first.p, second.p];
+
+		const a = provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'worktree' });
+		const b = provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'folder' });
+
+		first.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+		second.complete({ schema: makeSchema(true), values: { isolation: 'folder' } });
+
+		await a;
+		await b;
+
+		assert.deepStrictEqual(provisional.getResolvedConfig(ui), { schema: makeSchema(true), values: { isolation: 'folder' } });
 	});
 
 	test('optimistic merge: overlay.values reflects partial before re-resolve completes', async () => {

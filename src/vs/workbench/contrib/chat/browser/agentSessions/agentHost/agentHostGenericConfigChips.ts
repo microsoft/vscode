@@ -15,25 +15,11 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import type { IChatWidget } from '../../chat.js';
-import type { IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { AgentHostChatInputPicker, isClaimedByDedicatedPicker } from './agentHostChatInputPicker.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-
-function toBackendSessionUri(sessionResource: URI): URI | undefined {
-	const scheme = sessionResource.scheme;
-	const prefix = 'agent-host-';
-	if (!scheme.startsWith(prefix)) {
-		return undefined;
-	}
-	const provider = scheme.substring(prefix.length);
-	if (!provider) {
-		return undefined;
-	}
-	const rawId = sessionResource.path.replace(/^\//, '');
-	return URI.from({ scheme: provider, path: `/${rawId}` });
-}
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -66,7 +52,6 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 	constructor(
 		private readonly _widget: IChatWidget,
-		private readonly _pickerOptions: IChatInputPickerOptions | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
@@ -93,7 +78,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const backendSession = provisionalBackend
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
@@ -205,7 +190,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 			if (this._chips.has(property)) {
 				continue;
 			}
-			const chip = this._instantiationService.createInstance(AgentHostChatInputPicker, this._widget, property, this._pickerOptions);
+			const chip = this._instantiationService.createInstance(AgentHostChatInputPicker, this._widget, property);
 			// `chat-input-picker-item` matches the class that
 			// `ChatInputPickerActionViewItem` applies to the dedicated
 			// chips' container — required so the secondary-toolbar styling

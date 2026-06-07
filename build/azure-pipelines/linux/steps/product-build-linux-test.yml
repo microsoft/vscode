@@ -112,7 +112,9 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - script: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+    - script: |
+        set -e
+        npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
       timeoutInMinutes: 20
       displayName: 🧪 Run smoke tests (Electron)
 

@@ -19,8 +19,10 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
+import '../common/agentHost.config.contribution.js';
+import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
 
@@ -73,6 +75,15 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			|| process.env[AgentHostClaudeSdkPathEnvVar]
 			|| '';
 
+		// Codex agent is opt-in: enabled when the user points the binary-path
+		// setting at a locally-installed `codex` CLI, or when the env var is
+		// already set on the parent process (developer override).
+		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
+			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
+			|| '';
+		const codexHome = this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId) || '';
+		const codexArgs = this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId);
+
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
 		// (developer override) — see `buildAgentHostOTelEnv` for the precedence.
@@ -85,15 +96,20 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
 		}, process.env);
 
+		const args = [
+			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
+			'--user-data-dir', this._environmentMainService.userDataPath,
+		];
+		if (this._environmentMainService.disableTelemetry) {
+			args.push('--disable-telemetry');
+		}
+
 		this.utilityProcess.start({
 			type: 'agentHost',
 			name: 'agent-host',
 			entryPoint: 'vs/platform/agentHost/node/agentHostMain',
 			execArgv,
-			args: [
-				'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
-				'--user-data-dir', this._environmentMainService.userDataPath,
-			],
+			args,
 			env: {
 				...deepClone(process.env),
 				...shellEnv,
@@ -101,6 +117,9 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
 				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
+				...(codexBinaryPath ? { [AgentHostCodexAgentBinaryPathEnvVar]: codexBinaryPath } : {}),
+				...(codexHome ? { [AgentHostCodexAgentCodexHomeEnvVar]: codexHome } : {}),
+				...(Array.isArray(codexArgs) && codexArgs.length > 0 ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(codexArgs) } : {}),
 				...otelEnv,
 			}
 		});

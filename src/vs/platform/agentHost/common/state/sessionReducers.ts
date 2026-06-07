@@ -7,7 +7,7 @@
 // The actual reducer logic lives in the auto-generated protocol layer.
 
 // Re-export reducers from the protocol layer
-export { rootReducer, sessionReducer, softAssertNever, isClientDispatchable } from './protocol/reducers.js';
+export { rootReducer, sessionReducer, changesetReducer, softAssertNever, isClientDispatchable } from './protocol/reducers.js';
 
 import type { ICompletedToolCall, ToolCallState } from './sessionState.js';
 

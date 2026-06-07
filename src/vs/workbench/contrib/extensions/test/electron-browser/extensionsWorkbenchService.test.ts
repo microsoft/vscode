@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -33,7 +33,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { ExtensionType } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../../platform/environment/common/environment.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
@@ -422,6 +422,88 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		await testObject.queryLocal();
 
 		assert.ok(!testObject.local[0].outdated);
+	});
+
+	test('test isAutoUpdateDelayed returns true for a recently published version', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
+	});
+
+	test('test isAutoUpdateDelayed returns true for a recently published signed version', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */, true);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), true);
+	});
+
+	test('test isAutoUpdateDelayed returns false for a version published more than 2 hours ago', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60 * 3) /* 3 hours ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test isAutoUpdateDelayed returns false for a version with a future published timestamp', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() + (1000 * 60 * 60) /* 1 hour in the future */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test isAutoUpdateDelayed returns false when auto update is disabled', async () => {
+		stubConfiguration(false);
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.local[0].outdated, true);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test getAutoUpdateDelayRemaining returns remaining time within the delay window', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		const remaining = testObject.getAutoUpdateDelayRemaining(testObject.local[0]);
+		// Published 1 hour ago, so ~1 hour of the 2 hour window remains.
+		assert.ok(remaining > (1000 * 60 * 30) && remaining <= (1000 * 60 * 60), `unexpected remaining time ${remaining}`);
+	});
+
+	test('test getAutoUpdateDelayRemaining returns remaining time regardless of signing', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */, false);
+
+		const remaining = testObject.getAutoUpdateDelayRemaining(testObject.local[0]);
+		assert.ok(remaining > (1000 * 60 * 30) && remaining <= (1000 * 60 * 60), `unexpected remaining time ${remaining}`);
+	});
+
+	test('test getAutoUpdateDelayRemaining returns 0 when the published timestamp is missing', async () => {
+		testObject = await anOutdatedExtensionWorkbenchService(undefined);
+
+		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+	});
+
+	test('test getAutoUpdateDelayRemaining returns 0 for a trusted publisher', async () => {
+		instantiationService.stub(IProductService, { ...TestProductService, trustedExtensionPublishers: ['pub'] });
+		testObject = await anOutdatedExtensionWorkbenchService(Date.now() - (1000 * 60 * 60) /* 1 hour ago */);
+
+		assert.strictEqual(testObject.getAutoUpdateDelayRemaining(testObject.local[0]), 0);
+		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
+	});
+
+	test('test getAutoUpdateValue normalizes legacy insiders values', async () => {
+		const expected = new Map<unknown, AutoUpdateConfigurationValue>([
+			['on', true],
+			['delayed', true],
+			['off', false],
+			['onlySelectedExtensions', false],
+			[true, true],
+			[false, false],
+			['onlyEnabledExtensions', 'onlyEnabledExtensions'],
+		]);
+		for (const [configured, normalized] of expected) {
+			stubConfiguration(configured);
+			testObject = await aWorkbenchService();
+			assert.strictEqual(testObject.getAutoUpdateValue(), normalized, `unexpected value for ${String(configured)}`);
+		}
 	});
 
 	test('test canInstall returns false for extensions with out gallery', async () => {
@@ -911,6 +993,74 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => assert.fail('An extension with dependent should not be disabled'), () => null);
 			});
+	});
+
+	test('test reload prompt when disabling running extension', async () => {
+		const localExtension = aLocalExtension('my_extension', {}, { identifier: { id: 'my_publisher.my_extension' } });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
+
+		// Mock a running extension (not under development)
+		const runningExtension = {
+			identifier: new ExtensionIdentifier('my_publisher.my_extension'),
+			name: 'my_extension',
+			publisher: 'my_publisher',
+			version: '1.0.0',
+			engines: { vscode: '*' },
+			extensionLocation: localExtension.location,
+			isBuiltin: false,
+			isUserBuiltin: false,
+			isUnderDevelopment: false,
+			targetPlatform: getTargetPlatform(platform, arch),
+			preRelease: false
+		};
+		instantiationService.stub(IExtensionService, {
+			onDidChangeExtensions: Event.None,
+			extensions: [runningExtension],
+			canAddExtension() { return false; },
+			canRemoveExtension() { return false; },
+			async whenInstalledExtensionsRegistered() { return true; }
+		});
+
+		testObject = await aWorkbenchService();
+		const extension = testObject.local[0];
+
+		// Extension should require reload action when disabling
+		await testObject.setEnablement(extension, EnablementState.DisabledGlobally);
+		assert.strictEqual(extension.runtimeState?.action, ExtensionRuntimeActionType.RestartExtensions);
+	});
+
+	test('test no reload prompt when disabling extension under development', async () => {
+		const localExtension = aLocalExtension('my_extension', {}, { identifier: { id: 'my_publisher.my_extension' } });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
+
+		// Mock a running extension under development
+		const runningExtension = {
+			identifier: new ExtensionIdentifier('my_publisher.my_extension'),
+			name: 'my_extension',
+			publisher: 'my_publisher',
+			version: '1.0.0',
+			engines: { vscode: '*' },
+			extensionLocation: localExtension.location,
+			isBuiltin: false,
+			isUserBuiltin: false,
+			isUnderDevelopment: true,
+			targetPlatform: getTargetPlatform(platform, arch),
+			preRelease: false
+		};
+		instantiationService.stub(IExtensionService, {
+			onDidChangeExtensions: Event.None,
+			extensions: [runningExtension],
+			canAddExtension() { return false; },
+			canRemoveExtension() { return false; },
+			async whenInstalledExtensionsRegistered() { return true; }
+		});
+
+		testObject = await aWorkbenchService();
+		const extension = testObject.local[0];
+
+		// Extension should have no reload action required when disabling
+		await testObject.setEnablement(extension, EnablementState.DisabledGlobally);
+		assert.strictEqual(extension.runtimeState, undefined);
 	});
 
 	test('test enable extension with dependencies enable all', async () => {
@@ -1624,6 +1774,18 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
 		const workbenchService: ExtensionsWorkbenchService = disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		await workbenchService.queryLocal();
+		return workbenchService;
+	}
+
+	async function anOutdatedExtensionWorkbenchService(lastUpdated: number | undefined, isSigned: boolean = true): Promise<ExtensionsWorkbenchService> {
+		const local = aLocalExtension('a', { version: '1.0.1' });
+		const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier, version: '1.0.2', lastUpdated, isSigned });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		const workbenchService = await aWorkbenchService();
+		await workbenchService.checkForUpdates();
 		return workbenchService;
 	}
 

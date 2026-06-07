@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import type { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { CLAUDE_SDK_EXTENSION_ID, IClaudeAgentSdkLoaderService } from '../claude/common/claudeAgentSdkLoaderService';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -25,12 +26,12 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_REASONING_EFFORT_PROPERTY, formatClaudeModelDetails, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
+import { CLAUDE_CONTEXT_SIZE_PROPERTY, CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { formatModelDetailsWithCredits } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, formatModelDetailsWithMultiplier } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
@@ -88,6 +89,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
+		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -122,6 +124,27 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				return slashResult.result ?? {};
 			}
 
+			if (!this._sdkLoader.isAvailable) {
+				stream.markdown(vscode.l10n.t("Installing the Claude Agent SDK..."));
+				const installed = await this._sdkLoader.install(token);
+				if (!installed) {
+					if (token.isCancellationRequested) {
+						return {};
+					}
+					stream.button({
+						command: 'workbench.extensions.installExtension',
+						title: vscode.l10n.t("Install Claude Agent SDK"),
+						arguments: [CLAUDE_SDK_EXTENSION_ID],
+					});
+					return {
+						errorDetails: {
+							message: vscode.l10n.t("Failed to install {0}", CLAUDE_SDK_EXTENSION_ID)
+						}
+					};
+				}
+				stream.markdown(vscode.l10n.t("Done") + '\n\n');
+			}
+
 			const effectiveSessionId = ClaudeSessionUri.getSessionId(chatSessionContext.chatSessionItem.resource);
 			const yieldRequested = () => context.yieldRequested;
 
@@ -154,6 +177,10 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const reasoningEffort = pickReasoningEffort(endpoint, typeof rawReasoningEffort === 'string' ? rawReasoningEffort : undefined);
 			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
 
+			const rawContextSize = request.modelConfiguration?.[CLAUDE_CONTEXT_SIZE_PROPERTY];
+			const contextSize = typeof rawContextSize === 'number' && rawContextSize > 0 ? rawContextSize : undefined;
+			this.sessionStateService.setContextSizeForSession(effectiveSessionId, contextSize);
+
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {
 				stream.usage(usage);
@@ -181,12 +208,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			let details: string | undefined;
 			if (modelDetailsEnabled && endpoint) {
-				if (creditsUsed !== undefined) {
-					details = formatModelDetailsWithCredits(endpoint.name, creditsUsed);
-				} else {
-					details = formatClaudeModelDetails(endpoint);
-				}
+				details = formatModelDetails(endpoint.name, endpoint.multiplier, creditsUsed);
 			}
+
 			return {
 				...(details ? { details } : {}),
 				...(result.errorDetails ? { errorDetails: result.errorDetails } : {}),
@@ -226,7 +250,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	}
 
 	/**
-	 * Resolves the display string for each unique non-synthetic model id observed in the
+	 * Resolves model info for each unique non-synthetic model id observed in the
 	 * session's assistant messages. Returns `undefined` (not an empty map) when no model
 	 * ids are present, when the caller has cancelled, or when no ids resolve to known
 	 * endpoints — so callers can skip the per-turn details work entirely.
@@ -254,7 +278,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			}
 			const endpoint = await this.claudeModels.resolveEndpoint(modelId, undefined);
 			if (endpoint) {
-				detailsByModelId.set(modelId, formatClaudeModelDetails(endpoint));
+				detailsByModelId.set(modelId, formatModelDetailsWithMultiplier(endpoint.name, endpoint.multiplier));
 			}
 		}));
 		if (token.isCancellationRequested) {
@@ -303,6 +327,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
 		@IAuthenticationService _authenticationService: IAuthenticationService,
 		@IExperimentationService experimentationService: IExperimentationService,
+		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
 	) {
 		super();
 		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService, experimentationService);
@@ -322,7 +347,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 				_authenticationService.onDidAuthenticationChange,
 			),
 			() => _configurationService.getExperimentBasedConfig(ConfigKey.ClaudeAgentAllowAutoPermissions, experimentationService)
-				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? false),
+				// True is a fallback because the input group state currently doesn't support updating the values after initialization
+				// This is a temporary workaround until the input group state can be updated dynamically.
+				&& (_authenticationService.copilotToken?.isEditorPreviewFeaturesEnabled() ?? true),
 		);
 
 		// Bridge vscode.Event → internal Event for workspace folder changes
@@ -429,6 +456,17 @@ export class ClaudeChatSessionItemController extends Disposable {
 			this._showBadge = this._computeShowBadge();
 			void this._refreshItems(CancellationToken.None);
 		}));
+
+		// When the Claude SDK extension is installed at runtime, refresh the sessions list once
+		if (!this._sdkLoader.isAvailable) {
+			const listener = vscode.extensions.onDidChange(() => {
+				if (this._sdkLoader.isAvailable) {
+					listener.dispose();
+					void this._refreshItems(CancellationToken.None);
+				}
+			});
+			this._register(listener);
+		}
 
 		this._setupInputState();
 	}

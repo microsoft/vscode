@@ -62,6 +62,7 @@ const createMockServices = () => ({
 		createInstance: (ctor: any, ...args: any[]) => new ctor(...args)
 	} as IInstantiationService,
 	configurationService: {
+		getConfig: () => ({}),
 		getExperimentBasedConfig: () => false
 	} as unknown as IConfigurationService,
 	expService: {} as IExperimentationService,

@@ -5,19 +5,15 @@
 
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -25,17 +21,14 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
-import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
-import { LoggingAgentConnection } from './loggingAgentConnection.js';
-import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -50,8 +43,6 @@ export { AgentHostSessionListController } from './agentHostSessionListController
 export class AgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostContribution';
-
-	private _loggedConnection: LoggingAgentConnection | undefined;
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
@@ -75,11 +66,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
-		@IPromptsService private readonly _promptsService: IPromptsService,
-		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 	) {
 		super();
 
@@ -88,13 +76,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
 		}
-
-		// Wrap the agent host service with logging to a dedicated output channel
-		this._loggedConnection = this._register(this._instantiationService.createInstance(
-			LoggingAgentConnection,
-			this._agentHostService,
-			`agenthost.${this._agentHostService.clientId}`,
-			'Agent Host (Local)'));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
@@ -172,56 +153,38 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName,
 			description: agent.description,
+			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
 			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
 		this._listControllers.set(agent.provider, listController);
 		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
-		// Customization disable provider + item provider + bundler + observable
-		const syncProvider = store.add(new AgentCustomizationSyncProvider(sessionType, this._storageService));
-		const itemProvider = store.add(new AgentCustomizationItemProvider(agent, this._loggedConnection!, 'local', this._fileService, this._logService));
-		const bundler = store.add(this._instantiationService.createInstance(SyncedCustomizationBundler, sessionType));
-		// Distinguish from the extension-host Copilot CLI harness, which
-		// registers under the same `Copilot CLI` displayName via the chat
-		// session customization provider API. Without the `[Local]` suffix
-		// both harnesses render identically in the customizations view.
-		// Matches the workspace-label convention from
-		// `buildAgentHostSessionWorkspace` and the provider-name in
-		// `getAgentSessionProviderName(AgentHostCopilot)`.
+		const agentRegistration = store.add(this._activeClientService.registerForAgent(sessionType));
+		const syncProvider = agentRegistration.syncProvider;
+
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
+		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: localize('agentHostHarnessLabel.local', "{0} [Local]", agent.displayName),
+			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [],
 			hideGenerateButton: true,
-			getStorageSourceFilter: () => ({ sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin] }),
+			getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 			syncProvider,
 			itemProvider,
 		}));
-
-		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
-		const updateCustomizations = async () => {
-			const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
-			customizations.set(refs, undefined);
-		};
-		store.add(syncProvider.onDidChange(() => updateCustomizations()));
-		store.add(Event.any(
-			this._promptsService.onDidChangeCustomAgents,
-			this._promptsService.onDidChangeSlashCommands,
-			this._promptsService.onDidChangeSkills,
-			this._promptsService.onDidChangeInstructions,
-		)(() => updateCustomizations()));
-		updateCustomizations(); // resolve initial state
 
 		// Session handler
 		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
@@ -230,11 +193,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			sessionType,
 			fullName: agent.displayName,
 			description: agent.description,
-			connection: this._loggedConnection!,
+			connection: this._agentHostService,
 			connectionAuthority: 'local',
 			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
-			customizations,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
@@ -278,11 +240,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
 				logService: this._logService,
-				authenticate: request => this._loggedConnection!.authenticate(request),
+				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
-			this._loggedConnection!.logError('authenticateWithServer', err);
 		} finally {
 			this._agentHostService.setAuthenticationPending(false);
 		}
@@ -301,11 +262,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
 				logService: this._logService,
-				authenticate: request => this._loggedConnection!.authenticate(request),
+				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
-			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);
 		}
 		return false;
 	}

@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -23,19 +23,15 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { type ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../../common/agentHostSessionsProvider.js';
+import { ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../../services/sessions/common/session.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
+import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
-
-const IsActiveSessionAgentHost = ContextKeyExpr.or(
-	ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
-	ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
-);
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
 
@@ -100,6 +96,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private _containerElement: HTMLElement | undefined;
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
 
@@ -110,8 +107,10 @@ class MobileChatInputConfigPicker extends Disposable {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
 		super();
+		this._register(this._newChatModelPickerService.registerModelPicker(() => { void this._showSheet(); }));
 
 		// Re-render the trigger whenever the active session, its config,
 		// its model, or the available language models change. The
@@ -158,6 +157,7 @@ class MobileChatInputConfigPicker extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._renderDisposables.clear();
+		this._containerElement = container;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-picker-slot-mobile-config'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
@@ -218,19 +218,24 @@ class MobileChatInputConfigPicker extends Disposable {
 	}
 
 	private _updateTrigger(): void {
-		if (!this._slotElement || !this._triggerElement) {
+		if (!this._slotElement || !this._triggerElement || !this._containerElement) {
 			return;
 		}
 
 		const ctx = this._getContext();
 		// Hide the chip when there's nothing to pick (no mode AND no
 		// models). In that state the toolbar is more compact rather than
-		// showing a no-op trigger.
+		// showing a no-op trigger. Also collapse the wrapping
+		// `.action-item` that `MenuWorkbenchToolBar` created — hiding
+		// only the inner slot leaves the wrapper occupying its
+		// `min-width` floor and produces a visible empty gap.
 		if (!ctx || (ctx.modeItems.length === 0 && ctx.modelItems.length === 0)) {
 			this._slotElement.style.display = 'none';
+			this._containerElement.style.display = 'none';
 			return;
 		}
 		this._slotElement.style.display = '';
+		this._containerElement.style.display = '';
 
 		// Auto-resolve the model: if the session has no explicit model
 		// selection yet, push the remembered model (or first available)
@@ -262,8 +267,6 @@ class MobileChatInputConfigPicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;
 
-		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
-
 		const ariaParts: string[] = [];
 		if (ctx.currentMode) {
 			const modeItem = ctx.modeItems.find(i => i.value === ctx.currentMode);
@@ -277,6 +280,12 @@ class MobileChatInputConfigPicker extends Disposable {
 			"Pick Mode and Model, {0}",
 			ariaParts.join(', '),
 		);
+
+		// Sheet's mode row writes through `setSessionConfigValue`, so
+		// disable the chip while a resolve is in flight.
+		const isResolving = ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get();
+		this._slotElement.classList.toggle('disabled', isResolving);
+		this._triggerElement.setAttribute('aria-disabled', isResolving ? 'true' : 'false');
 	}
 
 	/**
@@ -306,13 +315,20 @@ class MobileChatInputConfigPicker extends Disposable {
 		if (!this._triggerElement) {
 			return;
 		}
+		// Sheet's mode row writes through `setSessionConfigValue`; the
+		// chip retains its tap target while visually disabled, so
+		// guard explicitly.
+		const ctx = this._getContext();
+		if (ctx && ctx.provider.isSessionConfigResolving(ctx.session.sessionId).get()) {
+			return;
+		}
 		// Delegate sheet construction to the shared phone presenter so
 		// the new-session chip and the opened-chat chip render the exact
 		// same Mode + Model rows. The presenter's agent-host branch
 		// reads the active session's config + filtered models and
 		// handles the writes (provider mode/model + shared storage key).
 		const trigger = this._triggerElement;
-		const beforeCtx = this._getContext();
+		const beforeCtx = ctx;
 		const beforeMode = beforeCtx?.currentMode;
 		const beforeModeItem = beforeCtx?.modeItems.find(i => i.value === beforeMode);
 		const beforeModelId = beforeCtx?.currentModelId;
@@ -372,7 +388,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 0,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext),
+				when: ContextKeyExpr.and(ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext),
 			}],
 		});
 	}
@@ -395,14 +411,26 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		// The agent host owns the "combined config picker" decision: on phone
+		// layouts it replaces the standalone mode + model pickers with a single
+		// bottom sheet. Publish this as a neutral context key so the core model
+		// picker can gate itself out without depending on agent-host identity.
+		const usesCombinedPicker = ActiveSessionUsesCombinedConfigPickerContext.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			const session = sessionsManagementService.activeSession.read(reader);
+			usesCombinedPicker.set(!!session && isAgentHostProviderId(session.providerId));
+		}));
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
 			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
-			() => {
-				const picker = instantiationService.createInstance(MobileChatInputConfigPicker);
+			(_action, _options, scopedInstantiationService) => {
+				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker);
 				return new MobileChatInputConfigPickerActionViewItem(picker);
 			},
 		));

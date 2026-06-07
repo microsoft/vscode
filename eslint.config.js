@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
+import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
@@ -22,7 +23,7 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
-export default tseslint.config(
+export default defineConfig(
 	// Global ignores
 	{
 		ignores: [
@@ -186,6 +187,18 @@ export default tseslint.config(
 			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
+	// Force all gulp imports under build/ to go through the gulp facade
+	{
+		files: [
+			'build/**/*.ts',
+		],
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-direct-gulp-import': 'warn',
+		}
+	},
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
@@ -326,7 +339,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
-			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
+			'src/vs/platform/agentHost/common/state/protocol/**',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
@@ -1490,12 +1503,13 @@ export default tseslint.config(
 					'when': 'hasNode',
 					'allow': [
 						'@github/copilot-sdk',
+						'zod',
 						'@microsoft/dev-tunnels-contracts',
 						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
-						'@vscode/ripgrep',
+						'@vscode/ripgrep-universal',
 						'@vscode/iconv-lite-umd',
 						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
@@ -1633,7 +1647,10 @@ export default tseslint.config(
 						'@vscode/tree-sitter-wasm', // used by agentHost for command auto-approval
 						'@vscode/copilot-api', // used by agentHost for Copilot API requests
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
-						'@anthropic-ai/claude-agent-sdk' // used by agentHost for Claude Agent SDK session enumeration / queries
+						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
+						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
+						'@github/copilot-sdk',
+						'zod' // used by agentHost for Claude client-tool MCP input schemas
 					]
 				},
 				{
@@ -1656,7 +1673,8 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
-						'@vscode/tree-sitter-wasm' // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // node module allowed even in /common/
+						'@vscode/diff' // type import (loaded at runtime via resolveAmdNodeModulePath)
 					]
 				},
 				{

@@ -22,13 +22,14 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
-import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../common/terminalSandboxRuntimeConfigurationPerOperation.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../../../../../platform/sandbox/common/terminalSandboxMxcRuntime.js';
+import { getTerminalSandboxRuntimeConfigurationForCommands } from '../../../../../../platform/sandbox/common/terminalSandboxRuntimeConfigurationPerOperation.js';
 
 suite('TerminalSandboxService - network domains', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,6 +53,10 @@ suite('TerminalSandboxService - network domains', () => {
 			createFileCount++;
 			const contentString = content.toString();
 			createdFiles.set(uri.path, contentString);
+			createdFiles.set(uri.fsPath, contentString);
+			if (/^\/[a-zA-Z]:/.test(uri.path)) {
+				createdFiles.set(uri.path.slice(1).replace(/\//g, '\\'), contentString);
+			}
 			return {};
 		}
 
@@ -96,8 +101,8 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-			// Return a Linux environment to ensure tests pass on Windows
-			// (sandbox is not supported on Windows)
+			// Return a Linux environment so the default test expectations are
+			// independent of the local OS.
 			return this.remoteEnvironment;
 		}
 	}
@@ -157,10 +162,77 @@ suite('TerminalSandboxService - network domains', () => {
 			bubblewrapInstalled: true,
 			socatInstalled: true,
 		};
+		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
+			readonlyPaths: ['c:\\tools\\node'],
+			readwritePaths: [],
+		};
+		environment = [
+			'SystemRoot=c:\\windows',
+			'PATH=c:\\tools\\node;c:\\windows\\system32',
+			'ComSpec=c:\\windows\\system32\\cmd.exe',
+			'PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1',
+			'PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules',
+			'USERPROFILE=c:\\users\\test',
+			'APPDATA=c:\\users\\test\\appdata\\roaming',
+			'PSHOME=c:\\program files\\powershell\\7'
+		];
 
 		checkSandboxDependencies(): Promise<ISandboxDependencyStatus> {
 			this.callCount++;
 			return Promise.resolve(this.status);
+		}
+
+		getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy> {
+			return Promise.resolve(this.filesystemPolicy);
+		}
+
+		getWindowsMxcEnvironment(): Promise<string[]> {
+			return Promise.resolve(this.environment);
+		}
+
+		buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName: string = 'vscode-terminal-sandbox', containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig> {
+			const clearPolicy = policy.filesystem?.clearPolicyOnExit ?? true;
+			return Promise.resolve({
+				version: policy.version,
+				containerId: containerName,
+				containment,
+				lifecycle: {
+					destroyOnExit: true,
+					preservePolicy: !clearPolicy,
+				},
+				process: {
+					commandLine,
+					cwd: workingDirectory,
+					timeout: policy.timeoutMs ?? 0,
+				},
+				processContainer: {
+					name: containerName,
+					leastPrivilege: false,
+					capabilities: policy.network?.allowOutbound ? ['internetClient'] : [],
+					ui: {
+						isolation: 'container',
+						desktopSystemControl: false,
+						systemSettings: 'none',
+						ime: false,
+					},
+				},
+				filesystem: {
+					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
+					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
+					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
+				},
+				network: {
+					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
+					...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' : 'capabilities' } : {}),
+					...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
+					...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+				},
+				ui: {
+					disable: !(policy.ui?.allowWindows ?? false),
+					clipboard: policy.ui?.clipboard ?? 'none',
+					injection: policy.ui?.allowInputInjection ?? false,
+				},
+			});
 		}
 	}
 
@@ -186,17 +258,19 @@ suite('TerminalSandboxService - network domains', () => {
 		// Setup default configuration
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string }>{
+		instantiationService.stub(IEnvironmentService, <IEnvironmentService & { tmpDir?: URI; execPath?: string; window?: { id: number }; userHome?: URI; userDataPath?: string; workspaceStorageHome?: URI }>{
 			_serviceBrand: undefined,
 			tmpDir: URI.file('/tmp'),
 			execPath: '/usr/bin/node',
 			userHome: URI.file('/home/local-user'),
 			userDataPath: '/custom/local-user-data',
+			workspaceStorageHome: URI.file('/local-workspace-storage'),
 			window: { id: windowId }
 		});
 		instantiationService.stub(ILogService, new NullLogService());
@@ -205,6 +279,7 @@ suite('TerminalSandboxService - network domains', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceContextService);
 		instantiationService.stub(ILifecycleService, lifecycleService);
 		instantiationService.stub(ISandboxHelperService, sandboxHelperService);
+		instantiationService.stub(IWindowsMxcTerminalSandboxRuntime, instantiationService.createInstance(WindowsMxcTerminalSandboxRuntime));
 	});
 
 	test('dependency checks should not be called for isEnabled', async () => {
@@ -544,6 +619,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		ok(config.filesystem.denyRead.includes('/home/user'), 'Sandbox config should deny arbitrary reads from the user home');
 		ok(config.filesystem.allowRead.includes(expectedWorkspaceStoragePath), 'Sandbox config should re-allow reads from workspace storage');
+		ok(config.filesystem.allowWrite.includes(expectedWorkspaceStoragePath), 'Sandbox config should allow writes to workspace storage');
 	});
 
 	test('should only add command-specific allow-list paths for the current command details', async () => {
@@ -809,6 +885,22 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
 	});
 
+	if (OS === OperatingSystem.Linux) {
+		test('should apply ELECTRON_RUN_AS_NODE to the sandbox runtime after the Linux temp-dir cd', async () => {
+			remoteAgentService.remoteEnvironment = null;
+			const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+			await sandboxService.getSandboxConfigPath();
+
+			const wrapResult = await sandboxService.wrapCommand('head -1 /etc/shells', false, 'bash', URI.file('/workspace-one'));
+			const expectedWrappedCwd = String.raw`-c 'cd '\''/workspace-one'\'' && head -1 /etc/shells'`;
+
+			ok(wrapResult.command.startsWith(`cd '${sandboxService.getTempDir()?.path}'; ELECTRON_RUN_AS_NODE=1 PATH="$PATH:`), 'ELECTRON_RUN_AS_NODE should apply to the sandbox runtime, not the temp-dir cd');
+			ok(!wrapResult.command.startsWith('ELECTRON_RUN_AS_NODE=1 cd '), 'ELECTRON_RUN_AS_NODE should not apply to the temp-dir cd command');
+			ok(wrapResult.command.includes(expectedWrappedCwd), `Sandboxed command should restore the original cwd before running the user command. Actual: ${wrapResult.command}`);
+			strictEqual(wrapResult.isSandboxWrapped, true, 'Command should remain sandbox wrapped');
+		});
+	}
+
 	test('should preserve TMPDIR when unsandboxed execution is requested', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
@@ -850,6 +942,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should switch to unsandboxed execution when a domain is not allowlisted', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -861,8 +954,36 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
+	test('should request network-enabled sandbox execution for a non-allowlisted domain when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Blocked domains should stay sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains should require network confirmation');
+		strictEqual(wrapResult.requiresUnsandboxConfirmation, undefined, 'Blocked domains should not request unsandbox confirmation when a safer network request is available');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
+	});
+
+	test('should request network-enabled sandbox execution even when unsandboxed commands are disabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://example.com', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Network access should not require leaving the sandbox');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Network access should be confirmable independently from unsandboxed execution');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
+	});
+
 	test('should keep blocked-domain commands sandboxed when unsandboxed commands are disabled', async () => {
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, false);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -896,6 +1017,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should give denied domains precedence over allowlisted domains', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
@@ -904,6 +1026,21 @@ suite('TerminalSandboxService - network domains', () => {
 		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Denied domains should not stay sandboxed');
+		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
+		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
+	});
+
+	test('should allow confirmed sandboxed network override for explicitly denied domains when enabled', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = await sandboxService.wrapCommand('curl https://api.github.com/repos/microsoft/vscode', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Denied domains should remain filesystem sandboxed when network requests are enabled');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Explicitly denied domains should require network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['api.github.com']);
 		deepStrictEqual(wrapResult.deniedDomains, ['api.github.com']);
 	});
@@ -979,11 +1116,13 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const testComResult = await sandboxService.wrapCommand('curl test.com', false, 'bash');
-		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
+		strictEqual(testComResult.isSandboxWrapped, true, 'Well-known bare domain suffixes should keep the command sandboxed pending network confirmation');
+		strictEqual(testComResult.requiresAllowNetworkConfirmation, true, 'Well-known bare domain suffixes should trigger allow-network confirmation');
 		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
 
 		const testOrgComResult = await sandboxService.wrapCommand('curl test.org.com', false, 'bash');
-		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
+		strictEqual(testOrgComResult.isSandboxWrapped, true, 'Well-known bare domain suffixes should keep multi-label hosts sandboxed pending network confirmation');
+		strictEqual(testOrgComResult.requiresAllowNetworkConfirmation, true, 'Well-known bare domain suffixes should trigger allow-network confirmation for multi-label hosts');
 		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
 	});
 
@@ -993,7 +1132,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'URL authorities should stay sandboxed pending network confirmation even when their suffix looks like a file extension');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'URL authorities should still trigger allow-network prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
 	});
 
@@ -1003,7 +1143,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'URL authorities should stay sandboxed pending network confirmation without requiring a well-known bare-host suffix');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'URL authorities should trigger allow-network prompts without requiring a well-known bare-host suffix');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
 	});
 
@@ -1013,7 +1154,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH remotes should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'SSH remotes should stay sandboxed pending network confirmation even when their suffix looks like a file extension');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'SSH remotes should still trigger allow-network prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
 	});
 
@@ -1080,7 +1222,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrapResult = await sandboxService.wrapCommand('git clone git@github.com:microsoft/vscode.git');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH-style remotes should trigger domain checks');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'SSH-style remotes should stay sandboxed pending network confirmation');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'SSH-style remotes should trigger allow-network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['github.com']);
 	});
 
@@ -1125,10 +1268,10 @@ suite('TerminalSandboxService - network domains', () => {
 		const command = 'echo $HOME $(curl eth0.me) `id`';
 		const wrapResult = await sandboxService.wrapCommand(command, false, 'bash');
 
-		strictEqual(wrapResult.isSandboxWrapped, false, 'Commands with blocked domains inside substitutions should not stay sandboxed');
-		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains inside substitutions should require confirmation');
+		strictEqual(wrapResult.isSandboxWrapped, true, 'Commands with blocked domains inside substitutions should stay sandboxed pending network confirmation');
+		strictEqual(wrapResult.requiresAllowNetworkConfirmation, true, 'Blocked domains inside substitutions should require allow-network confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['eth0.me']);
-		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo $HOME $(curl eth0.me) \`id\`'`);
+		ok(wrapResult.command.includes('--settings'), 'Command should remain wrapped with the sandbox runtime');
 	});
 
 	test('should escape single-quote breakout payloads in wrapped command argument', async () => {
@@ -1159,5 +1302,109 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const wrappedCommand = (await sandboxService.wrapCommand(`echo 'hello'`)).command;
 		strictEqual((wrappedCommand.match(/\\''/g) ?? []).length, 2, 'Single quote escapes should be inserted for each embedded single quote');
+	});
+
+	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
+		if (isWindows) {
+			// Local Windows uses MXC, which launches wxc-exec.exe directly instead of SRT through Electron-as-Node.
+			this.skip();
+		}
+		remoteAgentService.remoteEnvironment = null;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapped = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(wrapped.command.startsWith('ELECTRON_RUN_AS_NODE=1 '), `Local workbench should run Electron as Node. Actual: ${wrapped.command}`);
+	});
+
+	test('should omit ELECTRON_RUN_AS_NODE=1 prefix when a remote env is available', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapped = await sandboxService.wrapCommand('echo test');
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(!wrapped.command.startsWith('ELECTRON_RUN_AS_NODE='), `Remote workbench should not add the env prefix. Actual: ${wrapped.command}`);
+	});
+
+	test('should route remote Windows sandbox commands through MXC', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.AllowNetwork);
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Windows,
+			appRoot: URI.file('/c:/app'),
+			execPath: 'c:\\app\\Code.exe',
+			tmpDir: URI.file('/c:/tmp'),
+			userHome: URI.file('/c:/Users/test'),
+			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
+			arch: 'arm64'
+		};
+		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		const configPath = await sandboxService.getSandboxConfigPath();
+		const wrapped = await sandboxService.wrapCommand('echo test', false, 'c:\\program files\\powershell\\7\\pwsh.exe', URI.file('/c:/workspace-one'));
+
+		ok(configPath, 'Config path should be defined for remote Windows');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created for remote Windows');
+		const config = JSON.parse(configContent);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
+		strictEqual(config.version, '0.4.0-alpha');
+		strictEqual(config.containment, 'process');
+		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
+		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo test"');
+		strictEqual(config.process.cwd, 'c:\\workspace-one');
+		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
+		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
+		ok(config.process.env.includes('ComSpec=c:\\windows\\system32\\cmd.exe'), 'ComSpec should be injected into the MXC process env');
+		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1'), 'PATHEXT should be injected into the MXC process env');
+		ok(config.process.env.includes('PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules'), 'PSModulePath should be injected into the MXC process env');
+		ok(config.process.env.includes('USERPROFILE=c:\\users\\test'), 'USERPROFILE should be injected into the MXC process env');
+		ok(config.process.env.includes('APPDATA=c:\\users\\test\\appdata\\roaming'), 'APPDATA should be injected into the MXC process env');
+		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
+		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
+		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
+		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
+		ok(config.filesystem.readonlyPaths.includes('c:\\program files\\powershell\\7'), 'Resolved PowerShell executable directory should be readable in the MXC config');
+		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
+	});
+
+	test('should keep remote Windows sandbox disabled unless Windows sandbox setting allows network', async () => {
+		remoteAgentService.remoteEnvironment = {
+			...remoteAgentService.remoteEnvironment!,
+			os: OperatingSystem.Windows,
+			appRoot: URI.file('/c:/app'),
+			execPath: 'c:\\app\\Code.exe',
+			tmpDir: URI.file('/c:/tmp'),
+			userHome: URI.file('/c:/Users/test'),
+			workspaceStorageHome: URI.file('/c:/Users/test/AppData/Roaming/Code/User/workspaceStorage'),
+			arch: 'x64'
+		};
+		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+
+		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled when the Windows sandbox setting is off');
+		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the Windows setting is enabled');
+		const prereqs = await sandboxService.checkForSandboxingPrereqs();
+		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the Windows setting is disabled');
+		strictEqual(prereqs.failedCheck, undefined, 'No prereq check should fail when Windows sandboxing is disabled');
+	});
+
+	test('should place sandbox temp dir under the local data folder when no remote env is available', async function () {
+		if (isWindows) {
+			// Local Windows uses MXC, which does not use the POSIX local temp-dir path shape asserted below.
+			this.skip();
+		}
+		remoteAgentService.remoteEnvironment = null;
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const expectedTempDir = URI.joinPath(URI.file('/home/local-user'), productService.dataFolderName, 'tmp', `tmp_vscode_${windowId}`);
+		strictEqual(sandboxService.getTempDir()?.path, expectedTempDir.path, 'Local workbench should fall back to the native user home + dataFolderName for the temp dir');
 	});
 });

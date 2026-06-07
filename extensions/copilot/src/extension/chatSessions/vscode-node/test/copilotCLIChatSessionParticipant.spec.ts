@@ -19,6 +19,7 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
+import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import type { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { MockExtensionContext } from '../../../../platform/test/node/extensionContext';
 import { IWorkspaceService, NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
@@ -253,7 +254,8 @@ async function waitForScheduledUntitledSwap(): Promise<void> {
 }
 
 class TestCopilotCLISession extends CopilotCLISession {
-	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
+	public requests: Array<{ input: CopilotCLISessionInput; attachments: Attachment[]; model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined; authInfo: NonNullable<SessionOptions['authInfo']>; token: vscode.CancellationToken }> = [];
+	public readonly attachedStreams: vscode.ChatResponseStream[] = [];
 	public permissionLevel: string | undefined;
 	public static nextHandleRequestResult: Promise<void> | undefined;
 	public static handleRequestHook: ((request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput) => Promise<void>) | undefined;
@@ -262,12 +264,16 @@ class TestCopilotCLISession extends CopilotCLISession {
 	override get status(): vscode.ChatSessionStatus | undefined {
 		return TestCopilotCLISession.statusOverride;
 	}
-	override handleRequest(request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput, attachments: Attachment[], model: { model: string; reasoningEffort?: string } | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: vscode.CancellationToken): Promise<void> {
+	override handleRequest(request: { id: string; toolInvocationToken: vscode.ChatParticipantToolToken; sessionResource?: vscode.Uri }, input: CopilotCLISessionInput, attachments: Attachment[], model: { model: string; reasoningEffort?: string; contextTier?: 'default' | 'long_context' } | undefined, authInfo: NonNullable<SessionOptions['authInfo']>, token: vscode.CancellationToken): Promise<void> {
 		this.requests.push({ input, attachments, model, authInfo, token });
 		if (TestCopilotCLISession.handleRequestHook) {
 			return TestCopilotCLISession.handleRequestHook(request, input);
 		}
 		return TestCopilotCLISession.nextHandleRequestResult ?? Promise.resolve();
+	}
+	override attachStream(stream: vscode.ChatResponseStream): ReturnType<CopilotCLISession['attachStream']> {
+		this.attachedStreams.push(stream);
+		return super.attachStream(stream);
 	}
 	override setPermissionLevel(level: string | undefined): void {
 		this.permissionLevel = level;
@@ -406,13 +412,13 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService());
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], false, logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any, { _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any, new NullTelemetryService());
 				cliSessions.push(session);
 				return disposables.add(session);
 			}
 		} as unknown as IInstantiationService;
 		customSessionTitleService = new CustomSessionTitleService(new MockExtensionContext() as unknown as IVSCodeExtensionContext, accessor.get(IInstantiationService), logService, new MockChatSessionMetadataStore());
-		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), models as unknown as ICopilotCLIModels));
+		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), models as unknown as ICopilotCLIModels, new NullExperimentationService()));
 
 		manager = await sessionService.getSessionManager() as unknown as MockCliSdkSessionManager;
 		contentProvider = new class extends mock<CopilotCLIChatSessionContentProvider>() {
@@ -659,14 +665,29 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(itemProvider.swap).not.toHaveBeenCalled();
 	});
 
-	it.skip('returns early when yield is requested while the session is still running', async () => {
+	it('returns early when yield is requested and attaches steering stream while the session is still running', async () => {
 		const sessionId = 'existing-yield';
 		const sdkSession = new MockCliSdkSession(sessionId, new Date());
 		manager.sessions.set(sessionId, sdkSession);
-		let resolveHandleRequest!: () => void;
+		let resolveFirstRequest!: () => void;
+		let resolveSecondRequest!: () => void;
+		let resolveSecondRequestStarted!: () => void;
 		let yieldRequested = false;
-		TestCopilotCLISession.nextHandleRequestResult = new Promise<void>(resolve => {
-			resolveHandleRequest = resolve;
+		const firstRequestDeferred = new Promise<void>(resolve => {
+			resolveFirstRequest = resolve;
+		});
+		const secondRequestDeferred = new Promise<void>(resolve => {
+			resolveSecondRequest = resolve;
+		});
+		const secondRequestStarted = new Promise<void>(resolve => {
+			resolveSecondRequestStarted = resolve;
+		});
+		TestCopilotCLISession.handleRequestHook = vi.fn((_request, input) => {
+			if (input.prompt === 'Continue') {
+				return firstRequestDeferred;
+			}
+			resolveSecondRequestStarted();
+			return secondRequestDeferred;
 		});
 
 		const request = new TestChatRequest('Continue');
@@ -691,11 +712,24 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		expect(resolved).toBe(false);
 
 		yieldRequested = true;
-		await new Promise(resolve => setTimeout(resolve, 600));
+		await new Promise(resolve => setTimeout(resolve, 150));
 		expect(resolved).toBe(true);
-
-		resolveHandleRequest();
 		await handlerPromise;
+
+		const steeringRequest = new TestChatRequest('Steer');
+		steeringRequest.sessionResource = request.sessionResource;
+		const steeringContext = createChatContext(sessionId, false, steeringRequest);
+		const steeringStream = new MockChatResponseStream();
+		const steeringToken = disposables.add(new CancellationTokenSource()).token;
+		const steeringPromise = participant.createHandler()(steeringRequest, steeringContext, steeringStream, steeringToken);
+		await secondRequestStarted;
+
+		expect(cliSessions[0].attachedStreams).toEqual([stream, steeringStream]);
+
+		resolveSecondRequest();
+		await steeringPromise;
+		resolveFirstRequest();
+		await new Promise(resolve => setTimeout(resolve, 0));
 	});
 
 	it('defers worktree handleRequestCompleted until all steering requests complete', async () => {
