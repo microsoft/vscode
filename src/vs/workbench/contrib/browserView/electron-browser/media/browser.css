@@ -60,7 +60,7 @@
 		display: flex;
 		align-items: center;
 		box-sizing: border-box;
-		min-width: 220px;
+		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
 		border-radius: var(--vscode-cornerRadius-medium);
@@ -73,7 +73,8 @@
 	.browser-url-bar-widgets {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
+		flex-shrink: 1;
+		overflow: hidden;
 		padding: 2px;
 		gap: 2px;
 	}
@@ -279,7 +280,8 @@
 		display: flex;
 		align-items: center;
 		margin: 0;
-		flex-shrink: 0;
+		min-width: 0;
+		flex-shrink: 1;
 
 		.browser-share-toggle {
 			padding: 2px 4px;
@@ -289,6 +291,12 @@
 			white-space: nowrap;
 			gap: 4px;
 			outline: none !important;
+
+			> span:not(.codicon) {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 
 			&:focus-visible {
 				outline: 1px solid var(--vscode-focusBorder) !important;
@@ -708,7 +716,7 @@
 
 	.browser-url-display {
 		flex: 1;
-		min-width: 0;
+		min-width: 60px;
 		display: block;
 		box-sizing: border-box;
 		padding: 4px 6px;
@@ -720,6 +728,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		outline: none !important;
+
+		&:focus-within {
+			text-overflow: clip;
+		}
 
 		&:empty::before {
 			content: attr(data-placeholder);

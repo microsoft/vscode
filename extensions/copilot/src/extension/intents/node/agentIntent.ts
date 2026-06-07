@@ -19,7 +19,7 @@ import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
-import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -49,7 +49,7 @@ import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIn
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, resolveSummaryAnchorRoundId, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
@@ -69,6 +69,7 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -99,8 +100,17 @@ export function isTodoToolExplicitlyEnabled(request: vscode.ChatRequest): boolea
  *
  * @internal - exported for testing
  */
-export function isBackgroundTodoAgentEnabled(configurationService: IConfigurationService, experimentationService: IExperimentationService, request: vscode.ChatRequest): boolean {
-	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
+export function isBackgroundTodoAgentEnabled(
+	endpoint: IChatEndpoint,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+	authenticationService: IAuthenticationService,
+	request: vscode.ChatRequest): boolean {
+	const token = authenticationService.copilotToken;
+
+	// Only enable for a signed in no-free plan user talking to the CAPI endpoint.
+	const isEnabledForToken = token !== undefined && !token.isFreeUser && !token.isNoAuthUser && isCAPIEndpoint(endpoint);
+	return isEnabledForToken && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
 		&& !isTodoToolExplicitlyEnabled(request);
 }
 
@@ -148,6 +158,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
+	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
+
 	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -180,10 +192,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// BYOK endpoints that own their `Authorization` have no Copilot token for the
-	// agentic proxy or override models the subagents rely on, so disable them
-	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
-	if (model.ownsAuthorization) {
+	// The specialized subagents must only run when
+	// the main agent is on CAPI.
+	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
@@ -222,7 +233,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
-	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, request)) {
+	if (isBackgroundTodoAgentEnabled(model, configurationService, experimentationService, authenticationService, request)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -383,12 +394,12 @@ export class AgentIntent extends EditCodeIntent {
 			// Do NOT pass the request `token` as parentToken — it may be cancelled
 			// by the framework after the turn ends, which would immediately abort
 			// the background pass even on a normal completion.
-			if (isBackgroundTodoAgentEnabled(this.configurationService, this.expService, request)) {
-				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+			const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
+			if (todoProcessor !== undefined) {
 				const currentTurn = conversation.getLatestTurn();
 				const invocation = currentTurn.getMetadata(IntentInvocationMetadata)?.value;
 				const executionContext = invocation instanceof AgentIntentInvocation ? invocation.getBackgroundTodoExecutionContext() : undefined;
-				if (todoProcessor && executionContext) {
+				if (executionContext) {
 					todoProcessor.requestFinalReview(currentTurn.id, executionContext);
 					await todoProcessor.waitForCompletion();
 				}
@@ -567,6 +578,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -928,7 +940,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		// ── Background todo processing ──────────────────────────────────
-		this._maybeStartBackgroundTodoPass(promptContext, token);
+		this._maybeStartBackgroundTodoPass(endpoint, promptContext, token);
 
 		const lastMessage = result.messages.at(-1);
 		if (lastMessage?.role === Raw.ChatRole.User) {
@@ -1001,29 +1013,28 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken,
 		contextRatio: number,
 	): void {
-		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting background compaction`);
-
-		const bgStartTime = Date.now();
-
 		// Snapshot rounds so telemetry reflects state at kick-off time, not at
 		// completion time (the main loop mutates toolCallRounds). History is
 		// stable across a single user turn so a reference is sufficient.
 		const rounds = [...(promptContext.toolCallRounds ?? [])];
 		const history = promptContext.history;
-		let toolCallRoundId: string | undefined;
-		if (rounds.length >= 2) {
-			// Mark the round before the last, preserving the last round verbatim
-			toolCallRoundId = rounds[rounds.length - 2].id;
-		} else if (rounds.length === 1) {
-			toolCallRoundId = rounds[0].id;
-		} else {
-			for (let i = history.length - 1; i >= 0 && !toolCallRoundId; i--) {
-				const lastRound = history[i].rounds.at(-1);
-				if (lastRound) {
-					toolCallRoundId = lastRound.id;
-				}
-			}
+
+		// Resolve the round the summary will attach to up front. Without an
+		// anchor (e.g. an early turn before any tool-call round exists, reached
+		// via a cold-cache emergency kick-off) there is nothing to attach the
+		// result to, so skip *before* firing the expensive summarization request
+		// rather than running it for many seconds only to discard the result —
+		// which, on slow models, also stalls a later budget-exceeded render that
+		// waits on the in-flight request.
+		const toolCallRoundId = resolveSummaryAnchorRoundId(rounds, history);
+		if (!toolCallRoundId) {
+			this.logService.debug(`[ConversationHistorySummarizer] skipping background compaction at ${(contextRatio * 100).toFixed(0)}% — no tool call round to attach summary to (rounds=${rounds.length}, history=${history.length})`);
+			return;
 		}
+
+		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting background compaction`);
+
+		const bgStartTime = Date.now();
 
 		// Build tool schemas matching the main agent loop so the prompt
 		// prefix (system + tools + messages) is identical for cache hits.
@@ -1090,9 +1101,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const rawSummaryText = extractSummary(response.value);
 				if (rawSummaryText === undefined) {
 					throw new Error('Background summarization: no <summary> tags found in response');
-				}
-				if (!toolCallRoundId) {
-					throw new Error('Background summarization: no round ID to apply summary to');
 				}
 				// Flush the transcript before snapshotting the line count so
 				// the baked "N lines" hint matches the on-disk file at this
@@ -1349,6 +1357,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	 * Kick off a background todo pass if the policy says to run.
 	 */
 	private _maybeStartBackgroundTodoPass(
+		endpoint: IChatEndpoint,
 		promptContext: IBuildPromptContext,
 		token: vscode.CancellationToken,
 	): void {
@@ -1373,10 +1382,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			telemetryService: this.telemetryService,
 			promptContext,
 		};
-		this._backgroundTodoExecutionContext = executionContext;
 
 		const { decision, reason, delta } = processor.shouldRun({
-			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request),
+			backgroundTodoAgentEnabled: isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request),
 			todoToolExplicitlyEnabled: isTodoToolExplicitlyEnabled(this.request),
 			isAgentPrompt: this.prompt === AgentPrompt,
 			promptContext,
@@ -1387,6 +1395,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		if (decision === BackgroundTodoDecision.Wait && reason === 'processorInProgress' && delta) {
 			// Coalesce into the queue so the latest context is not lost.
+			this._backgroundTodoExecutionContext = executionContext;
 			processor.requestRegularPass(delta, executionContext, token, turnId);
 			return;
 		}
@@ -1395,6 +1404,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			return;
 		}
 
+		this._backgroundTodoExecutionContext = executionContext;
 		processor.requestRegularPass(delta, executionContext, token, turnId);
 	}
 
