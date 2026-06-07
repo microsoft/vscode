@@ -134,7 +134,7 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 
 //  Navigate Previous / Next Session (list order)
 
-const navigateSessionInList = (accessor: ServicesAccessor, direction: 'previous' | 'next'): void => {
+const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'previous' | 'next'): Promise<void> => {
 	const viewsService = accessor.get(IViewsService);
 	const sessionsViewService = accessor.get(ISessionsViewService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
@@ -161,9 +161,14 @@ const navigateSessionInList = (accessor: ServicesAccessor, direction: 'previous'
 			: Math.max(currentIndex - 1, 0);
 	}
 
+	// At the list edges the target clamps to the active session; don't re-open it.
+	if (targetIndex === currentIndex) {
+		return;
+	}
+
 	const target = visible[targetIndex];
 	if (target) {
-		sessionsViewService.openSession(target.resource);
+		await sessionsViewService.openSession(target.resource);
 	}
 };
 
@@ -177,8 +182,9 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 			keybinding: {
 				// Mirror core "Previous Editor" and browser "Previous Tab". On macOS use
 				// Cmd+Alt+Left (Mac keyboards lack Page keys), matching core editor nav.
-				// Alt+Up is a secondary chord; the `!editorAreaFocus` gate keeps the
-				// editor's "Move Line Up" intact while still navigating from the chat input.
+				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
+				// keeps the editor's "Move Line Up" intact while still navigating from
+				// the chat input.
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
@@ -187,8 +193,8 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 			}
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
-		navigateSessionInList(accessor, 'previous');
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return navigateSessionInList(accessor, 'previous');
 	}
 });
 
@@ -202,8 +208,9 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 			keybinding: {
 				// Mirror core "Next Editor" and browser "Next Tab". On macOS use
 				// Cmd+Alt+Right (Mac keyboards lack Page keys), matching core editor nav.
-				// Alt+Down is a secondary chord; the `!editorAreaFocus` gate keeps the
-				// editor's "Move Line Down" intact while still navigating from the chat input.
+				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
+				// keeps the editor's "Move Line Down" intact while still navigating from
+				// the chat input.
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
@@ -212,8 +219,8 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 			}
 		});
 	}
-	override run(accessor: ServicesAccessor): void {
-		navigateSessionInList(accessor, 'next');
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return navigateSessionInList(accessor, 'next');
 	}
 });
 
