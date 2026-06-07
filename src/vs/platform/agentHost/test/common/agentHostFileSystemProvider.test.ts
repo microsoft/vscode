@@ -135,11 +135,11 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const unwrapped = fromAgentHostUri(wrapped);
 
 		assert.deepStrictEqual({
-			wrappedQuery: wrapped.query,
+			wrappedPath: wrapped.path,
 			wrappedFragment: wrapped.fragment,
 			unwrapped: unwrapped.toString(),
 		}, {
-			wrappedQuery: original.query,
+			wrappedPath: original.path,
 			wrappedFragment: original.fragment,
 			unwrapped: original.toString(),
 		});
@@ -160,11 +160,12 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(fromAgentHostUri(uri).path, '/');
 	});
 
-	test('fromAgentHostUri handles malformed path gracefully', () => {
+	test('fromAgentHostUri falls back to a file URI when metadata is missing', () => {
 		const uri = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'host', path: '/file' });
 		const result = fromAgentHostUri(uri);
-		// Should not throw - falls back to extracting scheme only
+		// Should not throw - falls back to a file URI using the path verbatim
 		assert.strictEqual(result.scheme, 'file');
+		assert.strictEqual(result.path, '/file');
 	});
 });
 
@@ -172,41 +173,23 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * Replicates the stripPathSegments logic from the label service to
-	 * verify that the formatter's configuration is consistent with the
-	 * URI encoding.
-	 */
-	function stripPath(path: string, segments: number): string {
-		let pos = 0;
-		for (let i = 0; i < segments; i++) {
-			const next = path.indexOf('/', pos + 1);
-			if (next === -1) {
-				break;
-			}
-			pos = next;
-		}
-		return path.substring(pos);
-	}
-
-	test('stripPathSegments matches URI encoding for file URIs', () => {
+	test('label is the original path verbatim for file URIs', () => {
 		const authority = agentHostAuthority('localhost:8089');
 		const originalPath = '/Users/roblou/code/vscode';
 		const encodedUri = agentHostUri(authority, originalPath);
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, originalPath);
+		assert.strictEqual(AGENT_HOST_LABEL_FORMATTER.formatting.label, '${path}');
+		assert.strictEqual(encodedUri.path, originalPath);
 	});
 
-	test('stripPathSegments matches URI encoding with authority', () => {
+	test('label is the original path verbatim for URIs with authority', () => {
 		const originalUri = URI.from({ scheme: 'agenthost-content', authority: 'myhost', path: '/snap/before' });
 		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, '/snap/before');
+		assert.strictEqual(encodedUri.path, '/snap/before');
 	});
 
-	test('stripPathSegments preserves label-friendly git-blob paths', () => {
+	test('label is the original path verbatim for git-blob URIs', () => {
 		const originalUri = URI.from({
 			scheme: 'git-blob',
 			path: '/src/app.ts',
@@ -214,8 +197,7 @@ suite('AGENT_HOST_LABEL_FORMATTER', () => {
 		});
 		const encodedUri = toAgentHostUri(originalUri, 'remote-host');
 
-		const stripped = stripPath(encodedUri.path, AGENT_HOST_LABEL_FORMATTER.formatting.stripPathSegments!);
-		assert.strictEqual(stripped, '/src/app.ts');
+		assert.strictEqual(encodedUri.path, '/src/app.ts');
 	});
 });
 

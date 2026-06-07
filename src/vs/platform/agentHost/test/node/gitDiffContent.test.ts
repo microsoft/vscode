@@ -14,38 +14,46 @@ suite('gitDiffContent', () => {
 	test('round-trips simple inputs', () => {
 		const sessionUri = 'copilot:/abc-123';
 		const sha = 'deadbeef0123456789abcdef0123456789abcdef';
-		const path = 'src/foo/bar.ts';
-		const built = buildGitBlobUri(sessionUri, sha, path);
+		const repoRelativePath = 'src/foo/bar.ts';
+		const absolutePath = '/Users/me/repo/src/foo/bar.ts';
+		const built = buildGitBlobUri(sessionUri, sha, repoRelativePath, absolutePath);
 		const parsed = parseGitBlobUri(built);
-		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath: path });
-		assert.strictEqual(URI.parse(built).path, '/src/foo/bar.ts');
+		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath });
+		assert.strictEqual(URI.parse(built).path, absolutePath);
 	});
 
 	test('round-trips paths with spaces, unicode and slashes', () => {
 		const sessionUri = 'copilot:/sess/with space?q=1';
 		const sha = '1234567890abcdef1234567890abcdef12345678';
-		const path = 'a folder/файл.txt';
-		const built = buildGitBlobUri(sessionUri, sha, path);
+		const repoRelativePath = 'a folder/файл.txt';
+		const absolutePath = '/Users/me/a repo/a folder/файл.txt';
+		const built = buildGitBlobUri(sessionUri, sha, repoRelativePath, absolutePath);
 		const parsed = parseGitBlobUri(built);
-		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath: path });
-		assert.strictEqual(URI.parse(built).path, '/a folder/файл.txt');
+		assert.deepStrictEqual(parsed, { sessionUri, sha, repoRelativePath });
+		assert.strictEqual(URI.parse(built).path, absolutePath);
 	});
 
-	test('parses legacy authority and path encoded URIs', () => {
-		const sessionUri = 'copilot:/abc';
-		const sha = 'cafe1234cafe1234cafe1234cafe1234cafe1234';
-		const path = 'src/foo.ts';
-		const legacy = 'git-blob://636f70696c6f743a2f616263/cafe1234cafe1234cafe1234cafe1234cafe1234/7372632f666f6f2e7473/foo.ts';
-		assert.deepStrictEqual(parseGitBlobUri(legacy), { sessionUri, sha, repoRelativePath: path });
+	test('uses the absolute path for display and the query for repo path', () => {
+		const built = buildGitBlobUri('copilot:/abc', 'cafe1234', 'src/app.ts', '/work/repo/src/app.ts');
+		const parsed = URI.parse(built);
+		assert.deepStrictEqual({
+			path: parsed.path,
+			parsed: parseGitBlobUri(built),
+		}, {
+			path: '/work/repo/src/app.ts',
+			parsed: { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' },
+		});
 	});
 
-	test('uses the URI path as the query-form repo path', () => {
-		const uri = URI.from({
+	test('returns undefined when the query is missing or incomplete', () => {
+		const noQuery = URI.from({ scheme: 'git-blob', path: '/src/app.ts' }).toString();
+		const partialQuery = URI.from({
 			scheme: 'git-blob',
 			path: '/src/app.ts',
 			query: JSON.stringify({ sessionUri: 'copilot:/abc', sha: 'cafe1234' }),
-		});
-		assert.deepStrictEqual(parseGitBlobUri(uri.toString()), { sessionUri: 'copilot:/abc', sha: 'cafe1234', repoRelativePath: 'src/app.ts' });
+		}).toString();
+		assert.strictEqual(parseGitBlobUri(noQuery), undefined);
+		assert.strictEqual(parseGitBlobUri(partialQuery), undefined);
 	});
 
 	test('returns undefined for non git-blob URIs', () => {

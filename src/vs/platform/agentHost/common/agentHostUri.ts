@@ -11,19 +11,36 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
 /**
  * The URI scheme for accessing files on a remote agent host.
  *
- * URIs encode the original scheme, authority, and path so that any
- * remote resource can be represented without assuming `file://`:
+ * The original file path is kept verbatim as the URI path so resource
+ * labels, language detection, and path comparisons see a real path. The
+ * original scheme, authority, and query are carried in a JSON-encoded
+ * query so any remote resource can be represented without assuming
+ * `file://`:
  *
  * ```
- * vscode-agent-host://[connectionAuthority]/[originalScheme]/[originalAuthority]/[originalPath]
+ * vscode-agent-host://[connectionAuthority][originalPath]?[meta]#[originalFragment]
  * ```
  *
- * For example, `file:///home/user/foo.ts` on remote `my-server` becomes:
+ * where `meta` is {@link IAgentHostUriMeta} as JSON. For example,
+ * `file:///home/user/foo.ts` on remote `my-server` becomes:
  * ```
- * vscode-agent-host://my-server/file//home/user/foo.ts
+ * vscode-agent-host://my-server/home/user/foo.ts?{"scheme":"file"}
  * ```
  */
 export const AGENT_HOST_SCHEME = 'vscode-agent-host';
+
+/**
+ * Metadata carried in the query of a {@link AGENT_HOST_SCHEME} URI so the
+ * original URI can be reconstructed while keeping the path label-friendly.
+ */
+interface IAgentHostUriMeta {
+	/** Original URI scheme (e.g. `file`, `git-blob`). */
+	readonly scheme: string;
+	/** Original URI authority, omitted when empty. */
+	readonly authority?: string;
+	/** Original URI query, omitted when empty. */
+	readonly query?: string;
+}
 
 /**
  * Wraps a remote URI into a {@link AGENT_HOST_SCHEME} URI that can be
@@ -39,13 +56,16 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 		return originalUri;
 	}
 
-	// Path format: /[originalScheme]/[originalAuthority]/[originalPath]
-	const originalAuthority = originalUri.authority || '';
+	const meta: IAgentHostUriMeta = {
+		scheme: originalUri.scheme,
+		...(originalUri.authority ? { authority: originalUri.authority } : {}),
+		...(originalUri.query ? { query: originalUri.query } : {}),
+	};
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: `/${originalUri.scheme}/${originalAuthority || '-'}${originalUri.path}`,
-		query: originalUri.query,
+		path: originalUri.path || '/',
+		query: JSON.stringify(meta),
 		fragment: originalUri.fragment,
 	});
 }
@@ -60,38 +80,26 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 		return agentHostUri;
 	}
 
-	// Path: /[originalScheme]/[originalAuthority]/[rest of original path]
-	const path = agentHostUri.path;
-
-	// Find first segment boundary after leading /
-	const schemeEnd = path.indexOf('/', 1);
-	if (schemeEnd === -1) {
-		// Malformed — treat whole path as file scheme
-		return URI.from({ scheme: 'file', path, query: agentHostUri.query, fragment: agentHostUri.fragment });
+	let meta: Partial<IAgentHostUriMeta> | undefined;
+	if (agentHostUri.query) {
+		try {
+			meta = JSON.parse(agentHostUri.query) as Partial<IAgentHostUriMeta>;
+		} catch {
+			meta = undefined;
+		}
 	}
 
-	const originalScheme = path.substring(1, schemeEnd);
-
-	// Find second segment boundary (authority/path split)
-	const authorityEnd = path.indexOf('/', schemeEnd + 1);
-	if (authorityEnd === -1) {
-		// No path after authority
-		const originalAuthority = path.substring(schemeEnd + 1);
-		return URI.from({ scheme: originalScheme, authority: originalAuthority, path: '/', query: agentHostUri.query, fragment: agentHostUri.fragment });
+	if (!meta || typeof meta.scheme !== 'string') {
+		// Missing/invalid metadata — fall back to treating the path as a
+		// file path so callers get a usable URI instead of an exception.
+		return URI.from({ scheme: Schemas.file, path: agentHostUri.path, fragment: agentHostUri.fragment });
 	}
-
-	let originalAuthority = path.substring(schemeEnd + 1, authorityEnd);
-	if (originalAuthority === '-') {
-		originalAuthority = '';
-	}
-
-	const originalPath = path.substring(authorityEnd);
 
 	return URI.from({
-		scheme: originalScheme,
-		authority: originalAuthority || undefined,
-		path: originalPath,
-		query: agentHostUri.query,
+		scheme: meta.scheme,
+		authority: meta.authority || undefined,
+		path: agentHostUri.path,
+		query: meta.query || '',
 		fragment: agentHostUri.fragment,
 	});
 }
@@ -131,15 +139,13 @@ export function agentHostAuthority(address: string): string {
 }
 
 /**
- * Label formatter for {@link AGENT_HOST_SCHEME} URIs. Strips the two
- * leading path segments (`/scheme/authority`) to display the original
- * file path.
+ * Label formatter for {@link AGENT_HOST_SCHEME} URIs. The URI path is
+ * already the original resource path, so the label is the path verbatim.
  */
 export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 	scheme: AGENT_HOST_SCHEME,
 	formatting: {
 		label: '${path}',
 		separator: '/',
-		stripPathSegments: 2,
 	},
 };

@@ -793,19 +793,22 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 	return changes.map(change => {
 		const stats = numStats.get(change.newPath ?? change.oldPath ?? '');
 
-		const before = change.kind !== FileEditKind.Create && change.oldPath
+		const beforeFileUri = change.oldPath ? URI.joinPath(repositoryRoot, change.oldPath) : undefined;
+		const afterFileUri = change.newPath ? URI.joinPath(repositoryRoot, change.newPath) : undefined;
+
+		const before = change.kind !== FileEditKind.Create && change.oldPath && beforeFileUri
 			? {
-				uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
-				content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
+				uri: beforeFileUri.toString(),
+				content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath, beforeFileUri.path) },
 			}
 			: undefined;
 
-		const after = change.kind !== FileEditKind.Delete && change.newPath
+		const after = change.kind !== FileEditKind.Delete && change.newPath && afterFileUri
 			? {
-				uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
+				uri: afterFileUri.toString(),
 				content: afterRef !== undefined
-					? { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) }
-					: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() }
+					? { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath, afterFileUri.path) }
+					: { uri: afterFileUri.toString() }
 			}
 			: undefined;
 
