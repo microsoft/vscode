@@ -995,7 +995,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				return { autoConfirmed };
 			}
 			if (assessment?.risk === ToolRiskLevel.Red) {
-				const explanation = assessment.explanation.trim() || 'The action was assessed as potentially destructive or irreversible.';
+				const fallbackExplanation = localize('autopilotRiskSkipFallback', "The action was assessed as potentially destructive or irreversible.");
+				const explanation = assessment.explanation.trim() || fallbackExplanation;
 				this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping high-risk tool ${tool.data.id}: ${explanation}`);
 				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
 			}
