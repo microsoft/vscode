@@ -170,7 +170,7 @@ class BrowserNavigationBar extends Disposable {
 			id: 'browser.configureSearchEngine',
 			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 			tooltip: localize('browser.configureSearchEngine', "Configure Search Engine"),
-			run: () => { this._preferencesService.openSettings({ query: `@id:${BrowserSearchEngineSettingId}` }); },
+			run: () => this._preferencesService.openSettings({ query: `@id:${BrowserSearchEngineSettingId}` }),
 		};
 		const search: IUrlPickerItem = {
 			id: text,
