@@ -39,6 +39,7 @@ function createTestTiming(options?: {
 interface MockChatModel extends IChatModel {
 	setCustomTitle(title: string): void;
 	setRequestInProgress(inProgress: boolean): void;
+	setHasRequests(hasRequests: boolean): void;
 }
 
 function createMockChatModel(options: {
@@ -63,25 +64,28 @@ function createMockChatModel(options: {
 }): MockChatModel {
 	const requests: IChatRequestModel[] = [];
 
-	if (options.hasRequests !== false) {
-		const mockResponse: Partial<IChatResponseModel> = {
-			isComplete: options.lastResponseComplete ?? true,
-			isCanceled: options.lastResponseCanceled ?? false,
-			result: options.lastResponseHasError ? { errorDetails: { message: 'error' } } : undefined,
-			timestamp: options.lastResponseTimestamp ?? Date.now(),
-			completedAt: options.lastResponseCompletedAt,
-			response: {
-				value: [],
-				getMarkdown: () => '',
-				getFinalResponse: () => '',
-				toString: () => options.customTitle ? '' : 'Test response content'
-			}
-		};
+	const mockResponse: Partial<IChatResponseModel> = {
+		isComplete: options.lastResponseComplete ?? true,
+		isCanceled: options.lastResponseCanceled ?? false,
+		result: options.lastResponseHasError ? { errorDetails: { message: 'error' } } : undefined,
+		timestamp: options.lastResponseTimestamp ?? Date.now(),
+		completedAt: options.lastResponseCompletedAt,
+		response: {
+			value: [],
+			getMarkdown: () => '',
+			getFinalResponse: () => '',
+			toString: () => options.customTitle ? '' : 'Test response content'
+		}
+	};
 
-		requests.push({
-			id: 'request-1',
-			response: mockResponse as IChatResponseModel
-		} as IChatRequestModel);
+	const mockRequest = {
+		id: 'request-1',
+		response: mockResponse as IChatResponseModel
+	} as IChatRequestModel;
+
+	let hasRequests = options.hasRequests !== false;
+	if (hasRequests) {
+		requests.push(mockRequest);
 	}
 
 	const editingSessionEntries = options.editingSession?.entries.map(entry => ({
@@ -106,7 +110,9 @@ function createMockChatModel(options: {
 			return title;
 		},
 		sessionResource: options.sessionResource,
-		hasRequests: options.hasRequests !== false,
+		get hasRequests() {
+			return hasRequests;
+		},
 		timestamp: options.timestamp ?? Date.now(),
 		timing: createTestTiming({ created: options.timestamp }),
 		requestInProgress,
@@ -126,6 +132,17 @@ function createMockChatModel(options: {
 			}
 			requestInProgress.set(inProgress, undefined);
 			_onDidChange.fire({ kind: 'changedRequest' } as IChatChangedRequestEvent);
+		},
+		setHasRequests: (value: boolean) => {
+			if (hasRequests === value) {
+				return;
+			}
+			hasRequests = value;
+			requests.length = 0;
+			if (value) {
+				requests.push(mockRequest);
+			}
+			_onDidChange.fire({ kind: 'addRequest' } as IChatChangeEvent);
 		},
 	} as Partial<IChatModel> as MockChatModel;
 }
@@ -603,7 +620,10 @@ suite('LocalAgentsSessionsController', () => {
 				mockModel.setRequestInProgress(true);
 				await onDidChangeChatSessionItems;
 
-				assert.strictEqual(changeEventCount, 3);
+				// The session is now added as soon as the model is seen with
+				// requests (via the model-change path), so the subsequent
+				// refresh dedupes instead of firing a separate add event.
+				assert.strictEqual(changeEventCount, 2);
 			});
 		});
 
@@ -670,6 +690,37 @@ suite('LocalAgentsSessionsController', () => {
 				const addedResources = fired.flatMap(d => d.addedOrUpdated ?? []).map(i => i.resource.toString());
 				assert.ok(addedResources.includes(sessionResource2.toString()), 'forked session should appear in addedOrUpdated');
 				assert.ok(!addedResources.includes(sessionResource1.toString()), 'existing session should not appear in addedOrUpdated');
+			});
+		});
+
+		test('should add a new session once it gains its first request (without manual refresh)', async () => {
+			return runWithFakedTimers({}, async () => {
+				const controller = createController();
+
+				// Brand-new session: a model exists but has no requests yet, so
+				// it should not be listed initially.
+				const sessionResource = LocalChatSessionUri.forSession('new-empty-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: false
+				});
+
+				mockChatService.addSession(mockModel);
+				await controller.refresh(CancellationToken.None);
+				assert.strictEqual(controller.items.length, 0, 'session without requests should not be listed');
+
+				const fired: { addedOrUpdated?: readonly IChatSessionItem[]; removed?: readonly URI[] }[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => fired.push(delta)));
+
+				// User sends the first request: the session becomes listable.
+				const onChange = Event.toPromise(controller.onDidChangeChatSessionItems);
+				mockChatService.setLiveSessionItems([await chatModelToChatDetail(mockModel)]);
+				mockModel.setHasRequests(true);
+				await onChange;
+
+				assert.strictEqual(controller.items.length, 1, 'session should be listed after first request');
+				const addedResources = fired.flatMap(d => d.addedOrUpdated ?? []).map(i => i.resource.toString());
+				assert.ok(addedResources.includes(sessionResource.toString()), 'new session should be reported via addedOrUpdated');
 			});
 		});
 

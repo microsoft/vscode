@@ -132,17 +132,23 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
+		// Build the item from the current model state. `toChatSessionItem`
+		// applies the same qualification rules as the full refresh (e.g. a
+		// session only becomes listable once it has requests). Doing this here
+		// also covers the case where a brand-new session becomes listable after
+		// its first request is sent: previously we bailed out when no item
+		// existed yet, so such sessions were missed until a manual refresh.
+		const updated = this.toChatSessionItem(await chatModelToChatDetail(model));
+		if (!updated) {
+			return;
+		}
+
 		const existing = this._items.get(model.sessionResource);
-		if (!existing) {
+		if (existing && existing.isEqual(updated)) {
 			return;
 		}
 
-		const updated = new LocalChatSessionItem(await chatModelToChatDetail(model), model);
-		if (existing.isEqual(updated)) {
-			return;
-		}
-
-		this._items.set(existing.resource, updated);
+		this._items.set(updated.resource, updated);
 		this._onDidChangeChatSessionItems.fire({ addedOrUpdated: [updated] });
 	}
 
