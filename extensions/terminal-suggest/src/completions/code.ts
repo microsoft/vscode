@@ -460,26 +460,22 @@ const agentHostOptions: Fig.Option[] = [
 	{
 		name: '--host',
 		description: 'Host the agent host should bind on. Defaults to \'localhost\'',
-		isRepeatable: true,
-		args: { name: 'host', isOptional: true },
+		args: { name: 'host' },
 	},
 	{
 		name: '--port',
 		description: 'Port the agent host should bind on. If 0 the OS picks a free ephemeral port',
-		isRepeatable: true,
-		args: { name: 'port', isOptional: true },
+		args: { name: 'port' },
 	},
 	{
 		name: '--connection-token',
 		description: 'A secret that must be included with all requests',
-		isRepeatable: true,
-		args: { name: 'connection_token', isOptional: true },
+		args: { name: 'connection_token' },
 	},
 	{
 		name: '--connection-token-file',
 		description: 'A file containing a secret that must be included with all requests',
-		isRepeatable: true,
-		args: { name: 'connection_token_file', isOptional: true },
+		args: { name: 'connection_token_file' },
 	},
 	{
 		name: '--without-connection-token',
@@ -488,8 +484,7 @@ const agentHostOptions: Fig.Option[] = [
 	{
 		name: '--server-data-dir',
 		description: 'Specifies the directory that server data is kept in',
-		isRepeatable: true,
-		args: { name: 'server_data_dir', isOptional: true },
+		args: { name: 'server_data_dir' },
 	},
 	{
 		name: '--replace',
@@ -502,8 +497,7 @@ const agentHostOptions: Fig.Option[] = [
 	{
 		name: '--name',
 		description: 'Sets the machine name for the tunnel',
-		isRepeatable: true,
-		args: { name: 'name', isOptional: true },
+		args: { name: 'name' },
 	},
 	{
 		name: '--random-name',
@@ -515,14 +509,12 @@ const agentConnectionOptions: Fig.Option[] = [
 	{
 		name: '--address',
 		description: 'WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret). If omitted, the CLI discovers a locally running agent host automatically',
-		isRepeatable: true,
-		args: { name: 'address', isOptional: true },
+		args: { name: 'address' },
 	},
 	{
 		name: '--tunnel',
 		description: 'Connect via a named dev tunnel instead of the local address',
-		isRepeatable: true,
-		args: { name: 'tunnel', isOptional: true },
+		args: { name: 'tunnel' },
 	},
 ];
 
