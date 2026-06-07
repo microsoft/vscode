@@ -78,7 +78,8 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 	const agentCommonFlags = ['--cli-data-dir <cli_data_dir>', '--log [<log>]', '--verbose', '--help', '-h'];
 	const agentHostFlags = ['--host <host>', '--port <port>', '--connection-token <connection_token>', '--connection-token-file <connection_token_file>', '--without-connection-token', '--server-data-dir <server_data_dir>', '--replace', '--tunnel', '--name <name>', '--random-name'];
 	const agentConnectionFlags = ['--address <address>', '--tunnel <tunnel>'];
-	const agentSubcommands = ['host', 'ps', 'stop', 'kill', 'logs', 'help'];
+	const agentSubcommands = ['host', 'ps', 'stop <session>', 'kill', 'logs <session>', 'help'];
+	const agentHelpSubcommands = ['host', 'ps', 'stop', 'kill', 'logs', 'help'];
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
@@ -139,7 +140,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} agent stop |`, expectedCompletions: [...agentConnectionFlags, ...agentCommonFlags] },
 		{ input: `${executable} agent logs |`, expectedCompletions: [...agentConnectionFlags, ...agentCommonFlags] },
 		{ input: `${executable} agent kill |`, expectedCompletions: [...agentCommonFlags] },
-		{ input: `${executable} agent help |`, expectedCompletions: agentSubcommands },
+		{ input: `${executable} agent help |`, expectedCompletions: agentHelpSubcommands },
 
 		// Middle of command
 		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
@@ -280,7 +281,8 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 
 	const agentHostFlags: string[] = ['--host <host>', '--port <port>', '--connection-token <connection_token>', '--connection-token-file <connection_token_file>', '--without-connection-token', '--server-data-dir <server_data_dir>', '--replace', '--tunnel', '--name <name>', '--random-name'];
 	const agentConnectionFlags: string[] = ['--address <address>', '--tunnel <tunnel>'];
-	const agentSubcommands: string[] = ['host', 'ps', 'stop', 'kill', 'logs', 'help'];
+	const agentSubcommands: string[] = ['host', 'ps', 'stop <session>', 'kill', 'logs <session>', 'help'];
+	const agentHelpSubcommands: string[] = ['host', 'ps', 'stop', 'kill', 'logs', 'help'];
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
@@ -318,7 +320,7 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} agent stop |`, expectedCompletions: [...agentConnectionFlags, ...commonFlags] },
 		{ input: `${executable} agent logs |`, expectedCompletions: [...agentConnectionFlags, ...commonFlags] },
 		{ input: `${executable} agent kill |`, expectedCompletions: [...commonFlags] },
-		{ input: `${executable} agent help |`, expectedCompletions: agentSubcommands },
+		{ input: `${executable} agent help |`, expectedCompletions: agentHelpSubcommands },
 
 	];
 }
