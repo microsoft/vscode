@@ -167,7 +167,9 @@ export class BackgroundTodoAgentProcessor {
 					this.oldTurnTodos = oldTodos;
 				}
 			} finally {
-				this.currentTurnId = undefined;
+				if (this.currentTurnId === turnId) {
+					this.currentTurnId = undefined;
+				}
 			}
 		});
 	}
