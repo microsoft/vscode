@@ -20,7 +20,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
-import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
@@ -672,6 +672,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
 	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {

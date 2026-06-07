@@ -53,6 +53,26 @@ export interface IAgentSubscription<T> {
 	readonly onDidApplyAction: Event<ActionEnvelope>;
 }
 
+/**
+ * Read-only snapshot describing a single active resource subscription. Used by
+ * inspection/debug surfaces that enumerate everything a connection is currently
+ * subscribed to. Does not include the always-live root state.
+ */
+export interface IActiveSubscriptionInfo {
+	/** The protocol resource URI subscribed to. */
+	readonly resource: URI;
+	/** Which state component this subscription tracks. */
+	readonly kind: StateComponents;
+	/** Number of outstanding {@link IReference} holders. */
+	readonly refCount: number;
+	/**
+	 * Lifecycle status derived from the subscription's value:
+	 * `pending` before the first snapshot, `error` if it failed, otherwise
+	 * `snapshot`.
+	 */
+	readonly status: 'pending' | 'snapshot' | 'error';
+}
+
 // --- Base Implementation -----------------------------------------------------
 
 /**
@@ -424,7 +444,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 
 type ManagedSubscription = SessionStateSubscription | TerminalStateSubscription | ChangesetStateSubscription;
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; refCount: number };
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number };
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -512,7 +532,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Create new subscription based on caller-specified kind
 		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
-		const entry = { sub, refCount: 1 };
+		const entry = { sub, kind, refCount: 1 };
 		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
@@ -590,6 +610,21 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	currentSubscriptionUris(): URI[] {
 		return [...this._subscriptions.keys()];
+	}
+
+	/**
+	 * Read-only descriptors of every active resource subscription, for
+	 * inspection/debug surfaces. Does NOT include the always-live root
+	 * state, which the connection exposes separately via {@link rootState}.
+	 */
+	getActiveSubscriptions(): IActiveSubscriptionInfo[] {
+		const out: IActiveSubscriptionInfo[] = [];
+		for (const [resource, entry] of this._subscriptions) {
+			const value = entry.sub.value;
+			const status = value === undefined ? 'pending' : value instanceof Error ? 'error' : 'snapshot';
+			out.push({ resource, kind: entry.kind, refCount: entry.refCount, status });
+		}
+		return out;
 	}
 
 	/**

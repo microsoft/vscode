@@ -718,4 +718,49 @@ suite('AgentSubscriptionManager', () => {
 		retryRef.dispose();
 		assert.strictEqual(mgr.getSubscriptionUnmanaged<SessionState>(uri), undefined);
 	});
+
+	test('getActiveSubscriptions reports kind, refCount and status per active subscription', async () => {
+		const mgr = createManager();
+		const sUri = URI.parse(sessionUri);
+		const tUri = URI.parse(terminalUri);
+
+		const sessionRef = mgr.getSubscription<SessionState>(StateComponents.Session, sUri);
+		const sessionRef2 = mgr.getSubscription<SessionState>(StateComponents.Session, sUri);
+		const terminalRef = mgr.getSubscription<TerminalState>(StateComponents.Terminal, tUri);
+
+		const pending = mgr.getActiveSubscriptions().map(s => ({ resource: s.resource.toString(), kind: s.kind, refCount: s.refCount, status: s.status }));
+
+		await new Promise(r => setTimeout(r, 0));
+
+		const active = mgr.getActiveSubscriptions().map(s => ({ resource: s.resource.toString(), kind: s.kind, refCount: s.refCount, status: s.status }));
+
+		assert.deepStrictEqual({ pending, active }, {
+			pending: [
+				{ resource: sessionUri, kind: StateComponents.Session, refCount: 2, status: 'pending' },
+				{ resource: terminalUri, kind: StateComponents.Terminal, refCount: 1, status: 'pending' },
+			],
+			active: [
+				{ resource: sessionUri, kind: StateComponents.Session, refCount: 2, status: 'snapshot' },
+				{ resource: terminalUri, kind: StateComponents.Terminal, refCount: 1, status: 'snapshot' },
+			],
+		});
+
+		sessionRef.dispose();
+		sessionRef2.dispose();
+		terminalRef.dispose();
+
+		assert.strictEqual(mgr.getActiveSubscriptions().length, 0);
+	});
+
+	test('getActiveSubscriptions reports error status for a failed subscription', async () => {
+		const mgr = createManager(async () => { throw new Error('nope'); });
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(sessionUri));
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.deepStrictEqual(
+			mgr.getActiveSubscriptions().map(s => ({ kind: s.kind, status: s.status })),
+			[{ kind: StateComponents.Session, status: 'error' }],
+		);
+		ref.dispose();
+	});
 });
