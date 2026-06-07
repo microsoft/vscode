@@ -15,12 +15,26 @@ export const enum BrowserSearchEngineId {
 	DuckDuckGo = 'duckduckgo',
 }
 
-export const BrowserSearchEnabledSettingId =
-	'workbench.browser.addressBarSearch.enabled';
 export const BrowserSearchEngineSettingId =
-	'workbench.browser.addressBarSearch.searchEngine';
+	'workbench.browser.searchEngine';
 
+/**
+ * The search engine selected by default for the integrated browser address bar.
+ */
 export const DEFAULT_BROWSER_SEARCH_ENGINE = BrowserSearchEngineId.Bing;
+
+/**
+ * Value of {@link BrowserSearchEngineSettingId} when no search engine is
+ * selected (address bar search disabled). Selecting any other value both
+ * enables search and picks the engine.
+ */
+export const BROWSER_SEARCH_NONE = 'none';
+
+/**
+ * The address bar search setting value: either `'none'` (search disabled) or a
+ * specific {@link BrowserSearchEngineId}.
+ */
+export type BrowserSearchEngineValue = BrowserSearchEngineId | typeof BROWSER_SEARCH_NONE;
 
 /**
  * A search engine that can be selected as the integrated browser's default.

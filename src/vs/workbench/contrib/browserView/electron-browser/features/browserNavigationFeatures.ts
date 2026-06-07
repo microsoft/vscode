@@ -26,11 +26,10 @@ import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import {
-	BrowserSearchEnabledSettingId,
+	BROWSER_SEARCH_NONE,
 	BrowserSearchEngineId,
 	BrowserSearchEngineSettingId,
 	buildSearchUrl,
-	DEFAULT_BROWSER_SEARCH_ENGINE,
 	getBrowserSearchEngineLabel,
 	resolveAddressBarInputType,
 } from '../../common/browserSearch.js';
@@ -104,7 +103,7 @@ class BrowserNavigationBar extends Disposable {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
-			getPlaceholder: () => this._searchEnabled
+			getPlaceholder: () => this._searchEngine
 				? localize('browser.urlOrSearchPlaceholder', "Search or enter a URL")
 				: localize('browser.urlPlaceholder', "Enter a URL"),
 		};
@@ -137,9 +136,13 @@ class BrowserNavigationBar extends Disposable {
 
 	mountContributions(contributions: readonly BrowserEditorContribution[]): void { this._urlBar.mountContributions(contributions); }
 
-	/** Whether address bar search routing is currently enabled. */
-	private get _searchEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(BrowserSearchEnabledSettingId);
+	/**
+	 * The configured address bar search engine, or `undefined` when search
+	 * routing is disabled (the setting is `'none'`).
+	 */
+	private get _searchEngine(): BrowserSearchEngineId | undefined {
+		const value = this._configurationService.getValue<string>(BrowserSearchEngineSettingId);
+		return value && value !== BROWSER_SEARCH_NONE ? value as BrowserSearchEngineId : undefined;
 	}
 
 	/**
@@ -159,15 +162,15 @@ class BrowserNavigationBar extends Disposable {
 			iconClass: ThemeIcon.asClassName(Codicon.globe),
 			apply: input => input.navigate(text),
 		};
-		if (!this._searchEnabled) {
+		const engineId = this._searchEngine;
+		if (!engineId) {
 			return [goTo];
 		}
-		const engineId = this._configurationService.getValue<BrowserSearchEngineId>(BrowserSearchEngineSettingId) ?? DEFAULT_BROWSER_SEARCH_ENGINE;
 		const configureEngineButton: IBrowserUrlSuggestionAction = {
 			id: 'browser.configureSearchEngine',
 			iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 			tooltip: localize('browser.configureSearchEngine', "Configure Search Engine"),
-			run: () => { this._preferencesService.openSettings({ query: `@id:workbench.browser.addressBarSearch.*` }); },
+			run: () => { this._preferencesService.openSettings({ query: `@id:${BrowserSearchEngineSettingId}` }); },
 		};
 		const search: IUrlPickerItem = {
 			id: text,
@@ -215,7 +218,7 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 		// Keep the URL bar presentation (placeholder, primary action) in sync
 		// when the user toggles search settings while the bar is visible.
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(BrowserSearchEnabledSettingId) || e.affectsConfiguration(BrowserSearchEngineSettingId)) {
+			if (e.affectsConfiguration(BrowserSearchEngineSettingId)) {
 				this._navbar.refreshUrl();
 			}
 		}));

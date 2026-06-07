@@ -7,36 +7,23 @@ import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
-import { BROWSER_SEARCH_ENGINES, BrowserSearchEnabledSettingId, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE } from '../../common/browserSearch.js';
+import { BROWSER_SEARCH_ENGINES, BROWSER_SEARCH_NONE, BrowserSearchEngineSettingId, DEFAULT_BROWSER_SEARCH_ENGINE } from '../../common/browserSearch.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
-		[BrowserSearchEnabledSettingId]: {
-			type: 'boolean',
-			default: false,
-			markdownDescription: localize(
-				{ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.', '{0} is a setting reference link to the search engine setting.'], key: 'browser.addressBarSearch.enabled' },
-				'When enabled, the address bar in the integrated browser can be used to search the internet with the search engine configured by {0}.',
-				`\`#${BrowserSearchEngineSettingId}#\``
-			),
-			scope: ConfigurationScope.WINDOW,
-			tags: ['experimental'],
-			order: 110
-		},
 		[BrowserSearchEngineSettingId]: {
 			type: 'string',
-			enum: BROWSER_SEARCH_ENGINES.map(e => e.id),
-			enumItemLabels: BROWSER_SEARCH_ENGINES.map(e => e.label),
+			enum: [BROWSER_SEARCH_NONE, ...BROWSER_SEARCH_ENGINES.map(e => e.id)],
+			enumItemLabels: [localize('browser.search.engine.none', "None"), ...BROWSER_SEARCH_ENGINES.map(e => e.label)],
 			default: DEFAULT_BROWSER_SEARCH_ENGINE,
+			experiment: { mode: 'startup' },
 			markdownDescription: localize(
-				'browser.addressBarSearch.searchEngine',
-				"The search engine used by the integrated browser address bar when {0} is enabled.",
-				`\`#${BrowserSearchEnabledSettingId}#\``
+				'browser.searchEngine',
+				"Controls the search engine used to search the web from the address bar of the integrated browser. Select 'None' to disable search."
 			),
-			scope: ConfigurationScope.WINDOW,
-			tags: ['experimental'],
-			order: 111
+			scope: ConfigurationScope.APPLICATION,
+			order: 110
 		}
 	}
 });
