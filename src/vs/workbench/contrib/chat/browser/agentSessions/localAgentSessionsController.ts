@@ -132,6 +132,13 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private async tryUpdateLiveSessionItem(model: IChatModel): Promise<void> {
+		// Cheap gate first: a model that has no requests is never listable, so
+		// skip building the full detail (which awaits potentially expensive
+		// diff stats via `chatModelToChatDetail`) on every model change.
+		if (!model.hasRequests) {
+			return;
+		}
+
 		// Build the item from the current model state. `toChatSessionItem`
 		// applies the same qualification rules as the full refresh (e.g. a
 		// session only becomes listable once it has requests). Doing this here

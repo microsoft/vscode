@@ -18,7 +18,7 @@ import { IChatService, ResponseModelState } from '../../../common/chatService/ch
 import { chatModelToChatDetail } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatEditingSessionState, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { IChatChangedRequestEvent, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { IChatAddRequestEvent, IChatChangedRequestEvent, IChatChangeEvent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
@@ -141,8 +141,8 @@ function createMockChatModel(options: {
 			requests.length = 0;
 			if (value) {
 				requests.push(mockRequest);
+				_onDidChange.fire({ kind: 'addRequest', request: mockRequest } as IChatAddRequestEvent);
 			}
-			_onDidChange.fire({ kind: 'addRequest' } as IChatChangeEvent);
 		},
 	} as Partial<IChatModel> as MockChatModel;
 }
