@@ -48,16 +48,20 @@ import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessi
  * Returns true if `m` is a Claude-family model that should be advertised
  * to clients picking a model for the Claude provider.
  *
- * Combines the same surface checks the extension uses (vendor, picker
- * eligibility, tool-call support, `/v1/messages` endpoint) with a parse
- * of the model id via {@link tryParseClaudeModelId}, which excludes
- * synthetic ids like `auto` that aren't real Claude endpoints.
+ * Intentionally does NOT check `model_picker_enabled`: CAPI sets that flag
+ * conservatively (false for many models), and the Copilot extension overrides
+ * it via an A/B experiment (`copilotchat.showInModelPicker`) so the normal
+ * Claude Code window shows all capable models. The agent host has no access
+ * to that experiment service, so relying on the raw flag would cause it to
+ * show a much smaller set than the extension window does. The remaining four
+ * conditions (Anthropic vendor, `/v1/messages` endpoint, tool-call support,
+ * parseable model ID) are sufficient guards against synthetic or ineligible
+ * entries.
  */
 function isClaudeModel(m: CCAModel): boolean {
 	return (
 		m.vendor === 'Anthropic' &&
 		!!m.supported_endpoints?.includes('/v1/messages') &&
-		!!m.model_picker_enabled &&
 		!!m.capabilities?.supports?.tool_calls &&
 		tryParseClaudeModelId(m.id) !== undefined
 	);

@@ -694,6 +694,12 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('authenticate populates models filtered to Claude family', async () => {
+		// model_picker_enabled is intentionally NOT checked — CAPI sets it
+		// conservatively and the Copilot extension overrides it via
+		// experiments; the agent host has no experiment service, so we rely
+		// on vendor/endpoint/tool-call/model-id guards instead.
+		// ANTHROPIC_PICKER_DISABLED (claude-opus-4.5, model_picker_enabled:false)
+		// must appear here alongside the other Claude models.
 		const { agent, proxy } = createTestContext(disposables);
 
 		const accepted = await agent.authenticate('https://api.github.com', 'tok');
@@ -709,6 +715,7 @@ suite('ClaudeAgent', () => {
 			models: [
 				{ provider: 'claude', id: 'claude-opus-4.6', name: 'Claude Opus 4.6', maxContextWindow: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
 				{ provider: 'claude', id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', maxContextWindow: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
+				{ provider: 'claude', id: 'claude-opus-4.5', name: 'Claude Opus 4.5', maxContextWindow: 200_000, supportsVision: false, policyState: 'enabled', _meta: { multiplierNumeric: 1 } },
 			],
 		});
 	});
@@ -940,20 +947,22 @@ suite('ClaudeAgent', () => {
 			accepted: true,
 			startTokens: ['tok', 'tok'],
 			disposeCount: 0,
-			modelIds: [CLAUDE_OPUS.id, CLAUDE_SONNET.id],
+			modelIds: [CLAUDE_OPUS.id, CLAUDE_SONNET.id, ANTHROPIC_PICKER_DISABLED.id],
 		});
 	});
 
 	test('model filter excludes non-Claude entries', async () => {
 		// Same fixture set as the populate test, but assert on ids only —
 		// catches every exclusion criterion in one snapshot.
+		// Note: model_picker_enabled is NOT a filter criterion (see isClaudeModel);
+		// ANTHROPIC_PICKER_DISABLED (claude-opus-4.5) therefore appears here.
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate('https://api.github.com', 'tok');
 		await tick();
 
 		assert.deepStrictEqual(
 			agent.models.get().map(m => m.id),
-			['claude-opus-4.6', 'claude-sonnet-4.6'],
+			['claude-opus-4.6', 'claude-sonnet-4.6', 'claude-opus-4.5'],
 		);
 	});
 
