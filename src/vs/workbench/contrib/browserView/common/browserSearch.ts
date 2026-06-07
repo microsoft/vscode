@@ -104,22 +104,18 @@ const KNOWN_URL_SCHEMES = new Set([
 ]);
 
 /**
+ * All schemes that we recognize as actual URL schemes (used to disambiguate
+ * `scheme:operand` from `host:port` — e.g. `localhost:3000` looks like a
+ * scheme syntactically but `localhost` is not a known scheme).
+ */
+const ALL_KNOWN_SCHEMES = new Set<string>([...KNOWN_URL_SCHEMES, 'http', 'https', 'javascript']);
+
+/**
  * Special-cased TLDs from RFC 6761 / RFC 6762 / ICANN that are treated as
  * known only when a subdomain is present. `.invalid` is reserved as
  * non-navigable.
  */
 const SUBDOMAIN_REQUIRED_TLDS = new Set(['example', 'test', 'local', 'internal']);
-
-/**
- * All schemes that we recognize as actual URL schemes (used to disambiguate
- * `scheme:operand` from `host:port` — e.g. `localhost:3000` looks like a
- * scheme syntactically but `localhost` is not a known scheme).
- */
-const ALL_KNOWN_SCHEMES = new Set<string>([
-	'http', 'https', 'javascript',
-	'file', 'ftp', 'ftps', 'about', 'data', 'view-source',
-	'mailto', 'chrome', 'edge', 'vscode', 'vscode-insiders',
-]);
 
 const SCHEME_REGEX = /^([a-z][a-z0-9+\-.]*):/i;
 const JAVASCRIPT_QUERY_REGEX = /^javascript:[^;=().\"]*$/i;
