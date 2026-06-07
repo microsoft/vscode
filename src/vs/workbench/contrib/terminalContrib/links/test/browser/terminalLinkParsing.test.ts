@@ -474,9 +474,10 @@ suite('TerminalLinkParsing', () => {
 				);
 			});
 			test('should exclude pipe characters from link paths with suffixes', () => {
-				deepStrictEqual(
-					detectLinks('|C:\\Github\\microsoft\\vscode:400|', OperatingSystem.Windows),
-					[
+				for (const separator of ['|', '\u2502']) {
+					deepStrictEqual(
+						detectLinks(`${separator}C:\\Github\\microsoft\\vscode:400${separator}`, OperatingSystem.Windows),
+						[
 						{
 							path: {
 								index: 1,
@@ -494,8 +495,9 @@ suite('TerminalLinkParsing', () => {
 								}
 							}
 						}
-					] as IParsedLink[]
-				);
+						] as IParsedLink[]
+					);
+				}
 			});
 		});
 
