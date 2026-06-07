@@ -7,9 +7,7 @@ import { ThinkingData } from '../../../../../platform/thinking/common/thinking';
 import { IBuildPromptContext, IToolCall, IToolCallRound } from '../../../../prompt/common/intents';
 import { ToolName } from '../../../../tools/common/toolNames';
 
-export type ToolCategory = 'substantive' | 'excluded';
-
-type BGToolCall = Pick<IToolCall, 'name' | 'arguments'> & { category: ToolCategory };
+type BGToolCall = Pick<IToolCall, 'name' | 'arguments'>;
 export type BGToolCallRound = Pick<IToolCallRound, 'id' | 'response'> & { index: number; toolCalls: BGToolCall[]; thinking?: string };
 
 type TurnHistory = {
@@ -100,28 +98,20 @@ function processToolCallRound(index: number, toolCall: IToolCallRound): {
 	toolCallRound: BGToolCallRound;
 	substantiveToolCallCount: number;
 } {
-	let substantiveToolCallCount = 0;
+	const substantiveToolCalls = toolCall.toolCalls.filter(isSubstantiveTool);
 
 	const toolCallRound = {
 		id: toolCall.id,
 		index: index,
 		response: toolCall.response,
 		thinking: processThinkingData(toolCall.thinking),
-		toolCalls: toolCall.toolCalls.map(t => {
-			const category = classifyTool(t);
-			if (category === 'substantive') {
-				substantiveToolCallCount++;
-			}
-
-			return {
-				name: t.name,
-				arguments: t.arguments.trim().slice(0, 100),
-				category: category
-			};
-		}).filter(t => t.category === 'substantive') // drop excluded
+		toolCalls: substantiveToolCalls.map(t => ({
+			name: t.name,
+			arguments: t.arguments.trim().slice(0, 200),
+		}))
 	};
 
-	return { toolCallRound, substantiveToolCallCount };
+	return { toolCallRound, substantiveToolCallCount: substantiveToolCalls.length };
 }
 
 function processThinkingData(thinkingData: ThinkingData | undefined) {
@@ -129,11 +119,24 @@ function processThinkingData(thinkingData: ThinkingData | undefined) {
 	if (thinkingText === undefined || typeof thinkingText === 'string') {
 		return thinkingText?.trim();
 	}
-	return thinkingText.join('\n').trim();
+	return thinkingText.join('\n').trim().slice(0, 400);
 }
 
-/** Non Exhaustive list of infrastructure tools that are not progress signals. */
+/**
+ * Non-exhaustive list of tools that are NOT substantive progress signals.
+ *
+ * A tool call is treated as "substantive" only when it mutates the workspace or
+ * produces a deliverable: file edits/creation, running tasks/tests, or
+ * work-performing subagents. Everything else is excluded so it does not advance
+ * the background pass readiness counter, namely:
+ * - meta/infrastructure (orchestration, prompts, confirmations, bookkeeping),
+ * - read-only exploration, search, and diagnostics (gathering context),
+ * - read-only subagents (findings are context, not completion evidence),
+ * - the terminal family (command execution here is too noisy to count),
+ * - browser/web interaction (UI navigation and validation, not deliverables).
+ */
 const EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
+	// Meta / infrastructure: orchestration, prompts, and bookkeeping.
 	ToolName.CoreManageTodoList,
 	ToolName.ToolSearch,
 	ToolName.CoreAskQuestions,
@@ -141,13 +144,49 @@ const EXCLUDED_TOOLS: ReadonlySet<string> = new Set([
 	ToolName.CoreConfirmationTool,
 	ToolName.CoreConfirmationToolWithOptions,
 	ToolName.CoreTerminalConfirmationTool,
+	ToolName.CoreReviewPlan,
 	ToolName.ResolveMemoryFileUri,
 	ToolName.Memory,
 	ToolName.Skill,
 	ToolName.SessionStoreSql,
 	ToolName.EditFilesPlaceholder,
+
+	// Read-only exploration, search, and diagnostics: gathering context is not progress.
+	ToolName.Codebase,
+	ToolName.FindFiles,
+	ToolName.FindTextInFiles,
+	ToolName.ReadFile,
+	ToolName.ViewImage,
+	ToolName.ListDirectory,
+	ToolName.ReadProjectStructure,
+	ToolName.SearchWorkspaceSymbols,
+	ToolName.GetScmChanges,
+	ToolName.FetchWebPage,
+	ToolName.GithubSemanticRepoSearch,
+	ToolName.GithubTextSearch,
+	ToolName.FindTestFiles,
+	ToolName.GetNotebookSummary,
+	ToolName.ReadCellOutput,
+	ToolName.CoreTestFailure,
+
+	// Terminal family: command execution here is too noisy to treat as a progress signal.
+	ToolName.CoreRunInTerminal,
+	ToolName.CoreSendToTerminal,
+	ToolName.CoreGetTerminalOutput,
+	ToolName.CoreKillTerminal,
+	ToolName.CoreTerminalSelection,
+	ToolName.CoreTerminalLastCommand,
+	ToolName.CoreGetTaskOutput,
+
+	// Browser / web interaction: UI navigation and validation, not deliverables.
+	ToolName.CoreOpenBrowserPage,
+	ToolName.CoreScreenshotPage,
+	ToolName.CoreNavigatePage,
+	ToolName.CoreReadPage,
+	ToolName.CoreRunPlaywrightCode,
 ]);
 
-function classifyTool(toolCall: IToolCall): ToolCategory {
-	return EXCLUDED_TOOLS.has(toolCall.name) ? 'excluded' : 'substantive';
+/** A tool call is substantive when it is not in the excluded set. */
+function isSubstantiveTool(toolCall: IToolCall): boolean {
+	return !EXCLUDED_TOOLS.has(toolCall.name);
 }

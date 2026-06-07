@@ -474,10 +474,10 @@ class BackOffTracker {
 	private static readonly DEFAULT_INITIAL_THRESHOLD = 3;
 
 	/** Extra substantive rounds added to the wait each time the threshold is hit. */
-	private static readonly DEFAULT_THRESHOLD_STEP = 3;
+	private static readonly DEFAULT_THRESHOLD_STEP = 2;
 
 	/** Upper bound for the wait; once reached it stays steady. */
-	private static readonly DEFAULT_MAX_THRESHOLD = 48;
+	private static readonly DEFAULT_MAX_THRESHOLD = 24;
 
 	/** Number of passes that fired this turn (turn-length signal). */
 	private passCount = 0;
