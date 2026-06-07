@@ -32,6 +32,7 @@ import { ITestProvider } from '../../../platform/testing/common/testProvider';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 
 import { findLast } from '../../../util/vs/base/common/arraysFind';
+import { raceTimeout } from '../../../util/vs/base/common/async';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Iterable } from '../../../util/vs/base/common/iterator';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -68,7 +69,7 @@ import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
-import { BackgroundTodoAgentProcessor, getSessionResource } from '../../prompts/node/agent/backgroundTodoAgent/processor';
+import { BackgroundTodoAgentProcessor, getSessionResource } from '../../prompts/node/agent/backgroundTodoAgent/backgroundTodoAgentProcessor';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
 	return endpoint.apiType === 'responses'
@@ -406,8 +407,12 @@ export class AgentIntent extends EditCodeIntent {
 
 			if (request.subAgentInvocationId === undefined && request.subAgentName === undefined) {
 				const todoProcessor = this._backgroundTodoProcessors.get(conversation.sessionId);
-				// TODO: make this race cancellble so that we don't block on this too long
-				await todoProcessor?.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken);
+				if (todoProcessor) {
+					await raceTimeout(
+						todoProcessor.endTurn(conversation.getLatestTurn().id, request.toolInvocationToken),
+						5000
+					);
+				}
 			}
 		}
 	}

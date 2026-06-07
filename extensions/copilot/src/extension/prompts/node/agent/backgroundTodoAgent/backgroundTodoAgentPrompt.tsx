@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BasePromptElementProps, Chunk, PrioritizedList, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
-import { BGToolCallRound, ReadOnlyTurnHistory } from './historyStore';
+import { BGToolCallRound, ReadOnlyTurnHistory } from './backgroundTodoAgentSessionHistoryStore';
 
 const BACKGROUND_TODO_SYSTEM_MESSAGE = `You are a background task tracker for the main coding agent. Your only job is to maintain a structured todo list for the user's coding request.
 

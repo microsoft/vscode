@@ -15,7 +15,7 @@ import { ITodoListContextProvider } from '../../../../prompt/node/todoListContex
 import { ToolName } from '../../../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../../../tools/common/toolsService';
-import { BackgroundTodoAgentSessionHistoryStore, ReadOnlyTurnHistory } from './historyStore';
+import { BackgroundTodoAgentSessionHistoryStore, ReadOnlyTurnHistory } from './backgroundTodoAgentSessionHistoryStore';
 import { ChatFetchResponseType, ChatLocation } from '../../../../../platform/chat/common/commonTypes';
 import { renderPromptElement } from '../../base/promptRenderer';
 import { BackgroundTodoPrompt } from './backgroundTodoAgentPrompt';
@@ -63,8 +63,6 @@ export class BackgroundTodoAgentProcessor {
 	 */
 	private cts = new CancellationTokenSource();
 
-	private hasCreatedTodosForTurn = new Map<string, boolean>();
-	private oldTurnIds = new Set<string>();
 	private oldTurnTodos: string | undefined = undefined;
 
 	private currentTurnId: string | undefined;
@@ -102,7 +100,7 @@ export class BackgroundTodoAgentProcessor {
 			const turnId = promptContext.conversation?.getLatestTurn().id;
 
 			if (turnId === undefined) {
-				// todo: log
+				this.logger.warn('skipping turn round: no turn ID found in prompt context');
 				return;
 			}
 
@@ -114,6 +112,7 @@ export class BackgroundTodoAgentProcessor {
 
 			if (this.currentTurnId === undefined) {
 				// First run for a turn
+				this.logger.debug(`starting to track turn ${turnId}`);
 				this.currentTurnId = turnId;
 				this.currentUserRequest = promptContext.query;
 				this.backOffTracker.reset();
@@ -150,9 +149,11 @@ export class BackgroundTodoAgentProcessor {
 			}
 			try {
 				if (this.currentTurnId !== turnId) {
-					// Log error
+					this.logger.error(`Requested end turn ${turnId} but current tracked turn is ${this.currentTurnId}`);
+					return;
 				}
-				this.oldTurnIds.add(turnId);
+
+				this.logger.debug(`ending turn ${turnId}, running final pass`);
 
 				// Use the processor generation token, NOT the request token: the
 				// request token is (expectedly) cancelled once the turn is over, which
@@ -171,6 +172,7 @@ export class BackgroundTodoAgentProcessor {
 	}
 
 	cancel() {
+		this.logger.debug('cancelling background todo agent generation');
 		// Abort the current generation and install a fresh one so the processor
 		// stays reusable for later turns (mirrors BackgroundSummarizer.cancel()).
 		// We deliberately do NOT clear the queue: Limiter.clear() drops queued
@@ -185,6 +187,7 @@ export class BackgroundTodoAgentProcessor {
 
 	private async doWork(turnId: string, toolInvocationToken: ChatParticipantToolToken, isFinal: boolean, token: CancellationToken) {
 		if (this.state === BackgroundTodoAgentProcessorState.InProgress) {
+			this.logger.debug(`skipping pass for turn ${turnId}: a pass is already in progress`);
 			return;
 		}
 
@@ -193,18 +196,23 @@ export class BackgroundTodoAgentProcessor {
 
 			const history = this.sessionHistoryStore.getTurnHistory(turnId);
 			if (history === undefined || history.new.length === 0) {
-				// TODO: add a log
+				this.logger.debug(`skipping pass for turn ${turnId}: no unprocessed history`);
 				return;
 			}
 
 			if (!this.backOffTracker.isReady(history.unprocessedSubstantiveRoundCount) && !isFinal) {
-				//TODO add a log
+				this.logger.debug(`skipping pass for turn ${turnId}: ${history.unprocessedSubstantiveRoundCount} substantive round(s) below threshold ${this.backOffTracker.threshold}`);
 				return;
 			}
 
 			try {
+				this.logger.debug(`running ${isFinal ? 'final ' : ''}pass for turn ${turnId} with ${history.new.length} new round(s)`);
 				const res = await this.makeChatRequest(history, toolInvocationToken, isFinal, token);
-				this.sessionHistoryStore.markToolCallsAsProcessed(turnId, history.new);
+
+				// Only retire the delta when the pass did not error.
+				if (res !== 'error') {
+					this.sessionHistoryStore.markToolCallsAsProcessed(turnId, history.new);
+				}
 
 				// Every pass that fires grows the turn-length wait so the background
 				// agent runs less often the longer a turn lasts.
@@ -213,12 +221,11 @@ export class BackgroundTodoAgentProcessor {
 				if (res === 'error' || res === 'noop') {
 					this.backOffTracker.recordNoop();
 				} else {
-					this.hasCreatedTodosForTurn.set(turnId, true);
 					this.backOffTracker.clearNoops();
 				}
 
 			} catch (err) {
-				// handle error
+				this.logger.error(err instanceof Error ? err : new Error(String(err)), `background todo pass failed for turn ${turnId}`);
 			}
 
 		} finally {
@@ -247,7 +254,7 @@ export class BackgroundTodoAgentProcessor {
 		);
 
 		if (token.isCancellationRequested) {
-			//TODO : return something else?
+			this.logger.debug('aborting pass before request: cancellation requested during prompt rendering');
 			return 'noop';
 		}
 
@@ -345,6 +352,7 @@ export class BackgroundTodoAgentProcessor {
 			return 'error';
 		}
 
+		this.logger.debug(`[BackgroundTodo] wrote ${todoList.length} todo item(s)`);
 		return 'success';
 	}
 
@@ -467,8 +475,10 @@ export function getSessionResource(promptContext: IBuildPromptContext): string |
  * The combined wait is capped at a configurable maximum.
  *
  *   threshold = min(initial + (passes + consecutiveNoops) * step, max)
+ *
+ * @internal - exported for testing
  */
-class BackOffTracker {
+export class BackOffTracker {
 
 	/** Substantive rounds to wait before the very first pass. */
 	private static readonly DEFAULT_INITIAL_THRESHOLD = 3;
