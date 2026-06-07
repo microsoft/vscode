@@ -49,7 +49,7 @@ import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIn
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, resolveSummaryAnchorRoundId, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { BackgroundTodoDecision, BackgroundTodoProcessor, IBackgroundTodoExecutionContext } from '../../prompts/node/agent/backgroundTodoProcessor';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
 import { extractSummary, SummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
@@ -1013,29 +1013,28 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken,
 		contextRatio: number,
 	): void {
-		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting background compaction`);
-
-		const bgStartTime = Date.now();
-
 		// Snapshot rounds so telemetry reflects state at kick-off time, not at
 		// completion time (the main loop mutates toolCallRounds). History is
 		// stable across a single user turn so a reference is sufficient.
 		const rounds = [...(promptContext.toolCallRounds ?? [])];
 		const history = promptContext.history;
-		let toolCallRoundId: string | undefined;
-		if (rounds.length >= 2) {
-			// Mark the round before the last, preserving the last round verbatim
-			toolCallRoundId = rounds[rounds.length - 2].id;
-		} else if (rounds.length === 1) {
-			toolCallRoundId = rounds[0].id;
-		} else {
-			for (let i = history.length - 1; i >= 0 && !toolCallRoundId; i--) {
-				const lastRound = history[i].rounds.at(-1);
-				if (lastRound) {
-					toolCallRoundId = lastRound.id;
-				}
-			}
+
+		// Resolve the round the summary will attach to up front. Without an
+		// anchor (e.g. an early turn before any tool-call round exists, reached
+		// via a cold-cache emergency kick-off) there is nothing to attach the
+		// result to, so skip *before* firing the expensive summarization request
+		// rather than running it for many seconds only to discard the result —
+		// which, on slow models, also stalls a later budget-exceeded render that
+		// waits on the in-flight request.
+		const toolCallRoundId = resolveSummaryAnchorRoundId(rounds, history);
+		if (!toolCallRoundId) {
+			this.logService.debug(`[ConversationHistorySummarizer] skipping background compaction at ${(contextRatio * 100).toFixed(0)}% — no tool call round to attach summary to (rounds=${rounds.length}, history=${history.length})`);
+			return;
 		}
+
+		this.logService.debug(`[ConversationHistorySummarizer] context at ${(contextRatio * 100).toFixed(0)}% — starting background compaction`);
+
+		const bgStartTime = Date.now();
 
 		// Build tool schemas matching the main agent loop so the prompt
 		// prefix (system + tools + messages) is identical for cache hits.
@@ -1102,9 +1101,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				const rawSummaryText = extractSummary(response.value);
 				if (rawSummaryText === undefined) {
 					throw new Error('Background summarization: no <summary> tags found in response');
-				}
-				if (!toolCallRoundId) {
-					throw new Error('Background summarization: no round ID to apply summary to');
 				}
 				// Flush the transcript before snapshotting the line count so
 				// the baked "N lines" hint matches the on-disk file at this
