@@ -208,7 +208,8 @@ function parseIntOptional(value: string | undefined): number | undefined {
 // This defines valid path characters for a link with a suffix, the first `[]` of the regex includes
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
-// character, otherwise it will stop at a space character.
+// character, otherwise it will stop at a space character. Box-drawing characters are excluded so
+// terminal UI borders are handled consistently with pipe separators.
 const linkWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/)?[^\s\|\u2500-\u257F<>\[\({][^\s\|\u2500-\u257F<>]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
