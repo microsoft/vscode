@@ -222,7 +222,7 @@ export function stringifyAhpLogEntry(value: unknown): string {
  * marker. The result is still well-formed JSON, so the log remains valid JSONL.
  * Only used for the rare oversized entry, so the extra per-value work is fine.
  */
-export function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number): string {
+function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number): string {
 	return JSON.stringify(value, function (this: unknown, key: string, val: unknown): unknown {
 		const revived = _ahpReplacer.call(this, key, val);
 		if (typeof revived === 'string' && revived.length > maxStringLength) {
