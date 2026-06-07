@@ -246,11 +246,11 @@ suite('AgentHostGitService', () => {
 			assert.deepStrictEqual(diffs, [
 				{
 					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts') } },
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts') } },
+					after: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts') } },
 					diff: { added: 5, removed: 2 },
 				},
 				{
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
+					after: { uri: 'file:///repo/added.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts') } },
 					diff: { added: 10, removed: 0 },
 				},
 				{
@@ -259,7 +259,7 @@ suite('AgentHostGitService', () => {
 				},
 				{
 					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts') } },
-					after: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts'), content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts') } },
+					after: { uri: 'file:///repo/new/path.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts') } },
 					diff: { added: 3, removed: 3 },
 				},
 			]);
@@ -293,6 +293,19 @@ suite('AgentHostGitService', () => {
 			assert.strictEqual(
 				formatGitError(['worktree', 'add', '/tmp/y', 'missing-branch'], 30_000, false, err, 'fatal: invalid reference: missing-branch\n'),
 				'git worktree exited with code 128: fatal: invalid reference: missing-branch',
+			);
+		});
+
+		test('keeps missing git-lfs error over the later generic fatal line', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			const stderr = [
+				'Preparing worktree (new branch \'agents/example\')',
+				'git-lfs filter-process: git-lfs: command not found',
+				'fatal: the remote end hung up unexpectedly',
+			].join('\n');
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '--no-track', '-b', 'agents/example', '/tmp/worktree', 'origin/main'], 60_000, false, err, stderr),
+				'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
 			);
 		});
 

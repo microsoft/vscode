@@ -19,7 +19,7 @@ import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
-import { IChatEndpoint } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, isCAPIEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -67,6 +67,7 @@ import { getAgentMaxRequests } from '../common/agentConfig';
 import { addCacheBreakpoints } from './cacheBreakpoints';
 import { EditCodeIntent, EditCodeIntentInvocation, EditCodeIntentInvocationOptions, mergeMetadata, toNewChatReferences } from './editCodeIntent';
 import { ToolCallingLoop } from './toolCallingLoop';
+import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { BackgroundTodoAgentProcessor, getSessionResource } from '../../prompts/node/agent/backgroundTodoAgent/processor';
 
 function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, configurationService: IConfigurationService, experimentationService: IExperimentationService): boolean {
@@ -98,8 +99,17 @@ export function isTodoToolExplicitlyEnabled(request: vscode.ChatRequest): boolea
  *
  * @internal - exported for testing
  */
-export function isBackgroundTodoAgentEnabled(configurationService: IConfigurationService, experimentationService: IExperimentationService, request: vscode.ChatRequest): boolean {
-	return configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
+export function isBackgroundTodoAgentEnabled(
+	endpoint: IChatEndpoint,
+	configurationService: IConfigurationService,
+	experimentationService: IExperimentationService,
+	authenticationService: IAuthenticationService,
+	request: vscode.ChatRequest): boolean {
+	const token = authenticationService.copilotToken;
+
+	// Only enable for a signed in no-free plan user talking to the CAPI endpoint.
+	const isEnabledForToken = token !== undefined && !token.isFreeUser && !token.isNoAuthUser && isCAPIEndpoint(endpoint);
+	return isEnabledForToken && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
 		&& !isTodoToolExplicitlyEnabled(request);
 }
 
@@ -147,6 +157,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
+	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
+
 	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -179,10 +191,9 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools[ToolName.CoreRunTest] = await testService.hasAnyTests();
 	allowTools[ToolName.CoreRunTask] = tasksService.getTasks().length > 0;
 
-	// BYOK endpoints that own their `Authorization` have no Copilot token for the
-	// agentic proxy or override models the subagents rely on, so disable them
-	// entirely and skip the (otherwise unnecessary) config and endpoint lookups.
-	if (model.ownsAuthorization) {
+	// The specialized subagents must only run when
+	// the main agent is on CAPI.
+	if (!isCAPIEndpoint(model)) {
 		allowTools[ToolName.SearchSubagent] = false;
 		allowTools[ToolName.ExploreSubagent] = false;
 		allowTools[ToolName.ExecutionSubagent] = false;
@@ -221,7 +232,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
-	if (isBackgroundTodoAgentEnabled(configurationService, experimentationService, request)) {
+	if (isBackgroundTodoAgentEnabled(model, configurationService, experimentationService, authenticationService, request)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
 	}
 
@@ -570,6 +581,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService protected override readonly otelService: IOTelService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -931,7 +943,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		// Background todo processing
-		this._maybeStartBackgroundTodoAgentPass(promptContext, token);
+		this._maybeStartBackgroundTodoAgentPass(endpoint, promptContext, token);
 
 		const lastMessage = result.messages.at(-1);
 		if (lastMessage?.role === Raw.ChatRole.User) {
@@ -1338,9 +1350,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 		return this.intent.getOrCreateBackgroundTodoProcessor(promptContext);
 	}
-	private _maybeStartBackgroundTodoAgentPass(promptContext: IBuildPromptContext, token: vscode.CancellationToken) {
+	private _maybeStartBackgroundTodoAgentPass(endpoint: IChatEndpoint, promptContext: IBuildPromptContext, token: vscode.CancellationToken) {
 		if (
-			!isBackgroundTodoAgentEnabled(this.configurationService, this.expService, this.request) ||
+			!isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request) ||
 			isTodoToolExplicitlyEnabled(this.request) ||
 			this.request.subAgentInvocationId !== undefined ||
 			this.request.subAgentName !== undefined
