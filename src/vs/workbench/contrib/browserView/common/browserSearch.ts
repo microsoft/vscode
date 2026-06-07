@@ -8,7 +8,7 @@ import { localize } from '../../../../nls.js';
 /**
  * Identifier of the integrated browser address bar search engine.
  */
-export const enum BrowserSearchEngineId {
+export enum BrowserSearchEngineId {
 	Bing = 'bing',
 	Yahoo = 'yahoo',
 	Google = 'google',
@@ -69,15 +69,15 @@ export const BROWSER_SEARCH_ENGINES: readonly IBrowserSearchEngine[] = [
 		buildSearchUrl: (q) => `https://www.bing.com/search?q=${encodeQuery(q)}`,
 	},
 	{
+		id: BrowserSearchEngineId.Google,
+		label: localize('browser.search.engine.google', "Google"),
+		buildSearchUrl: (q) => `https://www.google.com/search?q=${encodeQuery(q)}`,
+	},
+	{
 		id: BrowserSearchEngineId.Yahoo,
 		label: localize('browser.search.engine.yahoo', "Yahoo!"),
 		buildSearchUrl: (q) =>
 			`https://search.yahoo.com/search?p=${encodeQuery(q)}`,
-	},
-	{
-		id: BrowserSearchEngineId.Google,
-		label: localize('browser.search.engine.google', "Google"),
-		buildSearchUrl: (q) => `https://www.google.com/search?q=${encodeQuery(q)}`,
 	},
 	{
 		id: BrowserSearchEngineId.DuckDuckGo,
