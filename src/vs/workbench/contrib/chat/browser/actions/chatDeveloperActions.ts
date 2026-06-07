@@ -260,10 +260,13 @@ function formatConnectionSubscriptions(label: string, details: string, connectio
 
 	if (subscriptions.length) {
 		const sorted = [...subscriptions].sort((a, b) => a.resource.toString().localeCompare(b.resource.toString()));
-		output += '| Resource | Kind | Refs | Status |\n';
-		output += '| --- | --- | --- | --- |\n';
+		output += '| Resource | Kind | Refs | Holders | Status |\n';
+		output += '| --- | --- | --- | --- | --- |\n';
 		for (const subscription of sorted) {
-			output += `| ${subscription.resource.toString()} | ${subscriptionKindLabel(subscription.kind)} | ${subscription.refCount} | ${subscription.status} |\n`;
+			const holders = subscription.holders.length
+				? subscription.holders.map(h => h.count > 1 ? `${h.owner} (${h.count})` : h.owner).join(', ')
+				: '(none)';
+			output += `| ${subscription.resource.toString()} | ${subscriptionKindLabel(subscription.kind)} | ${subscription.refCount} | ${holders} | ${subscription.status} |\n`;
 		}
 		output += '\n';
 	}
