@@ -12,7 +12,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -54,6 +54,11 @@ import { getEffectiveAgents } from '../../common/customAgents.js';
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
 	readonly worktree: URI;
+}
+
+interface IResumeSessionOptions {
+	readonly recreateMissingWorktree: boolean;
+	readonly cache: boolean;
 }
 
 export type ICopilotPluginInfo = IParsedPlugin & { readonly pluginDir?: URI };
@@ -268,6 +273,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	private readonly _archivedSessions = new ResourceSet();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -1210,14 +1216,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 				rootSession = parentParsed.parentSession;
 			}
 			const rootSessionId = AgentSession.id(rootSession);
-			const parentEntry = this._sessions.get(rootSessionId) ?? await this._resumeSession(rootSessionId).catch(err => {
+			const parentEntry = await this._getSessionForMessageLookup(rootSession).catch(err => {
 				this._logService.warn(`[Copilot:${rootSessionId}] Failed to resume root for subagent restore`, err);
 				return undefined;
 			});
 			if (!parentEntry) {
 				return [];
 			}
-			return parentEntry.getSubagentMessages(subagentInfo.toolCallId);
+			try {
+				return await parentEntry.object.getSubagentMessages(subagentInfo.toolCallId);
+			} finally {
+				parentEntry.dispose();
+			}
 		}
 
 		const sessionId = AgentSession.id(session);
@@ -1225,16 +1235,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._provisionalSessions.has(sessionId)) {
 			return [];
 		}
-		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
+		const entry = await this._getSessionForMessageLookup(session).catch(err => {
 			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
 			return undefined;
 		});
 		if (!entry) {
 			return [];
 		}
-		const rawTurns = await entry.getMessages();
+		let rawTurns: readonly Turn[];
+		try {
+			rawTurns = await entry.object.getMessages();
+		} finally {
+			entry.dispose();
+		}
 
-		// If a worktree was created for this session at create-time, prepend
 		// If a worktree was created for this session at create-time, prepend
 		// the announcement to the first turn so it appears at the top of the
 		// first response when the session is reopened. The live path
@@ -1251,6 +1265,41 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return prependAnnouncementToFirstTurn(rawTurns, buildWorktreeAnnouncementText(worktreeMeta.branchName));
 	}
 
+	private async _getSessionForMessageLookup(session: URI): Promise<{ readonly object: CopilotAgentSession; dispose(): void } | undefined> {
+		const sessionId = AgentSession.id(session);
+		const cached = this._sessions.get(sessionId);
+		if (cached) {
+			return { object: cached, dispose: () => { } };
+		}
+
+		const isArchived = await this._isSessionArchived(session);
+		const hadActiveClient = this._activeClients.has(session);
+		let entry: CopilotAgentSession;
+		try {
+			entry = await this._resumeSession(sessionId, { recreateMissingWorktree: !isArchived, cache: !isArchived });
+		} catch (error) {
+			if (isArchived && !hadActiveClient) {
+				this._activeClients.get(session)?.dispose();
+				this._activeClients.delete(session);
+			}
+			throw error;
+		}
+		if (!isArchived) {
+			return { object: entry, dispose: () => { } };
+		}
+
+		return {
+			object: entry,
+			dispose: () => {
+				entry.dispose();
+				if (!hadActiveClient) {
+					this._activeClients.get(session)?.dispose();
+					this._activeClients.delete(session);
+				}
+			}
+		};
+	}
+
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
@@ -1262,9 +1311,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
 			if (isArchived) {
+				this._archivedSessions.add(session);
+			} else {
+				this._archivedSessions.delete(session);
+			}
+			if (isArchived) {
 				await this._cleanupWorktreeOnArchive(session, sessionId);
 			} else {
-				await this._recreateWorktreeOnUnarchive(session, sessionId);
+				await this._recreateWorktreeIfMissing(session, sessionId, 'unarchive');
 			}
 		});
 	}
@@ -1309,7 +1363,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _recreateWorktreeOnUnarchive(session: URI, sessionId: string): Promise<void> {
+	private async _recreateWorktreeIfMissing(session: URI, sessionId: string, reason: 'resume' | 'unarchive'): Promise<void> {
 		const meta = await this._readWorktreeMetadata(session).catch(() => undefined);
 		if (!meta?.worktreePath || !meta.repositoryRoot) {
 			return;
@@ -1321,14 +1375,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await fs.access(worktreePath.fsPath);
 			return;
 		} catch {
-			// expected when the worktree was cleaned up on archive
+			// expected when the worktree was cleaned up on archive or externally removed
 		}
 
 		// Skip if the branch is missing — we have no commit to attach the
 		// recreated worktree to.
 		const branchPresent = await this._gitService.branchExists(repositoryRoot, branchName).catch(() => false);
 		if (!branchPresent) {
-			this._logService.info(`[Copilot:${sessionId}] Skipping worktree recreation: branch '${branchName}' is missing`);
+			this._logService.info(`[Copilot:${sessionId}] Skipping worktree recreation on ${reason}: branch '${branchName}' is missing`);
 			return;
 		}
 
@@ -1336,9 +1390,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await fs.mkdir(URI.joinPath(worktreePath, '..').fsPath, { recursive: true });
 			await this._gitService.addExistingWorktree(repositoryRoot, worktreePath, branchName);
 			this._createdWorktrees.set(sessionId, { repositoryRoot, worktree: worktreePath });
-			this._logService.info(`[Copilot:${sessionId}] Recreated worktree '${worktreePath.fsPath}' on unarchive`);
+			this._logService.info(`[Copilot:${sessionId}] Recreated worktree '${worktreePath.fsPath}' on ${reason}`);
 		} catch (error) {
-			this._logService.warn(`[Copilot:${sessionId}] Failed to recreate worktree '${worktreePath.fsPath}' on unarchive: ${error instanceof Error ? error.message : String(error)}`);
+			this._logService.warn(`[Copilot:${sessionId}] Failed to recreate worktree '${worktreePath.fsPath}' on ${reason}: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
@@ -1545,12 +1599,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await this._removeCreatedWorktree(sessionId);
 	}
 
-	protected _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	protected _resumeSession(sessionId: string, options: IResumeSessionOptions = { recreateMissingWorktree: true, cache: true }): Promise<CopilotAgentSession> {
+		if (!options.cache) {
+			return this._doResumeSession(sessionId, options);
+		}
 		const existing = this._resumingSessions.get(sessionId);
 		if (existing) {
 			return existing;
 		}
-		const promise = this._doResumeSession(sessionId);
+		const promise = this._doResumeSession(sessionId, options);
 		this._resumingSessions.set(sessionId, promise);
 		const cleanup = () => {
 			if (this._resumingSessions.get(sessionId) === promise) {
@@ -1561,7 +1618,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return promise;
 	}
 
-	private async _doResumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	private async _doResumeSession(sessionId: string, options: IResumeSessionOptions): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
@@ -1582,13 +1639,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}
 
-		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, workingDirectory);
+		const resumeWorkingDirectory = await this._resolveResumeWorkingDirectory(sessionUri, sessionId, workingDirectory, options.recreateMissingWorktree);
+		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resumeWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? await this._resolveAgentName(sessionUri, snapshot, storedMetadata.agent) : undefined;
 		const launchPlan: CopilotSessionLaunchPlan = {
 			kind: 'resume',
 			client,
 			sessionId,
-			workingDirectory,
+			workingDirectory: resumeWorkingDirectory,
 			resolvedAgentName,
 			snapshot,
 			shellManager,
@@ -1605,9 +1663,64 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession.dispose();
 			throw err;
 		}
-		this._registerInitializedSession(sessionId, agentSession);
+		if (options.cache) {
+			this._registerInitializedSession(sessionId, agentSession);
+		}
 
 		return agentSession;
+	}
+
+	private async _resolveResumeWorkingDirectory(session: URI, sessionId: string, workingDirectory: URI, recreateMissingWorktree: boolean): Promise<URI> {
+		if (recreateMissingWorktree) {
+			await this._recreateWorktreeIfMissing(session, sessionId, 'resume');
+			return workingDirectory;
+		}
+
+		const worktreeMeta = await this._readWorktreeMetadata(session).catch(() => undefined);
+		if (!worktreeMeta?.worktreePath || worktreeMeta.worktreePath.toString() !== workingDirectory.toString()) {
+			return workingDirectory;
+		}
+
+		if (await this._isAccessibleDirectory(workingDirectory)) {
+			return workingDirectory;
+		}
+
+		const repositoryRoot = worktreeMeta.repositoryRoot;
+		if (repositoryRoot && await this._isAccessibleDirectory(repositoryRoot)) {
+			this._logService.info(`[Copilot:${sessionId}] Resuming archived session with repository root '${repositoryRoot.fsPath}' because worktree '${workingDirectory.fsPath}' is missing`);
+			return repositoryRoot;
+		}
+
+		return workingDirectory;
+	}
+
+	private async _isAccessibleDirectory(directory: URI | undefined): Promise<boolean> {
+		if (!directory) {
+			return false;
+		}
+		try {
+			const stat = await fs.stat(directory.fsPath);
+			return stat.isDirectory();
+		} catch {
+			return false;
+		}
+	}
+
+	private async _isSessionArchived(session: URI): Promise<boolean> {
+		if (this._archivedSessions.has(session)) {
+			return true;
+		}
+
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return false;
+		}
+		try {
+			const metadata = await ref.object.getMetadataObject({ isArchived: true, isDone: true });
+			return metadata.isArchived === 'true' || (metadata.isArchived === undefined && metadata.isDone === 'true');
+		} finally {
+			ref.dispose();
+		}
 	}
 
 	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: string } | undefined> {

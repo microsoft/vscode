@@ -277,6 +277,10 @@ class ResumePathCopilotAgent extends CopilotAgent {
 	protected override _createCopilotClient(): CopilotClient {
 		return this._copilotClient as CopilotClient;
 	}
+
+	resolveWorktreeForTest(config: Parameters<CopilotAgent['createSession']>[0], sessionId: string, prompt?: string): Promise<URI | undefined> {
+		return this._resolveSessionWorkingDirectory(config, sessionId, prompt);
+	}
 }
 
 class TestableCopilotAgent extends CopilotAgent {
@@ -1391,6 +1395,19 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('does not replace a session with an empty session when the working directory is missing', async () => {
+			const { client, getCreateSessionCalls } = createResumeFailingClient('Request session.resume failed with message: Directory does not exist or cannot be accessed: /missing/worktree');
+			const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService: disposables.add(new TestSessionDataService()) });
+			const internals = agent as unknown as AgentInternals;
+			try {
+				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+				await assert.rejects(() => internals._resumeSession('s1'), /Directory does not exist/);
+				assert.strictEqual(getCreateSessionCalls(), 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('worktree announcement', () => {
@@ -1621,6 +1638,217 @@ suite('CopilotAgent', () => {
 					[{ worktree: workingDir!.fsPath, branchName: gitService.addedWorktrees[0].branchName }],
 					'unarchive must recreate the worktree using the preserved branch',
 				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('resume recreates a missing persisted worktree before calling the SDK', async () => {
+			const sessionId = 'resume-recreate-worktree-session';
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-resume');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+			const sessionDataService = disposables.add(new TestSessionDataService());
+
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				gitService,
+			}) as ResumePathCopilotAgent;
+
+			const worktree = await agent.resolveWorktreeForTest({
+				workingDirectory: repositoryRoot,
+				config: { isolation: 'worktree', branch: 'main' },
+			}, sessionId, 'Resume recreate');
+			assert.ok(worktree, 'worktree must be created');
+			await fs.rm(worktree.fsPath, { recursive: true, force: true });
+			const branchName = gitService.addedWorktrees[0].branchName;
+			client.getSessionMetadata = async id => sdkSession(id, worktree.fsPath);
+			let resumeCalled = false;
+			client.resumeSession = async () => {
+				resumeCalled = true;
+				assert.deepStrictEqual(
+					gitService.addedExistingWorktrees.map(r => ({ worktree: r.worktree.fsPath, branchName: r.branchName })),
+					[{ worktree: worktree.fsPath, branchName }],
+					'worktree must be recreated before SDK resume',
+				);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			const internals = agent as unknown as { _resumeSession: (id: string) => Promise<CopilotAgentSession> };
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await internals._resumeSession(sessionId);
+				assert.strictEqual(resumeCalled, true);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('archived message lookup resumes without recreating a missing persisted worktree', async () => {
+			const sessionId = 'archived-history-missing-worktree-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-archived-history');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				gitService,
+			}) as ResumePathCopilotAgent;
+
+			const worktree = await agent.resolveWorktreeForTest({
+				workingDirectory: repositoryRoot,
+				config: { isolation: 'worktree', branch: 'main' },
+			}, sessionId, 'Archived history');
+			assert.ok(worktree, 'worktree must be created');
+			await fs.rm(worktree.fsPath, { recursive: true, force: true });
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('isArchived', 'true');
+			} finally {
+				dbRef.dispose();
+			}
+
+			client.getSessionMetadata = async id => sdkSession(id, worktree.fsPath);
+			let resumeWorkingDirectory: string | undefined;
+			let resumeCalls = 0;
+			client.resumeSession = async (_id, options) => {
+				resumeCalls++;
+				resumeWorkingDirectory = options.workingDirectory;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.getSessionMessages(session);
+				await agent.getSessionMessages(session);
+				assert.deepStrictEqual({
+					resumeCalls,
+					resumeWorkingDirectory,
+					recreatedWorktrees: gitService.addedExistingWorktrees,
+				}, {
+					resumeCalls: 2,
+					resumeWorkingDirectory: repositoryRoot.fsPath,
+					recreatedWorktrees: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('archived message lookup uses live archive state when archive metadata is not persisted yet', async () => {
+			const sessionId = 'archived-history-live-state-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-archived-live-state');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				gitService,
+			}) as ResumePathCopilotAgent;
+
+			const worktree = await agent.resolveWorktreeForTest({
+				workingDirectory: repositoryRoot,
+				config: { isolation: 'worktree', branch: 'main' },
+			}, sessionId, 'Archived live state');
+			assert.ok(worktree, 'worktree must be created');
+			await fs.rm(worktree.fsPath, { recursive: true, force: true });
+			await agent.onArchivedChanged(session, true);
+
+			client.getSessionMetadata = async id => sdkSession(id, worktree.fsPath);
+			let resumeWorkingDirectory: string | undefined;
+			client.resumeSession = async (_id, options) => {
+				resumeWorkingDirectory = options.workingDirectory;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.getSessionMessages(session);
+				assert.deepStrictEqual({
+					resumeWorkingDirectory,
+					recreatedWorktrees: gitService.addedExistingWorktrees,
+				}, {
+					resumeWorkingDirectory: repositoryRoot.fsPath,
+					recreatedWorktrees: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('archived subagent message lookup keeps temporary session alive until messages load', async () => {
+			const sessionId = 'archived-subagent-history-session';
+			const session = AgentSession.uri('copilotcli', sessionId);
+			const subagentSession = URI.parse(buildSubagentSessionUri(session.toString(), 'tc-subagent'));
+			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo-archived-subagent-history');
+			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
+
+			const gitService = new TestAgentHostGitService();
+			gitService.repositoryRoot = repositoryRoot;
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				gitService,
+			}) as ResumePathCopilotAgent;
+
+			const worktree = await agent.resolveWorktreeForTest({
+				workingDirectory: repositoryRoot,
+				config: { isolation: 'worktree', branch: 'main' },
+			}, sessionId, 'Archived subagent history');
+			assert.ok(worktree, 'worktree must be created');
+			await fs.rm(worktree.fsPath, { recursive: true, force: true });
+			const dbRef = sessionDataService.openDatabase(session);
+			try {
+				await dbRef.object.setMetadata('isArchived', 'true');
+			} finally {
+				dbRef.dispose();
+			}
+
+			const eventsRequested = new DeferredPromise<void>();
+			const releaseEvents = new DeferredPromise<SessionEventPayload<SessionEventType>[]>();
+			let disconnected = false;
+			class DelayedEventsCopilotSession extends MockCopilotSession {
+				override async getEvents(): Promise<SessionEventPayload<SessionEventType>[]> {
+					eventsRequested.complete();
+					return releaseEvents.p;
+				}
+
+				override async disconnect(): Promise<void> {
+					disconnected = true;
+				}
+			}
+
+			client.getSessionMetadata = async id => sdkSession(id, worktree.fsPath);
+			client.resumeSession = async () => new DelayedEventsCopilotSession() as unknown as CopilotSession;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const messages = agent.getSessionMessages(subagentSession);
+				await eventsRequested.p;
+				assert.strictEqual(disconnected, false);
+				releaseEvents.complete([]);
+				await messages;
+				assert.strictEqual(disconnected, true);
 			} finally {
 				await disposeAgent(agent);
 			}

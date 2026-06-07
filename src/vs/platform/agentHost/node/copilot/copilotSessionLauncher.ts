@@ -152,7 +152,7 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 	}
 
 	const message = getErrorMessage(err);
-	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token)\b/i.test(message);
+	return !/\b(corrupt|corrupted|invalid|validation|schema|must be|parse|malformed|unexpected token|directory does not exist|cannot be accessed)\b/i.test(message);
 }
 
 export function getCopilotReasoningEffort(model: ModelSelection | undefined): SessionConfig['reasoningEffort'] {
