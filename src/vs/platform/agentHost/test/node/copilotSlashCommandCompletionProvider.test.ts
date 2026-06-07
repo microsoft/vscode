@@ -31,6 +31,22 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/research How does React work?'), { command: 'research', rest: 'How does React work?' });
 		});
 
+		test('matches lone /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck'), { command: 'rubber-duck', rest: '' });
+		});
+
+		test('captures trailing text after a space for /rubber-duck', () => {
+			assert.deepStrictEqual(parseLeadingSlashCommand('/rubber-duck review my approach'), { command: 'rubber-duck', rest: 'review my approach' });
+		});
+
+		test('rejects /rubber-duck-extra (no separator)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber-duck-extra'), undefined);
+		});
+
+		test('rejects /rubber alone (incomplete command)', () => {
+			assert.strictEqual(parseLeadingSlashCommand('/rubber'), undefined);
+		});
+
 		test('captures trailing text after a space', () => {
 			assert.deepStrictEqual(parseLeadingSlashCommand('/plan build a hello world'), { command: 'plan', rest: 'build a hello world' });
 		});
@@ -57,7 +73,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 	});
 
 	suite('provideCompletionItems', () => {
-		const provider = new CopilotSlashCommandCompletionProvider('copilotcli');
+		const provider = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => true });
 		const session = 'copilotcli:/abc';
 
 		async function run(text: string, offset = text.length) {
@@ -76,7 +92,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 
 		test('returns all items for lone "/"', async () => {
 			const items = await run('/');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ', '/rubber-duck ']);
 		});
 
 		test('filters to /plan when "/p" typed', async () => {
@@ -89,9 +105,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items.map(i => i.insertText), ['/compact']);
 		});
 
-		test('filters to /research when "/r" typed', async () => {
+		test('filters to /research and /rubber-duck when "/r" typed', async () => {
 			const items = await run('/r');
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/research ', '/rubber-duck ']);
 		});
 
 		test('returns nothing when /word does not match any command prefix', async () => {
@@ -141,21 +157,37 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 						description: 'Run deep research on a topic using search and web sources',
 					},
 				},
+				{
+					type: MessageAttachmentKind.Simple,
+					meta: {
+						command: 'rubber-duck',
+						description: 'Get an independent critique of the current approach',
+					},
+				},
 			]);
 		});
 
 		test('omits /compact when session has no history', async () => {
-			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false });
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => false, isRubberDuckEnabled: () => true });
 			const items = await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
 			}, CancellationToken.None);
-			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ']);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/research ', '/rubber-duck ']);
+		});
+
+		test('omits /rubber-duck when not enabled', async () => {
+			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', { hasHistory: () => true, isRubberDuckEnabled: () => false });
+			const items = await gated.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text: '/', offset: 1,
+			}, CancellationToken.None);
+			assert.deepStrictEqual(items.map(i => i.insertText), ['/plan ', '/compact', '/research ']);
 		});
 
 		test('passes raw session id (no scheme/slash) to hasHistory', async () => {
 			let seen: string | undefined;
 			const gated = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				hasHistory: (id: string) => { seen = id; return true; },
+				isRubberDuckEnabled: () => true,
 			});
 			await gated.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: 'copilotcli:/abc', text: '/', offset: 1,

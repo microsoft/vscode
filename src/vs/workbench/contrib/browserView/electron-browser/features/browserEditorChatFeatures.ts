@@ -32,7 +32,7 @@ import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL } from '../browserEditor.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, BrowserActionCategory, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, BrowserActionGroup } from '../browserEditor.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -537,7 +537,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 
 		try {
-			const screenshotBuffer = await model.captureScreenshot({ quality: 80, fullPage: true });
+			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
 
 			if (!await this._confirmContentAttachmentRisk(model.url)) {
 				return;
@@ -549,7 +549,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				fullName: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
 				kind: 'image',
 				value: screenshotBuffer.buffer,
-				mimeType: 'image/jpeg',
+				mimeType: 'image/png',
 			}];
 
 			if (!await this._attachToChat(toAttach)) {
@@ -729,7 +729,7 @@ MenuRegistry.appendMenuItem(MenuId.BrowserActionsToolbar, {
 	submenu: MenuId.BrowserChatActionsMenu,
 	title: localize2('browser.chatActionsSubmenu', "Add to Chat"),
 	icon: Codicon.inspect,
-	group: 'actions',
+	group: BrowserActionGroup.Tools,
 	order: 1,
 	when: ChatContextKeys.enabled,
 	isSplitButton: true
@@ -740,7 +740,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		'workbench.browser.enableChatTools': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			experiment: { mode: 'startup' },
 			tags: ['experimental'],
 			markdownDescription: localize(

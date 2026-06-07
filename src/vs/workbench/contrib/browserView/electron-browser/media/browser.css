@@ -59,6 +59,7 @@
 		flex: 1;
 		display: flex;
 		align-items: center;
+		box-sizing: border-box;
 		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
@@ -72,7 +73,8 @@
 	.browser-url-bar-widgets {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
+		flex-shrink: 1;
+		overflow: hidden;
 		padding: 2px;
 		gap: 2px;
 	}
@@ -243,11 +245,43 @@
 		}
 	}
 
-	.browser-share-toggle-container {
+	.browser-favorite-indicator-container {
 		display: flex;
 		align-items: center;
 		margin: 0;
 		flex-shrink: 0;
+
+		.browser-favorite-indicator {
+			padding: 2px;
+			border-radius: var(--vscode-cornerRadius-small);
+			border-width: 0;
+			color: var(--vscode-descriptionForeground);
+			background-color: transparent;
+			outline: none !important;
+
+			&:focus-visible {
+				outline: 1px solid var(--vscode-focusBorder) !important;
+				outline-offset: 0px !important;
+			}
+
+			.codicon {
+				margin: 0;
+				font-size: 16px;
+			}
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground) !important;
+				color: var(--vscode-foreground);
+			}
+		}
+	}
+
+	.browser-share-toggle-container {
+		display: flex;
+		align-items: center;
+		margin: 0;
+		min-width: 0;
+		flex-shrink: 1;
 
 		.browser-share-toggle {
 			padding: 2px 4px;
@@ -257,6 +291,12 @@
 			white-space: nowrap;
 			gap: 4px;
 			outline: none !important;
+
+			> span:not(.codicon) {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 
 			&:focus-visible {
 				outline: 1px solid var(--vscode-focusBorder) !important;
@@ -429,7 +469,7 @@
 		right: 0;
 		bottom: 0;
 		background-image: none;
-		background-size: 100% 100%;
+		background-size: cover;
 		background-repeat: no-repeat;
 	}
 
@@ -676,7 +716,7 @@
 
 	.browser-url-display {
 		flex: 1;
-		min-width: 0;
+		min-width: 60px;
 		display: block;
 		box-sizing: border-box;
 		padding: 4px 6px;
@@ -688,6 +728,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		outline: none !important;
+
+		&:focus-within {
+			text-overflow: clip;
+		}
 
 		&:empty::before {
 			content: attr(data-placeholder);

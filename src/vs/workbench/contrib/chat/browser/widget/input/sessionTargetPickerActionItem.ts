@@ -15,12 +15,14 @@ import { MenuItemAction } from '../../../../../../platform/actions/common/action
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -55,11 +57,12 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
-				const currentType = this._getSelectedSessionType();
+				const currentType = this._getSelectedSessionType() ?? this._getDefaultSessionType();
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
@@ -105,6 +108,15 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
 			this._updateAgentSessionItems();
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentHostDefaultChatProvider)) {
+				this._updateAgentSessionItems();
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
+			}
 		}));
 
 		this._updateAgentSessionItems();
@@ -181,7 +193,31 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				});
 			}
 		}
+
+		// When the experimental "local agent host as default" setting is
+		// enabled, hoist the agent-host item to the front of the picker so it
+		// is the default selection.
+		const defaultType = this._getDefaultSessionType();
+		if (defaultType !== AgentSessionProviders.Local) {
+			const index = agentSessionItems.findIndex(item => item.type === defaultType);
+			if (index > 0) {
+				const [defaultItem] = agentSessionItems.splice(index, 1);
+				agentSessionItems.unshift(defaultItem);
+			}
+		}
+
 		this._sessionTypeItems = agentSessionItems;
+	}
+
+	/**
+	 * The default session type for the picker when no session is yet active.
+	 * Defaults to {@link AgentSessionProviders.Local} but is overridden to
+	 * {@link AgentSessionProviders.AgentHostCopilot} when the experimental
+	 * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting is enabled
+	 * and that provider is registered.
+	 */
+	protected _getDefaultSessionType(): AgentSessionTarget {
+		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
 	}
 
 	protected _isVisible(_type: AgentSessionTarget): boolean {
@@ -227,7 +263,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
-		const currentType = this._getSelectedSessionType() ?? AgentSessionProviders.Local;
+		const currentType = this._getSelectedSessionType() ?? this._getDefaultSessionType();
 
 		// TODO: Remove hardcoded providers from core
 		const knownType = getAgentSessionProvider(currentType);

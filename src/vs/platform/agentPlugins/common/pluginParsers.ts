@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse as parseJSONC } from '../../../base/common/json.js';
-import { cloneAndChange } from '../../../base/common/objects.js';
+import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { untildify } from '../../../base/common/labels.js';
-import { basename, extname, isEqualOrParent, joinPath, normalizePath } from '../../../base/common/resources.js';
+import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { parseFrontMatter } from '../../../base/common/yaml.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../mcp/common/mcpPlatformTypes.js';
-import { CustomizationType, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type AgentCustomization, type HookCustomization, type McpServerCustomization, type RuleCustomization, type SkillCustomization } from '../../agentHost/common/state/protocol/state.js';
 import { customizationId } from '../../agentHost/common/state/sessionState.js';
 
 // ---------------------------------------------------------------------------
@@ -39,6 +39,25 @@ export interface IParsedHookCommand {
 	readonly timeout?: number;
 	/** URI of the file this hook was defined in. */
 	readonly sourceUri?: URI;
+}
+
+export namespace IParsedHookCommand {
+	export function isEquals(a: IParsedHookCommand | undefined, b: IParsedHookCommand | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.command === b.command
+			&& a.windows === b.windows
+			&& a.linux === b.linux
+			&& a.osx === b.osx
+			&& isURLEquals(a.cwd, b.cwd)
+			&& objectEquals(a.env, b.env)
+			&& a.timeout === b.timeout
+			&& isURLEquals(a.sourceUri, b.sourceUri);
+	}
 }
 
 /** A group of hooks for a single lifecycle event. */
@@ -238,6 +257,8 @@ function makeMcpServerCustomization(definitionUri: URI, name: string): McpServer
 		id: buildChildId(definitionUri, `mcp=${encodeURIComponent(name)}`),
 		uri: definitionUri.toString(),
 		name,
+		enabled: true,
+		state: { kind: McpServerStatus.Starting },
 	};
 }
 
@@ -954,6 +975,17 @@ export async function parseAgentFile(uri: URI, fileService: IFileService): Promi
 		return { name, ...(description ? { description } : {}) };
 	} catch {
 		return { name: nameFromFile };
+	}
+}
+
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ description?: string }> {
+	try {
+		const content = await fileService.readFile(uri);
+		const frontmatter = parseFrontMatter(content.value.toString());
+		const description = frontmatter?.getStringValue('description')?.trim();
+		return { ...(description ? { description } : {}) };
+	} catch {
+		return {};
 	}
 }
 

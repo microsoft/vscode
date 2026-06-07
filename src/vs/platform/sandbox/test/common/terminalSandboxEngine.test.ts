@@ -13,7 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IFileService } from '../../../files/common/files.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { ISandboxDependencyStatus, IWindowsMxcFilesystemPolicy } from '../../common/sandboxHelperService.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import type { ISandboxDependencyStatus, IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, IWindowsMxcPolicyContainment, IWindowsMxcSandboxPolicy } from '../../common/sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../common/settings.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../common/terminalSandboxEngine.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../common/terminalSandboxMxcRuntime.js';
@@ -63,6 +64,53 @@ suite('TerminalSandboxEngine', () => {
 		async del(_uri: URI): Promise<void> { }
 	}
 
+	function buildMockWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName: string = 'vscode-terminal-sandbox', containment: IWindowsMxcPolicyContainment = 'process'): IWindowsMxcConfig {
+		const clearPolicy = policy.filesystem?.clearPolicyOnExit ?? true;
+		const network = {
+			defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block' as 'allow' | 'block',
+			...(policy.network?.allowLocalNetwork !== undefined ? { allowLocalNetwork: policy.network.allowLocalNetwork } : {}),
+			...(policy.network?.allowedHosts ? { allowedHosts: policy.network.allowedHosts } : {}),
+			...(policy.network?.blockedHosts ? { blockedHosts: policy.network.blockedHosts } : {}),
+			...(policy.network ? { enforcementMode: policy.network.allowedHosts?.length || policy.network.blockedHosts?.length ? 'both' as const : 'capabilities' as const } : {}),
+		};
+		return {
+			version: policy.version,
+			containerId: containerName,
+			containment,
+			lifecycle: {
+				destroyOnExit: true,
+				preservePolicy: !clearPolicy,
+			},
+			process: {
+				commandLine,
+				cwd: workingDirectory,
+				timeout: policy.timeoutMs ?? 0,
+			},
+			processContainer: {
+				name: containerName,
+				leastPrivilege: false,
+				capabilities: policy.network?.allowOutbound ? ['internetClient'] : [],
+				ui: {
+					isolation: 'container',
+					desktopSystemControl: false,
+					systemSettings: 'none',
+					ime: false,
+				},
+			},
+			filesystem: {
+				readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
+				readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
+				deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
+			},
+			network,
+			ui: {
+				disable: !(policy.ui?.allowWindows ?? false),
+				clipboard: policy.ui?.clipboard ?? 'none',
+				injection: policy.ui?.allowInputInjection ?? false,
+			},
+		};
+	}
+
 	function createHost(overrides: Partial<ITerminalSandboxEngineHost> = {}): ITerminalSandboxEngineHost & { rootsEmitter: Emitter<void> } {
 		const rootsEmitter = new Emitter<void>();
 		const defaultRuntime: ITerminalSandboxRuntimeInfo = {
@@ -81,6 +129,7 @@ suite('TerminalSandboxEngine', () => {
 			checkSandboxDependencies: (): Promise<ISandboxDependencyStatus | undefined> => Promise.resolve({ bubblewrapInstalled: true, socatInstalled: true }),
 			getWindowsMxcFilesystemPolicy: (): Promise<IWindowsMxcFilesystemPolicy | undefined> => Promise.resolve(undefined),
 			getWindowsMxcEnvironment: (): Promise<string[] | undefined> => Promise.resolve(undefined),
+			buildWindowsMxcSandboxPayload: (commandLine, policy, workingDirectory, containerName, containment): Promise<IWindowsMxcConfig | undefined> => Promise.resolve(buildMockWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment)),
 			getSandboxSetting: <T>(settingId: string): T | undefined => sandboxSettings.has(settingId) ? sandboxSettings.get(settingId) as T : undefined,
 			onDidChangeSandboxSettings: sandboxSettingsEmitter.event,
 			...overrides,
@@ -96,7 +145,7 @@ suite('TerminalSandboxEngine', () => {
 			getSandboxTempDir: () => Promise.resolve(URI.from({ scheme: 'file', path: '/c:/Users/user/.test-data/tmp' })),
 			getWorkspaceStorageReadRoot: () => Promise.resolve(URI.from({ scheme: 'file', path: '/c:/Users/user/workspaceStorage/workspace-id' })),
 			getWriteRoots: () => [URI.from({ scheme: 'file', path: '/c:/workspace' })],
-			getWindowsMxcFilesystemPolicy: () => Promise.resolve({ readonlyPaths: ['C:\\tools\\node', 'C:\\tools\\python', 'C:\\Users\\user\\AppData\\Local\\Programs\\Git', 'C:\\Users\\user\\AppData\\Local\\Temp'], readwritePaths: [] }),
+			getWindowsMxcFilesystemPolicy: () => Promise.resolve({ readonlyPaths: ['C:\\tools\\node', 'C:\\tools\\python', 'C:\\Users\\user\\AppData\\Local\\Programs\\Git'], readwritePaths: ['C:\\Users\\user\\AppData\\Local\\Temp'] }),
 			getWindowsMxcEnvironment: () => Promise.resolve([
 				'SystemRoot=C:\\Windows',
 				'PATH=C:\\tools\\node;C:\\Windows\\System32',
@@ -130,6 +179,7 @@ suite('TerminalSandboxEngine', () => {
 		fileService = new MockFileService();
 
 		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		sandboxSettings.set(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
 
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
@@ -172,6 +222,55 @@ suite('TerminalSandboxEngine', () => {
 		ok(wrapped.command.includes(`/app/node_modules/@vscode/ripgrep-universal/bin/linux-${arch}`), `Expected ripgrep-universal platform-arch path in command. Actual: ${wrapped.command}`);
 	});
 
+	test('requestAllowNetwork keeps the command sandboxed and refreshes its network config', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash', undefined, undefined, true);
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const unrestrictedConfig = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, true);
+		deepStrictEqual(unrestrictedConfig.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+
+		await engine.wrapCommand('echo restricted again');
+		const restrictedConfig = JSON.parse(createdFiles.get(configPath)!);
+		deepStrictEqual(restrictedConfig.network, { allowedDomains: [], deniedDomains: [] });
+	});
+
+	test('requestAllowNetwork does not relax network access when per-command requests are disabled', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, false);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash', undefined, undefined, true);
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, undefined);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [] });
+	});
+
+	test('blocked domains request sandboxed network access before execution when enabled', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['example.com']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+
+		const wrapped = await engine.wrapCommand('curl https://example.com', false, 'bash');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(wrapped.isSandboxWrapped, true);
+		strictEqual(wrapped.requiresAllowNetworkConfirmation, true);
+		deepStrictEqual(wrapped.blockedDomains, ['example.com']);
+		deepStrictEqual(wrapped.deniedDomains, ['example.com']);
+		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
+	});
+
 	test('onDidChangeRoots triggers a sandbox config rewrite on the next wrap', async () => {
 		let writeRoots: URI[] = [URI.file('/workspace-a')];
 		const host = createHost({
@@ -194,7 +293,7 @@ suite('TerminalSandboxEngine', () => {
 		ok(!config.filesystem.allowWrite.includes('/workspace-a'), 'Refreshed config should drop the old write root');
 	});
 
-	test('resolves filesystem paths and expands home on Linux when writing the config', async () => {
+	test('preserves filesystem symlink paths and resolves their targets on Linux when writing the config', async () => {
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxLinuxFileSystem, {
 			allowRead: ['~/read-link'],
 			allowWrite: ['/write-link'],
@@ -217,13 +316,20 @@ suite('TerminalSandboxEngine', () => {
 		const configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
-		ok(config.filesystem.allowWrite.includes('/real/workspace'), 'Workspace write root symlink should be resolved');
-		ok(config.filesystem.allowWrite.includes('/real/write'), 'Configured allowWrite symlink should be resolved');
-		ok(config.filesystem.allowRead.includes('/real/read'), 'Configured allowRead should expand ~ and resolve symlink');
-		ok(config.filesystem.allowRead.includes('/real/gnupg'), 'Command runtime allowRead should expand ~ and resolve symlink');
-		ok(config.filesystem.allowWrite.includes('/real/gnupg'), 'Command runtime allowWrite should expand ~ and resolve symlink');
-		ok(config.filesystem.denyRead.includes('/real/deny-read'), 'Configured denyRead should expand ~ and resolve symlink');
-		ok(config.filesystem.denyWrite.includes('/real/deny-write'), 'Configured denyWrite symlink should be resolved');
+		ok(config.filesystem.allowWrite.includes('/workspace-link'), 'Workspace write root symlink should be preserved');
+		ok(config.filesystem.allowWrite.includes('/real/workspace'), 'Workspace write root symlink target should be included');
+		ok(config.filesystem.allowWrite.includes('/write-link'), 'Configured allowWrite symlink should be preserved');
+		ok(config.filesystem.allowWrite.includes('/real/write'), 'Configured allowWrite symlink target should be included');
+		ok(config.filesystem.allowRead.includes('/home/user/read-link'), 'Configured allowRead should expand ~ and preserve the symlink');
+		ok(config.filesystem.allowRead.includes('/real/read'), 'Configured allowRead symlink target should be included');
+		ok(config.filesystem.allowRead.includes('/home/user/.gnupg'), 'Command runtime allowRead symlink should be preserved');
+		ok(config.filesystem.allowRead.includes('/real/gnupg'), 'Command runtime allowRead symlink target should be included');
+		ok(config.filesystem.allowWrite.includes('/home/user/.gnupg'), 'Command runtime allowWrite symlink should be preserved');
+		ok(config.filesystem.allowWrite.includes('/real/gnupg'), 'Command runtime allowWrite symlink target should be included');
+		ok(config.filesystem.denyRead.includes('/home/user/deny-read-link'), 'Configured denyRead should expand ~ and preserve the symlink');
+		ok(config.filesystem.denyRead.includes('/real/deny-read'), 'Configured denyRead symlink target should be included');
+		ok(config.filesystem.denyWrite.includes('/deny-write-link'), 'Configured denyWrite symlink should be preserved');
+		ok(config.filesystem.denyWrite.includes('/real/deny-write'), 'Configured denyWrite symlink target should be included');
 	});
 
 	test('keeps filesystem paths without symlinks when writing the config', async () => {
@@ -310,7 +416,8 @@ suite('TerminalSandboxEngine', () => {
 		ok(wrapped.command.startsWith(`& 'C:\\app\\node_modules\\@microsoft\\mxc-sdk\\bin\\x64\\wxc-exec.exe'`), `Expected MXC executable. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(` '${configPath}'`), `Expected wrapped command to pass the MXC config path. Actual: ${wrapped.command}`);
 		strictEqual(config.version, '0.4.0-alpha');
-		strictEqual(config.containment, 'processcontainer');
+		strictEqual(config.containment, 'process');
+		strictEqual(config.processContainer.name, 'vscode-terminal-sandbox');
 		strictEqual(config.process.commandLine, '"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -Command "echo hello"');
 		strictEqual(normalizeWindowsPathForAssert(config.process.cwd), 'c:/workspace');
 		strictEqual(config.ui.disable, false);
@@ -323,24 +430,23 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.process.env.includes('APPDATA=C:\\Users\\user\\AppData\\Roaming'), 'APPDATA should be injected into the MXC process env');
 		ok(config.process.env.includes('LOCALAPPDATA=C:\\Users\\user\\AppData\\Local'), 'LOCALAPPDATA should be injected into the MXC process env');
 		ok(config.process.env.includes('PSHOME=C:\\Program Files\\PowerShell\\7'), 'PSHOME should be injected into the MXC process env');
-		deepStrictEqual(config.network, { defaultPolicy: 'allow' });
+		deepStrictEqual(config.network, { defaultPolicy: 'allow', enforcementMode: 'capabilities' });
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace'), 'Workspace should be writable');
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be writable');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'MXC temporary files policy should add host temp path to writable paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path).endsWith('/.test-data/tmp')), 'Sandbox temp dir should be readable through readonly paths');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/app'), 'App root should be readable for MXC');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/tools/node'), 'MXC available tools policy should add tool paths to readonly paths');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/program files/powershell/7'), 'Resolved PowerShell executable directory should be readable');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/programs/git'), 'MXC user profile policy should add user profile paths to readonly paths');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'MXC actual temp policy should add host temp path to readonly paths');
 		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
 	});
 
 	test('wrapCommand applies Windows filesystem setting to MXC config', async () => {
 		enableWindowsSandbox();
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
-			allowWrite: ['C:\\configured\\write'],
-			allowRead: ['C:\\configured\\read'],
-			denyRead: ['C:\\configured\\secret'],
+			allowWrite: ['C:/configured/write'],
+			allowRead: ['C:/configured/read'],
+			denyRead: ['C:/configured/secret'],
 		});
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
@@ -348,16 +454,33 @@ suite('TerminalSandboxEngine', () => {
 		await engine.wrapCommand('echo hello', false, 'pwsh');
 		const configPath = await engine.getSandboxConfigPath();
 		ok(configPath, 'Config path should be defined');
-		const config = JSON.parse(createdFiles.get(configPath)!);
+		const serializedConfig = createdFiles.get(configPath)!;
+		const config = JSON.parse(serializedConfig);
 
+		ok(serializedConfig.includes('C:\\\\configured\\\\write'), 'Configured Windows allowWrite path should be escaped in the serialized MXC config');
+		ok(serializedConfig.includes('C:\\\\configured\\\\read'), 'Configured Windows allowRead path should be escaped in the serialized MXC config');
+		ok(serializedConfig.includes('C:\\\\configured\\\\secret'), 'Configured Windows denyRead path should be escaped in the serialized MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/write'), 'Configured Windows allowWrite path should be writable');
 		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/read'), 'Configured Windows allowRead path should be readonly');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'Host temp path from Windows policy should be readonly');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'Host temp path from Windows policy should be writable');
 		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/secret'), 'Configured Windows denyRead path should be denied');
 		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
 	});
 
-	test('resolves Windows filesystem symlinks when writing MXC config', async () => {
+	test('wrapCommand applies configured Windows MXC schema version', async () => {
+		enableWindowsSandbox();
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion, '0.5.0-alpha');
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createWindowsHost()));
+
+		await engine.wrapCommand('echo hello', false, 'pwsh');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config = JSON.parse(createdFiles.get(configPath)!);
+
+		strictEqual(config.version, '0.5.0-alpha');
+	});
+
+	test('preserves Windows filesystem symlink paths and resolves their targets when writing MXC config', async () => {
 		enableWindowsSandbox();
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
 			allowWrite: ['C:\\configured\\write-link'],
@@ -379,11 +502,16 @@ suite('TerminalSandboxEngine', () => {
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
-		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/workspace'), 'Workspace write root symlink should be resolved on Windows');
-		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-write'), 'Configured Windows allowWrite symlink should be resolved');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-read'), 'Configured Windows allowRead symlink should be resolved');
-		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/tools-node'), 'Windows policy readonly symlink should be resolved');
-		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-secret'), 'Configured Windows denyRead symlink should be resolved');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/workspace-link'), 'Workspace write root symlink should be preserved on Windows');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/workspace'), 'Workspace write root symlink target should be included on Windows');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/write-link'), 'Configured Windows allowWrite symlink should be preserved');
+		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-write'), 'Configured Windows allowWrite symlink target should be included');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/read-link'), 'Configured Windows allowRead symlink should be preserved');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-read'), 'Configured Windows allowRead symlink target should be included');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/tools/node'), 'Windows policy readonly symlink should be preserved');
+		ok(config.filesystem.readonlyPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/tools-node'), 'Windows policy readonly symlink target should be included');
+		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/secret-link'), 'Configured Windows denyRead symlink should be preserved');
+		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/real/configured-secret'), 'Configured Windows denyRead symlink target should be included');
 	});
 
 	test('wrapCommand uses arm64 MXC executable on Windows arm64', async () => {
@@ -431,7 +559,7 @@ suite('TerminalSandboxEngine', () => {
 		ok(configPath, 'Config path should be defined');
 		const config = JSON.parse(createdFiles.get(configPath)!);
 
-		deepStrictEqual(config.network, { defaultPolicy: 'allow' });
+		deepStrictEqual(config.network, { defaultPolicy: 'allow', enforcementMode: 'capabilities' });
 	});
 
 	test('uses OS-specific filesystem absolute path detection', async () => {
