@@ -264,16 +264,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				}
 			} else if (e.event.detail === 2) {
 				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
-				const position = e.target.position;
-				if (position && behaviour !== 'selectWord') {
-					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
-					if (line.match(RESULT_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
-					} else if (line.match(FILE_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand('editor.action.peekDefinition');
-					}
+				if (behaviour !== 'selectWord') {
+					this.openResult(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
 				}
 			}
 		}));
@@ -483,6 +475,29 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
 				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
 		this.searchResultEditor.focus();
+	}
+
+	goToResult() {
+		this.openResult('editor.action.goToDeclaration');
+	}
+
+	openResultToSide() {
+		this.openResult('editor.action.openDeclarationToTheSide');
+	}
+
+	private openResult(goToCommand: string) {
+		const position = this.searchResultEditor.getPosition();
+		if (!position) {
+			return;
+		}
+		const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
+		if (line.match(RESULT_LINE_REGEX)) {
+			this.searchResultEditor.setSelection(Range.fromPositions(position));
+			this.commandService.executeCommand(goToCommand);
+		} else if (line.match(FILE_LINE_REGEX)) {
+			this.searchResultEditor.setSelection(Range.fromPositions(position));
+			this.commandService.executeCommand('editor.action.peekDefinition');
+		}
 	}
 
 	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
