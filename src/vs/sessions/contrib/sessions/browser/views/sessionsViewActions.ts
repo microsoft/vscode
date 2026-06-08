@@ -589,6 +589,11 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				group: '1_edit',
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 15,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}]
 		});
 	}
