@@ -956,6 +956,65 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('getSessionCustomizations does not republish discovered directories when watcher changes are discovery-neutral', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			const agentsRoot = URI.joinPath(workspace, '.github', 'agents');
+			await fileService.createFolder(agentsRoot);
+			await fileService.writeFile(URI.joinPath(agentsRoot, 'helper.agent.md'), VSBuffer.fromString('agent body'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			const actions: SessionAction[] = [];
+			disposables.add(agent.onDidSessionProgress(progress => {
+				if (progress.kind === 'action') {
+					actions.push(progress.action);
+				}
+			}));
+
+			const countDirectoryPublishesForAgentsRoot = (): number => actions.filter(action => {
+				if (action.type === ActionType.SessionCustomizationUpdated) {
+					const customization = (action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>).customization;
+					return customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString();
+				}
+				if (action.type === ActionType.SessionCustomizationsChanged) {
+					const customizations = (action as Extract<SessionAction, { type: ActionType.SessionCustomizationsChanged }>).customizations;
+					return customizations.some(customization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString());
+				}
+				return false;
+			}).length;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-neutral-watcher-change');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				await agent.getSessionCustomizations(session);
+				await new Promise(resolve => setTimeout(resolve, 50));
+				const publishCountBefore = countDirectoryPublishesForAgentsRoot();
+
+				// README.md is intentionally excluded from discovered agents.
+				await fileService.writeFile(URI.joinPath(agentsRoot, 'README.md'), VSBuffer.fromString('ignored'));
+				await new Promise(resolve => setTimeout(resolve, 250));
+
+				const publishCountAfter = countDirectoryPublishesForAgentsRoot();
+				assert.strictEqual(publishCountAfter, publishCountBefore, 'expected no republish when discovery output is unchanged');
+
+				const after = await agent.getSessionCustomizations(session);
+				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('provisional sessions', () => {
