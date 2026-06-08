@@ -433,7 +433,7 @@
         ],
         "displayName": "%copilot.tools.readFile.name%",
         "userDescription": "%copilot.tools.readFile.userDescription%",
-        "modelDescription": "Read the contents of a file.\n\nYou must specify the line range you're interested in. Line numbers are 1-indexed. If the file contents returned are insufficient for your task, you may call this tool again to retrieve more content. Prefer reading larger ranges over doing many small reads. Binary files use startLine/endLine as byte offsets.",
+        "modelDescription": "Read the contents of a file.\n\nYou must specify the line range you're interested in. Line numbers are 1-indexed. Binary files use startLine/endLine as byte offsets.\n\nChoosing the line range:\n\n- If `uri`, `startLine`, and `endLine` come from another tool's result (for example, the `read` or `widerScopes` field of a `vscode_listCodeUsages` usage), pass them through **verbatim** — do not widen, narrow, or pad them. Those ranges are pre-computed to cover the relevant syntactic scope. If the content is insufficient, re-call `read_File` with the next entry in `widerScopes` verbatim.\n\n- For free-form reads (for example, after `grep` or any single line number without a pre-computed scope), prefer a **generous** range — typically 50–200 lines — so you have enough context in one call. Prefer one larger read over many small reads.\n\n- When in doubt: if a tool gave you the range, honor it exactly; otherwise, read wider rather than narrower.\n\nIf the file contents returned are insufficient for your task, you may call this tool again to retrieve more content.",
         "tags": [
           "vscode_codesearch"
         ],

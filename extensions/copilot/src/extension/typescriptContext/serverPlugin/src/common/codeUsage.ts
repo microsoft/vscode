@@ -167,7 +167,7 @@ export class CodeUsageProvider {
 			case ts.SyntaxKind.ArrowFunction:
 				if (ts.isPropertyAssignment(node.parent) && ts.isIdentifier(node.parent.name)) {
 					name = node.parent.name.text;
-					return name ? { kind: 'function', name, rangeNode: node.parent } : undefined;
+					return name ? { kind: 'arrow-function', name, rangeNode: node.parent } : undefined;
 				}
 				return undefined;
 			case ts.SyntaxKind.PropertyDeclaration:

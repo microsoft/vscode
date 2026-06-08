@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isUriComponents, URI } from '../../../../../base/common/uri.js';
+import { URI, type UriComponents } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -43,32 +43,33 @@ Input:
 IMPORTANT: The file and line do NOT need to be the definition of the symbol. Any occurrence works - a usage, an import, a call site, etc. You can pick whichever occurrence is most convenient.
 
 Output:
-
 Returns code usages of the queried symbol, grouped into definitions, references, and implementations. Empty categories are omitted.
 
-Each usage has:
+Each element inside a category has:
+- "uri" — a URI of the file where the usage appears.
+- "line" — 1-based line number of the usage.
+- "read" — a ready-to-use argument object for the "read_file" tool that covers the innermost syntactic scope around the usage (function, method, class, etc.). Shape: { "uri": string, "startLine": number, "endLine": number, "scope": { kind: "string", name: "string" } }. The "scope" has a "kind" denoting the scope of the enclosing element like "function", "class", ... and a "name" denoting its name.
+- "widerScopes" (optional) — additional, progressively larger scopes (e.g. the enclosing class, namespace), each in the same shape as "read", ordered from smaller to larger.
 
-uri — a URI of the file where the usage appears.
-line — 1-based line number of the usage.
-containers (optional) — enclosing syntactic scopes (function, method, class, interface, namespace, module), ordered innermost first.
-Each container has kind, name, and a range with startLine and endLine (inclusive, 1-based). Use the smallest range that gives you
-enough context before falling back to reading random parts of the file or the whole file. Top-level/file-wide containers are omitted.
-If results are capped, the response includes "truncated": true and "total": <n>; narrow the query (e.g. by file or kind) to see the rest.
+If results are capped, the response includes "truncated": true and "total": <n>; narrow the query (e.g. by file or symbol kind) to see the rest.
 
-Example:
-
+Example Output:
 {
 	"symbol": "parseConfig",
 	"definitions": [
-		{ "file": "file:///home/project/src/config.ts", "line": 42 }
+		{
+			"uri": "file:///home/project/src/config.ts",
+			"line": 42,
+			"read" { "uri": "file:///home/project/src/config.ts", "startLine": 30, "endLine": 50, "scope": { "kind": "function", "name": "parseConfig" } },
+		}
 	],
 	"references": [
 		{
-			"file": "file:///home/project/src/server.ts",
+			"uri": "file:///home/project/src/server.ts",
 			"line": 88,
-			"containers": [
-				{ "kind": "method", "name": "start", "range": { "startLine": 80, "endLine": 120 } },
-				{ "kind": "class",  "name": "Server", "range": { "startLine": 60, "endLine": 240 } }
+			"read": { "uri": "file:///home/project/src/server.ts", "startLine": 80, "endLine": 120, "scope": { "kind": "method", "name": "start" } },
+			"widerScopes": [
+				{ "uri": "file:///home/project/src/server.ts", "startLine": 60, "endLine": 240, "scope": { "kind": "class",  "name": "Server" } }
 			]
 		}
 	]
@@ -86,19 +87,26 @@ const StaticModelDescription = BaseModelDescription + `
 If the file's language has no reference provider registered, the tool returns an error.`;
 
 
-namespace Result {
+namespace CodeUsageResult {
 	export interface LineRange {
 		startLine: number;
 		endLine: number;
 	}
 
+	export interface Container {
+		kind: string;
+		name: string;
+		range: LineRange;
+	}
+
 	export interface CodeUsage {
-		uri: URI;
+		uri: UriComponents;
 		line: number;
-		containers?: LineRange[];
+		containers?: Container[];
 	}
 
 	export interface CodeUsages {
+		symbol: string;
 		definitions?: CodeUsage[];
 		references?: CodeUsage[];
 		implementations?: CodeUsage[];
@@ -111,6 +119,30 @@ namespace Result {
 			}
 			return true;
 		}
+	}
+}
+
+namespace ToolResult {
+
+	export interface ReadCommand {
+		uri: string;
+		startLine: number;
+		endLine: number;
+		scope: { kind: string; name: string };
+	}
+
+	export interface CodeUsage {
+		uri: string;
+		line: number;
+		read?: ReadCommand;
+		widerScopes?: ReadCommand[];
+	}
+
+	export interface CodeUsages {
+		symbol: string;
+		definitions?: CodeUsage[];
+		references?: CodeUsage[];
+		implementations?: CodeUsage[];
 	}
 }
 
@@ -165,7 +197,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 					}
 				},
 				required: ['symbol', 'lineContent']
-			}
+			},
 		};
 	}
 
@@ -209,15 +241,15 @@ export class UsagesTool extends Disposable implements IToolImpl {
 
 			const position = new Position(lineNumber, column);
 
-			const codeUsages = await this._commandService.executeCommand<Result.CodeUsages | null>('github.copilot.codeUsages', ref.object.textEditorModel.uri, position);
+			const codeUsages = await this._commandService.executeCommand<CodeUsageResult.CodeUsages | null>('github.copilot.codeUsages', ref.object.textEditorModel.uri, position);
 			const lines: string[] = [];
-			if (Result.CodeUsages.is(codeUsages)) {
+			if (CodeUsageResult.CodeUsages.is(codeUsages)) {
 				if (codeUsages.references === undefined || codeUsages.references.length === 0) {
 					const result = createToolSimpleTextResult(`No usages found for \`${input.symbol}\`.`);
 					result.toolResultMessage = new MarkdownString(localize('tool.usages.noResults', 'Analyzed usages of `{0}`, no results', input.symbol));
 					return result;
 				}
-				return createToolSimpleTextResult(this.formatResult(codeUsages));
+				return createToolSimpleTextResult(this.convertCodeUsages(codeUsages));
 			} else {
 
 				// --- query references, definitions, implementations in parallel ---
@@ -369,13 +401,48 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		return Range.areIntersectingOrTouching(a.range, b.range);
 	}
 
-	private formatResult(result: Result.CodeUsages): string {
-		return JSON.stringify(result, (key, value) => {
-			if (key === 'uri' && (isUriComponents(value))) {
-				return URI.revive(value).toString();
-			}
-			return value;
-		}, '\t');
+	private convertCodeUsages(usages: CodeUsageResult.CodeUsages): string {
+		const result: ToolResult.CodeUsages = {
+			symbol: usages.symbol,
+			definitions: this.convertCodeUsageCategory(usages.definitions),
+			references: this.convertCodeUsageCategory(usages.references),
+			implementations: this.convertCodeUsageCategory(usages.implementations),
+		};
+
+		return JSON.stringify(result, null, '\t');
+	}
+
+	private convertCodeUsageCategory(usages: CodeUsageResult.CodeUsage[] | undefined): ToolResult.CodeUsage[] | undefined {
+		if (!usages || usages.length === 0) {
+			return undefined;
+		}
+		return usages.map(u => this.convertCodeUsage(u));
+	}
+
+	private convertCodeUsage(usage: CodeUsageResult.CodeUsage): ToolResult.CodeUsage {
+		const uri = URI.revive(usage.uri);
+		if (usage.containers === undefined || usage.containers.length === 0) {
+			return {
+				uri: uri.toString(),
+				line: usage.line
+			};
+		}
+		const result: ToolResult.CodeUsage = {
+			uri: uri.toString(),
+			line: usage.line,
+			read: this.convertContainer(uri, usage.containers[0]),
+			widerScopes: usage.containers.slice(1).map(c => this.convertContainer(uri, c))
+		};
+		return result;
+	}
+
+	private convertContainer(uri: URI, container: CodeUsageResult.Container): ToolResult.ReadCommand {
+		return {
+			uri: uri.toString(),
+			startLine: container.range.startLine,
+			endLine: container.range.endLine,
+			scope: { kind: container.kind, name: container.name }
+		};
 	}
 }
 
