@@ -10,6 +10,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import {
 	filterModelsForSession,
+	findBestMatchingModel,
 	findDefaultModel,
 	hasModelsTargetingSession,
 	isModelSupportedForInlineChat,
@@ -345,6 +346,62 @@ suite('ChatModelSelectionLogic', () => {
 		});
 	});
 
+	suite('findBestMatchingModel', () => {
+
+		test('returns undefined when previous is undefined', () => {
+			const pool = [createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli')];
+			assert.strictEqual(findBestMatchingModel(undefined, pool), undefined);
+		});
+
+		test('returns undefined for empty pool', () => {
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6');
+			assert.strictEqual(findBestMatchingModel(prev, []), undefined);
+		});
+
+		test('matches across vendors by raw model id (the issue #319583 case)', () => {
+			// Previous selection from the in-extension copilotcli participant,
+			// switching to the agent-host pool where the same model exists with
+			// a different identifier/vendor.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { vendor: 'copilotcli', family: 'claude-sonnet-4.6' });
+			const target = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
+			const other = createSessionModel('gpt-5', 'GPT-5', 'agent-host-copilotcli', { family: 'gpt-5' });
+			assert.strictEqual(findBestMatchingModel(prev, [other, target])?.identifier, target.identifier);
+		});
+
+		test('matches by id even when family differs', () => {
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const target = createSessionModel('claude-sonnet-4.6', 'Other Name', 'agent-host-copilotcli', { family: 'other' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('prefers id over family when both could match different pool entries', () => {
+			// Family is shared across distinct models (e.g. all Claude variants share `claude`),
+			// so the id match must win over the family match.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const familyMatch = createSessionModel('claude-opus-4.7', 'Claude Opus 4.7', 'agent-host-copilotcli', { family: 'claude' });
+			const idMatch = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet' });
+			assert.strictEqual(findBestMatchingModel(prev, [familyMatch, idMatch])?.identifier, idMatch.identifier);
+		});
+
+		test('falls back to name when neither id nor family match', () => {
+			const prev = createModel('a', 'Claude Sonnet 4.6', { family: 'fa' });
+			const target = createSessionModel('b', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'fb' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+
+		test('returns undefined when nothing matches', () => {
+			const prev = createModel('gpt-5', 'GPT-5', { family: 'gpt-5' });
+			const pool = [createSessionModel('claude', 'Claude', 'agent-host-copilotcli', { family: 'claude' })];
+			assert.strictEqual(findBestMatchingModel(prev, pool), undefined);
+		});
+
+		test('match is case-insensitive', () => {
+			const prev = createModel('Claude-Sonnet-4.6', 'CLAUDE SONNET 4.6', { family: 'CLAUDE-SONNET-4.6' });
+			const target = createSessionModel('claude-sonnet-4.6', 'claude sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet-4.6' });
+			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
+		});
+	});
+
 	suite('findDefaultModel', () => {
 
 		test('returns model marked as default for location', () => {
@@ -566,6 +623,20 @@ suite('ChatModelSelectionLogic', () => {
 				sessionType: undefined,
 			});
 			assert.strictEqual(result.action, 'apply');
+		});
+
+		test('returns default when current and state share an identifier but neither belongs to the new session pool', () => {
+			// Regression for #319583: switching from a general pool (`local`) to a
+			// session-targeted pool (`agent-host-copilotcli`) while the picker
+			// still holds a general model. The general model's identifier matches
+			// both `currentModel` and the persisted `stateModel`, but it is not
+			// valid for the new pool — the resolver must fall through to
+			// `'default'` rather than short-circuit to `'keep'`.
+			const generalModel = createModel('claude', 'Claude');
+			const sessionModel = createSessionModel('claude', 'Claude', 'agent-host-copilotcli');
+			const allModels = [generalModel, sessionModel];
+			const result = resolveModelFromSyncState(generalModel, generalModel, allModels, 'agent-host-copilotcli');
+			assert.strictEqual(result.action, 'default');
 		});
 	});
 

@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon, getAllCodicons } from '../../../../../base/common/codicons.js';
@@ -165,7 +165,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			for (const tool of tools) {
 				if (tool.canBeReferencedInPrompt) {
 					data.push({
-						name: tool.toolReferenceName ?? tool.displayName,
+						name: this._languageModelToolsService.getFullReferenceName(tool),
 						sourceLabel: ToolDataSource.classify(tool.source).label,
 						sourceOrdinal: ToolDataSource.classify(tool.source).ordinal,
 						description: tool.userDescription ?? tool.modelDescription
@@ -174,7 +174,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 			for (const toolSet of toolSets) {
 				data.push({
-					name: toolSet.referenceName,
+					name: this._languageModelToolsService.getFullReferenceName(toolSet),
 					sourceLabel: ToolDataSource.classify(toolSet.source).label,
 					sourceOrdinal: ToolDataSource.classify(toolSet.source).ordinal,
 					description: toolSet.description
@@ -270,6 +270,18 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 					const tools: IToolData[] = [];
 					const toolSets: IToolSet[] = [];
 					value.tools.forEach(name => {
+						// Resolve by full reference name first. This handles qualified names
+						// (e.g. `vscode/memory`, `github/*`) as well as unqualified names
+						// (e.g. `memory`) via their aliases.
+						const toolOrToolSet = this._languageModelToolsService.getToolByFullReferenceName(name);
+						if (isToolSet(toolOrToolSet)) {
+							toolSets.push(toolOrToolSet);
+							return;
+						} else if (toolOrToolSet) {
+							tools.push(toolOrToolSet);
+							return;
+						}
+						// Fall back to legacy lookup by unqualified reference name.
 						const tool = this._languageModelToolsService.getToolByName(name);
 						if (tool) {
 							tools.push(tool);

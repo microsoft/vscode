@@ -474,6 +474,7 @@ type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponent
 export class AgentSubscriptionManager extends Disposable {
 
 	private readonly _subscriptions = new ResourceMap<ManagedSubscriptionEntry>();
+	private readonly _inflightCreates = new ResourceMap<Promise<unknown>>();
 	private _referenceOwnerIds = 0;
 	private readonly _rootState: RootStateSubscription;
 	private readonly _clientId: string;
@@ -521,6 +522,20 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Register an in-flight `createSession` Promise for a session URI. Any
+	 * subscribe issued for this resource while the create is pending waits
+	 * for the Promise before issuing the wire-level subscribe.
+	 */
+	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+		this._inflightCreates.set(resource, promise);
+		void promise.finally(() => {
+			if (this._inflightCreates.get(resource) === promise) {
+				this._inflightCreates.delete(resource);
+			}
+		});
+	}
+
+	/**
 	 * Get or create a refcounted subscription to any resource. Disposing
 	 * the returned reference decrements the refcount; when it reaches zero
 	 * the subscription is torn down and the server is notified.
@@ -553,15 +568,28 @@ export class AgentSubscriptionManager extends Disposable {
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
-		this._subscribe(resource).then(snapshot => {
-			if (this._subscriptions.get(resource) === entry) {
-				sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+		void (async () => {
+			const inflight = this._inflightCreates.get(resource);
+			if (inflight) {
+				try {
+					await inflight;
+				} catch {
+					// Swallow — fall through to subscribe so the error
+					// surfaces consistently via setError() on the
+					// subscription, matching the no-inflight path.
+				}
 			}
-		}).catch(err => {
-			if (this._subscriptions.get(resource) === entry) {
-				sub.setError(err instanceof Error ? err : new Error(String(err)));
+			try {
+				const snapshot = await this._subscribe(resource);
+				if (this._subscriptions.get(resource) === entry) {
+					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				}
+			} catch (err) {
+				if (this._subscriptions.get(resource) === entry) {
+					sub.setError(err instanceof Error ? err : new Error(String(err)));
+				}
 			}
-		});
+		})();
 
 		return this._acquireReference<T>(resource, entry, owner);
 	}

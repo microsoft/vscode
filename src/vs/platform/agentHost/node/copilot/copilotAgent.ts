@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import { IParsedPlugin, parseAgentFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -50,6 +50,24 @@ import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirector
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+
+/**
+ * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
+ * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
+ * match the agent host's configured verbosity. `Trace` maps to the CLI's most
+ * verbose `'all'` level so renderer-side trace logging surfaces the CLI's
+ * internal diagnostics.
+ */
+function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOptions['logLevel']> {
+	switch (level) {
+		case LogLevel.Off: return 'none';
+		case LogLevel.Trace: return 'all';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warning';
+		case LogLevel.Error: return 'error';
+	}
+}
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -529,6 +547,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
 				telemetry,
+				logLevel: copilotCliLogLevelFor(this._logService.getLevel()),
 				enableRemoteSessions: this._isSessionSyncEnabled(),
 			};
 			const client = this._createCopilotClient(clientOptions);

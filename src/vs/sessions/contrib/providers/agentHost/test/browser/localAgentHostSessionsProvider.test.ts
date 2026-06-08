@@ -206,6 +206,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidRootStateChange.fire(this._rootStateValue);
 	}
 
+	/**
+	 * Fires a root state change that preserves the current `agents` reference,
+	 * simulating non-agent root deltas (e.g. `RootActiveSessionsChanged` on
+	 * every turn start/complete) that the real reducer emits without
+	 * replacing the `agents` slice.
+	 */
+	fireNonAgentRootStateChange(): void {
+		if (!this._rootStateValue || this._rootStateValue instanceof Error) {
+			throw new Error('rootState not initialized; call setAgents first');
+		}
+		this._rootStateValue = { ...this._rootStateValue };
+		this._onDidRootStateChange.fire(this._rootStateValue);
+	}
+
 	clearRootState(): void {
 		this._rootStateValue = undefined;
 	}
@@ -945,12 +959,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let fired = 0;
 		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
 
-		// Root state change should fire the event.
+		// A root state change that replaces the agents reference should
+		// fire the event. This is the only path that mutates agents in the
+		// real reducer (`RootAgentsChanged`).
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 		]);
 		const afterRoot = fired;
-		assert.ok(afterRoot > 0, 'expected event to fire on root state change');
+		assert.ok(afterRoot > 0, 'expected event to fire when the agents reference is replaced');
+
+		// A subsequent root state change that preserves the agents reference
+		// (e.g. `activeSessionsChanged` on every turn start/complete) must
+		// NOT fire — firing on those caused chat session bubbles to be
+		// re-hydrated mid-turn, dropping streamed responses.
+		agentHost.fireNonAgentRootStateChange();
+		assert.strictEqual(fired, afterRoot, 'expected event NOT to fire on non-agent root deltas (preserved agents reference)');
 
 		// Session-state update with new customizations should fire it again.
 		provider.getSessionConfig(session!.sessionId);

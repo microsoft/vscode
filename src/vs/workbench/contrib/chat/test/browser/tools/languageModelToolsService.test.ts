@@ -760,6 +760,34 @@ suite('LanguageModelToolsService', () => {
 		}
 	});
 
+	test('getFullReferenceName returns qualified names for tools and tool sets', () => {
+		setupToolsForTest(service, store);
+
+		const extTool1 = service.getToolByFullReferenceName('my.extension/extTool1RefName');
+		const mcpToolSet = service.getToolByFullReferenceName('mcpToolSetRefName/*');
+		const mcpTool1 = service.getToolByFullReferenceName('mcpToolSetRefName/mcpTool1RefName');
+		const internalToolSet = service.getToolByFullReferenceName('internalToolSetRefName');
+		const internalTool = service.getToolByFullReferenceName('internalToolSetRefName/internalToolSetTool1RefName');
+		assert.ok(extTool1);
+		assert.ok(mcpToolSet);
+		assert.ok(mcpTool1);
+		assert.ok(internalToolSet);
+		assert.ok(internalTool);
+
+		// Tools and tool sets resolve back to their qualified full reference names.
+		assert.strictEqual(service.getFullReferenceName(extTool1), 'my.extension/extTool1RefName');
+		assert.strictEqual(service.getFullReferenceName(mcpToolSet), 'mcpToolSetRefName/*');
+		assert.strictEqual(service.getFullReferenceName(mcpTool1), 'mcpToolSetRefName/mcpTool1RefName');
+		assert.strictEqual(service.getFullReferenceName(internalToolSet), 'internalToolSetRefName');
+		assert.strictEqual(service.getFullReferenceName(internalTool), 'internalToolSetRefName/internalToolSetTool1RefName');
+
+		// Round-trip: the produced full reference name resolves back to the same item.
+		for (const item of [extTool1, mcpToolSet, mcpTool1, internalToolSet, internalTool]) {
+			assert.strictEqual(service.getToolByFullReferenceName(service.getFullReferenceName(item)), item);
+		}
+	});
+
+
 	test('toToolAndToolSetEnablementMap', () => {
 		setupToolsForTest(service, store);
 

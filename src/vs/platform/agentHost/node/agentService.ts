@@ -418,8 +418,39 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		});
 
-		this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
-		return withStatus;
+		// Overlay any session that has been announced via `sessionAdded`
+		// but is missing from the providers' `listSessions` snapshot.
+		// Providers can briefly drop a just-materialized session (e.g.
+		// between firing `sessionAdded` and the SDK's session DB becoming
+		// visible to the next `listSessions` call), and immediately after
+		// `session/turnComplete` we've observed `CopilotAgent.listSessions`
+		// return an empty array transiently. Without this overlay,
+		// renderer-side session caches evict the live session, which
+		// closes the chat view holding the in-flight response bubble.
+		const known = new Set(withStatus.map(s => s.session.toString()));
+		const additions: IAgentSessionMetadata[] = [];
+		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
+			if (known.has(summary.resource)) {
+				continue;
+			}
+			additions.push({
+				session: URI.parse(summary.resource),
+				startTime: summary.createdAt,
+				modifiedTime: summary.modifiedAt,
+				summary: summary.title,
+				status: summary.status,
+				activity: summary.activity,
+				model: summary.model,
+				agent: summary.agent,
+				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
+				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
+				changesets: summary.changesets,
+			});
+		}
+		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+
+		this._logService.trace(`[AgentService] listSessions returned ${combined.length} sessions (${additions.length} state-manager fallback)`);
+		return combined;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
