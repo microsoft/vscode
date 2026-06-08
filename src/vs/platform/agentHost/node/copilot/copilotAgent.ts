@@ -46,7 +46,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
-import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { areDiscoveredDirectoriesEqual, DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
@@ -1918,6 +1918,7 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private _customizations: readonly DirectoryCustomization[] = [];
 	private _plugin: IParsedPlugin | undefined;
+	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 	private readonly _fileService: IFileService;
 
@@ -1983,6 +1984,10 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
+			if (this._directories && areDiscoveredDirectoriesEqual(this._directories, directories)) {
+				return false;
+			}
+
 			const customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
 			if (token.isCancellationRequested) {
 				return false;
@@ -2004,6 +2009,7 @@ class SessionDiscoveredEntry extends Disposable {
 				this._customizations = customizations;
 				this._plugin = plugin;
 			}
+			this._directories = directories;
 			return true;
 		} catch (err) {
 			// Don't update `_customizations` / `_plugin` when cancelled.
@@ -2012,9 +2018,11 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
+			const hadState = this._customizations.length > 0 || this._plugin !== undefined || this._directories !== undefined;
 			this._customizations = [];
 			this._plugin = undefined;
-			return true;
+			this._directories = undefined;
+			return hadState;
 		}
 	}
 }
@@ -2031,7 +2039,7 @@ function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDi
 			contents: toDirectoryContentsType(directory.type),
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
-			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file, directory.type, fileService))),
+			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file.uri, directory.type, fileService))),
 		};
 	}));
 }
