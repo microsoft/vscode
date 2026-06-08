@@ -12,6 +12,10 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.agent-sessions-workbench .monaco-dropdown-with-default {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
 .agent-sessions-workbench .part.sidebar {
