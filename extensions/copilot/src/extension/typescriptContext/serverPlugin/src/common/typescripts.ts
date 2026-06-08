@@ -1223,6 +1223,8 @@ namespace tss {
 		projectService?: tt.server.ProjectService;
 		getFileAndProject?(args: tt.server.protocol.FileRequestArgs): Sessions.FileAndProject;
 		getPositionInFile?(args: tt.server.protocol.Location & { position?: number }, file: tt.server.NormalizedPath): number;
+		getReferences?(args: tt.server.protocol.FileLocationRequestArgs, simplifiedResult: boolean): tt.server.protocol.ReferencesResponseBody | readonly tt.ReferencedSymbol[];
+		getImplementation?(args: tt.server.protocol.FileLocationRequestArgs, simplifiedResult: boolean): readonly tt.server.protocol.FileSpanWithContext[] | readonly tt.ImplementationLocation[];
 	}
 
 	export namespace Sessions {
@@ -1236,12 +1238,12 @@ namespace tss {
 			return (session as unknown as InternalSession).projectService;
 		}
 
-		export function getFileAndProject(session: tt.server.Session, args: tt.server.protocol.FileRequestArgs): FileAndProject | undefined {
+		export function getFileAndProject(session: tt.server.Session, fileName: string): FileAndProject | undefined {
 			const internal: InternalSession = session as unknown as InternalSession;
 			if (typeof internal.getFileAndProject !== 'function') {
 				return undefined;
 			}
-			return internal.getFileAndProject(args);
+			return internal.getFileAndProject({ file: fileName });
 		}
 
 		export function getPositionInFile(session: tt.server.Session, args: tt.server.protocol.Location & { position?: number }, file: tt.server.NormalizedPath): number | undefined {
@@ -1250,6 +1252,32 @@ namespace tss {
 				return undefined;
 			}
 			return internal.getPositionInFile(args, file);
+		}
+
+		export function getReferences(session: tt.server.Session, fileName: string, line: number, offset: number): tt.ReferencedSymbol[] | undefined {
+			const internal: InternalSession = session as unknown as InternalSession;
+			if (typeof internal.getReferences !== 'function') {
+				return undefined;
+			}
+			const result = internal.getReferences({ file: fileName, line, offset }, false);
+			if (Array.isArray(result)) {
+				return result;
+			} else {
+				return undefined;
+			}
+		}
+
+		export function getImplementation(session: tt.server.Session, fileName: string, line: number, offset: number): tt.ImplementationLocation[] | undefined {
+			const internal: InternalSession = session as unknown as InternalSession;
+			if (typeof internal.getImplementation !== 'function') {
+				return undefined;
+			}
+			const result = internal.getImplementation({ file: fileName, line, offset }, false);
+			if (Array.isArray(result)) {
+				return result;
+			} else {
+				return undefined;
+			}
 		}
 	}
 

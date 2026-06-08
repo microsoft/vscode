@@ -31,8 +31,8 @@ export class LanguageServerSession extends ComputeContextSession {
 		this.session.logError(error, cmd);
 	}
 
-	public getFileAndProject(args: tt.server.protocol.FileRequestArgs): Sessions.FileAndProject | undefined {
-		return Sessions.getFileAndProject(this.session, args);
+	public getFileAndProject(fileName: string): Sessions.FileAndProject | undefined {
+		return Sessions.getFileAndProject(this.session, fileName);
 	}
 
 	public getPositionInFile(args: tt.server.protocol.Location & { position?: number }, file: tt.server.NormalizedPath): number | undefined {
@@ -72,6 +72,14 @@ export class LanguageServerSession extends ComputeContextSession {
 		}
 		const scriptInfo = projectService.getScriptInfoForNormalizedPath(file);
 		return scriptInfo?.getLatestVersion();
+	}
+
+	public getReferences(fileName: string, line: number, offset: number): tt.ReferencedSymbol[] | undefined {
+		return Sessions.getReferences(this.session, fileName, line, offset);
+	}
+
+	public getImplementation(fileName: string, line: number, offset: number): tt.ImplementationLocation[] | undefined {
+		return Sessions.getImplementation(this.session, fileName, line, offset);
 	}
 }
 
@@ -115,6 +123,8 @@ type ResolvedInput = {
 	languageService: tt.LanguageService;
 	program: tt.Program;
 	file: tt.server.NormalizedPath;
+	line: number;
+	offset: number;
 	pos: number;
 	startTime: number;
 	timeBudget: number;
@@ -126,7 +136,7 @@ const resolveInput = <T extends tt.server.protocol.FileRequestArgs & tt.server.p
 		return { response: { error: ErrorCode.noArguments, message: 'No arguments provided' }, responseRequired: true };
 	}
 
-	const fileAndProject = languageServerSession?.getFileAndProject(args);
+	const fileAndProject = languageServerSession?.getFileAndProject(args.file);
 	if (fileAndProject === undefined) {
 		return { response: { error: ErrorCode.noProject, message: 'No project found' }, responseRequired: true };
 	}
@@ -156,7 +166,7 @@ const resolveInput = <T extends tt.server.protocol.FileRequestArgs & tt.server.p
 	if (program === undefined) {
 		return { response: { error: ErrorCode.noProgram, message: 'No program found' }, responseRequired: true };
 	}
-	return { languageService, program, file, pos, timeBudget, startTime, requestStartTime };
+	return { languageService, program, file, line: args.line, offset: args.offset, pos, timeBudget, startTime, requestStartTime };
 };
 
 const getLastSymbolRename = (args: { lastSymbolRename?: Range } | undefined): Range | undefined => {
@@ -265,11 +275,11 @@ const codeUsagesHandler = (request: CodeUsageRequest): CodeUsageHandlerResponse 
 		return input;
 	}
 
-	const { languageService, file, pos } = input;
+	const { languageService, file, line, offset, pos } = input;
 
 	let result: CodeUsages;
 	try {
-		const provider = new CodeUsageProvider(languageServerSession!, languageService, file, pos);
+		const provider = new CodeUsageProvider(languageServerSession!, languageService, file, line, offset, pos);
 		result = provider.getCodeUsages();
 	} catch (error) {
 		if (error instanceof Error) {

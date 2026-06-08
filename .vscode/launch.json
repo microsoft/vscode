@@ -265,6 +265,8 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				"TSS_REMOTE_DEBUG": "9223",
+				"TSS_DEBUG": "9223",
 			},
 			"cleanUp": "wholeBrowser",
 			"killBehavior": "polite",
@@ -718,6 +720,18 @@
 				"group": "monaco",
 				"order": 4
 			}
+		},
+		{
+			"name": "Attach to TypeScript Server",
+			"type": "node",
+			"request": "attach",
+			"port": 9223,
+			"outFiles": [
+				"${workspaceFolder}/extensions/copilot/node_modules/@vscode/copilot-typescript-server-plugin/dist/**/*.js",
+			],
+			"presentation": {
+				"group": "3_vscode"
+			}
 		}
 	],
 	"compounds": [
@@ -832,6 +846,6 @@
 				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
-		},
+		}
 	]
 }

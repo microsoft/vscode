@@ -29,7 +29,7 @@ import {
 	type FullContextItem, type PriorityTag, type Range
 } from './protocol';
 import { ProgramContext, RecoverableError, type CodeCacheItem, type EmitterContext, type SnippetProvider } from './types';
-import tss, { ImportedByState, Symbols, Types } from './typescripts';
+import tss, { ImportedByState, Symbols, Types, type Sessions } from './typescripts';
 import { LRUCache } from './utils';
 
 
@@ -289,9 +289,12 @@ export abstract class ComputeContextSession implements tss.StateProvider, Emitte
 	}
 
 	public abstract readonly logger: Logger;
+	public abstract getFileAndProject(fileName: string): Sessions.FileAndProject | undefined;
 	public abstract getLanguageServices(sourceFile?: tt.SourceFile): IterableIterator<tt.LanguageService>;
 	public abstract logError(error: Error, cmd: string): void;
 	public abstract getScriptVersion(sourceFile: tt.SourceFile): string | undefined;
+	public abstract getReferences(fileName: string, line: number, offset: number): readonly tt.ReferencedSymbol[] | undefined;
+	public abstract getImplementation(fileName: string, line: number, offset: number): readonly tt.ImplementationLocation[] | undefined;
 }
 
 

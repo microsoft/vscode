@@ -33,9 +33,9 @@ Inputs:
 	- \`2\`, \`3\`, ... = progressively wider scopes, as listed in the usage's \`scopes\` array.
 
 When to increase \`depth\`:
-- Call with \`depth: 0\` first.
-- Only call again with \`depth: 1\` if the innermost scope was genuinely insufficient to answer your question — for example, the usage refers to a field or helper defined elsewhere in the same class.
-- Continue incrementing only as needed. Do not skip ahead to a large depth "to be safe".
+- Always call with \`depth\` 0 first.
+- Only call again with \`depth\` 1 if the innermost scope was genuinely insufficient to answer your question — for example, the usage refers to a field or helper defined elsewhere in the same class.
+- Continue incrementing only as needed. **DO NOT** skip ahead to a larger depth "to be safe".
 
 - Output:
 - \`file\` — workspace-relative path of the source file.

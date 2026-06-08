@@ -21,12 +21,16 @@ export class CodeUsageProvider {
 	private readonly session: ComputeContextSession;
 	private readonly languageService: tt.LanguageService;
 	private readonly document: FilePath;
+	private readonly line: number;
+	private readonly offset: number;
 	private readonly position: number;
 
-	constructor(session: ComputeContextSession, languageService: tt.LanguageService, document: FilePath, position: number) {
+	constructor(session: ComputeContextSession, languageService: tt.LanguageService, document: FilePath, line: number, offset: number, position: number) {
 		this.session = session;
 		this.languageService = languageService;
 		this.document = document;
+		this.line = line;
+		this.offset = offset;
 		this.position = position;
 	}
 
@@ -53,27 +57,25 @@ export class CodeUsageProvider {
 			throw new Error('No symbol found for token');
 		}
 		const result: CodeUsages = { symbol: symbol.getName() };
-		for (const ls of this.session.getLanguageServices(sourceFile)) {
-			const refs = ls.findReferences(this.document, this.position);
-			if (refs) {
-				for (const referencedSymbol of refs) {
-					const definition = referencedSymbol.definition;
-					if (definition) {
-						this.getCodeUsage(seen, definitions, CodeUsageKind.Declaration, program, definition.fileName, definition.textSpan.start);
-					}
+		const refs = this.session.getReferences(this.document, this.line, this.offset);
+		if (refs) {
+			for (const referencedSymbol of refs) {
+				const definition = referencedSymbol.definition;
+				if (definition) {
+					this.getCodeUsage(seen, definitions, CodeUsageKind.Declaration, definition.fileName, definition.textSpan.start);
 				}
 			}
-			const impls = this.languageService.getImplementationAtPosition(this.document, this.position);
-			if (impls) {
-				for (const implementation of impls) {
-					this.getCodeUsage(seen, implementations, CodeUsageKind.Implementation, program, implementation.fileName, implementation.textSpan.start);
-				}
+		}
+		const impls = this.session.getImplementation(this.document, this.line, this.offset);
+		if (impls) {
+			for (const implementation of impls) {
+				this.getCodeUsage(seen, implementations, CodeUsageKind.Implementation, implementation.fileName, implementation.textSpan.start);
 			}
-			if (refs) {
-				for (const referencedSymbol of refs) {
-					for (const reference of referencedSymbol.references) {
-						this.getCodeUsage(seen, references, CodeUsageKind.Reference, program, reference.fileName, reference.textSpan.start);
-					}
+		}
+		if (refs) {
+			for (const referencedSymbol of refs) {
+				for (const reference of referencedSymbol.references) {
+					this.getCodeUsage(seen, references, CodeUsageKind.Reference, reference.fileName, reference.textSpan.start);
 				}
 			}
 		}
@@ -89,12 +91,17 @@ export class CodeUsageProvider {
 		return result;
 	}
 
-	private getCodeUsage(seen: Set<string>, collection: CodeUsage[], kind: CodeUsageKind, program: tt.Program, fileName: FilePath, pos: number): void {
-		const sourceFile = program.getSourceFile(fileName);
+	private getCodeUsage(seen: Set<string>, collection: CodeUsage[], kind: CodeUsageKind, fileName: FilePath, pos: number): void {
+		const fileAndProject = this.session.getFileAndProject(fileName);
+		if (!fileAndProject) {
+			return;
+		}
+		const { file, project } = fileAndProject;
+		const sourceFile = project.getLanguageService().getProgram()?.getSourceFile(file);
 		if (!sourceFile) {
 			return;
 		}
-		const key = `${fileName}:${pos}`;
+		const key = `${file}:${pos}`;
 		if (seen.has(key)) {
 			return;
 		}
@@ -167,7 +174,9 @@ export class CodeUsageProvider {
 			case ts.SyntaxKind.ArrowFunction:
 				if (ts.isPropertyAssignment(node.parent) && ts.isIdentifier(node.parent.name)) {
 					name = node.parent.name.text;
-					return name ? { kind: 'arrow-function', name, rangeNode: node.parent } : undefined;
+					// We use kind 'function' for arrow functions that are properties because from a usage perspective
+					// they are more similar to named functions or methods than to anonymous functions.
+					return name ? { kind: 'function', name, rangeNode: node.parent } : undefined;
 				}
 				return undefined;
 			case ts.SyntaxKind.PropertyDeclaration:

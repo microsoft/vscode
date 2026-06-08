@@ -13,6 +13,7 @@ const ts = TS();
 import { ComputeContextSession, type Logger } from '../../common/contextProvider';
 import type { Host } from '../../common/host';
 import { LanguageServiceProxy } from './languageServerProxy';
+import type { Sessions } from '../../common/typescripts';
 
 const isWindows = process.platform === 'win32';
 function _normalizePath(value: string): string {
@@ -317,6 +318,18 @@ export class LanguageServicesSession extends ComputeContextSession {
 
 	public entries() {
 		return this.languageServices.values();
+	}
+
+	public getFileAndProject(fileName: string): Sessions.FileAndProject | undefined {
+		return undefined;
+	}
+
+	public getReferences(fileName: string, line: number, offset: number): tt.ReferencedSymbol[] | undefined {
+		return undefined;
+	}
+
+	getImplementation(fileName: string, line: number, offset: number): tt.ImplementationLocation[] | undefined {
+		return undefined;
 	}
 
 	private createDeep(languageService: tt.LanguageService): void {
