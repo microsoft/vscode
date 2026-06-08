@@ -18,7 +18,7 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -86,7 +86,7 @@ const toolSetsSchema: IJSONSchema = {
 const reg = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
 
-abstract class RawToolSetsShape {
+export abstract class RawToolSetsShape {
 
 	static readonly suffix = '.toolsets.jsonc';
 
@@ -321,6 +321,109 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 	}
 }
 
+export interface IConfigureToolSetsOptions {
+	readonly selection?: ReadonlyMap<IToolData | IToolSet, boolean>;
+}
+
+function getSelectionFromArg(arg: unknown): ReadonlyMap<IToolData | IToolSet, boolean> | undefined {
+	if (!isObject(arg)) {
+		return undefined;
+	}
+
+	const selection = (arg as IConfigureToolSetsOptions).selection;
+	if (!(selection instanceof Map)) {
+		return undefined;
+	}
+
+	return selection;
+}
+
+export function getEnabledSelectionReferences(selection: ReadonlyMap<IToolData | IToolSet, boolean>, toolsService: ILanguageModelToolsService): string[] {
+	const enabledToolSets: IToolSet[] = [];
+	const enabledTools: IToolData[] = [];
+
+	for (const [item, enabled] of selection) {
+		if (!enabled) {
+			continue;
+		}
+
+		if (isToolSet(item)) {
+			enabledToolSets.push(item);
+		} else {
+			enabledTools.push(item);
+		}
+	}
+
+	const coveredToolIds = new Set<string>();
+	for (const toolSet of enabledToolSets) {
+		for (const tool of toolSet.getTools()) {
+			coveredToolIds.add(tool.id);
+		}
+	}
+
+	const references: string[] = [];
+	const seen = new Set<string>();
+	const addReference = (referenceName: string) => {
+		if (seen.has(referenceName)) {
+			return;
+		}
+		seen.add(referenceName);
+		references.push(referenceName);
+	};
+
+	for (const toolSet of enabledToolSets) {
+		addReference(toolsService.getFullReferenceName(toolSet));
+	}
+
+	for (const tool of enabledTools) {
+		if (coveredToolIds.has(tool.id)) {
+			continue;
+		}
+		// `getFullReferenceName` already returns the qualified `toolSet/tool` name for tools
+		// that belong to a non-user tool set, even when the tool is not independently
+		// referenceable in prompts. Only include the tool when the reference round-trips, which
+		// filters out orphan tools that cannot be referenced at all.
+		const referenceName = toolsService.getFullReferenceName(tool);
+		if (toolsService.getToolByFullReferenceName(referenceName) !== tool) {
+			continue;
+		}
+		addReference(referenceName);
+	}
+
+	return references;
+}
+
+export function createToolSetFileContents(toolSetName: string, toolReferences: readonly string[]): string {
+	const serializedReferences = toolReferences.map(reference => `\t\t\t${JSON.stringify(reference)}`).join(',\n');
+
+	return [
+		'{',
+		`\t${JSON.stringify(toolSetName)}: {`,
+		'\t\t"tools": [',
+		serializedReferences,
+		'\t\t],',
+		'\t\t"description": "",',
+		'\t\t"icon": "tools"',
+		'\t}',
+		'}',
+	].join('\n');
+}
+
+export function deleteToolSetFromFileContents(rawContents: string, toolSetName: string): { contents: string; isEmpty: boolean } | undefined {
+	const parsed = parse(rawContents);
+	if (!isObject(parsed)) {
+		return undefined;
+	}
+
+	const record = parsed as Record<string, unknown>;
+	if (!(toolSetName in record)) {
+		return undefined;
+	}
+
+	delete record[toolSetName];
+	return { contents: JSON.stringify(record, undefined, '\t'), isEmpty: Object.keys(record).length === 0 };
+}
+
 // ---- actions
 
 export class ConfigureToolSets extends Action2 {
@@ -350,7 +453,7 @@ export class ConfigureToolSets extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: IConfigureToolSetsOptions): Promise<void> {
 
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -359,10 +462,22 @@ export class ConfigureToolSets extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 
-		const picks: ((IQuickPickItem & { toolset?: IToolSet }) | IQuickPickSeparator)[] = [];
+		const picks: (IQuickPickItem & { toolset?: IToolSet; kind: 'createFromSelection' | 'createNewFile' | 'existing' })[] = [];
+		const currentSelection = getSelectionFromArg(options) ?? new Map<IToolData | IToolSet, boolean>();
+		const selectedReferences = getEnabledSelectionReferences(currentSelection, toolsService);
+
+		if (selectedReferences.length > 0) {
+			picks.push({
+				label: localize('chat.configureToolSets.createFromCurrentSelection', "Create from current selection..."),
+				kind: 'createFromSelection',
+				alwaysShow: true,
+				iconClass: ThemeIcon.asClassName(Codicon.plus)
+			});
+		}
 
 		picks.push({
 			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),
+			kind: 'createNewFile',
 			alwaysShow: true,
 			iconClass: ThemeIcon.asClassName(Codicon.plus)
 		});
@@ -374,6 +489,7 @@ export class ConfigureToolSets extends Action2 {
 
 			picks.push({
 				label: toolSet.referenceName,
+				kind: 'existing',
 				toolset: toolSet,
 				tooltip: toolSet.description,
 				iconClass: ThemeIcon.asClassName(toolSet.icon)
@@ -402,6 +518,12 @@ export class ConfigureToolSets extends Action2 {
 					if (!isValidBasename(input)) {
 						return localize('bad_name2', "'{0}' is not a valid file name", input);
 					}
+					if (pick.kind === 'createFromSelection') {
+						const candidate = joinPath(userDataProfileService.currentProfile.promptsHome, `${input}${RawToolSetsShape.suffix}`);
+						if (await fileService.exists(candidate)) {
+							return localize('chat.configureToolSets.fileAlreadyExists', "A file with this name already exists");
+						}
+					}
 					return undefined;
 				}
 			});
@@ -412,7 +534,23 @@ export class ConfigureToolSets extends Action2 {
 
 			resource = joinPath(userDataProfileService.currentProfile.promptsHome, `${name}${RawToolSetsShape.suffix}`);
 
-			if (!await fileService.exists(resource)) {
+			if (pick.kind === 'createFromSelection') {
+				const toolSetName = await quickInputService.input({
+					placeHolder: localize('toolSetName.placeholder', "Type new tool set name"),
+					validateInput: async (input) => {
+						if (isFalsyOrWhitespace(input)) {
+							return localize('toolSetName.bad_name', "Tool set name cannot be empty");
+						}
+						return undefined;
+					}
+				});
+
+				if (!toolSetName || isFalsyOrWhitespace(toolSetName)) {
+					return;
+				}
+
+				await textFileService.write(resource, createToolSetFileContents(toolSetName, selectedReferences));
+			} else if (!await fileService.exists(resource)) {
 				await textFileService.write(resource, [
 					'// Place your tool sets here...',
 					'// Example:',

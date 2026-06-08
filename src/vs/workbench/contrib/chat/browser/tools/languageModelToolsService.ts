@@ -1639,7 +1639,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
 			if (isToolSet(tool)) {
-				if (map.get(tool)) {
+				const toolSetFullyEnabled = Iterable.every(tool.getTools(), memberTool => map.get(memberTool) === true);
+				if (map.get(tool) && toolSetFullyEnabled) {
 					result.push(fullReferenceName);
 					for (const memberTool of tool.getTools()) {
 						toolsCoveredByEnabledToolSet.add(memberTool);

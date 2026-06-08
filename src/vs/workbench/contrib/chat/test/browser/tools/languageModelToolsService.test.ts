@@ -1080,6 +1080,45 @@ suite('LanguageModelToolsService', () => {
 		assert.deepStrictEqual(fullReferenceNames.sort(), enabledNames.sort(), 'toFullReferenceNames should return the original enabled names');
 	});
 
+	test('toFullReferenceNames does not emit a tool set when a member tool is unchecked', () => {
+		const toolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'testToolSet',
+			'refToolSet',
+			{ description: 'Test Tool Set' }
+		));
+
+		const toolSetTool1: IToolData = {
+			id: 'toolSetTool1',
+			toolReferenceName: 'toolSetTool1Ref',
+			modelDescription: 'Tool Set Tool 1',
+			displayName: 'Tool Set Tool 1',
+			source: ToolDataSource.Internal,
+		};
+
+		const toolSetTool2: IToolData = {
+			id: 'toolSetTool2',
+			toolReferenceName: 'toolSetTool2Ref',
+			modelDescription: 'Tool Set Tool 2',
+			displayName: 'Tool Set Tool 2',
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(service.registerToolData(toolSetTool1));
+		store.add(service.registerToolData(toolSetTool2));
+		store.add(toolSet.addTool(toolSetTool1));
+		store.add(toolSet.addTool(toolSetTool2));
+
+		const selection = new Map([
+			[toolSet, true],
+			[toolSetTool1, true],
+			[toolSetTool2, false],
+		]);
+
+		const fullReferenceNames = service.toFullReferenceNames(selection);
+		assert.deepStrictEqual(fullReferenceNames, [service.getFullReferenceName(toolSetTool1)]);
+	});
+
 	test('toToolAndToolSetEnablementMap with non-existent tool names', () => {
 		const toolData: IToolData = {
 			id: 'tool1',
