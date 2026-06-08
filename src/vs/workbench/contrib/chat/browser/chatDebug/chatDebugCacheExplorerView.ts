@@ -392,13 +392,13 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		const prevRow = this.railRowsByIndex.get(this.selectedIndex);
 		if (prevRow) {
 			prevRow.classList.remove('is-selected');
-			prevRow.setAttribute('aria-selected', 'false');
+			prevRow.removeAttribute('aria-current');
 		}
 		this.selectedIndex = index;
 		const nextRow = this.railRowsByIndex.get(index);
 		if (nextRow) {
 			nextRow.classList.add('is-selected');
-			nextRow.setAttribute('aria-selected', 'true');
+			nextRow.setAttribute('aria-current', 'true');
 			if (focusOptions) {
 				nextRow.focus(focusOptions);
 			}
@@ -409,7 +409,10 @@ export class ChatDebugCacheExplorerView extends Disposable {
 
 	/** Move the selection to the previous/next visible turn row (arrow keys). */
 	private moveSelection(delta: number): void {
-		const indices = [...this.railRowsByIndex.keys()].sort((a, b) => a - b);
+		// `railRowsByIndex` is populated in render (visual) order and `Map`
+		// iteration preserves insertion order, so the keys already match the
+		// order rows appear in the rail — no need to sort on every keypress.
+		const indices = [...this.railRowsByIndex.keys()];
 		if (indices.length === 0) {
 			return;
 		}
@@ -439,7 +442,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		label.textContent = localize('chatDebug.cache.filterAgentsLabel', "Agent");
 
 		const button = DOM.append(this.railToolbar, $('button.chat-debug-cache-filter-button'));
-		button.setAttribute('aria-haspopup', 'true');
+		button.setAttribute('aria-haspopup', 'menu');
 		const summary = selectedCount === agents.length
 			? localize('chatDebug.cache.filterAll', "All agents ({0})", agents.length)
 			: selectedCount === 1
@@ -448,7 +451,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		const text = DOM.append(button, $('span.chat-debug-cache-filter-button-text'));
 		text.textContent = summary;
 		text.title = summary;
-		DOM.append(button, $('span.codicon.codicon-chevron-down.chat-debug-cache-filter-chevron'));
+		DOM.append(button, $('span.codicon.codicon-chevron-down.chat-debug-cache-filter-chevron', { 'aria-hidden': 'true' }));
 
 		this.railDisposables.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, () => this.showAgentFilterMenu(button, agentCounts)));
 	}
@@ -511,7 +514,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		}
 		const toggle = DOM.append(wrap, $('button.chat-debug-cache-sig-breakdown-toggle'));
 		toggle.setAttribute('aria-expanded', this.sigBreakdownOpen ? 'true' : 'false');
-		DOM.append(toggle, $('span.codicon.codicon-chevron-right.chat-debug-cache-sig-breakdown-chev'));
+		DOM.append(toggle, $('span.codicon.codicon-chevron-right.chat-debug-cache-sig-breakdown-chev', { 'aria-hidden': 'true' }));
 		DOM.append(toggle, $('span', undefined, localize('chatDebug.cache.chunkBreakdown', "Chunk breakdown")));
 		this.contentDisposables.add(DOM.addDisposableListener(toggle, DOM.EventType.CLICK, () => {
 			this.sigBreakdownOpen = !this.sigBreakdownOpen;
@@ -522,35 +525,35 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			return;
 		}
 
-		const table = DOM.append(wrap, $('.chat-debug-cache-sig-breakdown-table'));
-		const head = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row.head'));
-		DOM.append(head, $('.cell.idx', undefined, localize('chatDebug.cache.chunkIdxCol', "#")));
-		DOM.append(head, $('.cell.chunk', undefined, localize('chatDebug.cache.chunkCol', "Chunk")));
-		DOM.append(head, $('.cell.num', undefined, localize('chatDebug.cache.prevCol', "Previous")));
-		DOM.append(head, $('.cell.num', undefined, localize('chatDebug.cache.currCol', "Current")));
-		DOM.append(head, $('.cell.num', undefined, localize('chatDebug.cache.pctCol', "% of current")));
+		const table = DOM.append(wrap, $('.chat-debug-cache-sig-breakdown-table', { role: 'table' }));
+		const head = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row.head', { role: 'row' }));
+		DOM.append(head, $('.cell.idx', { role: 'columnheader' }, localize('chatDebug.cache.chunkIdxCol', "#")));
+		DOM.append(head, $('.cell.chunk', { role: 'columnheader' }, localize('chatDebug.cache.chunkCol', "Chunk")));
+		DOM.append(head, $('.cell.num', { role: 'columnheader' }, localize('chatDebug.cache.prevCol', "Previous")));
+		DOM.append(head, $('.cell.num', { role: 'columnheader' }, localize('chatDebug.cache.currCol', "Current")));
+		DOM.append(head, $('.cell.num', { role: 'columnheader' }, localize('chatDebug.cache.pctCol', "% of current")));
 
 		rows.forEach((r, i) => {
-			const row = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row'));
+			const row = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row', { role: 'row' }));
 			if (r.drift) {
 				row.classList.add('is-drift');
 			}
-			DOM.append(row, $('.cell.idx', undefined, String(i)));
-			const chunk = DOM.append(row, $('.cell.chunk'));
-			DOM.append(chunk, $(`span.chat-debug-cache-sig-swatch.role-${roleClass(r.role)}`));
+			DOM.append(row, $('.cell.idx', { role: 'cell' }, String(i)));
+			const chunk = DOM.append(row, $('.cell.chunk', { role: 'cell' }));
+			DOM.append(chunk, $(`span.chat-debug-cache-sig-swatch.role-${roleClass(r.role)}`, { 'aria-hidden': 'true' }));
 			DOM.append(chunk, $('span.chat-debug-cache-sig-breakdown-chunk-label', undefined, r.label));
-			DOM.append(row, $('.cell.num', undefined, r.aChars !== undefined ? numberFormatter.value.format(r.aChars) : '\u2014'));
-			DOM.append(row, $('.cell.num', undefined, r.bChars !== undefined ? numberFormatter.value.format(r.bChars) : '\u2014'));
+			DOM.append(row, $('.cell.num', { role: 'cell' }, r.aChars !== undefined ? numberFormatter.value.format(r.aChars) : '\u2014'));
+			DOM.append(row, $('.cell.num', { role: 'cell' }, r.bChars !== undefined ? numberFormatter.value.format(r.bChars) : '\u2014'));
 			const pct = r.bChars !== undefined && totalB > 0 ? (r.bChars / totalB) * 100 : undefined;
-			DOM.append(row, $('.cell.num', undefined, pct !== undefined ? localize('chatDebug.cache.pctValue', "{0}%", pct.toFixed(1)) : '\u2014'));
+			DOM.append(row, $('.cell.num', { role: 'cell' }, pct !== undefined ? localize('chatDebug.cache.pctValue', "{0}%", pct.toFixed(1)) : '\u2014'));
 		});
 
-		const totals = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row.total'));
-		DOM.append(totals, $('.cell.idx', undefined, ''));
-		DOM.append(totals, $('.cell.chunk', undefined, localize('chatDebug.cache.totalRow', "Total")));
-		DOM.append(totals, $('.cell.num', undefined, numberFormatter.value.format(totalA)));
-		DOM.append(totals, $('.cell.num', undefined, numberFormatter.value.format(totalB)));
-		DOM.append(totals, $('.cell.num', undefined, localize('chatDebug.cache.pctValue', "{0}%", '100')));
+		const totals = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row.total', { role: 'row' }));
+		DOM.append(totals, $('.cell.idx', { role: 'cell' }, ''));
+		DOM.append(totals, $('.cell.chunk', { role: 'cell' }, localize('chatDebug.cache.totalRow', "Total")));
+		DOM.append(totals, $('.cell.num', { role: 'cell' }, numberFormatter.value.format(totalA)));
+		DOM.append(totals, $('.cell.num', { role: 'cell' }, numberFormatter.value.format(totalB)));
+		DOM.append(totals, $('.cell.num', { role: 'cell' }, localize('chatDebug.cache.pctValue', "{0}%", '100')));
 	}
 
 	private async resolveSide(event: IChatDebugModelTurnEvent): Promise<ISideData> {
@@ -675,7 +678,9 @@ export class ChatDebugCacheExplorerView extends Disposable {
 				row.title = localize('chatDebug.cache.turnHelp', "Click to compare this request against the previous one");
 				row.tabIndex = 0;
 				row.setAttribute('role', 'button');
-				row.setAttribute('aria-selected', i === this.selectedIndex ? 'true' : 'false');
+				if (i === this.selectedIndex) {
+					row.setAttribute('aria-current', 'true');
+				}
 				row.setAttribute('aria-label', localize('chatDebug.cache.turnAria', "Turn {0}: {1}", i, evt.requestName ?? evt.model ?? localize('chatDebug.cache.modelTurn', "Model Turn")));
 				this.railDisposables.add(DOM.addDisposableListener(row, DOM.EventType.CLICK, () => this.selectTurn(i, { preventScroll: true })));
 				this.railDisposables.add(DOM.addDisposableListener(row, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
