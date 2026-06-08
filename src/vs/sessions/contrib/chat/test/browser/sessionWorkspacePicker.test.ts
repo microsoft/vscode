@@ -663,6 +663,7 @@ function createTestablePicker(disposables: DisposableStore, providersService: Mo
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IMenuService, { createMenu: () => ({ onDidChange: Event.None, getActions: () => [], dispose: () => { } }) });
+	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IWorkspacesService, {
 		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
 		onDidChangeRecentlyOpened: Event.None,
