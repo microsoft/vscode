@@ -176,7 +176,11 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.navigatePreviousSession',
-			title: localize2('navigatePreviousSession', "Navigate to Previous Session"),
+			title: {
+				value: localize('navigatePreviousSession', "Go to Previous Session"),
+				original: 'Go to Previous Session',
+				mnemonicTitle: localize('navigatePreviousSession.mnemonic', "&&Previous Session"),
+			},
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -190,7 +194,12 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
-			}
+			},
+			menu: [{
+				id: Menus.GoMenu,
+				group: '2_list_nav',
+				order: 1,
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -202,7 +211,11 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.navigateNextSession',
-			title: localize2('navigateNextSession', "Navigate to Next Session"),
+			title: {
+				value: localize('navigateNextSession', "Go to Next Session"),
+				original: 'Go to Next Session',
+				mnemonicTitle: localize('navigateNextSession.mnemonic', "&&Next Session"),
+			},
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -216,7 +229,12 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
-			}
+			},
+			menu: [{
+				id: Menus.GoMenu,
+				group: '2_list_nav',
+				order: 2,
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
