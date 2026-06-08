@@ -310,7 +310,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			// allow-any-unicode-next-line
 			message: nls.localize('updateAvailableMessage', "提示：{0} 有新版本", this.productService.nameLong),
 			// allow-any-unicode-next-line
-			detail: nls.localize('updateAvailableDetail', "重启安装版本 {0}", updateVersion),
+			detail: nls.localize('updateAvailableDetail', "重启安装新版本"),
 			// allow-any-unicode-next-line
 			primaryButton: nls.localize({ key: 'restartToUpdateButton', comment: ['&& denotes a mnemonic'] }, "&&重启并更新"),
 			cancelButton: nls.localize('later', "Later")
