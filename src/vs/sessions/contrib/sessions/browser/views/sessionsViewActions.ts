@@ -198,7 +198,7 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 			menu: [{
 				id: Menus.GoMenu,
 				group: '2_list_nav',
-				order: 2,
+				order: 1,
 			}]
 		});
 	}
