@@ -18,7 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { getIconClassesForLanguageId } from '../../../../../../editor/common/services/getIconClasses.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
-import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
+import { IEditorOptions, ITextEditorSelection } from '../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchDataTreeOptions } from '../../../../../../platform/list/browser/listService.js';
 import { MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
@@ -736,12 +736,21 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		this.delayerRecomputeActive.trigger(() => { this.recomputeActive(); });
 	}
 
-	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean, select: boolean): Promise<void> {
+		// Match the document symbols outline behavior:
+		// - On select (double-click), highlight the full symbol body using `range`.
+		// - Otherwise (single-click), collapse the cursor to the start of the symbol name (`selectionRange`).
+		let selection: ITextEditorSelection | undefined = entry.position;
+		if (entry.range) {
+			selection = select
+				? entry.range
+				: Range.collapseToStart(entry.selectionRange ?? entry.range);
+		}
 		const notebookEditorOptions: INotebookEditorOptions = {
 			...options,
 			override: this._editor.input?.editorId,
 			cellRevealType: CellRevealType.Top,
-			selection: entry.position,
+			selection,
 			viewState: undefined,
 		};
 		await this._editorService.openEditor({
