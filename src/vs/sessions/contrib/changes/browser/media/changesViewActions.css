@@ -9,7 +9,7 @@
 	gap: 3px;
 	cursor: pointer;
 	padding: 0 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .changes-action-view-item:hover {

@@ -9,6 +9,7 @@ import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { autorun, derivedOpts, IObservable, ISettableObservable, observableValueOpts } from '../../../../../base/common/observable.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
+import type { ClientPluginCustomization } from '../../../common/state/sessionState.js';
 
 /**
  * Per-session **client-pushed** customization snapshot + enablement
@@ -197,10 +198,10 @@ function syncedListEqual(a: readonly ISyncedCustomization[], b: readonly ISynced
 		if (ai.id !== bi.id) {
 			return false;
 		}
-		if (ai.uri.toString() !== bi.uri.toString()) {
+		if (ai.uri !== bi.uri) {
 			return false;
 		}
-		if ((ai as { nonce?: string }).nonce !== (bi as { nonce?: string }).nonce) {
+		if ((ai as ClientPluginCustomization).nonce !== (bi as ClientPluginCustomization).nonce) {
 			return false;
 		}
 		if (ai.name !== bi.name) {

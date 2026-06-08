@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -225,6 +226,79 @@ suite('AgentHostFileSystemProvider - authority registrations', () => {
 			firstCalls: [],
 			secondCalls: [URI.file('/workspace').toString()],
 		});
+	});
+
+	test('disposing the newest registration falls back to the previous one without entering grace', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider());
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+		disposables.add(provider.registerAuthority('client', first));
+		const secondRegistration = provider.registerAuthority('client', second);
+
+		secondRegistration.dispose();
+		const entries = await provider.readdir(agentHostUri('client', '/workspace'));
+
+		assert.deepStrictEqual({ entries, firstCalls: first.listCalls.map(uri => uri.toString()), secondCalls: second.listCalls }, {
+			entries: [['first.txt', FileType.File]],
+			firstCalls: [URI.file('/workspace').toString()],
+			secondCalls: [],
+		});
+	});
+
+	test('operation issued during reconnect window waits for the replacement registration', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider(50));
+		const first = new NamedConnection('first');
+		const second = new NamedConnection('second');
+
+		// Register, then dispose — we're now inside the grace window.
+		const firstRegistration = provider.registerAuthority('client', first);
+		firstRegistration.dispose();
+
+		// Issue an operation while no connection is bound. It should
+		// queue, waiting for a re-registration.
+		const pending = provider.readdir(agentHostUri('client', '/workspace'));
+
+		// Reconnect within the grace window.
+		disposables.add(provider.registerAuthority('client', second));
+
+		const entries = await pending;
+		assert.deepStrictEqual({ entries, firstCalls: first.listCalls, secondCalls: second.listCalls.map(uri => uri.toString()) }, {
+			entries: [['second.txt', FileType.File]],
+			firstCalls: [],
+			secondCalls: [URI.file('/workspace').toString()],
+		});
+	});
+
+	test('operation issued in the grace window rejects with Unavailable when no reconnect arrives', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider(20));
+		const first = new NamedConnection('first');
+
+		const firstRegistration = provider.registerAuthority('client', first);
+		firstRegistration.dispose();
+
+		const pending = provider.readdir(agentHostUri('client', '/workspace'));
+
+		let caught: unknown;
+		try {
+			await pending;
+		} catch (err) {
+			caught = err;
+		}
+		assert.ok(caught instanceof Error, 'expected an error');
+		assert.strictEqual(toFileSystemProviderErrorCode(caught as Error), FileSystemProviderErrorCode.Unavailable);
+	});
+
+	test('operation rejects immediately when no authority was ever registered', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider(50));
+
+		let caught: unknown;
+		try {
+			await provider.readdir(agentHostUri('never', '/workspace'));
+		} catch (err) {
+			caught = err;
+		}
+		assert.ok(caught instanceof Error, 'expected an error');
+		assert.strictEqual(toFileSystemProviderErrorCode(caught as Error), FileSystemProviderErrorCode.Unavailable);
 	});
 });
 
@@ -676,7 +750,9 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		const sub = provider.onDidWatchError(message => errors.push(message));
 
 		const watchDisposable = provider.watch(wrapped, { recursive: false, excludes: [] });
-		await new Promise<void>(resolve => queueMicrotask(resolve));
+		// Yield until the watch's async chain (acquire connection →
+		// watchResource → error propagation) settles.
+		await timeout(0);
 
 		assert.deepStrictEqual(errors, ['watch setup failed']);
 
@@ -688,17 +764,114 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		const { provider, connection } = setup();
 		const onDidChange = new Emitter<readonly IFileChange[]>();
 		let handleDisposed = false;
+		let handleCreated = false;
 		connection.nextWatchHandle = {
 			onDidChange: onDidChange.event,
 			dispose: () => { handleDisposed = true; onDidChange.dispose(); },
 		};
+		// Defer the watchResource resolution so we can dispose between
+		// `watch()` returning and the handle being assigned.
+		const originalWatchResource = connection.watchResource.bind(connection);
+		connection.watchResource = async params => {
+			handleCreated = true;
+			await timeout(0);
+			return originalWatchResource(params);
+		};
 		const wrapped = agentHostUri('remote', '/watched');
 
 		const watchDisposable = provider.watch(wrapped, { recursive: false, excludes: [] });
-		// Immediately dispose before the watchResource promise resolves.
+		// Yield until watchResource has begun (so a handle is in flight),
+		// then dispose before it resolves.
+		await timeout(0);
+		assert.strictEqual(handleCreated, true);
 		watchDisposable.dispose();
 
-		await new Promise<void>(resolve => queueMicrotask(resolve));
+		await timeout(0);
+		await timeout(0);
 		assert.strictEqual(handleDisposed, true);
+	});
+
+	test('watch reattaches to the next connection registered for the authority after disconnect', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider(20));
+		const first = new FullConnection();
+		const firstChanges = new Emitter<readonly IFileChange[]>();
+		let firstHandleDisposed = false;
+		first.nextWatchHandle = {
+			onDidChange: firstChanges.event,
+			dispose: () => { firstHandleDisposed = true; firstChanges.dispose(); },
+		};
+		const firstReg = provider.registerAuthority('remote', first);
+
+		const wrapped = agentHostUri('remote', '/watched');
+		const received: IFileChange[][] = [];
+		disposables.add(provider.onDidChangeFile(c => received.push([...c])));
+		disposables.add(provider.watch(wrapped, { recursive: false, excludes: [] }));
+
+		await timeout(0);
+		await timeout(0);
+		firstChanges.fire([{ resource: URI.file('/watched/a.txt'), type: FileChangeType.UPDATED }]);
+
+		// Disconnect: a re-registration arrives within the grace window.
+		// The watcher must dispose the old handle and attach to the new
+		// connection without the caller doing anything.
+		firstReg.dispose();
+		const second = new FullConnection();
+		const secondChanges = new Emitter<readonly IFileChange[]>();
+		let secondHandleDisposed = false;
+		second.nextWatchHandle = {
+			onDidChange: secondChanges.event,
+			dispose: () => { secondHandleDisposed = true; secondChanges.dispose(); },
+		};
+		disposables.add(provider.registerAuthority('remote', second));
+
+		await timeout(0);
+		await timeout(0);
+		secondChanges.fire([{ resource: URI.file('/watched/b.txt'), type: FileChangeType.ADDED }]);
+
+		assert.deepStrictEqual({
+			firstWatchCalls: first.watchCalls.length,
+			secondWatchCalls: second.watchCalls.length,
+			firstHandleDisposed,
+			secondHandleDisposed,
+			received: received.map(batch => batch.map(c => [c.resource.toString(), c.type])),
+		}, {
+			firstWatchCalls: 1,
+			secondWatchCalls: 1,
+			firstHandleDisposed: true,
+			secondHandleDisposed: false,
+			received: [
+				[[agentHostUri('remote', '/watched/a.txt').toString(), FileChangeType.UPDATED]],
+				[[agentHostUri('remote', '/watched/b.txt').toString(), FileChangeType.ADDED]],
+			],
+		});
+	});
+
+	test('watch attaches to a freshly-registered authority that did not exist when watch() was called', async () => {
+		const provider = disposables.add(new AgentHostFileSystemProvider(20));
+		const wrapped = agentHostUri('never-registered', '/path');
+
+		const received: IFileChange[][] = [];
+		disposables.add(provider.onDidChangeFile(c => received.push([...c])));
+		disposables.add(provider.watch(wrapped, { recursive: false, excludes: [] }));
+
+		// No authority registered yet — nothing to attach to. Wait long
+		// enough that the grace timer (if any were running) would expire.
+		await new Promise(r => setTimeout(r, 40));
+
+		const connection = new FullConnection();
+		const changes = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = {
+			onDidChange: changes.event,
+			dispose: () => changes.dispose(),
+		};
+		disposables.add(provider.registerAuthority('never-registered', connection));
+
+		await timeout(0);
+		await timeout(0);
+		changes.fire([{ resource: URI.file('/path/late.txt'), type: FileChangeType.ADDED }]);
+
+		assert.strictEqual(connection.watchCalls.length, 1, 'watch attached after late registration');
+		assert.strictEqual(received.length, 1);
+		assert.strictEqual(received[0][0].resource.toString(), agentHostUri('never-registered', '/path/late.txt').toString());
 	});
 });
