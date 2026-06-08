@@ -13,7 +13,7 @@ import { RemoteAuthorities } from '../../../base/common/network.js';
 import * as performance from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { BufferWriter, IIPCLogger, serialize } from '../../../base/parts/ipc/common/ipc.js';
+import { IIPCLogger } from '../../../base/parts/ipc/common/ipc.js';
 import { Client, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../log/common/log.js';
 import { RemoteAgentConnectionContext } from './remoteAgentEnvironment.js';
@@ -703,12 +703,12 @@ export abstract class PersistentConnection extends Disposable {
 		// Bounded retry for stale-token recovery if the server gets replaced
 		// repeatedly within one loop (e.g. flapping).
 		let freshHandshakeAttempts = 0;
-		let nextAttemptIsFreshHandshake = false;
+		// Sticky once the server is detected as replaced: keep re-handshaking with reconnection=false.
+		// Reverting to reconnection=true would just be rejected again and could replay a half-reset session.
+		let useFreshHandshake = false;
 		do {
 			attempt++;
 			const waitTime = (attempt < TIMES.length ? TIMES[attempt] : TIMES[TIMES.length - 1]);
-			const isFreshHandshakeThisAttempt = nextAttemptIsFreshHandshake;
-			nextAttemptIsFreshHandshake = false;
 			try {
 				if (waitTime > 0) {
 					const sleepPromise = sleep(waitTime);
@@ -728,7 +728,7 @@ export abstract class PersistentConnection extends Disposable {
 				// connection was lost, let's try to re-establish it
 				this._onDidStateChange.fire(new ReconnectionRunningEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData(), attempt + 1));
 				this._options.logService.info(`${logPrefix} resolving connection...`);
-				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol, isFreshHandshakeThisAttempt);
+				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol, useFreshHandshake);
 				this._options.logService.info(`${logPrefix} connecting to ${simpleOptions.connectTo}...`);
 				await this._reconnect(simpleOptions, createTimeoutCancellation(RECONNECT_TIMEOUT));
 				this._options.logService.info(`${logPrefix} reconnected!`);
@@ -749,7 +749,7 @@ export abstract class PersistentConnection extends Disposable {
 						this._options.logService.info(`${logPrefix} server reported stale reconnection token (attempt ${freshHandshakeAttempts}/${MAX_FRESH_HANDSHAKE_ATTEMPTS}); re-handshaking with a fresh token.`);
 						this._reconnectionToken = generateUuid();
 						logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-						nextAttemptIsFreshHandshake = true;
+						useFreshHandshake = true;
 						continue;
 					}
 					this._options.logService.error(`${logPrefix} A permanent error occurred in the reconnecting loop! Will give up now! Error:`);
@@ -822,19 +822,12 @@ export class ManagementPersistentConnection extends PersistentConnection {
 
 	constructor(options: IConnectionOptions, remoteAuthority: string, clientId: string, reconnectionToken: string, protocol: PersistentProtocol) {
 		super(ConnectionType.Management, options, reconnectionToken, protocol, /*reconnectionFailureIsFatal*/true);
-		const context: RemoteAgentConnectionContext = { remoteAuthority, clientId };
-		const writer = new BufferWriter();
-		serialize(writer, context);
-		const serializedContext = writer.buffer;
-		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, context, options.ipcLogger));
+		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, { remoteAuthority, clientId }, options.ipcLogger));
 
-		// On a stale-token recovery, the protocol's session state is wiped and the new server expects the IPC
-		// init context as msg #1. Re-queue it (and replay live event subscriptions) synchronously here while
-		// _isReconnecting is still true so they ride out with the next endAcceptReconnection replay.
-		this._register(protocol.onDidResetSession(() => {
-			protocol.send(serializedContext);
-			this.client.replayEventSubscriptions();
-		}));
+		// On a stale-token recovery the protocol session is wiped and the new server expects the init
+		// context as msg #1; do it (and replay subscriptions) synchronously while _isReconnecting so they
+		// replay in order on the next endAcceptReconnection.
+		this._register(protocol.onDidResetSession(() => this.client.resendInitialContextAndReplay()));
 	}
 
 	protected async _reconnect(options: ISimpleConnectionOptions, timeoutCancellationToken: CancellationToken): Promise<void> {
