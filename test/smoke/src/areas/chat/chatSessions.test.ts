@@ -73,6 +73,14 @@ export function setup(logger: Logger) {
 				['github.copilot.chat.githubMcpServer.enabled', 'false'],
 				['chat.mcp.discovery.enabled', 'false'],
 				['chat.mcp.enabled', 'false'],
+				// Pre-enable the chat session types that the tests open. Writing
+				// these here (directly to settings.json) instead of from the
+				// smoketest extension avoids racing with copilot-chat registering
+				// its configuration schema — the original cause of the Chat
+				// Sessions smoke test flake.
+				['chat.disableAIFeatures', 'false'],
+				['github.copilot.chat.backgroundAgent.enabled', 'true'],
+				['github.copilot.chat.claudeAgent.enabled', 'true'],
 				// Force the bundled Claude Agent SDK (avoid the experiment that
 				// would route through the ms-vscode.vscode-claude-sdk extension,
 				// which would attempt a network install during the smoke run).
