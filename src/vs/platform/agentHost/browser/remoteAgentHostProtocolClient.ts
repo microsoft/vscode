@@ -18,7 +18,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
@@ -182,6 +182,9 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	/**
 	 * Fires for every `otlp/exportLogs` notification the host sends on a
@@ -1031,9 +1034,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				case 'otlp/exportMetrics':
 					// Not recorded, yet
 					break;
-				default:
+				default: {
+					const rawChannel = msg.params && typeof msg.params === 'object'
+						? (msg.params as { channel?: unknown }).channel
+						: undefined;
+					if (typeof rawChannel === 'string' && rawChannel.toLowerCase().startsWith('mcp:/')) {
+						const { channel: _channel, ...rest } = msg.params as { channel: string;[k: string]: unknown };
+						this._onMcpNotification.fire({ channel: rawChannel, method: msg.method, params: rest });
+						break;
+					}
 					this._logService.trace(`[RemoteAgentHostProtocol] Unhandled method: ${msg.method}`);
 					break;
+				}
 			}
 		} else {
 			this._logService.warn(`[RemoteAgentHostProtocol] Unrecognized message:`, JSON.stringify(msg));

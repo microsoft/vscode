@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -163,6 +163,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	get onDidAction(): Event<ActionEnvelope> {
 		return this._protocolClient?.onDidAction ?? Event.None;
+	}
+
+	get onMcpNotification(): Event<IMcpNotification> {
+		return this._protocolClient?.onMcpNotification ?? Event.None;
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {

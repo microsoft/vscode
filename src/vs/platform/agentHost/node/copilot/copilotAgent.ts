@@ -28,7 +28,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo } from '../../common/agentService.js';
+import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -49,6 +49,7 @@ import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools } from './copilotShellTools.js';
 import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
+import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 import { coalesce } from '../../../../base/common/arrays.js';
@@ -289,6 +290,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
 	private readonly _onDidMaterializeSession = this._register(new Emitter<IAgentMaterializeSessionEvent>());
 	readonly onDidMaterializeSession = this._onDidMaterializeSession.event;
+	/**
+	 * Per-session MCP notifications, fanned in from every active
+	 * {@link CopilotAgentSession}. Each session contributes a single
+	 * subscription, disposed alongside the session.
+	 */
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
@@ -296,6 +304,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
+	/**
+	 * Per-session MCP-notification subscriptions, keyed by `sessionId`.
+	 * Disposed in lockstep with the matching {@link _sessions} entry so
+	 * the fan-in does not leak listeners as sessions come and go.
+	 */
+	private readonly _mcpNotificationSubs = this._register(new DisposableMap<string>());
 	/**
 	 * In-flight {@link _resumeSession} promises, keyed by sessionId. Used to
 	 * deduplicate concurrent resume requests for the same session so that
@@ -396,6 +410,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._client) {
 			this._logService.info(`[Copilot] Startup config changed (${changed}), restarting CopilotClient`);
 			this._sessions.clearAndDisposeAll();
+			this._mcpNotificationSubs.clearAndDisposeAll();
 			await this._stopClient();
 		}
 	}
@@ -423,7 +438,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async getSessionCustomizations(session: URI): Promise<readonly Customization[]> {
-		return this._plugins.getSessionCustomizationsSettled(await this._getSessionCustomizationDirectory(session));
+		const fromPlugins = await this._plugins.getSessionCustomizationsSettled(await this._getSessionCustomizationDirectory(session));
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		const topLevelMcp = entry?.topLevelMcpCustomizations() ?? [];
+		if (topLevelMcp.length === 0) {
+			return fromPlugins;
+		}
+		return [...fromPlugins, ...topLevelMcp];
+	}
+
+	async handleMcpRequest(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (!entry) {
+			throw new Error(`Method not found: no active session ${sessionId}`);
+		}
+		return entry.handleMcpRequest(serverName, method, params);
 	}
 
 	private async _getSessionCustomizationDirectory(session: URI): Promise<URI | undefined> {
@@ -1548,8 +1579,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				customizationDirectory,
 				clientSnapshot: snapshot,
+				resolveMcpChildId: name => findMcpChildId(this._plugins.getSessionCustomizations(customizationDirectory), name),
 			},
 		);
+
+		this._mcpNotificationSubs.set(sessionId, agentSession.onMcpNotification(n => this._onMcpNotification.fire(n)));
 
 		return agentSession;
 	}
@@ -1593,6 +1627,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		this._sessions.deleteAndDispose(sessionId);
+		this._mcpNotificationSubs.deleteAndDispose(sessionId);
 		await this._removeCreatedWorktree(sessionId);
 	}
 
