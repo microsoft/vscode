@@ -64,7 +64,7 @@
 	width: 36px;
 	height: 5px;
 	margin: 6px auto 2px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
 	flex-shrink: 0;
 }
@@ -178,7 +178,7 @@
 	margin: 4px 16px 10px;
 	padding: 0 10px;
 	height: 36px;
-	border-radius: 18px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	flex-shrink: 0;
 }
@@ -276,7 +276,7 @@
 	padding: 8px 12px;
 	margin: 2px 0;
 	border: none;
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	background: transparent;
 	color: inherit;
 	font-family: inherit;
@@ -326,7 +326,7 @@
 	justify-content: center;
 	width: 36px;
 	height: 36px;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);

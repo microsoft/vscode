@@ -11,10 +11,12 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
+import './modelPicker.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
@@ -64,8 +66,9 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
-		sessionsManagementService.openNewSessionView();
+		sessionsViewService.openNewSession();
 		sessionsPartService.focusSession(sessionsManagementService.activeSession.get());
 	}
 }

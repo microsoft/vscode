@@ -206,7 +206,10 @@ async function startAgentHost(): Promise<void> {
 	// `AGENT_HOST_CLIENT_RESOURCE_CHANNEL` for filesystem reads.
 	if (server instanceof UtilityProcessServer) {
 		const authorityRegistrations = new Map<unknown, IDisposable>();
-		disposables.add(server.onDidAddConnection(connection => {
+		const registerConnection = (connection: (typeof server.connections)[number]) => {
+			if (authorityRegistrations.has(connection)) {
+				return;
+			}
 			const clientId = connection.ctx;
 			if (typeof clientId !== 'string' || !clientId) {
 				return;
@@ -214,7 +217,8 @@ async function startAgentHost(): Promise<void> {
 			const channel = server.getChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, c => c.ctx === clientId);
 			const fsConnection = createAgentHostClientResourceConnection(channel);
 			authorityRegistrations.set(connection, clientFileSystemProvider.registerAuthority(clientId, fsConnection));
-		}));
+		};
+		disposables.add(server.onDidAddConnection(registerConnection));
 		disposables.add(server.onDidRemoveConnection(connection => {
 			const reg = authorityRegistrations.get(connection);
 			if (reg) {
@@ -222,6 +226,9 @@ async function startAgentHost(): Promise<void> {
 				authorityRegistrations.delete(connection);
 			}
 		}));
+		for (const connection of server.connections) {
+			registerConnection(connection);
+		}
 	}
 
 	// Expose the WebSocket client connection count to the parent process via IPC.

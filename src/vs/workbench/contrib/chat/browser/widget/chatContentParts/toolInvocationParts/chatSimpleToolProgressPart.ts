@@ -84,7 +84,7 @@ export class ChatSimpleToolProgressPart extends BaseChatToolInvocationSubPart {
 			// otherwise use the stored expanded state (defaulting to false)
 			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
 			(ChatSimpleToolProgressPart._expandedByDefault.get(toolInvocation) ?? false),
-			shouldShimmerForTool(toolInvocation),
+			shouldShimmerForTool(toolInvocation, message),
 		));
 		this._register(toDisposable(() => ChatSimpleToolProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 

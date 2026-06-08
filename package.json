@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.124.0",
-  "distro": "31bfc4c2834d5d34dcfb8dfe445e13ba25a92f54",
+  "version": "1.125.0",
+  "distro": "b85469481bdd242ea1c0b9c07894f86c2b6fa408",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -22,6 +22,8 @@
     "compile": "npm-run-all2 -lp compile-client compile-copilot",
     "compile-client": "npm run gulp compile",
     "compile-copilot": "npm --prefix extensions/copilot run compile",
+    "transpile": "npm-run-all2 -lp transpile-client transpile-extensions compile-copilot",
+    "transpile-extensions": "npm run gulp transpile-extensions compile-extension-media",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
@@ -143,7 +145,7 @@
     "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.13",
     "open": "^10.1.2",
-    "playwright-core": "1.59.1",
+    "playwright-core": "1.61.0-alpha-2026-06-04",
     "ssh2": "^1.16.0",
     "tas-client": "0.3.1",
     "undici": "^7.24.0",

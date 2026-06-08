@@ -76,7 +76,7 @@ import { ILanguageModelToolsService, isToolSet } from '../../common/tools/langua
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
-import { createImageThumbnail } from '../chatImageUtils.js';
+import { getOrCreateImageThumbnail } from '../chatImageUtils.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -525,7 +525,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
@@ -597,6 +597,7 @@ const IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
+	cacheKey: string,
 	hoverService: IHoverService, ariaLabel: string,
 	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
@@ -661,10 +662,6 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			style: HoverStyle.Pointer,
 		}));
 
-		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>]);
-
-		// Keep the full-resolution image available as a fallback for the hover
-		// preview, but only decode it lazily if the downscaled thumbnail fails.
 		const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
 		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
 		hoverElement.appendChild(imageContainer);
@@ -689,12 +686,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		// only once, and the UI keeps a small object URL for steady-state rendering.
 		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
 		const renderPreviewImage = async () => {
-			const thumbnail = await createImageThumbnail(data, undefined, IMAGE_HOVER_THUMBNAIL_MAX_SIZE);
+			const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, IMAGE_HOVER_THUMBNAIL_MAX_SIZE, dom.getWindow(element));
 			if (disposable.isDisposed) {
 				return;
 			}
-			// Fall back to the full-resolution image if downscaling failed.
-			const source = thumbnail ?? blob;
+			// Fall back to the full-resolution image only if downscaling failed, so
+			// the larger original bytes aren't copied into a Blob in the common case.
+			const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
 			const url = URL.createObjectURL(source);
 			previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
 			if (thumbnail) {
@@ -1102,7 +1100,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const clickHandler = async () => await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
-		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 

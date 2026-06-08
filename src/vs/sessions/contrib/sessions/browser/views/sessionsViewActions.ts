@@ -17,20 +17,21 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
-import { EditorsVisibleContext, EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsListModelService } from './sessionsListModelService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
 import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
 
 //  Constants
 
@@ -58,8 +59,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 		});
 	}
 	override async run(accessor: ServicesAccessor) {
-		const sessionsService = accessor.get(ISessionsManagementService);
-		sessionsService.openNewSessionView();
+		const sessionsViewService = accessor.get(ISessionsViewService);
+		sessionsViewService.openNewSession();
 	}
 });
 
@@ -95,7 +96,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 		return;
 	}
 	const viewsService = accessor.get(IViewsService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const sessionsViewService = accessor.get(ISessionsViewService);
 	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
 	if (visible.length === 0) {
@@ -108,7 +109,7 @@ const openSessionAtIndex = (accessor: ServicesAccessor, sessionIndex: unknown): 
 	if (!target) {
 		return;
 	}
-	sessionsManagementService.openSession(target.resource);
+	sessionsViewService.openSession(target.resource);
 };
 
 CommandsRegistry.registerCommand({
@@ -130,6 +131,98 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 		handler: accessor => openSessionAtIndex(accessor, sessionIndex)
 	});
 }
+
+//  Navigate Previous / Next Session (list order)
+
+const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'previous' | 'next'): Promise<void> => {
+	const viewsService = accessor.get(IViewsService);
+	const sessionsViewService = accessor.get(ISessionsViewService);
+	const sessionsManagementService = accessor.get(ISessionsManagementService);
+	const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+	const visible = view?.sessionsControl?.getVisibleSessions() ?? [];
+	if (visible.length === 0) {
+		return;
+	}
+
+	// Locate the active session within the visible list so navigation follows
+	// what the user sees (respecting grouping, filtering, and collapsed sections).
+	const activeResource = sessionsManagementService.activeSession.get()?.resource.toString();
+	const currentIndex = activeResource === undefined
+		? -1
+		: visible.findIndex(session => session.resource.toString() === activeResource);
+
+	let targetIndex: number;
+	if (currentIndex === -1) {
+		// No active session in the visible list: start from the nearest edge.
+		targetIndex = direction === 'next' ? 0 : visible.length - 1;
+	} else {
+		targetIndex = direction === 'next'
+			? Math.min(currentIndex + 1, visible.length - 1)
+			: Math.max(currentIndex - 1, 0);
+	}
+
+	// At the list edges the target clamps to the active session; don't re-open it.
+	if (targetIndex === currentIndex) {
+		return;
+	}
+
+	const target = visible[targetIndex];
+	if (target) {
+		await sessionsViewService.openSession(target.resource);
+	}
+};
+
+registerAction2(class NavigatePreviousSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.navigatePreviousSession',
+			title: localize2('navigatePreviousSession', "Navigate to Previous Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				// Mirror core "Previous Editor" and browser "Previous Tab". On macOS use
+				// Cmd+Alt+Left (Mac keyboards lack Page keys), matching core editor nav.
+				// Alt+Up is a secondary (alternate) binding; the `!editorAreaFocus` gate
+				// keeps the editor's "Move Line Up" intact while still navigating from
+				// the chat input.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+				secondary: [KeyMod.Alt | KeyCode.UpArrow],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return navigateSessionInList(accessor, 'previous');
+	}
+});
+
+registerAction2(class NavigateNextSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.navigateNextSession',
+			title: localize2('navigateNextSession', "Navigate to Next Session"),
+			f1: true,
+			category: SessionsCategories.Sessions,
+			keybinding: {
+				// Mirror core "Next Editor" and browser "Next Tab". On macOS use
+				// Cmd+Alt+Right (Mac keyboards lack Page keys), matching core editor nav.
+				// Alt+Down is a secondary (alternate) binding; the `!editorAreaFocus` gate
+				// keeps the editor's "Move Line Down" intact while still navigating from
+				// the chat input.
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
+				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+				secondary: [KeyMod.Alt | KeyCode.DownArrow],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return navigateSessionInList(accessor, 'next');
+	}
+});
 
 //  View Title Menu
 
@@ -349,11 +442,12 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 		if (!context || !context.sessions || context.sessions.length === 0) {
 			return;
 		}
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 		const commandService = accessor.get(ICommandService);
 
-		sessionsManagementService.openNewSessionView();
+		sessionsViewService.openNewSession();
 
 		const session = context.sessions[0];
 		const workspace = session.workspace.get();
@@ -507,7 +601,7 @@ registerAction2(class PinSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}, {
 				id: SessionItemContextMenuId,
@@ -515,7 +609,7 @@ registerAction2(class PinSessionAction extends Action2 {
 				order: 0,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}]
 		});
@@ -545,7 +639,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}, {
 				id: SessionItemContextMenuId,
@@ -553,7 +647,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 				order: 0,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 				),
 			}]
 		});
@@ -581,12 +675,17 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 15,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
 			}]
 		});
 	}
@@ -612,21 +711,17 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
-				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
-				id: Menus.CommandCenter,
-				order: 103,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					IsActiveSessionArchivedContext
-				)
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 5,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}]
 		});
 	}
@@ -654,6 +749,11 @@ registerAction2(class RenameSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
+				order: 1,
+				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '2_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
@@ -695,8 +795,16 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 				group: '0_read',
 				order: 0,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionReadContext.key, false),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					SessionIsReadContext.negate(),
+					SessionIsArchivedContext.negate(),
+				),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '3_read',
+				order: 0,
+				when: ContextKeyExpr.and(
+					SessionIsReadContext.negate(),
+					SessionIsArchivedContext.negate(),
 				),
 			}]
 		});
@@ -723,8 +831,16 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 				group: '0_read',
 				order: 0,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(IsSessionReadContext.key, true),
-					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
+					SessionIsReadContext,
+					SessionIsArchivedContext.negate(),
+				),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '3_read',
+				order: 0,
+				when: ContextKeyExpr.and(
+					SessionIsReadContext,
+					SessionIsArchivedContext.negate(),
 				),
 			}]
 		});
@@ -759,22 +875,22 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsViewService = accessor.get(ISessionsViewService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		for (let i = 0; i < sessions.length - 1; i++) {
 			const session = sessions[i];
-			const visible = sessionsManagementService.visibleSessions.get();
+			const visible = sessionsViewService.visibleSessions.get();
 			const lastVisible = visible[visible.length - 1];
 			if (lastVisible && lastVisible.sessionId !== session.sessionId) {
-				sessionsManagementService.insertAt(session, lastVisible.sessionId, 'right');
+				sessionsViewService.insertAt(session, lastVisible.sessionId, 'right');
 			}
 		}
 
 		const lastRequested = sessions[sessions.length - 1];
-		await openSessionToTheSide(sessionsManagementService, lastRequested);
+		await openSessionToTheSide(sessionsViewService, lastRequested);
 
-		const visibleAfterOpen = sessionsManagementService.visibleSessions.get();
+		const visibleAfterOpen = sessionsViewService.visibleSessions.get();
 		const opened = visibleAfterOpen.find(s => s?.sessionId === lastRequested.sessionId);
 		if (opened) {
 			sessionsPartService.focusSession(opened);
