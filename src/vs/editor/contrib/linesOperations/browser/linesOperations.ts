@@ -16,7 +16,7 @@ import { TrimTrailingWhitespaceCommand } from '../../../common/commands/trimTrai
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
-import { Range } from '../../../common/core/range.js';
+import { IRange, Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { EnterOperation } from '../../../common/cursor/cursorTypeEditOperations.js';
 import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
@@ -25,7 +25,7 @@ import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../common/model.js';
 import { CopyLinesCommand } from './copyLinesCommand.js';
-import { MoveLinesCommand } from './moveLinesCommand.js';
+import { MoveLinesCommand, MoveLinesOverFoldCommand } from './moveLinesCommand.js';
 import { SortLinesCommand } from './sortLinesCommand.js';
 
 // copy lines
@@ -180,13 +180,54 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		const selections = editor.getSelections() || [];
 		const autoIndent = editor.getOption(EditorOption.autoIndent);
 
+		const hiddenAreas = editor._getViewModel()?.getHiddenAreas() ?? [];
+
 		for (const selection of selections) {
-			commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			const foldRange = this._getAdjacentFold(selection, this.down, hiddenAreas);
+			if (foldRange) {
+				commands.push(new MoveLinesOverFoldCommand(selection, this.down, foldRange.startLineNumber, foldRange.endLineNumber));
+			} else {
+				commands.push(new MoveLinesCommand(selection, this.down, autoIndent, languageConfigurationService));
+			}
 		}
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
+	}
+
+	/**
+	 * Check if the line adjacent to the selection is the start/end of a collapsed fold.
+	 * Hidden areas represent the hidden lines of a fold: for a fold at lines 10-20,
+	 * line 10 is the visible header and lines 11-20 are hidden → hiddenArea = Range(11, 1, 20, 1).
+	 * The full fold block is (hiddenArea.startLineNumber - 1) to hiddenArea.endLineNumber.
+	 */
+	private _getAdjacentFold(selection: Selection, isMovingDown: boolean, hiddenAreas: IRange[]): { startLineNumber: number; endLineNumber: number } | null {
+		if (isMovingDown) {
+			// Match MoveLinesCommand behavior: if selection ends at col 1 of a line,
+			// the effective end is the previous line
+			let effectiveEndLine = selection.endLineNumber;
+			if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
+				effectiveEndLine = selection.endLineNumber - 1;
+			}
+
+			const nextLine = effectiveEndLine + 1;
+			for (const area of hiddenAreas) {
+				if (area.startLineNumber === nextLine + 1) {
+					// nextLine is the fold header, hidden area starts right after it
+					return { startLineNumber: nextLine, endLineNumber: area.endLineNumber };
+				}
+			}
+		} else {
+			const prevLine = selection.startLineNumber - 1;
+			for (const area of hiddenAreas) {
+				if (area.endLineNumber === prevLine) {
+					// The fold header is area.startLineNumber - 1, fold ends at prevLine
+					return { startLineNumber: area.startLineNumber - 1, endLineNumber: prevLine };
+				}
+			}
+		}
+		return null;
 	}
 }
 
