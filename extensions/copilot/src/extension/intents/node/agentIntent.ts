@@ -109,11 +109,6 @@ export function isBackgroundTodoAgentEnabled(
 	request: vscode.ChatRequest): boolean {
 	const token = authenticationService.copilotToken;
 
-	// Disable background todo agent for experimental models temporarily
-	if (endpoint.modelProvider.toLowerCase() === 'experimental') {
-		return false;
-	}
-
 	// Only enable for a signed in no-free plan user talking to the CAPI endpoint.
 	const isEnabledForToken = token !== undefined && !token.isFreeUser && !token.isNoAuthUser && isCAPIEndpoint(endpoint);
 	return isEnabledForToken && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.BackgroundTodoAgentEnabled, experimentationService)
