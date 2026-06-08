@@ -30,6 +30,7 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
 import { IBuildPromptResult } from './intents';
+import { resolveLowCostSubagentEndpoint } from './subagentEndpoint';
 
 export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLoopOptions {
 	request: ChatRequest;
@@ -128,21 +129,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		}
 
 		if (modelName) {
-			try {
-				// Resolve a concrete model by family or model id from the full set of chat
-				// endpoints. This handles real models (e.g. Gemini Flash) which the
-				// family-only `getChatEndpoint(string)` resolver does not understand.
-				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
-				const endpoint = allEndpoints.find(e => e.family === modelName || e.model === modelName);
-				if (endpoint?.supportsToolCalls) {
-					return endpoint;
-				}
-				// Model not available or does not support tool calls, fallback to main agent endpoint
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
-			} catch (error) {
-				// Resolution failed, fallback to main agent endpoint
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
-			}
+			return resolveLowCostSubagentEndpoint(this.endpointProvider, modelName, this.options.request, this._logService, 'Execution subagent');
 		} else {
 			// No model name specified, use main agent endpoint
 			return await this.endpointProvider.getChatEndpoint(this.options.request);

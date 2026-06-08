@@ -27,6 +27,7 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
 import { IBuildPromptResult } from './intents';
+import { resolveLowCostSubagentEndpoint } from './subagentEndpoint';
 
 export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopOptions {
 	request: ChatRequest;
@@ -120,23 +121,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		// smaller/cheaper model rather than the (potentially expensive) main agent model.
 		const resolvedModel = modelName || (efficiencyMode ? SearchSubagentToolCallingLoop.EFFICIENCY_MODE_MODEL : undefined);
 		if (resolvedModel) {
-			try {
-				// Resolve a concrete model by family or model id from the full set of chat
-				// endpoints. This handles real models (e.g. Gemini Flash) which the
-				// family-only `getChatEndpoint(string)` resolver does not understand.
-				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
-				const endpoint = allEndpoints.find(e => e.family === resolvedModel || e.model === resolvedModel);
-				if (endpoint?.supportsToolCalls) {
-					return endpoint;
-				}
-				// Model not available or doesn't support tool calls, fallback to main agent.
-				this._logService.warn(`Search subagent model '${resolvedModel}' not available or lacks tool support, falling back to main agent endpoint`);
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
-			} catch (error) {
-				// Resolution failed, fallback to main agent.
-				this._logService.warn(`Failed to resolve model ${resolvedModel}, falling back to main agent endpoint: ${error}`);
-				return await this.endpointProvider.getChatEndpoint(this.options.request);
-			}
+			return resolveLowCostSubagentEndpoint(this.endpointProvider, resolvedModel, this.options.request, this._logService, 'Search subagent');
 		} else {
 			// No model name specified, use main agent endpoint
 			return await this.endpointProvider.getChatEndpoint(this.options.request);
