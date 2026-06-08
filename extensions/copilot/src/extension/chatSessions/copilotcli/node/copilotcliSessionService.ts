@@ -365,6 +365,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ICopilotCLIModels private readonly _copilotCLIModels: ICopilotCLIModels,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
 		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
@@ -643,6 +644,35 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private _sessionLabels: Map<string, string> = new Map();
 
+	/**
+	 * The agent host's `<userDataPath>/agentSessionData/` directory, derived from `globalStorageUri`
+	 * (`<userDataPath>/User/globalStorage/<extId>`). The Extension API doesn't expose `userDataPath` directly.
+	 * `undefined` when no extension context (e.g. tests).
+	 */
+	private _getAgentHostSessionDataDir(): URI | undefined {
+		const globalStorageUri = this._vscodeExtensionContext?.globalStorageUri;
+		if (!globalStorageUri) {
+			return undefined;
+		}
+		const userDataPath = dirname(dirname(dirname(globalStorageUri)));
+		return joinPath(userDataPath, 'agentSessionData');
+	}
+
+	/**
+	 * Whether the agent host owns this session — it writes a per-session SQLite DB at
+	 * `<userDataPath>/agentSessionData/<sessionId>/session.db` and we skip those to avoid double-listing sessions both
+	 * surfaces read from the shared `~/.copilot/session-state/` directory.
+	 */
+	private async _isOwnedByAgentHost(sessionId: string, dataDir: URI | undefined): Promise<boolean> {
+		if (!dataDir) {
+			return false;
+		}
+		// Must mirror `SessionDataService._sanitizedSessionKey`.
+		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
+		const dbPath = joinPath(dataDir, sanitized, 'session.db');
+		return this.fileSystem.stat(dbPath).then(() => true, () => false);
+	}
+
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
 		this._isGettingSessions++;
 		try {
@@ -651,9 +681,15 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			await this._sessionTracker.initialize();
 
+			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
+			const agentHostDataDir = this._getAgentHostSessionDataDir();
+
 			// Convert SessionMetadata to ICopilotCLISession
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
+					if (await this._isOwnedByAgentHost(metadata.sessionId, agentHostDataDir)) {
+						return;
+					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {

@@ -6,7 +6,7 @@
 import { disposableTimeout, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { structuralEquals } from '../../../../../base/common/equals.js';
+import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -25,7 +25,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type ChangesetSummary } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentInfo, readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -362,7 +362,7 @@ export class AgentHostSessionAdapter implements ISession {
 			}
 
 			const branchChangesUri = URI.parse(buildSessionChangesetUri(sessionUri.toString()));
-			const subscriptionRef = connection.getSubscription(StateComponents.Changeset, branchChangesUri);
+			const subscriptionRef = connection.getSubscription(StateComponents.Changeset, branchChangesUri, 'BaseAgentHostSessionsProvider.changesets');
 			reader.store.add(subscriptionRef);
 
 			return observableFromEvent(subscriptionRef.object.onDidChange, () => subscriptionRef.object.value);
@@ -579,6 +579,26 @@ function modeEquals(
 	if (a === b) { return true; }
 	if (!a || !b) { return false; }
 	return a.id === b.id && a.kind === b.kind;
+}
+
+function customizationsChanged(previous: SessionState, state: SessionState): boolean {
+	if (previous.customizations !== state.customizations) {
+		return true;
+	}
+	const previousActiveCustomizations = previous.activeClient?.customizations;
+	const currentActiveCustomizations = state.activeClient?.customizations;
+	if (previousActiveCustomizations === currentActiveCustomizations) {
+		return false;
+	}
+	if (!previousActiveCustomizations || !currentActiveCustomizations) {
+		return true;
+	}
+	return arrayEquals(previousActiveCustomizations, currentActiveCustomizations, (a, b) => {
+		if (a.nonce !== undefined && a.nonce === b.nonce) {
+			return true;
+		}
+		return a === b;
+	});
 }
 
 // ============================================================================
@@ -956,7 +976,7 @@ class NewSession extends Disposable {
 			// handler refcounts the same subscription via `getSubscription`
 			// when chat content opens, so when we release this ref on
 			// graduation the wire-level refcount stays positive.
-			const ref = connection.getSubscription(StateComponents.Session, backendUri);
+			const ref = connection.getSubscription(StateComponents.Session, backendUri, 'BaseAgentHostSessionsProvider.session');
 			this._subscription = ref;
 
 			// Forward `SessionState` updates back to the provider so
@@ -1056,6 +1076,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 	protected _sessionTypes: ISessionType[] = [];
+
+	private _lastAgents: AgentInfo[] | undefined;
 
 	protected readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
@@ -1252,8 +1274,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * id/label set actually changed.
 	 */
 	protected _syncSessionTypesFromRootState(rootState: RootState): void {
-		this._onDidChangeCustomAgents.fire();
-		this._onDidChangeCustomizations.fire();
+		if (this._lastAgents !== rootState.agents) {
+			this._lastAgents = rootState.agents;
+			this._onDidChangeCustomAgents.fire();
+			this._onDidChangeCustomizations.fire();
+		}
 		const next = rootState.agents.map((agent): ISessionType => ({
 			id: agent.provider,
 			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
@@ -2171,7 +2196,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
-		const ref = connection.getSubscription(StateComponents.Session, sessionUri);
+		const ref = connection.getSubscription(StateComponents.Session, sessionUri, 'BaseAgentHostSessionsProvider.summary');
 		const store = new DisposableStore();
 		store.add(ref);
 		store.add(ref.object.onDidChange(state => {
@@ -2197,7 +2222,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// `SessionState` updates fire for every turn-status / activity / meta
 		// change too — firing on all of them caused excessive picker
 		// recomputes (and a feedback loop with `setAgent`).
-		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
+		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
@@ -2216,7 +2241,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		if (previous?.customizations !== state.customizations || previous?.activeClient?.customizations !== state.activeClient?.customizations) {
+		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}

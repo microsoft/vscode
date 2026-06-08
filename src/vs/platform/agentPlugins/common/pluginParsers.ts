@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { parse as parseJSONC } from '../../../base/common/json.js';
-import { cloneAndChange } from '../../../base/common/objects.js';
+import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { untildify } from '../../../base/common/labels.js';
-import { basename, extname, isEqualOrParent, joinPath, normalizePath } from '../../../base/common/resources.js';
+import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -39,6 +39,25 @@ export interface IParsedHookCommand {
 	readonly timeout?: number;
 	/** URI of the file this hook was defined in. */
 	readonly sourceUri?: URI;
+}
+
+export namespace IParsedHookCommand {
+	export function isEquals(a: IParsedHookCommand | undefined, b: IParsedHookCommand | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return a.command === b.command
+			&& a.windows === b.windows
+			&& a.linux === b.linux
+			&& a.osx === b.osx
+			&& isURLEquals(a.cwd, b.cwd)
+			&& objectEquals(a.env, b.env)
+			&& a.timeout === b.timeout
+			&& isURLEquals(a.sourceUri, b.sourceUri);
+	}
 }
 
 /** A group of hooks for a single lifecycle event. */

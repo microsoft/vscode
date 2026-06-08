@@ -34,7 +34,7 @@
 	.browser-navbar {
 		display: flex;
 		align-items: center;
-		padding: 6px 8px;
+		padding: 6px 8px 3px 8px;
 		background-color: var(--vscode-editor-background);
 		flex-shrink: 0;
 		gap: 8px;
@@ -60,7 +60,7 @@
 		display: flex;
 		align-items: center;
 		box-sizing: border-box;
-		min-width: 220px;
+		min-width: 0;
 		background-color: var(--vscode-input-background);
 		border: 1px solid var(--vscode-input-border);
 		border-radius: var(--vscode-cornerRadius-medium);
@@ -73,7 +73,8 @@
 	.browser-url-bar-widgets {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
+		flex-shrink: 1;
+		overflow: hidden;
 		padding: 2px;
 		gap: 2px;
 	}
@@ -110,8 +111,6 @@
 		font-size: 12px;
 		background-color: var(--vscode-editorWidget-background);
 		color: var(--vscode-editorWidget-foreground);
-		border-bottom: 1px solid var(--vscode-editorWidget-border, transparent);
-		margin-bottom: 3px;
 
 		.browser-emulation-toolbar-groups {
 			display: flex;
@@ -279,7 +278,8 @@
 		display: flex;
 		align-items: center;
 		margin: 0;
-		flex-shrink: 0;
+		min-width: 0;
+		flex-shrink: 1;
 
 		.browser-share-toggle {
 			padding: 2px 4px;
@@ -289,6 +289,12 @@
 			white-space: nowrap;
 			gap: 4px;
 			outline: none !important;
+
+			> span:not(.codicon) {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
 
 			&:focus-visible {
 				outline: 1px solid var(--vscode-focusBorder) !important;
@@ -324,11 +330,11 @@
 	}
 
 	.browser-container-wrapper {
-		flex: 1;
+		flex: 1 1 auto;
 		min-height: 0;
 		position: relative;
-		margin-top: 1px;
 		box-sizing: border-box;
+		overflow: hidden;
 	}
 
 	.browser-container {
@@ -587,7 +593,7 @@
 			border-radius: 0;
 			border: none;
 			top: 0 !important;
-			padding: 2px 8px 6px 12px;
+			padding: 4px 8px 4px 12px;
 			transition: none;
 			background: none !important;
 
@@ -598,6 +604,7 @@
 			.monaco-sash {
 				width: 2px !important;
 				height: calc(100% - 4px);
+				margin-top: 2px;
 				border-radius: var(--vscode-cornerRadius-circle);
 
 				&::before {
@@ -708,7 +715,7 @@
 
 	.browser-url-display {
 		flex: 1;
-		min-width: 0;
+		min-width: 60px;
 		display: block;
 		box-sizing: border-box;
 		padding: 4px 6px;
@@ -720,6 +727,10 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		outline: none !important;
+
+		&:focus-within {
+			text-overflow: clip;
+		}
 
 		&:empty::before {
 			content: attr(data-placeholder);

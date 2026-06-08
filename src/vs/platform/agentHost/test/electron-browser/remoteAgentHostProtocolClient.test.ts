@@ -892,7 +892,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 				// Establish a session subscription so dispatch() can apply optimistically.
 				const sessionUri = URI.parse('copilot:/test-session');
-				const subRef = client.getSubscription(StateComponents.Session, sessionUri);
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
 				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
 				transports[0].fireMessage({
 					jsonrpc: '2.0', id: subscribeReq.id,
@@ -940,7 +940,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				await completeHandshake(transports[0], connectPromise);
 
 				const sessionUri = URI.parse('copilot:/test-session');
-				const subRef = client.getSubscription(StateComponents.Session, sessionUri);
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
 				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
 				transports[0].fireMessage({
 					jsonrpc: '2.0', id: subscribeReq.id,
@@ -1030,7 +1030,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				await completeHandshake(transports[0], connectPromise);
 
 				const sessionUri = URI.parse('copilot:/test-session');
-				const subRef = client.getSubscription<{ summary: { title: string } }>(StateComponents.Session, sessionUri);
+				const subRef = client.getSubscription<{ summary: { title: string } }>(StateComponents.Session, sessionUri, 'test');
 				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
 				transports[0].fireMessage({
 					jsonrpc: '2.0', id: subscribeReq.id,
