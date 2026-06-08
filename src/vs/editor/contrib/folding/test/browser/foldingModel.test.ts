@@ -13,7 +13,7 @@ import { IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } f
 import { ModelDecorationOptions } from '../../../../common/model/textModel.js';
 import { toSelectedLines } from '../../browser/folding.js';
 import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp } from '../../browser/foldingModel.js';
-import { FoldingRegion } from '../../browser/foldingRanges.js';
+import { FoldingRegion, FoldingRegions, FoldRange, FoldSource } from '../../browser/foldingRanges.js';
 import { computeRanges } from '../../browser/indentRangeProvider.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 
@@ -937,6 +937,99 @@ suite('Folding Model', () => {
 			assert.strictEqual(getPreviousFoldLine(4, foldingModel), 2);
 			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 4);
 			assert.strictEqual(getPreviousFoldLine(6, foldingModel), 4);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('removeManualRanges - cursor on manual range removes innermost only', () => {
+		const lines = [
+		/* 1*/	'class A {',
+		/* 2*/	'  void foo() {',
+		/* 3*/	'    if (true) {',
+		/* 4*/	'      return;',
+		/* 5*/	'    }',
+		/* 6*/	'  }',
+		/* 7*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			// Set up ranges: outer provider range + two nested manual ranges
+			const ranges: FoldRange[] = [
+				{ startLineNumber: 1, endLineNumber: 6, type: undefined, isCollapsed: false, source: FoldSource.provider },
+				{ startLineNumber: 2, endLineNumber: 5, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+				{ startLineNumber: 3, endLineNumber: 4, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+			];
+			foldingModel.update(FoldingRegions.fromFoldRanges(ranges));
+			assertRanges(foldingModel, [r(1, 6), r(2, 5), r(3, 4)]);
+
+			// Cursor on line 4 (inside innermost manual range 3-4): should remove only 3-4
+			foldingModel.removeManualRanges([{ startLineNumber: 4, endLineNumber: 4 }]);
+			assertRanges(foldingModel, [r(1, 6), r(2, 5)]);
+
+			// Cursor on line 3 (inside remaining manual range 2-5): should remove only 2-5
+			foldingModel.removeManualRanges([{ startLineNumber: 3, endLineNumber: 3 }]);
+			assertRanges(foldingModel, [r(1, 6)]);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('removeManualRanges - cursor not on manual range removes all manual ranges', () => {
+		const lines = [
+		/* 1*/	'// header',
+		/* 2*/	'class A {',
+		/* 3*/	'  void foo() {',
+		/* 4*/	'  }',
+		/* 5*/	'}',
+		/* 6*/	'// footer'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			// Provider range at 2-4, manual range at 3-4
+			const ranges: FoldRange[] = [
+				{ startLineNumber: 2, endLineNumber: 4, type: undefined, isCollapsed: false, source: FoldSource.provider },
+				{ startLineNumber: 3, endLineNumber: 4, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+			];
+			foldingModel.update(FoldingRegions.fromFoldRanges(ranges));
+			assertRanges(foldingModel, [r(2, 4), r(3, 4)]);
+
+			// Cursor on line 6 (not inside any manual range): should remove all manual ranges
+			foldingModel.removeManualRanges([{ startLineNumber: 6, endLineNumber: 6 }]);
+			assertRanges(foldingModel, [r(2, 4)]);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('removeManualRanges - selection range removes intersecting manual ranges', () => {
+		const lines = [
+		/* 1*/	'class A {',
+		/* 2*/	'  void foo() {',
+		/* 3*/	'  }',
+		/* 4*/	'  void bar() {',
+		/* 5*/	'  }',
+		/* 6*/	'}'];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			const ranges: FoldRange[] = [
+				{ startLineNumber: 1, endLineNumber: 5, type: undefined, isCollapsed: false, source: FoldSource.provider },
+				{ startLineNumber: 2, endLineNumber: 3, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+				{ startLineNumber: 4, endLineNumber: 5, type: undefined, isCollapsed: false, source: FoldSource.userDefined },
+			];
+			foldingModel.update(FoldingRegions.fromFoldRanges(ranges));
+			assertRanges(foldingModel, [r(1, 5), r(2, 3), r(4, 5)]);
+
+			// Selection spanning lines 2-3: removes only the first manual range
+			foldingModel.removeManualRanges([{ startLineNumber: 2, endLineNumber: 3 }]);
+			assertRanges(foldingModel, [r(1, 5), r(4, 5)]);
 		} finally {
 			textModel.dispose();
 		}
