@@ -35,6 +35,7 @@ import { SessionStatus } from '../../services/sessions/common/session.js';
 export class SessionView extends Disposable implements ISerializableView {
 
 	static readonly TYPE = 'sessions.sessionView';
+	private static readonly CENTERED_CONTENT_MAX_WIDTH = 950;
 	private static readonly ACTIVE_BACKGROUND = asCssVariable(activeSessionViewBackground);
 	private static readonly ACTIVE_FOREGROUND = asCssVariable(activeSessionViewForeground);
 	private static readonly INACTIVE_BACKGROUND = asCssVariable(inactiveSessionViewBackground);
@@ -53,6 +54,7 @@ export class SessionView extends Disposable implements ISerializableView {
 	private readonly _header: SessionHeader;
 	private readonly _compositeBar: ChatCompositeBar;
 	private readonly _floatingToolbar: SessionViewFloatingToolbar;
+	private readonly _centeredContentContainer: HTMLElement;
 	private readonly _contentContainer: HTMLElement;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
@@ -95,14 +97,17 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
+		this._centeredContentContainer = $('.session-view-centered-content');
+		this.element.appendChild(this._centeredContentContainer);
+
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
-		this.element.appendChild(this._header.element);
+		this._centeredContentContainer.appendChild(this._header.element);
 
 		this._compositeBar = this._register(scopedInstantiationService.createInstance(ChatCompositeBar));
-		this.element.appendChild(this._compositeBar.element);
+		this._centeredContentContainer.appendChild(this._compositeBar.element);
 
 		this._contentContainer = $('.session-view-content');
-		this.element.appendChild(this._contentContainer);
+		this._centeredContentContainer.appendChild(this._contentContainer);
 
 		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
@@ -205,10 +210,13 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
+		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
+		const centeredLeft = left + (width - centeredWidth) / 2;
+		size(this._centeredContentContainer, centeredWidth, height);
 		const headerHeight = this._header.visible ? this._header.height : 0;
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const barHeight = headerHeight + tabsHeight;
-		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
+		this._currentView.value?.layout(centeredWidth, height - barHeight, top + barHeight, centeredLeft);
 	}
 
 	toJSON(): object {
