@@ -40,9 +40,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const webview = webviewPanel.webview;
 		let isUpdatingFromWebview = false;
 
-		const highlight = this.#wireHighlight(webview);
-
-		const onMessage = webview.onDidReceiveMessage((message) => {
+		const onMessage = webview.onDidReceiveMessage(async (message) => {
 			switch (message.type) {
 				case 'ready': {
 					webview.postMessage({ type: 'init', content: document.getText(), readonly: false });
@@ -60,7 +58,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 						new vscode.Range(0, 0, document.lineCount, 0),
 						content,
 					);
-					vscode.workspace.applyEdit(edit).then(() => { isUpdatingFromWebview = false; });
+					try {
+						await vscode.workspace.applyEdit(edit);
+					} finally {
+						isUpdatingFromWebview = false;
+					}
 					break;
 				}
 			}
@@ -76,34 +78,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		webviewPanel.onDidDispose(() => {
 			onMessage.dispose();
 			onDocumentChange.dispose();
-			highlight.dispose();
 		});
-	}
-
-	/**
-	 * Proxies the webview's syntax highlighting requests to the
-	 * `documentSyntaxHighlighting` proposed API, since the webview cannot call
-	 * it directly. Also forwards theme changes so the webview can re-highlight.
-	 */
-	#wireHighlight(webview: vscode.Webview): vscode.Disposable {
-		const onMessage = webview.onDidReceiveMessage(async (message) => {
-			if (message.type !== 'highlight') {
-				return;
-			}
-			const result = await vscode.languages.computeFullSyntaxHighlighting(message.source, message.languageId);
-			webview.postMessage({
-				type: 'highlightResult',
-				requestId: message.requestId,
-				tokens: result.tokens,
-				colorMap: result.colorMap,
-			});
-		});
-
-		const onThemeChange = vscode.languages.onDidChangeSyntaxHighlighting(() => {
-			webview.postMessage({ type: 'highlightThemeChanged' });
-		});
-
-		return vscode.Disposable.from(onMessage, onThemeChange);
 	}
 
 	#getHtml(webview: vscode.Webview): string {
@@ -120,7 +95,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}' 'unsafe-eval';" />
+		content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} https: data:; media-src ${webview.cspSource} https: data:; script-src 'nonce-${nonce}';" />
 	<link rel="stylesheet" href="${styleUri}" />
 	<title>Markdown Editor</title>
 	<style>
