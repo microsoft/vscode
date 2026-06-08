@@ -334,6 +334,7 @@ export function setup(logger: Logger) {
 			const requestsBefore = mockServer.requestCount();
 			await app.workbench.agentsWindow.waitForNewSessionView();
 			await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+			// May intermittently hit the CLI cold-start "No model available" race: github/copilot-agent-runtime#9876
 			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_SCENARIO_ID}]`);
 
 			const text = await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLY);
