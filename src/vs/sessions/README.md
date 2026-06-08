@@ -27,6 +27,8 @@ The Agents Window (`Workbench`) provides a simplified, fixed-layout workbench ta
 | [AI_CUSTOMIZATIONS.md](AI_CUSTOMIZATIONS.md) | AI customization design document |
 | [copilot-customizations-spec.md](copilot-customizations-spec.md) | Copilot customizations specification |
 | [contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md](contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md) | Copilot chat sessions provider details |
+| [contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md](contrib/providers/localChatSessions/LOCAL_CHAT_SESSIONS_PROVIDER.md) | Local in-process VS Code chat sessions provider details |
+| [contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md) | Agent host provider details (shared base + local agent host) |
 | [contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md) | Remote agent host provider details |
 
 ## Adding New Functionality
