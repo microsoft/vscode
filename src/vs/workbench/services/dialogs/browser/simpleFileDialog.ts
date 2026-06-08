@@ -888,7 +888,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return ((path.length > 1) && this.endsWithSlash(path)) ? path.substr(0, path.length - 1) : path;
 	}
 
-	private yesNoPrompt(uri: URI, message: string): Promise<boolean> {
+	private yesNoPrompt(uri: URI, message: string, allowEdit: boolean = false): Promise<URI | undefined> {
 		interface YesNoItem extends IQuickPickItem {
 			value: boolean;
 		}
@@ -902,24 +902,31 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		prompt.customButtonSecondary = true;
 		prompt.value = this.pathFromUri(uri);
 
-		let isResolving = false;
-		return new Promise<boolean>(resolve => {
+		let resolvedUri: URI | undefined;
+		return new Promise<URI | undefined>(resolve => {
 			disposableStore.add(prompt.onDidAccept(() => {
-				isResolving = true;
+				resolvedUri = this.remoteUriFrom(prompt.value.trimRight(), uri);
 				prompt.hide();
-				resolve(true);
+				resolve(resolvedUri);
 			}));
 			disposableStore.add(prompt.onDidHide(() => {
-				if (!isResolving) {
-					resolve(false);
+				if (resolvedUri === undefined) {
+					// If the user typed a different value but did not accept,
+					// preserve their edits in the file picker so they don't have to retype.
+					if (allowEdit && prompt.value !== this.pathFromUri(uri)) {
+						this.filePickBox.value = prompt.value;
+					}
+					resolve(undefined);
 				}
 				this.filePickBox.show();
 				this.hidden = false;
 				disposableStore.dispose();
 			}));
-			disposableStore.add(prompt.onDidChangeValue(() => {
-				prompt.hide();
-			}));
+			if (!allowEdit) {
+				disposableStore.add(prompt.onDidChangeValue(() => {
+					prompt.hide();
+				}));
+			}
 			disposableStore.add(prompt.onDidCustom(() => {
 				prompt.hide();
 			}));
@@ -951,7 +958,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				// Replacing a file.
 				// Show a yes/no prompt
 				const message = nls.localize('remoteFileDialog.validateExisting', '{0} already exists. Are you sure you want to overwrite it?', resources.basename(uri));
-				return this.yesNoPrompt(uri, message);
+				return !!(await this.yesNoPrompt(uri, message));
 			} else if (!(isValidBasename(resources.basename(uri), this.isWindows))) {
 				// Filename not allowed
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateBadFilename', 'Please enter a valid file name.');
@@ -959,7 +966,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			} else if (!statDirname) {
 				// Folder to save in doesn't exist
 				const message = nls.localize('remoteFileDialog.validateCreateDirectory', 'The folder {0} does not exist. Would you like to create it?', resources.basename(resources.dirname(uri)));
-				return this.yesNoPrompt(uri, message);
+				return !!(await this.yesNoPrompt(uri, message));
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return false;
@@ -974,12 +981,19 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					&& statDirname?.isDirectory && !statDirname.readonly
 					&& isValidBasename(resources.basename(uri), this.isWindows)) {
 					const message = nls.localize('remoteFileDialog.validateCreateDirectoryOpen', 'The folder {0} does not exist. Would you like to create it?', resources.basename(uri));
-					const shouldCreate = await this.yesNoPrompt(uri, message);
-					if (!shouldCreate) {
+					const folderUri = await this.yesNoPrompt(uri, message, true);
+					if (!folderUri) {
+						return false;
+					}
+					// If the user edited the path in the prompt, propagate the new value
+					// back to the file picker and let validation run again on the new path
+					// rather than creating a folder at the edited path immediately.
+					if (!resources.isEqual(folderUri, uri)) {
+						this.filePickBox.value = this.pathFromUri(folderUri);
 						return false;
 					}
 					try {
-						await this.fileService.createFolder(uri);
+						await this.fileService.createFolder(folderUri);
 						return true;
 					} catch (e) {
 						this.filePickBox.validationMessage = nls.localize('remoteFileDialog.createFolderFailed', 'Could not create folder: {0}', e.message);
