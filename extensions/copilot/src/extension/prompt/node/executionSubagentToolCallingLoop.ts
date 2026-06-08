@@ -10,7 +10,7 @@ import { IChatHookService } from '../../../platform/chat/common/chatHookService'
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -113,7 +113,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService);
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
 		const shellType = this.terminalService.terminalShellType;
 
@@ -129,15 +129,18 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 
 		if (modelName) {
 			try {
-				// Try to get the specified model
-				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
-				if (endpoint.supportsToolCalls) {
+				// Resolve a concrete model by family or model id from the full set of chat
+				// endpoints. This handles real models (e.g. Gemini Flash) which the
+				// family-only `getChatEndpoint(string)` resolver does not understand.
+				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
+				const endpoint = allEndpoints.find(e => e.family === modelName || e.model === modelName);
+				if (endpoint?.supportsToolCalls) {
 					return endpoint;
 				}
-				// Model does not support tool calls, fallback to main agent endpoint
+				// Model not available or does not support tool calls, fallback to main agent endpoint
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			} catch (error) {
-				// Model not available, fallback to main agent endpoint
+				// Resolution failed, fallback to main agent endpoint
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
 		} else {

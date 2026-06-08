@@ -24,8 +24,10 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../platform/
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
@@ -36,6 +38,7 @@ import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
+import { EFFICIENCY_MODE_SETTING_ID } from '../../actions/chatExecuteActions.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -72,6 +75,13 @@ export function getControlModelsForEntitlement(manifest: IModelsControlManifest,
 const ModelPickerSection = {
 	Other: 'other',
 } as const;
+
+/**
+ * Storage key holding the per-model effort/context values that Efficiency Mode
+ * overrode, so they can be restored when Efficiency Mode is turned off. Shape:
+ * `{ [modelIdentifier]: { [configKey]: priorValue } }`.
+ */
+const EFFICIENCY_SAVED_CONFIG_STORAGE_KEY = 'chat.efficiencyMode.savedModelConfig';
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -877,11 +887,19 @@ export class ModelPickerWidget extends Disposable {
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 
+	/**
+	 * Tracks whether Efficiency Mode's per-model effort/context clamping is currently
+	 * applied, so toggles are idempotent and a reload (with the setting already on)
+	 * does not re-clamp models that were already adjusted.
+	 */
+	private _efficiencyModeApplied = false;
+	/** Set by the in-picker toggle so the configuration listener does not sync twice. */
+	private _suppressNextEfficiencySync = false;
+
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
 	private _nameButton: HTMLElement | undefined;
-	private _effortButton: HTMLElement | undefined;
-	private _tokensButton: HTMLElement | undefined;
+	private _configButton: HTMLElement | undefined;
 
 	get selectedModel(): ILanguageModelChatMetadataAndIdentifier | undefined {
 		return this._selectedModel;
@@ -899,6 +917,7 @@ export class ModelPickerWidget extends Disposable {
 		private readonly _delegate: IModelPickerDelegate,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
@@ -907,8 +926,14 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+
+		// If the setting is already on at construction, models were clamped in a
+		// previous session (the per-model config persists), so mark as applied to
+		// avoid re-clamping — but still allow restore-on-disable from saved priors.
+		this._efficiencyModeApplied = this._configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
 
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._renderLabel();
@@ -916,6 +941,22 @@ export class ModelPickerWidget extends Disposable {
 
 		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
 			this._renderLabel();
+		}));
+
+		// Keep the picker bar in sync when Efficiency Mode is toggled from
+		// elsewhere (Command Palette or Settings). The in-picker toggle handles
+		// its own sync and suppresses this listener to avoid doing the work twice.
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(EFFICIENCY_MODE_SETTING_ID)) {
+				if (this._suppressNextEfficiencySync) {
+					this._suppressNextEfficiencySync = false;
+					this._renderLabel();
+					return;
+				}
+				const enabled = this._configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
+				await this._syncEfficiencyMode(enabled);
+				this._renderLabel();
+			}
 		}));
 	}
 
@@ -933,6 +974,11 @@ export class ModelPickerWidget extends Disposable {
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
 		this._selectedModel = model;
 		this._renderLabel();
+		// While Efficiency Mode is on, clamp the newly selected model too so the
+		// reduced effort/context applies to whatever model the user switches to.
+		if (this._efficiencyModeApplied && model) {
+			void this._applyEfficiencyToModel(model);
+		}
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -963,21 +1009,14 @@ export class ModelPickerWidget extends Disposable {
 		this._nameButton.setAttribute('aria-haspopup', 'true');
 		this._nameButton.setAttribute('aria-expanded', 'false');
 
-		// Thinking effort button (conditionally visible)
-		this._effortButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-effort'));
-		this._effortButton.tabIndex = 0;
-		this._effortButton.setAttribute('role', 'button');
-		this._effortButton.setAttribute('aria-haspopup', 'true');
-		this._effortButton.setAttribute('aria-expanded', 'false');
-		this._effortButton.style.display = 'none';
-
-		// Context size button (conditionally visible)
-		this._tokensButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-tokens'));
-		this._tokensButton.tabIndex = 0;
-		this._tokensButton.setAttribute('role', 'button');
-		this._tokensButton.setAttribute('aria-haspopup', 'true');
-		this._tokensButton.setAttribute('aria-expanded', 'false');
-		this._tokensButton.style.display = 'none';
+		// Combined configuration button (conditionally visible): opens a single
+		// dropdown with Thinking Effort, Context Size and Efficiency Mode sections.
+		this._configButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-config'));
+		this._configButton.tabIndex = 0;
+		this._configButton.setAttribute('role', 'button');
+		this._configButton.setAttribute('aria-haspopup', 'true');
+		this._configButton.setAttribute('aria-expanded', 'false');
+		this._configButton.style.display = 'none';
 
 		this._badgeIcon = dom.$('span.model-picker-badge');
 		this._updateBadge();
@@ -985,19 +1024,13 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 
 		this._registerButtonAction(this._nameButton, () => this.show());
-		this._registerButtonAction(this._effortButton, () => this._showEffortPicker());
-		this._registerButtonAction(this._tokensButton, () => this._showTokensPicker());
+		this._registerButtonAction(this._configButton, () => this._showConfigPicker());
 
-		// Managed hovers for effort and tokens buttons
+		// Managed hover for the combined configuration button
 		this._register(getBaseLayerHoverDelegate().setupManagedHover(
 			getDefaultHoverDelegate('mouse'),
-			this._effortButton,
-			localize('chat.modelPicker.effortTooltip', "Set Thinking Effort")
-		));
-		this._register(getBaseLayerHoverDelegate().setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
-			this._tokensButton,
-			localize('chat.modelPicker.tokensTooltip', "Set Context Size")
+			this._configButton,
+			localize('chat.modelPicker.configTooltip', "Configure Model")
 		));
 	}
 
@@ -1036,6 +1069,10 @@ export class ModelPickerWidget extends Disposable {
 			});
 			this._selectedModel = model;
 			this._renderLabel();
+			// Clamp the chosen model if Efficiency Mode is active.
+			if (this._efficiencyModeApplied) {
+				void this._applyEfficiencyToModel(model);
+			}
 			this._onDidChangeSelection.fire(model);
 		};
 
@@ -1192,36 +1229,38 @@ export class ModelPickerWidget extends Disposable {
 		}
 		dom.reset(this._nameButton, ...nameChildren);
 
-		// Effort and tokens buttons are only shown in UBB mode.
+		// The combined configuration button is only shown in UBB mode.
 		// In PRU mode, configuration is accessed via per-model toolbar actions in the picker dropdown.
 
-		// --- Effort section (from configurationSchema group 'navigation') ---
+		// --- Combined config section (Thinking Effort + Context Size) ---
 		const effortConfig = isUBB ? this._getConfigProperty('navigation') : undefined;
-		if (effortConfig && this._effortButton) {
-			// Use the localized enumItemLabel from the schema, falling back to the raw value
-			const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
-			const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
-				? effortConfig.schema.enumItemLabels[enumIndex]
-				: String(effortConfig.value);
-			dom.reset(this._effortButton, dom.$('span.chat-input-picker-label', undefined, effortLabel));
-			this._effortButton.style.display = '';
-			this._effortButton.ariaLabel = localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel);
-		} else if (this._effortButton) {
-			this._effortButton.style.display = 'none';
-		}
-
-		// --- Tokens section (from configurationSchema group 'tokens') ---
 		const tokensConfig = isUBB ? this._getConfigProperty('tokens') : undefined;
-		if (tokensConfig && this._tokensButton) {
-			const idx = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
-			const tokensLabel = idx >= 0 && tokensConfig.schema.enumItemLabels?.[idx]
-				? tokensConfig.schema.enumItemLabels[idx]
-				: formatTokenCount(Number(tokensConfig.value));
-			dom.reset(this._tokensButton, dom.$('span.chat-input-picker-label', undefined, tokensLabel));
-			this._tokensButton.style.display = '';
-			this._tokensButton.ariaLabel = localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel);
-		} else if (this._tokensButton) {
-			this._tokensButton.style.display = 'none';
+		if (this._configButton) {
+			if (this._selectedModel && (effortConfig || tokensConfig)) {
+				const labelParts: string[] = [];
+				const ariaParts: string[] = [];
+				if (effortConfig) {
+					const enumIndex = effortConfig.schema.enum?.indexOf(effortConfig.value) ?? -1;
+					const effortLabel = enumIndex >= 0 && effortConfig.schema.enumItemLabels?.[enumIndex]
+						? effortConfig.schema.enumItemLabels[enumIndex]
+						: String(effortConfig.value);
+					labelParts.push(effortLabel);
+					ariaParts.push(localize('chat.modelPicker.effortAriaLabel', "Thinking Effort: {0}", effortLabel));
+				}
+				if (tokensConfig) {
+					const idx = tokensConfig.schema.enum?.indexOf(tokensConfig.value) ?? -1;
+					const tokensLabel = idx >= 0 && tokensConfig.schema.enumItemLabels?.[idx]
+						? tokensConfig.schema.enumItemLabels[idx]
+						: formatTokenCount(Number(tokensConfig.value));
+					labelParts.push(tokensLabel);
+					ariaParts.push(localize('chat.modelPicker.tokensAriaLabel', "Context Size: {0}", tokensLabel));
+				}
+				dom.reset(this._configButton, dom.$('span.chat-input-picker-label', undefined, labelParts.join(' ')));
+				this._configButton.style.display = '';
+				this._configButton.ariaLabel = ariaParts.join(', ');
+			} else {
+				this._configButton.style.display = 'none';
+			}
 		}
 
 		// Aria
@@ -1235,149 +1274,237 @@ export class ModelPickerWidget extends Disposable {
 		return resolveConfigProperty(this._selectedModel, group, this._languageModelsService);
 	}
 
-	private _showEffortPicker(): void {
-		if (this._domNode?.classList.contains('disabled')) {
+	/**
+	 * Applies or restores Efficiency Mode's per-model effort/context clamping.
+	 * Idempotent: returns early if the requested state already matches what is applied.
+	 */
+	private async _syncEfficiencyMode(enabled: boolean): Promise<void> {
+		if (enabled === this._efficiencyModeApplied) {
 			return;
 		}
-		const config = this._getConfigProperty('navigation');
-		if (!config || !this._effortButton || !this._selectedModel) {
-			return;
+		// Update the applied flag up front so concurrent selection changes don't
+		// race the apply/restore below.
+		this._efficiencyModeApplied = enabled;
+		if (enabled) {
+			await this._applyEfficiencyToModel(this._selectedModel);
+		} else {
+			await this._restoreEfficiencyForAllModels();
 		}
-
-		const modelIdentifier = this._selectedModel.identifier;
-		const previousEffortValue = String(config.value ?? '');
-		const enumValues = config.schema.enum ?? [];
-		const enumItemLabels = config.schema.enumItemLabels;
-
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
-			{
-				kind: ActionListItemKind.Header,
-				label: localize('chat.effort.header', "Thinking Effort"),
-			}
-		];
-
-		for (let index = 0; index < enumValues.length; index++) {
-			const value = enumValues[index];
-			const label = enumItemLabels?.[index] ?? String(value);
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.effortDefault', "{0} (default)", label)
-				: label;
-			items.push({
-				item: {
-					id: `effort.${value}`,
-					enabled: true,
-					checked: config.value === value,
-					class: undefined,
-					tooltip: config.schema.enumDescriptions?.[index] ?? '',
-					label: displayLabel,
-					run: () => {
-						this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
-							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-							fromValue: previousEffortValue,
-							toValue: String(value),
-						});
-						this._languageModelsService.setModelConfiguration(
-							modelIdentifier,
-							{ [config.key]: value }
-						);
-					}
-				},
-				kind: ActionListItemKind.Action,
-				label: displayLabel,
-				description: config.schema.enumDescriptions?.[index],
-				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
-				hideIcon: false,
-			});
-		}
-
-		const previouslyFocusedElement = dom.getActiveElement();
-		const delegate = {
-			onSelect: (action: IActionWidgetDropdownAction) => {
-				this._actionWidgetService.hide();
-				action.run();
-			},
-			onHide: () => {
-				this._effortButton?.setAttribute('aria-expanded', 'false');
-				if (dom.isHTMLElement(previouslyFocusedElement)) {
-					previouslyFocusedElement.focus();
-				}
-			}
-		};
-
-		this._effortButton.setAttribute('aria-expanded', 'true');
-
-		this._actionWidgetService.show(
-			'ChatModelEffortPicker',
-			false,
-			items,
-			delegate,
-			this._effortButton,
-			undefined,
-			[],
-			{
-				isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
-					return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
-				},
-				getRole: () => 'menuitemradio' as const,
-				getWidgetRole: () => 'menu' as const,
-			},
-			{
-				footerText: localize('chat.effort.costHint', "Higher levels of thinking may increase costs"),
-			}
-		);
 	}
 
-	private _showTokensPicker(): void {
-		if (this._domNode?.classList.contains('disabled')) {
+	/**
+	 * Reads the saved pre-Efficiency-Mode per-model config from storage.
+	 */
+	private _readSavedEfficiencyConfig(): IStringDictionary<IStringDictionary<unknown>> {
+		const raw = this._storageService.get(EFFICIENCY_SAVED_CONFIG_STORAGE_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return {};
+		}
+		try {
+			return JSON.parse(raw) as IStringDictionary<IStringDictionary<unknown>>;
+		} catch {
+			return {};
+		}
+	}
+
+	private _writeSavedEfficiencyConfig(map: IStringDictionary<IStringDictionary<unknown>>): void {
+		if (Object.keys(map).length === 0) {
+			this._storageService.remove(EFFICIENCY_SAVED_CONFIG_STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this._storageService.store(EFFICIENCY_SAVED_CONFIG_STORAGE_KEY, JSON.stringify(map), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+	}
+
+	/**
+	 * Resolves the cheapest value for a configurable group ('navigation' = thinking
+	 * effort, 'tokens' = context size) on the given model, alongside its current value.
+	 */
+	private _getEfficientValueForGroup(model: ILanguageModelChatMetadataAndIdentifier, group: string): { key: string; target: unknown; current: unknown } | undefined {
+		const config = resolveConfigProperty(model, group, this._languageModelsService);
+		if (!config) {
+			return undefined;
+		}
+		// Efficiency Mode resets thinking effort and context size to the model's
+		// default rather than the absolute minimum, so the main model stays usable
+		// while still undoing any user bump-ups. The bigger savings come from the
+		// subagents (smaller models + lower reasoning effort) handled elsewhere.
+		const target = config.schema.default;
+		if (target === undefined) {
+			return undefined;
+		}
+		return { key: config.key, target, current: config.value };
+	}
+
+	/**
+	 * Resets the model's thinking effort and context size to their defaults,
+	 * saving any overridden values so they can be restored when Efficiency Mode is off.
+	 */
+	private async _applyEfficiencyToModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): Promise<void> {
+		if (!model) {
 			return;
 		}
-		const config = this._getConfigProperty('tokens');
-		if (!config || !this._tokensButton || !this._selectedModel) {
+		const saved = this._readSavedEfficiencyConfig();
+		const modelKey = model.identifier;
+		for (const group of ['navigation', 'tokens']) {
+			const eff = this._getEfficientValueForGroup(model, group);
+			if (!eff || eff.current === eff.target) {
+				continue;
+			}
+			// Save the prior value once (idempotent across repeated applies).
+			saved[modelKey] = saved[modelKey] ?? {};
+			if (!Object.hasOwn(saved[modelKey], eff.key)) {
+				saved[modelKey][eff.key] = eff.current;
+			}
+			await this._languageModelsService.setModelConfiguration(modelKey, { [eff.key]: eff.target });
+		}
+		this._writeSavedEfficiencyConfig(saved);
+	}
+
+	/**
+	 * Restores every per-model effort/context value that Efficiency Mode overrode.
+	 */
+	private async _restoreEfficiencyForAllModels(): Promise<void> {
+		const saved = this._readSavedEfficiencyConfig();
+		for (const [modelKey, keys] of Object.entries(saved)) {
+			for (const [configKey, priorValue] of Object.entries(keys)) {
+				await this._languageModelsService.setModelConfiguration(modelKey, { [configKey]: priorValue });
+			}
+		}
+		this._writeSavedEfficiencyConfig({});
+	}
+
+	/**
+	 * Opens the combined configuration dropdown containing the model's Thinking
+	 * Effort and Context Size options (when available) plus the global Efficiency
+	 * Mode On/Off toggle, all in a single popup anchored to the config button.
+	 */
+	private _showConfigPicker(): void {
+		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
 			return;
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
-		const previousTokensValue = String(config.value ?? '');
-		const enumValues = config.schema.enum ?? [];
-		const enumItemLabels = config.schema.enumItemLabels;
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
+		const defaultLabel = localize('models.configDefault', "Default");
 
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = [
-			{
-				kind: ActionListItemKind.Header,
-				label: localize('chat.tokens.header', "Context Size"),
+		// Builds a header + radio options for one configurable group (effort or context size).
+		const appendConfigSection = (
+			group: string,
+			headerLabel: string,
+			formatValueLabel: (value: unknown, enumLabel: string | undefined) => string,
+			logChange: (value: unknown, previousValue: string) => void,
+		): void => {
+			const config = this._getConfigProperty(group);
+			if (!config) {
+				return;
 			}
-		];
+			const previousValue = String(config.value ?? '');
+			const enumValues = config.schema.enum ?? [];
+			const enumItemLabels = config.schema.enumItemLabels;
+			if (items.length) {
+				items.push({ kind: ActionListItemKind.Separator });
+			}
+			items.push({ kind: ActionListItemKind.Header, label: headerLabel });
+			for (let index = 0; index < enumValues.length; index++) {
+				const value = enumValues[index];
+				const isDefault = value === config.schema.default;
+				const displayLabel = formatValueLabel(value, enumItemLabels?.[index]);
+				const enumDescription = config.schema.enumDescriptions?.[index];
+				// Mark the default value with a right-aligned "Default" label instead of
+				// appending "(default)" to the value label.
+				const description = isDefault ? defaultLabel : enumDescription;
+				const checked = config.value === value;
+				items.push({
+					item: {
+						id: `${group}.${value}`,
+						enabled: true,
+						checked,
+						class: undefined,
+						tooltip: enumDescription ?? '',
+						label: displayLabel,
+						run: () => {
+							logChange(value, previousValue);
+							this._languageModelsService.setModelConfiguration(modelIdentifier, { [config.key]: value });
+						}
+					},
+					kind: ActionListItemKind.Action,
+					label: displayLabel,
+					description,
+					group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
+					hideIcon: false,
+				});
+			}
+		};
 
-		for (let index = 0; index < enumValues.length; index++) {
-			const value = enumValues[index];
-			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const displayLabel = label;
-			const description = config.schema.enumDescriptions?.[index];
+		// --- Thinking Effort ---
+		appendConfigSection(
+			'navigation',
+			localize('chat.effort.header', "Thinking Effort"),
+			(value, enumLabel) => enumLabel ?? String(value),
+			(value, previousValue) => {
+				this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+					model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+					fromValue: previousValue,
+					toValue: String(value),
+				});
+			},
+		);
+
+		// --- Context Size ---
+		appendConfigSection(
+			'tokens',
+			localize('chat.tokens.header', "Context Size"),
+			(value, enumLabel) => enumLabel ?? formatTokenCount(Number(value)),
+			(value, previousValue) => {
+				this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+					model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+					fromValue: previousValue,
+					toValue: String(value),
+				});
+			},
+		);
+
+		// --- Efficiency Mode (On/Off) ---
+		const isEfficiencyMode = this._configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
+		const efficiencyModeTooltip = localize('chat.modelPicker.efficiencyMode.tooltip', "Efficiency Mode optimizes for lower cost: it keeps responses concise, resets this model's reasoning effort and context size to their defaults, and runs subagents with lower reasoning effort and smaller models. Applies to any model.");
+		if (items.length) {
+			items.push({ kind: ActionListItemKind.Separator });
+		}
+		items.push({ kind: ActionListItemKind.Header, label: localize('chat.modelPicker.efficiencyMode', "Efficiency Mode") });
+		for (const enabled of [true, false]) {
+			const checked = isEfficiencyMode === enabled;
+			const isDefaultOption = !enabled;
+			const label = enabled
+				? localize('chat.modelPicker.efficiencyMode.on', "On")
+				: localize('chat.modelPicker.efficiencyMode.off', "Off");
 			items.push({
 				item: {
-					id: `tokens.${value}`,
+					id: `efficiency.${enabled}`,
 					enabled: true,
-					checked: config.value === value,
+					checked,
 					class: undefined,
-					tooltip: description ?? '',
-					label: displayLabel,
-					run: () => {
-						this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
-							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
-							fromValue: previousTokensValue,
-							toValue: String(value),
-						});
-						this._languageModelsService.setModelConfiguration(
-							modelIdentifier,
-							{ [config.key]: value }
-						);
+					tooltip: efficiencyModeTooltip,
+					label,
+					run: async () => {
+						if (isEfficiencyMode === enabled) {
+							return;
+						}
+						// The configuration listener also reacts to this change; suppress
+						// it so we only apply/restore the per-model clamping once here.
+						this._suppressNextEfficiencySync = true;
+						await this._configurationService.updateValue(EFFICIENCY_MODE_SETTING_ID, enabled);
+						await this._syncEfficiencyMode(enabled);
+						// Refresh the picker bar so the effort/context labels reflect the
+						// clamped values, then re-open the dropdown so the new state shows.
+						this._renderLabel();
+						this._showConfigPicker();
 					}
 				},
 				kind: ActionListItemKind.Action,
-				label: displayLabel,
-				description,
-				group: { title: '', icon: ThemeIcon.fromId(config.value === value ? Codicon.check.id : Codicon.blank.id) },
+				label,
+				description: isDefaultOption ? defaultLabel : undefined,
+				tooltip: efficiencyModeTooltip,
+				group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
 				hideIcon: false,
 			});
 		}
@@ -1389,21 +1516,21 @@ export class ModelPickerWidget extends Disposable {
 				action.run();
 			},
 			onHide: () => {
-				this._tokensButton?.setAttribute('aria-expanded', 'false');
+				this._configButton?.setAttribute('aria-expanded', 'false');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
 			}
 		};
 
-		this._tokensButton.setAttribute('aria-expanded', 'true');
+		this._configButton.setAttribute('aria-expanded', 'true');
 
 		this._actionWidgetService.show(
-			'ChatModelTokensPicker',
+			'ChatModelConfigPicker',
 			false,
 			items,
 			delegate,
-			this._tokensButton,
+			this._configButton,
 			undefined,
 			[],
 			{
@@ -1414,7 +1541,7 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.tokens.costHint', "Larger context may increase cost"),
+				footerText: localize('chat.config.costHint', "Increasing context size or thinking effort may increase cost"),
 			}
 		);
 	}

@@ -1908,8 +1908,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 }
 
-.chat-input-picker-item .action-label.model-picker-split .model-picker-effort,
-.chat-input-picker-item .action-label.model-picker-split .model-picker-tokens {
+.chat-input-picker-item .action-label.model-picker-split .model-picker-config {
 	flex-shrink: 0;
 }
 

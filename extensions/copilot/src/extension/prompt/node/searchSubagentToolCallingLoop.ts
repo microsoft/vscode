@@ -7,9 +7,9 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes'; import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -95,11 +95,20 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'vscode-agentic-search-router-a';
 
 	/**
+	 * Smaller, cheaper model used for the subagent when Efficiency Mode is enabled and
+	 * no explicit subagent model has been configured. This is a real model family (not a
+	 * `copilot-utility*` model) and is resolved against the full set of chat endpoints, so
+	 * it must match the `family` or `model` of an available endpoint.
+	 */
+	private static readonly EFFICIENCY_MODE_MODEL = 'gemini-3-flash';
+
+	/**
 	 * Get the endpoint to use for the search subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService);
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
+		const efficiencyMode = this._configurationService.getConfig(ConfigKey.Advanced.EfficiencyModeEnabled);
 
 		if (useAgenticProxy) {
 			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
@@ -107,13 +116,25 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
 		}
 
-		if (modelName) {
+		// Prefer an explicitly configured model; otherwise, in Efficiency Mode, route to a
+		// smaller/cheaper model rather than the (potentially expensive) main agent model.
+		const resolvedModel = modelName || (efficiencyMode ? SearchSubagentToolCallingLoop.EFFICIENCY_MODE_MODEL : undefined);
+		if (resolvedModel) {
 			try {
-				// Try to get the specified model
-				return await this.endpointProvider.getChatEndpoint(modelName);
+				// Resolve a concrete model by family or model id from the full set of chat
+				// endpoints. This handles real models (e.g. Gemini Flash) which the
+				// family-only `getChatEndpoint(string)` resolver does not understand.
+				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
+				const endpoint = allEndpoints.find(e => e.family === resolvedModel || e.model === resolvedModel);
+				if (endpoint?.supportsToolCalls) {
+					return endpoint;
+				}
+				// Model not available or doesn't support tool calls, fallback to main agent.
+				this._logService.warn(`Search subagent model '${resolvedModel}' not available or lacks tool support, falling back to main agent endpoint`);
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			} catch (error) {
-				// Model not available or doesn't support tool calls, fallback to main agent
-				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
+				// Resolution failed, fallback to main agent.
+				this._logService.warn(`Failed to resolve model ${resolvedModel}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
 		} else {

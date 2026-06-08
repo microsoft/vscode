@@ -3316,6 +3316,11 @@
             "default": true,
             "description": "%github.copilot.config.agent.currentEditorContext.enabled%"
           },
+          "github.copilot.chat.efficiencyMode.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "When enabled, optimizes for lower cost: asks the agent to keep responses concise and use the fewest possible tool calls, resets the selected model's reasoning effort and context size to their defaults, and runs subagents with lower reasoning effort and smaller models. This is an experimental prototype for an \"Efficiency Mode\"."
+          },
           "github.copilot.enable": {
             "type": "object",
             "scope": "window",

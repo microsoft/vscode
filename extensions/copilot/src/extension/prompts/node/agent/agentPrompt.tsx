@@ -115,6 +115,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 		const SafetyRules = customizations.SafetyRulesClass;
 
 		const omitBaseAgentInstructions = this.configurationService.getConfig(ConfigKey.Advanced.OmitBaseAgentInstructions);
+		const efficiencyMode = this.configurationService.getConfig(ConfigKey.Advanced.EfficiencyModeEnabled);
 		const baseAgentInstructions = <>
 			<SystemMessage>
 				You are an expert AI programming assistant, working with a user in the VS Code editor.<br />
@@ -125,6 +126,16 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 			<SystemMessage>
 				<MemoryInstructionsPrompt />
 			</SystemMessage>
+			{efficiencyMode && <SystemMessage priority={90}>
+				<Tag name='costEfficiency'>
+					You are operating in efficiency mode. Optimize for the lowest possible cost while still completing the task correctly.<br />
+					Be frugal with tool calls: prefer the fewest calls that get the job done, and avoid redundant or exploratory calls when you already have enough context to act.<br />
+					Batch independent operations into a single step (for example, read multiple files or make multiple edits at once) instead of issuing many sequential calls.<br />
+					Do not re-read files or re-run searches you have already done. Reuse information already present in the conversation.<br />
+					Keep responses concise and to the point. Avoid restating the plan, summarizing what you just did, or adding unnecessary preamble.<br />
+					Prefer simple, direct solutions over elaborate ones. Stop as soon as the task is complete.<br />
+				</Tag>
+			</SystemMessage>}
 		</>;
 		const isAutopilot = this.props.promptContext.request?.permissionLevel === 'autopilot';
 		const sessionResource = this.props.promptContext.request?.sessionResource;

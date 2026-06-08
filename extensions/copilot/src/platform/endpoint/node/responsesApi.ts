@@ -159,8 +159,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
 	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
+	// In Efficiency Mode, force subagent requests to the lowest available reasoning
+	// effort to reduce cost. Subagents are identified by the interaction type override.
+	const isEfficiencySubagent = options.interactionTypeOverride === 'conversation-subagent'
+		&& configService.getConfig(ConfigKey.Advanced.EfficiencyModeEnabled);
+	const efficiencyEffort = isEfficiencySubagent && endpoint.supportsReasoningEffort?.includes('low')
+		? 'low'
+		: undefined;
 	const effort = endpoint.supportsReasoningEffort?.length
-		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
+		? (efficiencyEffort || effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
 	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
