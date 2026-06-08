@@ -874,9 +874,10 @@ export class McpHTTPHandle extends Disposable {
 
 			// Only follow redirects to http(s). Blocks a malicious Location header from
 			// reaching the unix:// / pipe:// socket dispatcher or other local schemes.
+			// Fail closed so the connection errors deterministically rather than the
+			// caller treating the 3xx response as final.
 			if (!ALLOWED_REDIRECT_PROTOCOLS.has(nextUrlParsed.protocol)) {
-				this._log(LogLevel.Warning, `Refusing to follow MCP redirect to non-http(s) target (${nextUrlParsed.protocol})`);
-				break;
+				throw new Error(`MCP server redirected to a non-http(s) target (${nextUrlParsed.protocol}), which is not allowed`);
 			}
 
 			// On a cross-origin redirect, strip credential-bearing headers so tokens and
