@@ -79,12 +79,6 @@
 	opacity: 0.7;
 }
 
-.ci-status-widget-header:hover .group-chevron,
-.ci-status-widget-header:focus-visible .group-chevron {
-	color: var(--vscode-strongForeground);
-	opacity: 1;
-}
-
 /* Title - single line, overflow ellipsis */
 .ci-status-widget-title {
 	flex: 1;
