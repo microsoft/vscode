@@ -302,7 +302,7 @@ suite('SessionsManagementService', () => {
 		// (mimicking an agent host provider whose cache has not loaded yet).
 		const restorePromise = view.restoreVisibleSessions();
 		await Promise.resolve();
-		assert.deepStrictEqual(view.visibleSessions.get().map(s => s?.sessionId), []);
+		assert.deepStrictEqual(view.visibleSessions.get().filter((s): s is NonNullable<typeof s> => !!s).map(s => s.sessionId), []);
 
 		// Now the provider learns about the session and fires its change event.
 		// `onDidChangeProviders` does NOT fire here — only the per-provider
