@@ -779,6 +779,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
 			oldOptions.wrapTabs !== newOptions.wrapTabs ||
 			oldOptions.showTabIndex !== newOptions.showTabIndex ||
+			oldOptions.tabHoverVerbosity !== newOptions.tabHoverVerbosity ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
