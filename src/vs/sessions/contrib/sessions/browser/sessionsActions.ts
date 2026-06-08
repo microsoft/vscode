@@ -131,10 +131,6 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.items = items;
 		picker.placeholder = localize('searchSessions', "Search sessions by name or folder");
 		picker.canAcceptInBackground = true;
-		// Keep the picker open when a background accept moves focus to the opened
-		// session, so the user can continue navigating. It is still dismissed
-		// explicitly on a foreground accept (Enter) or Escape.
-		picker.ignoreFocusOut = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
 
