@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus } from '../common/speechService.js';
+import { ISpeechService, ISpeechProvider, HasSpeechProvider, ISpeechToTextSession, SpeechToTextInProgress, KeywordRecognitionStatus, SpeechToTextStatus, speechLanguageConfigToLanguage, SPEECH_LANGUAGE_CONFIG, ITextToSpeechSession, TextToSpeechInProgress, TextToSpeechStatus, ISpeechToTextSessionOptions } from '../common/speechService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
@@ -142,11 +142,11 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 	private readonly speechToTextInProgress: IContextKey<boolean>;
 
-	async createSpeechToTextSession(token: CancellationToken, context: string = 'speech'): Promise<ISpeechToTextSession> {
+	async createSpeechToTextSession(token: CancellationToken, context: string = 'speech', options?: ISpeechToTextSessionOptions): Promise<ISpeechToTextSession> {
 		const provider = await this.getProvider();
 
 		const language = speechLanguageConfigToLanguage(this.configurationService.getValue<unknown>(SPEECH_LANGUAGE_CONFIG));
-		const session = provider.createSpeechToTextSession(token, typeof language === 'string' ? { language } : undefined);
+		const session = provider.createSpeechToTextSession(token, { ...options, context, language });
 
 		const sessionStart = Date.now();
 		let sessionRecognized = false;

@@ -8,6 +8,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../base/common
 import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import type { ISpeechToTextSessionOptions } from '../../contrib/speech/common/speechService.js';
 
 export class ExtHostSpeech implements ExtHostSpeechShape {
 
@@ -25,7 +26,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.proxy = mainContext.getProxy(MainContext.MainThreadSpeech);
 	}
 
-	async $createSpeechToTextSession(handle: number, session: number, language?: string): Promise<void> {
+	async $createSpeechToTextSession(handle: number, session: number, options?: ISpeechToTextSessionOptions): Promise<void> {
 		const provider = this.providers.get(handle);
 		if (!provider) {
 			return;
@@ -36,7 +37,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
-		const speechToTextSession = await provider.provideSpeechToTextSession(cts.token, language ? { language } : undefined);
+		const speechToTextSession = await provider.provideSpeechToTextSession(cts.token, options);
 		if (!speechToTextSession) {
 			return;
 		}

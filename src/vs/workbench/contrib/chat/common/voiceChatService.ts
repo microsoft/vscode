@@ -113,6 +113,20 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		return phrases;
 	}
 
+	private createPhraseHints(phrases: Map<string, IPhraseValue>): string[] {
+		const phraseHints = new Set<string>();
+
+		for (const [phrase, value] of phrases) {
+			phraseHints.add(phrase);
+			phraseHints.add(value.agent);
+			if (value.command) {
+				phraseHints.add(value.command);
+			}
+		}
+
+		return Array.from(phraseHints);
+	}
+
 	private toText(value: IPhraseValue, type: PhraseTextType): string {
 		switch (type) {
 			case PhraseTextType.AGENT:
@@ -144,13 +158,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		let detectedSlashCommand = false;
 
 		const emitter = disposables.add(new Emitter<IVoiceChatTextEvent>());
-		const session = await this.speechService.createSpeechToTextSession(token, 'chat');
+		const phrases = this.createPhrases(options.model);
+		const session = await this.speechService.createSpeechToTextSession(token, 'chat', { phraseHints: this.createPhraseHints(phrases) });
 
 		if (token.isCancellationRequested) {
 			onSessionStoppedOrCanceled(true);
 		}
 
-		const phrases = this.createPhrases(options.model);
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
 				case SpeechToTextStatus.Recognizing:

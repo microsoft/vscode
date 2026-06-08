@@ -76,7 +76,7 @@ import { ISCMHistoryOptions } from '../../contrib/scm/common/history.js';
 import { InputValidationType } from '../../contrib/scm/common/scm.js';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from '../../contrib/search/common/search.js';
 import { IRawClosedNotebookFileMatch } from '../../contrib/search/common/searchNotebookHelpers.js';
-import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from '../../contrib/speech/common/speechService.js';
+import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ISpeechToTextSessionOptions, ITextToSpeechEvent } from '../../contrib/speech/common/speechService.js';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestControllerCapability, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiffOp } from '../../contrib/testing/common/testTypes.js';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from '../../contrib/timeline/common/timeline.js';
 import { TypeHierarchyItem } from '../../contrib/typeHierarchy/common/typeHierarchy.js';
@@ -1386,7 +1386,7 @@ export interface MainThreadSpeechShape extends IDisposable {
 }
 
 export interface ExtHostSpeechShape {
-	$createSpeechToTextSession(handle: number, session: number, language?: string): Promise<void>;
+	$createSpeechToTextSession(handle: number, session: number, options?: ISpeechToTextSessionOptions): Promise<void>;
 	$cancelSpeechToTextSession(session: number): Promise<void>;
 
 	$createTextToSpeechSession(handle: number, session: number, language?: string): Promise<void>;

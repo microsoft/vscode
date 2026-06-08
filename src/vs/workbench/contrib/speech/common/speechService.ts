@@ -73,7 +73,9 @@ export interface IKeywordRecognitionSession {
 }
 
 export interface ISpeechToTextSessionOptions {
+	readonly context?: string;
 	readonly language?: string;
+	readonly phraseHints?: readonly string[];
 }
 
 export interface ITextToSpeechSessionOptions {
@@ -107,7 +109,7 @@ export interface ISpeechService {
 	 * Starts to transcribe speech from the default microphone. The returned
 	 * session object provides an event to subscribe for transcribed text.
 	 */
-	createSpeechToTextSession(token: CancellationToken, context?: string): Promise<ISpeechToTextSession>;
+	createSpeechToTextSession(token: CancellationToken, context?: string, options?: ISpeechToTextSessionOptions): Promise<ISpeechToTextSession>;
 
 	readonly onDidStartTextToSpeechSession: Event<void>;
 	readonly onDidEndTextToSpeechSession: Event<void>;

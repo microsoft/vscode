@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
+import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ISpeechToTextSessionOptions, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService/chatService.js';
@@ -103,6 +103,8 @@ suite('VoiceChat', () => {
 
 	class TestSpeechService implements ISpeechService {
 		_serviceBrand: undefined;
+		lastSpeechToTextContext: string | undefined;
+		lastSpeechToTextSessionOptions: ISpeechToTextSessionOptions | undefined;
 
 		onDidChangeHasSpeechProvider = Event.None;
 
@@ -115,7 +117,10 @@ suite('VoiceChat', () => {
 		onDidStartSpeechToTextSession = Event.None;
 		onDidEndSpeechToTextSession = Event.None;
 
-		async createSpeechToTextSession(token: CancellationToken): Promise<ISpeechToTextSession> {
+		async createSpeechToTextSession(token: CancellationToken, context?: string, options?: ISpeechToTextSessionOptions): Promise<ISpeechToTextSession> {
+			this.lastSpeechToTextContext = context;
+			this.lastSpeechToTextSessionOptions = options;
+
 			return {
 				onDidChange: emitter.event
 			};
@@ -140,6 +145,7 @@ suite('VoiceChat', () => {
 	let emitter: Emitter<ISpeechToTextEvent>;
 
 	let service: VoiceChatService;
+	let speechService: TestSpeechService;
 	let event: IVoiceChatTextEvent | undefined;
 
 	async function createSession(options: IVoiceChatSessionOptions) {
@@ -153,7 +159,8 @@ suite('VoiceChat', () => {
 
 	setup(() => {
 		emitter = disposables.add(new Emitter<ISpeechToTextEvent>());
-		service = disposables.add(new VoiceChatService(new TestSpeechService(), new TestChatAgentService(), new MockContextKeyService()));
+		speechService = new TestSpeechService();
+		service = disposables.add(new VoiceChatService(speechService, new TestChatAgentService(), new MockContextKeyService()));
 	});
 
 	teardown(() => {
@@ -166,6 +173,32 @@ suite('VoiceChat', () => {
 
 	test('Agent and slash command detection (useAgents: true)', async () => {
 		await testAgentsAndSlashCommandsDetection({ usesAgents: true, model: {} as IChatModel });
+	});
+
+	test('passes chat phrase hints to speech recognition', async () => {
+		await createSession({ usesAgents: true, model: {} as IChatModel });
+
+		assert.deepStrictEqual({
+			context: speechService.lastSpeechToTextContext,
+			phraseHints: [...speechService.lastSpeechToTextSessionOptions?.phraseHints ?? []].sort()
+		}, {
+			context: 'chat',
+			phraseHints: [
+				'at code',
+				'at code slash search',
+				'at workspace',
+				'at workspace slash explain',
+				'at workspace slash fix',
+				'explain',
+				'fix',
+				'search',
+				'slash explain',
+				'slash fix',
+				'slash search',
+				'vscode',
+				'workspace'
+			].sort()
+		});
 	});
 
 	async function testAgentsAndSlashCommandsDetection(options: IVoiceChatSessionOptions) {

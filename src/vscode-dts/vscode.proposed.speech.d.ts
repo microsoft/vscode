@@ -6,7 +6,17 @@
 declare module 'vscode' {
 
 	export interface SpeechToTextOptions {
+		/**
+		 * The context in which speech recognition is being requested.
+		 */
+		readonly context?: string;
+
 		readonly language?: string;
+
+		/**
+		 * Phrases that are expected to appear in the speech recognition result.
+		 */
+		readonly phraseHints?: readonly string[];
 	}
 
 	export enum SpeechToTextStatus {
