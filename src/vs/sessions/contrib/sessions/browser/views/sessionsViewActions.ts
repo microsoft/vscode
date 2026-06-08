@@ -17,10 +17,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
-import { EditorsVisibleContext, EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -621,14 +621,10 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}, {
-				id: Menus.CommandCenter,
-				order: 103,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					IsActiveSessionArchivedContext
-				)
+				id: Menus.SessionBarToolbar,
+				group: 'navigation',
+				order: 5,
+				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, true),
 			}]
 		});
 	}
