@@ -482,9 +482,8 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step:not(.expanded) .step-title {
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	display: inline-block;
+	display: block;
 	overflow: hidden;
-	width: inherit;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-title .codicon {
