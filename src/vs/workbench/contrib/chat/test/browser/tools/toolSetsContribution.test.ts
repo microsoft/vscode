@@ -65,6 +65,50 @@ suite('ToolSetsContribution', () => {
 		]);
 	});
 
+	test('getEnabledSelectionReferences does not emit a tool set when a member tool is unchecked', () => {
+		const toolsService = createToolsService();
+
+		const enabledTool: IToolData = {
+			id: 'enabled',
+			modelDescription: 'enabled',
+			displayName: 'enabled',
+			toolReferenceName: 'enabled',
+			canBeReferencedInPrompt: true,
+			source: ToolDataSource.Internal,
+		};
+		const disabledTool: IToolData = {
+			id: 'disabled',
+			modelDescription: 'disabled',
+			displayName: 'disabled',
+			toolReferenceName: 'disabled',
+			canBeReferencedInPrompt: true,
+			source: ToolDataSource.Internal,
+		};
+
+		store.add(toolsService.registerToolData(enabledTool));
+		store.add(toolsService.registerToolData(disabledTool));
+
+		const userToolSet = store.add(toolsService.createToolSet(
+			{ type: 'user', file: URI.file('/tmp/tools.toolsets.jsonc'), label: 'tools.toolsets.jsonc' },
+			'user/toolset',
+			'myToolSet'
+		));
+		store.add(userToolSet.addTool(enabledTool));
+		store.add(userToolSet.addTool(disabledTool));
+
+		const selection = new Map<IToolData | IToolSet, boolean>([
+			[userToolSet, true],
+			[enabledTool, true],
+			[disabledTool, false],
+		]);
+
+		// The tool set is partially deselected, so it must not be serialized. Only the
+		// enabled member tool is emitted, by its qualified name.
+		assert.deepStrictEqual(getEnabledSelectionReferences(selection, toolsService), [
+			toolsService.getFullReferenceName(enabledTool, userToolSet),
+		]);
+	});
+
 	test('getEnabledSelectionReferences uses qualified names for individually selected tools', () => {
 		const toolsService = createToolsService();
 

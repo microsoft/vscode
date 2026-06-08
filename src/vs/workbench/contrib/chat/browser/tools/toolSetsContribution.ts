@@ -6,6 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableFromEvent, observableSignalFromEvent, autorun, transaction } from '../../../../../base/common/observable.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
@@ -35,7 +36,7 @@ import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 
@@ -348,7 +349,13 @@ export function getEnabledSelectionReferences(selection: ReadonlyMap<IToolData |
 		}
 
 		if (isToolSet(item)) {
-			enabledToolSets.push(item);
+			// Only serialize a tool set when none of its member tools are explicitly
+			// unchecked in the selection. A partially-deselected tool set would otherwise
+			// silently re-enable the deselected member tools, matching the guard in
+			// `toFullReferenceNames`. Members absent from the map inherit the tool set's state.
+			if (Iterable.every(item.getTools(), tool => selection.get(tool) !== false)) {
+				enabledToolSets.push(item);
+			}
 		} else {
 			enabledTools.push(item);
 		}
@@ -416,7 +423,7 @@ export function deleteToolSetFromFileContents(rawContents: string, toolSetName: 
 	}
 
 	const record = parsed as Record<string, unknown>;
-	if (!(toolSetName in record)) {
+	if (!Object.hasOwn(record, toolSetName)) {
 		return undefined;
 	}
 
@@ -461,9 +468,14 @@ export class ConfigureToolSets extends Action2 {
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const picks: (IQuickPickItem & { toolset?: IToolSet; kind: 'createFromSelection' | 'createNewFile' | 'existing' })[] = [];
-		const currentSelection = getSelectionFromArg(options) ?? new Map<IToolData | IToolSet, boolean>();
+		// When the command is invoked without an explicit selection (e.g. from F1 or the chat
+		// view title menu), fall back to the tool selection of the active chat widget.
+		const currentSelection = getSelectionFromArg(options)
+			?? chatWidgetService.lastFocusedWidget?.input.selectedToolsModel.entriesMap.get()
+			?? new Map<IToolData | IToolSet, boolean>();
 		const selectedReferences = getEnabledSelectionReferences(currentSelection, toolsService);
 
 		if (selectedReferences.length > 0) {
