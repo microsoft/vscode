@@ -17,7 +17,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../.
 import { EditorAreaFocusContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
@@ -354,7 +354,7 @@ registerAction2(class AddChatToSessionBarAction extends Action2 {
 			icon: Codicon.add,
 			menu: {
 				id: Menus.SessionBarToolbar,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, SessionIsArchivedContext.negate()),
 				group: 'navigation',
 				order: 10,
 			},
@@ -388,7 +388,7 @@ registerAction2(class TogglePinSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: '1_session',
 				order: 10,
-				when: SessionIsCreatedContext,
+				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionIsArchivedContext.negate()),
 			},
 		});
 	}
