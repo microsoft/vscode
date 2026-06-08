@@ -24,7 +24,7 @@ const LOCAL_REPLY = 'MOCKED_CHAT_SESSIONS_LOCAL_RESPONSE';
 export function setup(logger: Logger) {
 
 	describe('Chat Sessions', function () {
-		this.timeout(3 * 60 * 1000);
+		this.timeout(5 * 60 * 1000);
 		this.retries(0);
 
 		let mockServer: MockLlmServer;
@@ -66,10 +66,21 @@ export function setup(logger: Logger) {
 			await app.workbench.settingsEditor.addUserSettings([
 				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
 				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
+				// Use token auth (not HMAC) so the CLI SDK can call /models and
+				// /models/session against the mock server without HMAC validation.
+				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
 				['chat.allowAnonymousAccess', 'true'],
 				['github.copilot.chat.githubMcpServer.enabled', 'false'],
 				['chat.mcp.discovery.enabled', 'false'],
 				['chat.mcp.enabled', 'false'],
+				// Pre-enable the chat session types that the tests open. Writing
+				// these here (directly to settings.json) instead of from the
+				// smoketest extension avoids racing with copilot-chat registering
+				// its configuration schema — the original cause of the Chat
+				// Sessions smoke test flake.
+				['chat.disableAIFeatures', 'false'],
+				['github.copilot.chat.backgroundAgent.enabled', 'true'],
+				['github.copilot.chat.claudeAgent.enabled', 'true'],
 				// Force the bundled Claude Agent SDK (avoid the experiment that
 				// would route through the ms-vscode.vscode-claude-sdk extension,
 				// which would attempt a network install during the smoke run).

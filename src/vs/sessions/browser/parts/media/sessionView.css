@@ -16,13 +16,11 @@
  * smoothly in either direction. Only declared when the user has not requested
  * reduced motion so we never need to unset them. */
 @media (prefers-reduced-motion: no-preference) {
-	.session-view .chat-composite-bar-inline-toolbar,
 	.session-view .chat-composite-bar-toolbar,
 	.session-view .interactive-session .chat-input-toolbars > .chat-input-toolbar,
 	.session-view .interactive-session .chat-secondary-toolbar,
 	.session-view .interactive-session .chat-attachments-container,
-	.session-view .interactive-session .interactive-input-followups,
-	.session-view .interactive-session .chat-editor-container {
+	.session-view .interactive-session .interactive-input-followups {
 		transition: opacity 0.15s ease;
 	}
 
@@ -33,7 +31,6 @@
 
 /* Quiet the session toolbar controls in the top-right of inactive sessions so
  * the active session's controls stand out, while keeping them legible. */
-.session-view:not(.is-active) .chat-composite-bar-inline-toolbar,
 .session-view:not(.is-active) .chat-composite-bar-toolbar {
 	opacity: 0.6;
 }

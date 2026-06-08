@@ -380,6 +380,14 @@
 	border-color: var(--vscode-widget-shadow);
 }
 
+/* In light/dark themes the widget shadow can be transparent, leaving the key borders invisible
+	against the focus/hover background. Derive the border from the foreground instead. High contrast
+	themes are excluded so their stronger borders are preserved. */
+:is(.vs, .vs-dark) .quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
+:is(.vs, .vs-dark) .quick-input-list .monaco-list-row:hover .monaco-keybinding-key {
+	border-color: color-mix(in srgb, currentColor 30%, transparent);
+}
+
 .quick-input-list .quick-input-list-separator-as-item {
 	padding: 4px 6px;
 	font-size: 12px;

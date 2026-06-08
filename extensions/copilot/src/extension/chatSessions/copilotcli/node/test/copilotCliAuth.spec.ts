@@ -80,6 +80,9 @@ describe('CopilotCLISDK Authentication', () => {
 					return 'https://proxy.example.com';
 				}
 				return undefined;
+			},
+			inspectConfig() {
+				return undefined;
 			}
 		} as unknown as IConfigurationService;
 
