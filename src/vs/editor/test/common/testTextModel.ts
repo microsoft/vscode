@@ -5,7 +5,7 @@
 
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from '../../common/model.js';
+import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions, TextDirection } from '../../common/model.js';
 import { TextModel } from '../../common/model/textModel.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { ILanguageService } from '../../common/languages/language.js';
@@ -59,6 +59,7 @@ export interface IRelaxedTextModelCreationOptions {
 	isForSimpleWidget?: boolean;
 	largeFileOptimizations?: boolean;
 	bracketColorizationOptions?: BracketPairColorizationOptions;
+	textDirection?: TextDirection;
 }
 
 function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelCreationOptions {
@@ -73,6 +74,7 @@ function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelC
 		isForSimpleWidget: (typeof _options.isForSimpleWidget === 'undefined' ? defaultOptions.isForSimpleWidget : _options.isForSimpleWidget),
 		largeFileOptimizations: (typeof _options.largeFileOptimizations === 'undefined' ? defaultOptions.largeFileOptimizations : _options.largeFileOptimizations),
 		bracketPairColorizationOptions: (typeof _options.bracketColorizationOptions === 'undefined' ? defaultOptions.bracketPairColorizationOptions : _options.bracketColorizationOptions),
+		textDirection: (typeof _options.textDirection === 'undefined' ? defaultOptions.textDirection : _options.textDirection),
 	};
 }
 

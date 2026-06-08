@@ -22,7 +22,7 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { TextResourceEditorInput } from '../../../common/editor/textResourceEditorInput.js';
 import { TextDiffEditor } from './textDiffEditor.js';
 import { BinaryResourceDiffEditor } from './binaryDiffEditor.js';
-import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, EditorStatusContribution } from './editorStatus.js';
+import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, ChangeTextDirectionAction, EditorStatusContribution } from './editorStatus.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuRegistry, MenuId, IMenuItem, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -174,6 +174,7 @@ quickAccessRegistry.registerQuickAccessProvider({
 registerAction2(ChangeLanguageAction);
 registerAction2(ChangeEOLAction);
 registerAction2(ChangeEncodingAction);
+registerAction2(ChangeTextDirectionAction);
 
 registerAction2(NavigateForwardAction);
 registerAction2(NavigateBackwardsAction);

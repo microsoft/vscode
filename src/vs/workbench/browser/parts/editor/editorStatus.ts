@@ -17,7 +17,7 @@ import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { Disposable, MutableDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IEditorAction } from '../../../../editor/common/editorCommon.js';
-import { EndOfLineSequence } from '../../../../editor/common/model.js';
+import { EndOfLineSequence, TextDirection } from '../../../../editor/common/model.js';
 import { TrimTrailingWhitespaceAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 import { IndentUsingSpaces, IndentUsingTabs, ChangeTabDisplaySize, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from '../../../../editor/contrib/indentation/browser/indentation.js';
 import { BaseBinaryResourceEditor } from './binaryEditor.js';
@@ -150,6 +150,7 @@ class StateChange {
 	languageStatus: boolean = false;
 	encoding: boolean = false;
 	EOL: boolean = false;
+	textDirection: boolean = false;
 	tabFocusMode: boolean = false;
 	inputMode: boolean = false;
 	columnSelectionMode: boolean = false;
@@ -162,6 +163,7 @@ class StateChange {
 		this.languageStatus = this.languageStatus || other.languageStatus;
 		this.encoding = this.encoding || other.encoding;
 		this.EOL = this.EOL || other.EOL;
+		this.textDirection = this.textDirection || other.textDirection;
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
 		this.inputMode = this.inputMode || other.inputMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
@@ -175,6 +177,7 @@ class StateChange {
 			|| this.languageStatus
 			|| this.encoding
 			|| this.EOL
+			|| this.textDirection
 			|| this.tabFocusMode
 			|| this.inputMode
 			|| this.columnSelectionMode
@@ -187,6 +190,7 @@ type StateDelta = (
 	| { type: 'languageId'; languageId: string | undefined }
 	| { type: 'encoding'; encoding: string | undefined }
 	| { type: 'EOL'; EOL: string | undefined }
+	| { type: 'textDirection'; textDirection: string | undefined }
 	| { type: 'indentation'; indentation: string | undefined }
 	| { type: 'tabFocusMode'; tabFocusMode: boolean }
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
@@ -207,6 +211,9 @@ class State {
 
 	private _EOL: string | undefined;
 	get EOL(): string | undefined { return this._EOL; }
+
+	private _textDirection: string | undefined;
+	get textDirection(): string | undefined { return this._textDirection; }
 
 	private _indentation: string | undefined;
 	get indentation(): string | undefined { return this._indentation; }
@@ -259,6 +266,13 @@ class State {
 				if (this._EOL !== update.EOL) {
 					this._EOL = update.EOL;
 					change.EOL = true;
+				}
+				break;
+
+			case 'textDirection':
+				if (this._textDirection !== update.textDirection) {
+					this._textDirection = update.textDirection;
+					change.textDirection = true;
 				}
 				break;
 
@@ -341,6 +355,8 @@ const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections (
 const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
+const nlsRTL = localize('rightToLeft', "RTL");
+const nlsLTR = localize('leftToRight', "LTR");
 
 class EditorStatus extends Disposable {
 
@@ -351,6 +367,7 @@ class EditorStatus extends Disposable {
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly textDirectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
@@ -574,6 +591,23 @@ class EditorStatus extends Disposable {
 		this.updateElement(this.eolElement, props, 'status.editor.eol', StatusbarAlignment.RIGHT, 100.2);
 	}
 
+	private updateTextDirectionElement(text: string | undefined): void {
+		if (!text) {
+			this.textDirectionElement.clear();
+			return;
+		}
+
+		const props: IStatusbarEntry = {
+			name: localize('status.editor.textDirection', "Editor Text Direction"),
+			text,
+			ariaLabel: text,
+			tooltip: localize('selectTextDirection', "Select Text Direction"),
+			command: 'workbench.action.editor.changeTextDirection'
+		};
+
+		this.updateElement(this.textDirectionElement, props, 'status.editor.textDirection', StatusbarAlignment.RIGHT, 100.2);
+	}
+
 	private updateLanguageIdElement(text: string | undefined): void {
 		if (!text) {
 			this.languageElement.clear();
@@ -646,6 +680,7 @@ class EditorStatus extends Disposable {
 		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
 		this.updateEOLElement(this.state.EOL ? this.state.EOL === '\r\n' ? nlsEOLCRLF : nlsEOLLF : undefined);
+		this.updateTextDirectionElement(this.state.textDirection ? this.state.textDirection === 'ltr' ? nlsLTR : nlsRTL : undefined);
 		this.updateLanguageIdElement(this.state.languageId);
 		this.updateMetadataElement(this.state.metadata);
 	}
@@ -685,6 +720,7 @@ class EditorStatus extends Disposable {
 		this.onLanguageChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
+		this.onTextDirectionChange(activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
 		this.onMetadataChange(activeEditorPane);
 		this.currentMarkerStatus.update(activeCodeEditor);
@@ -744,6 +780,7 @@ class EditorStatus extends Disposable {
 			// Hook Listener for content options changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeModelOptions(() => {
 				this.onIndentationChange(activeCodeEditor);
+				this.onTextDirectionChange(activeCodeEditor);
 			}));
 		}
 
@@ -904,6 +941,19 @@ class EditorStatus extends Disposable {
 				} else {
 					info.encoding = rawEncoding; // otherwise use it raw
 				}
+			}
+		}
+
+		this.updateState(info);
+	}
+
+	private onTextDirectionChange(editorWidget: ICodeEditor | undefined): void {
+		const info: StateDelta = { type: 'textDirection', textDirection: undefined };
+
+		if (editorWidget && !editorWidget.getOption(EditorOption.readOnly)) {
+			const codeEditorModel = editorWidget.getModel();
+			if (codeEditorModel) {
+				info.textDirection = codeEditorModel.getOptions().textDirection === TextDirection.LTR ? 'ltr' : 'rtl';
 			}
 		}
 
@@ -1583,6 +1633,60 @@ export class ChangeEncodingAction extends Action2 {
 
 			// Set new encoding
 			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
+		}
+
+		activeTextEditorControl.focus();
+	}
+}
+
+interface IChangeTextDirectionEntry extends IQuickPickItem {
+	textDirection: TextDirection;
+}
+
+export class ChangeTextDirectionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.editor.changeTextDirection',
+			title: localize2('changeTextDirection', 'Change File Text Direction'),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
+		if (!activeTextEditorControl) {
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			return;
+		}
+
+		if (editorService.activeEditor?.isReadonly()) {
+			await quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return;
+		}
+
+		let textModel = activeTextEditorControl.getModel();
+
+		const TextDirectionOptions: IChangeTextDirectionEntry[] = [
+			{ label: nlsLTR, textDirection: TextDirection.LTR },
+			{ label: nlsRTL, textDirection: TextDirection.RTL },
+		];
+
+		const selectedIndex = (textModel?.getOptions().textDirection || TextDirection.LTR) === TextDirection.LTR ? 0 : 1;
+
+		const textDirection = await quickInputService.pick(TextDirectionOptions, {
+			placeHolder: localize('pickTextDirection', "Select Text Direction"),
+			activeItem: TextDirectionOptions[selectedIndex]
+		});
+
+		const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+		if (textDirection && activeCodeEditor) {
+			if (activeCodeEditor.hasModel()) {
+				textModel = activeCodeEditor.getModel();
+				textModel.updateOptions({ textDirection: textDirection.textDirection });
+			}
 		}
 
 		activeTextEditorControl.focus();

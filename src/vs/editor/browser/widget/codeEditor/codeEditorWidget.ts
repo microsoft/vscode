@@ -41,7 +41,7 @@ import { InternalEditorAction } from '../../../common/editorAction.js';
 import * as editorCommon from '../../../common/editorCommon.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
-import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from '../../../common/model.js';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, TextDirection } from '../../../common/model.js';
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
@@ -266,6 +266,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
+	private _textDirectionDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
+
 	public inComposition: boolean = false;
 
 	constructor(
@@ -404,7 +406,26 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			},
 		}));
 
+		this._register(this.onDidChangeModelOptions(() => {
+			this.applyTextDirectionDecorations();
+		}));
+
 		this._codeEditorService.addCodeEditor(this);
+	}
+
+	private applyTextDirectionDecorations(): void {
+		const textModel = this.getModel();
+		if (textModel) {
+			const range = textModel.getFullModelRange();
+			if (textModel.getOptions().textDirection === TextDirection.RTL) {
+				this._textDirectionDecorations.set([{
+					range,
+					options: { description: '', textDirection: TextDirection.RTL },
+				}]);
+			} else {
+				this._textDirectionDecorations.clear();
+			}
+		}
 	}
 
 	public writeScreenReaderContent(reason: string): void {
