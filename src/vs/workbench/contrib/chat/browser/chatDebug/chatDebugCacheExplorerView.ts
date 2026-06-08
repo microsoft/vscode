@@ -113,8 +113,13 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	 * clearing the last agent falls back to "all".
 	 */
 	private selectedAgents: Set<string> | undefined;
-	/** Event id to re-select after the next render (used to keep the user's place when the filter changes). */
-	private pendingSelectEventId: string | undefined;
+	/**
+	 * Turn to re-select after the next render, used to keep the user's place
+	 * when the agent filter changes. Stored as the event object rather than its
+	 * id because {@link IChatDebugModelTurnEvent.id} is optional; matching falls
+	 * back to object reference and a composite identity for turns without an id.
+	 */
+	private pendingSelectTurn: IChatDebugModelTurnEvent | undefined;
 	/** Whether the per-chunk signature breakdown table is expanded. */
 	private sigBreakdownOpen = false;
 	/** Rail turn-row elements by turn index, for in-place selection updates without rebuilding the rail. */
@@ -206,7 +211,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			this.openComponents.add('tools');
 			this.selectedIndex = -1;
 			this.selectedAgents = undefined;
-			this.pendingSelectEventId = undefined;
+			this.pendingSelectTurn = undefined;
 			this.sigBreakdownOpen = false;
 		}
 		this.currentSessionResource = sessionResource;
@@ -296,14 +301,14 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			return;
 		}
 
-		// Restore the previously-selected turn by id when the filter changes,
-		// so toggling agents keeps the user on the same request when possible.
+		// Restore the previously-selected turn when the filter changes, so
+		// toggling agents keeps the user on the same request when possible.
 		// When that turn no longer survives the filter, fall back to the most
 		// recent turn rather than leaving the stale ordinal index pointing at
 		// an unrelated turn.
-		if (this.pendingSelectEventId) {
-			this.selectedIndex = resolveFilteredSelectionIndex(this.modelTurns, this.pendingSelectEventId);
-			this.pendingSelectEventId = undefined;
+		if (this.pendingSelectTurn) {
+			this.selectedIndex = resolveFilteredSelectionIndex(this.modelTurns, this.pendingSelectTurn);
+			this.pendingSelectTurn = undefined;
 		}
 
 		// Default to the most recent turn on first display, and silently
@@ -481,9 +486,9 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	}
 
 	private setAgentSelection(agents: Set<string>): void {
-		// Remember the current request so we can keep the user on it after the
+		// Remember the current turn so we can keep the user on it after the
 		// list is refiltered (if it survives the new filter).
-		this.pendingSelectEventId = this.modelTurns[this.selectedIndex]?.id;
+		this.pendingSelectTurn = this.modelTurns[this.selectedIndex];
 		this.selectedAgents = agents;
 		this.render();
 	}
@@ -1324,15 +1329,60 @@ export function defaultAgentSelection(agentCounts: Map<string, number>): Set<str
 }
 
 /**
- * Resolve which turn index to select after the agent filter changes. Prefers
- * the previously-selected turn (matched by id); when that turn no longer
- * survives the filter, falls back to the most recent turn so the selection
- * never lands on an unrelated turn that happens to occupy the old ordinal
- * position. Returns -1 when there are no turns to select.
+ * Whether two model-turn events refer to the *exact same* turn. This is the
+ * precise identity test: the same object reference, or the same stable span
+ * `id` when both events carry one. It never reports two distinct turns as equal,
+ * so it is safe to scan a list with it even when several turns look alike.
  */
-export function resolveFilteredSelectionIndex(turns: readonly IChatDebugModelTurnEvent[], pendingSelectEventId: string): number {
-	const restored = turns.findIndex(t => t.id === pendingSelectEventId);
-	return restored >= 0 ? restored : turns.length - 1;
+export function isSameModelTurn(a: IChatDebugModelTurnEvent, b: IChatDebugModelTurnEvent): boolean {
+	if (a === b) {
+		return true;
+	}
+	// Distinct objects: only a stable span id can prove they are the same turn.
+	return a.id !== undefined && b.id !== undefined && a.id === b.id;
+}
+
+/**
+ * Best-effort identity for a turn that carries no `id`, used only when the
+ * exact object can no longer be found (e.g. events were re-fetched as fresh
+ * instances). Both sides must lack an `id`; a turn with an id is matched
+ * precisely by {@link isSameModelTurn} instead. This can match two distinct
+ * turns that happen to share every field, so it is only consulted as a
+ * fallback after the precise pass fails.
+ */
+function isSimilarNoIdModelTurn(a: IChatDebugModelTurnEvent, b: IChatDebugModelTurnEvent): boolean {
+	return a.id === undefined && b.id === undefined
+		&& a.created.getTime() === b.created.getTime()
+		&& a.parentEventId === b.parentEventId
+		&& a.requestName === b.requestName
+		&& a.model === b.model;
+}
+
+/**
+ * Resolve which turn index to select after the agent filter changes. Prefers
+ * the previously-selected turn; when that turn no longer survives the filter —
+ * or there was no prior selection — falls back to the most recent turn so the
+ * selection never lands on an unrelated turn that happens to occupy the old
+ * ordinal position. Returns -1 when there are no turns to select.
+ *
+ * Matching runs in two passes so the exact turn always wins: first the precise
+ * id/reference identity ({@link isSameModelTurn}), then a best-effort composite
+ * match for id-less turns ({@link isSimilarNoIdModelTurn}). Without the split,
+ * an earlier look-alike turn could be picked by `findIndex` before the real
+ * object is reached.
+ */
+export function resolveFilteredSelectionIndex(turns: readonly IChatDebugModelTurnEvent[], previous: IChatDebugModelTurnEvent | undefined): number {
+	if (previous) {
+		const exact = turns.findIndex(t => isSameModelTurn(t, previous));
+		if (exact >= 0) {
+			return exact;
+		}
+		const similar = turns.findIndex(t => isSimilarNoIdModelTurn(t, previous));
+		if (similar >= 0) {
+			return similar;
+		}
+	}
+	return turns.length - 1;
 }
 
 /**

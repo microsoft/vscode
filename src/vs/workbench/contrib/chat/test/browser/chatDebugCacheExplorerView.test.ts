@@ -17,6 +17,17 @@ function turnWithId(id: string, requestName?: string): IChatDebugModelTurnEvent 
 	return { kind: 'modelTurn', id, sessionResource: URI.parse('vscode-chat://session/1'), created: new Date(0), requestName };
 }
 
+function turnNoId(opts: { created?: number; parentEventId?: string; requestName?: string; model?: string }): IChatDebugModelTurnEvent {
+	return {
+		kind: 'modelTurn',
+		sessionResource: URI.parse('vscode-chat://session/1'),
+		created: new Date(opts.created ?? 0),
+		parentEventId: opts.parentEventId,
+		requestName: opts.requestName,
+		model: opts.model,
+	};
+}
+
 function seg(role: string, chars: number, synthetic: boolean, drift = false, label = role): ISignatureSegment {
 	return { role, chars, drift, label, synthetic };
 }
@@ -58,7 +69,14 @@ suite('chatDebugCacheExplorerView agent filter', () => {
 	suite('resolveFilteredSelectionIndex', () => {
 		test('keeps the previously-selected turn when it survives the filter', () => {
 			const filtered = [turnWithId('a1', 'panel/editAgent'), turnWithId('a3', 'panel/editAgent')];
-			assert.strictEqual(resolveFilteredSelectionIndex(filtered, 'a3'), 1);
+			assert.strictEqual(resolveFilteredSelectionIndex(filtered, filtered[1]), 1);
+		});
+
+		test('matches by id even when the stored turn is a different object instance', () => {
+			// getEvents returns fresh arrays; the stored turn may be a different
+			// instance carrying the same span id.
+			const filtered = [turnWithId('a1', 'panel/editAgent'), turnWithId('a3', 'panel/editAgent')];
+			assert.strictEqual(resolveFilteredSelectionIndex(filtered, turnWithId('a3', 'panel/editAgent')), 1);
 		});
 
 		test('falls back to the most recent turn when the selected turn is filtered out', () => {
@@ -66,11 +84,57 @@ suite('chatDebugCacheExplorerView agent filter', () => {
 			// after filtering to the edit agent. The result must be the last
 			// surviving turn (index 2), not the stale ordinal position.
 			const filtered = [turnWithId('a1', 'panel/editAgent'), turnWithId('a2', 'panel/editAgent'), turnWithId('a3', 'panel/editAgent')];
-			assert.strictEqual(resolveFilteredSelectionIndex(filtered, 'b0'), 2);
+			assert.strictEqual(resolveFilteredSelectionIndex(filtered, turnWithId('b0', 'backgroundTodoAgent')), 2);
+		});
+
+		test('preserves a turn without an id via composite identity', () => {
+			// id is optional; a fresh object with no id and no reference match
+			// must still match on created + parentEventId + requestName + model
+			// (the second pass) rather than falling through to the default.
+			const filtered = [
+				turnNoId({ created: 10, parentEventId: 'p0', requestName: 'panel/editAgent', model: 'gpt' }),
+				turnNoId({ created: 20, parentEventId: 'p1', requestName: 'panel/editAgent', model: 'gpt' }),
+			];
+			const sameAsIndex1 = turnNoId({ created: 20, parentEventId: 'p1', requestName: 'panel/editAgent', model: 'gpt' });
+			assert.strictEqual(resolveFilteredSelectionIndex(filtered, sameAsIndex1), 1);
+		});
+
+		test('prefers the exact selected turn over an earlier look-alike (id-less)', () => {
+			// Two distinct id-less turns share every composite field. The stored
+			// object is the SECOND one. The precise (reference) pass must win, so
+			// the result is index 1 — not 0, which a single composite findIndex
+			// pass would have returned.
+			const twin = { created: 20, parentEventId: 'p1', requestName: 'panel/editAgent', model: 'gpt' };
+			const first = turnNoId(twin);
+			const second = turnNoId(twin);
+			assert.strictEqual(resolveFilteredSelectionIndex([first, second], second), 1);
+		});
+
+		test('does not composite-match an id-less turn against a turn that has an id', () => {
+			// Composite matching requires both sides to lack an id. A surviving
+			// turn that shares the composite fields but carries an id must not
+			// fuzzy-match the id-less stored turn; fall back to most recent.
+			const withId: IChatDebugModelTurnEvent = { kind: 'modelTurn', id: 'x', sessionResource: URI.parse('vscode-chat://session/1'), created: new Date(20), parentEventId: 'p1', requestName: 'panel/editAgent', model: 'gpt' };
+			const filtered = [withId, turnNoId({ created: 99, parentEventId: 'pZ', requestName: 'title' })];
+			const storedNoId = turnNoId({ created: 20, parentEventId: 'p1', requestName: 'panel/editAgent', model: 'gpt' });
+			assert.strictEqual(resolveFilteredSelectionIndex(filtered, storedNoId), 1);
+		});
+
+		test('falls back to the most recent turn when a turn without an id is filtered out', () => {
+			const filtered = [
+				turnNoId({ created: 10, parentEventId: 'p0', requestName: 'panel/editAgent' }),
+				turnNoId({ created: 20, parentEventId: 'p1', requestName: 'panel/editAgent' }),
+			];
+			const filteredOut = turnNoId({ created: 5, parentEventId: 'pX', requestName: 'backgroundTodoAgent' });
+			assert.strictEqual(resolveFilteredSelectionIndex(filtered, filteredOut), 1);
+		});
+
+		test('returns the most recent turn when there is no prior selection', () => {
+			assert.strictEqual(resolveFilteredSelectionIndex([turnWithId('a1'), turnWithId('a2')], undefined), 1);
 		});
 
 		test('returns -1 when there are no turns', () => {
-			assert.strictEqual(resolveFilteredSelectionIndex([], 'anything'), -1);
+			assert.strictEqual(resolveFilteredSelectionIndex([], turnWithId('anything')), -1);
 		});
 	});
 
