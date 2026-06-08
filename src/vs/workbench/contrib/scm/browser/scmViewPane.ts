@@ -1798,6 +1798,42 @@ export class SCMViewPane extends ViewPane {
 				}));
 	}
 
+	revealActiveResource(): void {
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+		if (!uri) {
+			return;
+		}
+
+		this.revealResourceThrottler.queue(
+			() => this.treeOperationSequencer.queue(
+				async () => {
+					for (const repository of this.scmViewService.visibleRepositories) {
+						const item = this.items.get(repository);
+
+						if (!item) {
+							continue;
+						}
+
+						for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
+							const groupItem = repository.provider.groups[j];
+							const resource = this.viewMode === ViewMode.Tree
+								? groupItem.resourceTree.getNode(uri)?.element
+								: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+
+							if (resource) {
+								await this.tree.expandTo(resource);
+								this.tree.reveal(resource);
+
+								this.tree.setSelection([resource]);
+								this.tree.setFocus([resource]);
+								return;
+							}
+						}
+					}
+				}));
+	}
+
 	private onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
 		// Added repositories
 		for (const repository of added) {
