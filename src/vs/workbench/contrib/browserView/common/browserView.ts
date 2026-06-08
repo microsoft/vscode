@@ -14,6 +14,11 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
+import {
+	BrowserHistoryStore,
+	ISerializedBrowserFaviconsSnapshot,
+	ISerializedBrowserHistoryEntriesSnapshot,
+} from '../../../../platform/browserView/common/browserHistory.js';
 import type { BrowserEditorInput } from './browserEditorInput.js';
 import {
 	IBrowserViewBounds,
@@ -62,6 +67,21 @@ function parseZoomHost(url: string): string | undefined {
 		return undefined;
 	}
 	return parsed.host;
+}
+
+function parseHistorySnapshot<T>(raw: string | undefined): T | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(raw) as T;
+		if (!parsed || typeof parsed !== 'object') {
+			return undefined;
+		}
+		return parsed;
+	} catch {
+		return undefined;
+	}
 }
 
 type IntegratedBrowserNavigationEvent = {
@@ -211,6 +231,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly error: IBrowserViewLoadError | undefined;
 	readonly certificateError: IBrowserViewCertificateError | undefined;
 	readonly storageScope: BrowserViewStorageScope;
+	readonly history: BrowserHistoryStore;
 	readonly sharingState: BrowserViewSharingState;
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
@@ -221,6 +242,7 @@ export interface IBrowserViewModel extends IDisposable {
 
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState>;
 	readonly onDidChangeZoom: Event<void>;
+	readonly onWillNavigate: Event<string>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -254,6 +276,7 @@ export interface IBrowserViewModel extends IDisposable {
 	setSharedWithAgent(shared: boolean): Promise<boolean>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
+	deleteHistory(entryIds?: readonly number[]): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
@@ -285,6 +308,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _isAreaSelectionActive: boolean = false;
 	private _device: IBrowserDeviceProfile | undefined;
 
+	readonly history = this._register(new BrowserHistoryStore());
+
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
 
@@ -296,6 +321,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
+
+	private readonly _onWillNavigate = this._register(new Emitter<string>());
+	readonly onWillNavigate: Event<string> = this._onWillNavigate.event;
 
 	constructor(
 		readonly id: string,
@@ -333,6 +361,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._device = initialState.device;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
 		this._zoomHost = parseZoomHost(this._url);
+
+		const { history: entriesKey, favicons: faviconsKey } = initialState.storageKeys;
+		if (entriesKey) {
+			this._reloadHistoryEntries(entriesKey);
+			this._register(this.storageService.onDidChangeValue(
+				StorageScope.APPLICATION, entriesKey, this._store,
+			)(() => this._reloadHistoryEntries(entriesKey)));
+		}
+		if (faviconsKey) {
+			this._reloadHistoryFavicons(faviconsKey);
+			this._register(this.storageService.onDidChangeValue(
+				StorageScope.APPLICATION, faviconsKey, this._store,
+			)(() => this._reloadHistoryFavicons(faviconsKey)));
+		}
 
 		// Sync initial zoom and sharing state (async, but emits events)
 		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
@@ -508,6 +550,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async loadURL(url: string): Promise<void> {
 		this.logNavigationTelemetry('urlInput', url);
+		this._onWillNavigate.fire(url);
+
+		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
+		if (/^localhost(:|\/|$)/i.test(url)) {
+			url = 'http://' + url;
+		} else if (!URL.parse(url)?.protocol) {
+			// No scheme — default to http://; sites typically upgrade to https://.
+			url = 'http://' + url;
+		}
+
 		return this.browserViewService.loadURL(this.id, url);
 	}
 
@@ -565,6 +617,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
 		return this.browserViewService.untrustCertificate(this.id, host, fingerprint);
+	}
+
+	async deleteHistory(entryIds?: readonly number[]): Promise<void> {
+		// Mirror locally so the workbench updates immediately; the eventual
+		// storage change event from the main-process flush will re-hydrate to
+		// the same content.
+		if (entryIds === undefined) {
+			this.history.clear();
+		} else {
+			for (const id of entryIds) {
+				this.history.entries.delete(id);
+			}
+		}
+		return this.browserViewService.deleteBrowserHistory(this.id, entryIds);
 	}
 
 	/**
@@ -724,6 +790,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._sharedWithAgent = isShared;
 			this._onDidChangeSharingState.fire(this.sharingState);
 		}
+	}
+
+	private _reloadHistoryEntries(key: string): void {
+		const raw = this.storageService.get(key, StorageScope.APPLICATION);
+		this.history.entries.hydrate(parseHistorySnapshot<ISerializedBrowserHistoryEntriesSnapshot>(raw));
+	}
+
+	private _reloadHistoryFavicons(key: string): void {
+		const raw = this.storageService.get(key, StorageScope.APPLICATION);
+		this.history.favicons.hydrate(parseHistorySnapshot<ISerializedBrowserFaviconsSnapshot>(raw));
 	}
 
 	/**

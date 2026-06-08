@@ -28,7 +28,6 @@ import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
-import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
@@ -45,8 +44,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
-	private _loggedConnection: LoggingAgentConnection | undefined;
-
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
@@ -57,6 +54,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
 
 	private readonly _isSessionsWindow: boolean;
+	private readonly _enableSmokeTestDriver: boolean;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -67,7 +65,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
@@ -75,17 +73,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		super();
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
-		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (!this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
 		}
-
-		// Wrap the agent host service with logging to a dedicated output channel
-		this._loggedConnection = this._register(this._instantiationService.createInstance(
-			LoggingAgentConnection,
-			this._agentHostService,
-			`agenthost.${this._agentHostService.clientId}`,
-			'Agent Host (Local)'));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
@@ -170,11 +162,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			capabilities: {
 				supportsCheckpoints: true,
 				supportsPromptAttachments: true,
+				supportsImageAttachments: true,
 			},
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined, 'local'));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._agentHostService, undefined, 'local'));
 		this._listControllers.set(agent.provider, listController);
 		store.add({ dispose: () => this._listControllers.delete(agent.provider) });
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
@@ -183,10 +176,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const syncProvider = agentRegistration.syncProvider;
 
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined));
-		// `[Local]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
+		// `[Agent Host]` suffix disambiguates from the extension-host Copilot CLI harness, which uses the same displayName.
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
-			label: localize('agentHostHarnessLabel.local', "{0} [Local]", agent.displayName),
+			label: localize('agentHostHarnessLabel.local', "{0} [Agent Host]", agent.displayName),
 			icon: ThemeIcon.fromId(Codicon.server.id),
 			hiddenSections: [],
 			hideGenerateButton: true,
@@ -202,7 +195,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			sessionType,
 			fullName: agent.displayName,
 			description: agent.description,
-			connection: this._loggedConnection!,
+			connection: this._agentHostService,
 			connectionAuthority: 'local',
 			isNewSession: sessionResource => listController.isNewSession(sessionResource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
@@ -244,16 +237,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
 		this._agentHostService.setAuthenticationPending(true);
 		try {
+			const testToken = this._getScenarioAutomationToken();
+			if (testToken !== undefined) {
+				await this._seedTestToken(agents, testToken);
+				return;
+			}
 			await authenticateProtectedResources(agents, {
 				authTokenCache: this._authTokenCache,
 				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
 				logService: this._logService,
-				authenticate: request => this._loggedConnection!.authenticate(request),
+				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
-			this._loggedConnection!.logError('authenticateWithServer', err);
 		} finally {
 			this._agentHostService.setAuthenticationPending(false);
 		}
@@ -266,18 +263,50 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to the server. Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
+		const testToken = this._getScenarioAutomationToken();
+		if (testToken !== undefined) {
+			for (const resource of protectedResources) {
+				await this._agentHostService.authenticate({ resource: resource.resource, token: testToken });
+				this._authTokenCache.updateAndIsChanged(resource.resource, resource.scopes_supported, testToken);
+			}
+			return protectedResources.length > 0;
+		}
 		try {
 			return await resolveAuthenticationInteractively(protectedResources, {
 				authTokenCache: this._authTokenCache,
 				authenticationService: this._authenticationService,
 				logPrefix: '[AgentHost]',
 				logService: this._logService,
-				authenticate: request => this._loggedConnection!.authenticate(request),
+				authenticate: request => this._agentHostService.authenticate(request),
 			});
 		} catch (err) {
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
-			this._loggedConnection!.logError('resolveAuthenticationInteractively', err);
 		}
 		return false;
+	}
+
+	private async _seedTestToken(agents: readonly AgentInfo[], token: string): Promise<void> {
+		for (const agent of agents) {
+			for (const resource of agent.protectedResources ?? []) {
+				if (!this._authTokenCache.updateAndIsChanged(resource.resource, resource.scopes_supported, token)) {
+					continue;
+				}
+				try {
+					await this._agentHostService.authenticate({ resource: resource.resource, token });
+				} catch (err) {
+					this._authTokenCache.clear(resource.resource);
+					throw err;
+				}
+			}
+		}
+	}
+
+	private _getScenarioAutomationToken(): string | undefined {
+		// Smoke-test escape hatch.
+		if (!this._enableSmokeTestDriver) {
+			return undefined;
+		}
+		const token = this._configurationService.getValue('chat.agentHost.unsafeTestToken');
+		return typeof token === 'string' && token.length > 0 ? token : undefined;
 	}
 }
