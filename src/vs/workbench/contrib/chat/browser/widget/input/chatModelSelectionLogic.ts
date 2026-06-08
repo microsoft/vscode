@@ -100,7 +100,7 @@ export function isModelValidForSession(
 }
 
 /**
- * Find a model in `pool` that matches `previous` by family, then id, then
+ * Find a model in `pool` that matches `previous` by id, then family, then
  * name (case-insensitive). Used to carry a selection across model pools
  * (e.g. `copilot/claude-sonnet-4.6` → `agent-host-copilotcli:claude-sonnet-4.6`).
  * Returns `undefined` when no candidate matches.
@@ -112,11 +112,11 @@ export function findBestMatchingModel(
 	if (!previous || pool.length === 0) {
 		return undefined;
 	}
-	const family = previous.metadata.family?.trim().toLowerCase();
 	const id = previous.metadata.id?.trim().toLowerCase();
+	const family = previous.metadata.family?.trim().toLowerCase();
 	const name = previous.metadata.name?.trim().toLowerCase();
-	return (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
-		?? (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+	return (id ? pool.find(m => m.metadata.id?.trim().toLowerCase() === id) : undefined)
+		?? (family ? pool.find(m => m.metadata.family?.trim().toLowerCase() === family) : undefined)
 		?? (name ? pool.find(m => m.metadata.name?.trim().toLowerCase() === name) : undefined);
 }
 

@@ -720,6 +720,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
+		this._register(this._onDidChangeCurrentChatMode.event(() => {
+			this.checkModelSupported();
+		}));
+
 		const resetCurrentLanguageModelIfUnavailable = () => {
 			const modelIdentifier = this._currentLanguageModel.get()?.identifier;
 			const models = this.getModels();
@@ -874,10 +878,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 			}
 		}
-
-		this._register(this._onDidChangeCurrentChatMode.event(() => {
-			this.checkModelSupported();
-		}));
 	}
 
 	public setEditing(enabled: boolean, editingSentRequest: ChatContextKeys.EditingRequestType | undefined) {

@@ -368,13 +368,22 @@ suite('ChatModelSelectionLogic', () => {
 			assert.strictEqual(findBestMatchingModel(prev, [other, target])?.identifier, target.identifier);
 		});
 
-		test('falls back to id when family does not match', () => {
+		test('matches by id even when family differs', () => {
 			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
 			const target = createSessionModel('claude-sonnet-4.6', 'Other Name', 'agent-host-copilotcli', { family: 'other' });
 			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
 		});
 
-		test('falls back to name when neither family nor id match', () => {
+		test('prefers id over family when both could match different pool entries', () => {
+			// Family is shared across distinct models (e.g. all Claude variants share `claude`),
+			// so the id match must win over the family match.
+			const prev = createModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', { family: 'claude' });
+			const familyMatch = createSessionModel('claude-opus-4.7', 'Claude Opus 4.7', 'agent-host-copilotcli', { family: 'claude' });
+			const idMatch = createSessionModel('claude-sonnet-4.6', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'claude-sonnet' });
+			assert.strictEqual(findBestMatchingModel(prev, [familyMatch, idMatch])?.identifier, idMatch.identifier);
+		});
+
+		test('falls back to name when neither id nor family match', () => {
 			const prev = createModel('a', 'Claude Sonnet 4.6', { family: 'fa' });
 			const target = createSessionModel('b', 'Claude Sonnet 4.6', 'agent-host-copilotcli', { family: 'fb' });
 			assert.strictEqual(findBestMatchingModel(prev, [target])?.identifier, target.identifier);
