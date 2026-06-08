@@ -240,7 +240,17 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 			separator = copyRelativeOrFullPathSeparator;
 		}
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
+		const quoteStyle = configurationService.getValue<'none' | 'double' | 'single'>('explorer.copyPathQuoteStyle');
+		const quoteMap: Record<'none' | 'double' | 'single', string> = { none: '', double: '"', single: "'" };
+		const quote = quoteMap[quoteStyle] ?? '';
+		const text = resources.map(resource => {
+			const label = labelService.getUriLabel(resource, { relative, noPrefix: true, separator });
+			if (!quote) {
+				return label;
+			}
+			const escapedLabel = label.replaceAll(quote, `\\${quote}`);
+			return `${quote}${escapedLabel}${quote}`;
+		}).join(lineDelimiter);
 		await clipboardService.writeText(text);
 	}
 }
