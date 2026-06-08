@@ -134,6 +134,8 @@ export interface ICompositeBarColors {
 	readonly activeBorderBottomColor?: Color;
 	readonly activeForegroundColor?: Color;
 	readonly inactiveForegroundColor?: Color;
+	readonly hoverForegroundColor?: Color;
+	readonly hoverBackgroundColor?: Color;
 	readonly badgeBackground?: Color;
 	readonly badgeForeground?: Color;
 	readonly dragAndDropBorder?: Color;
