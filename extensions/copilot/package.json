@@ -1327,7 +1327,8 @@
           "listDirectory",
           "textSearch",
           "searchSubagent",
-          "usages"
+          "usages",
+          "read_code_usage"
         ]
       },
       {

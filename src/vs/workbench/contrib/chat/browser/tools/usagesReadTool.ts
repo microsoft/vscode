@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ICodeUsageService } from './usagesService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { errorResult } from './toolHelpers.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
+import type { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 
-export const ReadUsagesToolId = 'vscode_readCodeUsage';
+export const UsagesReadToolId = 'vscode_readCodeUsage';
 
 const BaseModelDescription = `Read the source code of a syntactic scope around a usage returned by \`vscode_listCodeUsages\`.
 
@@ -71,10 +73,9 @@ interface IUsagesReadToolOutput {
 	hasWiderScope: boolean;
 }
 
-export class ReadUsagesTool extends Disposable implements IToolImpl {
+export class UsagesReadTool extends Disposable implements IToolImpl {
 
 	constructor(
-		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ICodeUsageService private readonly _codeUsageService: ICodeUsageService,
 	) {
@@ -90,8 +91,8 @@ export class ReadUsagesTool extends Disposable implements IToolImpl {
 
 	private _buildToolData(modelDescription: string, userDescription: string): IToolData {
 		return {
-			id: ReadUsagesToolId,
-			toolReferenceName: 'read_code_usages',
+			id: UsagesReadToolId,
+			toolReferenceName: 'read_code_usage',
 			canBeReferencedInPrompt: false,
 			icon: ThemeIcon.fromId(Codicon.tools.id),
 			displayName: localize('tool.readUsages.displayName', 'Read Code Usage'),
@@ -139,9 +140,10 @@ export class ReadUsagesTool extends Disposable implements IToolImpl {
 		if (!container) {
 			return errorResult(localize('tool.readUsages.noContainer', 'No container found at depth {0} for usage', depth));
 		}
+		const uri = URI.revive(usage.uri);
 		const startLine = container.range.startLine;
 		const endLine = container.range.endLine;
-		const model = await this._textModelService.createModelReference(usage.uri).then(ref => ref.object);
+		const model = await this._textModelService.createModelReference(uri).then(ref => ref.object);
 		const textModel = model.textEditorModel;
 		const content = textModel.getValueInRange({
 			startLineNumber: startLine,
@@ -150,14 +152,30 @@ export class ReadUsagesTool extends Disposable implements IToolImpl {
 			endColumn: textModel.getLineMaxColumn(endLine)
 		});
 		const output: IUsagesReadToolOutput = {
-			uri: usage.uri.toString(),
-			scope: container.name,
+			uri: uri.toString(),
+			scope: `${container.kind} ${container.name}`,
 			startLine,
 			endLine,
 			content,
 			hasWiderScope: depth < (usage.containers?.length ?? 0) - 1
 		};
 		const result = createToolSimpleTextResult(JSON.stringify(output, null, '\t'));
+		result.toolResultMessage = localize('tool.readUsages.resultMessage', 'Read usage {0} in scope {1}', input.usageId, container.name);
 		return result;
+	}
+}
+
+export class UsagesReadToolContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.usagesReadTool';
+
+	constructor(
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		const usagesReadTool = this._store.add(instantiationService.createInstance(UsagesReadTool));
+		this._store.add(toolsService.registerTool(usagesReadTool.getToolData(), usagesReadTool));
 	}
 }

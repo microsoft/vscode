@@ -28,7 +28,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ICodeUsageService } from './usageService.js';
+import { ICodeUsageService } from './usagesService.js';
 
 
 export const UsagesToolId = 'vscode_listCodeUsages';
@@ -47,10 +47,9 @@ Output:
 Returns code usages of the queried symbol, grouped into definitions, references, and implementations. Empty categories are omitted.
 
 Each element inside a category has:
-- "uri" — a URI of the file where the usage appears.
-- "line" — 1-based line number of the usage.
-- "read" — a ready-to-use argument object for the "read_file" tool that covers the innermost syntactic scope around the usage (function, method, class, etc.). Shape: { "uri": string, "startLine": number, "endLine": number, "scope": { kind: "string", name: "string" } }. The "scope" has a "kind" denoting the scope of the enclosing element like "function", "class", ... and a "name" denoting its name.
-- "widerScopes" (optional) — additional, progressively larger scopes (e.g. the enclosing class, namespace), each in the same shape as "read", ordered from smaller to larger.
+- "usageId" — the unique string identifier of the usage, used to read the usage via the \`vscode_readCodeUsage\` tool.
+- "uri" — a full URI of the file where the usage is located.
+- "scopes" — an optional array of the syntactic scopes that contain the usage, ordered from innermost to outermost. For example, a usage inside a method would have at least two scopes: the method itself and the enclosing class. A usage in the file scope would have no scopes.
 
 If results are capped, the response includes "truncated": true and "total": <n>; narrow the query (e.g. by file or symbol kind) to see the rest.
 
@@ -59,18 +58,20 @@ Example Output:
 	"symbol": "parseConfig",
 	"definitions": [
 		{
+			"usageId": "1",
 			"uri": "file:///home/project/src/config.ts",
-			"line": 42,
-			"read" { "uri": "file:///home/project/src/config.ts", "startLine": 30, "endLine": 50, "scope": { "kind": "function", "name": "parseConfig" } },
+			"scopes": [
+				{ depth: 0, "kind": "function", "name": "parseConfig" }
+			]
 		}
 	],
 	"references": [
 		{
+			"usageId": "2",
 			"uri": "file:///home/project/src/server.ts",
-			"line": 88,
-			"read": { "uri": "file:///home/project/src/server.ts", "startLine": 80, "endLine": 120, "scope": { "kind": "method", "name": "start" } },
-			"widerScopes": [
-				{ "uri": "file:///home/project/src/server.ts", "startLine": 60, "endLine": 240, "scope": { "kind": "class",  "name": "Server" } }
+			"scopes": [
+				{ depth: 0, "kind": "method", "name": "start" },
+				{ depth: 1, "kind": "class",  "name": "Server" }
 			]
 		}
 	]
@@ -125,18 +126,16 @@ namespace CodeUsageResult {
 
 namespace ToolResult {
 
-	export interface ReadCommand {
-		uri: string;
-		startLine: number;
-		endLine: number;
-		scope: { kind: string; name: string };
+	export interface Scope {
+		depth: number;
+		kind: string;
+		name: string;
 	}
 
 	export interface CodeUsage {
+		usageId: string;
 		uri: string;
-		line: number;
-		read?: ReadCommand;
-		widerScopes?: ReadCommand[];
+		scopes?: Scope[];
 	}
 
 	export interface CodeUsages {
@@ -422,28 +421,28 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	}
 
 	private convertCodeUsage(usage: CodeUsageResult.CodeUsage): ToolResult.CodeUsage {
+		const id = this._codeUsageService.nextUsageId();
+		this._codeUsageService.storeUsage(id, usage);
 		const uri = URI.revive(usage.uri);
 		if (usage.containers === undefined || usage.containers.length === 0) {
 			return {
-				uri: uri.toString(),
-				line: usage.line
+				usageId: id,
+				uri: uri.toString()
 			};
 		}
 		const result: ToolResult.CodeUsage = {
+			usageId: id,
 			uri: uri.toString(),
-			line: usage.line,
-			read: this.convertContainer(uri, usage.containers[0]),
-			widerScopes: usage.containers.slice(1).map(c => this.convertContainer(uri, c))
+			scopes: usage.containers.map((c, i) => this.convertContainer(c, i))
 		};
 		return result;
 	}
 
-	private convertContainer(uri: URI, container: CodeUsageResult.Container): ToolResult.ReadCommand {
+	private convertContainer(container: CodeUsageResult.Container, depth: number): ToolResult.Scope {
 		return {
-			uri: uri.toString(),
-			startLine: container.range.startLine,
-			endLine: container.range.endLine,
-			scope: { kind: container.kind, name: container.name }
+			depth,
+			kind: container.kind,
+			name: container.name
 		};
 	}
 }

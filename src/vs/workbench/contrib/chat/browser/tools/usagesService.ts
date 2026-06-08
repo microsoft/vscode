@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../../base/common/uri.js';
+import { type UriComponents } from '../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -23,8 +23,7 @@ export interface Container {
 }
 
 export interface CodeUsage {
-	id: CodeUsageId;
-	uri: URI;
+	uri: UriComponents;
 	line: number;
 	containers?: Container[];
 }
@@ -32,6 +31,7 @@ export interface CodeUsage {
 
 export interface ICodeUsageService {
 	readonly _serviceBrand: undefined;
+	nextUsageId(): CodeUsageId;
 	storeUsage(key: CodeUsageId, usage: CodeUsage): void;
 	getUsage(key: CodeUsageId): CodeUsage | undefined;
 }
@@ -43,6 +43,10 @@ export class CodeUsageService implements ICodeUsageService {
 
 	constructor() {
 		this.usageMap = new Map<CodeUsageId, CodeUsage>();
+	}
+
+	public nextUsageId(): CodeUsageId {
+		return Math.random().toString(36).slice(2);
 	}
 
 	public storeUsage(key: CodeUsageId, usage: CodeUsage): void {

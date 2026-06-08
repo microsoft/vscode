@@ -28,6 +28,7 @@ const additionalNonDeferredToolNames = new Set<string>([
 	// VS Code built-in language tools that should always be available
 	'vscode_renameSymbol',
 	'vscode_listCodeUsages',
+	'vscode_readCodeUsage'
 ]);
 
 /**
