@@ -77,8 +77,8 @@ describe('isBackgroundTodoAgentEnabled', () => {
 
 	// CAPI endpoints carry a `RequestMetadata` object; BYOK/custom endpoints are
 	// fetched from a literal URL string.
-	const capiEndpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions } } as unknown as IChatEndpoint;
-	const byokEndpoint = { urlOrRequestMetadata: 'https://api.example.com/v1/chat' } as unknown as IChatEndpoint;
+	const capiEndpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions }, modelProvider: '' } as unknown as IChatEndpoint;
+	const byokEndpoint = { urlOrRequestMetadata: 'https://api.example.com/v1/chat', modelProvider: '' } as unknown as IChatEndpoint;
 
 	const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
 	const freeToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'free_limited_copilot' }));
