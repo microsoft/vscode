@@ -307,6 +307,7 @@ function profilesEqual(one: ITerminalProfile, other: ITerminalProfile) {
 		one.isAutoDetected === other.isAutoDetected &&
 		one.isDefault === other.isDefault &&
 		one.overrideName === other.overrideName &&
+		one.shellType === other.shellType &&
 		one.path === other.path;
 }
 

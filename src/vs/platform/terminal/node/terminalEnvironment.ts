@@ -80,14 +80,46 @@ export async function getShellIntegrationInjection(
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
-	const originalArgs = shellLaunchConfig.args;
-	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
+	let originalArgs = shellLaunchConfig.args;
+	let wrapperArgs: string[] | undefined;
+	const executableBasename = path.basename(shellLaunchConfig.executable);
+	let shell = process.platform === 'win32' ? executableBasename.toLowerCase() : executableBasename;
+
+	if (Array.isArray(originalArgs) && originalArgs.length > 0) {
+		if (executableBasename === 'host-spawn') {
+			wrapperArgs = [originalArgs[0]];
+			originalArgs = originalArgs.slice(1);
+			shell = path.basename(wrapperArgs[0]).toLowerCase();
+		} else if (executableBasename === 'flatpak-spawn') {
+			const wrappedShellIndex = originalArgs.findIndex(arg => !arg.startsWith('-'));
+			if (wrappedShellIndex >= 0) {
+				wrapperArgs = originalArgs.slice(0, wrappedShellIndex + 1);
+				originalArgs = originalArgs.slice(wrappedShellIndex + 1);
+				shell = path.basename(wrapperArgs[wrappedShellIndex]).toLowerCase();
+			}
+		}
+	}
+
+	if (shellLaunchConfig.shellType) {
+		shell = shellLaunchConfig.shellType.toLowerCase();
+	}
+
+	// When shellType is 'none', disable shell integration without logging a warning for unsupported shells.
+	if (shell === 'none') {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
+	}
+
+	// Normalize .exe to make matching cross-platform and settings-sync friendly
+	shell = shell.replace(/\.exe$/, '');
+
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
 	const type = 'injection';
 	let newArgs: string[] | undefined;
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'
 	};
+
+	let injectionResult: IShellIntegrationConfigInjection | undefined;
 
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
@@ -96,7 +128,7 @@ export async function getShellIntegrationInjection(
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || windowsBuildNumber >= 22631 && shell !== 'bash.exe';
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || windowsBuildNumber >= 22631 && shell !== 'bash';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}
@@ -107,7 +139,7 @@ export async function getShellIntegrationInjection(
 
 	// Windows
 	if (isWindows) {
-		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
+		if (shell === 'pwsh' || shell === 'powershell') {
 			envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
 
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
@@ -121,8 +153,8 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs];
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { type, newArgs, envMixin };
-		} else if (shell === 'bash.exe') {
+			injectionResult = { type, newArgs, envMixin };
+		} else if (shell === 'bash') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
@@ -136,147 +168,164 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { type, newArgs, envMixin };
+			injectionResult = { type, newArgs, envMixin };
+		} else {
+			logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
+			return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
 		}
-		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
-		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
-	}
+	} else {
+		// Linux & macOS
+		switch (shell) {
+			case 'bash': {
+				if (!originalArgs || originalArgs.length === 0) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+				} else if (areZshBashFishLoginArgs(originalArgs)) {
+					envMixin['VSCODE_SHELL_LOGIN'] = '1';
+					addEnvMixinPathPrefix(options, envMixin, shell);
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
+				}
+				if (!newArgs) {
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+				}
+				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+				envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+				injectionResult = { type, newArgs, envMixin };
+				break;
+			}
+			case 'fish': {
+				if (!originalArgs || originalArgs.length === 0) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
+				} else if (areZshBashFishLoginArgs(originalArgs)) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
+				} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
+					newArgs = originalArgs;
+				}
+				if (!newArgs) {
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+				}
 
-	// Linux & macOS
-	switch (shell) {
-		case 'bash': {
-			if (!originalArgs || originalArgs.length === 0) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
-				envMixin['VSCODE_SHELL_LOGIN'] = '1';
+				// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
+				// to apply the path prefix fix always, not only for login shells (see #232291)
 				addEnvMixinPathPrefix(options, envMixin, shell);
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			}
-			if (!newArgs) {
-				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
-			}
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { type, newArgs, envMixin };
-		}
-		case 'fish': {
-			if (!originalArgs || originalArgs.length === 0) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
-			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
-				newArgs = originalArgs;
-			}
-			if (!newArgs) {
-				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
-			}
 
-			// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
-			// to apply the path prefix fix always, not only for login shells (see #232291)
-			addEnvMixinPathPrefix(options, envMixin, shell);
+				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+				injectionResult = { type, newArgs, envMixin };
+				break;
+			}
+			case 'pwsh':
+			case 'powershell': {
+				if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
+				} else if (arePwshLoginArgs(originalArgs)) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
+				}
+				if (!newArgs) {
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+				}
+				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+				envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+				injectionResult = { type, newArgs, envMixin };
+				break;
+			}
+			case 'zsh': {
+				if (!originalArgs || originalArgs.length === 0) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
+				} else if (areZshBashFishLoginArgs(originalArgs)) {
+					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
+					addEnvMixinPathPrefix(options, envMixin, shell);
+				} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
+					newArgs = originalArgs;
+				}
+				if (!newArgs) {
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+				}
+				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-			return { type, newArgs, envMixin };
-		}
-		case 'pwsh': {
-			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
-			} else if (arePwshLoginArgs(originalArgs)) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
-			}
-			if (!newArgs) {
-				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
-			}
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
-			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { type, newArgs, envMixin };
-		}
-		case 'zsh': {
-			if (!originalArgs || originalArgs.length === 0) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-			} else if (areZshBashFishLoginArgs(originalArgs)) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-				addEnvMixinPathPrefix(options, envMixin, shell);
-			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
-				newArgs = originalArgs;
-			}
-			if (!newArgs) {
-				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
-			}
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-
-			// Move .zshrc into $ZDOTDIR as the way to activate the script
-			let username: string;
-			try {
-				username = os.userInfo().username;
-			} catch {
-				username = 'unknown';
-			}
-
-			// Resolve the actual tmp directory so we can set the sticky bit
-			const realTmpDir = realpathSync(os.tmpdir());
-			const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
-
-			// Set directory permissions using octal notation:
-			// - 0o1700:
-			// - Sticky bit is set, preventing non-owners from deleting or renaming files within this directory (1)
-			// - Owner has full read (4), write (2), execute (1) permissions
-			// - Group has no permissions (0)
-			// - Others have no permissions (0)
-			if (!skipStickyBit) {
-				// skip for tests
+				// Move .zshrc into $ZDOTDIR as the way to activate the script
+				let username: string;
 				try {
-					const chmodAsync = promisify(chmod);
-					await chmodAsync(zdotdir, 0o1700);
-				} catch (err) {
-					if (err.message.includes('ENOENT')) {
-						try {
-							mkdirSync(zdotdir);
-						} catch (err) {
-							logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
-							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
-						}
-						try {
-							const chmodAsync = promisify(chmod);
-							await chmodAsync(zdotdir, 0o1700);
-						} catch {
+					username = os.userInfo().username;
+				} catch {
+					username = 'unknown';
+				}
+
+				// Resolve the actual tmp directory so we can set the sticky bit
+				const realTmpDir = realpathSync(os.tmpdir());
+				const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
+
+				// Set directory permissions using octal notation:
+				// - 0o1700:
+				// - Sticky bit is set, preventing non-owners from deleting or renaming files within this directory (1)
+				// - Owner has full read (4), write (2), execute (1) permissions
+				// - Group has no permissions (0)
+				// - Others have no permissions (0)
+				if (!skipStickyBit) {
+					// skip for tests
+					try {
+						const chmodAsync = promisify(chmod);
+						await chmodAsync(zdotdir, 0o1700);
+					} catch (err) {
+						if (err.message.includes('ENOENT')) {
+							try {
+								mkdirSync(zdotdir);
+							} catch (err) {
+								logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+								return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
+							}
+							try {
+								const chmodAsync = promisify(chmod);
+								await chmodAsync(zdotdir, 0o1700);
+							} catch {
+								logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+								return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
+							}
+						} else {
 							logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
 							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 						}
 					}
-					logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
-					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 				}
+				envMixin['ZDOTDIR'] = zdotdir;
+				const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
+				envMixin['USER_ZDOTDIR'] = userZdotdir;
+				const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
+				filesToCopy.push({
+					source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
+					dest: path.join(zdotdir, '.zshrc')
+				});
+				filesToCopy.push({
+					source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh'),
+					dest: path.join(zdotdir, '.zprofile')
+				});
+				filesToCopy.push({
+					source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh'),
+					dest: path.join(zdotdir, '.zshenv')
+				});
+				filesToCopy.push({
+					source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
+					dest: path.join(zdotdir, '.zlogin')
+				});
+				injectionResult = { type, newArgs, envMixin, filesToCopy };
+				break;
 			}
-			envMixin['ZDOTDIR'] = zdotdir;
-			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
-			envMixin['USER_ZDOTDIR'] = userZdotdir;
-			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
-			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
-				dest: path.join(zdotdir, '.zshrc')
-			});
-			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh'),
-				dest: path.join(zdotdir, '.zprofile')
-			});
-			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh'),
-				dest: path.join(zdotdir, '.zshenv')
-			});
-			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
-				dest: path.join(zdotdir, '.zlogin')
-			});
-			return { type, newArgs, envMixin, filesToCopy };
+			default:
+				logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
 		}
 	}
-	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
-	return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
+
+	if (injectionResult && wrapperArgs && injectionResult.type === 'injection') {
+		injectionResult = {
+			...injectionResult,
+			newArgs: [...wrapperArgs, ...(injectionResult.newArgs || [])]
+		};
+	}
+
+	return injectionResult || { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
 }
 
 /**
