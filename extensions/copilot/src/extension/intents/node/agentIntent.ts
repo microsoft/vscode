@@ -1372,7 +1372,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			!isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request) ||
 			isTodoToolExplicitlyEnabled(this.request) ||
 			this.request.subAgentInvocationId !== undefined ||
-			this.request.subAgentName !== undefined
+			this.request.subAgentName !== undefined ||
+			!isBackgroundTodoAgentEnabled(endpoint, this.configurationService, this.expService, this.authenticationService, this.request) ||
+			isTodoToolExplicitlyEnabled(this.request)
 		) {
 			return;
 		}

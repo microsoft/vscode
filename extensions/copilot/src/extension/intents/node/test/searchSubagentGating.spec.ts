@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestType, type RequestMetadata } from '@vscode/copilot-api';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
@@ -59,6 +60,7 @@ describe('getAgentTools search subagent gating', () => {
 
 		// User-selected model: must be gpt/anthropic family for the subagent gates to even consider enabling.
 		userEndpoint = instantiationService.createInstance(MockEndpoint, 'gpt-5');
+		(userEndpoint as { urlOrRequestMetadata: RequestMetadata }).urlOrRequestMetadata = { type: RequestType.ChatCompletions };
 		searchAgentEndpoint = instantiationService.createInstance(MockEndpoint, SEARCH_AGENT_FAMILY);
 	});
 
