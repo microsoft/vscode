@@ -98,7 +98,7 @@
 	counts below. */
 .ai-customization-toolbar .ai-customization-header .customization-link-button-container {
 	margin: 0;
-	border-radius: 0;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 /* Button needs relative positioning for counts overlay */
