@@ -17,9 +17,15 @@ VSCODE_SHELL_INTEGRATION=1
 # By default, zsh will set the $HISTFILE to the $ZDOTDIR location automatically. In the case of the
 # shell integration being injected, this means that the terminal will use a different history file
 # to other terminals. To fix this issue, set $HISTFILE back to the default location before ~/.zshrc
-# is called as that may depend upon the value.
+# is called as that may depend upon the value. If the user (or VS Code's terminal env settings) had
+# already set a custom $HISTFILE, restore that value instead so it is not clobbered (see #169264).
 if [[  "$VSCODE_INJECTION" == "1" ]]; then
-	HISTFILE=$USER_ZDOTDIR/.zsh_history
+	if [[ -n "$VSCODE_ZSH_HISTFILE_ORIG" ]]; then
+		HISTFILE="$VSCODE_ZSH_HISTFILE_ORIG"
+		builtin unset VSCODE_ZSH_HISTFILE_ORIG
+	else
+		HISTFILE=$USER_ZDOTDIR/.zsh_history
+	fi
 fi
 
 # Only fix up ZDOTDIR if shell integration was injected (not manually installed) and has not been called yet
