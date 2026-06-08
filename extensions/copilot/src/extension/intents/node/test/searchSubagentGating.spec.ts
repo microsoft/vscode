@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
@@ -26,10 +27,16 @@ import { getAgentTools } from '../agentIntent';
 class StubEndpointProvider implements IEndpointProvider {
 	declare readonly _serviceBrand: undefined;
 	endpoints: IChatEndpoint[] = [];
+	failGetAllChatEndpoints = false;
 	readonly onDidModelsRefresh = Event.None;
 	async getChatEndpoint(): Promise<IChatEndpoint> { return this.endpoints[0]; }
 	async getEmbeddingsEndpoint(): Promise<never> { throw new Error('not implemented'); }
-	async getAllChatEndpoints(): Promise<IChatEndpoint[]> { return this.endpoints; }
+	async getAllChatEndpoints(): Promise<IChatEndpoint[]> {
+		if (this.failGetAllChatEndpoints) {
+			throw new Error('CAPI unreachable');
+		}
+		return this.endpoints;
+	}
 	async getAllCompletionModels(): Promise<never[]> { return []; }
 }
 
@@ -60,6 +67,8 @@ describe('getAgentTools search subagent gating', () => {
 		// User-selected model: must be gpt/anthropic family for the subagent gates to even consider enabling.
 		userEndpoint = instantiationService.createInstance(MockEndpoint, 'gpt-5');
 		searchAgentEndpoint = instantiationService.createInstance(MockEndpoint, SEARCH_AGENT_FAMILY);
+		(userEndpoint as unknown as { urlOrRequestMetadata: string | RequestMetadata }).urlOrRequestMetadata = { type: RequestType.ChatCompletions };
+		(searchAgentEndpoint as unknown as { urlOrRequestMetadata: string | RequestMetadata }).urlOrRequestMetadata = { type: RequestType.ChatCompletions };
 	});
 
 	afterAll(() => {
@@ -68,6 +77,7 @@ describe('getAgentTools search subagent gating', () => {
 
 	beforeEach(() => {
 		endpointProvider.endpoints = [userEndpoint];
+		endpointProvider.failGetAllChatEndpoints = false;
 		configService.setConfig(ConfigKey.Advanced.SearchSubagentToolEnabled, true);
 		configService.setConfig(ConfigKey.ExploreAgentEnabled, true);
 	});
@@ -101,7 +111,7 @@ describe('getAgentTools search subagent gating', () => {
 	});
 
 	test('hides both subagents when CAPI fetch fails', async () => {
-		endpointProvider.getAllChatEndpoints = async () => { throw new Error('CAPI unreachable'); };
+		endpointProvider.failGetAllChatEndpoints = true;
 		const request = new TestChatRequest('find usages of foo');
 		const tools = await instantiationService.invokeFunction(getAgentTools, request, userEndpoint);
 		expect(hasTool(tools, ToolName.SearchSubagent)).toBe(false);
