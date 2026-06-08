@@ -39,6 +39,13 @@ export class CommitCharacterController {
 			if (this._active && !widget.isFrozen() && model.state !== State.Idle) {
 				const ch = text.charCodeAt(text.length - 1);
 				if (this._active.acceptCharacters.has(ch) && editor.getOption(EditorOption.acceptSuggestionOnCommitCharacter)) {
+					// honor excludeCommitCharacters setting
+					const typed = String.fromCharCode(ch);
+					const suggestOpts = editor.getOption(EditorOption.suggest);
+					const excluded = Array.isArray(suggestOpts.excludeCommitCharacters) && suggestOpts.excludeCommitCharacters.indexOf(typed) >= 0;
+					if (excluded) {
+						return;
+					}
 					accept(this._active.item);
 				}
 			}
