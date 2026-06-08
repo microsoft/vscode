@@ -14,12 +14,12 @@ This document covers the shared base and the **local** concrete provider. For th
 
 ## Extended Provider Interface
 
-Agent host providers implement `IAgentHostSessionsProvider` (`common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
+Agent host providers implement `IAgentHostSessionsProvider` (defined in sessions core at `src/vs/sessions/common/agentHostSessionsProvider.ts`), which extends `ISessionsProvider` with:
 
 - **Remote connection members** (optional, populated only by remote providers): `connectionStatus`, `remoteAddress`, `connect()`, `disconnect()`, `canConnectOnDemand`.
 - **Dynamic session config**: `onDidChangeSessionConfig`, `getSessionConfig`, `isSessionConfigResolving`, `setSessionConfigValue`, `replaceSessionConfig`, `getSessionConfigCompletions`. These power the per-session configuration picker (isolation, branch, and other host-declared properties resolved live from the backend schema).
 
-`isAgentHostProvider(providerId)` (same file) returns `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
+`isAgentHostProvider(provider: ISessionsProvider)` (same file) is a type guard returning `true` for the local and remote agent host providers; `isAgentHostProviderId(providerId: string)` is the id-only variant, `true` for `local-agent-host` and any `agenthost-*` (remote) provider id.
 
 ## Registration
 

@@ -18,10 +18,10 @@ The Agents Window workbench (`Workbench` in `sessions/browser/workbench.ts`) pro
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
-│                                  Titlebar                                   │
-├─────────┬────────────────────────────────────────────────────────────────────┤
+│                                  Titlebar                                    │
+├─────────┬───────────────────────────┬───────────────┬───────────────────────┤
 │         │       Sessions Part       │ Editor (hid.) │     Auxiliary Bar     │
-│ Sidebar ├───────────────────────────┴────────────────┴───────────────────────┤
+│ Sidebar ├───────────────────────────┴───────────────┴───────────────────────┤
 │         │                              Panel                                 │
 └─────────┴────────────────────────────────────────────────────────────────────┘
 ```
@@ -106,9 +106,7 @@ A `SessionView` ([browser/parts/sessionView.ts](src/vs/sessions/browser/parts/se
 - A **chat view** below the bars, swapped in/out based on session state.
 - A floating toolbar overlay ([browser/parts/sessionHeader.ts](src/vs/sessions/browser/parts/sessionHeader.ts), `SessionViewFloatingToolbar`) shown for not-yet-created sessions in place of the header.
 
-The header and the composite bar are deliberately separate widgets: the header represents the session identity/actions and is always present, while the tab strip is a per-chat navigation concern that only appears with multiple chats. They share visual tokens via `applySessionBarThemeColors` ([browser/parts/sessionBarStyles.ts](src/vs/sessions/browser/parts/sessionBarStyles.ts)) and stylesheet ([browser/parts/media/chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). `SessionView` sums each widget's reported height to lay out the chat view below them.
-
-`SessionView` also owns a centered inner host (`.session-view-centered-content`) capped to 990px for the header and tab strip. The chat view itself is still laid out at full session width so its scrollable viewport (and scrollbar) stays flush to the far-right edge; only inner chat content (messages/input cards) is width-constrained and centered via CSS.
+The header and the composite bar are deliberately separate widgets: the header represents the session identity/actions and is always present, while the tab strip is a per-chat navigation concern that only appears with multiple chats. They share visual tokens via `applySessionBarThemeColors` ([browser/parts/sessionBarStyles.ts](src/vs/sessions/browser/parts/sessionBarStyles.ts)) and stylesheet ([browser/parts/media/chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). `SessionView` sums each widget's reported height to lay out the chat view below them. The header and tab strip are centered and capped to 990px via their own CSS classes (`.chat-composite-bar.session-header-bar` / `.chat-composite-bar.session-chat-tabs-bar` in [chatCompositeBar.css](src/vs/sessions/browser/parts/media/chatCompositeBar.css)). The chat view itself is still laid out at full session width so its scrollable viewport (and scrollbar) stays flush to the far-right edge; only the inner chat content (message/input cards, via `.interactive-item-container`, capped to 950px in [browser/media/style.css](src/vs/sessions/browser/media/style.css)) is width-constrained and centered via CSS.
 
 **Pitfall:** don't cap the chat viewport width in `SessionView` layout when you need edge-aligned scrollbars. Keep the viewport full-width and center only the inner chat content so alignment and scroll ergonomics both hold.
 

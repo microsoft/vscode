@@ -38,7 +38,7 @@ The sessions layer sits above `vs/workbench` in the VS Code source code hierarch
 
 **Path:** `src/vs/sessions/{browser,common,electron-browser}/**`
 
-The foundational layer. Cannot import from any `contrib/` or `services/` code above it.
+The foundational layer. It may import from the sessions **services** layer, but not from any `contrib/` code above it.
 
 **Can import from:**
 - `vs/base/~`, `vs/base/parts/*/~`
