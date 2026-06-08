@@ -68,7 +68,7 @@
 	justify-content: center;
 	flex-shrink: 0;
 	height: 26px;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize, 16px);
 	color: var(--session-view-foreground);
 }
 
@@ -78,8 +78,8 @@
 	overflow: hidden;
 	display: flex;
 	align-items: center;
-	font-weight: 600;
-	font-size: 13px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-agents-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
 	border-radius: 4px;
 	min-height: 22px;
@@ -155,7 +155,8 @@
 	align-items: center;
 	gap: 6px;
 	height: 22px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
+	font-weight: var(--vscode-agents-fontWeight-regular, 400);
 	line-height: 18px;
 	color: var(--chat-tab-inactive-foreground, var(--session-view-foreground));
 	overflow: hidden;
@@ -264,8 +265,8 @@
 	padding: 0 8px;
 	cursor: pointer;
 	color: var(--chat-tab-inactive-foreground);
-	font-weight: 500;
-	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 	line-height: 22px;
 	height: 26px;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -343,7 +344,7 @@
 }
 
 .chat-composite-bar-tab.in-progress .chat-composite-bar-tab-indicator-icon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .chat-composite-bar-tab:focus-visible {
