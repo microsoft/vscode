@@ -441,6 +441,11 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'editorOrder'
 		},
+		'explorer.openEditors.showEditorIndex': {
+			'type': 'boolean',
+			'description': nls.localize('openEditorsShowEditorIndex', 'When enabled, will show the open editor index.'),
+			'default': false,
+		},
 		'explorer.autoReveal': {
 			'type': ['boolean', 'string'],
 			'enum': [true, false, 'focusNoScroll'],
