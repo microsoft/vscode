@@ -1044,17 +1044,21 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 	private channelClient: ChannelClient;
 	private channelServer: ChannelServer<TContext>;
 
-	constructor(protocol: IMessagePassingProtocol, ctx: TContext, ipcLogger: IIPCLogger | null = null) {
+	constructor(private readonly _protocol: IMessagePassingProtocol, private readonly _ctx: TContext, ipcLogger: IIPCLogger | null = null) {
+		this.sendInitialContext();
+		this.channelClient = new ChannelClient(_protocol, ipcLogger);
+		this.channelServer = new ChannelServer(_protocol, _ctx, ipcLogger);
+	}
+
+	/** Send the connection context as the first protocol message; the server reads it to identify this client. */
+	private sendInitialContext(): void {
 		const writer = new BufferWriter();
 		try {
-			serialize(writer, ctx);
-			protocol.send(writer.buffer);
+			serialize(writer, this._ctx);
+			this._protocol.send(writer.buffer);
 		} finally {
 			writer.dispose();
 		}
-
-		this.channelClient = new ChannelClient(protocol, ipcLogger);
-		this.channelServer = new ChannelServer(protocol, ctx, ipcLogger);
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
@@ -1070,8 +1074,9 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 		this.channelClient.cancelPendingPromiseRequests();
 	}
 
-	/** Re-send EventListen for each live subscription so the replaced server can register them again. */
-	public replayEventSubscriptions(): void {
+	/** After a session reset for a replaced server, re-send the connection context (message #1) and replay live event subscriptions (ids preserved so existing handlers keep routing). */
+	public resendInitialContextAndReplay(): void {
+		this.sendInitialContext();
 		this.channelClient.replayEventSubscriptions();
 	}
 
