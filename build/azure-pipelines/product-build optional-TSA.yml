@@ -1,3 +1,32 @@
+pr: none
+
+schedules:
+  - cron: "0 5 * * Mon-Fri"
+    displayName: Mon-Fri at 5:00 UTC (build, publish, and release)
+    branches:
+      include:
+        - main
+  - cron: "0 11 * * Mon-Fri"
+    displayName: Mon-Fri at 11:00 UTC (build, and publish)
+    branches:
+      include:
+        - main
+  - cron: "0 17 * * Mon-Fri"
+    displayName: Mon-Fri at 17:00 UTC (build, publish, and release)
+    branches:
+      include:
+        - main
+  - cron: "0 23 * * Mon-Fri"
+    displayName: Mon-Fri at 23:00 UTC (build, and publish)
+    branches:
+      include:
+        - main
+
+trigger:
+  batch: true
+  branches:
+    include: ["main", "release/*"]
+
 parameters:
   - name: VSCODE_QUALITY
     displayName: Quality
@@ -86,9 +115,6 @@ parameters:
     displayName: "Run TSA checks"
     type: boolean
     default: false
-  - name: VSCODE_RUN_APISCAN
-    type: boolean
-    default: true
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -758,7 +784,7 @@ extends:
                 VSCODE_ARCH: x64
             - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_TSA, true)) }}:
         - stage: APIScan
           dependsOn: []
           pool:
