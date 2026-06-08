@@ -138,7 +138,7 @@
 	justify-content: space-between;
 	gap: 0;
 	padding: 6px 16px 6px 10px;
-	border-radius: 0;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 /* Counts - floating right inside the per-item link button. Tuned to
