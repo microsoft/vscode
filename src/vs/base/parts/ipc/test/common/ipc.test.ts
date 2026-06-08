@@ -247,7 +247,6 @@ suite('Base IPC', function () {
 		let server: IPCServer;
 		let client: IPCClient;
 		let service: TestService;
-		let serverChannel: TestChannel;
 		let ipcService: ITestService;
 
 		setup(function () {
@@ -255,8 +254,7 @@ suite('Base IPC', function () {
 			const testServer = store.add(new TestIPCServer());
 			server = testServer;
 
-			serverChannel = new TestChannel(service);
-			server.registerChannel(TestChannelId, serverChannel);
+			server.registerChannel(TestChannelId, new TestChannel(service));
 
 			client = store.add(testServer.createConnection('client1'));
 			ipcService = new TestChannelClient(client.getChannel(TestChannelId));
@@ -431,20 +429,41 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(messages, ['hello']);
 		});
 
-		test('replayEventSubscriptions re-issues EventListen for live subscriptions and skips disposed ones', async function () {
-			store.add(ipcService.onPong(() => { }));
-			store.add(ipcService.onPong(() => { }));
-			const sub3 = ipcService.onPong(() => { });
+		test('replayEventSubscriptions re-issues EventListen for live subscriptions against a replaced server', async function () {
+			// Model a replaced remote: the ChannelClient keeps its protocol, but the ChannelServer on
+			// the other end is swapped for a fresh one (as after stale-token recovery). Replayed
+			// EventListen must register on the new server, for live subscriptions only.
+			const toClient = store.add(new Emitter<VSBuffer>());
+			const toServer = store.add(new Emitter<VSBuffer>());
+			const clientProtocol: IMessagePassingProtocol = { onMessage: toClient.event, send: buffer => toServer.fire(buffer) };
+			const serverProtocol: IMessagePassingProtocol = { onMessage: toServer.event, send: buffer => toClient.fire(buffer) };
+
+			const channelClient = store.add(new ChannelClient(clientProtocol));
+			const channel = channelClient.getChannel<IChannel>(TestChannelId);
+
+			const firstChannel = new TestChannel(service);
+			const firstServer = store.add(new ChannelServer(serverProtocol, 'ctx'));
+			firstServer.registerChannel(TestChannelId, firstChannel);
+
+			store.add(channel.listen('onPong')(() => { }));
+			store.add(channel.listen('onPong')(() => { }));
+			const sub3 = channel.listen('onPong')(() => { });
 			await timeout(0);
-			assert.strictEqual(serverChannel.listenCount, 3);
+			assert.strictEqual(firstChannel.listenCount, 3);
 
 			sub3.dispose();
 			await timeout(0);
 
-			client.replayEventSubscriptions();
+			// Replace the server: tear down the old one, stand up a fresh ChannelServer on the same protocol.
+			firstServer.dispose();
+			const secondChannel = new TestChannel(service);
+			const secondServer = store.add(new ChannelServer(serverProtocol, 'ctx'));
+			secondServer.registerChannel(TestChannelId, secondChannel);
+
+			channelClient.replayEventSubscriptions();
 			await timeout(0);
-			// sub1 and sub2 are re-issued; sub3 was disposed and is skipped
-			assert.strictEqual(serverChannel.listenCount, 5);
+			// The two live subscriptions are re-issued on the fresh server; the disposed one is skipped.
+			assert.strictEqual(secondChannel.listenCount, 2);
 		});
 	});
 
