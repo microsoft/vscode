@@ -99,7 +99,7 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 		this._logService.trace(`Resolving chat model`);
 
 		if (typeof requestOrFamilyOrModel === 'string') {
-			return this._resolveUtilityFamily(requestOrFamilyOrModel);
+			return this._resolveFamily(requestOrFamilyOrModel);
 		}
 
 		const model = 'model' in requestOrFamilyOrModel ? requestOrFamilyOrModel.model : requestOrFamilyOrModel;
@@ -135,12 +135,28 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	}
 
 	/**
+	 * Resolves a chat endpoint from a family string. The internal utility
+	 * families (`copilot-utility` / `copilot-utility-small`) are routed through
+	 * their dedicated resolvers; any other value is treated as a CAPI model
+	 * family (e.g. `gemini-3-flash`, `gpt-5-mini`) and resolved directly. This
+	 * lets callers such as the execution and search subagents honor their
+	 * `*.model` override settings rather than silently falling back to the
+	 * parent model.
+	 */
+	private async _resolveFamily(family: string): Promise<IChatEndpoint> {
+		if (family === 'copilot-utility' || family === 'copilot-utility-small') {
+			return this._resolveUtilityFamily(family);
+		}
+		const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily(family);
+		return this.getOrCreateChatEndpointInstance(modelMetadata);
+	}
+
+	/**
 	 * Resolves an internal utility family (`copilot-utility-small` /
 	 * `copilot-utility`) to a concrete `CopilotChatEndpoint`. The model
 	 * selection for each family lives in the corresponding resolver
 	 * class so callers don't need to know which CAPI family backs each
 	 * purpose.
-
 	 */
 	private async _resolveUtilityFamily(family: ChatEndpointFamily): Promise<IChatEndpoint> {
 		const override = await this._resolveUtilityOverride(family);

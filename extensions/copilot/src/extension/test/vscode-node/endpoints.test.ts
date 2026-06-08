@@ -9,7 +9,7 @@ import { LanguageModelChat, lm } from 'vscode';
 import { CHAT_MODEL, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { DefaultsOnlyConfigurationService } from '../../../platform/configuration/common/defaultsOnlyConfigurationService';
-import { IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation } from '../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation } from '../../../platform/endpoint/common/endpointProvider';
 import { IModelMetadataFetcher } from '../../../platform/endpoint/node/modelMetadataFetcher';
 import { CopilotChatEndpoint } from '../../../platform/endpoint/node/copilotChatEndpoint';
 import { ExtensionContributedChatEndpoint } from '../../../platform/endpoint/vscode-node/extChatEndpoint';
@@ -294,5 +294,21 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		assert.strictEqual(endpoint.model, 'copilot-utility');
+	});
+
+	test('arbitrary CAPI model family resolves to that model (execution/search subagent override)', async () => {
+		// Regression for https://github.com/microsoft/vscode/issues/320231: the
+		// execution and search subagents pass their `*.model` override (e.g.
+		// 'gemini-3-flash') straight to getChatEndpoint(). It must resolve the CAPI
+		// family rather than throwing 'Unrecognized chat endpoint family' and
+		// silently falling back to the parent model.
+		setFetcher([makeChatModel('copilot-utility'), makeChatModel('gemini-3-flash')]);
+
+		// The subagents type the override as a string and cast it to the family
+		// type, so mirror that here.
+		const subagentModel: string = 'gemini-3-flash';
+		const endpoint = await endpointProvider.getChatEndpoint(subagentModel as ChatEndpointFamily);
+		assert.ok(endpoint instanceof CopilotChatEndpoint);
+		assert.strictEqual(endpoint.model, 'gemini-3-flash');
 	});
 });
