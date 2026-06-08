@@ -11,7 +11,7 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { Button, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ILanguageModelsService, ILanguageModelProviderDescriptor } from '../../../chat/common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelProviderDescriptor, ILanguageModelConfigurationSchema } from '../../../chat/common/languageModels.js';
 import { localize } from '../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -673,13 +673,30 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 		const { model: modelEntry } = entry;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
-			const totalTokens = (modelEntry.metadata.maxInputTokens ?? 0) + (modelEntry.metadata.maxOutputTokens ?? 0);
+			const outputTokens = modelEntry.metadata.maxOutputTokens ?? 0;
+			const fullInputTokens = modelEntry.metadata.maxInputTokens ?? 0;
+
+			const contextSizeOptions = getConfigurableContextInputOptions(modelEntry.metadata);
+			const defaultInputTokens = contextSizeOptions?.default ?? fullInputTokens;
+			const maxConfigurableInput = contextSizeOptions?.max;
+
+			const defaultTotalTokens = defaultInputTokens + outputTokens;
 			const tokenDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
 			const tokenText = DOM.append(tokenDiv, $('span'));
-			tokenText.textContent = formatTokenCount(totalTokens);
+			tokenText.textContent = formatTokenCount(defaultTotalTokens);
 
-			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-			markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
+			markdown.appendMarkdown(`${localize('models.defaultContextSize', 'Default Context Size')}: `);
+			markdown.appendMarkdown(`${formatTokenCount(defaultTotalTokens)}`);
+
+			if (maxConfigurableInput !== undefined && maxConfigurableInput > defaultInputTokens) {
+				const maxTotalTokens = maxConfigurableInput + outputTokens;
+				const maxDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item.token-limit-max'));
+				const maxText = DOM.append(maxDiv, $('span'));
+				maxText.textContent = localize('models.configurableContextSize', "Configurable to {0}", formatTokenCount(maxTotalTokens));
+
+				markdown.appendText(`\n`);
+				markdown.appendMarkdown(`${localize('models.configurableContextSize', "Configurable to {0}", formatTokenCount(maxTotalTokens))}`);
+			}
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
@@ -690,6 +707,21 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 			}
 		})));
 	}
+}
+
+function getConfigurableContextInputOptions(metadata: { configurationSchema?: ILanguageModelConfigurationSchema }): { default: number; max: number } | undefined {
+	const contextSizeSchema = metadata.configurationSchema?.properties?.contextSize;
+	if (!contextSizeSchema?.enum || !Array.isArray(contextSizeSchema.enum) || contextSizeSchema.enum.length < 2) {
+		return undefined;
+	}
+	const numericValues = contextSizeSchema.enum.filter((v): v is number => typeof v === 'number');
+	if (numericValues.length < 2) {
+		return undefined;
+	}
+	const max = Math.max(...numericValues);
+	const min = Math.min(...numericValues);
+	const schemaDefault = typeof contextSizeSchema.default === 'number' ? contextSizeSchema.default : undefined;
+	return { default: schemaDefault ?? min, max };
 }
 
 interface ICapabilitiesColumnTemplateData extends IModelTableColumnTemplateData {
@@ -1209,19 +1241,19 @@ export class ChatModelsWidget extends Disposable {
 		const isUBB = this.chatEntitlementService.quotas.usageBasedBilling === true;
 		columns.push(
 			{
-				label: localize('tokenLimits', 'Context Size'),
-				tooltip: '',
-				weight: 0.1,
-				minimumWidth: 140,
-				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
-				project(row: IViewModelEntry): IViewModelEntry { return row; }
-			},
-			{
 				label: localize('capabilities', 'Capabilities'),
 				tooltip: '',
 				weight: 0.15,
 				minimumWidth: 180,
 				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
+				project(row: IViewModelEntry): IViewModelEntry { return row; }
+			},
+			{
+				label: localize('tokenLimits', 'Default Context Size'),
+				tooltip: '',
+				weight: 0.18,
+				minimumWidth: 240,
+				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
