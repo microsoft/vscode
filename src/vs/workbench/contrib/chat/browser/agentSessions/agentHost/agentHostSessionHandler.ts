@@ -853,25 +853,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!sub) {
 			return undefined;
 		}
-		if (sub.value === undefined) {
-			// Snapshot is in flight. Attach the listener before re-checking
-			// to close a race where the snapshot lands between the value
-			// read and the listener attachment.
+		if (sub.value !== undefined) {
+			return sub.value instanceof Error ? undefined : sub.value;
+		}
+
+		// Snapshot is in flight. Pin the subscription with a fresh
+		// refcount for the duration of the await so the eager holder
+		// releasing concurrently can't tear down the underlying emitter
+		// (which would leave `onDidChange` silent and hang the await).
+		const pinRef = this._config.connection.getSubscription(StateComponents.Session, resolvedSession, 'AgentHostSessionHandler');
+		try {
 			await new Promise<void>(resolve => {
 				const store = new DisposableStore();
 				const settle = () => {
 					store.dispose();
 					resolve();
 				};
-				store.add(sub.onDidChange(settle));
+				store.add(pinRef.object.onDidChange(settle));
 				store.add(token.onCancellationRequested(settle));
-				if (sub.value !== undefined || token.isCancellationRequested) {
+				if (pinRef.object.value !== undefined || token.isCancellationRequested) {
 					settle();
 				}
 			});
+			const value = pinRef.object.value;
+			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
+			return value instanceof Error ? undefined : value;
+		} finally {
+			pinRef.dispose();
 		}
-		const value = sub.value;
-		return (value && !(value instanceof Error)) ? value : undefined;
 	}
 
 	// ---- Pending message sync -----------------------------------------------
