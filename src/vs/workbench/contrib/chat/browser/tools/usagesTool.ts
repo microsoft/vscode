@@ -28,6 +28,7 @@ import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocatio
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 import { errorResult, findLineNumber, findSymbolColumn, ISymbolToolInput, resolveToolUri } from './toolHelpers.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICodeUsageService } from './usageService.js';
 
 
 export const UsagesToolId = 'vscode_listCodeUsages';
@@ -155,6 +156,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		@ISearchService private readonly _searchService: ISearchService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ICodeUsageService private readonly _codeUsageService: ICodeUsageService,
 	) {
 		super();
 	}
