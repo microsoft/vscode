@@ -92,7 +92,7 @@ function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnTo
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
-	return rawUpdateRunningToolSpecificData(existing, tc, undefined);
+	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), undefined);
 }
 
 function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
@@ -672,6 +672,45 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; commandLine: { original: string } };
 			assert.strictEqual(termData.commandLine.original, 'ls -la');
+		});
+
+		test('sets terminal toolSpecificData for built-in bash via _meta.toolKind (no Terminal content block)', () => {
+			// The SDK's built-in bash tool (used when the Custom Terminal tool
+			// is disabled) runs outside AHP's terminal infra and does not emit
+			// a Terminal content block. The terminal pill must still render so
+			// the user can expand the full multi-line command and output.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				displayName: 'Run Shell Command',
+				toolInput: 'ls -la\nwc -l',
+				_meta: { toolKind: 'terminal' },
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; commandLine: { original: string }; language?: string; terminalToolSessionId?: string; terminalCommandUri?: URI };
+			assert.strictEqual(termData.commandLine.original, 'ls -la\nwc -l');
+			assert.strictEqual(termData.language, 'shellscript');
+			assert.strictEqual(termData.terminalToolSessionId, undefined, 'no AHP terminal session for built-in bash');
+			assert.strictEqual(termData.terminalCommandUri, undefined, 'no AHP terminal URI for built-in bash');
+		});
+
+		test('built-in bash terminal toolSpecificData picks up streaming text output (running)', () => {
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'echo hi',
+				_meta: { toolKind: 'terminal' },
+				status: ToolCallStatus.Running,
+				content: [
+					{ type: ToolResultContentType.Text, text: 'hi\n' },
+				],
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n', 'normalizes \\n to \\r\\n for xterm');
 		});
 
 		test('creates invocation without toolArguments', () => {
@@ -1337,6 +1376,69 @@ suite('stateToProgressAdapter', () => {
 
 			updateRunningToolSpecificData(invocation, runningTc);
 			assert.strictEqual(invocation.toolSpecificData, originalData, 'toolSpecificData should not change');
+		});
+
+		test('refreshes terminal output as text content streams (built-in bash)', () => {
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'sleep 1; echo hi',
+				_meta: { toolKind: 'terminal' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
+			assert.strictEqual((invocation.toolSpecificData as { terminalCommandOutput?: { text: string } }).terminalCommandOutput, undefined);
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
+			assert.strictEqual(termData.kind, 'terminal');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
+		});
+
+		test('preserves AHP terminal fields (terminalToolSessionId, terminalCommandUri) when refreshing output', () => {
+			// Simulates the race where `_reviveTerminalIfNeeded` has populated
+			// AHP terminal fields and a subsequent content change triggers
+			// `updateRunningToolSpecificData`. The async-populated fields
+			// must survive the refresh.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				toolInput: 'echo hi',
+				_meta: { toolKind: 'terminal' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			const reviveUri = URI.parse('agenthost-terminal:///t9');
+			invocation.toolSpecificData = {
+				kind: 'terminal',
+				commandLine: { original: 'echo hi' },
+				language: 'shellscript',
+				terminalToolSessionId: 'session-id-from-revive',
+				terminalCommandUri: reviveUri,
+				terminalCommandId: 'cmd-id-from-revive',
+			};
+
+			const runningTc: ToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+			const termData = invocation.toolSpecificData as {
+				kind: 'terminal';
+				terminalToolSessionId?: string;
+				terminalCommandUri?: URI;
+				terminalCommandId?: string;
+				terminalCommandOutput?: { text: string };
+			};
+			assert.strictEqual(termData.terminalToolSessionId, 'session-id-from-revive');
+			assert.strictEqual(termData.terminalCommandUri, reviveUri);
+			assert.strictEqual(termData.terminalCommandId, 'cmd-id-from-revive');
+			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n');
 		});
 	});
 });

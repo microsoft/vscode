@@ -138,6 +138,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		for (const [id, input] of views) {
 			if (!this._modelListeners.has(id) && input.model) {
 				const store = new DisposableStore();
+				store.add(input.onDidChangeLabel(() => this._updateBrowserContext()));
 				store.add(input.model.onDidChangeSharingState(() => this._updateBrowserContext()));
 				this._modelListeners.set(id, store);
 			}

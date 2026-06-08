@@ -267,7 +267,9 @@ export class ContextView extends Disposable {
 			delegate.onHide(data);
 		}
 
-		this.toDisposeOnClean.dispose();
+		const toDispose = this.toDisposeOnClean;
+		this.toDisposeOnClean = Disposable.None;
+		toDispose.dispose();
 
 		DOM.hide(this.view);
 	}

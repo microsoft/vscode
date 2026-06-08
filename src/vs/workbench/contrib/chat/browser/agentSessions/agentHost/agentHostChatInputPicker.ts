@@ -265,7 +265,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._renderChip());
 		this._subRef.value = {

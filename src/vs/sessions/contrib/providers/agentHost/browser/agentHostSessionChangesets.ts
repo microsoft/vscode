@@ -64,7 +64,7 @@ function createActiveSessionSubscriptionObs<TValue>(
 			return constObservable(undefined);
 		}
 
-		const subscriptionRef = connection.getSubscription(component, resource);
+		const subscriptionRef = connection.getSubscription(component, resource, 'AgentHostSessionChangesets');
 		reader.store.add(subscriptionRef);
 
 		return observableFromEvent(subscriptionRef.object.onDidChange,

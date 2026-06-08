@@ -238,6 +238,15 @@
 	font-size: 12px;
 }
 
+.action-widget .monaco-list .monaco-list-row .description a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .monaco-list .monaco-list-row .description a:hover,
+.action-widget .monaco-list .monaco-list-row .description a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .action-widget .monaco-list-row.action .group-title {
 	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;

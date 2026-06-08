@@ -463,7 +463,8 @@ suite('CopilotApiService', () => {
 
 			assert.strictEqual(headers['Content-Type'], 'application/json');
 			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok');
-			assert.strictEqual(headers['OpenAI-Intent'], 'conversation');
+			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
+			assert.strictEqual(headers['X-Interaction-Type'], 'messages-proxy');
 			assert.ok(headers['X-Request-Id'], 'should have a request id');
 			assert.ok(headers['X-GitHub-Api-Version'], 'CAPIClient should inject API version');
 			assert.ok(headers['VScode-SessionId'], 'CAPIClient should inject session id');
@@ -535,7 +536,26 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(headers['Authorization'], 'Bearer gh-tok');
 			assert.strictEqual(headers['Content-Type'], 'application/json');
 			assert.notStrictEqual(headers['X-Request-Id'], 'attacker-id');
-			assert.strictEqual(headers['OpenAI-Intent'], 'conversation');
+			assert.strictEqual(headers['OpenAI-Intent'], 'messages-proxy');
+		});
+
+		test('suppressIntegrationId opt-in controls the Copilot-Integration-Id header', async () => {
+			const { fetch: fetchFn, captured } = routingFetch(
+				() => anthropicResponse([{ type: 'text', text: 'ok' }]),
+			);
+			const service = createService(fetchFn);
+
+			// Default (no opt-in): @vscode/copilot-api derives and sends the header.
+			await service.messages('gh-tok', baseRequest);
+			const withHeader = captured().init?.headers as Record<string, string>;
+
+			// Opt-in: the header is omitted entirely so CAPI authorizes against
+			// the token's real entitlement instead of the derived integration id.
+			await service.messages('gh-tok', baseRequest, { suppressIntegrationId: true });
+			const suppressed = captured().init?.headers as Record<string, string>;
+
+			assert.ok(withHeader['Copilot-Integration-Id'], 'integration id should be present by default');
+			assert.strictEqual(suppressed['Copilot-Integration-Id'], undefined, 'integration id should be suppressed when opted in');
 		});
 	});
 

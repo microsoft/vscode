@@ -124,7 +124,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 			return existing;
 		}
 
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostCustomizationService');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => {
 			this._fireCustomizationsChanged();
