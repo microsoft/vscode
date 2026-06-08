@@ -502,19 +502,12 @@
  * surfaces that reuse `.interactive-item-container` — notably the terminal
  * and editor inline chat widgets and the agent-session hover widget. */
 .agent-sessions-workbench .part.sessionspart .interactive-session .interactive-item-container,
-.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container {
-	max-width: 950px;
-	margin: 0 auto;
-	padding-left: 12px;
-	padding-right: 12px;
-	box-sizing: border-box;
-}
-
+.agent-sessions-workbench .chat-editor-relative .interactive-session .interactive-item-container,
 .agent-sessions-workbench .part.sessionspart .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .interactive-session > .chat-suggest-next-widget {
 	max-width: 950px;
 	margin: 0 auto;
-	padding-left: 12px;
+	padding-left: 32px;
 	padding-right: 12px;
 	box-sizing: border-box;
 }
@@ -579,8 +572,7 @@
 	max-width: 950px;
 	margin: 0 auto;
 	display: inherit;
-	/* Align with panel (terminal) card margin */
-	padding: 4px 10px;
+	padding: 4px 10px 4px 32px;
 	box-sizing: border-box;
 }
 
