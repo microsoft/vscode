@@ -18,7 +18,6 @@ import { coalesce } from '../../../util/vs/base/common/arrays';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceSet } from '../../../util/vs/base/common/map';
-import { isWindows } from '../../../util/vs/base/common/platform';
 import { isEqual, isEqualOrParent } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -96,15 +95,15 @@ export class GetErrorsTool extends Disposable implements ICopilotTool<IGetErrors
 			let inputUri: URI | undefined;
 			let matchedExactPath = false;
 
-			const normalizedResource = this.normalizeDriveLetter(resource);
 			for (const path of nonNotebookPaths) {
 				// we support file or folder paths
-				const normalizedPath = this.normalizeDriveLetter(path.uri);
-				if (isEqualOrParent(normalizedResource, normalizedPath)) {
+				// Check exact URI equality first: `isEqual` normalizes Windows drive-letter casing,
+				// while `isEqualOrParent` preserves normal path-casing semantics.
+				const isExactMatch = isEqual(resource, path.uri);
+				if (isExactMatch || isEqualOrParent(resource, path.uri)) {
 					foundMatch = true;
 
 					// Track the input URI that matched - prefer exact matches, otherwise use the folder
-					const isExactMatch = isEqual(normalizedResource, normalizedPath);
 					if (isExactMatch) {
 						// Exact match - this is the file itself, no input folder
 						inputUri = undefined;
@@ -147,48 +146,6 @@ export class GetErrorsTool extends Disposable implements ICopilotTool<IGetErrors
 		}
 
 		return results;
-	}
-
-	/**
-	 * Normalize the casing of a Windows drive letter so that diagnostics can be
-	 * matched regardless of the drive letter casing produced by the model or the
-	 * diagnostics provider.
-	 *
-	 * The model (and some language servers) may emit a path with a lower-case drive
-	 * letter (e.g. `c:\foo`) while the diagnostics service reports the same file with
-	 * an upper-case drive letter (e.g. `C:\foo`), or vice versa - the casing is not
-	 * stable across machines (see microsoft/vscode#319858). On Windows the drive
-	 * letter is case-insensitive, so we lower-case *only* the drive letter to make
-	 * the two URIs compare equal.
-	 *
-	 * We intentionally do not lower-case the rest of the path: file systems may be
-	 * case-sensitive past the drive, so `Foo.ts` and `foo.ts` must still be treated
-	 * as different files. This is a no-op on non-Windows platforms and on paths that
-	 * have no drive letter.
-	 *
-	 * The function operates solely on `uri.path`, which is the path component after
-	 * the scheme and authority are stripped. For a standard Windows local file URI
-	 * (`file:///C:/foo/bar`) the authority is empty and `uri.path` is `/C:/foo/bar`,
-	 * so the drive letter is found at `path[1]`. UNC paths (`file://server/share`)
-	 * store the host in the authority and produce a path without a drive letter, so
-	 * they are returned unchanged. The malformed form `file://C:/foo` (drive letter
-	 * in the authority) is not produced by `URI.file()` and is not handled.
-	 *
-	 * Note - This is made public for testing purposes only.
-	 */
-	public normalizeDriveLetter(uri: URI): URI {
-		if (!isWindows) {
-			return uri;
-		}
-		// `uri.path` is of the form `/c:/folder/file` for file URIs with a drive letter.
-		const path = uri.path;
-		if (path.length >= 3 && path[0] === '/' && path[2] === ':') {
-			const lowerDrive = path[1].toLowerCase();
-			if (lowerDrive !== path[1]) {
-				return uri.with({ path: `/${lowerDrive}${path.slice(2)}` });
-			}
-		}
-		return uri;
 	}
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IGetErrorsParams>, token: CancellationToken) {
