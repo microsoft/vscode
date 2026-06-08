@@ -487,6 +487,7 @@
 	"github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR": "Create Pull Request",
 	"github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR": "Create Draft Pull Request",
 	"github.copilot.command.checkoutPullRequestReroute.title": "Checkout",
+	"github.copilot.command.cloudSessions.createPullRequestForTask.title": "Create Pull Request",
 	"github.copilot.command.cloudSessions.openRepository.title": "Browse repositories...",
 	"github.copilot.command.cloudSessions.clearCaches.title": "Clear Cloud Agent Caches",
 	"github.copilot.command.applyCopilotCLIAgentSessionChanges": "Apply Changes to Workspace",
