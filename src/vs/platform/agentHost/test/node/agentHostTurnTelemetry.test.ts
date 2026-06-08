@@ -14,7 +14,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ActionType, SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
+import { MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -260,5 +260,75 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.model, undefined);
 		assert.strictEqual(data.permissionLevel, undefined);
+	});
+
+	// The tests below cover completion paths that bypass the agent-progress
+	// signal flow (`_dispatchActionForSession`) — client-initiated cancel
+	// and `sendMessage` rejection both dispatch their terminal action
+	// directly through the state manager.
+
+	test('emits result=cancelled when the client cancels a turn (no agent progress signal)', async () => {
+		setupSession();
+		startTurn('turn-1');
+
+		sideEffects.handleAction(sessionKey, {
+			type: ActionType.SessionTurnCancelled,
+			turnId: 'turn-1',
+		});
+
+		await new Promise(r => setTimeout(r, 10));
+
+		const events = completedEvents();
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'cancelled');
+	});
+
+	test('emits result=error when a direct sendMessage rejects', async () => {
+		setupSession();
+		agent.sendMessage = async () => { throw new Error('boom'); };
+
+		startTurn('turn-1');
+
+		await new Promise(r => setTimeout(r, 10));
+
+		const events = completedEvents();
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+	});
+
+	test('emits result=error when a queued sendMessage rejects', async () => {
+		setupSession();
+		agent.sendMessage = async () => { throw new Error('boom'); };
+
+		const setAction: SessionAction = {
+			type: ActionType.SessionPendingMessageSet,
+			kind: PendingMessageKind.Queued,
+			id: 'q-err',
+			message: { text: 'queued message', origin: { kind: MessageKind.User } },
+		};
+		stateManager.dispatchClientAction(sessionKey, setAction, { clientId: 'test', clientSeq: 1 });
+		sideEffects.handleAction(sessionKey, setAction);
+
+		await new Promise(r => setTimeout(r, 10));
+
+		const events = completedEvents();
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual((events[0].data as Record<string, unknown>).result, 'error');
+	});
+
+	test('emits a single turnCompleted when both the client cancel and a follow-up agent signal arrive', () => {
+		// Some agents emit a `SessionTurnCancelled` signal in response to
+		// `abortSession`; the tracker must dedup across the client-cancel
+		// path and the agent-progress signal path.
+		setupSession();
+		startTurn('turn-1');
+
+		sideEffects.handleAction(sessionKey, {
+			type: ActionType.SessionTurnCancelled,
+			turnId: 'turn-1',
+		});
+		fire({ type: ActionType.SessionTurnCancelled, turnId: 'turn-1' });
+
+		assert.strictEqual(completedEvents().length, 1);
 	});
 });

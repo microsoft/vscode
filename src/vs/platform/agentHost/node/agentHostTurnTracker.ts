@@ -71,6 +71,6 @@ export class AgentHostTurnTracker {
 	}
 
 	private _key(session: string, turnId: string): string {
-		return `${session}:${turnId}`;
+		return `${session}\0${turnId}`;
 	}
 }

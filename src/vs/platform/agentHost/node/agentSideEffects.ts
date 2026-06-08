@@ -592,6 +592,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.SessionTurnCancelled,
 						turnId,
 					});
+					this._turnTracker.turnCompleted(subagentUri, turnId, 'cancelled');
 				}
 				this._subagentSessions.delete(key);
 			}
@@ -768,6 +769,7 @@ export class AgentSideEffects extends Disposable {
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
 					});
+					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
 				});
 				break;
 			}
@@ -795,6 +797,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionTurnCancelled: {
+				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(channel);
@@ -1059,6 +1062,7 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
+			this._turnTracker.turnCompleted(session, turnId, 'error');
 		});
 	}
 
