@@ -35,6 +35,7 @@ import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { raceTimeout } from '../../../util/vs/base/common/async';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Iterable } from '../../../util/vs/base/common/iterator';
+import { DisposableMap, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
 import { ChatResponseProgressPart2 } from '../../../vscodeTypes';
@@ -291,7 +292,15 @@ export class AgentIntent extends EditCodeIntent {
 	override readonly id = AgentIntent.ID;
 
 	private readonly _backgroundSummarizers = new Map<string, BackgroundSummarizer>();
-	private readonly _backgroundTodoProcessors = new Map<string, BackgroundTodoAgentProcessor>();
+	private readonly _backgroundTodoProcessors = new DisposableMap<string, BackgroundTodoAgentProcessor>();
+
+	/**
+	 * Holds long-lived subscriptions for this intent (e.g. the session-dispose
+	 * cleanup below). AgentIntent is an app-lifetime singleton that is never
+	 * disposed, so this mainly keeps the subscription owned rather than dropped
+	 * on the floor.
+	 */
+	private readonly _sessionListeners = new DisposableStore();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -307,18 +316,16 @@ export class AgentIntent extends EditCodeIntent {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super(instantiationService, endpointProvider, configurationService, expService, codeMapperService, workspaceService, { intentInvocation: AgentIntentInvocation, processCodeblocks: false });
-		chatSessionService.onDidDisposeChatSession(sessionId => {
+		this._sessionListeners.add(chatSessionService.onDidDisposeChatSession(sessionId => {
 			const summarizer = this._backgroundSummarizers.get(sessionId);
 			if (summarizer) {
 				summarizer.cancel();
 				this._backgroundSummarizers.delete(sessionId);
 			}
-			const todoProcessor = this._backgroundTodoProcessors.get(sessionId);
-			if (todoProcessor) {
-				todoProcessor.cancel();
-				this._backgroundTodoProcessors.delete(sessionId);
-			}
-		});
+			// deleteAndDispose() runs the processor's dispose(), which cancels the
+			// in-flight generation and tears down its queue, CTS and history store.
+			this._backgroundTodoProcessors.deleteAndDispose(sessionId);
+		}));
 	}
 
 	getOrCreateBackgroundSummarizer(sessionId: string, modelMaxPromptTokens: number, endpointId: string): BackgroundSummarizer {

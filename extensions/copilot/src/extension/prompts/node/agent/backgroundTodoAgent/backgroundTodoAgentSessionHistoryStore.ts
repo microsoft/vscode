@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable, toDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { ThinkingData } from '../../../../../platform/thinking/common/thinking';
 import { IBuildPromptContext, IToolCall, IToolCallRound } from '../../../../prompt/common/intents';
 import { ToolName } from '../../../../tools/common/toolNames';
@@ -22,14 +23,26 @@ export type ReadOnlyTurnHistory = {
 	unprocessedSubstantiveRoundCount: number;
 };
 
-export class BackgroundTodoAgentSessionHistoryStore {
-	private trackedToolCallRoundIds = new Set<string>();
-	private turnHistories = new Map<string, TurnHistory>();
-	private turnUserRequest = new Map<string, string>();
+export class BackgroundTodoAgentSessionHistoryStore extends Disposable {
+	private readonly trackedToolCallRoundIds = new Set<string>();
+	private readonly turnHistories = new Map<string, TurnHistory>();
+	private readonly turnUserRequest = new Map<string, string>();
 
 	// An index for tool calls that is sequentially incremented
 	// The assumption is that all tool calls are seen and iterated in order.
 	private index = 0;
+
+	constructor() {
+		super();
+		// The per-turn maps can retain a turn's worth of tool-call history for the
+		// life of the session; drop them eagerly when the store is disposed so the
+		// memory is released as soon as the owning processor goes away.
+		this._register(toDisposable(() => {
+			this.trackedToolCallRoundIds.clear();
+			this.turnHistories.clear();
+			this.turnUserRequest.clear();
+		}));
+	}
 
 	trackPromptContext(turnId: string, promptContext: IBuildPromptContext) {
 		if (!this.turnUserRequest.has(turnId)) {

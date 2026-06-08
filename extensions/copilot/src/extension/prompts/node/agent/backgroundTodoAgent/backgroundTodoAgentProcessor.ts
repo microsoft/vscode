@@ -9,6 +9,7 @@ import { ILogger, ILogService } from '../../../../../platform/log/common/logServ
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
 import { LazyStatefulPromise, Queue } from '../../../../../util/vs/base/common/async';
+import { Disposable, MutableDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { IBuildPromptContext } from '../../../../prompt/common/intents';
 import { ITodoListContextProvider } from '../../../../prompt/node/todoListContextProvider';
@@ -48,9 +49,9 @@ const enum BackgroundTodoAgentProcessorState {
 
 type ToolCall = { name: string; arguments: string; id: string };
 
-export class BackgroundTodoAgentProcessor {
-	private readonly sessionHistoryStore = new BackgroundTodoAgentSessionHistoryStore();
-	private readonly queue = new Queue();
+export class BackgroundTodoAgentProcessor extends Disposable {
+	private readonly sessionHistoryStore = this._register(new BackgroundTodoAgentSessionHistoryStore());
+	private readonly queue = this._register(new Queue());
 	private readonly backOffTracker = new BackOffTracker();
 	private readonly logger: ILogger;
 
@@ -60,8 +61,14 @@ export class BackgroundTodoAgentProcessor {
 	 * Per-generation cancellation source. `cancel()` aborts the in-flight and
 	 * queued work of the current generation and installs a fresh source, so the
 	 * processor stays reusable for later turns (mirrors BackgroundSummarizer).
+	 *
+	 * Held in a {@link MutableDisposable} so the active source is disposed both
+	 * when it is replaced (on `cancel()`) and when the processor is disposed.
 	 */
-	private cts = new CancellationTokenSource();
+	private readonly _cts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private get cts(): CancellationTokenSource {
+		return this._cts.value!;
+	}
 
 	private oldTurnTodos: string | undefined = undefined;
 
@@ -76,6 +83,8 @@ export class BackgroundTodoAgentProcessor {
 		private readonly instantiationService: IInstantiationService,
 		logService: ILogService
 	) {
+		super();
+		this._cts.value = new CancellationTokenSource();
 		this.currentTurnId = undefined;
 		this.logger = logService.createSubLogger(['BackgroundTodoAgentProcessor', sessionId]);
 	}
@@ -175,6 +184,13 @@ export class BackgroundTodoAgentProcessor {
 	}
 
 	cancel() {
+		// Once disposed the generation is already aborted (see dispose()) and the
+		// queue is torn down, so there is nothing to reset. Guard here because the
+		// endTurn() timeout fallback in agentIntent.ts may call cancel() after the
+		// session — and thus this processor — has been disposed.
+		if (this._store.isDisposed) {
+			return;
+		}
 		this.logger.debug('cancelling background todo agent generation');
 		// Abort the current generation and install a fresh one so the processor
 		// stays reusable for later turns (mirrors BackgroundSummarizer.cancel()).
@@ -183,9 +199,18 @@ export class BackgroundTodoAgentProcessor {
 		// endTurn() in agentIntent.ts. Queued tasks instead bail via their
 		// captured, now-cancelled token.
 		this.cts.cancel();
-		this.cts.dispose();
-		this.cts = new CancellationTokenSource();
+		// Assigning a new source disposes the previous (now-cancelled) one.
+		this._cts.value = new CancellationTokenSource();
 		this.currentTurnId = undefined;
+	}
+
+	override dispose(): void {
+		// Abort any in-flight/queued generation before tearing down so pending
+		// passes observe cancellation rather than running against disposed state.
+		// The queue, the session history store and the MutableDisposable holding
+		// the active source are all registered, so super.dispose() releases them.
+		this._cts.value?.cancel();
+		super.dispose();
 	}
 
 	private async doWork(turnId: string, toolInvocationToken: ChatParticipantToolToken, isFinal: boolean, token: CancellationToken) {
