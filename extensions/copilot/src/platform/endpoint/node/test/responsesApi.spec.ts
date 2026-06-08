@@ -19,6 +19,7 @@ import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
+import type { ThinkingData } from '../../../thinking/common/thinking';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
@@ -96,6 +97,17 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 			compaction,
 		}
 	}]
+});
+
+const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
+	role: Raw.ChatRole.Assistant,
+	content: [
+		{
+			type: Raw.ChatCompletionContentPartKind.Opaque,
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking },
+		},
+		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
+	],
 });
 
 type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
@@ -363,6 +375,38 @@ describe('createResponsesRequestBody', () => {
 				compact_threshold: 1234,
 			}]
 		})).toBe(1234);
+	});
+
+	it('round-trips a genuine Responses reasoning item (id begins with "rs")', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toContainEqual({ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' });
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops foreign thinking (Messages API "thinking_N" id) so it cannot 400 the Responses request', () => {
+		// Reproduces "400 invalid_request_body: Invalid 'input[N].id': 'thinking_0'. Expected an
+		// ID that begins with 'rs'." Anthropic Messages-API thinking leaks into a Responses
+		// request (e.g. via the vscode.lm path); its id and encrypted payload are foreign and
+		// must not be round-tripped.
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
 	});
 
 	it('converts PDF document content parts to Responses input_file', () => {

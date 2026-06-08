@@ -249,18 +249,31 @@ export namespace SessionType {
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Returns whether the given session type is a local agent host target.
+ */
+export function isLocalAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-');
+}
+
+/**
+ * Returns whether the given session type is a remote agent host target.
  *
  * Note: The `remote-` prefix convention is established by
  * `RemoteAgentHostContribution` which generates session types as
  * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
+export function isRemoteAgentHostTarget(target: string): boolean {
+	return target.startsWith('remote-');
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ */
 export function isAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
@@ -314,6 +327,14 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+
+	/**
+	 * Renames the session.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 * @returns A promise that resolves once the rename has been dispatched. The promise is rejected if renaming fails.
+	 */
+	renameSession?: (title: string, token: CancellationToken) => Promise<void>;
 }
 
 export interface IChatSessionContentProvider {
@@ -681,6 +702,19 @@ export interface IChatSessionsService {
 	 * @returns The forked session item, or undefined if forking failed.
 	 */
 	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
+
+	/**
+	 * Returns whether the loaded session supports renaming.
+	 */
+	sessionSupportsRename(sessionResource: URI): boolean;
+
+	/**
+	 * Renames a contributed chat session.
+	 * @param sessionResource The session resource to rename.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 */
+	renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void>;
 
 	readonly onDidChangeOptionGroups: Event<string>;
 

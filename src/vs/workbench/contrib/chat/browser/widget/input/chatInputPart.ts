@@ -107,7 +107,7 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -125,6 +125,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
@@ -138,6 +139,7 @@ import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUs
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
+import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 
 const $ = dom.$;
 
@@ -331,8 +333,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatPlanReviewContainer!: HTMLElement;
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
+	private chatGoalBannerContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
+	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
+	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
+	/** Fired when the user dismisses the autopilot goal banner. */
+	readonly onDidDismissGoalBanner: Event<void> = this._onDidDismissGoalBanner.event;
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
@@ -376,6 +383,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputEditor() {
 		return this._inputEditor;
+	}
+
+	setHistoryKey(historyKey: string | undefined): void {
+		this.history.setHistoryKey(historyKey);
 	}
 
 	readonly dnd: ChatDragAndDrop;
@@ -766,7 +777,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(autorun(reader => {
 			const modes = this._currentChatModesObservable.read(reader);
 			reader.store.add(modes.onDidChange(() => {
-				logChangesToStateModel(this._inputModel, `[MODES] _currentChatModesObservable.onDidChange -> validateCurrentChatMode in ${this._currentSessionKey}`, undefined, this._inputModel?.state.read(undefined), this.logService);
 				this.validateCurrentChatMode();
 			}));
 		}));
@@ -776,7 +786,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatModeNameKey.set(mode.name.read(r));
 			const models = mode.model?.read(r);
 			if (models) {
-				logChangesToStateModel(this._inputModel, `mode autorun forcing model via switchModelByQualifiedName (mode=${mode.id}, qualifiedNames=[${models.join(', ')}]) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 				this.switchModelByQualifiedName(models);
 			}
 		}));
@@ -1113,6 +1122,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._syncInputStateToModel();
 		}
 
+		this._currentSessionType = getChatSessionType(forSessionResource);
 		this._inputModel = model;
 		this._inputModelSessionResource = forSessionResource;
 		this._modelSyncDisposables.clear();
@@ -1143,6 +1153,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
+		// [AUTORUN-REG] Log the moment the model->view autorun is registered, so we can see
+		// whether widget.viewModel still points at the OUTGOING session at registration time
+		// (which would cause the very first run to be flagged stale and skipped).
+		const widgetViewModelSession = this._widget?.viewModel?.model.sessionResource;
+		const isStaleAtRegistration = !!widgetViewModelSession && !isEqual(widgetViewModelSession, forSessionResource);
+		logChangesToStateModel(this._inputModel, `[AUTORUN-REG] registering model->view autorun for ${forSessionResource.toString()}, widgetSession=${this._currentSessionKey}, widgetViewModelSession=${widgetViewModelSession?.toString()}, isStaleAtRegistration=${isStaleAtRegistration}, model.state.selectedModel=${model.state.get()?.selectedModel?.identifier}, _currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, undefined, undefined, this.logService);
+
 		// Observe changes from model and sync to view
 		this._modelSyncDisposables.add(autorun(reader => {
 			let state = model.state.read(reader);
@@ -1155,13 +1172,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// active session - indicates a late/stale model.state.read() landed for
 			// the outgoing session.
 			const widgetSessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (widgetSessionResource && !isEqual(widgetSessionResource, forSessionResource)) {
-				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource.toString()})`;
+			const isStaleSession =
+				!!this._inputModelSessionResource && !isEqual(this._inputModelSessionResource, forSessionResource);
+			if (isStaleSession) {
+				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource?.toString()}, ${this._inputModelSessionResource?.toString()}, ${forSessionResource.toString()} is old)`;
 			}
 			// Untracked read: we only want a snapshot for the log, not a dependency
 			// that would re-trigger this autorun.
 			const prevState = this._inputModel?.state.read(undefined);
 			logChangesToStateModel(this._inputModel, message, state, prevState, this.logService);
+
+			// A stale autorun must NOT write the outgoing session's model into the
+			// shared _currentLanguageModel — doing so overwrites the active session's
+			// selection (e.g. flips it to Auto). The active session has its own autorun
+			// that syncs the correct model.
+			if (isStaleSession) {
+				return;
+			}
 			this._syncFromModel(state, forSessionResource);
 		}));
 	}
@@ -1223,20 +1250,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state?.selectedModel) {
 				const allModels = this.getAllMergedModels();
 				const sessionType = getChatSessionType(forSessionResource);
-				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
+				const currentLm = this._currentLanguageModel.get();
+				const syncResult = resolveModelFromSyncState(state.selectedModel, currentLm, allModels, sessionType, {
 					location: this.location,
 					currentModeKind: this.currentModeKind,
 					sessionType,
 				});
+				// [RESOLVE] Log the inputs and decided action regardless of branch so we can confirm
+				// _syncFromModel actually ran for this session and what it decided.
+				logChangesToStateModel(this._inputModel, `[RESOLVE] _syncFromModel resolveModelFromSyncState for ${forSessionResource.toString()} in ${this._currentSessionKey}: stateModel=${state.selectedModel.identifier} currentLm=${currentLm?.identifier} sessionType=${sessionType} -> action=${syncResult.action}`, state, undefined, this.logService);
 				if (syncResult.action === 'apply') {
-					logChangesToStateModel(this._inputModel, `_syncFromModel: applying selected model from input state for ${forSessionResource.toString()} in ${this._currentSessionKey}`, state, undefined, this.logService);
 					this.setCurrentLanguageModel(state.selectedModel);
 				} else if (syncResult.action === 'default') {
-					logChangesToStateModel(this._inputModel, `_syncFromModel: state.selectedModel rejected by resolveModelFromSyncState, falling back to default for ${forSessionResource.toString()} in ${this._currentSessionKey} (rejected=${state.selectedModel.identifier}, sessionType=${sessionType}, currentModeKind=${this.currentModeKind})`, state, undefined, this.logService);
 					this.setCurrentLanguageModelToDefault();
-				} else {
-					// 'keep' - the existing _currentLanguageModel matches state.selectedModel.
-					logChangesToStateModel(this._inputModel, `_syncFromModel: keep (state.selectedModel matches current) for ${forSessionResource.toString()} in ${this._currentSessionKey}`, state, undefined, this.logService);
 				}
 			} else if (state) {
 				// state exists but state.selectedModel is undefined - sync is a NO-OP,
@@ -1638,12 +1664,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (!validMode) {
-			logChangesToStateModel(this._inputModel, `[VCM] validateCurrentChatMode: ${currentMode.id} not in modes set -> setChatMode(${isAgentModeEnabled ? 'Agent' : 'Ask'}) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
 			return;
 		}
 		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			logChangesToStateModel(this._inputModel, `[VCM] validateCurrentChatMode: Agent mode disabled by policy -> setChatMode(Ask) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
@@ -2220,13 +2244,43 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this._notificationWidget.value) {
 			// Fall back to `getCurrentSessionType()` so the session-type
 			// picker delegate is consulted before any real session exists
-			// (e.g. empty workspace + Copilot CLI [Local] selected). Without
+			// (e.g. empty workspace + Copilot CLI [Agent Host] selected). Without
 			// this fallback, `_currentSessionType` stays undefined until
 			// the user creates a session and `sessionTypes`-gated
 			// notifications never render.
 			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, () => this._currentSessionType ?? this.getCurrentSessionType());
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
+	}
+
+	/**
+	 * Lazy-instantiate the goal banner widget on first use.
+	 */
+	private ensureGoalBannerWidget(): ChatGoalBannerWidget {
+		if (!this._goalBannerWidget.value) {
+			// The `_goalBannerWidget` MutableDisposable owns and disposes the widget;
+			// do not also `_register` it here to avoid a double-dispose.
+			const widget = new ChatGoalBannerWidget();
+			this._register(widget.onDismiss(() => this._onDidDismissGoalBanner.fire()));
+			this._goalBannerWidget.value = widget;
+			this.chatGoalBannerContainer.appendChild(widget.domNode);
+		}
+		return this._goalBannerWidget.value;
+	}
+
+	/** Shows the autopilot goal banner with a loading state. */
+	showGoalBannerLoading(): void {
+		this.ensureGoalBannerWidget().setLoading();
+	}
+
+	/** Updates the goal banner with the given summary text. */
+	setGoalBanner(summary: string): void {
+		this.ensureGoalBannerWidget().setGoal(summary);
+	}
+
+	/** Hides the goal banner. */
+	clearGoalBanner(): void {
+		this._goalBannerWidget.value?.clear();
 	}
 
 	/**
@@ -2315,11 +2369,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// different model pools via targetChatSessionType).
 			const newSessionType = this.getCurrentSessionType();
 			if (e.currentSessionResource && this._currentSessionType && newSessionType !== this._currentSessionType) {
+				logChangesToStateModel(this._inputModel, `[CVVM].1 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
 				this.checkModeInSessionPool();
 				this._notificationWidget.value?.rerender();
+			} else if (e.currentSessionResource) {
+				logChangesToStateModel(this._inputModel, `[CVVM].2 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
+				this._currentSessionType = newSessionType;
 			}
 
 			// For contributed sessions with history, pre-select the model
@@ -2335,6 +2393,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 					dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
+					dom.h('.chat-goal-banner-container@chatGoalBannerContainer'),
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
@@ -2361,6 +2420,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 				dom.h('.interactive-input-followups@followupsContainer'),
 				dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
+				dom.h('.chat-goal-banner-container@chatGoalBannerContainer'),
 				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 				dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
@@ -2411,6 +2471,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
+		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 
 		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
@@ -2475,6 +2536,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
 		options.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
 		options.autoSurround = this.configurationService.getValue('editor.autoSurround');
+		options.quickSuggestions = false;
 		options.suggest = {
 			showIcons: true,
 			showSnippets: false,
@@ -2493,7 +2555,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(editorContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
@@ -2739,8 +2801,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			[OpenAgentHostModePickerAction.ID, 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostBranchPickerAction.ID, 22],
-			[OpenAgentHostIsolationPickerAction.ID, 22],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
@@ -2850,23 +2910,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
 						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
-						|| action.id === OpenAgentHostPermissionModePickerAction.ID
-						|| action.id === OpenAgentHostBranchPickerAction.ID
-						|| action.id === OpenAgentHostIsolationPickerAction.ID)
+						|| action.id === OpenAgentHostPermissionModePickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
 					if (this.options.isSessionsWindow) {
 						return new HiddenActionViewItem(action);
 					}
-					const property = action.id === OpenAgentHostBranchPickerAction.ID
-						? SessionConfigKey.Branch
-						: action.id === OpenAgentHostIsolationPickerAction.ID
-							? SessionConfigKey.Isolation
-							: action.id === OpenAgentHostAutoApprovePickerAction.ID
-								? SessionConfigKey.AutoApprove
-								: action.id === OpenAgentHostPermissionModePickerAction.ID
-									? ClaudeSessionConfigKey.PermissionMode
-									: SessionConfigKey.Mode;
+					const property = action.id === OpenAgentHostAutoApprovePickerAction.ID
+						? SessionConfigKey.AutoApprove
+						: action.id === OpenAgentHostPermissionModePickerAction.ID
+							? ClaudeSessionConfigKey.PermissionMode
+							: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
@@ -2898,7 +2952,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this._register(this.modelService.createModel('', null, this.inputUri, true));
+			inputModel = this._register(this.modelService.createModel('', null, this.inputUri, false));
 		}
 
 		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {
