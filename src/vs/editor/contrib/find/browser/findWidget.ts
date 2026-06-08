@@ -23,6 +23,7 @@ import * as platform from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import './findWidget.css';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { StickyScrollController } from '../../stickyScroll/browser/stickyScrollController.js';
 import { ConfigurationChangedEvent, EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from './findModel.js';
@@ -83,6 +84,8 @@ const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
 // let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
+
+const FIND_WIDGET_TOP_MARGIN = 4;
 
 const FIND_INPUT_AREA_HEIGHT = 33; // The height of Find Widget when Replace Input is not visible.
 
@@ -162,6 +165,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _resizeSash!: Sash;
 	private _resized!: boolean;
 	private readonly _updateHistoryDelayer: Delayer<void>;
+	private _stickyScrollInitialized: boolean = false;
+	private _stickyScrollHeight: number = 0;
 
 	constructor(
 		codeEditor: ICodeEditor,
@@ -241,6 +246,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				}
 			}
 		}));
+		this._initStickyScroll();
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._findFocusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._register(this._findFocusTracker.onDidFocus(() => {
@@ -526,6 +532,27 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 	}
 
+	private _initStickyScroll(): void {
+		const controller = StickyScrollController.get(this._codeEditor);
+		if (!controller) {
+			return;
+		}
+		this._stickyScrollInitialized = true;
+		this._stickyScrollHeight = controller.stickyScrollWidgetHeight;
+		this._register(controller.onDidChangeStickyScrollHeight(({ height }) => {
+			this._stickyScrollHeight = height;
+			this._updateStickyScrollOffset();
+		}));
+	}
+
+	private _updateStickyScrollOffset(): void {
+		if (this._stickyScrollHeight > 0) {
+			this._domNode.style.marginTop = `${this._stickyScrollHeight + FIND_WIDGET_TOP_MARGIN}px`;
+		} else {
+			this._domNode.style.marginTop = '';
+		}
+	}
+
 	private _updateButtons(): void {
 		this._findInput.setEnabled(this._isVisible);
 		this._replaceInput.setEnabled(this._isVisible && this._isReplaceVisible);
@@ -578,6 +605,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 			this._tryUpdateWidgetWidth();
 			this._updateButtons();
+
+			if (!this._stickyScrollInitialized) {
+				this._initStickyScroll();
+			}
+			this._updateStickyScrollOffset();
 
 			this._revealTimeouts.push(setTimeout(() => {
 				this._domNode.classList.add('visible');
