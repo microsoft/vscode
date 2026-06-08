@@ -233,7 +233,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 			menu: [{
 				id: Menus.GoMenu,
 				group: '2_list_nav',
-				order: 1,
+				order: 2,
 			}]
 		});
 	}
