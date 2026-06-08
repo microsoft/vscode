@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { $ } from '../../../../browser/dom.js';
 import { ContextView, ContextViewDOMPosition, IDelegate } from '../../../../browser/ui/contextview/contextview.js';
-import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ContextView', () => {
@@ -19,11 +18,15 @@ suite('ContextView', () => {
 		let disposeCount = 0;
 		const delegate: IDelegate = {
 			getAnchor: () => ({ x: 0, y: 0 }),
-			render: () => toDisposable(() => {
-				disposeCount++;
-				// Simulate a re-entrant hide() call (e.g. via a blur event fired
-				// while removing the rendered DOM node from the document).
-				contextView.hide();
+			render: () => ({
+				dispose: () => {
+					disposeCount++;
+					if (disposeCount === 1) {
+						// Simulate a re-entrant hide() call (e.g. via a blur event
+						// fired while removing the rendered DOM node from the document).
+						contextView.hide();
+					}
+				}
 			})
 		};
 
