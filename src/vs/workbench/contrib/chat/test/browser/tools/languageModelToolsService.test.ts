@@ -27,7 +27,7 @@ import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, Too
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, IToolSet, ToolDataSource, ToolSet, IToolResultTextPart } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -1109,7 +1109,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(toolSet.addTool(toolSetTool1));
 		store.add(toolSet.addTool(toolSetTool2));
 
-		const selection = new Map([
+		const selection = new Map<IToolData | IToolSet, boolean>([
 			[toolSet, true],
 			[toolSetTool1, true],
 			[toolSetTool2, false],

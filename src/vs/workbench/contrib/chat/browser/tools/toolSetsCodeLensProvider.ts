@@ -43,7 +43,9 @@ class ToolSetsCodeLensProvider extends Disposable implements CodeLensProvider {
 		this._register(this.languageFeaturesService.codeLensProvider.register({ language: 'jsonc' }, this));
 
 		this._register(CommandsRegistry.registerCommand(this.cmdId, (_accessor, ...args) => {
-			const [modelArg, rangeArg, toolsArg] = args;
+			const modelArg = args[0];
+			const rangeArg = args[1];
+			const toolsArg = args[2];
 			if (isITextModel(modelArg) && Range.isIRange(rangeArg) && Array.isArray(toolsArg) && toolsArg.every(isString)) {
 				return this.updateTools(modelArg, Range.lift(rangeArg), toolsArg);
 			}
