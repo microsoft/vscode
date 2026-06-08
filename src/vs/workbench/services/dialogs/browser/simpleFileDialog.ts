@@ -914,6 +914,11 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 					resolve(false);
 				}
 				this.filePickBox.show();
+				// The quick pick UI's list is shared between quick picks, so showing the
+				// yes/no prompt above replaced the items in the underlying list. Re-assign
+				// the items so they are rendered again when the file picker is shown.
+				const currentItems = this.filePickBox.items;
+				this.filePickBox.items = currentItems;
 				this.hidden = false;
 				disposableStore.dispose();
 			}));
