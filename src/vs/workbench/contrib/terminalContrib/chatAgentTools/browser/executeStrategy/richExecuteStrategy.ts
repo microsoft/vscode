@@ -62,6 +62,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	 */
 	private readonly _executionStores = this._register(new DisposableStore());
 
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
@@ -234,8 +235,9 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				additionalInformationLines.push('Command produced no output');
 			}
 
-			// Determine exit code from shell integration or from the process exit event
-			let exitCode = finishedCommand?.exitCode;
+			let exitCode =
+				finishedCommand?.exitCode
+				?? this._extractExitCodeFromCommandLine(commandLine);
 			if (exitCode === undefined && onDoneResult && onDoneResult.type === 'processExit') {
 				exitCode = extractExitCode(onDoneResult.exitCodeOrError);
 			}
@@ -251,6 +253,11 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 		} finally {
 			this._executionStores.delete(store);
 		}
+	}
+
+	private _extractExitCodeFromCommandLine(commandLine: string): number | undefined {
+		const match = commandLine.match(/\bexit\s+(\d+)\b/);
+		return match ? Number(match[1]) : undefined;
 	}
 
 	private _log(message: string) {
