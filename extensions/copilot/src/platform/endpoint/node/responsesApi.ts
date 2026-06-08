@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isHiddenModelM } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -163,10 +163,13 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
-	if (effort || summary) {
+	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
+		&& isHiddenModelM(endpoint);
+	if (effort || summary || persistentCoTEnabled) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
-			...(summary ? { summary } : {})
+			...(summary ? { summary } : {}),
+			...(persistentCoTEnabled ? { context: 'all_turns' } : {})
 		};
 	}
 
@@ -567,11 +570,27 @@ function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPa
 	}
 }
 
+/**
+ * The Responses API rejects the entire request with
+ * `400 invalid_request_body: Invalid 'input[N].id': '...'. Expected an ID that begins with 'rs'.`
+ * when a reasoning item is round-tripped with an id it did not issue. Reasoning items
+ * produced by the Responses API always carry an id beginning with `rs`. Thinking blocks
+ * that originated from a different API (e.g. the Anthropic Messages API, whose accumulator
+ * generates `thinking_<index>` ids) can leak into a Responses request — most notably via the
+ * `vscode.lm` access path, which has no model gate — and their `encrypted_content` is not a
+ * valid Responses reasoning blob anyway. Such foreign reasoning items must be dropped, not sent.
+ */
+function isResponsesReasoningId(id: string | undefined): boolean {
+	return typeof id === 'string' && id.startsWith('rs');
+}
+
 function extractThinkingData(content: Raw.ChatCompletionContentPart[]): OpenAI.Responses.ResponseReasoningItem[] {
 	return coalesce(content.map(part => {
 		if (part.type === Raw.ChatCompletionContentPartKind.Opaque) {
 			const thinkingData = rawPartAsThinkingData(part);
-			if (thinkingData) {
+			// Only round-trip genuine Responses API reasoning items. A foreign id (or a thinking
+			// block with no encrypted payload) would otherwise 400 the whole request.
+			if (thinkingData && thinkingData.encrypted && isResponsesReasoningId(thinkingData.id)) {
 				return {
 					type: 'reasoning',
 					id: thinkingData.id,
