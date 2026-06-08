@@ -343,6 +343,43 @@ suite('ChatModel', () => {
 		assert.strictEqual(exported.requests.length, 1);
 		assert.deepStrictEqual(exported.requests[0].modeInfo, modeInfo);
 	});
+
+	test('usage roundtrips through serialization', async () => {
+		const serializableData: ISerializableChatData3 = {
+			version: 3,
+			sessionId: 'test-usage-session',
+			creationDate: Date.now(),
+			customTitle: undefined,
+			initialLocation: ChatAgentLocation.Chat,
+			responderUsername: 'bot',
+			requests: [{
+				requestId: 'req1',
+				message: { text: 'hello', parts: [] },
+				variableData: { variables: [] },
+				response: [{ value: 'Here is my response', isTrusted: false }],
+				modelState: { value: 1 /* ResponseModelState.Complete */, completedAt: Date.now() },
+				completionTokens: 42,
+				promptTokens: 100,
+			}],
+		};
+
+		const model = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serializableData, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		const usage = requests[0].response?.usage;
+		assert.deepStrictEqual(usage, { kind: 'usage', promptTokens: 100, completionTokens: 42 });
+
+		// Verify roundtrip through toExport
+		const exported = model.toExport();
+		assert.strictEqual(exported.requests.length, 1);
+		assert.strictEqual(exported.requests[0].completionTokens, 42);
+		assert.strictEqual(exported.requests[0].promptTokens, 100);
+	});
 });
 
 suite('Response', () => {
