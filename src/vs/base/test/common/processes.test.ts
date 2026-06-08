@@ -24,6 +24,30 @@ suite('Processes', () => {
 			assert.strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=4096');
 		});
 
+		test('removes dangerous NODE_OPTIONS flags whose value is a separate token', () => {
+			const env = { NODE_OPTIONS: '--max-old-space-size=4096 --require ./evil.js --stack-size=984' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=4096 --stack-size=984');
+		});
+
+		test('removes a dangerous flag with a quoted value containing spaces', () => {
+			const env = { NODE_OPTIONS: '--require "./a evil.js" --max-old-space-size=4096' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=4096');
+		});
+
+		test('removes --eval and -e code execution flags', () => {
+			const env = { NODE_OPTIONS: '--max-old-space-size=4096 -e "process.exit(1)"' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=4096');
+		});
+
+		test('preserves and re-quotes a safe value containing spaces', () => {
+			const env = { NODE_OPTIONS: '--title="My App" --inspect=9229' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], '"--title=My App"');
+		});
+
 		test('removes NODE_OPTIONS entirely when only dangerous flags remain', () => {
 			const env = { NODE_OPTIONS: '--require=./evil.js --inspect' };
 			processes.removeDangerousEnvVariables(env);
@@ -38,18 +62,33 @@ suite('Processes', () => {
 
 		test('removes all known dangerous NODE_OPTIONS flags', () => {
 			const cases: [string, string | undefined][] = [
+				// `--flag=value` form
 				['--require=./mod.js', undefined],
 				['-r=./mod.js', undefined],
 				['--loader=./hook.js', undefined],
 				['--experimental-loader=./hook.js', undefined],
 				['--import=./mod.js', undefined],
+				['--eval=1', undefined],
+				['-e=1', undefined],
 				['--inspect', undefined],
 				['--inspect=9229', undefined],
 				['--inspect-brk', undefined],
 				['--inspect-brk=9229', undefined],
 				['--inspect-port=9229', undefined],
+				['--inspect-publish-uid=http', undefined],
+				['--inspect-wait', undefined],
 				['--debug', undefined],
 				['--debug-brk', undefined],
+				// `--flag value` (separate token) form
+				['--require ./mod.js', undefined],
+				['-r ./mod.js', undefined],
+				['--loader ./hook.js', undefined],
+				['--experimental-loader ./hook.js', undefined],
+				['--import ./mod.js', undefined],
+				['--inspect 9229', undefined],
+				['--eval "code()"', undefined],
+				['-e "code()"', undefined],
+				// Safe flags are preserved
 				['--max-old-space-size=4096', '--max-old-space-size=4096'],
 			];
 			for (const [input, expected] of cases) {
