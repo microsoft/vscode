@@ -49,7 +49,7 @@ export interface IActionListItemHover {
 	/**
 	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString | HTMLElement;
+	readonly content?: string | IMarkdownString | HTMLElement;
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
