@@ -32,6 +32,66 @@ export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
 export function registerChatTitleActions() {
+	registerAction2(class PinChatSegmentAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.pinSegment',
+				title: localize2('chat.pinSegment.label', "Pin Context"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.pin,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.isPinned.negate())
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+			const chatService = accessor.get(IChatService);
+			const session = chatService.getSession(item.sessionResource);
+			if (session && 'pinSegment' in session) {
+				(session as any).pinSegment(item.id);
+			}
+		}
+	});
+
+	registerAction2(class UnpinChatSegmentAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.unpinSegment',
+				title: localize2('chat.unpinSegment.label', "Unpin Context"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.pinned,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.isResponse, ChatContextKeys.isPinned)
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+			const chatService = accessor.get(IChatService);
+			const session = chatService.getSession(item.sessionResource);
+			if (session && 'unpinSegment' in session) {
+				(session as any).unpinSegment(item.id);
+			}
+		}
+	});
+
 	registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({

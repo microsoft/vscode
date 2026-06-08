@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { RequestStore } from '../common/requestStore.js';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution, PosixShellType, ITerminalLaunchResult } from '../common/terminal.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution, PosixShellType, ITerminalLaunchResult, ITerminalDaemonService } from '../common/terminal.js';
 import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
@@ -97,7 +97,7 @@ let Unicode11Addon: typeof XtermUnicode11Addon;
 export class PtyService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _ptys: Map<number, PersistentTerminalProcess> = new Map();
+	private readonly _ptys: Map<number, PersistentTerminalProcess | DaemonTerminalProcess> = new Map();
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string; instanceId: number }>;
 	private readonly _revivedPtyIdMap: Map<string, { newId: number; state: ISerializedTerminalState }> = new Map();
@@ -159,7 +159,8 @@ export class PtyService extends Disposable implements IPtyService {
 		private readonly _logService: ILogService,
 		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants,
-		private readonly _simulatedLatency: number
+		private readonly _simulatedLatency: number,
+		@ITerminalDaemonService private readonly _terminalDaemonService: ITerminalDaemonService
 	) {
 		super();
 
@@ -284,6 +285,10 @@ export class PtyService extends Disposable implements IPtyService {
 		const newId = await this.createProcess(
 			{
 				...terminal.shellLaunchConfig,
+				attachPersistentProcess: terminal.processDetails.daemonId ? {
+					...terminal.shellLaunchConfig.attachPersistentProcess,
+					daemonId: terminal.processDetails.daemonId
+				} : terminal.shellLaunchConfig.attachPersistentProcess,
 				cwd: terminal.processDetails.cwd,
 				color: terminal.processDetails.color,
 				icon: terminal.processDetails.icon,
@@ -330,6 +335,32 @@ export class PtyService extends Disposable implements IPtyService {
 		isReviving?: boolean,
 		rawReviveBuffer?: string
 	): Promise<number> {
+		if (shellLaunchConfig.persistentDaemon) {
+			let daemonId: number;
+			if (shellLaunchConfig.attachPersistentProcess?.daemonId) {
+				daemonId = Number.parseInt(shellLaunchConfig.attachPersistentProcess.daemonId);
+				this._logService.info(`Re-attaching to persistent process via daemon: ${daemonId}`);
+			} else {
+				this._logService.info(`Creating persistent process via daemon`);
+				daemonId = await this._terminalDaemonService.createProcess(shellLaunchConfig, cwd, cols, rows, unicodeVersion, env, options);
+			}
+
+			const id = ++this._lastPtyId;
+			const daemonProcess = new DaemonTerminalProcess(id, daemonId, shellLaunchConfig, workspaceId, workspaceName, { env, executableEnv, options }, unicodeVersion, this._terminalDaemonService, this._logService);
+			this._ptys.set(id, daemonProcess);
+
+			daemonProcess.onProcessData(event => this._onProcessData.fire({ id, event }));
+			daemonProcess.onProcessExit(event => {
+				this._ptys.delete(id);
+				this._onProcessExit.fire({ id, event });
+				daemonProcess.dispose();
+			});
+			daemonProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
+			daemonProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
+
+			return id;
+		}
+
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
@@ -635,12 +666,12 @@ export class PtyService extends Disposable implements IPtyService {
 		return `${workspaceId}-${ptyId}`;
 	}
 
-	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
+	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess | DaemonTerminalProcess, wasRevived: boolean = false): Promise<IProcessDetails> {
 		performance.mark(`code/willBuildProcessDetails/${id}`);
 		// If the process was just revived, don't do the orphan check as it will
 		// take some time
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), wasRevived ? true : persistentProcess.isOrphaned()]);
-		const result = {
+		const result: IProcessDetails = {
 			id,
 			title: persistentProcess.title,
 			titleSource: persistentProcess.titleSource,
@@ -659,20 +690,179 @@ export class PtyService extends Disposable implements IPtyService {
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
 			type: persistentProcess.shellLaunchConfig.type,
 			hasChildProcesses: persistentProcess.hasChildProcesses,
-			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce,
-			tabActions: persistentProcess.shellLaunchConfig.tabActions
+			shellIntegrationNonce: persistentProcess.processLaunchOptions?.options?.shellIntegration?.nonce ?? '',
+			tabActions: persistentProcess.shellLaunchConfig.tabActions,
+			daemonId: persistentProcess instanceof DaemonTerminalProcess ? persistentProcess.daemonId : undefined
 		};
 		performance.mark(`code/didBuildProcessDetails/${id}`);
 		return result;
 	}
 
-	private _throwIfNoPty(id: number): PersistentTerminalProcess {
+	private _throwIfNoPty(id: number): PersistentTerminalProcess | DaemonTerminalProcess {
 		const pty = this._ptys.get(id);
 		if (!pty) {
 			throw new ErrorNoTelemetry(`Could not find pty ${id} on pty host`);
 		}
 		return pty;
 	}
+}
+
+class DaemonTerminalProcess extends Disposable {
+	private readonly _onProcessData = this._register(new Emitter<string>());
+	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessReplay = this._register(new Emitter<IPtyHostProcessReplayEvent>());
+	readonly onProcessReplay = this._onProcessReplay.event;
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	readonly onProcessReady = this._onProcessReady.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
+	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+	private readonly _onPersistentProcessReady = this._register(new Emitter<void>());
+	readonly onPersistentProcessReady = this._onPersistentProcessReady.event;
+	private readonly _onProcessReplayComplete = this._register(new Emitter<void>());
+	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
+
+	private _pid: number = -1;
+	private _title: string = '';
+	private _icon?: TerminalIcon;
+	private _color?: string;
+
+	get pid(): number { return this._pid; }
+	get title(): string { return this._title; }
+	get titleSource(): TitleEventSource { return TitleEventSource.Process; }
+	get icon(): TerminalIcon | undefined { return this._icon; }
+	get color(): string | undefined { return this._color; }
+	get hasWrittenData(): boolean { return true; }
+	get shouldPersistTerminal(): boolean { return true; }
+
+	get daemonId(): string { return this._daemonId.toString(); }
+
+	constructor(
+		private readonly _id: number,
+		private readonly _daemonId: number,
+		readonly shellLaunchConfig: IShellLaunchConfig,
+		readonly workspaceId: string,
+		readonly workspaceName: string,
+		readonly processLaunchOptions: IPersistentTerminalProcessLaunchConfig,
+		public unicodeVersion: '6' | '11',
+		private readonly _terminalDaemonService: ITerminalDaemonService,
+		private readonly _logService: ILogService
+	) {
+		super();
+		this._register(this._terminalDaemonService.onDidProcessData(e => {
+			if (e.id === this._daemonId) {
+				this._onProcessData.fire(e.data);
+			}
+		}));
+		this._register(this._terminalDaemonService.onDidProcessExit(e => {
+			if (e.id === this._daemonId) {
+				this._onProcessExit.fire(e.exitCode);
+			}
+		}));
+	}
+
+	async start(): Promise<ITerminalLaunchResult | undefined> {
+		await this._terminalDaemonService.attachToProcess(this._daemonId);
+		const details = (await this._terminalDaemonService.listProcesses()).find(p => p.id === this._daemonId);
+		if (details) {
+			this._pid = details.pid;
+			this._title = details.title;
+			this._icon = details.icon;
+			this._color = details.color;
+		}
+		this._onProcessReady.fire({ pid: this._pid, cwd: '', windowsPty: undefined });
+		this._onPersistentProcessReady.fire();
+		return { injectedArgs: [] };
+	}
+
+	input(data: string): void {
+		this._terminalDaemonService.input(this._daemonId, data);
+	}
+
+	resize(cols: number, rows: number): void {
+		this._terminalDaemonService.resize(this._daemonId, cols, rows);
+	}
+
+	shutdown(immediate: boolean): void {
+		this._terminalDaemonService.shutdown(this._daemonId, immediate);
+	}
+
+	async attach(): Promise<void> {
+		await this._terminalDaemonService.attachToProcess(this._daemonId);
+		const buffer = await this._terminalDaemonService.getSerializeBuffer(this._daemonId);
+		this._onProcessReplay.fire({
+			events: [{ cols: 0, rows: 0, data: buffer }],
+			firstInstance: true
+		});
+		this._onProcessReplayComplete.fire();
+	}
+
+	async detach(forcePersist?: boolean): Promise<void> {
+		await this._terminalDaemonService.detachFromProcess(this._daemonId);
+	}
+
+	setTitle(title: string, titleSource: TitleEventSource): void {
+		this._title = title;
+		this._terminalDaemonService.updateProperty(this._daemonId, ProcessPropertyType.Title, title);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: title });
+	}
+
+	setIcon(userInitiated: boolean, icon: TerminalIcon, color: string | undefined): void {
+		this._icon = icon;
+		this._color = color;
+		this._terminalDaemonService.updateProperty(this._daemonId, ProcessPropertyType.Icon, icon);
+		this._terminalDaemonService.updateProperty(this._daemonId, ProcessPropertyType.Color, color);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Icon, value: icon });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Color, value: color });
+	}
+
+	clearBuffer(): void {
+		this._terminalDaemonService.clearBuffer(this._daemonId);
+	}
+
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
+		return this._terminalDaemonService.getProperty(this._daemonId, type);
+	}
+
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+		return this._terminalDaemonService.updateProperty(this._daemonId, type, value);
+	}
+
+	// Stubs to satisfy PersistentTerminalProcess-compatible calls in PtyService
+	get workspaceId(): string { return this._workspaceId; }
+	get workspaceName(): string { return this._workspaceName; }
+	get fixedDimensions(): undefined { return undefined; }
+	get hasChildProcesses(): boolean {
+		// This should ideally be synced via events, but for now we'll return a cached value or fetch it
+		return true; // Default to true for persistent processes to avoid premature cleanup
+	}
+
+	async getCwd(): Promise<string> {
+		return this._terminalDaemonService.getProperty(this._daemonId, ProcessPropertyType.Cwd);
+	}
+
+	async isOrphaned(): Promise<boolean> {
+		return false;
+	}
+
+	orphanQuestionReply(): void { }
+
+	reduceGraceTime(): void { }
+
+	async serializeNormalBuffer(): Promise<IPtyHostProcessReplayEvent> {
+		const data = await this._terminalDaemonService.getSerializeBuffer(this._daemonId);
+		return {
+			events: [{ cols: 0, rows: 0, data }],
+			firstInstance: true
+		};
+	}
+
+	get unicodeVersion(): '6' | '11' { return '11'; }
+
+	readonly onProcessReplayComplete: Event<void> = this._onProcessReplayComplete.event;
 }
 
 const enum InteractionState {
@@ -712,6 +902,8 @@ class PersistentTerminalProcess extends Disposable {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+
+	readonly daemonId: string | undefined = undefined;
 
 	private _inReplay = false;
 

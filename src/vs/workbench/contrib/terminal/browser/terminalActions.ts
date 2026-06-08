@@ -1761,3 +1761,38 @@ function toOptionalUri(obj: unknown): URI | undefined {
 function toOptionalString(obj: unknown): string | undefined {
 	return isString(obj) ? obj : undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Stateful Terminal Continuity (STC) - Create a persistent-daemon terminal
+// ---------------------------------------------------------------------------
+registerAction2(class NewStatefulTerminalAction extends Action2 {
+	constructor() {
+		super({
+			id: TerminalCommandId.NewStateful,
+			title: localize2('workbench.action.terminal.newStateful', 'Create Stateful Terminal (STC)'),
+			f1: true,
+			category,
+			icon: Codicon.terminal,
+			menu: {
+				id: MenuId.TerminalTabsWidgetEmptyContext,
+				group: 'create',
+				order: 10,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const instance = await terminalService.createTerminal({
+			config: {
+				// The persistentDaemon flag instructs PtyService to hand off
+				// PTY ownership to the TerminalDaemon process, enabling full
+				// lifecycle continuity across window reloads and crashes.
+				persistentDaemon: true,
+			},
+			location: TerminalLocation.Panel,
+		});
+		terminalService.setActiveInstance(instance);
+		await terminalService.revealActiveTerminal();
+	}
+});
