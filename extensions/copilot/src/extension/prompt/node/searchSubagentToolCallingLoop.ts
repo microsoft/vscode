@@ -110,9 +110,17 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		if (modelName) {
 			try {
 				// Try to get the specified model
-				return await this.endpointProvider.getChatEndpoint(modelName);
+				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
+				if (endpoint.supportsToolCalls) {
+					return endpoint;
+				}
+				// Model does not support tool calls, fallback to main agent endpoint.
+				// The search subagent is a tool-calling loop, and the endpoint would
+				// otherwise strip its search tools from the request body.
+				this._logService.warn(`Model ${modelName} does not support tool calls, falling back to main agent endpoint`);
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			} catch (error) {
-				// Model not available or doesn't support tool calls, fallback to main agent
+				// Model not available, fallback to main agent
 				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
