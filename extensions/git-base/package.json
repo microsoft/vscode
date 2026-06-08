@@ -82,6 +82,10 @@
           ".gitignore",
           ".git-blame-ignore-revs"
         ],
+        "filenamePatterns": [
+          "**/.git/info/exclude"
+        ],
+        "firstLine": "^# git ls-files --others --exclude-from=\\.git/info/exclude$",
         "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
