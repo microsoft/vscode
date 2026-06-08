@@ -68,7 +68,7 @@
 	}
 
 	.chat-tool-carousel-collapsed-title {
-		font-weight: 500;
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		font-size: var(--vscode-chat-font-size-body-s);
 		white-space: nowrap;
 		color: var(--vscode-foreground);

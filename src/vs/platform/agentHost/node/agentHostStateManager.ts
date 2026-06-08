@@ -141,6 +141,10 @@ export class AgentHostStateManager extends Disposable {
 		return [...this._sessionStates.keys()];
 	}
 
+	getAnnouncedSessionSummaries(): SessionSummary[] {
+		return [...this._lastNotifiedSummaries.values()];
+	}
+
 	/**
 	 * Returns all session URIs whose keys start with the given prefix.
 	 * Used to discover subagent sessions for a given parent.

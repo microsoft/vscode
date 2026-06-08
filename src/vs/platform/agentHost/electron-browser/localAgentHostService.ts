@@ -199,7 +199,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._proxy.listSessions();
 	}
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		return this._proxy.createSession(config);
+		const promise = this._proxy.createSession(config);
+		// When the caller pre-specifies the session URI, a subscribe for
+		// that URI can race the in-flight create. Register the promise so
+		// `AgentSubscriptionManager.getSubscription` gates the wire-level
+		// subscribe on it (avoids transient `AHP_SESSION_NOT_FOUND`).
+		// When the server assigns the URI, no caller can subscribe to it
+		// ahead of `await createSession()`, so there's no race to track.
+		if (config?.session) {
+			this._subscriptionManager.trackSessionCreate(config.session, promise);
+		}
+		return promise;
 	}
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._proxy.resolveSessionConfig(params);

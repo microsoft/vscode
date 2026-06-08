@@ -99,7 +99,7 @@ export class MobilePermissionPicker extends PermissionPicker {
 				return;
 			}
 			if (id === LEARN_MORE_ID) {
-				await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+				await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				return;
 			}
 			await this._selectLevel(id as ChatPermissionLevel);

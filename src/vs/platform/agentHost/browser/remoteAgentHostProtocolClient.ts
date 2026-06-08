@@ -740,7 +740,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		await this._sendRequest('createSession', {
+		const inflight = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
 			model: config?.model,
@@ -748,6 +748,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			config: config?.config,
 			activeClient: config?.activeClient,
 		});
+		this._subscriptionManager.trackSessionCreate(session, inflight);
+		await inflight;
 		return session;
 	}
 

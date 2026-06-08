@@ -77,8 +77,8 @@ describe('isBackgroundTodoAgentEnabled', () => {
 
 	// CAPI endpoints carry a `RequestMetadata` object; BYOK/custom endpoints are
 	// fetched from a literal URL string.
-	const capiEndpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions } } as unknown as IChatEndpoint;
-	const byokEndpoint = { urlOrRequestMetadata: 'https://api.example.com/v1/chat' } as unknown as IChatEndpoint;
+	const capiEndpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions }, modelProvider: '' } as unknown as IChatEndpoint;
+	const byokEndpoint = { urlOrRequestMetadata: 'https://api.example.com/v1/chat', modelProvider: '' } as unknown as IChatEndpoint;
 
 	const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
 	const freeToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'free_limited_copilot' }));
@@ -198,7 +198,7 @@ describe('getAgentTools background todo enablement', () => {
 	});
 });
 
-// ─── _maybeStartBackgroundTodoPass subagent guard ────────────────
+// ─── _maybeStartBackgroundTodoAgentPass subagent guard ───────────
 
 // The method is private and lives on a heavyweight class that requires many
 // injected services to construct. To keep these tests focused on the guard's
@@ -206,25 +206,28 @@ describe('getAgentTools background todo enablement', () => {
 // that supplies only the fields the guard touches. TypeScript's `private`
 // modifier is compile-time only, so the method is reachable at runtime.
 
-describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', () => {
+describe('AgentIntentInvocation._maybeStartBackgroundTodoAgentPass subagent guard', () => {
 
 	function getMethod(): (this: unknown, endpoint: unknown, promptContext: unknown, token: unknown) => void {
-		return (AgentIntentInvocation.prototype as unknown as { _maybeStartBackgroundTodoPass: (this: unknown, endpoint: unknown, promptContext: unknown, token: unknown) => void })._maybeStartBackgroundTodoPass;
+		return (AgentIntentInvocation.prototype as unknown as { _maybeStartBackgroundTodoAgentPass: (this: unknown, endpoint: unknown, promptContext: unknown, token: unknown) => void })._maybeStartBackgroundTodoAgentPass;
 	}
 
-	// The guard short-circuits on `request.subAgentInvocationId` before the
-	// endpoint is inspected, so a placeholder endpoint suffices for these tests.
-	const endpoint = {} as unknown as IChatEndpoint;
+	// The helper now evaluates background-todo eligibility first, so these tests
+	// provide a CAPI endpoint + paid auth + experiment enabled baseline and then
+	// vary only the subagent fields to validate the guard behavior.
+	const endpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions } } as unknown as IChatEndpoint;
+	const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
 
 	function makeStub(request: TestChatRequest, processorLookup: () => unknown) {
 		return {
 			request,
-			_getOrCreateBackgroundTodoProcessor: processorLookup,
-			configurationService: { getExperimentBasedConfig: () => false },
+			_getOrCreateBackgroundTodoAgentProcessor: processorLookup,
+			configurationService: { getExperimentBasedConfig: () => true },
 			expService: {},
 			instantiationService: {},
 			toolsService: {},
 			telemetryService: {},
+			authenticationService: { copilotToken: paidToken },
 			logService: { debug: () => { } },
 		};
 	}
@@ -258,7 +261,7 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', (
 		expect(processorLookups).toBe(1);
 	});
 
-	test('treats an empty-string subAgentInvocationId as not-a-subagent', () => {
+	test('treats an empty-string subAgentInvocationId as a subagent request', () => {
 		let processorLookups = 0;
 		const request = new TestChatRequest('do work');
 		(request as unknown as { subAgentInvocationId: string }).subAgentInvocationId = '';
@@ -270,6 +273,6 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoPass subagent guard', (
 
 		getMethod().call(stub, endpoint, { conversation: { sessionId: 'sess-1' } }, {});
 
-		expect(processorLookups).toBe(1);
+		expect(processorLookups).toBe(0);
 	});
 });
