@@ -605,6 +605,44 @@ export class QuickDiffEditorController extends Disposable implements IEditorCont
 		this.session = Disposable.None;
 	}
 
+	showAtLine(lineNumber?: number): void {
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
+		const line = typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber;
+		const editorModel = this.editor.getModel();
+
+		if (!editorModel) {
+			return;
+		}
+
+		const modelRef = this.quickDiffModelService.createQuickDiffModelReference(editorModel.uri);
+
+		if (!modelRef) {
+			return;
+		}
+
+		try {
+			const index = modelRef.object.changes
+				.findIndex(change => lineIntersectsChange(line, change.change));
+
+			if (index < 0) {
+				return;
+			}
+
+			if (!this.assertWidget()) {
+				return;
+			}
+
+			if (this.widget) {
+				this.widget.showChange(index);
+			}
+		} finally {
+			modelRef.dispose();
+		}
+	}
+
 	private assertWidget(): boolean {
 		if (!this.enabled) {
 			return false;
@@ -970,6 +1008,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		controller.toggleFocus();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'editor.action.dirtydiff.showAtLine',
+	weight: KeybindingWeight.EditorContrib,
+	primary: 0,
+	when: EditorContextKeys.editorTextFocus,
+	handler: (accessor: ServicesAccessor) => {
+		const outerEditor = getOuterEditorFromDiffEditor(accessor);
+		if (!outerEditor) {
+			return;
+		}
+
+		const controller = QuickDiffEditorController.get(outerEditor);
+		if (!controller) {
+			return;
+		}
+
+		controller.showAtLine();
 	}
 });
 
