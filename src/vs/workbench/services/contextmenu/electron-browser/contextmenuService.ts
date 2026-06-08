@@ -11,7 +11,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { unmnemonicLabel } from '../../../../base/common/labels.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
+import { getContextMenuTriggerElement, IContextMenuDelegate, IContextMenuEvent } from '../../../../base/browser/contextmenu.js';
 import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { IContextMenuItem } from '../../../../base/parts/contextmenu/common/contextmenu.js';
 import { popup } from '../../../../base/parts/contextmenu/electron-browser/contextmenu.js';
@@ -26,6 +26,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 
 export class ContextMenuService implements IContextMenuService {
@@ -46,11 +47,12 @@ export class ContextMenuService implements IContextMenuService {
 		@IContextViewService contextViewService: IContextViewService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILayoutService layoutService: ILayoutService,
 	) {
 		function createContextMenuService(native: boolean) {
 			return native ?
 				new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService)
-				: new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
+				: new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService, layoutService);
 		}
 
 		// set initial context menu service
@@ -205,7 +207,11 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				y = Math.floor(y * zoom);
 			}
 
-			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
+			// Anchor the popup to the trigger's window so the menu opens over
+			// the originating window (e.g. a non-focused auxiliary window).
+			const targetWindowId = dom.getWindow(getContextMenuTriggerElement(delegate)).vscodeWindowId;
+
+			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, targetWindowId }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}
