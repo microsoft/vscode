@@ -26,6 +26,10 @@ import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { IOpenerService } from '../../opener/common/opener.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { IManagedHover } from '../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../hover/browser/hover.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -133,6 +137,7 @@ interface IActionMenuTemplateData {
 	readonly toolbar: HTMLElement;
 	readonly submenuIndicator: HTMLElement;
 	readonly elementDisposables: DisposableStore;
+	readonly managedHover?: IManagedHover;
 	previousClassName?: string;
 }
 
@@ -208,6 +213,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		private readonly _groupTitleByIndex: ReadonlyMap<number, string>,
 		private readonly _linkHandler: ((uri: URI, item: IActionListItem<T>) => void) | undefined,
 		private readonly _hideDefaultKeybindingTooltip: boolean,
+		private readonly _managedHoverService: IHoverService | undefined,
+		private readonly _managedHoverDelegate: IHoverDelegate | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -251,7 +258,15 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const elementDisposables = new DisposableStore();
 
-		return { container, icon, text, detail, badge, description, groupTitle, keybinding, toolbar, submenuIndicator, elementDisposables };
+		// When a hover delegate is configured, route item tooltips through a
+		// themed VS Code hover (positioned to the side) rather than the native
+		// `title` attribute. The managed hover lives for the template lifetime
+		// and is updated per element in `renderElement`.
+		const managedHover = this._managedHoverService && this._managedHoverDelegate
+			? this._managedHoverService.setupManagedHover(this._managedHoverDelegate, container, '')
+			: undefined;
+
+		return { container, icon, text, detail, badge, description, groupTitle, keybinding, toolbar, submenuIndicator, elementDisposables, managedHover };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
@@ -354,23 +369,28 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', !!element.disabled);
+		let resolvedTitle = '';
 		if (element.hover !== undefined) {
 			// Don't show tooltip when hover content is configured - the rich hover will show instead
-			data.container.title = '';
+			resolvedTitle = '';
 		} else if (element.tooltip) {
-			data.container.title = element.tooltip;
+			resolvedTitle = element.tooltip;
 		} else if (element.disabled) {
-			data.container.title = element.label;
+			resolvedTitle = element.label ?? '';
 		} else if (this._hideDefaultKeybindingTooltip) {
-			data.container.title = '';
+			resolvedTitle = '';
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
-				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
+				resolvedTitle = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
 			} else {
-				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
+				resolvedTitle = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to Apply"'] }, "{0} to Apply", actionTitle);
 			}
-		} else {
+		}
+		if (data.managedHover) {
 			data.container.title = '';
+			data.managedHover.update(resolvedTitle);
+		} else {
+			data.container.title = resolvedTitle;
 		}
 
 		// Clear and render toolbar actions
@@ -418,6 +438,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
 		templateData.keybinding.dispose();
 		templateData.elementDisposables.dispose();
+		templateData.managedHover?.dispose();
 	}
 }
 
@@ -528,6 +549,28 @@ export interface IActionListOptions {
 	 * Optional text shown below the action list as a footer.
 	 */
 	readonly footerText?: string;
+
+	/**
+	 * Optional info banner shown at the very top of the widget (above the filter
+	 * and list). When set, an info icon and this text are rendered. A dismiss
+	 * button is added only when {@link onBannerDismiss} is also provided.
+	 */
+	readonly bannerText?: string;
+
+	/**
+	 * Invoked when the user dismisses the {@link bannerText} banner. Providing
+	 * this also makes the banner dismissable (renders the close button); omit it
+	 * for a persistent, non-dismissable banner. Callers can persist this so the
+	 * banner stays hidden the next time the widget opens.
+	 */
+	readonly onBannerDismiss?: () => void;
+
+	/**
+	 * When set, item tooltips render as themed VS Code hovers positioned at this
+	 * side of the row (via the hover service) instead of native `title`
+	 * tooltips. Callers that leave this undefined keep native tooltips.
+	 */
+	readonly managedHoverPosition?: HoverPosition;
 }
 
 /**
@@ -563,6 +606,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private readonly _footerContainer: HTMLElement | undefined;
+	private _bannerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -583,6 +627,7 @@ export class ActionListWidget<T> extends Disposable {
 		protected readonly _options: IActionListOptions | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -632,8 +677,23 @@ export class ActionListWidget<T> extends Disposable {
 		const reserveSubmenuSpace = this._options?.reserveSubmenuSpace ?? true;
 		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
 
+		// Opt-in themed hovers: when a position is configured, route item
+		// tooltips through a side-positioned VS Code hover instead of native
+		// `title` tooltips. Other callers keep native tooltips untouched.
+		let managedHoverService: IHoverService | undefined;
+		let managedHoverDelegate: IHoverDelegate | undefined;
+		if (this._options?.managedHoverPosition !== undefined) {
+			managedHoverService = this._hoverService;
+			managedHoverDelegate = this._register(this._instantiationService.createInstance(
+				WorkbenchHoverDelegate,
+				'element',
+				undefined,
+				{ position: { hoverPosition: this._options.managedHoverPosition } }
+			));
+		}
+
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._groupTitleByIndex, this._options?.linkHandler, this._options?.hideDefaultKeybindingTooltip ?? false, managedHoverService, managedHoverDelegate, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -729,6 +789,40 @@ export class ActionListWidget<T> extends Disposable {
 			this._footerContainer = document.createElement('div');
 			this._footerContainer.className = 'action-list-footer';
 			this._footerContainer.textContent = this._options.footerText;
+		}
+
+		// Create info banner (rendered at the top of the widget). A dismiss
+		// button is only shown when an {@link onBannerDismiss} handler is provided.
+		if (this._options?.bannerText) {
+			const banner = this._bannerContainer = document.createElement('div');
+			banner.className = 'action-list-banner';
+			const icon = dom.append(banner, dom.$('span'));
+			icon.className = `action-list-banner-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+			dom.append(banner, dom.$('span.action-list-banner-text', undefined, this._options.bannerText));
+			const onDismiss = this._options.onBannerDismiss;
+			if (onDismiss) {
+				const close = dom.append(banner, dom.$('span'));
+				close.className = `action-list-banner-close ${ThemeIcon.asClassName(Codicon.close)}`;
+				close.setAttribute('role', 'button');
+				close.tabIndex = 0;
+				close.setAttribute('aria-label', localize('actionList.banner.dismiss', "Dismiss"));
+				const dismiss = () => {
+					onDismiss();
+					this._bannerContainer?.remove();
+					this._bannerContainer = undefined;
+					this._onDidRequestLayout.fire();
+				};
+				this._register(dom.addDisposableListener(close, dom.EventType.CLICK, e => {
+					dom.EventHelper.stop(e, true);
+					dismiss();
+				}));
+				this._register(dom.addDisposableListener(close, dom.EventType.KEY_DOWN, e => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						dom.EventHelper.stop(e, true);
+						dismiss();
+					}
+				}));
+			}
 		}
 
 		this._applyFilter();
@@ -979,6 +1073,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	get footerContainer(): HTMLElement | undefined {
 		return this._footerContainer;
+	}
+
+	get bannerContainer(): HTMLElement | undefined {
+		return this._bannerContainer;
 	}
 
 	get filterInput(): HTMLInputElement | undefined {
@@ -1766,6 +1864,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.footerContainer;
 	}
 
+	get bannerContainer(): HTMLElement | undefined {
+		return this._widget.bannerContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -1871,7 +1973,8 @@ export class ActionList<T> extends Disposable {
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
-		const chromeHeight = filterHeight + footerHeight;
+		const bannerHeight = this._widget.bannerContainer ? 52 : 0;
+		const chromeHeight = filterHeight + footerHeight + bannerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 

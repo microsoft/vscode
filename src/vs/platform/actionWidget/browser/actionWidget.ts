@@ -123,6 +123,9 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		this._list.value = list;
 		if (this._list.value) {
+			if (this._list.value.bannerContainer) {
+				widget.appendChild(this._list.value.bannerContainer);
+			}
 			if (this._list.value.filterContainer) {
 				widget.appendChild(this._list.value.filterContainer);
 			}
