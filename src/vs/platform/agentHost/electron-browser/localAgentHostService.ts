@@ -18,7 +18,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled } from '../common/agentService.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
-import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -247,12 +247,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._subscriptionManager.rootState;
 	}
 
-	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
-		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, resource, owner);
 	}
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
 	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
