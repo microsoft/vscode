@@ -8,6 +8,7 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IMenu, IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -54,6 +55,7 @@ import { ILanguageModelsService } from '../../../../contrib/chat/common/language
 import { ChatAgentService, IChatAgent, IChatAgentNameService, IChatAgentService } from '../../../../contrib/chat/common/participants/chatAgents.js';
 import { MockChatService } from '../../../../contrib/chat/test/common/chatService/mockChatService.js';
 import { ILanguageModelToolsService } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { IChatToolRiskAssessmentService } from '../../../../contrib/chat/browser/tools/chatToolRiskAssessmentService.js';
@@ -116,6 +118,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IMenuService, FixtureMenuService);
 	reg.define(IMarkdownRendererService, MarkdownRendererService);
 	reg.define(IListService, ListService);
+	reg.defineInstance(IMarkerService, new class extends mock<IMarkerService>() {
+		override onMarkerChanged = Event.None;
+		override changeOne() { }
+		override changeAll() { }
+		override remove() { }
+		override read() { return []; }
+	}());
 
 	reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
@@ -181,6 +190,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatModeService, new MockChatModeService());
 	reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override onDidChangeModelVisibility = Event.None; override getLanguageModelIds() { return []; } override getVendors() { return []; } override hasResolvedVendor() { return false; } }());
 	reg.defineInstance(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { override onDidChangeTools = Event.None; override onDidPrepareToolCallBecomeUnresponsive = Event.None; override getTools() { return []; } }());
+	reg.defineInstance(ILanguageModelToolsConfirmationService, new class extends mock<ILanguageModelToolsConfirmationService>() {
+		override getPreConfirmAction() { return undefined; }
+		override getPostConfirmAction() { return undefined; }
+		override getPreConfirmActions() { return []; }
+		override getPostConfirmActions() { return []; }
+		override toolCanManageConfirmation() { return false; }
+	}());
 	reg.defineInstance(IChatToolRiskAssessmentService, new class extends mock<IChatToolRiskAssessmentService>() {
 		override isEnabled() { return false; }
 		override getCached() { return undefined; }
