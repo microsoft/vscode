@@ -7,6 +7,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { McpGatewayToolBrokerChannelName } from '../../../../platform/mcp/common/mcpGateway.js';
+import { IInternalMcpServerRegistry } from '../common/internalMcpServerRegistry.js';
 import { IMcpService } from '../common/mcpTypes.js';
 import { McpGatewayToolBrokerChannel } from '../common/mcpGatewayToolBrokerChannel.js';
 
@@ -14,8 +15,9 @@ export class McpGatewayToolBrokerContribution implements IWorkbenchContribution 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IMcpService mcpService: IMcpService,
+		@IInternalMcpServerRegistry internalMcpServerRegistry: IInternalMcpServerRegistry,
 		@ILogService logService: ILogService,
 	) {
-		mainProcessService.registerChannel(McpGatewayToolBrokerChannelName, new McpGatewayToolBrokerChannel(mcpService, logService));
+		mainProcessService.registerChannel(McpGatewayToolBrokerChannelName, new McpGatewayToolBrokerChannel(mcpService, logService, undefined, internalMcpServerRegistry));
 	}
 }
