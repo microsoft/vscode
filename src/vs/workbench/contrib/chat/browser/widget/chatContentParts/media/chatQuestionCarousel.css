@@ -179,7 +179,7 @@
 .interactive-session .chat-question-carousel-container .chat-question-input-container {
 	display: flex;
 	flex-direction: column;
-	padding: 8px 8px 8px 16px;
+	padding: 8px 16px;
 	min-width: 0;
 
 	&::after {
