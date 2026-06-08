@@ -466,6 +466,14 @@ function getRemoteControlArgs(input: CopilotCLISessionInput): string {
 	return prompt;
 }
 
+function isRemoteControlPrompt(input: CopilotCLISessionInput): boolean {
+	if ('command' in input) {
+		return input.command === 'remote';
+	}
+	const prompt = stripReminders(input.prompt).trim().toLowerCase();
+	return prompt === '/remote' || prompt.startsWith('/remote ');
+}
+
 const enum QrMaskPattern {
 	Pattern0 = 0,
 	Pattern1 = 1,
@@ -1770,7 +1778,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const prompt = getPromptLabel(input);
 		this._logRequest(prompt, this._lastUsedModel || '', attachments, logStartTime);
 
-		if ('command' in input && input.command !== 'plan') {
+		if (isRemoteControlPrompt(input)) {
+			await this._handleRemoteControl('command' in input ? input : { command: 'remote', prompt: input.prompt });
+		} else if ('command' in input && input.command !== 'plan') {
 			switch (input.command) {
 				case 'compact': {
 					this._stream?.progress(l10n.t('Compacting conversation...'));

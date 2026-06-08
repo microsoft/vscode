@@ -1289,7 +1289,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 	}
 
 	private readonly contextForRequest = new Map<string, {
-		prompt: string; attachments: Attachment[]; model?: {
+		prompt: string; attachments: Attachment[]; command?: CopilotCLICommand; model?: {
 			model: string;
 			reasoningEffort?: string | undefined;
 		};
@@ -1581,8 +1581,9 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
 			} else if (contextForRequest) {
 				// This is a request that was created in createCLISessionAndSubmitRequest with attachments already resolved.
-				const { prompt, attachments } = contextForRequest;
-				await session.object.handleRequest(request, { prompt }, attachments, model, authInfo, token);
+				const { prompt, attachments, command } = contextForRequest;
+				const input = command ? { command, prompt } : { prompt };
+				await session.object.handleRequest(request, input, attachments, model, authInfo, token);
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			} else if (isCopilotCLICommand && (!isUntitled || request.command === 'remote')) {
 				const { prompt, attachments } = request.prompt
@@ -2132,7 +2133,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			void this.workspaceFolderService.trackSessionWorkspaceFolder(session.object.sessionId, workingDirectory.fsPath, workspaceInfo.repositoryProperties);
 		}
 
-		this.contextForRequest.set(session.object.sessionId, { prompt, attachments, model });
+		const command = request.command && (copilotCLICommands as readonly string[]).includes(request.command) ? request.command as CopilotCLICommand : undefined;
+		this.contextForRequest.set(session.object.sessionId, { prompt, attachments, model, command });
 		this.sessionItemProvider.notifySessionsChange();
 		// TODO @DonJayamanne I don't think we need to refresh the list of session here just yet, or perhaps we do,
 		// Same as getOrCreate session, we need a dummy title or the initial prompt to show in the sessions list.
