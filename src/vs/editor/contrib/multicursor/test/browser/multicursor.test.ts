@@ -532,7 +532,7 @@ suite('Multicursor selection', () => {
 		});
 	});
 
-
+	suite('Find state disassociation', () => {
 
 		const text = [
 			'app',
