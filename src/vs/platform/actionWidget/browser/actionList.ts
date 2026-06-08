@@ -597,7 +597,10 @@ export class ActionListWidget<T> extends Disposable {
 			this.domNode.classList.add('inline-description');
 		}
 		if (this._options?.className) {
-			this.domNode.classList.add(this._options.className);
+			const classNames = this._options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				this.domNode.classList.add(...classNames);
+			}
 		}
 		this._actionLineHeight = 24;
 
