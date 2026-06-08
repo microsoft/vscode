@@ -803,6 +803,43 @@ suite('SnippetsService', function () {
 		model.dispose();
 	});
 
+	test('Brackets Snippet deleting chars #235515', async function () {
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		disposables.add(languageConfigurationService.register('fooLang', {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			]
+		}));
+
+		snippetService = new SimpleSnippetService([new Snippet(
+			false,
+			['fooLang'],
+			'Brackets',
+			'()',
+			'',
+			'()',
+			'',
+			SnippetSource.User,
+			generateUuid()
+		)]);
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, languageConfigurationService);
+
+		// Cursor is between `(` and `)` with extra char after closing bracket.
+		// The replace range must cover `()` only — not also eat the `!`.
+		const model = instantiateTextModel(instantiationService, '()!!', 'fooLang');
+		const result = await provider.provideCompletionItems(model, new Position(1, 2), defaultCompletionContext)!;
+
+		assert.strictEqual(result.suggestions.length, 1);
+		const [first] = result.suggestions;
+		assert.strictEqual((first.range as CompletionItemRanges).insert.endColumn, 2);
+		assert.strictEqual((first.range as CompletionItemRanges).replace.endColumn, 3);
+
+		model.dispose();
+	});
+
 	test('Leading whitespace in snippet prefix #123860', async function () {
 
 		snippetService = new SimpleSnippetService([new Snippet(
