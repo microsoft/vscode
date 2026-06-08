@@ -320,6 +320,7 @@
 	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes",
 	"extensionsAutoInstallUrl": "https://tscode-gateway.paasuat.cmbchina.cn/auto-install-extensions",
 	"extensionsAutoInstall": [
-		"test-tech.test-task-manager"
+		"test-tech.test-task-manager",
+		"test-tech.testcase-select"
 	]
 }
