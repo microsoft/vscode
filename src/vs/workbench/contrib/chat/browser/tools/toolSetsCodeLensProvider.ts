@@ -11,6 +11,7 @@ import { isString } from '../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 import { CodeLens, CodeLensList, CodeLensProvider } from '../../../../../editor/common/languages.js';
 import { isITextModel, ITextModel } from '../../../../../editor/common/model.js';
@@ -43,7 +44,7 @@ class ToolSetsCodeLensProvider extends Disposable implements CodeLensProvider {
 		this._register(this.languageFeaturesService.codeLensProvider.register({ language: 'jsonc' }, this));
 
 		this._register(CommandsRegistry.registerCommand(this.cmdId, (_accessor, ...args) => {
-			const modelArg = args[0];
+			const modelArg = args[0] as IEditorModel;
 			const rangeArg = args[1];
 			const toolsArg = args[2];
 			if (isITextModel(modelArg) && Range.isIRange(rangeArg) && Array.isArray(toolsArg) && toolsArg.every(isString)) {
