@@ -109,13 +109,13 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 				TurnState::Cancelled => Styles::warning().apply_to("⊘"),
 				TurnState::Error => Styles::error().apply_to("✗"),
 			};
-			let msg = truncate(&turn.user_message.text, 80);
+			let msg = truncate(&turn.message.text, 80);
 			println!("    {} {}", state_str, Styles::muted().apply_to(msg));
 		}
 
 		// Print active turn if any.
 		if let Some(ref active) = session.active_turn {
-			let msg = truncate(&active.user_message.text, 80);
+			let msg = truncate(&active.message.text, 80);
 			println!("    {} {}", Style::new().green().bold().apply_to("►"), msg);
 		}
 	}
