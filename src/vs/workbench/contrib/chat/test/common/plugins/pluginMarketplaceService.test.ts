@@ -24,6 +24,7 @@ import { IExtensionsWorkbenchService } from '../../../../extensions/common/exten
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IExtraMarketplaceObjectEntry, parseMarketplaceObjectEntry } from '../../../common/plugins/marketplaceReference.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
 suite('PluginMarketplaceService', () => {
@@ -1021,5 +1022,60 @@ suite('getPluginSourceLabel', () => {
 
 	test('formats pip source with version', () => {
 		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin', version: '2.0' }), 'my-plugin==2.0');
+	});
+});
+
+suite('parseMarketplaceObjectEntry', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Object-form marketplace entries arrive from two sources with the SAME shape:
+	// the enterprise `managed_settings` policy and workspace `settings.json`
+	// (`.github/copilot/` and `.claude/`). Both the nested (`source: { source, repo }`)
+	// and flat (`source, repo`) forms are accepted.
+
+	test('parses the nested github form', () => {
+		const ref = parseMarketplaceObjectEntry({ source: { source: 'github', repo: 'acme/skills' } });
+		assert.strictEqual(ref?.kind, MarketplaceReferenceKind.GitHubShorthand);
+		assert.strictEqual(ref?.githubRepo, 'acme/skills');
+	});
+
+	test('parses the flat github form identically to the nested form', () => {
+		const nested = parseMarketplaceObjectEntry({ source: { source: 'github', repo: 'acme/skills' } });
+		const flat = parseMarketplaceObjectEntry({ source: 'github', repo: 'acme/skills' });
+		assert.strictEqual(flat?.canonicalId, nested?.canonicalId);
+	});
+
+	test('parses the nested and flat git forms to the same reference', () => {
+		const nested = parseMarketplaceObjectEntry({ source: { source: 'git', url: 'https://git.acme.com/skills.git' } });
+		const flat = parseMarketplaceObjectEntry({ source: 'git', url: 'https://git.acme.com/skills.git' });
+		assert.strictEqual(nested?.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(flat?.canonicalId, nested?.canonicalId);
+	});
+
+	test('uses a non-empty `name` as the displayLabel (so `plugin@<name>` keys resolve)', () => {
+		const ref = parseMarketplaceObjectEntry({ name: 'acme-skills', source: { source: 'github', repo: 'acme/skills' } });
+		assert.strictEqual(ref?.displayLabel, 'acme-skills');
+	});
+
+	test('ignores an empty `name`, keeping the parsed default displayLabel', () => {
+		const ref = parseMarketplaceObjectEntry({ name: '', source: { source: 'github', repo: 'acme/skills' } });
+		assert.strictEqual(ref?.displayLabel, 'acme/skills');
+	});
+
+	test('appends `ref` as a #fragment', () => {
+		const ref = parseMarketplaceObjectEntry({ source: { source: 'github', repo: 'acme/skills', ref: 'main' } });
+		assert.strictEqual(ref?.ref, 'main');
+	});
+
+	test('`ref` replaces an existing #fragment on the source value', () => {
+		const ref = parseMarketplaceObjectEntry({ source: { source: 'git', url: 'https://git.acme.com/skills.git#old', ref: 'new' } });
+		assert.strictEqual(ref?.ref, 'new');
+	});
+
+	test('returns undefined for incomplete or unknown sources', () => {
+		assert.strictEqual(parseMarketplaceObjectEntry({ source: { source: 'github' } }), undefined, 'github without repo');
+		assert.strictEqual(parseMarketplaceObjectEntry({ source: { source: 'git' } }), undefined, 'git without url');
+		assert.strictEqual(parseMarketplaceObjectEntry({ source: 'unknown' } as IExtraMarketplaceObjectEntry), undefined, 'unknown source type');
+		assert.strictEqual(parseMarketplaceObjectEntry({}), undefined, 'no source at all');
 	});
 });

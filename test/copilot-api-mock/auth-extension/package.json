@@ -1,0 +1,28 @@
+{
+	"name": "copilot-api-mock-auth",
+	"displayName": "Copilot API Mock Auth",
+	"description": "Mock GitHub auth provider for validating enterprise-managed plugins against Code OSS",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"extensionKind": ["ui", "workspace"],
+	"main": "./extension.js",
+	"browser": "./extension.js",
+	"activationEvents": ["*"],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"authentication": [
+			{
+				"id": "github",
+				"label": "GitHub (Mock)"
+			}
+		]
+	}
+}

@@ -1,0 +1,442 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+
+	Policy Inspector — a local-first inspector for the Copilot ENTERPRISE policy
+	pipeline (managed_settings → IPolicyData → locked chat.plugins.*), inspired by
+	ahp-inspector. Zero-dependency vanilla JS; a pure CLIENT of the copilot-api-mock
+	control-plane API.
+
+	The PRIMARY input is the editable managed_settings payload (the real
+	.github/copilot/settings.json artifact). Delivery conditions (gate, HTTP
+	status) are an orthogonal axis. Examples are starting points, not the model.
+	"Policy" here means Copilot enterprise policy — NOT OS Group Policy / MDM.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Policy Inspector</title>
+	<style>
+		:root {
+			--bg: #1e1e1e;
+			--panel: #252526;
+			--panel-2: #2d2d30;
+			--border: #3c3c3c;
+			--fg: #d4d4d4;
+			--muted: #858585;
+			--accent: #0e639c;
+			--accent-fg: #ffffff;
+			--ok: #4ec9b0;
+			--warn: #d7ba7d;
+			--err: #f48771;
+			--chip: #333337;
+			--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+			background: var(--bg);
+			color: var(--fg);
+			font-size: 13px;
+		}
+
+		header {
+			display: flex;
+			align-items: center;
+			gap: 12px;
+			padding: 9px 16px;
+			border-bottom: 1px solid var(--border);
+			background: var(--panel);
+		}
+		header h1 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: 0.02em; }
+		header .sub { color: var(--muted); font-size: 11px; }
+		.subnote { color: var(--muted); font-size: 11px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+		header .spacer { flex: 1; }
+		header .meta { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+
+		.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; background: var(--err); flex: none; }
+		.dot.ok { background: var(--ok); }
+
+		main { display: grid; grid-template-columns: 210px minmax(420px, 1fr) minmax(360px, 460px); height: calc(100vh - 41px); }
+		.col { min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+		.col + .col { border-left: 1px solid var(--border); }
+
+		h2.section {
+			font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
+			margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 600;
+			display: flex; align-items: center; gap: 8px;
+		}
+
+		/* --- left rail: examples + conditions --- */
+		.rail { overflow-y: auto; }
+		.rail-group { border-bottom: 1px solid var(--border); padding: 6px; }
+		.example {
+			padding: 7px 9px; border-radius: 4px; cursor: pointer; margin-bottom: 2px; border: 1px solid transparent;
+		}
+		.example:hover { background: var(--panel-2); }
+		.example .name { font-family: var(--mono); font-weight: 600; font-size: 12px; }
+		.example .desc { color: var(--muted); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+
+		.cond { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 12px; }
+		.cond label { color: var(--muted); flex: 1; }
+		.cond select, .cond input[type="checkbox"] { accent-color: var(--accent); }
+		.cond select { background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; padding: 2px 6px; font-family: var(--mono); font-size: 12px; }
+		.cond.note { color: var(--muted); font-size: 11px; line-height: 1.4; display: block; padding: 2px 4px 4px; }
+
+		/* --- center: editor + adapted + timeline --- */
+		.editor-wrap { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); }
+		.editor {
+			width: 100%; min-height: 150px; resize: vertical; border: none; outline: none;
+			background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 12px; line-height: 1.5;
+			padding: 10px 12px; tab-size: 2;
+		}
+		.editor-status { padding: 5px 12px; font-size: 11px; font-family: var(--mono); border-top: 1px solid var(--border); color: var(--muted); display: flex; align-items: center; gap: 8px; }
+		.editor-status.ok { color: var(--ok); }
+		.editor-status.err { color: var(--err); }
+
+		.policy { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+		.policy .stats { display: flex; flex-wrap: wrap; gap: 6px; }
+		.stat { background: var(--chip); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; }
+		.stat .k { color: var(--muted); }
+		.stat .v { font-family: var(--mono); font-weight: 600; }
+		.stat.on .v { color: var(--ok); }
+		.stat.off .v { color: var(--muted); }
+		.stat.warn .v { color: var(--warn); }
+		.policy .map { margin-top: 8px; color: var(--muted); font-size: 11px; line-height: 1.6; font-family: var(--mono); }
+		.policy .map code { color: var(--fg); }
+		.policy .hint { color: var(--warn); font-size: 11px; margin-top: 6px; }
+
+		.filters { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+		.chip {
+			background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 999px;
+			padding: 2px 9px; cursor: pointer; font-size: 11px; font-family: var(--mono);
+		}
+		.chip:hover { color: var(--fg); }
+		.chip.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+		.filters input { margin-left: auto; background: var(--bg); border: 1px solid var(--border); color: var(--fg); border-radius: 4px; padding: 3px 8px; font-size: 12px; min-width: 110px; font-family: var(--mono); }
+		.sep { color: var(--border); }
+
+		.timeline { overflow-y: auto; flex: 1; }
+		.row {
+			display: grid; grid-template-columns: 74px 116px 44px 56px 1fr; gap: 8px; align-items: center;
+			padding: 5px 12px; border-bottom: 1px solid #2a2a2a; cursor: pointer; font-family: var(--mono); font-size: 12px;
+		}
+		.row:hover { background: var(--panel-2); }
+		.row.active { background: #094771; }
+		.row .ep { color: var(--fg); }
+		.row .st-2 { color: var(--ok); }
+		.row .st-4, .row .st-5 { color: var(--err); }
+		.row .lat, .row .time, .row .auth { color: var(--muted); }
+		.row .auth.yes { color: var(--ok); }
+		.row .warnpip { color: var(--warn); }
+
+		/* --- right: detail --- */
+		.detail { overflow-y: auto; flex: 1; }
+		.detail .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); }
+		.detail .meta-grid .k { color: var(--muted); }
+		.detail .meta-grid .v { font-family: var(--mono); word-break: break-all; }
+		.tabs { display: flex; gap: 4px; padding: 8px 12px 0; }
+		.tab { background: transparent; border: 1px solid var(--border); border-bottom: none; color: var(--muted); padding: 3px 10px; cursor: pointer; border-radius: 4px 4px 0 0; font-size: 11px; }
+		.tab.active { background: var(--panel-2); color: var(--fg); }
+		.subhead { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 12px 12px 4px; font-weight: 600; }
+		pre.json { margin: 0; padding: 10px 12px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+		pre.json.warn-text { color: var(--warn); }
+		.warns { padding: 0 12px 12px; }
+		.warns .w { color: var(--warn); font-size: 11px; font-family: var(--mono); line-height: 1.6; }
+
+		.empty { color: var(--muted); padding: 16px 12px; line-height: 1.6; }
+		.empty code { color: var(--fg); background: var(--chip); padding: 1px 5px; border-radius: 3px; }
+		.btn { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; cursor: pointer; font-size: 11px; }
+		.btn:hover { color: var(--fg); }
+		.right { margin-left: auto; }
+	</style>
+</head>
+
+<body>
+	<header>
+		<span class="dot" id="health-dot"></span>
+		<h1>Policy Inspector</h1>
+		<span class="sub">Copilot enterprise policy · edit settings.json → IPolicyData → chat.plugins.*</span>
+		<span class="spacer"></span>
+		<span class="meta" id="base-url"></span>
+	</header>
+
+	<main>
+		<!-- left: examples (presets) + delivery conditions -->
+		<div class="col rail">
+			<h2 class="section">Examples <span class="subnote">load a starting point</span></h2>
+			<div class="rail-group" id="example-list"></div>
+			<h2 class="section">Delivery conditions</h2>
+			<div class="rail-group" id="conditions"></div>
+		</div>
+
+		<!-- center: editor (the star) → adapted → timeline -->
+		<div class="col">
+			<h2 class="section">managed_settings <span class="subnote">·  .github/copilot/settings.json (editable)</span></h2>
+			<div class="editor-wrap">
+				<textarea class="editor" id="editor" aria-label="managed_settings JSON editor" spellcheck="false" autocorrect="off"></textarea>
+				<div class="editor-status" id="editor-status">—</div>
+			</div>
+			<div class="policy" id="policy-card"></div>
+			<div class="filters" id="filters"></div>
+			<div class="timeline" id="timeline">
+				<div class="empty">No policy fetches yet. Point Code OSS at this server (<code>npm run apply-overrides</code>) and launch it; the fetches Code OSS makes land here.</div>
+			</div>
+		</div>
+
+		<!-- right: detail -->
+		<div class="col">
+			<h2 class="section">Fetch detail <button class="btn right" id="copy-btn" hidden>copy response</button></h2>
+			<div class="detail" id="detail"><div class="empty">Edit the payload on the left to see the adapted policy live, or select a fetch in the timeline to inspect its request, response, and adapted policy.</div></div>
+		</div>
+	</main>
+
+	<script>
+		const $ = sel => document.querySelector(sel);
+		const EP_LABEL = { user: 'entitlements', token: 'token', mcp_registry: 'mcp registry', managed_settings: 'managed settings' };
+
+		const state = {
+			examples: [],
+			conditions: { chatEnabled: true, managedSettingsStatus: 200, retryAfterSeconds: 3 },
+			log: [], byId: new Map(), selectedId: null,
+			filterEp: 'all', filterStatus: 'all', q: '', detailTab: 'pretty',
+			editorDirty: false,
+		};
+
+		async function getJSON(url, opts) { const r = await fetch(url, opts); return r.json(); }
+		function postJSON(url, obj) { return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }); }
+		function escapeHtml(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+		async function refreshHeader() {
+			try { const h = await getJSON('/__health'); $('#health-dot').classList.toggle('ok', !!h.ok); $('#base-url').textContent = `http://localhost:${h.port}`; }
+			catch { $('#health-dot').classList.remove('ok'); }
+		}
+
+		// --- examples (presets) ---
+		async function loadExamples() {
+			state.examples = await getJSON('/__examples');
+			const host = $('#example-list');
+			host.innerHTML = '';
+			for (const ex of state.examples) {
+				const el = document.createElement('div');
+				el.className = 'example';
+				el.innerHTML = `<div class="name">${escapeHtml(ex.name)}</div>${ex.description ? `<div class="desc">${escapeHtml(ex.description)}</div>` : ''}`;
+				el.onclick = () => loadPreset(ex.name);
+				host.appendChild(el);
+			}
+		}
+		async function loadPreset(name) {
+			const res = await getJSON(`/__example/${encodeURIComponent(name)}`);
+			setEditor(JSON.stringify(res.settings, null, 2));
+			await applyEditor();   // push to the server
+		}
+
+		// --- the editable settings.json (primary input) ---
+		function setEditor(text) { $('#editor').value = text; state.editorDirty = false; }
+		function setStatus(kind, text) { const el = $('#editor-status'); el.className = 'editor-status ' + kind; el.textContent = text; }
+
+		async function applyEditor() {
+			const text = $('#editor').value;
+			let parsed;
+			try { parsed = JSON.parse(text || '{}'); }
+			catch (e) { setStatus('err', 'invalid JSON: ' + e.message); return; }
+			if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) { setStatus('err', 'managed_settings must be a JSON object'); return; }
+			const res = await postJSON('/__settings', parsed);
+			if (!res.ok) { const b = await res.json().catch(() => ({})); setStatus('err', b.error || ('HTTP ' + res.status)); return; }
+			state.editorDirty = false;
+			setStatus('ok', 'applied — Code OSS now serves this on its next managed_settings fetch');
+			await refreshPolicyCard();
+		}
+
+		let editTimer;
+		function onEditorInput() {
+			state.editorDirty = true;
+			setStatus('', 'editing…');
+			clearTimeout(editTimer);
+			editTimer = setTimeout(applyEditor, 400);
+		}
+
+		// --- delivery conditions (orthogonal axis) ---
+		function renderConditions() {
+			const c = state.conditions;
+			const host = $('#conditions');
+			host.innerHTML = `
+				<div class="cond">
+					<label for="cond-gate">chat_enabled (gate)</label>
+					<input type="checkbox" id="cond-gate" ${c.chatEnabled ? 'checked' : ''} />
+				</div>
+				<div class="cond">
+					<label for="cond-status">managed_settings status</label>
+					<select id="cond-status">
+						<option value="200" ${c.managedSettingsStatus === 200 ? 'selected' : ''}>200 OK</option>
+						<option value="429" ${c.managedSettingsStatus === 429 ? 'selected' : ''}>429 Rate limited</option>
+						<option value="500" ${c.managedSettingsStatus === 500 ? 'selected' : ''}>500 Server error</option>
+					</select>
+				</div>
+				<div class="cond note">A non-2xx managed_settings status makes core fall back to local-only policy — the payload above is fetched but not applied.</div>`;
+			$('#cond-gate').onchange = e => setCondition({ chatEnabled: e.target.checked });
+			$('#cond-status').onchange = e => setCondition({ managedSettingsStatus: Number(e.target.value) });
+		}
+		async function setCondition(patch) {
+			const res = await postJSON('/__conditions', patch);
+			if (res.ok) { state.conditions = (await res.json()).conditions; renderConditions(); }
+		}
+
+		// --- effective policy card ---
+		// DESIGN INVARIANT — auto-tracks core; never hardcode policy keys. One chip
+		// per key in the adapted IPolicyData (produced by core's real adapter), so a
+		// new managed-settings key appears here automatically.
+		function describePolicyValue(value) {
+			if (Array.isArray(value)) { return { text: String(value.length), on: value.length > 0 }; }
+			if (value && typeof value === 'object') {
+				const vals = Object.values(value); const keys = Object.keys(value).length;
+				if (vals.length && vals.every(v => typeof v === 'boolean')) { const allow = vals.filter(v => v === true).length; return { text: `${keys}`, suffix: `(${allow}✓ / ${keys - allow}✗)`, on: keys > 0 }; }
+				return { text: `${keys}`, suffix: 'keys', on: keys > 0 };
+			}
+			if (typeof value === 'boolean') { return { text: value ? 'on' : 'off', on: value }; }
+			return { text: String(value), on: value !== null && value !== '' };
+		}
+		async function refreshPolicyCard() {
+			const card = $('#policy-card');
+			let a; try { a = await getJSON('/__adapted'); } catch { return; }
+			if (a.available === false) {
+				card.innerHTML = `<div class="stats"><span class="stat"><span class="k">effective policy</span></span></div><div class="hint">Adapted preview needs Code OSS built: ${escapeHtml(a.reason || '')}</div>`;
+				return;
+			}
+			const adapted = a.adapted || {};
+			const entries = Object.entries(adapted).filter(([, v]) => v !== undefined);
+			const chips = entries.map(([key, value]) => {
+				const d = describePolicyValue(value);
+				return `<span class="stat ${d.on ? 'on' : 'off'}"><span class="k">${escapeHtml(key)} </span><span class="v">${escapeHtml(d.text)}</span>${d.suffix ? ` <span class="k">${escapeHtml(d.suffix)}</span>` : ''}</span>`;
+			});
+			const warns = (a.warnings || []).length;
+			chips.push(`<span class="stat ${warns ? 'warn' : 'off'}"><span class="k">warnings </span><span class="v">${warns}</span></span>`);
+			if (!entries.length) { chips.unshift(`<span class="stat off"><span class="k">effective policy </span><span class="v">empty</span></span>`); }
+			card.innerHTML = `<div class="stats">${chips.join('')}</div><div class="map">adapted → <code>IPolicyData</code>, locked into Code OSS as account-policy settings</div>`;
+		}
+
+		// --- filters + timeline ---
+		function renderFilters() {
+			const eps = ['all', 'user', 'token', 'mcp_registry', 'managed_settings'];
+			const statuses = [['all', 'all'], ['ok', '2xx'], ['err', 'errors']];
+			const f = $('#filters'); f.innerHTML = '';
+			for (const ep of eps) {
+				const b = document.createElement('button');
+				b.className = 'chip' + (state.filterEp === ep ? ' active' : '');
+				b.textContent = ep === 'all' ? 'all endpoints' : (EP_LABEL[ep] || ep);
+				b.onclick = () => { state.filterEp = ep; renderFilters(); renderTimeline(); };
+				f.appendChild(b);
+			}
+			const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '│'; f.appendChild(sep);
+			for (const [key, label] of statuses) {
+				const b = document.createElement('button');
+				b.className = 'chip' + (state.filterStatus === key ? ' active' : '');
+				b.textContent = label;
+				b.onclick = () => { state.filterStatus = key; renderFilters(); renderTimeline(); };
+				f.appendChild(b);
+			}
+			const input = document.createElement('input');
+			input.placeholder = 'search…'; input.value = state.q;
+			input.oninput = e => { state.q = e.target.value; renderTimeline(); };
+			f.appendChild(input);
+		}
+		function visibleRows() {
+			return state.log.filter(r => {
+				if (state.filterEp !== 'all' && r.endpoint !== state.filterEp) { return false; }
+				if (state.filterStatus === 'ok' && !(r.status >= 200 && r.status < 300)) { return false; }
+				if (state.filterStatus === 'err' && r.status < 400) { return false; }
+				if (state.q) {
+					const hay = (r.url + ' ' + (r.endpoint || '') + ' ' + JSON.stringify(r.body ?? '')).toLowerCase();
+					if (!hay.includes(state.q.toLowerCase())) { return false; }
+				}
+				return true;
+			}).reverse();
+		}
+		async function refreshLog() {
+			let log; try { log = await getJSON('/__log'); } catch { return; }
+			state.log = log; state.byId = new Map(log.map(r => [r.id, r]));
+			renderTimeline();
+			if (state.selectedId != null) { renderDetail(); }
+		}
+		function renderTimeline() {
+			const rows = visibleRows(); const tl = $('#timeline');
+			if (!state.log.length) { tl.innerHTML = `<div class="empty">No policy fetches yet. Point Code OSS at this server (<code>npm run apply-overrides</code>) and launch it; the fetches Code OSS makes land here.</div>`; return; }
+			if (!rows.length) { tl.innerHTML = `<div class="empty">No fetches match the current filters.</div>`; return; }
+			tl.innerHTML = '';
+			for (const r of rows) {
+				const el = document.createElement('div');
+				el.className = 'row' + (r.id === state.selectedId ? ' active' : '');
+				const epLabel = r.endpoint ? (EP_LABEL[r.endpoint] || r.endpoint) : 'unmapped';
+				const warnPip = (r.warnings && r.warnings.length) ? ` <span class="warnpip" title="${r.warnings.length} adapter warning(s)">⚠${r.warnings.length}</span>` : '';
+				el.innerHTML = `
+					<span class="time">${new Date(r.at).toLocaleTimeString()}</span>
+					<span class="ep">${escapeHtml(epLabel)}${warnPip}</span>
+					<span class="st-${String(r.status)[0]}">${r.status}</span>
+					<span class="lat">${r.durationMs}ms</span>
+					<span class="auth ${r.authorized ? 'yes' : ''}">${r.authorized ? 'bearer' : 'no auth'}</span>`;
+				el.onclick = () => { state.selectedId = r.id; renderTimeline(); renderDetail(); };
+				tl.appendChild(el);
+			}
+		}
+
+		// --- detail ---
+		function renderDetail() {
+			const r = state.byId.get(state.selectedId);
+			const host = $('#detail'); const copyBtn = $('#copy-btn');
+			if (!r) { host.innerHTML = `<div class="empty">Select a fetch in the timeline to inspect it.</div>`; copyBtn.hidden = true; return; }
+			copyBtn.hidden = false;
+			copyBtn.onclick = () => navigator.clipboard?.writeText(JSON.stringify(r.body ?? null, null, 2));
+			const isMs = r.endpoint === 'managed_settings';
+			const bodyStr = state.detailTab === 'raw' ? JSON.stringify(r.body ?? null) : JSON.stringify(r.body ?? null, null, 2);
+			const cond = r.conditions ? `gate ${r.conditions.chatEnabled ? 'on' : 'off'} · managed_settings ${r.conditions.managedSettingsStatus}` : '—';
+			let html = `
+				<div class="meta-grid">
+					<span class="k">endpoint</span><span class="v">${escapeHtml(r.endpoint ? (EP_LABEL[r.endpoint] || r.endpoint) : 'unmapped')}</span>
+					<span class="k">request</span><span class="v">${escapeHtml(r.method)} ${escapeHtml(r.url)}</span>
+					<span class="k">status</span><span class="v">${r.status} · ${r.durationMs}ms</span>
+					<span class="k">authorization</span><span class="v">${r.authorized ? 'Bearer …' : '—'}</span>
+					<span class="k">conditions</span><span class="v">${escapeHtml(cond)}</span>
+					<span class="k">at</span><span class="v">${escapeHtml(r.at)}</span>
+				</div>
+				<div class="tabs">
+					<button class="tab ${state.detailTab === 'pretty' ? 'active' : ''}" data-tab="pretty">Pretty</button>
+					<button class="tab ${state.detailTab === 'raw' ? 'active' : ''}" data-tab="raw">Raw</button>
+				</div>
+				<pre class="json">${escapeHtml(bodyStr)}</pre>`;
+			if (isMs) {
+				html += `<div class="subhead">Adapted → IPolicyData · core adaptManagedSettings()</div>`;
+				if (r.adapted === undefined) { html += `<pre class="json warn-text">unavailable (Code OSS not built — out/ adapter missing)</pre>`; }
+				else { html += `<pre class="json">${escapeHtml(JSON.stringify(r.adapted, null, 2))}</pre>`; }
+				if (r.warnings && r.warnings.length) { html += `<div class="warns">` + r.warnings.map(w => `<div class="w">⚠ ${escapeHtml(w)}</div>`).join('') + `</div>`; }
+			}
+			host.innerHTML = html;
+			host.querySelectorAll('.tab').forEach(t => { t.onclick = () => { state.detailTab = t.dataset.tab; renderDetail(); }; });
+		}
+
+		// --- poll loop ---
+		async function tick() { await refreshHeader(); await refreshLog(); }
+
+		(async function init() {
+			$('#editor').addEventListener('input', onEditorInput);
+			renderFilters();
+			await refreshHeader();
+			await loadExamples();
+			const st = await getJSON('/__state');
+			state.conditions = st.conditions;
+			renderConditions();
+			setEditor(JSON.stringify(st.settings ?? {}, null, 2));
+			setStatus('', 'edit to change the policy Code OSS will fetch');
+			await refreshPolicyCard();
+			await refreshLog();
+			setInterval(tick, 1500);
+		})();
+	</script>
+</body>
+
+</html>
