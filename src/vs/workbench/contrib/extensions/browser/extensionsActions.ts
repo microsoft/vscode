@@ -1781,7 +1781,8 @@ export class DisableGloballyAction extends ExtensionAction {
 			}
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
-				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
+				&& this.extensionEnablementService.canChangeEnablement(this.extension.local)
+				&& !this.extensionEnablementService.isDisabledGlobally(this.extension.local);
 		}
 	}
 
