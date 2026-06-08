@@ -81,8 +81,8 @@
 
 /* Title */
 .chat-input-notification .chat-input-notification-title {
-	font-size: 12px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 	flex: 1;
@@ -105,7 +105,7 @@
 
 .chat-input-notification .chat-input-notification-title-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	padding: 0 3px;
 	border-radius: 3px;
 	background: var(--vscode-textCodeBlock-background);
@@ -121,7 +121,7 @@
 
 /* Description */
 .chat-input-notification .chat-input-notification-description {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
@@ -142,7 +142,7 @@
 
 /* Action buttons */
 .chat-input-notification .chat-input-notification-action-button {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 4px 12px;
 	min-width: unset;
 	width: auto;
