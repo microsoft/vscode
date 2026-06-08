@@ -74,6 +74,42 @@ A single agent host session uses several distinct identifiers:
 - **`NewSession`** is a disposable draft (pre-creation) session. Several can be in flight simultaneously; the management layer tears down superseded drafts via `deleteNewSession`. A draft eagerly creates its backend session once authentication settles, then **graduates** into a committed `AgentHostSessionAdapter` on first send.
 - The base provider is abstract; concrete providers supply: `connection`, `authenticationPending`, `resourceSchemeForProvider`, `_formatSessionTypeLabel`, `_adapterOptions` (workspace builder), `resolveWorkspace`, and optionally `_diffUriMapper`.
 
+## How Chat Content Loads & Sends (no `IChatSessionItemController`)
+
+A common point of confusion is whether the Agents window needs to register an
+`IChatSessionItemController` for agent host sessions. **It does not.** The item
+controller and the chat-content path are two unrelated APIs:
+
+| API | Responsibility | Used by the Agents window? |
+|-----|----------------|----------------------------|
+| `IChatSessionItemController` (`registerChatSessionItemController`) | Enumerate session **items** (`.items`, `onDidChangeChatSessionItems`) for the **classic** chat sidebar list. | **No.** The agent host `ISessionsProvider` builds its own list via `getSessions()` straight from the connection (`listSessions()` / `notify/sessionAdded` / `rootState`). The workbench `AgentHostSessionListController` still implements this for the classic chat surfaces, but the Agents window never consumes it. |
+| `IChatSessionContentProvider` (`registerChatSessionContentProvider`) | Load a session's **chat content** (history/turns) for a resource, provide input completions, and handle the request stream. | **Yes — this is the only API on the chat path.** |
+
+The classic `ChatWidget` is generic: it renders whatever `IChatModel` it is
+handed and sends through `IChatService`. The agent host plugs into chat through
+**two registrations**, neither of which is the item controller — both wired by
+`AgentHostContribution` (workbench) / the remote `*.contribution.ts` at startup:
+
+1. **`registerChatSessionContentProvider(sessionType, AgentHostSessionHandler)`** —
+   binds the per-provider `resource.scheme` (e.g. `agent-host-copilotcli`) to a
+   content provider. `AgentHostSessionHandler.provideChatSessionContent()`
+   hydrates the model from the backend session state (turns → history) and owns
+   the request stream.
+2. **`AgentHostLanguageModelProvider`** — publishes language models under
+   `targetChatSessionType` = the same resource scheme so the widget's model
+   picker resolves the right models (see `getAgentHostModels`).
+
+End-to-end in the Agents window:
+
+- **List** — `getSessions()` reads from the agent host connection. *(no widget, no item controller)*
+- **Open / load content** — `ChatView.setChat(chat)` → `IChatService.acquireOrLoadSession(chat.resource, …)` → `ChatWidget.setModel(ref.object)`. `IChatService` routes the resource scheme to `AgentHostSessionHandler.provideChatSessionContent()`. `ChatView` first **locks** the widget to the contributed chat session type so follow-up turns keep routing to the same handler.
+- **Send** — `ISessionsManagementService.sendNewChatRequest` → `provider.createNewChat()` → `provider.sendRequest()` → `IChatService.sendRequest(chatResource, …)`, which the bound `AgentHostSessionHandler` forwards to the backend over the agent host protocol.
+
+The Agents window thus depends on the classic `ChatWidget` for rendering and on
+the `IChatSessionContentProvider` for content/send, but **not** on
+`IChatSessionItemController` — that API exists only to feed the classic chat
+sidebar list.
+
 ## New Session Flow
 
 `createNewSession(workspaceUri, sessionTypeId)`:
