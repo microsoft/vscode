@@ -132,12 +132,12 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 		const store = new DisposableStore();
 		const provider = this._instantiationService.createInstance(
 			RemoteAgentHostSessionsProvider, {
-			address,
-			name,
-			connectOnDemand: options.connectOnDemand,
-			disconnectOnDemand: options.disconnectOnDemand,
-			onDidReportConnectProgress: options.onDidReportConnectProgress,
-		});
+				address,
+				name,
+				connectOnDemand: options.connectOnDemand,
+				disconnectOnDemand: options.disconnectOnDemand,
+				onDidReportConnectProgress: options.onDidReportConnectProgress,
+			});
 		if (options.initialStatus !== undefined) {
 			provider.setConnectionStatus(options.initialStatus);
 		}
