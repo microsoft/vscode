@@ -676,6 +676,23 @@ namespace schema {
 		return true;
 	}
 
+	// Common group identifiers used throughout the workbench. Exposed as
+	// completion suggestions for the `group` property so extension authors can
+	// discover valid values while retaining the freedom to use custom groups.
+	const groupDefaultSnippets: NonNullable<IJSONSchema['defaultSnippets']> = [
+		{ label: 'navigation', bodyText: '"navigation"', description: localize('vscode.extension.contributes.menuItem.group.navigation', "Primary toolbar group. Items are rendered inline (e.g. editor/title, view/title).") },
+		{ label: 'inline', bodyText: '"inline"', description: localize('vscode.extension.contributes.menuItem.group.inline', "Items are rendered inline in tree/list rows (e.g. view/item/context, scm/resourceState/context).") },
+		{ label: '1_modification', bodyText: '"1_modification"', description: localize('vscode.extension.contributes.menuItem.group.modification1', "Common group for modification actions, typically shown first (e.g. editor/context).") },
+		{ label: '2_workspace', bodyText: '"2_workspace"', description: localize('vscode.extension.contributes.menuItem.group.workspace', "Common group for workspace-related actions (e.g. explorer/context).") },
+		{ label: '3_compare', bodyText: '"3_compare"', description: localize('vscode.extension.contributes.menuItem.group.compare', "Common group for compare actions (e.g. explorer/context).") },
+		{ label: '4_search', bodyText: '"4_search"', description: localize('vscode.extension.contributes.menuItem.group.search', "Common group for search actions (e.g. explorer/context).") },
+		{ label: '5_cutcopypaste', bodyText: '"5_cutcopypaste"', description: localize('vscode.extension.contributes.menuItem.group.cutcopypaste5', "Common group for cut/copy/paste actions (e.g. explorer/context).") },
+		{ label: '6_copypath', bodyText: '"6_copypath"', description: localize('vscode.extension.contributes.menuItem.group.copypath', "Common group for copy path actions (e.g. explorer/context).") },
+		{ label: '7_modification', bodyText: '"7_modification"', description: localize('vscode.extension.contributes.menuItem.group.modification7', "Common group for modification actions shown after cut/copy/paste (e.g. explorer/context).") },
+		{ label: '9_cutcopypaste', bodyText: '"9_cutcopypaste"', description: localize('vscode.extension.contributes.menuItem.group.cutcopypaste9', "Common group for cut/copy/paste actions shown later (e.g. editor/context).") },
+		{ label: 'z_commands', bodyText: '"z_commands"', description: localize('vscode.extension.contributes.menuItem.group.commands', "Common group for generic commands, typically shown last.") },
+	];
+
 	const menuItem: IJSONSchema = {
 		type: 'object',
 		required: ['command'],
@@ -693,8 +710,9 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
-				type: 'string'
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs. Groups determine how items are sorted and visually separated. Any string can be used; common values are suggested via IntelliSense.'),
+				type: 'string',
+				defaultSnippets: groupDefaultSnippets
 			}
 		}
 	};
@@ -712,8 +730,9 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
-				type: 'string'
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs. Groups determine how items are sorted and visually separated. Any string can be used; common values are suggested via IntelliSense.'),
+				type: 'string',
+				defaultSnippets: groupDefaultSnippets
 			}
 		}
 	};
