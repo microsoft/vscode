@@ -1004,10 +1004,11 @@ suite('CopilotAgent', () => {
 
 				// README.md is intentionally excluded from discovered agents.
 				await fileService.writeFile(URI.joinPath(agentsRoot, 'README.md'), VSBuffer.fromString('ignored'));
-				await new Promise(resolve => setTimeout(resolve, 250));
 
-				const publishCountAfter = countDirectoryPublishesForAgentsRoot();
-				assert.strictEqual(publishCountAfter, publishCountBefore, 'expected no republish when discovery output is unchanged');
+				for (let i = 0; i < 20; i++) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+					assert.strictEqual(countDirectoryPublishesForAgentsRoot(), publishCountBefore, 'expected no republish when discovery output is unchanged');
+				}
 
 				const after = await agent.getSessionCustomizations(session);
 				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
