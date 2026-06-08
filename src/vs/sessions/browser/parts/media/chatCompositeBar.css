@@ -179,11 +179,11 @@
 	overflow: hidden;
 }
 
-.chat-composite-bar-meta-workspace-icon,
-.chat-composite-bar-meta-branch-icon {
+.monaco-workbench .chat-composite-bar-meta-workspace-icon.codicon[class*='codicon-'],
+.monaco-workbench .chat-composite-bar-meta-branch-icon.codicon[class*='codicon-'] {
 	display: inline-flex;
 	align-items: center;
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 }
 
