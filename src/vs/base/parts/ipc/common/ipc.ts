@@ -303,7 +303,12 @@ export function deserialize(reader: IReader): any {
 		case DataType.Undefined: return undefined;
 		case DataType.String: return reader.read(readIntVQL(reader)).toString();
 		case DataType.Buffer: return reader.read(readIntVQL(reader)).buffer;
-		case DataType.VSBuffer: return reader.read(readIntVQL(reader));
+		case DataType.VSBuffer: {
+			// return a transfer-safe copy, so that each output VSBuffer gets its own backing
+			// store. so even if one output VSBuffer is transferred, other output VSBuffers still
+			// have their own backing store unaffected and they can still be accessed.
+			return reader.read(readIntVQL(reader)).transferSafeCopy();
+		}
 		case DataType.Array: {
 			const length = readIntVQL(reader);
 			const result: any[] = [];

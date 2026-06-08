@@ -206,17 +206,23 @@ export class ChunkStream {
 
 		if (this._chunks[0].byteLength === byteCount) {
 			// super fast path, precisely first chunk must be returned
-			const result = this._chunks[0];
 			if (advance) {
+				const result = this._chunks[0];
 				this._chunks.shift();
 				this._totalLength -= byteCount;
+				return result;
+			} else {
+				// return a transfer-safe copy, since return value might be transferred, but
+				// this._chunks[0] might be accessed again.
+				return this._chunks[0].transferSafeCopy();
 			}
-			return result;
 		}
 
 		if (this._chunks[0].byteLength > byteCount) {
 			// fast path, the reading is entirely within the first chunk
-			const result = this._chunks[0].slice(0, byteCount);
+			// return a transfer-safe copy, since return value might be transferred, but
+			// this._chunks[0] might be accessed again.
+			const result = this._chunks[0].slice(0, byteCount).transferSafeCopy();
 			if (advance) {
 				this._chunks[0] = this._chunks[0].slice(byteCount);
 				this._totalLength -= byteCount;

@@ -122,6 +122,24 @@ export class VSBuffer {
 		return result;
 	}
 
+	/**
+	 * Make a copy of the current VSBuffer object, so that even if the returned copy is transferred,
+	 * the current VSBuffer object can still access its backing store.
+	 */
+	transferSafeCopy(): VSBuffer {
+		if (VSBuffer.isNativeBuffer(this.buffer)) {
+			// Nodejs Buffer is not transferrable, so it should not be transferred (otherwise we
+			// have a bug). so we just return itself.
+			return this;
+		} else {
+			// this.buffer is a normal Uint8Array which might be transferred, so we need to make a
+			// deep clone.
+			const result = new VSBuffer(new Uint8Array(this.byteLength));
+			result.set(this);
+			return result;
+		}
+	}
+
 	toString(): string {
 		if (hasBuffer) {
 			return this.buffer.toString();
