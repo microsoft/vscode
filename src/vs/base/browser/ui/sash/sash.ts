@@ -617,7 +617,7 @@ export class Sash extends Disposable {
 
 	private static onMouseLeave(sash: Sash, fromLinkedSash: boolean = false): void {
 		sash.hoverDelayer.cancel();
-		sash.el.classList.remove('hover');
+		sash.hoverDelayer.trigger(() => sash.el.classList.remove('hover'), 0).then(undefined, () => { });
 
 		if (!fromLinkedSash && sash.linkedSash) {
 			Sash.onMouseLeave(sash.linkedSash, true);
