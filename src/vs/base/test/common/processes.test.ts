@@ -10,6 +10,60 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 suite('Processes', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	suite('removeDangerousEnvVariables', () => {
+		test('removes DEBUG', () => {
+			const env = { DEBUG: 'myapp:*', OTHER: 'value' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['DEBUG'], undefined);
+			assert.strictEqual(env['OTHER'], 'value');
+		});
+
+		test('removes dangerous NODE_OPTIONS flags but keeps safe ones', () => {
+			const env = { NODE_OPTIONS: '--max-old-space-size=4096 --require=./evil.js --inspect=9229' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=4096');
+		});
+
+		test('removes NODE_OPTIONS entirely when only dangerous flags remain', () => {
+			const env = { NODE_OPTIONS: '--require=./evil.js --inspect' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], undefined);
+		});
+
+		test('preserves NODE_OPTIONS with only safe flags', () => {
+			const env = { NODE_OPTIONS: '--max-old-space-size=4096 --stack-size=65536' };
+			processes.removeDangerousEnvVariables(env);
+			assert.strictEqual(env['NODE_OPTIONS'], '--max-old-space-size=4096 --stack-size=65536');
+		});
+
+		test('removes all known dangerous NODE_OPTIONS flags', () => {
+			const cases: [string, string | undefined][] = [
+				['--require=./mod.js', undefined],
+				['-r=./mod.js', undefined],
+				['--loader=./hook.js', undefined],
+				['--experimental-loader=./hook.js', undefined],
+				['--import=./mod.js', undefined],
+				['--inspect', undefined],
+				['--inspect=9229', undefined],
+				['--inspect-brk', undefined],
+				['--inspect-brk=9229', undefined],
+				['--inspect-port=9229', undefined],
+				['--debug', undefined],
+				['--debug-brk', undefined],
+				['--max-old-space-size=4096', '--max-old-space-size=4096'],
+			];
+			for (const [input, expected] of cases) {
+				const env = { NODE_OPTIONS: input };
+				processes.removeDangerousEnvVariables(env);
+				assert.strictEqual(env['NODE_OPTIONS'], expected, `input: ${input}`);
+			}
+		});
+
+		test('handles undefined env gracefully', () => {
+			assert.doesNotThrow(() => processes.removeDangerousEnvVariables(undefined));
+		});
+	});
+
 	test('sanitizeProcessEnvironment', () => {
 		const env = {
 			FOO: 'bar',

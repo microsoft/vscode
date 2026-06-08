@@ -140,10 +140,28 @@ export function removeDangerousEnvVariables(env: IProcessEnvironment | undefined
 	// See https://github.com/microsoft/vscode/issues/130072
 	delete env['DEBUG'];
 
-	// Unset `NODE_OPTIONS`, as it can be used to inject arbitrary flags
-	// (e.g. `--require`, `--inspect`) into forked Node processes, which
-	// has caused crashes and unexpected behavior.
-	delete env['NODE_OPTIONS'];
+	// Filter out dangerous flags from `NODE_OPTIONS` that can inject code or open
+	// debug ports (e.g. `--require`, `--inspect`) into forked Node processes.
+	// Safe flags like `--max-old-space-size` are preserved.
+	// Note: in NODE_OPTIONS, flags with values must use `=` (e.g. --require=./mod.js).
+	const nodeOptions = env['NODE_OPTIONS'];
+	if (nodeOptions) {
+		const filtered = nodeOptions
+			.split(/\s+/)
+			.filter(flag =>
+				!/^(--require|--loader|--experimental-loader|--import)(=.*)?$/.test(flag) &&
+				!/^-r(=.*)?$/.test(flag) &&
+				!/^--inspect(-brk|-port)?(=.*)?$/.test(flag) &&
+				!/^--debug(-brk)?(=.*)?$/.test(flag)
+			)
+			.join(' ')
+			.trim();
+		if (filtered) {
+			env['NODE_OPTIONS'] = filtered;
+		} else {
+			delete env['NODE_OPTIONS'];
+		}
+	}
 
 	if (isLinux) {
 		// Unset `LD_PRELOAD`, as it might lead to process crashes
