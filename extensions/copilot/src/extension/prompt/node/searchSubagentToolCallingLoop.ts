@@ -9,7 +9,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -98,7 +98,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	 * Get the endpoint to use for the search subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService);
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
 
 		if (useAgenticProxy) {
@@ -110,9 +110,17 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		if (modelName) {
 			try {
 				// Try to get the specified model
-				return await this.endpointProvider.getChatEndpoint(modelName);
+				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
+				if (endpoint.supportsToolCalls) {
+					return endpoint;
+				}
+				// Model does not support tool calls, fallback to main agent endpoint.
+				// The search subagent is a tool-calling loop, and the endpoint would
+				// otherwise strip its search tools from the request body.
+				this._logService.warn(`Model ${modelName} does not support tool calls, falling back to main agent endpoint`);
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			} catch (error) {
-				// Model not available or doesn't support tool calls, fallback to main agent
+				// Model not available, fallback to main agent
 				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
