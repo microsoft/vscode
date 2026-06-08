@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { IChatSessionsService } from './chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from './chatSessionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -12,10 +13,12 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../comm
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
-	OfflineByok = 'chat.offlineByok',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
+	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
+	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
+	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
@@ -67,10 +70,11 @@ export enum ChatConfiguration {
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
-	AutopilotEnabled = 'chat.autopilot.enabled',
+	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
@@ -83,6 +87,8 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
+	AgentHostDefaultChatProvider = 'chat.agentHost.defaultChatProvider',
+	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -122,6 +128,15 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
  */
 export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
+}
+
+/**
+ * True for {@link ChatPermissionLevel.Autopilot} only. Unlike {@link isAutoApproveLevel}, this
+ * excludes {@link ChatPermissionLevel.AutoApprove}, so it can gate Autopilot-only behavior such as
+ * risk-based skipping of tool calls.
+ */
+export function isAutopilotLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.Autopilot;
 }
 
 // Thinking display modes for pinned content
@@ -201,6 +216,24 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 
 	// Everything else is supported
 	return true;
+}
+
+/**
+ * Returns the effective default session type for a new chat in the VS Code
+ * window, honoring the experimental
+ * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting. Falls back to
+ * {@link localChatSessionType} when the setting is disabled or the agent host
+ * contribution is not registered.
+ */
+export function getDefaultNewChatSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>
+): string {
+	if (configurationService.getValue<boolean>(ChatConfiguration.AgentHostDefaultChatProvider) &&
+		chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot)) {
+		return SessionType.AgentHostCopilot;
+	}
+	return localChatSessionType;
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';

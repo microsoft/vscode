@@ -1649,6 +1649,7 @@ export default defineConfig(
 						'@anthropic-ai/sdk', // used by agentHost for Anthropic API requests
 						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
 						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
+						'@github/copilot-sdk',
 						'zod' // used by agentHost for Claude client-tool MCP input schemas
 					]
 				},
@@ -2296,6 +2297,38 @@ export default defineConfig(
 						'test/componentFixtures/playwright/**',
 						'@playwright/*',
 						'*' // node modules
+					]
+				}
+			]
+		}
+	},
+	{
+		// `IAgentSessionsService` and the agent sessions model are provider-internal
+		// to Copilot. Only the Copilot chat sessions provider may consume them; the
+		// rest of the Agents window (sessions workbench) must stay provider-agnostic.
+		// See src/vs/sessions/SESSIONS.md.
+		files: [
+			'src/vs/sessions/**/*.ts'
+		],
+		ignores: [
+			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+						{
+							'group': ['**/agentSessions/agentSessionsService', '**/agentSessions/agentSessionsService.js'],
+							'message': 'IAgentSessionsService is provider-internal to Copilot. Only contrib/providers/copilotChatSessions may import it; the rest of the Agents window must stay provider-agnostic. See src/vs/sessions/SESSIONS.md.'
+						}
 					]
 				}
 			]
