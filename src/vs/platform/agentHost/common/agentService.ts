@@ -771,7 +771,7 @@ export interface IAgent {
 	 * @param clientId The client that owns these tools.
 	 * @param tools The tool definitions (full replacement).
 	 */
-	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void;
+	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void;
 
 	/**
 	 * Called when a client completes a client-provided tool call.

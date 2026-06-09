@@ -844,11 +844,11 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 				// Always forward client tools, even if empty, to clear previous client's tools
-				const clientId = action.activeClient?.clientId ?? '';
+				const clientId = action.activeClient?.clientId;
 				agent.setClientTools(URI.parse(channel), clientId, action.activeClient?.tools ?? []);
 
 				const refs = action.activeClient?.customizations ?? [];
-				agent.setClientCustomizations(URI.parse(channel), clientId, refs).catch(err => {
+				agent.setClientCustomizations(URI.parse(channel), clientId ?? '', refs).catch(err => {
 					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
 				});
 				break;
