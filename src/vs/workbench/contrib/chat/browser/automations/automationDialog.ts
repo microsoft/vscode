@@ -92,7 +92,6 @@ export async function showAutomationDialog(
 
 	const state: IFormState = {
 		name: initial?.name ?? '',
-		prompt: initial?.prompt ?? '',
 		interval: initial?.schedule.interval ?? 'daily',
 		hour: initial?.schedule.scheduleHour ?? 9,
 		minute: initial?.schedule.scheduleMinute ?? 0,
@@ -110,6 +109,10 @@ export async function showAutomationDialog(
 
 	let saveButton: IButton | undefined;
 	let revalidate: () => void = () => { /* assigned below */ };
+	// The prompt's source of truth is the {@link ChatInputPart}'s editor.
+	// `renderForm` wires this accessor up; `revalidate` and the Save path
+	// read from it instead of mirroring into `state`.
+	let getPrompt: () => string = () => initial?.prompt ?? '';
 
 	const title = isEdit
 		? localize('automation.dialog.editTitle', "Edit Automation")
@@ -139,8 +142,9 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider);
-				revalidate = () => updateSaveButtonState(saveButton, state, validation, form);
+				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '');
+				getPrompt = handle.getPrompt;
+				revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt);
 				revalidate();
 			},
 		}, keybindingService, layoutService, hostService),
@@ -168,10 +172,12 @@ export async function showAutomationDialog(
 			scheduleDay: state.day,
 		};
 
+		const prompt = getPrompt();
+
 		if (isEdit && initial) {
 			const patch: IUpdateAutomationOptions = {
 				name: state.name,
-				prompt: state.prompt,
+				prompt,
 				schedule,
 				folderUri: state.folderUri,
 				providerId: state.providerId ?? null,
@@ -186,7 +192,7 @@ export async function showAutomationDialog(
 
 		const create: ICreateAutomationOptions = {
 			name: state.name,
-			prompt: state.prompt,
+			prompt,
 			schedule,
 			folderUri: state.folderUri,
 			providerId: state.providerId,
@@ -204,7 +210,6 @@ export async function showAutomationDialog(
 
 interface IFormState {
 	name: string;
-	prompt: string;
 	interval: AutomationInterval;
 	hour: number;
 	minute: number;
@@ -224,6 +229,10 @@ interface IValidationState {
 	folderError: string | undefined;
 }
 
+interface IRenderFormHandle {
+	readonly getPrompt: () => string;
+}
+
 function renderForm(
 	form: HTMLElement,
 	state: IFormState,
@@ -235,7 +244,8 @@ function renderForm(
 	layoutService: ILayoutService,
 	fileDialogService: IFileDialogService,
 	sessionTypeProvider: IAutomationSessionTypeProvider,
-): void {
+	initialPrompt: string,
+): IRenderFormHandle {
 	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(nameRow, $('label.automation-form-label', { for: 'automation-name' }, localize('automation.form.name', "Name")));
@@ -299,13 +309,13 @@ function renderForm(
 	const chatInput = disposables.add(
 		instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
-	chatInput.render(promptHost, state.prompt, stubWidget);
+	chatInput.render(promptHost, initialPrompt, stubWidget);
 
-	// Phase A keeps the existing `state.prompt`-driven validation by
-	// syncing the editor content back into the form state on every change.
-	// Phase B replaces this with a single read at Save time.
+	// The editor itself is the source of truth for the prompt value; we
+	// only listen here to re-run validation and surface the inline error
+	// label as the user types. The final value is read once at Save time
+	// via {@link IRenderFormHandle.getPrompt}.
 	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {
-		state.prompt = chatInput.inputEditor.getValue();
 		revalidate();
 		promptError.textContent = validation.promptError ?? '';
 	}));
@@ -635,6 +645,10 @@ function renderForm(
 	disposables.add(DOM.addStandardDisposableListener(enabledCheckbox, 'change', () => {
 		state.enabled = enabledCheckbox.checked;
 	}));
+
+	return {
+		getPrompt: () => chatInput.inputEditor.getValue(),
+	};
 }
 
 function clampInt(raw: string, min: number, max: number, fallback: number): number {
@@ -650,11 +664,12 @@ function updateSaveButtonState(
 	state: IFormState,
 	validation: IValidationState,
 	form: HTMLElement,
+	getPrompt: () => string,
 ): void {
 	validation.nameError = state.name.trim() === ''
 		? localize('automation.form.nameRequired', "Name is required.")
 		: undefined;
-	validation.promptError = state.prompt.trim() === ''
+	validation.promptError = getPrompt().trim() === ''
 		? localize('automation.form.promptRequired', "Prompt is required.")
 		: undefined;
 	validation.folderError = !state.folderUri
