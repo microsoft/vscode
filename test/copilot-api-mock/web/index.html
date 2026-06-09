@@ -123,11 +123,9 @@
 
 		/* ─── SECTION HEADERS ─────────────────────────────── */
 		h2.section {
-			font-size: 11px;
+			font-size: 12px;
 			font-weight: 600;
-			letter-spacing: 0.05em;
-			text-transform: uppercase;
-			color: var(--muted);
+			color: var(--fg);
 			margin: 0;
 			padding: 10px 16px 9px;
 			border-bottom: 1px solid var(--border);
@@ -135,6 +133,12 @@
 			align-items: center;
 			gap: 8px;
 			background: var(--panel);
+		}
+		h2.section .sub {
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 400;
+			font-family: var(--mono);
 		}
 
 		/* ─── DELIVERY CONDITIONS ─────────────────────────── */
@@ -146,10 +150,8 @@
 			gap: 8px;
 			padding: 10px 16px;
 			cursor: pointer;
-			font-size: 11px;
+			font-size: 12px;
 			font-weight: 600;
-			letter-spacing: 0.05em;
-			text-transform: uppercase;
 			color: var(--muted);
 			-webkit-user-select: none;
 			user-select: none;
@@ -190,42 +192,38 @@
 		.cond.note { color: var(--dim); font-size: 11px; flex-basis: 100%; padding-top: 2px; }
 
 		/* ─── SCHEMA BAR ──────────────────────────────────── */
-		.schema-bar { border-bottom: 1px solid var(--border); background: var(--panel); }
+		.schema-bar { border-bottom: 1px solid var(--border); background: var(--bg); }
 		.schema-input-row {
 			display: flex;
 			align-items: center;
 			gap: 8px;
-			padding: 10px 16px;
+			padding: 8px 16px;
 		}
 		.schema-input-row input {
 			flex: 1;
-			background: var(--panel-2);
+			background: var(--panel);
 			border: 1px solid var(--border);
 			color: var(--fg);
 			border-radius: var(--radius-sm);
-			padding: 7px 12px;
+			padding: 6px 12px;
 			font-size: 12px;
-			font-family: var(--mono);
 			outline: none;
 			transition: border-color 0.15s;
 		}
 		.schema-input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 		.schema-input-row input::placeholder { color: var(--dim); }
 		.schema-input-row .load-btn {
-			background: var(--accent-dim);
-			color: var(--accent);
-			border: 1px solid rgba(59,158,221,0.35);
+			background: transparent;
+			color: var(--muted);
+			border: 1px solid var(--border);
 			border-radius: var(--radius-sm);
-			padding: 7px 14px;
+			padding: 6px 14px;
 			cursor: pointer;
 			font-size: 12px;
-			font-weight: 500;
 			white-space: nowrap;
-			transition: background 0.15s;
+			transition: all 0.15s;
 		}
-		.schema-input-row .load-btn:hover {
-			background: color-mix(in srgb, var(--accent) 22%, transparent);
-		}
+		.schema-input-row .load-btn:hover { color: var(--fg); border-color: var(--border-2); }
 		.schema-input-row .load-status { font-size: 11px; font-family: var(--mono); color: var(--muted); white-space: nowrap; }
 
 		.schema-info {
@@ -246,7 +244,7 @@
 		.editor-wrap { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); }
 		.editor {
 			width: 100%;
-			min-height: 200px;
+			min-height: 130px;
 			resize: vertical;
 			border: none;
 			outline: none;
@@ -254,8 +252,8 @@
 			color: var(--fg);
 			font-family: var(--mono);
 			font-size: 12.5px;
-			line-height: 1.6;
-			padding: 16px 18px;
+			line-height: 1.65;
+			padding: 14px 18px;
 			tab-size: 2;
 		}
 		.editor-status {
@@ -275,13 +273,13 @@
 
 		/* ─── EFFECTIVE POLICY CARD ───────────────────────── */
 		.policy {
-			padding: 12px 18px 10px;
+			padding: 10px 18px;
 			border-bottom: 1px solid var(--border);
-			background: var(--panel);
+			background: var(--panel-2);
 			display: flex;
-			align-items: baseline;
+			align-items: center;
 			flex-wrap: wrap;
-			gap: 10px;
+			gap: 8px;
 		}
 		.policy .stats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 		.stat {
@@ -309,11 +307,11 @@
 		.filters {
 			display: flex;
 			align-items: center;
-			gap: 8px;
-			padding: 8px 14px;
+			gap: 6px;
+			padding: 7px 14px;
 			border-bottom: 1px solid var(--border);
 			flex-wrap: wrap;
-			background: var(--panel);
+			background: var(--bg);
 		}
 		.filters select,
 		.filters input[type="text"] {
@@ -338,19 +336,20 @@
 		.row {
 			display: grid;
 			grid-template-columns: minmax(0, 1fr) auto auto;
-			gap: 6px 14px;
+			gap: 4px 14px;
 			align-items: center;
-			padding: 10px 16px;
+			padding: 10px 16px 10px 18px;
 			border-bottom: 1px solid var(--panel-2);
+			border-left: 3px solid transparent;
 			cursor: pointer;
 			font-family: var(--mono);
 			font-size: 12px;
-			transition: background 0.1s;
+			transition: background 0.1s, border-color 0.1s;
 		}
 		.row:hover { background: var(--panel-2); }
 		.row.active {
-			background: var(--accent-dim);
-			border-bottom-color: rgba(59,158,221,0.20);
+			background: var(--panel-2);
+			border-left-color: var(--accent);
 		}
 		.row .ep { color: var(--fg); font-weight: 600; font-size: 12.5px; }
 		.row .meta-line {
@@ -368,7 +367,7 @@
 		.row .warnpip { color: var(--warn); }
 
 		/* ─── FETCH DETAIL ────────────────────────────────── */
-		.detail-shell { border-top: 2px solid var(--border); background: var(--panel); }
+		.detail-shell { border-top: 1px solid var(--border); background: var(--panel); }
 		.detail { overflow-y: auto; background: var(--bg); max-height: 34vh; }
 
 		.detail .meta-grid {
@@ -492,7 +491,7 @@
 		</details>
 
 		<!-- editor + url loader + adapted + timeline -->
-		<h2 class="section">managed_settings <span class="subnote">·  .github/copilot/settings.json</span></h2>
+		<h2 class="section">managed_settings <span class="sub">· .github/copilot/settings.json</span></h2>
 		<div class="schema-bar">
 			<div class="schema-input-row">
 				<input id="schema-url" type="url" placeholder="JSON Schema URL — paste and press Enter to validate the editor against a schema" />
