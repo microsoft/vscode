@@ -8,6 +8,7 @@ import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -20,7 +21,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
+import { ChatAgentLocation, isChatPermissionLevel } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../widget/input/chatInputPart.js';
 
@@ -100,8 +101,6 @@ export async function showAutomationDialog(
 		providerId: initial?.providerId,
 		sessionTypeId: initial?.sessionTypeId,
 		modelId: initial?.modelId,
-		mode: initial?.mode,
-		permissionLevel: initial?.permissionLevel,
 		enabled: initial?.enabled ?? true,
 	};
 
@@ -111,8 +110,12 @@ export async function showAutomationDialog(
 	let revalidate: () => void = () => { /* assigned below */ };
 	// The prompt's source of truth is the {@link ChatInputPart}'s editor.
 	// `renderForm` wires this accessor up; `revalidate` and the Save path
-	// read from it instead of mirroring into `state`.
+	// read from it instead of mirroring into `state`. Mode and permission
+	// level use the same pattern — they are captured directly from the
+	// input's built-in pickers at Save time.
 	let getPrompt: () => string = () => initial?.prompt ?? '';
+	let getMode: () => string | undefined = () => initial?.mode;
+	let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
 
 	const title = isEdit
 		? localize('automation.dialog.editTitle', "Edit Automation")
@@ -142,8 +145,10 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '');
+				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel);
 				getPrompt = handle.getPrompt;
+				getMode = handle.getMode;
+				getPermissionLevel = handle.getPermissionLevel;
 				revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt);
 				revalidate();
 			},
@@ -173,6 +178,8 @@ export async function showAutomationDialog(
 		};
 
 		const prompt = getPrompt();
+		const mode = getMode();
+		const permissionLevel = getPermissionLevel();
 
 		if (isEdit && initial) {
 			const patch: IUpdateAutomationOptions = {
@@ -183,8 +190,8 @@ export async function showAutomationDialog(
 				providerId: state.providerId ?? null,
 				sessionTypeId: state.sessionTypeId ?? null,
 				modelId: state.modelId ?? null,
-				mode: state.mode ?? null,
-				permissionLevel: state.permissionLevel ?? null,
+				mode: mode ?? null,
+				permissionLevel: permissionLevel ?? null,
 				enabled: state.enabled,
 			};
 			return { kind: 'update', id: initial.id, value: patch };
@@ -198,8 +205,8 @@ export async function showAutomationDialog(
 			providerId: state.providerId,
 			sessionTypeId: state.sessionTypeId,
 			modelId: state.modelId,
-			mode: state.mode,
-			permissionLevel: state.permissionLevel,
+			mode,
+			permissionLevel,
 			enabled: state.enabled,
 		};
 		return { kind: 'create', value: create };
@@ -218,8 +225,6 @@ interface IFormState {
 	providerId: string | undefined;
 	sessionTypeId: string | undefined;
 	modelId: string | undefined;
-	mode: string | undefined;
-	permissionLevel: string | undefined;
 	enabled: boolean;
 }
 
@@ -231,6 +236,8 @@ interface IValidationState {
 
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
+	readonly getMode: () => string | undefined;
+	readonly getPermissionLevel: () => string | undefined;
 }
 
 function renderForm(
@@ -245,6 +252,8 @@ function renderForm(
 	fileDialogService: IFileDialogService,
 	sessionTypeProvider: IAutomationSessionTypeProvider,
 	initialPrompt: string,
+	initialMode: string | undefined,
+	initialPermissionLevel: string | undefined,
 ): IRenderFormHandle {
 	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
@@ -310,6 +319,42 @@ function renderForm(
 		instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget);
+
+	// Pre-seed mode and permission level for edit-mode dialogs so the
+	// pickers reflect what was previously captured. For create-mode the
+	// pickers show their built-in defaults. We validate the stored
+	// permission level against the current enum so a renamed/removed
+	// legacy value falls back to the picker default instead of being
+	// silently round-tripped to disk.
+	if (initialMode) {
+		chatInput.setChatMode(initialMode, /* storeSelection */ false);
+	}
+	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
+		chatInput.setPermissionLevel(initialPermissionLevel);
+	}
+
+	// Track whether the user actually interacted with each picker so that
+	// a no-op Save on an existing automation preserves the originally
+	// stored value (including the legacy `null` "use default" sentinel
+	// from records saved before Phase C). We snapshot the values after
+	// the pre-seed completes and only mark the picker as interacted-with
+	// when the observable diverges from that baseline.
+	let modeUserInteracted = false;
+	let permissionUserInteracted = false;
+	const baselineModeKind = chatInput.currentModeObs.get().kind;
+	const baselinePermissionLevel = chatInput.currentPermissionLevelObs.get();
+	disposables.add(autorun(reader => {
+		const kind = chatInput.currentModeObs.read(reader).kind;
+		if (kind !== baselineModeKind) {
+			modeUserInteracted = true;
+		}
+	}));
+	disposables.add(autorun(reader => {
+		const level = chatInput.currentPermissionLevelObs.read(reader);
+		if (level !== baselinePermissionLevel) {
+			permissionUserInteracted = true;
+		}
+	}));
 
 	// The editor itself is the source of truth for the prompt value; we
 	// only listen here to re-run validation and surface the inline error
@@ -539,104 +584,6 @@ function renderForm(
 
 	refreshSessionTypeSelect();
 
-	// --- Chat mode (Agent / Ask / Edit) ---
-	// Captures the chat mode the scheduled run should start in. The runner
-	// passes the captured value through {@link ISessionsProvider.setMode}.
-	// Providers that don't support setting a mode silently ignore it.
-	const MODES: readonly { readonly value: string; readonly label: string; readonly description: string }[] = [
-		{
-			value: ChatModeKind.Agent,
-			label: localize('automation.mode.agent', "Agent"),
-			description: localize('automation.mode.agent.description', "Plans, edits and runs tools autonomously."),
-		},
-		{
-			value: ChatModeKind.Ask,
-			label: localize('automation.mode.ask', "Ask"),
-			description: localize('automation.mode.ask.description', "Answers questions about your code without making changes."),
-		},
-		{
-			value: ChatModeKind.Edit,
-			label: localize('automation.mode.edit', "Edit"),
-			description: localize('automation.mode.edit.description', "Applies focused edits across the files you reference."),
-		},
-	];
-	const modeRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(modeRow, $('label.automation-form-label', { for: 'automation-mode' }, localize('automation.form.mode', "Agent Mode")));
-	const modeSelect = DOM.append(modeRow, $('select.automation-form-select', { id: 'automation-mode' })) as HTMLSelectElement;
-	DOM.append(modeSelect, $('option', { value: '' }, localize('automation.mode.default', "Use default")));
-	for (const m of MODES) {
-		const opt = DOM.append(modeSelect, $('option', { value: m.value }, m.label)) as HTMLOptionElement;
-		if (state.mode === m.value) {
-			opt.selected = true;
-		}
-	}
-	if (!state.mode) {
-		modeSelect.value = '';
-	}
-	const modeHint = DOM.append(modeRow, $('.automation-form-hint'));
-	const updateModeHint = () => {
-		const match = MODES.find(m => m.value === modeSelect.value);
-		modeHint.textContent = match
-			? match.description
-			: localize('automation.mode.default.description', "Use the workspace's default chat mode.");
-	};
-	updateModeHint();
-	disposables.add(DOM.addStandardDisposableListener(modeSelect, 'change', () => {
-		state.mode = modeSelect.value || undefined;
-		updateModeHint();
-	}));
-
-	// --- Permission level (Default / Bypass / Autopilot) ---
-	// Captures how aggressively scheduled runs should auto-confirm tool
-	// invocations. Mirrors the permission picker on the chat composer. The
-	// runner passes the captured value through
-	// {@link ISessionsProvider.setPermissionLevel}. Providers that don't
-	// support permission gating silently ignore it. Labels and descriptions
-	// match the composer's permission picker so users see the same
-	// terminology in both places.
-	const PERMISSIONS: readonly { readonly value: string; readonly label: string; readonly description: string }[] = [
-		{
-			value: ChatPermissionLevel.Default,
-			label: localize('automation.permission.default', "Default Approvals"),
-			description: localize('automation.permission.default.description', "Copilot uses your configured settings."),
-		},
-		{
-			value: ChatPermissionLevel.AutoApprove,
-			label: localize('automation.permission.autoApprove', "Bypass Approvals"),
-			description: localize('automation.permission.autoApprove.description', "All tool calls are auto-approved."),
-		},
-		{
-			value: ChatPermissionLevel.Autopilot,
-			label: localize('automation.permission.autopilot', "Autopilot (Preview)"),
-			description: localize('automation.permission.autopilot.description', "Autonomously iterates from start to finish."),
-		},
-	];
-	const permRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(permRow, $('label.automation-form-label', { for: 'automation-permission' }, localize('automation.form.permission', "Permission Mode")));
-	const permSelect = DOM.append(permRow, $('select.automation-form-select', { id: 'automation-permission' })) as HTMLSelectElement;
-	DOM.append(permSelect, $('option', { value: '' }, localize('automation.permission.useDefault', "Use default")));
-	for (const p of PERMISSIONS) {
-		const opt = DOM.append(permSelect, $('option', { value: p.value }, p.label)) as HTMLOptionElement;
-		if (state.permissionLevel === p.value) {
-			opt.selected = true;
-		}
-	}
-	if (!state.permissionLevel) {
-		permSelect.value = '';
-	}
-	const permHint = DOM.append(permRow, $('.automation-form-hint'));
-	const updatePermHint = () => {
-		const match = PERMISSIONS.find(p => p.value === permSelect.value);
-		permHint.textContent = match
-			? match.description
-			: localize('automation.permission.useDefault.description', "Use the workspace's configured approval settings.");
-	};
-	updatePermHint();
-	disposables.add(DOM.addStandardDisposableListener(permSelect, 'change', () => {
-		state.permissionLevel = permSelect.value || undefined;
-		updatePermHint();
-	}));
-
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
 	const enabledCheckbox = DOM.append(enabledRow, $('input.automation-form-checkbox', { id: 'automation-enabled', type: 'checkbox' })) as HTMLInputElement;
@@ -648,6 +595,18 @@ function renderForm(
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
+		// Capture the *raw* mode kind the user selected (e.g. 'agent' /
+		// 'ask' / 'edit'). We deliberately avoid `currentModeKind` which
+		// rewrites Agent → Edit whenever the tools agent isn't currently
+		// registered; that environmental concern is the runner's
+		// responsibility at execution time, not capture time.
+		//
+		// If the user never touched the mode picker, fall through to the
+		// originally-stored value so a no-op Save preserves both
+		// concrete kinds and the legacy `undefined`/`null` "use default"
+		// sentinel.
+		getMode: () => modeUserInteracted ? chatInput.currentModeObs.get().kind : initialMode,
+		getPermissionLevel: () => permissionUserInteracted ? chatInput.currentPermissionLevelObs.get() : initialPermissionLevel,
 	};
 }
 
