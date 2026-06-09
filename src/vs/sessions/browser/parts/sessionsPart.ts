@@ -110,7 +110,7 @@ export class SessionsPart extends Part {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super(
 			Parts.SESSIONS_PART,
@@ -124,8 +124,6 @@ export class SessionsPart extends Part {
 		ActiveSessionsContext.bindTo(contextKeyService);
 		this._sessionsFocusKey = SessionsFocusContext.bindTo(contextKeyService);
 		this._multipleSessionsVisibleKey = MultipleSessionsVisibleContext.bindTo(contextKeyService);
-
-		this._register(this._trackOptions(assignmentService));
 	}
 
 	/**
@@ -134,15 +132,15 @@ export class SessionsPart extends Part {
 	 * are created, so views mounted before the treatment resolves keep the
 	 * default placement until they are recreated.
 	 */
-	private _trackOptions(assignmentService: IWorkbenchAssignmentService): IDisposable {
+	private _trackOptions(): IDisposable {
 		const store = new DisposableStore();
 
 		// Harness picker placement
 		const updateHarnessPickerPlacement = async () => {
-			const value = await assignmentService.getTreatment<boolean>(HARNESS_PICKER_IN_CONTROLS_TREATMENT);
+			const value = await this.assignmentService.getTreatment<boolean>(HARNESS_PICKER_IN_CONTROLS_TREATMENT);
 			this._renderSessionTypePickerInControls.set(value === true, undefined);
 		};
-		store.add(assignmentService.onDidRefetchAssignments(() => updateHarnessPickerPlacement()));
+		store.add(this.assignmentService.onDidRefetchAssignments(() => updateHarnessPickerPlacement()));
 		updateHarnessPickerPlacement();
 
 		return store;
@@ -151,6 +149,14 @@ export class SessionsPart extends Part {
 	override create(parent: HTMLElement): void {
 		this.element = parent;
 		parent.classList.add('sessionspart');
+
+		// Resolve treatments here rather than in the constructor: touching the
+		// assignment service forces it (and its eagerly-constructed filter
+		// providers) to instantiate. Doing that during the part's construction —
+		// which runs while the workbench layout is being initialized — has been
+		// observed to trigger re-entrancy issues in entitlement-dependent filter
+		// providers. `create()` runs later, once layout init has settled.
+		this._register(this._trackOptions());
 
 		super.create(parent);
 	}
