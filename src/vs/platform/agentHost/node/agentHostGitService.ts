@@ -401,7 +401,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
 				return undefined;
 			}
-			return await this._runGit(repositoryRoot, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--'], { env, timeout: 60_000 });
+			return await this._runGit(repositoryRoot, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--'], { env });
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
@@ -421,7 +421,6 @@ export class AgentHostGitService implements IAgentHostGitService {
 		this._logService.debug(`[agentHostGitService] Staging ${changedPaths.length} changed path(s) into temp index`);
 		return await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
 			env: { ...env, GIT_LITERAL_PATHSPECS: '1' },
-			timeout: 60_000,
 		}) !== undefined;
 	}
 
@@ -489,7 +488,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
 				return undefined;
 			}
-			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env, timeout: 60_000 }))?.trim();
+			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
 			return tree || undefined;
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
