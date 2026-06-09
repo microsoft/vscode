@@ -777,12 +777,15 @@ export class CopilotAgentSession extends Disposable {
 
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
+			let success: boolean;
 			try {
-				await this._wrapper.session.rpc.history.compact();
+				const result = await this._wrapper.session.rpc.history.compact();
+				success = result.success;
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
+			this._completeActiveTurn();
 			return;
 		}
 		if (slashCommand?.command === 'research') {

@@ -23,7 +23,7 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -44,6 +44,8 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	readonly compactCalls: unknown[] = [];
+	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -91,6 +93,12 @@ class MockCopilotSession {
 			read: async () => this.planReadResult,
 			update: async (_params: { content: string }) => { /* no-op */ },
 			delete: async () => { /* no-op */ },
+		},
+		history: {
+			compact: async (params?: unknown) => {
+				this.compactCalls.push(params ?? null);
+				return this.compactResult;
+			},
 		},
 	};
 }
@@ -422,6 +430,40 @@ suite('CopilotAgentSession', () => {
 			usage: undefined,
 			state: 'cancelled',
 		}]);
+	});
+
+	test('`/compact` runs the history compact RPC, acknowledges, and completes the turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		// The compact command is handled inline via the history RPC and must
+		// not fall through to a normal SDK `send()` turn.
+		assert.strictEqual(mockSession.compactCalls.length, 1);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+
+		// The turn opened by the server is closed inline (the SDK never fires
+		// `onIdle` for the compact path), with the acknowledgement landing in
+		// the turn before it completes.
+		const actions = getActions(signals).filter(a =>
+			a.type === ActionType.SessionResponsePart || a.type === ActionType.SessionTurnComplete);
+		assert.deepStrictEqual(actions.map(a => a.type), [
+			ActionType.SessionResponsePart,
+			ActionType.SessionTurnComplete,
+		]);
+		assert.strictEqual((actions[0] as SessionResponsePartAction).turnId, 'turn-compact');
+		assert.strictEqual((actions[1] as SessionTurnCompleteAction).turnId, 'turn-compact');
+	});
+
+	test('`/compact` completes the turn even when compaction reports failure', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: false, tokensRemoved: 0, messagesRemoved: 0 };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		assert.strictEqual(mockSession.compactCalls.length, 1);
+		const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
