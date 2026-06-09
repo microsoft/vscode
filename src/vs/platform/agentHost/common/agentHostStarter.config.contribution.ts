@@ -9,13 +9,15 @@ import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
 	AgentHostClaudeAgentSdkPathSettingId,
+	AgentHostCodexAgentBinaryArgsSettingId,
+	AgentHostCodexAgentBinaryPathSettingId,
+	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
 	AgentHostOTelEnabledSettingId,
 	AgentHostOTelExporterTypeSettingId,
 	AgentHostOTelOtlpEndpointSettingId,
 	AgentHostOTelOutfileSettingId,
-	AgentHostRubberDuckEnabledSettingId,
 } from './agentService.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
@@ -40,13 +42,6 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
 	type: 'object',
 	properties: {
-		[AgentHostRubberDuckEnabledSettingId]: {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.rubberDuck.enabled', "When enabled, the coding agent uses a rubber duck critic subagent to review code changes using a complementary model. Requires `#chat.agentHost.enabled#`."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			included: product.quality !== 'stable',
-		},
 		[AgentHostClaudeAgentSdkPathSettingId]: {
 			type: 'string',
 			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
@@ -54,10 +49,33 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
+		[AgentHostCodexAgentBinaryPathSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.codexAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `codex` binary. When set, the Codex agent provider is registered inside the agent host and `codex app-server` is spawned from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostCodexAgentCodexHomeSettingId]: {
+			type: 'string',
+			description: nls.localize('chat.agentHost.codexAgent.codexHome', "Optional override for `$CODEX_HOME`. Controls where the codex binary reads config and writes rollouts. When empty, codex uses its default (`~/.codex`)."),
+			default: '',
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
+		[AgentHostCodexAgentBinaryArgsSettingId]: {
+			type: 'array',
+			items: { type: 'string' },
+			description: nls.localize('chat.agentHost.codexAgent.binaryArgs', "Additional command-line arguments passed to `codex app-server`. Primarily useful for debugging (for example, `--log-level=debug`)."),
+			default: [],
+			tags: ['experimental', 'advanced'],
+			included: product.quality !== 'stable',
+		},
 		[AgentHostOTelEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelExporterTypeSettingId]: {
@@ -65,30 +83,35 @@ configurationRegistry.registerConfiguration({
 			enum: ['otlp-http', 'otlp-grpc', 'console', 'file'],
 			markdownDescription: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
 			default: 'otlp-http',
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelOtlpEndpointSettingId]: {
 			type: 'string',
 			markdownDescription: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
 			default: '',
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelCaptureContentSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelOutfileSettingId]: {
 			type: 'string',
 			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
 			default: '',
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 	}

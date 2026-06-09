@@ -20,7 +20,7 @@ import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, ty
 import { buildSubagentSessionUri, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ToolCallConfirmationReason, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -587,7 +587,7 @@ suite('AgentHostClientTools', () => {
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
@@ -634,7 +634,7 @@ suite('AgentHostClientTools', () => {
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
@@ -718,7 +718,7 @@ suite('AgentHostClientTools', () => {
 				toolCallId: 'inner-tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			});
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionToolCallReady,

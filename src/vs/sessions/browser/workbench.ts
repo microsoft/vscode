@@ -63,7 +63,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/mar
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { EditorMaximizedContext, IsPhoneLayoutContext, KeyboardVisibleContext } from '../common/contextkeys.js';
+import { EditorMaximizedContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
 import {
 	NotificationsPosition,
 	NotificationsSettings,
@@ -72,8 +72,10 @@ import {
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
+import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from './sessionsViewService.js';
 import { ISessionsPartService } from './parts/sessionsPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
@@ -316,6 +318,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private paneCompositeService!: IPaneCompositePartService;
 	private viewDescriptorService!: IViewDescriptorService;
 	private sessionsManagementService!: ISessionsManagementService;
+	private sessionsViewService!: ISessionsViewService;
 	private sessionsPartService!: ISessionsPartService;
 	private instantiationService!: IInstantiationService;
 	private storageService!: IStorageService;
@@ -456,28 +459,15 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 					isPhoneLayoutCtx.set(this.layoutPolicy.viewportClass.read(reader) === 'phone');
 				}));
 
-				// Virtual keyboard detection via visualViewport API.
-				// Use `window.innerHeight` (layout viewport) as the baseline
-				// rather than a captured initial height. Layout viewport
-				// updates on orientation change and split-screen resizes, so
-				// comparing against it avoids stale baselines on landscape
-				// launches, Android split-screen, and iOS URL-bar collapse.
-				if (mainWindow.visualViewport) {
-					const keyboardVisibleCtx = KeyboardVisibleContext.bindTo(contextKeyService);
-					const KEYBOARD_HEIGHT_THRESHOLD_PX = 100;
-
-					const onViewportResize = () => {
-						const vp = mainWindow.visualViewport;
-						if (!vp) {
-							return;
-						}
-						const heightDiff = mainWindow.innerHeight - vp.height;
-						keyboardVisibleCtx.set(heightDiff > KEYBOARD_HEIGHT_THRESHOLD_PX);
-					};
-
-					mainWindow.visualViewport.addEventListener('resize', onViewportResize);
-					this._register({ dispose: () => mainWindow.visualViewport?.removeEventListener('resize', onViewportResize) });
-				}
+				// Virtual keyboard tracking (visualViewport): publishes the
+				// keyboard height as an observable, mirrors it onto the
+				// `--vscode-keyboard-height` CSS variable on the main
+				// container, and drives the `KeyboardVisibleContext`
+				// context key. The service is an eager singleton, so
+				// resolving it here is what triggers its constructor —
+				// the registry hands ownership/disposal to the
+				// instantiation service so we don't `_register` it.
+				accessor.get(IMobileVisualViewport);
 
 				// Orientation changes produce a window `resize` event which
 				// is already handled by `registerLayoutListeners()`. No
@@ -797,8 +787,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// so the new session view becomes visible. createMobileTitlebar() is
 		// only invoked in phone layout, so closing the drawer here is safe.
 		this.mobileTopBarDisposables.add(mobileTitlebar.onDidClickNewSession(() => {
-			this.sessionsManagementService.openNewSessionView();
+			this.sessionsViewService.openNewSession();
 			this.closeMobileSidebarDrawer();
+			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
 		}));
 	}
 
@@ -958,9 +949,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Restore parts (open default view containers)
 		this.restoreParts();
 
-		// Restore the last active session (progress is shown inside the service).
-		void this.sessionsManagementService.restoreLastActiveSession().catch(e => {
-			this.logService.error('[Workbench] restoreLastActiveSession failed', e);
+		// Restore the sessions that were visible in the grid.
+		void this.sessionsViewService.restoreVisibleSessions().catch(e => {
+			this.logService.error('[Workbench] restoreVisibleSessions failed', e);
 		});
 
 		// Set lifecycle phase to `Restored`
@@ -1006,6 +997,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.sessionsManagementService = accessor.get(ISessionsManagementService);
+		this.sessionsViewService = accessor.get(ISessionsViewService);
 		// Forces eager creation of the sessions part so it registers itself with the
 		// layout service before renderWorkbench() looks it up via getPart().
 		this.sessionsPartService = accessor.get(ISessionsPartService);
@@ -1182,10 +1174,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Welcome — must be created early in layout so the widget can gate
 		// other UI until sign-in / chat setup is complete.
 		instantiationService.invokeFunction(accessor => accessor.get(ISessionsSetUpService));
-
-		// Wire the sessions part to the sessions management service now that
-		// the part has been created via renderWorkbench().
-		this.sessionsPartService.init();
 	}
 
 	/**

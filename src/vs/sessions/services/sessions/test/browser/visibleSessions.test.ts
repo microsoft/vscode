@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,8 +11,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { IChat, ISession } from '../../common/session.js';
 
@@ -60,21 +57,6 @@ function stubSession(sessionId: string): ISession {
 	};
 }
 
-class TestAgentSessionsService extends mock<IAgentSessionsService>() {
-	override readonly onDidChangeSessionArchivedState = Event.None;
-	override readonly model: IAgentSessionsModel = {
-		onWillResolve: Event.None,
-		onDidResolve: Event.None,
-		onDidChangeSessions: Event.None,
-		onDidChangeSessionArchivedState: Event.None,
-		resolved: true,
-		sessions: [],
-		getSession: () => undefined,
-		observeSession: () => constObservable<IAgentSession | undefined>(undefined),
-		resolve: async () => { },
-	};
-}
-
 suite('VisibleSessions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,11 +65,9 @@ suite('VisibleSessions', () => {
 		const uriIdentity = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		};
-		const agentSessions = new TestAgentSessionsService();
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			uriIdentity,
-			agentSessions,
 		));
 		return model;
 	}
@@ -571,6 +551,85 @@ suite('VisibleSessions', () => {
 				visible: ['A', undefined, 'B'],
 				active: 'B',
 				sticky: ['A', 'B'],
+			});
+		});
+	});
+
+	suite('restoreGrid', () => {
+
+		test('builds the grid in order with the correct active and sticky slots', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+			const C = stubSession('C');
+
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: B, sticky: false },
+				{ session: C, sticky: false },
+			], 1);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B', 'C'],
+				active: 'B',
+				sticky: ['A'],
+			});
+		});
+
+		test('restores the empty (new-session) slot as active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			model.restoreGrid([
+				{ session: A, sticky: true },
+				{ session: B, sticky: false },
+				{ session: undefined, sticky: false },
+			], 2);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', 'B', undefined],
+				active: undefined,
+				sticky: ['A'],
+			});
+		});
+
+		test('a later session can be inserted to the left of the empty slot without stealing active', () => {
+			const model = createModel();
+			const A = stubSession('A');
+
+			// Only the empty slot is available initially and it is active.
+			model.restoreGrid([
+				{ session: undefined, sticky: false },
+			], 0);
+
+			// A becomes available later and is anchored to the left of the empty slot.
+			model.insertAt(A, undefined, 'left', false);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['A', undefined],
+				active: undefined,
+				sticky: [],
+			});
+		});
+
+		test('replaces a previous transient state and disposes orphaned wrappers', () => {
+			const model = createModel();
+			const A = stubSession('A');
+			const B = stubSession('B');
+
+			// Transient state: a fresh session is shown.
+			model.setActive(A);
+
+			// Restore overrides it entirely with the persisted grid.
+			model.restoreGrid([
+				{ session: B, sticky: false },
+			], 0);
+
+			assert.deepStrictEqual(snapshot(model), {
+				visible: ['B'],
+				active: 'B',
+				sticky: [],
 			});
 		});
 	});

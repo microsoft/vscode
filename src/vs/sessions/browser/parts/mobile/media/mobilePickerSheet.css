@@ -64,7 +64,7 @@
 	width: 36px;
 	height: 5px;
 	margin: 6px auto 2px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
 	flex-shrink: 0;
 }
@@ -178,7 +178,7 @@
 	margin: 4px 16px 10px;
 	padding: 0 10px;
 	height: 36px;
-	border-radius: 18px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	flex-shrink: 0;
 }
@@ -236,6 +236,21 @@
 	padding: 4px 8px 12px;
 }
 
+/* Body container for the shell-only `showMobileContentSheet` variant.
+ * Where the picker sheet builds its own scrollable list of rows
+ * (`.mobile-picker-sheet-list`) inside the sheet flex column, the
+ * content sheet hands the body slot over to its caller and only
+ * guarantees the surrounding chrome (drag handle, title row, caption,
+ * dismissal, keyboard avoidance). We set scroll, momentum, and
+ * touch-action on the body slot itself so vertical scrolling works
+ * correctly under iOS regardless of what DOM the caller puts inside. */
+.mobile-content-sheet-body {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+	touch-action: pan-y;
+}
+
 /* iOS grouped-list section header. The HIG uses a regular-case
  * footnote-sized label in secondary color — not the uppercased small
  * caps that older Settings rows used. */
@@ -261,7 +276,7 @@
 	padding: 8px 12px;
 	margin: 2px 0;
 	border: none;
-	border-radius: 12px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	background: transparent;
 	color: inherit;
 	font-family: inherit;
@@ -311,7 +326,7 @@
 	justify-content: center;
 	width: 36px;
 	height: 36px;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);

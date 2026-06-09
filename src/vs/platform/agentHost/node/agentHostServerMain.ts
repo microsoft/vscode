@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-path <path>] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--claude-sdk-path <path>] [--codex-binary-path <path>] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -37,10 +37,12 @@ import { CopilotApiService, ICopilotApiService } from './shared/copilotApiServic
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+import { CodexAgent } from './codex/codexAgent.js';
+import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
-import { AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeSdkPathEnvVar, IAgentService, AgentHostCodexAgentBinaryPathEnvVar } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -85,6 +87,8 @@ interface IServerOptions {
 	readonly enableMockAgent: boolean;
 	/** Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package, or empty to disable the Claude agent. */
 	readonly claudeSdkPath: string;
+	/** Absolute path to a locally-installed `codex` binary, or empty to disable the Codex agent. */
+	readonly codexBinaryPath: string;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
 	readonly connectionToken: string | undefined;
@@ -105,6 +109,8 @@ function parseServerOptions(): IServerOptions {
 	// The SDK is intentionally not bundled with VS Code.
 	const sdkPathIdx = argv.indexOf('--claude-sdk-path');
 	const claudeSdkPath = (sdkPathIdx >= 0 ? argv[sdkPathIdx + 1] : process.env[AgentHostClaudeSdkPathEnvVar]) ?? '';
+	const codexBinaryPathIdx = argv.indexOf('--codex-binary-path');
+	const codexBinaryPath = (codexBinaryPathIdx >= 0 ? argv[codexBinaryPathIdx + 1] : process.env[AgentHostCodexAgentBinaryPathEnvVar]) ?? '';
 	const quiet = argv.includes('--quiet');
 
 	// Connection token
@@ -147,7 +153,7 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, host, enableMockAgent, claudeSdkPath, quiet, connectionToken };
+	return { port, host, enableMockAgent, claudeSdkPath, codexBinaryPath, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -221,6 +227,7 @@ async function main(): Promise<void> {
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
 	const agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
 	disposables.add(agentService);
+	diServices.set(IAgentService, agentService);
 
 	// Register agents
 	if (!options.quiet) {
@@ -240,6 +247,8 @@ async function main(): Promise<void> {
 		diServices.set(IClaudeProxyService, claudeProxyService);
 		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
 		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		const codexProxyService = disposables.add(instantiationService.createInstance(CodexProxyService));
+		diServices.set(ICodexProxyService, codexProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
@@ -252,6 +261,12 @@ async function main(): Promise<void> {
 			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 			agentService.registerProvider(claudeAgent);
 			log('ClaudeAgent registered');
+		}
+		if (options.codexBinaryPath) {
+			process.env[AgentHostCodexAgentBinaryPathEnvVar] = options.codexBinaryPath;
+			const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
+			agentService.registerProvider(codexAgent);
+			log('CodexAgent registered');
 		}
 	}
 

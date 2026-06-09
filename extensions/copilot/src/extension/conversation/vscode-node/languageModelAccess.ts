@@ -42,7 +42,7 @@ import { IExtensionContribution } from '../../common/contributions';
 import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
-import { formatPricingLabel, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
+import { formatPricingLabel, formatTokenCount, getModelCapabilitiesDescription, buildReasoningEffortSchemaProperty } from '../common/languageModelAccess';
 
 /**
  * Markers in the autoModelHint experiment variable that indicate the auto model
@@ -94,19 +94,6 @@ function getContextSizeOptions(endpoint: IChatEndpoint): { value: number; descri
 			isDefault: false,
 		},
 	];
-}
-
-function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		const value = count / 1_000_000;
-		const floored = Math.floor(value * 10) / 10;
-		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
-	} else if (count > 900_000) {
-		return '1M';
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
 }
 
 // Auto model delegates to different backends, so don't expose config pickers
@@ -306,6 +293,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 
 		const models: vscode.LanguageModelChatInformation[] = [];
 		const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+		if (!allEndpoints.length) {
+			return this._currentModels;
+		}
 		const chatEndpoints = allEndpoints.filter(e => e.showInModelPicker || e.model === 'gpt-4o-mini');
 		const autoEndpoint = await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		chatEndpoints.push(autoEndpoint);
@@ -482,6 +472,9 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 	private async _getEndpointForModel(model: vscode.LanguageModelChatInformation) {
 		if (model.id === AutoChatEndpoint.pseudoModelId) {
 			const allEndpoints = await this._endpointProvider.getAllChatEndpoints();
+			if (!allEndpoints.length) {
+				return undefined;
+			}
 			return await this._automodeService.resolveAutoModeEndpoint(undefined, allEndpoints);
 		}
 		const aliasEndpoint = this._utilityAliasEndpoints.get(model.id);

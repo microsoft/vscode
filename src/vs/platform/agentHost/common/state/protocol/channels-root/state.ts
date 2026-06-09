@@ -37,6 +37,12 @@ export interface RootState {
 	terminals?: TerminalInfo[];
 	/** Agent host configuration schema and current values */
 	config?: RootConfigState;
+	/**
+	 * Additional implementation-defined metadata about the agent host itself.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
@@ -66,13 +72,15 @@ export interface AgentInfo {
 	/**
 	 * Customizations associated with this agent.
 	 *
-	 * Always container customizations —
+	 * Either container customizations —
 	 * {@link PluginCustomization | `PluginCustomization`} entries the agent
 	 * bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
-	 * entries it watches in any workspace it's used with. When a session is
-	 * created with this agent, these entries are augmented (e.g. directory
-	 * URIs are resolved against the workspace, children are parsed) and
-	 * propagated into the session's `customizations` list.
+	 * entries it watches in any workspace it's used with — or top-level
+	 * {@link McpServerCustomization | `McpServerCustomization`} entries
+	 * the agent host declares directly. When a session is created with
+	 * this agent, these entries are augmented (e.g. directory URIs are
+	 * resolved against the workspace, children are parsed) and propagated
+	 * into the session's `customizations` list.
 	 */
 	customizations?: Customization[];
 }
