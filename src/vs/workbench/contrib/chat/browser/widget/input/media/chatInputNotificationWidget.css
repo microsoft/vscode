@@ -43,13 +43,13 @@
 }
 
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-warning {
-	border-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 55%, transparent);
-	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 4%, var(--vscode-editorWidget-background));
+	border-color: var(--vscode-editorWarning-foreground);
+	background-color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 6%, var(--vscode-editorWidget-background));
 }
 
 .interactive-session .interactive-input-part > .chat-input-notification-container .chat-input-notification.severity-error {
-	border-color: color-mix(in srgb, var(--vscode-editorError-foreground) 55%, transparent);
-	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 4%, var(--vscode-editorWidget-background));
+	border-color: var(--vscode-editorError-foreground);
+	background-color: color-mix(in srgb, var(--vscode-editorError-foreground) 6%, var(--vscode-editorWidget-background));
 }
 
 /* Header row: icon + title + dismiss */
@@ -72,11 +72,11 @@
 }
 
 .chat-input-notification.severity-warning .chat-input-notification-icon {
-	color: color-mix(in srgb, var(--vscode-editorWarning-foreground) 80%, var(--vscode-foreground));
+	color: var(--vscode-editorWarning-foreground);
 }
 
 .chat-input-notification.severity-error .chat-input-notification-icon {
-	color: color-mix(in srgb, var(--vscode-editorError-foreground) 80%, var(--vscode-foreground));
+	color: var(--vscode-editorError-foreground);
 }
 
 /* Title */
@@ -152,14 +152,16 @@
 
 /* Transparent ghost style for secondary action buttons (e.g. "View Usage") */
 .chat-input-notification .chat-input-notification-action-button.secondary {
-	border: 1px solid var(--vscode-button-border, transparent);
-	background: color-mix(in srgb, var(--vscode-button-secondaryBackground) 65%, transparent);
+	border: none;
+	background: transparent;
 	color: var(--vscode-foreground);
 	padding: 4px 8px;
+	opacity: 0.8;
 }
 
 .chat-input-notification .chat-input-notification-action-button.secondary:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
+	background: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
 }
 
 /* Dismiss button */
