@@ -151,6 +151,21 @@
     "toolInvocationApproveCombination",
     "chatSessionCustomizationProvider"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "github.copilot.chat.otel.enabled",
+        "github.copilot.chat.otel.exporterType",
+        "github.copilot.chat.otel.otlpEndpoint",
+        "github.copilot.chat.otel.captureContent",
+        "github.copilot.chat.otel.maxAttributeSizeChars",
+        "github.copilot.chat.otel.outfile",
+        "github.copilot.chat.otel.dbSpanExporter.enabled"
+      ]
+    }
+  },
   "contributes": {
     "languageModelTools": [
       {
@@ -2855,6 +2870,18 @@
         "enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
       },
       {
+        "command": "github.copilot.chat.otel.statusActive",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "github.copilot.chat.otel.statusCapturing",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(eye)"
+      },
+      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -5510,7 +5537,27 @@
           "group": "inline@2"
         }
       ],
+      "chat/input/status": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "github.copilot.otel.state == 'active'",
+          "group": "navigation"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusCapturing",
+          "when": "github.copilot.otel.state == 'capturing'",
+          "group": "navigation"
+        }
+      ],
       "commandPalette": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusCapturing",
+          "when": "false"
+        },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
