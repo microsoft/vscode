@@ -40,7 +40,7 @@ import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 const FILTER_THRESHOLD = 10;
 
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
-const PERMISSION_MODE_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels';
+const PERMISSION_MODE_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
 
 interface IConfigPickerItem {
 	readonly value: string;
