@@ -446,11 +446,16 @@ export class AgentHostChatInputPicker extends Disposable {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
 		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted);
 		if (this._property === ClaudeSessionConfigKey.PermissionMode || this._property === SessionConfigKey.AutoApprove) {
+			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
+			actionItems.push({
+				kind: ActionListItemKind.Separator,
+				label: '',
+			});
 			actionItems.push({
 				kind: ActionListItemKind.Action,
-				label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions"),
+				label: learnMoreLabel,
 				group: { title: '', icon: Codicon.blank },
-				item: { value: LEARN_MORE_VALUE, label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions") },
+				item: { value: LEARN_MORE_VALUE, label: learnMoreLabel },
 			});
 		}
 
