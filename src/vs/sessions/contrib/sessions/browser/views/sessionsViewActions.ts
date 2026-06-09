@@ -20,7 +20,7 @@ import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/work
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, openSessionToTheSide } from './sessionsView.js';
@@ -176,7 +176,11 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.navigatePreviousSession',
-			title: localize2('navigatePreviousSession', "Navigate to Previous Session"),
+			title: {
+				value: localize('navigatePreviousSession', "Go to Previous Session"),
+				original: 'Go to Previous Session',
+				mnemonicTitle: localize('navigatePreviousSession.mnemonic', "&&Previous Session"),
+			},
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -190,7 +194,12 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow] },
-			}
+			},
+			menu: [{
+				id: Menus.GoMenu,
+				group: '2_list_nav',
+				order: 1,
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -202,7 +211,11 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.navigateNextSession',
-			title: localize2('navigateNextSession', "Navigate to Next Session"),
+			title: {
+				value: localize('navigateNextSession', "Go to Next Session"),
+				original: 'Go to Next Session',
+				mnemonicTitle: localize('navigateNextSession.mnemonic', "&&Next Session"),
+			},
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -216,7 +229,12 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow] },
-			}
+			},
+			menu: [{
+				id: Menus.GoMenu,
+				group: '2_list_nav',
+				order: 2,
+			}]
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -685,7 +703,7 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'navigation',
 				order: 15,
-				when: ContextKeyExpr.equals(SessionIsArchivedContext.key, false),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
 			}]
 		});
 	}

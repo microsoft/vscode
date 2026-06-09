@@ -13,6 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -60,6 +61,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -90,6 +92,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		this._triggerElement = trigger;
+		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: this._getActiveContext()?.tooltip ?? '' })));
 
 		this._renderDisposables.add(Gesture.addTarget(trigger));
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
@@ -143,7 +146,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		return provider.isSessionConfigResolving(session.sessionId).get();
 	}
 
-	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[] } | undefined {
+	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._sessionsManagementService.activeSession.get();
 		if (!session) {
 			return undefined;
@@ -167,7 +170,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}));
 		const rawCurrent = config?.values[this._property] ?? schema.default;
 		const currentValue = typeof rawCurrent === 'string' && enumValues.includes(rawCurrent) ? rawCurrent : enumValues[0] ?? '';
-		return { provider: rawProvider, sessionId: session.sessionId, currentValue, items };
+		return { provider: rawProvider, sessionId: session.sessionId, currentValue, items, tooltip: schema.description ?? schema.title ?? '' };
 	}
 
 	private _updateTrigger(): void {

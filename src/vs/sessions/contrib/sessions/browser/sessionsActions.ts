@@ -190,6 +190,7 @@ registerAction2(class GoBackAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowLeft,
+			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
 			keybinding: {
@@ -231,6 +232,7 @@ registerAction2(class GoForwardAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowRight,
+			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
 			keybinding: {

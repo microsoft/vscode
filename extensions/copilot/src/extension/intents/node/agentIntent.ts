@@ -110,7 +110,7 @@ export function isBackgroundTodoAgentEnabled(
 	const token = authenticationService.copilotToken;
 
 	// Disable background todo agent for experimental models temporarily
-	if (endpoint.modelProvider.toLowerCase() === 'experimental') {
+	if (endpoint.modelProvider?.toLowerCase() === 'experimental') {
 		return false;
 	}
 
