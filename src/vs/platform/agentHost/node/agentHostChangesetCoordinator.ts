@@ -412,7 +412,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		if (sessionRaw === undefined && legacyRaw === undefined) {
 			return entry;
 		}
-		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, { sessionRaw });
+		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, { sessionRaw, legacyRaw });
 
 		// `listSessions` must not seed full changeset state for every row;
 		// it only parses persisted blobs enough to render the chip aggregate.
