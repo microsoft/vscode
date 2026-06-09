@@ -90,7 +90,7 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 		);
 		assert.deepStrictEqual(
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
-			{ kind: 'ok', resource: 'vscode-agent-host://localhost__4321/file/-/home/remote/.copilot/session-state/xyz/events.jsonl' },
+			{ kind: 'ok', resource: 'vscode-agent-host://localhost__4321/home/remote/.copilot/session-state/xyz/events.jsonl?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0' },
 		);
 	});
 
