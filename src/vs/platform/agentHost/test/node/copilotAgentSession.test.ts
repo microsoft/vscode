@@ -432,7 +432,7 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
-	test('`/compact` runs the history compact RPC, acknowledges, and completes the turn', async () => {
+	test('`/compact` runs the history compact RPC and completes the turn without emitting output', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
 		await session.send('/compact', undefined, 'turn-compact');
@@ -443,16 +443,12 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(mockSession.sendRequests, []);
 
 		// The turn opened by the server is closed inline (the SDK never fires
-		// `onIdle` for the compact path), with the acknowledgement landing in
-		// the turn before it completes.
-		const actions = getActions(signals).filter(a =>
-			a.type === ActionType.SessionResponsePart || a.type === ActionType.SessionTurnComplete);
-		assert.deepStrictEqual(actions.map(a => a.type), [
-			ActionType.SessionResponsePart,
-			ActionType.SessionTurnComplete,
-		]);
-		assert.strictEqual((actions[0] as SessionResponsePartAction).turnId, 'turn-compact');
-		assert.strictEqual((actions[1] as SessionTurnCompleteAction).turnId, 'turn-compact');
+		// `onIdle` for the compact path) without emitting any response content.
+		const actions = getActions(signals);
+		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.SessionResponsePart), []);
+		const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+		assert.ok(turnComplete, 'expected the turn to complete');
+		assert.strictEqual((turnComplete as SessionTurnCompleteAction).turnId, 'turn-compact');
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {

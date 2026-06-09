@@ -777,22 +777,16 @@ export class CopilotAgentSession extends Disposable {
 
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
-			let success: boolean;
 			try {
-				const result = await this._wrapper.session.rpc.history.compact();
-				success = result.success;
+				await this._wrapper.session.rpc.history.compact();
 			} catch (err) {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
 			// `/compact` is handled inline via the history RPC rather than by
 			// driving an SDK turn, so the SDK never fires `onIdle` to close the
-			// turn. Mirror the generic `/rename` handling: acknowledge with a
-			// brief response and complete the turn so the session returns to
-			// idle instead of spinning forever.
-			this._emitMarkdownDelta(success
-				? localize('copilotCompact.compacted', "Compacted conversation history.")
-				: localize('copilotCompact.failed', "Unable to compact conversation history."));
+			// turn. Complete the turn here so the session returns to idle
+			// instead of spinning forever.
 			this._completeActiveTurn();
 			return;
 		}
