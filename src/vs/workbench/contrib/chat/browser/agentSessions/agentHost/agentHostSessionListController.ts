@@ -17,6 +17,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 
 /**
  * Picks the default catalogue entry to render the sidebar chip from.
@@ -108,6 +109,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		@IProductService private readonly _productService: IProductService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 		void _connectionAuthority;
@@ -208,7 +210,15 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// fails, the handler falls through to its standard
 		// `_createAndSubscribe` path with no user selections.
 		if (request.untitledResource) {
-			const workingDirectory = this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
+				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			// Carry the chosen folder forward onto the real resource so the
+			// handler's working-directory resolution stays consistent after the
+			// untitled-to-real rebind, then forget the untitled entry.
+			if (workingDirectory) {
+				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
+			}
+			this._newSessionFolderService.clear(request.untitledResource);
 			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
 		}
 
