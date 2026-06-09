@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.51.0",
+  "version": "0.51.1",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.123.0",
+    "vscode": "^1.123.1",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -151,6 +151,21 @@
     "toolInvocationApproveCombination",
     "chatSessionCustomizationProvider"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "github.copilot.chat.otel.enabled",
+        "github.copilot.chat.otel.exporterType",
+        "github.copilot.chat.otel.otlpEndpoint",
+        "github.copilot.chat.otel.captureContent",
+        "github.copilot.chat.otel.maxAttributeSizeChars",
+        "github.copilot.chat.otel.outfile",
+        "github.copilot.chat.otel.dbSpanExporter.enabled"
+      ]
+    }
+  },
   "contributes": {
     "languageModelTools": [
       {
@@ -2856,6 +2871,18 @@
         "enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
       },
       {
+        "command": "github.copilot.chat.otel.statusActive",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "github.copilot.chat.otel.statusCapturing",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(eye)"
+      },
+      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -5467,7 +5494,27 @@
           "group": "inline@2"
         }
       ],
+      "chat/input/status": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "github.copilot.otel.state == 'active'",
+          "group": "navigation"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusCapturing",
+          "when": "github.copilot.otel.state == 'capturing'",
+          "group": "navigation"
+        }
+      ],
       "commandPalette": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusCapturing",
+          "when": "false"
+        },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
