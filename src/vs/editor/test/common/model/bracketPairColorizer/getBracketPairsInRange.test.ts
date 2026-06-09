@@ -349,6 +349,54 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		});
 	});
 
+
+	test('Template language triple-brace pairs (e.g. Handlebars/Mustache {{{ }}})', () => {
+		// Verifies longest-match: when a language registers both {{{ }}} and {{ }} as
+		// colorized bracket pairs (e.g. Handlebars triple-stache), {{{ foo }}} is treated
+		// as a SINGLE {{{ }}} pair, not a {{ }} pair with leftover braces.
+		disposeOnReturn(store => {
+			const languageId = 'testTripleStacheLang';
+			const instantiationService = createModelServices(store);
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const languageService = instantiationService.get(ILanguageService);
+			store.add(languageService.registerLanguage({ id: languageId }));
+			const text = '¹{{{ foo }}}²';
+			const doc = new AnnotatedDocument(text);
+			const encodedMode = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const tokenizedDoc = new TokenizedDocument([
+				new TokenInfo(doc.text, encodedMode, StandardTokenType.Other, true)
+			]);
+			store.add(TokenizationRegistry.register(languageId, tokenizedDoc.getTokenizationSupport()));
+			// Overlapping colorized pairs: {{{ }}} must win over {{ }} via longest-match
+			store.add(languageConfigurationService.register(languageId, {
+				brackets: [
+					['{', '}'],
+					['(', ')'],
+				],
+				colorizedBracketPairs: [
+					['{{{', '}}}'],
+					['{{', '}}'],
+					['(', ')'],
+				],
+			}));
+			const model = store.add(instantiateTextModel(instantiationService, doc.text, languageId));
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketPairsInRange(doc.range(1, 2))
+					.map(bracketPairToJSON)
+					.toArray(),
+				[
+					{
+						level: 0,
+						range: '[1,1 -> 1,4]',
+						openRange: '[1,1 -> 1,4]',
+						closeRange: '[1,9 -> 1,12]',
+					},
+				]
+			);
+		});
+	});
+
 	test('colorizedBracketsVSBrackets', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`¹ {} [<()>] <{>} ²`);

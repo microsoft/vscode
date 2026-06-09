@@ -134,8 +134,6 @@
     "@xterm/headless": "^6.1.0-beta.220",
     "@xterm/xterm": "^6.1.0-beta.220",
     "chrome-remote-interface": "^0.33.0",
-    "gulp-merge-json": "^2.2.1",
-    "gulp-sort": "^2.0.0",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
