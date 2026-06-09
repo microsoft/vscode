@@ -7,7 +7,7 @@
 # bash-compatible shells) do not set BASH_VERSION, so exit early to avoid
 # errors from bash-specific syntax used throughout this script.
 if [ -z "${BASH_VERSION:-}" ]; then
-	return 2>/dev/null
+	return 0 2>/dev/null || exit 0
 fi
 
 # Prevent the script recursing when setting up
