@@ -3841,6 +3841,8 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
 	reference?: vscode.Uri;
+	isPasted?: boolean;
+	isURL?: boolean;
 	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
 		this.mimeType = mimeType;
 		this.data = data;
