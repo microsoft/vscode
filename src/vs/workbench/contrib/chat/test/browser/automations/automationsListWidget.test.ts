@@ -20,6 +20,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AutomationsListWidget } from '../../../browser/aiCustomization/automationsListWidget.js';
@@ -113,6 +114,7 @@ suite('AutomationsListWidget', () => {
 		instantiation.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: document.createElement('div') }));
 		instantiation.stub(IHostService, upcastPartial<IHostService>({}));
 		instantiation.stub(ILogService, log);
+		instantiation.stub(IQuickInputService, upcastPartial<IQuickInputService>({ pick: async () => undefined }));
 		// Enable the Automations feature so mutation handlers don't
 		// short-circuit with the "feature disabled" toast. The runtime
 		// gating is exercised in a dedicated test below.

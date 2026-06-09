@@ -1864,6 +1864,38 @@ pane is first mounted. View switches inside the modal are not animated. */
 	padding-right: 6px;
 }
 
+/*
+ * Theme the native overflow scrollbar on the dialog body so it matches
+ * the rest of VS Code. .dialog-message-container is the scroll host
+ * (see base/browser/ui/dialog/dialog.css). Without this the dialog
+ * shows the platform's default scrollbar which clashes visually with
+ * the chat input embedded above.
+ */
+.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar {
+	width: 10px;
+}
+
+.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-track {
+	background-color: transparent;
+}
+
+.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb {
+	min-height: 20px;
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-corner {
+	display: none;
+}
+
 .automation-form {
 	display: flex;
 	flex-direction: column;
@@ -2018,6 +2050,56 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automation-form-folder-controls .automation-form-select {
 	flex: 1 1 auto;
 	min-width: 0;
+}
+
+/*
+ * Folder picker rendered as a chip styled after the chat input pickers
+ * (see chat.css `.chat-input-picker-item .action-label`). A self-contained
+ * button — clicking opens a quick pick listing known folders + a `Browse…`
+ * action — so the modal stays visually consistent with the embedded chat
+ * composer's chips.
+ */
+.automation-folder-chip {
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 8px;
+	max-width: 100%;
+	font-family: inherit;
+	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground, transparent);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.automation-folder-chip:hover {
+	background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.automation-folder-chip:focus,
+.automation-folder-chip[aria-expanded="true"] {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.automation-folder-chip .chat-input-picker-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.automation-folder-chip .codicon-chevron-down {
+	font-size: 10px;
+	opacity: 0.75;
+}
+
+.automation-folder-chip .codicon {
+	color: var(--vscode-icon-foreground);
 }
 
 .automation-form-folder-browse {
