@@ -574,8 +574,23 @@ impl AgentHostManager {
 			if let Some(pid) = server.child.id() {
 				let _ = kill_tree(pid).await;
 			}
-			// Reap the child so we don't leave a zombie.
-			let _ = server.child.wait().await;
+			// Reap the child so we don't leave a zombie. Bound the wait so a
+			// process that ignores SIGTERM can't wedge the supervisor's
+			// shutdown or upgrade path; escalate to SIGKILL via Child::kill if
+			// the graceful shutdown doesn't land in time.
+			const REAP_TIMEOUT: Duration = Duration::from_secs(5);
+			if tokio::time::timeout(REAP_TIMEOUT, server.child.wait())
+				.await
+				.is_err()
+			{
+				warning!(
+					self.log,
+					"Server did not exit within {}s after kill_tree; escalating to SIGKILL",
+					REAP_TIMEOUT.as_secs()
+				);
+				let _ = server.child.kill().await;
+				let _ = server.child.wait().await;
+			}
 		}
 	}
 

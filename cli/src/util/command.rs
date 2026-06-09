@@ -253,9 +253,21 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 				}
 			}
 		}
-		// pgrep exits 1 when no children are found; that's not an error here.
-		let _ = child.wait().await;
-		Ok(out)
+		// pgrep exit codes: 0 = matches found, 1 = no matches (expected for
+		// leaf processes), 2/3 = syntax or operational error worth surfacing.
+		let status = child.wait().await.map_err(|e| CodeError::CommandFailed {
+			command: format!("pgrep -P {parent_str}"),
+			code: -1,
+			output: e.to_string(),
+		})?;
+		match status.code() {
+			Some(0) | Some(1) | None => Ok(out),
+			Some(code) => Err(CodeError::CommandFailed {
+				command: format!("pgrep -P {parent_str}"),
+				code,
+				output: String::new(),
+			}),
+		}
 	}
 
 	// Rusty version of https://github.com/microsoft/vscode-js-debug/blob/main/src/targets/node/terminateProcess.sh
