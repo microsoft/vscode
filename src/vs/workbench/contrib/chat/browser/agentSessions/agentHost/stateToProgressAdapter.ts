@@ -426,21 +426,26 @@ function getTerminalLanguage(tc: ToolCallState) {
  *
  * 1. `existingKind === 'terminal'` — preserve the prior render decision so a
  *    tool already set up as terminal stays terminal across snapshots.
- * 2. `getToolKind(tc) === 'terminal'` — the always-available `_meta.toolKind`
- *    flag set by the event mapper for built-in `bash`/`powershell` SDK tools
- *    that never emit a {@link ToolResultContentType.Terminal} content block.
+ * 2. `getToolKind(tc) === 'terminal'` with a command available — the
+ *    always-available `_meta.toolKind` flag set by the event mapper for
+ *    built-in `bash`/`powershell` SDK tools that never emit a
+ *    {@link ToolResultContentType.Terminal} content block. We only render the
+ *    terminal pill once we actually have the command (`getTerminalInput`):
+ *    rendering a terminal pill with an empty command line looks broken, so
+ *    until the command arrives we fall back to the generic tool widget
+ *    (the `invocationMessage`).
  * 3. A `Terminal` content block in `tc.content` (Running/Completed only) —
  *    the AHP-side signal for the custom terminal tool (`agenthost-terminal:`
  *    URIs).
  *
- * Without (1) and (2) the live invocation would race against the async
- * arrival of the Terminal block via `onDidAssociateTerminal`.
+ * Without (1) the live invocation would race against the async arrival of the
+ * Terminal block via `onDidAssociateTerminal`.
  */
 function isTerminalToolCall(tc: ToolCallState, existingKind?: string): boolean {
 	if (existingKind === 'terminal') {
 		return true;
 	}
-	if (getToolKind(tc) === 'terminal') {
+	if (getToolKind(tc) === 'terminal' && getTerminalInput(tc) !== undefined) {
 		return true;
 	}
 	if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) {
