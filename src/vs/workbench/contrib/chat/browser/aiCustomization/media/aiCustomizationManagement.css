@@ -1871,14 +1871,34 @@ pane is first mounted. View switches inside the modal are not animated. */
 	padding: 2px 2px 4px;
 }
 
+/*
+ * Host for the embedded ChatInputPart. The composer brings its own
+ * background, border, and rounded corners (see chat.css
+ * `.interactive-input-part`), so we just give it room to breathe and let
+ * it fill the dialog's column width. `min-height` is sized for ~5 lines
+ * of body text + the toolbar row so the editor doesn't feel cramped on
+ * first open; the editor itself grows as the user types.
+ */
 .automation-form-prompt-host {
 	display: flex;
 	flex-direction: column;
-	min-height: 80px;
+	min-height: 140px;
 }
 
 .automation-form-prompt-host .interactive-input-part {
 	width: 100%;
+	/* The composer's internal toolbar wraps its picker chips on its own;
+	 * we just ensure horizontal overflow can't escape the dialog when
+	 * long custom-mode names or model identifiers show up. */
+	max-width: 100%;
+	min-width: 0;
+}
+
+.automation-form-prompt-host .interactive-input-and-side-toolbar {
+	/* Allow the input column to shrink below its content's preferred
+	 * width so flex children (chips, custom-mode names) don't push the
+	 * modal wider than its declared max-width. */
+	min-width: 0;
 }
 
 .automation-form-row {
