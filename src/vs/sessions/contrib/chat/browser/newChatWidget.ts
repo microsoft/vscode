@@ -24,6 +24,7 @@ import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 
 // #region --- New Chat Widget ---
 
@@ -44,7 +45,16 @@ export class NewChatWidget extends Disposable {
 	 */
 	private _activeEmptyState: NoAgentHostEmptyState | undefined;
 
+	/**
+	 * Whether to render the session type ("harness") picker below the input
+	 * (in the controls) instead of next to the workspace picker. Read once from
+	 * the view options at construction time; the widget does not react to later
+	 * changes of the source observable.
+	 */
+	private readonly _renderHarnessPickerInControls: boolean;
+
 	constructor(
+		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -54,6 +64,7 @@ export class NewChatWidget extends Disposable {
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
+		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
@@ -81,7 +92,7 @@ export class NewChatWidget extends Disposable {
 			canSendRequest,
 			loading,
 			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
-			renderSessionTypePickerInControls: false,
+			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 		}));
 
@@ -223,9 +234,12 @@ export class NewChatWidget extends Disposable {
 			: localize('newSessionChooseWorkspace', "Start by picking a");
 
 		this._workspacePicker.render(pickersRow);
-		const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
-		withLabel.textContent = localize('newSessionWith', "with");
-		this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
+
+		if (!this._renderHarnessPickerInControls) {
+			const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
+			withLabel.textContent = localize('newSessionWith', "with");
+			this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
+		}
 		return this._workspacePicker.onDidSelectWorkspace(() => {
 			const folderUri = this._workspacePicker.selectedFolderUri;
 			pickersLabel.textContent = folderUri

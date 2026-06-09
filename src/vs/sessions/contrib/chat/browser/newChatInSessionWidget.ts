@@ -18,6 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 // #region --- New Chat In Session Widget ---
@@ -35,6 +36,7 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 
 	constructor(
+		_options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
