@@ -21,7 +21,7 @@ import { autorun, IObservable } from '../../../../../../base/common/observable.j
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListBannerInfo, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -931,6 +931,23 @@ function createUnavailableModelItem(
 type ModelPickerBadge = 'info' | 'warning';
 
 /**
+ * Banner text shown when non-default options (which may increase cost) are
+ * offered. Shared across the model-config and permission pickers.
+ */
+export function nonDefaultCostBanner(): IActionListBannerInfo {
+	return { text: localize('chat.config.costHint', "Non-default options may increase cost") };
+}
+
+/**
+ * Banner text warning that changing the model or its options while a
+ * conversation is already underway can invalidate the prompt cache and
+ * increase cost.
+ */
+function cacheBreakBanner(): IActionListBannerInfo {
+	return { text: localize('chat.config.cacheBreakHint', "Mid session changes may increase cost") };
+}
+
+/**
  * A model selection dropdown widget.
  *
  * Renders a button showing the currently selected model name.
@@ -1182,6 +1199,8 @@ export class ModelPickerWidget extends Disposable {
 				void this._openerService.open(uri, { allowCommands: true });
 			},
 			minWidth: 200,
+			// Warn that switching models mid-conversation can break the prompt cache.
+			banners: this._delegate.isConversationActive?.() ? [cacheBreakBanner()] : undefined,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
 
@@ -1356,6 +1375,11 @@ export class ModelPickerWidget extends Disposable {
 
 		this._configButton.setAttribute('aria-expanded', 'true');
 
+		// Show a single hint: the cache-break warning takes precedence while a
+		// conversation is underway (it already implies increased cost), so we
+		// never stack it with the redundant non-default cost hint.
+		const banner = this._delegate.isConversationActive?.() ? cacheBreakBanner() : nonDefaultCostBanner();
+
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',
 			false,
@@ -1372,10 +1396,10 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				bannerText: localize('chat.config.hint', "Non-default options may increase cost"),
+				banners: [banner],
 				managedHoverPosition: HoverPosition.RIGHT,
 				hideDefaultKeybindingTooltip: true,
-				minWidth: 184,
+				minWidth: 220,
 			}
 		);
 	}

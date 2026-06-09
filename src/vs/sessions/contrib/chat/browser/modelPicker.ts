@@ -119,6 +119,10 @@ export class ModelPicker extends Disposable {
 			showManageModelsAction: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showManageModelsAction,
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showFeatured,
+			isConversationActive: () => {
+				const status = this._sessionsManagementService.activeSession.get()?.status.get();
+				return status !== undefined && status !== SessionStatus.Untitled;
+			},
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {

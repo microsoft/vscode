@@ -381,36 +381,45 @@
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
-/* Dismissable info banner (top of widget) */
+/* Info hint shown at the bottom of the widget (below the list): a subtle bordered, lightly-filled box that reads as a closing hint. A separator rule above detaches it from the list. The icon/text align with the list rows (6px inset, 12px icon, 6px gap) and share a 16px line box so the glyph centers on the first line. */
+.action-widget .action-list-banners {
+	display: flex;
+	flex-direction: column;
+	margin-top: 4px;
+	padding-top: 5px;
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
 .action-widget .action-list-banner {
 	display: flex;
-	align-items: center;
-	gap: 7px;
-	margin: 2px 2px 6px 2px;
-	padding: 6px 7px 6px 9px;
+	align-items: flex-start;
+	gap: 6px;
+	margin: 0 0 2px 0;
+	padding: 6px 12px 6px 5px;
 	border: 1px solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-medium, 5px);
 	background: var(--vscode-textBlockQuote-background, transparent);
 	font-size: 11px;
-	line-height: 1.3;
 	color: var(--vscode-descriptionForeground);
 }
 
 .action-widget .action-list-banner-icon.codicon {
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: 12px;
+	line-height: 16px;
 	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
 .action-widget .action-list-banner-text {
 	flex: 1;
 	min-width: 0;
+	line-height: 16px;
 }
 
 .action-widget .action-list-banner-close.codicon {
 	flex-shrink: 0;
-	align-self: flex-start;
-	font-size: 14px;
+	font-size: 12px;
+	line-height: 16px;
 	padding: 1px;
 	border-radius: 4px;
 	cursor: pointer;

@@ -459,6 +459,21 @@ function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undef
 }
 
 /**
+ * Describes a single info banner rendered at the bottom of the action widget.
+ */
+export interface IActionListBannerInfo {
+	/** The text shown in the banner. */
+	readonly text: string;
+
+	/**
+	 * When provided, the banner renders a dismiss button that invokes this
+	 * handler. Omit for a persistent, non-dismissable banner. Callers can
+	 * persist this so the banner stays hidden the next time the widget opens.
+	 */
+	readonly onDismiss?: () => void;
+}
+
+/**
  * Options for configuring the action list.
  */
 export interface IActionListOptions {
@@ -551,19 +566,12 @@ export interface IActionListOptions {
 	readonly footerText?: string;
 
 	/**
-	 * Optional info banner shown at the very top of the widget (above the filter
-	 * and list). When set, an info icon and this text are rendered. A dismiss
-	 * button is added only when {@link onBannerDismiss} is also provided.
+	 * Optional info banners shown at the bottom of the widget (below the list).
+	 * Each entry renders an info icon and its text on its own row, allowing
+	 * multiple hints to be stacked. A dismiss button is added for a banner only
+	 * when its {@link IActionListBannerInfo.onDismiss} handler is provided.
 	 */
-	readonly bannerText?: string;
-
-	/**
-	 * Invoked when the user dismisses the {@link bannerText} banner. Providing
-	 * this also makes the banner dismissable (renders the close button); omit it
-	 * for a persistent, non-dismissable banner. Callers can persist this so the
-	 * banner stays hidden the next time the widget opens.
-	 */
-	readonly onBannerDismiss?: () => void;
+	readonly banners?: readonly IActionListBannerInfo[];
 
 	/**
 	 * When set, item tooltips render as themed VS Code hovers positioned at this
@@ -791,37 +799,44 @@ export class ActionListWidget<T> extends Disposable {
 			this._footerContainer.textContent = this._options.footerText;
 		}
 
-		// Create info banner (rendered at the top of the widget). A dismiss
-		// button is only shown when an {@link onBannerDismiss} handler is provided.
-		if (this._options?.bannerText) {
-			const banner = this._bannerContainer = document.createElement('div');
-			banner.className = 'action-list-banner';
-			const icon = dom.append(banner, dom.$('span'));
-			icon.className = `action-list-banner-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-			dom.append(banner, dom.$('span.action-list-banner-text', undefined, this._options.bannerText));
-			const onDismiss = this._options.onBannerDismiss;
-			if (onDismiss) {
-				const close = dom.append(banner, dom.$('span'));
-				close.className = `action-list-banner-close ${ThemeIcon.asClassName(Codicon.close)}`;
-				close.setAttribute('role', 'button');
-				close.tabIndex = 0;
-				close.setAttribute('aria-label', localize('actionList.banner.dismiss', "Dismiss"));
-				const dismiss = () => {
-					onDismiss();
-					this._bannerContainer?.remove();
-					this._bannerContainer = undefined;
-					this._onDidRequestLayout.fire();
-				};
-				this._register(dom.addDisposableListener(close, dom.EventType.CLICK, e => {
-					dom.EventHelper.stop(e, true);
-					dismiss();
-				}));
-				this._register(dom.addDisposableListener(close, dom.EventType.KEY_DOWN, e => {
-					if (e.key === 'Enter' || e.key === ' ') {
+		// Create info banners (rendered at the bottom of the widget, stacked). A
+		// dismiss button is only shown for a banner when its `onDismiss` handler
+		// is provided.
+		if (this._options?.banners?.length) {
+			const container = this._bannerContainer = document.createElement('div');
+			container.className = 'action-list-banners';
+			for (const bannerInfo of this._options.banners) {
+				const banner = dom.append(container, dom.$('.action-list-banner'));
+				const icon = dom.append(banner, dom.$('span'));
+				icon.className = `action-list-banner-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				dom.append(banner, dom.$('span.action-list-banner-text', undefined, bannerInfo.text));
+				const onDismiss = bannerInfo.onDismiss;
+				if (onDismiss) {
+					const close = dom.append(banner, dom.$('span'));
+					close.className = `action-list-banner-close ${ThemeIcon.asClassName(Codicon.close)}`;
+					close.setAttribute('role', 'button');
+					close.tabIndex = 0;
+					close.setAttribute('aria-label', localize('actionList.banner.dismiss', "Dismiss"));
+					const dismiss = () => {
+						onDismiss();
+						banner.remove();
+						if (this._bannerContainer && this._bannerContainer.childElementCount === 0) {
+							this._bannerContainer.remove();
+							this._bannerContainer = undefined;
+						}
+						this._onDidRequestLayout.fire();
+					};
+					this._register(dom.addDisposableListener(close, dom.EventType.CLICK, e => {
 						dom.EventHelper.stop(e, true);
 						dismiss();
-					}
-				}));
+					}));
+					this._register(dom.addDisposableListener(close, dom.EventType.KEY_DOWN, e => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							dom.EventHelper.stop(e, true);
+							dismiss();
+						}
+					}));
+				}
 			}
 		}
 
@@ -1973,7 +1988,8 @@ export class ActionList<T> extends Disposable {
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
-		const bannerHeight = this._widget.bannerContainer ? 52 : 0;
+		const bannerContainer = this._widget.bannerContainer;
+		const bannerHeight = bannerContainer ? bannerContainer.childElementCount * 52 : 0;
 		const chromeHeight = filterHeight + footerHeight + bannerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;

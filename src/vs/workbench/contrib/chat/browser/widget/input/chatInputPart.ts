@@ -975,6 +975,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const sessionType = this.getCurrentSessionType();
 				return !sessionType || sessionType === localChatSessionType;
 			},
+			isConversationActive: () => this._widget?.viewModel?.model.hasRequests ?? false,
 		};
 	}
 

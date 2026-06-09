@@ -27,6 +27,13 @@ export interface IModelPickerDelegate {
 	showManageModelsAction(): boolean;
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
+	/**
+	 * Whether the active chat session already has an ongoing conversation (at
+	 * least one request). Used to warn the user that changing the model or model
+	 * options mid-conversation may break the prompt cache and increase cost.
+	 * Read when the picker opens.
+	 */
+	isConversationActive?(): boolean;
 }
 
 /**
