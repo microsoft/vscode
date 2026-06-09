@@ -6,18 +6,23 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
+import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
-import { ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
+import { IChatWidget } from '../chat.js';
+import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../widget/input/chatInputPart.js';
 
 const $ = DOM.$;
 
@@ -68,6 +73,7 @@ export type IAutomationDialogResult =
  * (multi-line prompt, schedule pickers, folder picker).
  */
 export async function showAutomationDialog(
+	instantiationService: IInstantiationService,
 	keybindingService: IKeybindingService,
 	layoutService: ILayoutService,
 	hostService: IHostService,
@@ -133,7 +139,7 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				renderForm(form, state, options, disposables, validation, () => revalidate(), fileDialogService, sessionTypeProvider);
+				renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider);
 				revalidate = () => updateSaveButtonState(saveButton, state, validation, form);
 				revalidate();
 			},
@@ -225,6 +231,8 @@ function renderForm(
 	disposables: DisposableStore,
 	validation: IValidationState,
 	revalidate: () => void,
+	instantiationService: IInstantiationService,
+	layoutService: ILayoutService,
 	fileDialogService: IFileDialogService,
 	sessionTypeProvider: IAutomationSessionTypeProvider,
 ): void {
@@ -240,16 +248,72 @@ function renderForm(
 	}));
 
 	// --- Prompt ---
+	// Hosts the chat composer ({@link ChatInputPart}) so the modal mirrors
+	// the affordances of the regular chat composer: Monaco editor, `@`-style
+	// references, slash commands, model picker, mode picker, and permission
+	// picker. Unlike the composer, no Send button is rendered — saving the
+	// modal is the only commit path. We achieve that by routing the input's
+	// `executeToolbar` to a dedicated empty MenuId.
 	const promptRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(promptRow, $('label.automation-form-label', { for: 'automation-prompt' }, localize('automation.form.prompt', "Prompt")));
-	const promptInput = DOM.append(promptRow, $('textarea.automation-form-textarea', { id: 'automation-prompt', rows: '4' })) as HTMLTextAreaElement;
-	promptInput.value = state.prompt;
+	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
+	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host'));
 	const promptError = DOM.append(promptRow, $('.automation-form-error'));
-	disposables.add(DOM.addStandardDisposableListener(promptInput, 'input', () => {
-		state.prompt = promptInput.value;
+
+	const chatInputStyles: IChatInputStyles = {
+		overlayBackground: 'var(--vscode-editor-background)',
+		listForeground: 'var(--vscode-foreground)',
+		listBackground: 'var(--vscode-editor-background)',
+	};
+	const chatInputOptions: IChatInputPartOptions = {
+		renderFollowups: false,
+		renderInputToolbarBelowInput: false,
+		renderWorkingSet: false,
+		enableImplicitContext: false,
+		supportsChangingModes: true,
+		menus: {
+			executeToolbar: MenuId.AutomationsDialogInput,
+			telemetrySource: 'automations.dialog',
+		},
+		// Unique tag so the input's draft-state memento doesn't bleed into
+		// or out of the chat composer.
+		widgetViewKindTag: 'automations-dialog',
+		inputEditorMinLines: 3,
+	};
+
+	// {@link ChatInputPart.render} requires an {@link IChatWidget}. The modal
+	// has no live chat session, so we supply a minimal stub. Every `_widget`
+	// access inside `ChatInputPart` is optional-chained, so the input
+	// degrades gracefully to a stand-alone composer. Pattern mirrors the
+	// component fixture at `chatInput.fixture.ts`. The cast is intentional:
+	// the lifetime here never invokes the methods we omit (no live session,
+	// no message tree, no editor sibling).
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
+	const stubWidget = {
+		onDidChangeViewModel: Event.None,
+		viewModel: undefined,
+		contribs: [],
+		location: ChatAgentLocation.Chat,
+		viewContext: {},
+	} as unknown as IChatWidget;
+
+	const chatInput = disposables.add(
+		instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
+	);
+	chatInput.render(promptHost, state.prompt, stubWidget);
+
+	// Phase A keeps the existing `state.prompt`-driven validation by
+	// syncing the editor content back into the form state on every change.
+	// Phase B replaces this with a single read at Save time.
+	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {
+		state.prompt = chatInput.inputEditor.getValue();
 		revalidate();
 		promptError.textContent = validation.promptError ?? '';
 	}));
+
+	// Two layout passes mirror the fixture: the first one establishes the
+	// editor's container size, then we let layout settle before re-measuring.
+	chatInput.layout(500);
+	queueMicrotask(() => chatInput.layout(500));
 
 	// --- Interval ---
 	const intervalRow = DOM.append(form, $('.automation-form-row'));
