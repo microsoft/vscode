@@ -21,13 +21,13 @@ import { fromAgentHostUri } from '../../../../../platform/agentHost/common/agent
 import { Target } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 
@@ -67,18 +67,18 @@ export class ModePicker extends Disposable {
 	private _chatModes: IChatModes | undefined;
 
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			session?.mode.read(reader);
 			if (session) {
 				const provider = this.sessionsProvidersService.getProvider(session.providerId);
@@ -269,7 +269,7 @@ export class ModePicker extends Disposable {
 		this._updateTriggerLabel();
 		this._onDidChange.fire(mode);
 
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}
@@ -281,7 +281,7 @@ export class ModePicker extends Disposable {
 	}
 
 	private isAgentHostActiveSession() {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		return provider && isAgentHostProvider(provider);
 	}
@@ -289,7 +289,7 @@ export class ModePicker extends Disposable {
 		if (!this.isAgentHostActiveSession()) {
 			return;
 		}
-		const selectedModeId = this.sessionsManagementService.activeSession.get()?.mode.get()?.id;
+		const selectedModeId = this._session.get()?.mode.get()?.id;
 		const mode = selectedModeId ? this._findModeById(selectedModeId) : undefined;
 		this._selectedMode = mode ?? ChatMode.Agent;
 		this._updateTriggerLabel();

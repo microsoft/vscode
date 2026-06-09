@@ -39,6 +39,7 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -56,6 +57,8 @@ import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } 
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
+import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
+import { ISessionInputContext, SessionInputContext } from './sessionInputContext.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 
 
@@ -141,7 +144,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Slash commands
 	private _slashCommandHandler: SlashCommandHandler | undefined;
-	private readonly _modelPickerInstantiationService: IInstantiationService;
+	private readonly _scopedInstantiationService: IInstantiationService;
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -156,6 +159,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	constructor(
 		private readonly options: {
+			session: IObservable<IActiveSession | undefined>;
 			getContextFolderUri: () => URI | undefined;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<void>;
 			canSendRequest: IObservable<boolean>;
@@ -177,8 +181,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-		this._modelPickerInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, new NewChatModelPickerService()],
+			[ISessionInputContext, new SessionInputContext(this.options.session)],
 		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		if (this.options.historyKey) {
@@ -195,7 +200,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// the same class regardless of construction-time viewport
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker));
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._updateSendButtonState();
@@ -254,12 +259,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this.options.renderSessionTypePickerInControls !== false) {
 			this.sessionTypePicker.render(newChatControlsContainer);
 		}
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 
@@ -433,7 +438,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		// Slash commands
-		this._slashCommandHandler = this._register(this._modelPickerInstantiationService.createInstance(SlashCommandHandler, this._editor));
+		this._slashCommandHandler = this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		// Variable completions (#file, #folder)
 		this._register(this.instantiationService.createInstance(
@@ -475,8 +480,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Session config pickers (mode, model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
-		this._register(this._modelPickerInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			actionViewItemProvider: (action) => {
+				if (action.id === 'sessions.modelPicker') {
+					const picker = this._scopedInstantiationService.createInstance(ModelPicker, this.options.session);
+					return new ModelPickerActionViewItem(picker);
+				}
+				return undefined;
+			},
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));

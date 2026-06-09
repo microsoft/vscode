@@ -7,8 +7,9 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { IObservable } from '../../../../../../base/common/observable.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
 
 /**
@@ -23,14 +24,14 @@ import { AgentHostModePicker } from '../agentHostModePicker.js';
 export class MobileAgentHostModePicker extends AgentHostModePicker {
 
 	constructor(
+		session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
-		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, telemetryService, hoverService);
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
 
 	protected override _showPicker(): void {

@@ -16,7 +16,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
@@ -77,8 +77,8 @@ export class ClaudePermissionModePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -184,7 +184,7 @@ export class ClaudePermissionModePicker extends Disposable {
 		this._currentModeId = mode.id;
 		this._updateTriggerLabel(this._triggerElement);
 
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}
