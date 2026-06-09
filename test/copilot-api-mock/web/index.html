@@ -96,19 +96,25 @@
 		.cond.note { color: var(--muted); font-size: 11px; flex-basis: 100%; padding-top: 2px; }
 
 		/* --- url loader --- */
-		.url-loader { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg); }
-		.url-loader input {
+		/* --- schema loader --- */
+		.schema-bar { border-bottom: 1px solid var(--border); background: var(--bg); }
+		.schema-input-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px; }
+		.schema-input-row input {
 			flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--fg);
 			border-radius: 6px; padding: 6px 10px; font-size: 12px; font-family: var(--mono); outline: none;
 		}
-		.url-loader input:focus { border-color: var(--accent); }
-		.url-loader input::placeholder { color: var(--muted); }
-		.url-loader .load-btn {
+		.schema-input-row input:focus { border-color: var(--accent); }
+		.schema-input-row input::placeholder { color: var(--muted); }
+		.schema-input-row .load-btn {
 			background: transparent; color: var(--muted); border: 1px solid var(--border);
 			border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; white-space: nowrap;
 		}
-		.url-loader .load-btn:hover { color: var(--fg); }
-		.url-loader .load-status { font-size: 11px; font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+		.schema-input-row .load-btn:hover { color: var(--fg); }
+		.schema-input-row .load-status { font-size: 11px; font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+		.schema-info { padding: 0 14px 8px; font-size: 11px; color: var(--muted); line-height: 1.5; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+		.schema-info .schema-title { color: var(--fg); font-weight: 600; }
+		.schema-info .schema-props { font-family: var(--mono); }
+		.schema-info .schema-prop-unknown { color: var(--err); font-style: italic; }
 
 		/* --- center: editor + adapted + timeline --- */
 		.editor-wrap { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); }
@@ -213,10 +219,13 @@
 
 		<!-- editor + url loader + adapted + timeline -->
 		<h2 class="section">managed_settings <span class="subnote">·  .github/copilot/settings.json</span></h2>
-		<div class="url-loader">
-			<input id="url-input" type="url" placeholder="Load from URL — paste a raw settings.json URL and press Enter" />
-			<button class="load-btn" id="url-load-btn">Load</button>
-			<span class="load-status" id="url-status"></span>
+		<div class="schema-bar">
+			<div class="schema-input-row">
+				<input id="schema-url" type="url" placeholder="JSON Schema URL — paste and press Enter to validate the editor against a schema" />
+				<button class="load-btn" id="schema-load-btn">Load schema</button>
+				<span class="load-status" id="schema-status"></span>
+			</div>
+			<div class="schema-info" id="schema-info" hidden></div>
 		</div>
 		<div class="editor-wrap">
 			<textarea class="editor" id="editor" aria-label="managed_settings JSON editor" spellcheck="false" autocorrect="off"></textarea>
@@ -242,6 +251,7 @@
 			log: [], byId: new Map(), selectedId: null,
 			filterEp: 'all', filterStatus: 'all', q: '', detailTab: 'pretty',
 			editorDirty: false,
+			schema: null, // loaded JSON Schema
 		};
 
 		async function getJSON(url, opts) { const r = await fetch(url, opts); return r.json(); }
@@ -267,6 +277,7 @@
 			if (!res.ok) { const b = await res.json().catch(() => ({})); setStatus('err', b.error || ('HTTP ' + res.status)); return; }
 			state.editorDirty = false;
 			setStatus('ok', 'applied — Code OSS now serves this on its next managed_settings fetch');
+			validateEditorSchema();
 			await refreshPolicyCard();
 		}
 
@@ -299,24 +310,53 @@
 			$('#cond-status').onchange = e => setCondition({ managedSettingsStatus: Number(e.target.value) });
 		}
 
-		// --- load from URL ---
-		async function loadFromUrl(url) {
-			const statusEl = $('#url-status');
+		// --- schema loader ---
+		async function loadSchema(url) {
+			const statusEl = $('#schema-status');
+			const infoEl = $('#schema-info');
 			if (!url) return;
+			statusEl.style.color = 'var(--muted)';
 			statusEl.textContent = 'fetching…';
 			try {
 				const r = await fetch(url);
 				if (!r.ok) throw new Error(`HTTP ${r.status}`);
-				const text = await r.text();
-				JSON.parse(text); // validate
-				setEditor(text);
-				await applyEditor();
+				const schema = await r.json();
+				if (typeof schema !== 'object' || schema === null) throw new Error('not a JSON object');
+				state.schema = schema;
 				statusEl.style.color = 'var(--ok)';
 				statusEl.textContent = 'loaded';
-				setTimeout(() => { statusEl.textContent = ''; }, 3000);
+				renderSchemaInfo();
+				validateEditorSchema();
 			} catch (e) {
+				state.schema = null;
 				statusEl.style.color = 'var(--err)';
 				statusEl.textContent = e.message;
+				infoEl.hidden = true;
+			}
+		}
+
+		function renderSchemaInfo() {
+			const s = state.schema;
+			const infoEl = $('#schema-info');
+			if (!s) { infoEl.hidden = true; return; }
+			const props = Object.keys(s.properties || {});
+			const title = s.title || s.$id || 'Schema';
+			const desc = s.description ? ` — ${s.description}` : '';
+			infoEl.hidden = false;
+			infoEl.innerHTML = `<span class="schema-title">${escapeHtml(title)}</span><span>${escapeHtml(desc)}</span>` +
+				(props.length ? `<span class="schema-props">${props.length} known properties: ${props.map(p => `<code>${escapeHtml(p)}</code>`).join(', ')}</span>` : '');
+		}
+
+		function validateEditorSchema() {
+			const s = state.schema;
+			if (!s || !s.properties) return;
+			let parsed;
+			try { parsed = JSON.parse($('#editor').value || '{}'); } catch { return; }
+			if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+			const known = new Set(Object.keys(s.properties));
+			const unknown = Object.keys(parsed).filter(k => !known.has(k));
+			if (unknown.length) {
+				setStatus('err', `unknown key${unknown.length > 1 ? 's' : ''} (not in schema): ${unknown.join(', ')}`);
 			}
 		}
 		async function setCondition(patch) {
@@ -465,8 +505,8 @@
 
 		(async function init() {
 			$('#editor').addEventListener('input', onEditorInput);
-			$('#url-load-btn').onclick = () => loadFromUrl($('#url-input').value.trim());
-			$('#url-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadFromUrl($('#url-input').value.trim()); });
+			$('#schema-load-btn').onclick = () => loadSchema($('#schema-url').value.trim());
+			$('#schema-url').addEventListener('keydown', e => { if (e.key === 'Enter') loadSchema($('#schema-url').value.trim()); });
 			renderFilters();
 			await refreshHeader();
 			const st = await getJSON('/__state');
