@@ -94,7 +94,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
-		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 2000);
+		return new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))], false, 0);
 	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
