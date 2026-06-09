@@ -68,7 +68,10 @@ suite('Content Hover', () => {
 		parts.sort(compareBy(hover => hover.ordinal, numberComparator));
 
 		assert.strictEqual(parts[0], loading, 'Loading (ordinal 0) should sort before buttons (ordinal 1)');
-		assert.strictEqual(parts[1], runScript);
-		assert.strictEqual(parts[2], debugScript);
+		// Both buttons have ordinal 1; only assert they appear after loading
+		assert.strictEqual(parts.length, 3);
+		assert.ok(parts[1] === runScript || parts[1] === debugScript);
+		assert.ok(parts[2] === runScript || parts[2] === debugScript);
+		assert.notStrictEqual(parts[1], parts[2]);
 	});
 });
