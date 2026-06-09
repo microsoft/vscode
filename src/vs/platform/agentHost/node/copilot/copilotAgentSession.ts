@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
@@ -16,7 +17,6 @@ import { hasKey, isDefined, isObject, isString } from '../../../../base/common/t
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -29,12 +29,14 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, type AgentSelection, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import type { IExitPlanModeRequestParams, IExitPlanModeResponse } from './copilotAgent.js';
+import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import type { CopilotSessionLaunchPlan, IActiveClientSnapshot, ICopilotSessionLauncher, ICopilotSessionRuntime } from './copilotSessionLauncher.js';
+import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
@@ -246,45 +248,14 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 }
 
 /**
- * Immutable snapshot of the active client's contributions at session creation
- * time. Used to detect when the session needs to be refreshed.
- */
-export interface IActiveClientSnapshot {
-	readonly clientId: string;
-	readonly tools: readonly ToolDefinition[];
-	readonly plugins: readonly IParsedPlugin[];
-}
-
-/**
- * Factory function that produces a {@link CopilotSessionWrapper}.
- * Called by {@link CopilotAgentSession.initializeSession} with the
- * session's permission handler and edit-tracking hooks so the factory
- * can wire them into the SDK session it creates.
- *
- * In production, the factory calls `CopilotClient.createSession()` or
- * `resumeSession()`. In tests, it returns a mock wrapper directly.
- */
-export type SessionWrapperFactory = (callbacks: {
-	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
-	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
-	readonly onElicitationRequest: (context: ElicitationContext) => Promise<ElicitationResult>;
-	readonly requestUnsandboxedCommandConfirmation: (request: IUnsandboxedCommandConfirmationRequest) => Promise<boolean>;
-	readonly hooks: {
-		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
-	};
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	readonly clientTools: Tool<any>[];
-}) => Promise<CopilotSessionWrapper>;
-
-/**
  * Options for constructing a {@link CopilotAgentSession}.
  */
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
-	readonly wrapperFactory: SessionWrapperFactory;
+	readonly sessionLauncher: ICopilotSessionLauncher;
+	readonly launchPlan: CopilotSessionLaunchPlan;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
@@ -344,14 +315,25 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
-	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
-	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private readonly _steeringMessagesInFlight = new Set<string>();
-	private readonly _consumedSteeringMessages = new Set<string>();
+	/**
+	 * Steering messages that have been accepted by the SDK but not yet
+	 * surfaced to the chat UI as a separate user message. When the SDK
+	 * echoes a steering through a `user.message` event whose `content`
+	 * matches one of these entries, we finalize the in-flight turn and
+	 * dispatch a new {@link ActionType.SessionTurnStarted} whose
+	 * `userMessage` is the steering content. The reducer also removes
+	 * the pending steering via the action's `queuedMessageId`.
+	 *
+	 * Entries left here at abort/dispose time are flushed as
+	 * `steering_consumed` signals so the chat UI's pending state still
+	 * clears in cleanup paths where we never observe the echo.
+	 */
+	private readonly _pendingSteeringFlips = new Map<string, PendingMessage>();
 
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
@@ -365,7 +347,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingEditContentUris = new Map<string, URI>();
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
-	private readonly _wrapperFactory: SessionWrapperFactory;
+	private readonly _sessionLauncher: ICopilotSessionLauncher;
+	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
@@ -396,7 +379,8 @@ export class CopilotAgentSession extends Disposable {
 		this.sessionId = options.rawSessionId;
 		this.sessionUri = options.sessionUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
-		this._wrapperFactory = options.wrapperFactory;
+		this._sessionLauncher = options.sessionLauncher;
+		this._launchPlan = options.launchPlan;
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
@@ -415,6 +399,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
 		this._register(toDisposable(() => this._cancelPendingElicitations()));
 		this._register(toDisposable(() => this._cancelPendingPlanReviews()));
+		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
 
 		// When a shell tool associates a terminal with a tool call, fire a
 		// tool_content_changed event so the UI can connect to the terminal
@@ -453,19 +438,59 @@ export class CopilotAgentSession extends Disposable {
 			action,
 			parentToolCallId,
 		});
-		if (action.type === ActionType.SessionToolCallStart && !parentToolCallId) {
-			this._flushConsumedSteeringMessages();
-		} else if (action.type === ActionType.SessionTurnComplete) {
-			this._flushConsumedSteeringMessages();
-		}
 	}
 
-	private _flushConsumedSteeringMessages(): void {
-		if (this._consumedSteeringMessages.size === 0) {
+	/**
+	 * Promotes a pending steering message into its own protocol turn:
+	 * closes the in-flight turn (so its responseParts settle into history)
+	 * and dispatches {@link ActionType.SessionTurnStarted} for a fresh
+	 * turn whose user message is the steering content. The action's
+	 * `queuedMessageId` atomically clears the corresponding pending
+	 * steering message from the session state.
+	 *
+	 * All subsequent SDK events (message deltas, tool calls, …) emitted
+	 * by the agent now reference the new `_turnId`, so the steering
+	 * response lands in the new turn rather than being folded into the
+	 * original.
+	 *
+	 * Returns the new turn id so callers (notably the `user.message`
+	 * handler) can associate the SDK event id with the steering turn for
+	 * history.truncate / sessions.fork mapping.
+	 */
+	private _beginSteeringTurn(steering: PendingMessage): string {
+		const previousTurnId = this._turnId;
+		if (previousTurnId) {
+			this._emitAction({
+				type: ActionType.SessionTurnComplete,
+				turnId: previousTurnId,
+			});
+		}
+		const newTurnId = generateUuid();
+		this._emitAction({
+			type: ActionType.SessionTurnStarted,
+			turnId: newTurnId,
+			message: steering.message,
+			queuedMessageId: steering.id,
+		});
+		// Mirror `resetTurnState` so per-turn counters/mappings (usage
+		// total, streaming part ids, subagent agentId map) don't bleed
+		// from the preempted turn into the new steering turn.
+		this.resetTurnState(newTurnId);
+		return newTurnId;
+	}
+
+	/**
+	 * Drains any steering messages we acknowledged to the SDK but never
+	 * promoted to their own turn (e.g. on abort or session dispose). Fires
+	 * `steering_consumed` so the chat UI removes the lingering pending
+	 * steering bubble even when no fresh `user.message` arrives.
+	 */
+	private _drainPendingSteeringFlips(): void {
+		if (this._pendingSteeringFlips.size === 0) {
 			return;
 		}
-		const ids = [...this._consumedSteeringMessages];
-		this._consumedSteeringMessages.clear();
+		const ids = [...this._pendingSteeringFlips.keys()];
+		this._pendingSteeringFlips.clear();
 		for (const id of ids) {
 			this._onDidSessionProgress.fire({
 				kind: 'steering_consumed',
@@ -473,6 +498,28 @@ export class CopilotAgentSession extends Disposable {
 				id,
 			});
 		}
+	}
+
+	/**
+	 * Pops the buffered steering message whose text matches the SDK
+	 * `user.message` content we just observed. Matching by content (rather
+	 * than just popping FIFO) keeps us robust against the SDK reordering
+	 * or coalescing entries — concurrent steering messages with different
+	 * texts are still matched to the correct one. Returns `undefined` if
+	 * no buffered entry matches; the caller treats the `user.message` as
+	 * an ordinary echo and skips the turn flip.
+	 */
+	private _takeMatchingPendingSteering(content: string): PendingMessage | undefined {
+		if (this._pendingSteeringFlips.size === 0) {
+			return undefined;
+		}
+		for (const [id, msg] of this._pendingSteeringFlips) {
+			if (msg.message.text === content) {
+				this._pendingSteeringFlips.delete(id);
+				return msg;
+			}
+		}
+		return undefined;
 	}
 
 	private _parentToolCallIdForSubagentEvent(e: { readonly agentId?: string }): string | undefined {
@@ -490,12 +537,25 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Resets per-turn streaming state so the next text/reasoning chunk
-	 * allocates a fresh response part. Called by the agent when a new turn
-	 * starts (typically right before {@link send}).
+	 * allocates a fresh response part for the new turn.
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
-		this._turnCopilotUsageTotalNanoAiu = 0;
+		this._currentMarkdownPartIds.clear();
+		this._currentReasoningPartIds.clear();
+		this._parentToolCallIdsByAgentId.clear();
+	}
+
+	private _completeActiveTurn(): void {
+		if (!this._turnId) {
+			return;
+		}
+		const turnId = this._turnId;
+		this._emitAction({
+			type: ActionType.SessionTurnComplete,
+			turnId,
+		});
+		this._turnId = '';
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -612,7 +672,7 @@ export class CopilotAgentSession extends Disposable {
 	 * for the client to dispatch `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createClientSdkTools(): Tool<any>[] {
+	private _createClientSdkTools(): Tool<any>[] {
 		const tools = this._appliedSnapshot.tools;
 		if (tools.length === 0) {
 			return [];
@@ -657,7 +717,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
-			.map(c => ({ data: c.data, mimeType: c.contentType, type: /^image(\/|$)/.test(c.contentType) ? 'image' : 'resource' }));
+			.map(c => ({ data: c.data, mimeType: c.contentType, type: (/^image(\/|$)/.test(c.contentType) ? 'image' : 'resource') as 'image' | 'resource' }));
 
 		if (result.success) {
 			deferred.complete({
@@ -676,24 +736,35 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Creates (or resumes) the SDK session via the injected factory and
+	 * Creates (or resumes) the SDK session via the injected launcher and
 	 * wires up all event listeners. Must be called exactly once after
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		this._wrapper = this._register(await this._wrapperFactory({
-			onPermissionRequest: request => this.handlePermissionRequest(request),
-			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
-			onElicitationRequest: context => this.handleElicitationRequest(context),
-			requestUnsandboxedCommandConfirmation: request => this.requestUnsandboxedCommandConfirmation(request),
-			clientTools: this.createClientSdkTools(),
-			hooks: {
-				onPreToolUse: input => this._handlePreToolUse(input),
-				onPostToolUse: input => this._handlePostToolUse(input),
-			},
-		}));
+		const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
+		// The session may have been disposed while we were awaiting the
+		// launcher. If so, dispose the freshly-created wrapper and
+		// skip subscribing — registering on a disposed store would leak.
+		if (this._store.isDisposed) {
+			wrapper.dispose();
+			throw new CancellationError();
+		}
+		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
+	}
+
+	private _createRuntimeAdapter(): ICopilotSessionRuntime {
+		return {
+			handlePermissionRequest: request => this._handlePermissionRequest(request),
+			handleExitPlanModeRequest: (request, invocation) => this._handleExitPlanModeRequest(request, invocation),
+			handleUserInputRequest: (request, invocation) => this._handleUserInputRequest(request, invocation),
+			handleElicitationRequest: context => this._handleElicitationRequest(context),
+			requestUnsandboxedCommandConfirmation: request => this._requestUnsandboxedCommandConfirmation(request),
+			createClientSdkTools: () => this._createClientSdkTools(),
+			handlePreToolUse: input => this._handlePreToolUse(input),
+			handlePostToolUse: input => this._handlePostToolUse(input),
+		};
 	}
 
 	// ---- session operations -------------------------------------------------
@@ -701,7 +772,6 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
-			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -715,9 +785,24 @@ export class CopilotAgentSession extends Disposable {
 			}
 			return;
 		}
+		if (slashCommand?.command === 'research') {
+			prompt = slashCommand.rest ? `/research ${slashCommand.rest}` : '/research';
+		}
 		if (slashCommand?.command === 'plan') {
 			mode = 'plan';
 			prompt = slashCommand.rest;
+		}
+		if (slashCommand?.command === 'rubber-duck') {
+			if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.RubberDuck) !== true) {
+				// Feature not enabled — pass the remaining text through as a plain
+				// message rather than injecting agent instructions for an unavailable agent.
+				prompt = slashCommand.rest;
+			} else {
+				const userPrompt = slashCommand.rest;
+				prompt = userPrompt
+					? `The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.\n\nAdditional instructions: ${userPrompt}`
+					: 'The user has requested a rubber duck review via the /rubber-duck command. Use the task tool with agent_type: "rubber-duck" to get an independent critique of your current approach, plan, or recent work. Summarize the relevant context for the rubber duck agent so it has what it needs to evaluate it.';
+			}
 		}
 
 		const sdkAttachments = attachments?.length
@@ -824,17 +909,17 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async sendSteering(steeringMessage: PendingMessage): Promise<void> {
-		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._consumedSteeringMessages.has(steeringMessage.id)) {
+		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
 			return;
 		}
 		this._steeringMessagesInFlight.add(steeringMessage.id);
-		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.userMessage.text.substring(0, 100)}"`);
+		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._wrapper.session.send({
-				prompt: steeringMessage.userMessage.text,
+				prompt: steeringMessage.message.text,
 				mode: 'immediate',
 			});
-			this._consumedSteeringMessages.add(steeringMessage.id);
+			this._pendingSteeringFlips.set(steeringMessage.id, steeringMessage);
 		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
 		} finally {
@@ -843,7 +928,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getMessages(): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getMessages();
+		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -855,7 +940,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async getSubagentMessages(parentToolCallId: string): Promise<readonly Turn[]> {
-		const events = await this._wrapper.session.getMessages();
+		const events = await this._wrapper.session.getEvents();
 		let db: ISessionDatabase | undefined;
 		try {
 			db = this._databaseRef.object;
@@ -869,7 +954,7 @@ export class CopilotAgentSession extends Disposable {
 	async abort(): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Aborting session...`);
 		this._denyPendingPermissions();
-		this._flushConsumedSteeringMessages();
+		this._drainPendingSteeringFlips();
 		await this._wrapper.session.abort();
 	}
 
@@ -880,7 +965,7 @@ export class CopilotAgentSession extends Disposable {
 	 * truncation or fork operations that modify the session files).
 	 */
 	async destroySession(): Promise<void> {
-		await this._wrapper.session.destroy();
+		await this._wrapper.session.disconnect();
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
@@ -892,9 +977,9 @@ export class CopilotAgentSession extends Disposable {
 	 * Selects (or clears) a custom agent on the live SDK session.
 	 * Mirrors the SDK's `rpc.agent.select` / `rpc.agent.deselect` pair.
 	 */
-	async setAgent(agent: AgentSelection | undefined, agentName?: string): Promise<void> {
-		if (agent) {
-			const name = agentName ?? agent.uri;
+	async setAgent(agentName?: string): Promise<void> {
+		if (agentName) {
+			const name = agentName;
 			this._logService.info(`[Copilot:${this.sessionId}] Selecting custom agent: ${name}`);
 			try {
 				await this._wrapper.session.rpc.agent.select({ name });
@@ -920,7 +1005,7 @@ export class CopilotAgentSession extends Disposable {
 	 * (which transitions the tool to PendingConfirmation) and waiting for the
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
 	 */
-	async handlePermissionRequest(
+	private async _handlePermissionRequest(
 		request: ITypedPermissionRequest,
 	): Promise<PermissionRequestResult> {
 		this._logService.info(`[Copilot:${this.sessionId}] Permission request: kind=${request.kind}`);
@@ -1079,14 +1164,15 @@ export class CopilotAgentSession extends Disposable {
 	 * SDK's pre-call permission prompt is redundant in that case.
 	 *
 	 * Returns false when shell tools are not registered (the SDK's built-in
-	 * terminal runs unsandboxed via `AgentHostConfigKey.DisableCustomTerminalTool`)
+	 * terminal runs unsandboxed unless `AgentHostConfigKey.EnableCustomTerminalTool`
+	 * is set)
 	 * so the standard confirmation flow is preserved.
 	 */
 	private async _isShellSandboxedByDefault(): Promise<boolean> {
 		if (!this._shellManager) {
 			return false;
 		}
-		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true) {
+		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) !== true) {
 			return false;
 		}
 		return this._shellManager.getOrCreateSandboxEngine().isEnabled();
@@ -1165,7 +1251,7 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
-	async requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
+	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(request.toolCallId, deferred);
 
@@ -1211,7 +1297,7 @@ export class CopilotAgentSession extends Disposable {
 	 * `user_input_request` progress event and waiting for the renderer to
 	 * respond via {@link respondToUserInputRequest}.
 	 */
-	async handleUserInputRequest(
+	private async _handleUserInputRequest(
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
@@ -1302,7 +1388,7 @@ export class CopilotAgentSession extends Disposable {
 	 * available to fill in a form, and accepting with empty content would
 	 * be misleading to the MCP server.
 	 */
-	async handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
 		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
 		if (isAutopilot) {
 			return { action: 'cancel' };
@@ -1500,10 +1586,65 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
-		// Capture SDK event IDs for each user.message event so we can map
-		// protocol turn indices to the event IDs needed by the SDK's
-		// history.truncate and sessions.fork RPCs.
+		this._register(wrapper.onSystemNotification(e => {
+			const notification = buildCopilotSystemNotification(e);
+			if (!notification) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring system.notification kind=${e.data.kind.type}`);
+				return;
+			}
+
+			this._logService.info(`[Copilot:${sessionId}] System notification received: kind=${e.data.kind.type}`);
+			if (this._turnId) {
+				this._emitAction({
+					type: ActionType.SessionResponsePart,
+					turnId: this._turnId,
+					part: {
+						kind: ResponsePartKind.SystemNotification,
+						content: notification.content,
+					},
+				});
+				return;
+			}
+
+			const turnId = generateUuid();
+			this.resetTurnState(turnId);
+			this._emitAction({
+				type: ActionType.SessionTurnStarted,
+				turnId,
+				message: {
+					text: notification.messageText,
+					origin: { kind: MessageKind.SystemNotification },
+				},
+			});
+		}));
+
+		// Handle `user.message` events with three responsibilities:
+		//
+		// 1. Skip SDK-injected (`source !== 'user'`) messages outright —
+		//    they are skill content / harness injections that must not
+		//    surface to the user and must not be associated with a turn
+		//    boundary (the SDK's truncate/fork mapping keys off the
+		//    user-visible message's event id).
+		//
+		// 2. If the content matches a steering message we acknowledged
+		//    via {@link sendSteering}, promote it to its own protocol
+		//    turn (closing the in-flight turn) BEFORE step 3 so the
+		//    event id is recorded against the new steering turn rather
+		//    than the preempted one.
+		//
+		// 3. Record the SDK event id against the current turn so the
+		//    `history.truncate` / `sessions.fork` RPCs can target the
+		//    right boundary. The DB only sets `event_id` when it's NULL,
+		//    so doing this for synthetic injections would permanently
+		//    pin the wrong event to the turn.
 		this._register(wrapper.onUserMessage(e => {
+			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+				return;
+			}
+			const steering = this._takeMatchingPendingSteering(e.data.content);
+			if (steering) {
+				this._beginSteeringTurn(steering);
+			}
 			if (this._turnId) {
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 			}
@@ -1588,6 +1729,7 @@ export class CopilotAgentSession extends Disposable {
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 			const toolClientId = this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined;
+			const contributor = toolClientId ? { kind: ToolCallContributorKind.Client, clientId: toolClientId } as const : undefined;
 
 			// A new tool call invalidates the current markdown and reasoning
 			// parts so the next text/reasoning delta after the tool call
@@ -1620,7 +1762,7 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId: e.data.toolCallId,
 				toolName: e.data.toolName,
 				displayName,
-				toolClientId,
+				contributor,
 				_meta: meta,
 			}, parentToolCallId);
 
@@ -1713,10 +1855,7 @@ export class CopilotAgentSession extends Disposable {
 					activity: undefined,
 				});
 			}
-			this._emitAction({
-				type: ActionType.SessionTurnComplete,
-				turnId: this._turnId,
-			});
+			this._completeActiveTurn();
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer
@@ -1784,14 +1923,7 @@ export class CopilotAgentSession extends Disposable {
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}
-			if (typeof e.data.copilotUsage?.totalNanoAiu === 'number') {
-				this._turnCopilotUsageTotalNanoAiu += e.data.copilotUsage.totalNanoAiu;
-				metadata.copilotUsage = {
-					...e.data.copilotUsage,
-					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
-				};
-			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${this._turnCopilotUsageTotalNanoAiu || '?'}`);
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}`);
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
@@ -1871,7 +2003,7 @@ export class CopilotAgentSession extends Disposable {
 	 * paused `exit_plan_mode` tool call and (on accept) updates the SDK's
 	 * `currentMode` so the model can continue with implementation.
 	 */
-	async handleExitPlanModeRequest(data: IExitPlanModeRequestParams): Promise<IExitPlanModeResponse> {
+	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
 		const requestId = generateUuid();
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
@@ -1986,7 +2118,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionShutdown(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, premiumRequests=${e.data.totalPremiumRequests}, apiDuration=${e.data.totalApiDurationMs}ms`);
+			this._logService.trace(`[Copilot:${sessionId}] Session shutdown: type=${e.data.shutdownType}, apiDuration=${e.data.totalApiDurationMs}ms`);
 		}));
 
 		this._register(wrapper.onSessionUsageInfo(e => {
@@ -2207,7 +2339,7 @@ export class CopilotAgentSession extends Disposable {
  * `autoApproveEdits: true` is set whenever the chosen action is one of the
  * autopilot variants, mirroring the CLI behavior.
  */
-function autoApproveExitPlanMode(data: IExitPlanModeRequestParams): IExitPlanModeResponse {
+function autoApproveExitPlanMode(data: ExitPlanModeRequest): IExitPlanModeResponse {
 	const choices = data.actions ?? [];
 	const isAutopilotAction = (action: string) => action === 'autopilot' || action === 'autopilot_fleet';
 

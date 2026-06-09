@@ -13,11 +13,10 @@ Sessions may be stored locally (SQLite) and optionally synced to the cloud for c
 
 ## Available Tool Actions
 
-The `copilot_sessionStoreSql` tool supports three actions:
+The `copilot_sessionStoreSql` tool supports two actions:
 
 | Action | Purpose | `query` param |
 |--------|---------|---------------|
-| `standup` | Pre-fetch last 24h sessions, turns, files, refs | Not needed |
 | `query` | Execute a read-only SQL query | Required |
 | `reindex` | Rebuild local session index + cloud sync | Not needed |
 
@@ -25,13 +24,30 @@ The `copilot_sessionStoreSql` tool supports three actions:
 
 ### Standup
 
-When the user asks for a standup, daily summary, or "what did I do":
+When the user asks for a standup, daily summary, or "what did I do" (e.g. `/chronicle standup`):
 
-1. Call `copilot_sessionStoreSql` with `action: "standup"` and `description: "Generate standup"`.
-2. The tool returns pre-fetched session data (sessions, turns, files, refs from the last 24 hours).
-3. If the result is empty, tell the user no sessions were found in the last 24h, suggest `/chronicle:reindex`, and stop — do not fabricate a standup.
-4. For any PR references in the data, check their current status (open, merged, draft) if possible.
-5. Format the returned data as a standup report grouped by work stream (branch/feature):
+**Step 1: Gather the last 24h of activity**
+
+Use `copilot_sessionStoreSql` with `action: "query"` and follow the SQL dialect shown in the tool description (SQLite locally, DuckDB on cloud — see the **Database Schema** and **Query Guidelines** sections below).
+
+Query the `sessions` table for rows where `updated_at` falls within the last 24 hours, ordered by `updated_at` descending. Recent-window predicate by backend:
+
+- **Local SQLite**: `WHERE updated_at >= datetime('now', '-1 day')`
+- **Cloud DuckDB**: `WHERE updated_at >= now() - INTERVAL '1 day'`
+
+Then, for those session ids, pull related references from `session_refs` (PRs, issues, commits). If you need more detail on a particular session, query `turns` (and `session_files`, or `checkpoints` on cloud) further — don't dump every turn for every session up front.
+
+If no sessions are found in the last 24 hours, tell the user there's no recent activity to report, suggest a longer window or `/chronicle reindex`, and stop. Do not fabricate a standup.
+
+**Step 2: Include PR-less work**
+
+Treat every recent session as a candidate work item, even when it has no PR, issue, or commit reference. PRs are supporting evidence, not the source of truth. Do not omit a session or branch solely because it has no PR — use session summaries and turn content to decide what to include.
+
+**Step 3: Check PR status and format**
+
+For any PR references found, use the GitHub CLI or MCP tools to check current status (open, merged, draft, closed). For each work item, include either a PR status line or a "No PR found" line — never invent a PR.
+
+Format the result grouped by work stream (branch/feature). Use exactly this structure:
 
 ```
 Standup for <date>:
@@ -41,26 +57,27 @@ Standup for <date>:
 **Feature name** (`branch-name` branch, `repo-name`)
   - 3-7 words describing the status
   - Key files: 2-3 most important files changed
-  - Merged: [#123](link)
-  - Session: `session-id`
+  - Merged: [#123](https://github.com/owner/repo/pull/123) or No PR found
+  - Session: `full-session-id`
 
 **🚧 In Progress**
 
 **Feature name** (`branch-name` branch, `repo-name`)
   - 3-7 words describing the current state of work
   - Key files: 2-3 most important files being worked on
-  - Draft: [#789](link)
-  - Session: `session-id`
+  - Draft: [#789](https://github.com/owner/repo/pull/789) or No PR found
+  - Session: `full-session-id`
 ```
 
 Rules:
 - Keep it concise and succinct — the user can always ask follow-up questions
 - Use turn data (user messages AND assistant responses) to understand WHAT was done
-- Use file paths to identify which components/areas were affected
+- Use file paths from `session_files` to identify which components/areas were affected
 - Group related sessions on the same branch into one entry
 - For sessions, only show the most recent session per feature/branch
 - Link PRs and issues using markdown link syntax
 - Classify as Done if work appears complete, In Progress otherwise
+- If a session has no branch or repo, include it under an "Other" section
 
 ### Tips
 
@@ -96,41 +113,47 @@ Analysis dimensions to explore:
 
 If the session store has little data, acknowledge that and suggest features to try based on what configuration you found in the workspace.
 
+When recommending custom skills, agents, or instructions as a tip, consult the **agent-customization** skill for proper file creation patterns — don't give vague "create a custom skill" advice without actionable file structure guidance.
+
 ### Cost Tips
 
-When the user asks for cost tips, ways to reduce token usage, or how to lower Copilot spend (e.g. `/chronicle:cost-tips`):
+When the user asks for cost tips, ways to reduce token usage, or how to lower Copilot spend (e.g. `/chronicle cost-tips`):
 
 The goal is **personalized, data-grounded recommendations** for reducing token usage — not a generic checklist. Every tip must point to a specific pattern you observed in their data.
+
+**Scope: focus on VS Code chat sessions**
+
+Other agent surfaces (Copilot CLI, Copilot Coding Agent, Copilot Code Review, custom agents/subagents) have very different cost profiles and would skew the analysis. By default, **filter every query to the interactive VS Code chat surface** so findings reflect that usage only. Only widen the scope if the user explicitly asks about CLI, Coding Agent, or custom agents — and when you do, run separate queries per agent type rather than mixing them.
+
+The stored `agent_name` differs by backend — match the active backend's value **exactly** (case and spacing matter):
+
+- **Cloud (DuckDB)**: `sessions.agent_name = 'VS Code Chat'`
+- **Local (SQLite)**: `sessions.agent_name = 'GitHub Copilot Chat'`. Local also records subagent invocations (e.g. `Explore`, `summarizeConversationHistory`) as their own session rows; the default filter correctly excludes them.
+
+Briefly check the agent mix once so you know what's being excluded (e.g. `SELECT agent_name, COUNT(*) AS n FROM sessions WHERE updated_at > <30-day cutoff> GROUP BY 1 ORDER BY n DESC`). If the interactive chat value is a small minority of the user's sessions, mention that in the summary so they know the tips are scoped to a slice of their activity, and **offer to run a separate pass on another agent type** — name the candidates you saw in the mix check (e.g. "want a separate pass on `Copilot CLI` or `Copilot Coding Agent`?") so the user knows widening is possible.
+
+If the user asks to widen scope to a specific surface (e.g. "now do CLI", "cost tips for my Coding Agent sessions", "include my `Explore` subagent"), swap the default `agent_name` filter for the requested value and run the analysis against that slice **only** — do not mix surfaces in one pass. Use the exact `agent_name` strings shown by the mix-check above; common values across backends include `Copilot CLI` / `copilotcli`, `Copilot Coding Agent`, and any custom agent / subagent name (e.g. `Explore`, `summarizeConversationHistory`). Note in the summary that the tips are now scoped to that surface and call out anything you can't analyze on the active backend (e.g. cloud-only token columns when the user is on local).
 
 **Cost-relevant schema (in addition to the Database Schema section below)**
 
 - **Cloud DuckDB only** — the local SQLite store does **not** record per-event token usage and has no `events` table. If the active backend is local, gate all token queries and tell the user that real token-level analysis requires enabling cloud sync (`chat.sessionSync.enabled`).
-- **events** (cloud): per-event billing — rows where `type = 'assistant.usage'` carry `usage_input_tokens`, `usage_output_tokens`, `usage_model`. To break spend down by agent type, JOIN `events e` to `sessions s ON s.id = e.session_id` and group by `s.agent_name`.
-- **sessions.agent_name** / **agent_description** (both backends): values like `VS Code agent` (VS Code chat), `Copilot CLI`, `Copilot Coding Agent`, `Copilot Code Review`, or custom agents/subagents. Use to break spend down by agent type.
+- **events** (cloud): per-event billing — rows where `type = 'assistant.usage'` carry `usage_input_tokens`, `usage_output_tokens`, `usage_model`. JOIN `events e` to `sessions s ON s.id = e.session_id` and filter `WHERE s.agent_name = 'VS Code Chat'` to keep the scope tight.
+- **sessions.agent_name** / **agent_description** (both backends): the interactive VS Code chat surface is stored as `'VS Code Chat'` on cloud and `'GitHub Copilot Chat'` on local. Other values include `Copilot CLI` / `copilotcli`, `Copilot Coding Agent`, subagents (`Explore`, `summarizeConversationHistory`, `panel/editAgent`, …), and custom agents.
 - Use `LENGTH(user_message)` on `turns` (or `LENGTH(user_content)` on `events` where `type = 'user.message'`) to find oversized pastes.
 
-**Step 1: Investigate cost and token patterns**
+**Step 1: Investigate cost and token patterns (interactive VS Code chat only)**
 
-Use `copilot_sessionStoreSql` with `action: "query"`. What to investigate depends on the active backend.
+Use `copilot_sessionStoreSql` with `action: "query"`. Every query in this step must filter `sessions.agent_name` to the interactive VS Code chat value for the active backend — `'VS Code Chat'` on cloud, `'GitHub Copilot Chat'` on local. What to investigate depends on the active backend.
 
-*Cloud (DuckDB) — start with agent-type awareness:*
-
-The session store mixes session types via `sessions.agent_name` (join events to sessions on `session_id` to get the agent for any per-event analysis). Your advice is only useful if you know which agents the user actually runs, so this is the **first** thing to learn.
-
-- **Enumerate every agent in use.** Run e.g. `SELECT agent_name, agent_description, COUNT(*) AS n FROM sessions WHERE updated_at > now() - INTERVAL '30 days' GROUP BY 1, 2 ORDER BY n DESC` so you see the full inventory — official agents and any custom agents/subagents in `agent_description`. Do not assume.
-- **Decide which to advise on.** Include any agent type the user can make cheaper: `VS Code agent` (VS Code chat — usually the dominant agent), `Copilot CLI` (interactive terminal), `Copilot Coding Agent` (autonomous cloud tasks), custom agents and subagents. **Always exclude** `agent_name = 'Copilot Code Review'` and any other agent the user does not drive interactively.
-- **Tailor advice per agent.** VS Code agent tips (compaction, model picker, fresh chats, `.github/copilot-instructions.md`, custom skills/agents) look different from CLI tips (compaction, model switching, subagent delegation), Coding Agent tips (prompt scoping, smaller task framing), and custom-agent tips (slimming tool lists, narrowing prompts).
-
-Then drill into cost patterns (filter `events` rows by `type = 'assistant.usage'` for billable rows):
+*Cloud (DuckDB) — drill into cost patterns* (filter `events` rows by `type = 'assistant.usage'` for billable rows, and join `sessions` to keep `agent_name = 'VS Code Chat'`):
 
 - **Token-heavy sessions and turns** — sum `usage_input_tokens` and `usage_output_tokens` per session and per model from `events` where `type = 'assistant.usage'`. Which sessions burned the most tokens? Which models?
 - **Input-to-output ratios** — when input tokens dwarf output tokens, the user is paying to re-send a bloated context every turn. Strongest signal that compaction, smaller working sets, or fresh sessions would help.
 - **Model mix** — break down spend by `usage_model`. Are premium models being used for routine work (renames, simple edits, status checks) that a cheaper model could handle?
 - **Per-turn growth** — within long sessions, does `usage_input_tokens` keep climbing turn-over-turn? Strong signal that compaction wasn't used.
 - **Oversized pastes** — `LENGTH(user_content)` on `events` where `type = 'user.message'` to find user messages that should have been file references (also visible in `session_files` as repeated reads of the same path within one session).
-- **Group cost breakdowns by `agent_name`** (and `agent_description` where useful) in at least one query so the user sees where their spend actually goes — and so you spot if a single custom agent dominates.
 
-*Local (SQLite) — no token data; use proxies:*
+*Local (SQLite) — no token data; use proxies* (filter `sessions.agent_name = 'GitHub Copilot Chat'` on every query):
 
 - **Long sessions without compaction** — sessions with many turns and no rows in `checkpoints` (each `checkpoints` row is a successful compaction). `LEFT JOIN checkpoints c ON c.session_id = s.id WHERE c.session_id IS NULL` + a turn-count threshold gives prime candidates.
 - **Late compaction** — for sessions that *do* have checkpoints, compare `checkpoints.checkpoint_number` and `created_at` against the session's turn count. A first compaction at turn 60 of an 80-turn session is far less helpful than one at turn 25.
@@ -166,13 +189,45 @@ Give the user 3-5 specific, actionable tips. Each tip should:
 - **Be non-obvious** — skip basics any returning user already knows. Assume they know compaction and fresh chats exist; help them notice they're not *using* them where it would matter.
 - **Quantify the win when possible** — "compacting around turn 30 of that 80-turn session would have shaved ~X input tokens off every subsequent turn" is far better than "consider compacting".
 - **Be concrete** — name the workflow change, command, or config file edit. If the suggestion is a custom skill or agent, sketch what it would cover.
-- **Match the agent type** — if a finding is specific to one `agent_name`, say so. Don't propose CLI-only fixes for findings from Coding Agent sessions, and vice versa.
+- **Stay within VS Code chat scope** — tips should target interactive VS Code chat usage (compaction, model picker, fresh chats, `.github/copilot-instructions.md`, custom skills/agents, subagent delegation). Do not propose CLI- or Coding-Agent–specific changes unless the user has explicitly broadened scope.
 
-If the session store has little data (e.g., cloud store is empty, or only a handful of local sessions), say so plainly and offer 2-3 non-obvious cost-saving habits anchored in available features rather than fabricating findings. If the user is on local-only storage, end by noting that enabling `chat.sessionSync.enabled` unlocks per-event token analysis for sharper future tips.
+If the session store has little data (e.g., cloud store is empty, or only a handful of local interactive chat sessions), say so plainly and offer 2-3 non-obvious cost-saving habits anchored in available features rather than fabricating findings. If the user is on local-only storage, end by noting that enabling `chat.sessionSync.enabled` unlocks per-event token analysis for sharper future tips.
+
+### Improve
+
+When the user asks to improve their agent instructions based on session history (e.g. `/chronicle improve`):
+
+**Step 1: Read the current instructions file**
+
+Read whichever instructions file the project uses (`.github/copilot-instructions.md` or `AGENTS.md`) to understand what already exists.
+
+If the file does **not** exist, you will create it. In that case, also analyze the codebase first — consult the **init** skill and follow its codebase exploration approach. Combine that analysis with the session history findings from Step 2 to produce a comprehensive instructions file.
+
+**Step 2: Investigate session history**
+
+Use `copilot_sessionStoreSql` to explore. Scope all queries to sessions from the current repository or working directory.
+
+Start by getting an overview of recent sessions for this repo, then dig deeper. You're looking for **friction** — signals that the agent misunderstood something or the user had to course-correct:
+
+- **User messages that correct or redirect** — read the actual conversation turns of suspicious sessions. Look for areas where the user got frustrated.
+- **Dev loop struggles** — did the agent have trouble with tests, linting, building, or type checking? Look for repeated failed commands, test retries, or build errors that required multiple attempts.
+- **Patterns across sessions** — does the same kind of mistake recur?
+
+Use your judgment on what queries to run. Drill into specific sessions when something looks interesting — read the actual turn-by-turn conversation to understand what went wrong.
+
+**Step 3: Present recommendations**
+
+Before presenting, consult the **agent-customization** skill for proper file conventions, content principles (link don't embed, minimal, concise), and anti-patterns — this frames how recommendations should be written.
+
+Based on what you find, succinctly present 3-5 recommendations. Explain both the issue you found and what custom instructions can address it.
+
+Focus on project-specific patterns, not generic advice. Only suggest instructions that address real problems found in the data that happened more than once.
+
+After presenting all recommendations, ask the user which ones they'd like to apply. Then make only the approved edits to the single existing instructions file (or create `AGENTS.md` if none exists).
 
 ### Search
 
-When the user asks to search, find, or look up past sessions by keyword (e.g. `/chronicle:search <query>`):
+When the user asks to search, find, or look up past sessions by keyword (e.g. `/chronicle search <query>`):
 
 **Search strategy**
 
@@ -197,20 +252,20 @@ Escape single quotes in the user's query by doubling them (`it's` → `it''s`). 
 
 `ILIKE '%X%'` on `turns` is a full table scan. Cloud queries that run too long return `context deadline exceeded`. To stay under the budget:
 
-- Collect matching session IDs into a single CTE (`WITH hits AS (...)`) and then **`JOIN`** back to `sessions` once. Don't use correlated subqueries in the SELECT list — they re-scan the CTE per row.
-- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries.
-- On cloud, default to a **90-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '90 days'` on `turns`, same on `checkpoints` via `created_at`). Mention the window in your summary line so the user knows it's bounded; widen it if the user asks for "all time" or no results come back.
+- **Use the two-step pattern** (recommended): First, collect matching `session_id`s from `turns` with a narrow time window and `GROUP BY session_id` in a CTE. Then enrich from `sessions` using `WHERE id IN (...)`. This avoids the expensive JOIN on a large scan result that causes timeouts.
+- Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries or correlated subqueries.
+- On cloud, default to a **7-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '7 days'` on `turns`, same on `checkpoints` via `created_at`). If no results come back, **progressively widen**: 7 days → 30 days → 90 days. Mention the window in your summary line so the user knows it's bounded.
 - Keep `LIMIT 50` on the final SELECT.
-- If a query times out, retry with a tighter window (30 days) or drop the heaviest table (usually `turns`) and tell the user what you trimmed.
+- If a query times out, narrow the window (not widen it) or drop the heaviest table (usually `turns`) and tell the user what you trimmed. Do NOT retry with the same window — always reduce scope first.
 
 **Output format**
 
 For each session, build a one-line label from `summary` if present, else from the returned `snippet` (truncate to ~80 chars). Never emit `(no summary)`, `(no metadata)`, or bare session-id lists.
 
-If you applied a time window (e.g. the cloud 90-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
+If you applied a time window (e.g. the cloud 7-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
 
 ```
-**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 90 days" / "all time">)
+**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 7 days" / "all time">)
 
 _owner/repo_
 - `session-id` — **<summary or snippet>**
@@ -234,8 +289,8 @@ Rules:
 If no rows are returned, tell the user and suggest:
 - Trying different keywords or a broader search term (single word, or a substring instead of a phrase)
 - Widening the time window ("search all time", "include older sessions")
-- Running `/chronicle:reindex` if they haven't indexed their sessions yet
-- Running `/chronicle:standup` to see recent activity
+- Running `/chronicle reindex` if they haven't indexed their sessions yet
+- Running `/chronicle standup` to see recent activity
 
 ### Reindex
 

@@ -268,6 +268,57 @@ describe('ClaudeSessionStateService', () => {
 		});
 	});
 
+	describe('getContextSizeForSession', () => {
+		it('should return undefined when no context size is set', () => {
+			assert.strictEqual(service.getContextSizeForSession('session-1'), undefined);
+		});
+
+		it('should return the set context size', () => {
+			service.setContextSizeForSession('session-1', 200_000);
+			assert.strictEqual(service.getContextSizeForSession('session-1'), 200_000);
+		});
+
+		it('should return different sizes for different sessions', () => {
+			service.setContextSizeForSession('session-1', 200_000);
+			service.setContextSizeForSession('session-2', 1_000_000);
+
+			assert.strictEqual(service.getContextSizeForSession('session-1'), 200_000);
+			assert.strictEqual(service.getContextSizeForSession('session-2'), 1_000_000);
+		});
+	});
+
+	describe('setContextSizeForSession', () => {
+		it('should allow setting a context size', () => {
+			service.setContextSizeForSession('session-1', 1_000_000);
+			assert.strictEqual(service.getContextSizeForSession('session-1'), 1_000_000);
+		});
+
+		it('should allow clearing a context size', () => {
+			service.setContextSizeForSession('session-1', 1_000_000);
+			service.setContextSizeForSession('session-1', undefined);
+			assert.strictEqual(service.getContextSizeForSession('session-1'), undefined);
+		});
+
+		it('should preserve other state when setting context size', () => {
+			service.setModelIdForSession('session-1', OPUS_4);
+			service.setReasoningEffortForSession('session-1', 'high');
+
+			service.setContextSizeForSession('session-1', 1_000_000);
+
+			assert.strictEqual(service.getModelIdForSession('session-1'), OPUS_4);
+			assert.strictEqual(service.getReasoningEffortForSession('session-1'), 'high');
+		});
+
+		it('should not fire onDidChangeSessionState event', () => {
+			const events: SessionStateChangeEvent[] = [];
+			service.onDidChangeSessionState(e => events.push(e));
+
+			service.setContextSizeForSession('session-1', 1_000_000);
+
+			assert.strictEqual(events.length, 0);
+		});
+	});
+
 	describe('dispose', () => {
 		it('should clear session state on dispose', () => {
 			service.setModelIdForSession('session-1', OPUS_4);

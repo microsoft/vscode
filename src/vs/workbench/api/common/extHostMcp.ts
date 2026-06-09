@@ -307,6 +307,19 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 }
 
+function stringifyError(err: unknown): string {
+	if (!(err instanceof Error)) {
+		return String(err);
+	}
+	let msg = String(err);
+	let cause: unknown = err.cause;
+	for (let depth = 0; cause !== undefined && depth < 5; depth++) {
+		msg += `: ${cause instanceof Error ? (cause.message || String(cause)) : String(cause)}`;
+		cause = cause instanceof Error ? cause.cause : undefined;
+	}
+	return msg;
+}
+
 const enum HttpMode {
 	Unknown,
 	Http,
@@ -361,7 +374,7 @@ export class McpHTTPHandle extends Disposable {
 				await this._send(message);
 			}
 		} catch (err) {
-			const msg = `Error sending message to ${this._launch.uri}: ${String(err)}`;
+			const msg = `Error sending message to ${this._launch.uri}: ${stringifyError(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
 		}
 	}
@@ -422,7 +435,6 @@ export class McpHTTPHandle extends Disposable {
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
-			'Content-Length': String(asBytes.length),
 			Accept: 'text/event-stream, application/json',
 		};
 		if (sessionId) {
@@ -512,7 +524,7 @@ export class McpHTTPHandle extends Disposable {
 			try {
 				await this._doSSE(parser, res);
 			} catch (err) {
-				this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
+				this._log(LogLevel.Warning, `Error reading SSE stream: ${stringifyError(err)}`);
 			}
 		} else if (contentType.startsWith('application/json')) {
 			this._proxy.$onDidReceiveMessage(this._id, await res.text());
@@ -642,7 +654,7 @@ export class McpHTTPHandle extends Disposable {
 
 		this._register(toDisposable(() => postEndpoint.cancel()));
 		this._doSSE(parser, res).catch(err => {
-			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error reading SSE stream: ${String(err)}` });
+			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error reading SSE stream: ${stringifyError(err)}` });
 		});
 
 		return postEndpoint.p;
@@ -657,7 +669,6 @@ export class McpHTTPHandle extends Disposable {
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
-			'Content-Length': String(asBytes.length),
 		};
 		await this._addAuthHeader(headers);
 		const res = await this._fetch(url, {
@@ -707,6 +718,7 @@ export class McpHTTPHandle extends Disposable {
 					resourceMetadata: this._authMetadata.resourceMetadata,
 					scopes: this._authMetadata.scopes,
 					clientId: this._launch.oauth?.clientId,
+					enterpriseManaged: this._launch.oauth?.enterpriseManaged,
 				};
 				const token = await this._proxy.$getTokenFromServerMetadata(
 					this._id,

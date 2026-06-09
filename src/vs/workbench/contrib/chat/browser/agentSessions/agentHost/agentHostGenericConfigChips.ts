@@ -19,20 +19,7 @@ import { AgentHostChatInputPicker, isClaimedByDedicatedPicker } from './agentHos
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-
-function toBackendSessionUri(sessionResource: URI): URI | undefined {
-	const scheme = sessionResource.scheme;
-	const prefix = 'agent-host-';
-	if (!scheme.startsWith(prefix)) {
-		return undefined;
-	}
-	const provider = scheme.substring(prefix.length);
-	if (!provider) {
-		return undefined;
-	}
-	const rawId = sessionResource.path.replace(/^\//, '');
-	return URI.from({ scheme: provider, path: `/${rawId}` });
-}
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -91,7 +78,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const backendSession = provisionalBackend
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
@@ -113,7 +100,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostGenericConfigChips');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._sync());
 		this._subRef.value = {

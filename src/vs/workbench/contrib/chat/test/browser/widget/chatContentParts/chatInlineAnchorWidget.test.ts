@@ -65,7 +65,7 @@ suite('ChatInlineAnchorWidget Metadata Validation', () => {
 		const titlePart = disposables.add(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			container,
-			new MarkdownString('Read [](vscode-agent-host://my-host/file/-/path/to/foo.ts), lines 1 to 2'),
+			new MarkdownString('Read [](vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0), lines 1 to 2'),
 			undefined,
 		));
 		titlePart.setOptions({ markdownRenderOptions: getChatMarkdownRenderOptions(), renderFileWidgets: true });

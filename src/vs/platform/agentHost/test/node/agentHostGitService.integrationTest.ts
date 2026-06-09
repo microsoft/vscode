@@ -36,6 +36,13 @@ function createGitService(disposables: Pick<DisposableStore, 'add'>): AgentHostG
 	return new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
 }
 
+function rmDirWithRetry(path: string | undefined): void {
+	if (!path) {
+		return;
+	}
+	try { rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); } catch { /* best-effort temp cleanup; Windows can briefly hold git handles */ }
+}
+
 suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -53,9 +60,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(opts?: { remote?: string; baseBranch?: string }): string {
@@ -135,7 +140,7 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 			assert.strictEqual(result.outgoingChanges, 2);
 			assert.strictEqual(result.uncommittedChanges, 0);
 		} finally {
-			rmSync(remoteDir, { recursive: true, force: true });
+			rmDirWithRetry(remoteDir);
 		}
 	});
 });
@@ -156,9 +161,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): { dir: string; run: (...args: string[]) => Buffer } {
@@ -202,7 +205,7 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		const kept = findByBasename('kept.txt');
 		assert.ok(kept?.before && kept.after, `modified file should have before+after; result=${JSON.stringify(result.map(d => ({ a: d.after?.uri, b: d.before?.uri })))}`);
 		assert.deepStrictEqual(kept!.diff, { added: 1, removed: 0 });
-		assert.ok(kept!.before!.content.uri.startsWith('git-blob://'), 'before content should be a git-blob: URI');
+		assert.strictEqual(URI.parse(kept!.before!.content.uri).scheme, 'git-blob', 'before content should be a git-blob: URI');
 
 		const fresh = findByBasename('fresh.txt');
 		assert.ok(fresh?.after && !fresh.before, 'untracked file should have only after');
@@ -320,15 +323,15 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 	});
 
 	teardown(() => {
-		if (tmpRoot) {
-			rmSync(tmpRoot, { recursive: true, force: true });
-		}
+		rmDirWithRetry(tmpRoot);
 	});
 
 	function initRepo(): string {
 		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-wt-'));
 		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
 		run('init', '-q', '-b', 'main');
+		run('config', 'user.name', 't');
+		run('config', 'user.email', 't@t');
 		run('commit', '-q', '--allow-empty', '-m', 'initial');
 		return tmpRoot!;
 	}
@@ -350,6 +353,31 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.hasUncommittedChanges(URI.file(dir)), false);
 	});
 
+	(hasGit ? test : test.skip)('commitAll stages tracked, staged and untracked changes and creates a commit', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(dir, 'tracked.txt'), 'before');
+		cp.execFileSync('git', ['add', 'tracked.txt'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add tracked'], { cwd: dir, env, stdio: 'pipe' });
+
+		await fs.writeFile(join(dir, 'tracked.txt'), 'after');
+		await fs.writeFile(join(dir, 'staged.txt'), 'staged');
+		cp.execFileSync('git', ['add', 'staged.txt'], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(dir, 'untracked.txt'), 'untracked');
+
+		await svc!.commitAll(URI.file(dir), 'commit all changes');
+
+		const status = cp.execFileSync('git', ['status', '--porcelain'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const lastMessage = cp.execFileSync('git', ['log', '-1', '--format=%s'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const committedFiles = cp.execFileSync('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD'], { cwd: dir, env, encoding: 'utf8' }).trim().split(/\r?\n/g).sort();
+
+		assert.deepStrictEqual({ status, lastMessage, committedFiles }, {
+			status: '',
+			lastMessage: 'commit all changes',
+			committedFiles: ['staged.txt', 'tracked.txt', 'untracked.txt'],
+		});
+	});
+
 	(hasGit ? test : test.skip)('addExistingWorktree attaches a worktree for an existing branch (no -b)', async () => {
 		const dir = initRepo();
 		cp.execFileSync('git', ['branch', 'feature'], { cwd: dir, env, stdio: 'pipe' });
@@ -360,7 +388,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			const stat = await fs.stat(wtPath);
 			assert.ok(stat.isDirectory(), 'worktree directory should exist');
 		} finally {
-			rmSync(wtPath, { recursive: true, force: true });
+			rmDirWithRetry(wtPath);
 		}
 	});
 
@@ -383,7 +411,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			assert.throws(() => cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], { cwd: wtPath, env, stdio: 'pipe' }), /fatal:/);
 		} finally {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath)); } catch { /* best-effort cleanup */ }
-			rmSync(wtPath, { recursive: true, force: true });
+			rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/test-origin-start-point'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});

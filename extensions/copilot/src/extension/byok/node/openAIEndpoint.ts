@@ -251,7 +251,7 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = zdr;
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
 			const body = super.createRequestBody(options);
 			body.store = !zdr;
 			body.n = undefined;
@@ -270,11 +270,22 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			// Delegate to base ChatEndpoint for Messages API dispatch
 			return super.createRequestBody(options);
 		} else {
-			// Handle CAPI: provide callback for thinking data processing
+			// Handle Chat Completions: provide callback for thinking data processing
+			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 			const callback: RawMessageConversionCallback = (out, data) => {
 				if (data && data.id) {
 					out.cot_id = data.id;
-					out.cot_summary = Array.isArray(data.text) ? data.text.join('') : data.text;
+					const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+					out.cot_summary = text;
+					if (supportsThinking) {
+						// Reasoning models require the assistant message to echo back its
+						// prior reasoning. DeepSeek, Moonshot (Kimi), Minimax, and similar
+						// OpenAI-compatible providers expect `reasoning_content`; OpenRouter's
+						// BYOK proxy expects `reasoning`. Without these, the turn after a tool
+						// call is rejected with HTTP 400.
+						out.reasoning_content = text;
+						out.reasoning = text;
+					}
 				}
 			};
 			const body = createCapiRequestBody(options, this.model, callback);
@@ -378,8 +389,8 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	}
 
 	public override async makeChatRequest2(options: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
-		// Apply ignoreStatefulMarker: false for initial request
-		const modifiedOptions: IMakeChatRequestOptions = { ...options, ignoreStatefulMarker: false };
+		// Use ignoreStatefulMarker: false as the initial request default; the parent retry flow can override it on InvalidStatefulMarker retries.
+		const modifiedOptions: IMakeChatRequestOptions = { ...options, ignoreStatefulMarker: options.ignoreStatefulMarker ?? false };
 		const response = await super.makeChatRequest2(modifiedOptions, token);
 		return hydrateBYOKErrorMessages(response);
 	}
