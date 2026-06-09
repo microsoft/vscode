@@ -15,13 +15,19 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
-import { AbstractChatView, ChatViewKind } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from './chatView.js';
 import { ChatCompositeBar } from './chatCompositeBar.js';
 import { SessionHeader, SessionViewFloatingToolbar } from './sessionHeader.js';
 import { autorun } from '../../../base/common/observable.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsReadContext, SessionIsStickyContext, SessionSupportsMultipleChatsContext, ChatSessionProviderIdContext, ChatSessionTypeContext } from '../../common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../common/theme.js';
 import { SessionStatus } from '../../services/sessions/common/session.js';
+
+/**
+ * Options passed to {@link SessionView.openSession}. Extends the chat view
+ * options so they can be forwarded to the new-chat views the host creates.
+ */
+export interface ISessionViewOptions extends IChatViewOptions { }
 
 /**
  * A stable single-slot grid leaf that handles switching between concrete
@@ -121,7 +127,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._register(this._compositeBar.onDidChangeHeight(() => this._layoutChildren()));
 	}
 
-	openSession(session: IActiveSession | undefined): void {
+	openSession(session: IActiveSession | undefined, options: ISessionViewOptions): void {
 		if (this._hasOpenedSession && this._currentSession === session) {
 			return;
 		}
@@ -146,7 +152,7 @@ export class SessionView extends Disposable implements ISerializableView {
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
 					? this.chatViewFactory.createChatView()
-					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession');
+					: this.chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', options);
 				this._contentContainer.replaceChildren(view.element);
 				this._currentView.value = view;
 				view.setActive(this._isActive);

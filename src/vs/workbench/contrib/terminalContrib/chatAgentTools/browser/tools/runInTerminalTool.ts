@@ -2789,22 +2789,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture mode/tools from the last request. The model is resolved
-		// separately via the utility-small alias (falling back to conversation model).
+		// Capture agent/mode/tools from the last request so the notification resumes
+		// the same agent context that started the background terminal command.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
+		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
+			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
 		}
 
-		// Resolve the utility-small alias eagerly and cache it so steering
-		// dispatch stays synchronous. Falls back to the conversation model if
-		// an event fires before resolution completes (rare — events require
-		// the terminal to produce output first).
+		// Use the free utility-small model for steering, but keep the original agent
+		// participant via agentIdSilent so local-agent notifications do not fall back
+		// to the default chat participant.
 		let cachedUtilitySmallId: string | undefined;
 		this._resolveUtilitySmallModelId().then(utilitySmallId => {
 			cachedUtilitySmallId = utilitySmallId;

@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { BASELINE_TURN_ID, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
-import { SessionStatus } from '../../common/state/sessionState.js';
+import { ChangesetStatus, SessionStatus, withSessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
@@ -301,6 +301,77 @@ suite('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(JSON.parse(persisted), gitDiffs);
 		});
 
+		test('session changeset falls back to _meta.git base branch when persisted diff base is absent', async () => {
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const computeCalls: { baseBranch: string | undefined }[] = [];
+			const stubGit = {
+				computeSessionFileDiffs: async (_wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
+					computeCalls.push({ baseBranch: opts.baseBranch });
+					return [];
+				},
+			} as unknown as IAgentHostGitService;
+			const localChangesets = disposables.add(new AgentHostChangesetService(
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+			const sessionStr = sessionUri.toString();
+
+			localStateManager.createSession({
+				resource: sessionStr,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+
+			localChangesets.refreshSessionChangeset(sessionStr);
+			for (let i = 0; i < 50 && computeCalls.length === 0; i++) {
+				await timeout(2);
+			}
+
+			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'main' }]);
+		});
+
+		test('session changeset keeps persisted diff base ahead of _meta.git base branch', async () => {
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			await sessionDb.setMetadata('agentHost.diffBaseBranch', 'release');
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const computeCalls: { baseBranch: string | undefined }[] = [];
+			const stubGit = {
+				computeSessionFileDiffs: async (_wd: URI, opts: { sessionUri: string; baseBranch?: string }) => {
+					computeCalls.push({ baseBranch: opts.baseBranch });
+					return [];
+				},
+			} as unknown as IAgentHostGitService;
+			const localChangesets = disposables.add(new AgentHostChangesetService(
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+			const sessionStr = sessionUri.toString();
+
+			localStateManager.createSession({
+				resource: sessionStr,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+			localStateManager.setSessionMeta(sessionStr, withSessionGitState(undefined, { baseBranchName: 'main' }));
+
+			localChangesets.refreshSessionChangeset(sessionStr);
+			for (let i = 0; i < 50 && computeCalls.length === 0; i++) {
+				await timeout(2);
+			}
+
+			assert.deepStrictEqual(computeCalls, [{ baseBranch: 'release' }]);
+		});
+
 		test('falls back to the edit-tracker aggregator when the git service returns undefined', async () => {
 			const sessionDb = new SessionDatabase(':memory:');
 			disposables.add(toDisposable(() => sessionDb.close()));
@@ -396,9 +467,18 @@ suite('AgentHostChangesetService', () => {
 
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(localStateManager.onDidEmitEnvelope(e => { envelopes.push(e); }));
+			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
 
 			// Trigger the recompute of the uncommitted changeset.
 			localChangesets.refreshUncommittedChangeset(sessionStr);
+			const refreshing = localStateManager.getSnapshot(uncommittedUri)?.state as { status: string; files: Array<{ id: string }> } | undefined;
+			assert.deepStrictEqual({
+				status: refreshing?.status,
+				files: refreshing?.files.map(f => f.id).sort(),
+			}, {
+				status: ChangesetStatus.Computing,
+				files: ['file:///wd/a.ts', 'file:///wd/b.ts', 'file:///wd/c.ts'],
+			});
 
 			// Wait long enough for the sequencer to drain the uncommitted compute.
 			for (let i = 0; i < 50; i++) {
@@ -408,7 +488,6 @@ suite('AgentHostChangesetService', () => {
 			// 1) The persisted snapshot must still be in live state — no
 			//    `ChangesetFileRemoved` envelopes for the uncommitted URI
 			//    were emitted.
-			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
 			const removed = envelopes
 				.filter(e => e.action.type === ActionType.ChangesetFileRemoved && e.channel === uncommittedUri);
 			assert.deepStrictEqual(removed, [], 'no files should be removed when the git path is unavailable');
@@ -419,8 +498,14 @@ suite('AgentHostChangesetService', () => {
 
 			// 3) Live state still reports the 3 seeded files.
 			const snapshot = localStateManager.getSnapshot(uncommittedUri);
-			const state = snapshot?.state as { files: Array<{ id: string }> } | undefined;
-			assert.deepStrictEqual(state?.files.map(f => f.id).sort(), ['file:///wd/a.ts', 'file:///wd/b.ts', 'file:///wd/c.ts']);
+			const state = snapshot?.state as { status: string; files: Array<{ id: string }> } | undefined;
+			assert.deepStrictEqual({
+				status: state?.status,
+				files: state?.files.map(f => f.id).sort(),
+			}, {
+				status: ChangesetStatus.Ready,
+				files: ['file:///wd/a.ts', 'file:///wd/b.ts', 'file:///wd/c.ts'],
+			});
 		});
 	});
 

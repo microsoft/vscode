@@ -922,6 +922,48 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('createSession refreshes branch and uncommitted changesets after git state attaches', async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const gitState = {
+				hasGitHubRemote: false,
+				branchName: 'feature/x',
+				baseBranchName: 'main',
+				upstreamBranchName: undefined,
+				incomingChanges: 0,
+				outgoingChanges: 0,
+				uncommittedChanges: 0,
+			};
+			const computeCalls: Array<{ sessionUri: string; baseBranch: string | undefined }> = [];
+			const gitService = createNoopGitService();
+			gitService.getSessionGitState = async () => gitState;
+			gitService.computeSessionFileDiffs = async (_wd, opts) => {
+				computeCalls.push({ sessionUri: opts.sessionUri, baseBranch: opts.baseBranch });
+				return [];
+			};
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolvedWorkingDirectory = workingDirectory;
+			agent.sessionMetadataOverrides = { workingDirectory };
+			localService.registerProvider(agent);
+
+			const session = await localService.createSession({ provider: 'copilot' });
+			for (let i = 0; i < 100 && computeCalls.length < 2; i++) {
+				await new Promise(resolve => setTimeout(resolve, 2));
+			}
+
+			assert.deepStrictEqual(
+				computeCalls.sort((a, b) => (a.baseBranch ?? '').localeCompare(b.baseBranch ?? '')),
+				[
+					{ sessionUri: session.toString(), baseBranch: undefined },
+					{ sessionUri: session.toString(), baseBranch: 'main' },
+				],
+			);
+		});
+
 		test('createSession skips git overlay when no working directory or no git state', async () => {
 			const gitService = {
 				_serviceBrand: undefined,
