@@ -812,6 +812,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				const changesSummary = summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 };
 				this.persistChangesSummary(session, changesSummary);
 				this._stateManager.setSessionSummaryChanges(session, changesSummary);
+			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
 			this._stateManager.dispatchServerAction(changesetUri, {
