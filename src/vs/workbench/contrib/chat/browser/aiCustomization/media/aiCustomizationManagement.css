@@ -1942,10 +1942,18 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 .automation-form-prompt-host .interactive-input-part {
-	width: 100%;
-	/* The composer's internal toolbar wraps its picker chips on its own;
-	 * we just ensure horizontal overflow can't escape the dialog when
-	 * long custom-mode names or model identifiers show up. */
+	/*
+	 * `.interactive-input-part` in chat.css has `margin: 0 12px`, which
+	 * (combined with the default `width: auto`) is designed to inset the
+	 * composer inside a wider chat panel. In our dialog the prompt host
+	 * is already the form column, so the margin pushes the composer 12px
+	 * past the host on each side — its right border ends up sitting
+	 * outside the dialog. Zero out the margin so the composer aligns
+	 * with the other form fields.
+	 */
+	margin: 0;
+	/* Don't let long custom-mode names or model identifiers push the
+	 * modal wider than its declared max-width. */
 	max-width: 100%;
 	min-width: 0;
 }
@@ -1955,6 +1963,26 @@ body:has(.automation-dialog) .monaco-menu-container {
 	 * width so flex children (chips, custom-mode names) don't push the
 	 * modal wider than its declared max-width. */
 	min-width: 0;
+}
+
+/*
+ * Force the session-target chip ("Local | Copilot CLI | Cloud") to use
+ * the same neutral foreground as the other secondary-toolbar chips.
+ * Without this, the chip renders in the browser's default `<a>` link
+ * color (blue) on first paint and only flips to gray after the user
+ * triggers `_run()` (which re-renders the label).
+ *
+ * The shared chat.css rule
+ * `.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label`
+ * already sets `color: var(--vscode-icon-foreground)`, but something in
+ * our scoped context — likely the `<a>`'s default link styling beating
+ * the class rule at first paint — causes the inherited color to win
+ * until the next render. Re-asserting the color with dialog-scoped
+ * specificity keeps the chip neutral from the moment it appears.
+ */
+.automation-form-prompt-host .chat-secondary-toolbar .chat-input-picker-item .action-label,
+.automation-form-prompt-host .chat-secondary-toolbar .chat-input-picker-item .action-label .codicon {
+	color: var(--vscode-icon-foreground);
 }
 
 .automation-form-row {
