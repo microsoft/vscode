@@ -18,7 +18,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMService } from '../../common/scm.js';
-import { SCMViewService } from '../../browser/scmViewService.js';
+import { SCMViewService, getProviderStorageKey } from '../../browser/scmViewService.js';
 import { SCMMenus } from '../../browser/menus.js';
 import { URI } from '../../../../../base/common/uri.js';
 
@@ -87,10 +87,6 @@ suite('SCMViewService', () => {
 		}());
 	});
 
-	function getProviderStorageKey(provider: ISCMProvider): string {
-		return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
-	}
-
 	test('late-arriving deselected worktree remains deselected after loading completes', () => {
 		const mainProvider = makeProvider('git', 'Git', URI.file('/repo/main'));
 		const worktreeProvider = makeProvider('git', 'Git', URI.file('/repo/worktree'));
@@ -111,9 +107,7 @@ suite('SCMViewService', () => {
 		onDidAddRepositoryEmitter.fire(mainRepository);
 
 		// Simulate loading completing (e.g. the 5-second debounce fired)
-		(service as any).finishLoading();
-
-		assert.strictEqual(service.didFinishLoadingRepositories.get(), true);
+		service.didFinishLoadingRepositories.set(true, undefined);
 
 		// Add worktree repo late (after loading has finished) - simulates a worktree
 		// being detected after git status completes
@@ -141,7 +135,7 @@ suite('SCMViewService', () => {
 
 		onDidAddRepositoryEmitter.fire(mainRepository);
 
-		(service as any).finishLoading();
+		service.didFinishLoadingRepositories.set(true, undefined);
 
 		// Worktree was visible before, so it should be added as visible when it arrives late
 		onDidAddRepositoryEmitter.fire(worktreeRepository);

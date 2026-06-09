@@ -28,7 +28,7 @@ import { localize } from '../../../../nls.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { getSCMRepositoryIcon } from './util.js';
 
-function getProviderStorageKey(provider: ISCMProvider): string {
+export function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
 }
 
