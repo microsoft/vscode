@@ -1846,8 +1846,8 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 .automation-dialog .dialog-shadow .dialog-box {
-	min-width: 520px;
-	max-width: 640px;
+	min-width: 760px;
+	max-width: 920px;
 }
 
 /*
