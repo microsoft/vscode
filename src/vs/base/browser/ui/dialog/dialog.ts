@@ -58,6 +58,17 @@ export interface IDialogOptions {
 	readonly disableCloseAction?: boolean;
 	readonly disableCloseButton?: boolean;
 	readonly disableDefaultAction?: boolean;
+	/**
+	 * When provided, focus may leave the dialog to a related target that
+	 * satisfies this predicate without being snapped back. Use this for
+	 * dialogs that host pickers / dropdowns / context views which mount
+	 * outside the dialog's own DOM (e.g. at the `body` level via
+	 * `IContextViewService`). The callback receives the focusout's
+	 * `relatedTarget` and should return `true` to permit the focus shift.
+	 *
+	 * Default: undefined — preserves the existing focus-trap behavior.
+	 */
+	readonly isExternalFocusAllowed?: (relatedTarget: HTMLElement) => boolean;
 	readonly onVisibilityChange?: (window: Window, visible: boolean) => void;
 	readonly buttonStyles: IButtonStyles;
 	readonly checkboxStyles: ICheckboxStyles;
@@ -484,6 +495,12 @@ export class Dialog extends Disposable {
 			this._register(addDisposableListener(this.element, 'focusout', e => {
 				if (!!e.relatedTarget && !!this.element) {
 					if (!isAncestor(e.relatedTarget as HTMLElement, this.element)) {
+						// Allow focus to leave the dialog when the consumer
+						// has opted in for popups/pickers that mount outside
+						// the dialog DOM (e.g. action widgets, context views).
+						if (this.options.isExternalFocusAllowed?.(e.relatedTarget as HTMLElement)) {
+							return;
+						}
 						this.focusToReturn = e.relatedTarget as HTMLElement;
 
 						if (e.target) {
