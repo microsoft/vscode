@@ -49,7 +49,8 @@ export const enum LayoutSettings {
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
-	SHADOWS = 'workbench.shadows'
+	SHADOWS = 'workbench.shadows',
+	SECONDARY_SIDE_BAR_LOCATION = 'workbench.secondarySideBar.location'
 }
 
 export const enum ActivityBarPosition {
@@ -69,6 +70,12 @@ export const enum EditorActionsLocation {
 	DEFAULT = 'default',
 	TITLEBAR = 'titleBar',
 	HIDDEN = 'hidden'
+}
+
+export const enum SecondarySideBarLocation {
+	OPPOSITE = 'opposite',
+	LEFT = 'left',
+	RIGHT = 'right'
 }
 
 export const enum Position {
@@ -109,6 +116,17 @@ const positionsByString: { [key: string]: Position } = {
 
 export function positionFromString(str: string): Position {
 	return positionsByString[str];
+}
+
+export function auxiliaryBarPositionFromConfiguration(sideBarPosition: Position, secondarySideBarLocation: SecondarySideBarLocation | undefined): Position {
+	switch (secondarySideBarLocation) {
+		case SecondarySideBarLocation.LEFT:
+			return Position.LEFT;
+		case SecondarySideBarLocation.RIGHT:
+			return Position.RIGHT;
+		default:
+			return sideBarPosition === Position.LEFT ? Position.RIGHT : Position.LEFT;
+	}
 }
 
 function partOpensMaximizedSettingToString(setting: PartOpensMaximizedOptions): string {

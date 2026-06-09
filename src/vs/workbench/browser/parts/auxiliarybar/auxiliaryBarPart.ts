@@ -17,13 +17,13 @@ import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from '../../../commo
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, auxiliaryBarPositionFromConfiguration, IWorkbenchLayoutService, LayoutSettings, Parts, Position, SecondarySideBarLocation } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { ToggleAuxiliaryBarAction } from './auxiliaryBarActions.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
-import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
+import { ToggleSecondarySideBarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -138,6 +138,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.configuration = this.resolveConfiguration();
 				this.onDidChangeActivityBarLocation();
+			} else if (e.affectsConfiguration(LayoutSettings.SECONDARY_SIDE_BAR_LOCATION)) {
+				this.updateStyles();
+				this.updateCompositeBar(true);
 			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
 				this.configuration = this.resolveConfiguration();
 				this.updateCompositeBar(true);
@@ -168,6 +171,13 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		return { position, canShowLabels, showLabels };
 	}
 
+	private getAuxiliaryBarPosition(): Position {
+		return auxiliaryBarPositionFromConfiguration(
+			this.layoutService.getSideBarPosition(),
+			this.configurationService.getValue<SecondarySideBarLocation>(LayoutSettings.SECONDARY_SIDE_BAR_LOCATION)
+		);
+	}
+
 	private onDidChangeActivityBarLocation(): void {
 		this.updateCompositeBar();
 
@@ -183,7 +193,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
-		const isPositionLeft = this.layoutService.getSideBarPosition() === Position.RIGHT;
+		const isPositionLeft = this.getAuxiliaryBarPosition() === Position.LEFT;
 
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
 
@@ -230,7 +240,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
-		const currentPositionRight = this.layoutService.getSideBarPosition() === Position.LEFT;
+		const currentPositionRight = this.getAuxiliaryBarPosition() === Position.RIGHT;
 
 		if (this.getCompositeBarPosition() === CompositeBarPosition.TITLE) {
 			const viewsSubmenuAction = this.getViewsSubmenuAction();
@@ -253,7 +263,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
-			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
+			toAction({ id: ToggleSecondarySideBarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSecondarySideBarPositionAction.ID) }),
 			toggleShowLabelsAction,
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })
 		]);
