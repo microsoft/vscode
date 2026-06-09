@@ -1873,6 +1873,21 @@ pane is first mounted. View switches inside the modal are not animated. */
 
 .monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
 	padding-right: 6px;
+	/*
+	 * The base dialog leaves the message container at content size
+	 * (`align-self: stretch` only stretches height in a horizontal flex
+	 * row). Our form fields are `width: 100%` of this container, so they
+	 * track the container's intrinsic min-content width — which shrinks
+	 * over the first second as the embedded chat input's chip labels
+	 * (model name, mode name, etc.) resolve and the toolbar's
+	 * min-content drops. Forcing the container to fill the row width
+	 * keeps every field at the dialog's locked width from first paint
+	 * onwards. `min-width: 0` lets the container shrink inside the row
+	 * (which has `overflow: hidden`) instead of being pushed by long
+	 * chip labels.
+	 */
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 /*
