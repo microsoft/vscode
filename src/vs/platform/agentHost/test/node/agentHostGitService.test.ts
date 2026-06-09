@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths } from '../../node/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, formatGitError, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -192,7 +192,7 @@ suite('AgentHostGitService', () => {
 			const diffs = parseGitDiffRawNumstat(out, root, sessionUri, sha);
 			assert.deepStrictEqual(diffs, [
 				{
-					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts') } },
+					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts', '/repo/modified.ts') } },
 					after: { uri: 'file:///repo/modified.ts', content: { uri: 'file:///repo/modified.ts' } },
 					diff: { added: 5, removed: 2 },
 				},
@@ -201,11 +201,11 @@ suite('AgentHostGitService', () => {
 					diff: { added: 10, removed: 0 },
 				},
 				{
-					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts') } },
+					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts', '/repo/deleted.ts') } },
 					diff: { added: 0, removed: 7 },
 				},
 				{
-					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts') } },
+					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts', '/repo/old/path.ts') } },
 					after: { uri: 'file:///repo/new/path.ts', content: { uri: 'file:///repo/new/path.ts' } },
 					diff: { added: 3, removed: 3 },
 				},
@@ -222,10 +222,126 @@ suite('AgentHostGitService', () => {
 		test('returns empty for empty input', () => {
 			assert.deepStrictEqual(parseGitDiffRawNumstat('', root, sessionUri, sha), []);
 		});
+
+		test('anchors after side to afterRef when provided (ref->ref diffs)', () => {
+			// In a checkpoint / ref->ref diff, both the before and the after
+			// content must be anchored to commits — never to the working
+			// tree. With `afterRef` set, both `after.uri` and
+			// `after.content.uri` are `git-blob:` URIs so the diff reflects
+			// the state at that commit even if the working tree diverges
+			// (e.g. file renamed, deleted, or modified on disk since).
+			const toSha = 'beef5678beef5678beef5678beef5678beef5678';
+			const segments: string[] = [
+				':100644 100644 0000000 1111111 M', 'modified.ts',
+				':000000 100644 0000000 2222222 A', 'added.ts',
+				':100644 000000 3333333 0000000 D', 'deleted.ts',
+				':100644 100644 4444444 5555555 R100', 'old/path.ts', 'new/path.ts',
+				'5\t2\tmodified.ts',
+				'10\t0\tadded.ts',
+				'0\t7\tdeleted.ts',
+				'3\t3\t', 'old/path.ts', 'new/path.ts',
+				'',
+			];
+			const diffs = parseGitDiffRawNumstat(segments.join('\x00'), root, sessionUri, sha, toSha);
+			assert.deepStrictEqual(diffs, [
+				{
+					before: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'modified.ts', '/repo/modified.ts') } },
+					after: { uri: 'file:///repo/modified.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'modified.ts', '/repo/modified.ts') } },
+					diff: { added: 5, removed: 2 },
+				},
+				{
+					after: { uri: 'file:///repo/added.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'added.ts', '/repo/added.ts') } },
+					diff: { added: 10, removed: 0 },
+				},
+				{
+					before: { uri: 'file:///repo/deleted.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'deleted.ts', '/repo/deleted.ts') } },
+					diff: { added: 0, removed: 7 },
+				},
+				{
+					before: { uri: 'file:///repo/old/path.ts', content: { uri: buildGitBlobUri(sessionUri, sha, 'old/path.ts', '/repo/old/path.ts') } },
+					after: { uri: 'file:///repo/new/path.ts', content: { uri: buildGitBlobUri(sessionUri, toSha, 'new/path.ts', '/repo/new/path.ts') } },
+					diff: { added: 3, removed: 3 },
+				},
+			]);
+		});
 	});
 
 	test('exports the well-known empty-tree object SHA', () => {
 		assert.strictEqual(EMPTY_TREE_OBJECT, '4b825dc642cb6eb9a060e54bf8d69288fbee4904');
+	});
+
+	suite('formatGitError', () => {
+		test('reports timeout when our timer fired and summarises progress-meter stderr', () => {
+			const err = Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' as const });
+			const progress = 'Updating files:   0% (7/14834)\rUpdating files:   0% (149/14834)\r';
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '-b', 'x', '/tmp/y', 'origin/main'], 30_000, true, err, progress),
+				'git worktree timed out after 30000ms: Updating files:   0% (149/14834)',
+			);
+		});
+
+		test('reports kill signal when killed but not by our timer', () => {
+			const err = Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' as const });
+			assert.strictEqual(
+				formatGitError(['worktree', 'add'], 30_000, false, err, ''),
+				'git worktree killed by SIGTERM',
+			);
+		});
+
+		test('reports numeric exit code when git failed normally', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '/tmp/y', 'missing-branch'], 30_000, false, err, 'fatal: invalid reference: missing-branch\n'),
+				'git worktree exited with code 128: fatal: invalid reference: missing-branch',
+			);
+		});
+
+		test('keeps missing git-lfs error over the later generic fatal line', () => {
+			const err = Object.assign(new Error('Command failed'), { code: 128 });
+			const stderr = [
+				'Preparing worktree (new branch \'agents/example\')',
+				'git-lfs filter-process: git-lfs: command not found',
+				'fatal: the remote end hung up unexpectedly',
+			].join('\n');
+			assert.strictEqual(
+				formatGitError(['worktree', 'add', '--no-track', '-b', 'agents/example', '/tmp/worktree', 'origin/main'], 60_000, false, err, stderr),
+				'git worktree exited with code 128: git-lfs filter-process: git-lfs: command not found',
+			);
+		});
+
+		test('falls back to error message when there is no signal or exit code', () => {
+			const err = new Error('spawn git ENOENT');
+			assert.strictEqual(
+				formatGitError(['status'], 5_000, false, err, ''),
+				'spawn git ENOENT',
+			);
+		});
+	});
+
+	suite('summarizeStderrForError', () => {
+		test('returns empty string for empty input', () => {
+			assert.strictEqual(summarizeStderrForError(''), '');
+		});
+
+		test('returns empty string for whitespace-only input', () => {
+			assert.strictEqual(summarizeStderrForError('  \r\n\r\n  '), '');
+		});
+
+		test('keeps the last non-empty line of a multi-line progress meter', () => {
+			const progress = 'Updating files:   0% (7/14834)\rUpdating files:   0% (149/14834)\r';
+			assert.strictEqual(summarizeStderrForError(progress), 'Updating files:   0% (149/14834)');
+		});
+
+		test('passes through a normal single-line message', () => {
+			assert.strictEqual(summarizeStderrForError('fatal: invalid reference: x\n'), 'fatal: invalid reference: x');
+		});
+
+		test('truncates very long lines with an ellipsis', () => {
+			const long = `fatal: ${'a'.repeat(500)}`;
+			const result = summarizeStderrForError(long);
+			assert.strictEqual(result.length, 200);
+			assert.ok(result.endsWith('…'), 'expected trailing ellipsis');
+		});
 	});
 });
 

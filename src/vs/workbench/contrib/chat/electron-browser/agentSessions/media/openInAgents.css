@@ -9,35 +9,37 @@
 	align-items: center;
 	height: 22px;
 	padding: 0 4px;
-	margin: 0 10px 0 2px;
 	border-radius: 5px;
 	cursor: pointer;
 	color: var(--vscode-titleBar-activeForeground);
 	-webkit-app-region: no-drag;
 	white-space: nowrap;
-	position: relative;
-}
-
-/* Vertical separator drawn as an absolutely positioned pseudo-element so it isn't clipped by any ancestor `overflow: hidden`. */
-.monaco-workbench .open-in-agents-titlebar-widget::after {
-	content: '';
-	position: absolute;
-	right: -6px;
-	top: 4px;
-	bottom: 4px;
-	width: 1px;
-	background-color: var(--vscode-widget-border, rgba(128, 128, 128, 0.5));
-	pointer-events: none;
 }
 
 .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
 	width: 16px;
 	height: 16px;
 	flex: 0 0 auto;
-	font-size: 16px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	background-image: url('../../../../../../sessions/browser/media/sessions-icon.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: contain;
+	filter: grayscale(1);
+}
+
+.monaco-enable-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench.monaco-enable-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+	transition: filter 160ms ease;
+}
+
+.monaco-reduce-motion .monaco-workbench .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench.monaco-reduce-motion .open-in-agents-titlebar-widget > .open-in-agents-titlebar-widget-icon {
+	transition-duration: 0ms !important;
+}
+
+.monaco-workbench .open-in-agents-titlebar-widget:hover > .open-in-agents-titlebar-widget-icon,
+.monaco-workbench .open-in-agents-titlebar-widget:focus-visible > .open-in-agents-titlebar-widget-icon {
+	filter: none;
 }
 
 

@@ -420,7 +420,10 @@ export class ChatAgentResponseStream {
 							checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
 							dto.resolveId = generateUuid();
+						}
+						_report(dto);
 
+						if (part.resolve) {
 							const cts = new CancellationTokenSource();
 							part.resolve(cts.token)
 								.then(() => {
@@ -430,7 +433,6 @@ export class ChatAgentResponseStream {
 								.then(() => cts.dispose(), () => cts.dispose());
 							that._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
 						}
-						_report(dto);
 					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
 						const p = this.externalEdit(part.uris, part.callback);
 						p.then((value) => part.didGetApplied(value));
@@ -819,14 +821,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideChatSessionCustomizations(handle: number, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
+	async $provideChatSessionCustomizations(handle: number, sessionResource: UriComponents | undefined, token: CancellationToken): Promise<IChatSessionCustomizationItemDto[] | undefined> {
 		const providerData = this._customizationProviders.get(handle);
 		if (!providerData) {
 			return undefined;
 		}
 
+		// The proposed API requires a real session URI; bail out when the
+		// internal caller (e.g. the management UI populating a global list)
+		// has nothing scoped to forward.
+		if (!sessionResource) {
+			return undefined;
+		}
+
 		try {
-			const items = await providerData.provider.provideChatSessionCustomizations(token);
+			const items = await providerData.provider.provideChatSessionCustomizations(URI.revive(sessionResource), token);
 			if (!items) {
 				return undefined;
 			}
@@ -836,6 +845,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				type: typeConvert.ChatSessionCustomizationType.from(item.type),
 				name: item.name,
 				description: item.description,
+				source: item.source,
 				groupKey: item.groupKey,
 				badge: item.badge,
 				badgeTooltip: item.badgeTooltip,

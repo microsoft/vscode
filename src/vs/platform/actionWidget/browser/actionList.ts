@@ -49,7 +49,7 @@ export interface IActionListItemHover {
 	/**
 	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString | HTMLElement;
+	readonly content?: string | IMarkdownString | HTMLElement;
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
@@ -67,6 +67,12 @@ export interface IActionListItem<T> {
 	 */
 	readonly detail?: string;
 	readonly description?: string | IMarkdownString;
+	/**
+	 * Optional accessible description used in place of {@link description} for
+	 * screen reader labels. Useful when the visual description contains icons
+	 * or other non-textual content.
+	 */
+	readonly ariaDescription?: string;
 	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
@@ -522,6 +528,11 @@ export interface IActionListOptions {
 	 * Optional text shown below the action list as a footer.
 	 */
 	readonly footerText?: string;
+
+	/**
+	 * Optional CSS class name added to the action list container, for scoped styling.
+	 */
+	readonly className?: string;
 }
 
 /**
@@ -585,12 +596,22 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._options?.inlineDescription) {
 			this.domNode.classList.add('inline-description');
 		}
+		if (this._options?.className) {
+			const classNames = this._options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				this.domNode.classList.add(...classNames);
+			}
+		}
 		this._actionLineHeight = 24;
 
 		// Create submenu container appended to domNode
 		this._submenuContainer = document.createElement('div');
 		this._submenuContainer.className = 'action-list-submenu-panel action-widget';
 		this._submenuContainer.style.display = 'none';
+		// Make focusable so clicking the hover panel keeps focus inside the
+		// tracked element instead of moving it to document.body (which would
+		// trigger the blur handler and dismiss the widget).
+		this._submenuContainer.tabIndex = -1;
 		this.domNode.append(this._submenuContainer);
 
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {
@@ -637,7 +658,9 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.detail) {
 							label = label + ', ' + stripNewlines(element.detail);
 						}
-						if (element.description) {
+						if (element.ariaDescription) {
+							label = label + ', ' + stripNewlines(element.ariaDescription);
+						} else if (element.description) {
 							const descText = typeof element.description === 'string' ? element.description : element.description.value;
 							label = label + ', ' + stripNewlines(descText);
 						}
@@ -1843,6 +1866,17 @@ export class ActionList<T> extends Disposable {
 		return this._widget.hasDynamicHeight;
 	}
 
+	private computeActionWidgetVerticalChromeHeight(): number {
+		const widgetContainer = this.domNode.parentElement?.closest('.action-widget');
+		if (!widgetContainer) {
+			return 0;
+		}
+
+		const style = dom.getWindow(widgetContainer).getComputedStyle(widgetContainer);
+		const toPixels = (value: string): number => Number.parseFloat(value) || 0;
+		return toPixels(style.paddingTop) + toPixels(style.paddingBottom) + toPixels(style.borderTopWidth) + toPixels(style.borderBottomWidth);
+	}
+
 	private computeHeight(): number {
 		const listHeight = this._widget.computeListHeight();
 
@@ -1867,7 +1901,7 @@ export class ActionList<T> extends Disposable {
 				const fullHeight = chromeHeight + this._widget.computeFullHeight();
 				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
 			}
-			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;

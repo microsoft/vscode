@@ -4,21 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../base/common/network.js';
-import { IChatSessionsService } from './chatSessionsService.js';
+import { IChatSessionsService, localChatSessionType, SessionType } from './chatSessionsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
+	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
+	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
+	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
+	UtilityModel = 'chat.utilityModel',
+	UtilitySmallModel = 'chat.utilitySmallModel',
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -64,11 +69,13 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
+	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
+	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
-	UseChatSessionCustomizationsForCustomAgents = 'chat.customizations.useChatSessionCustomizationsForCustomAgents',
-	AutopilotEnabled = 'chat.autopilot.enabled',
+	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
+	PlanReviewInlineEditorEnabled = 'chat.planReview.inlineEditor.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
@@ -80,21 +87,12 @@ export enum ChatConfiguration {
 	ToolRiskAssessmentModel = 'chat.tools.riskAssessment.model',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
+	AgentHostDefaultChatProvider = 'chat.agentHost.defaultChatProvider',
+	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
-
-	/**
-	 * When enabled, `vscode_renameSymbol` and `vscode_listCodeUsages` are always
-	 * registered with a static, language-list-free description. This makes the
-	 * tools array byte-stable across rounds even as language extensions activate
-	 * mid-turn, which significantly improves prompt-cache hit rates on agent
-	 * conversations. Behavior is unchanged: the tools still error on
-	 * unsupported languages at invocation time. Behind an A/B flag for
-	 * controlled rollout.
-	 */
-	SymbolToolsCacheStable = 'chat.experimental.symbolTools.cacheStable',
 }
 
 /**
@@ -130,6 +128,15 @@ export function isChatPermissionLevel(level: unknown | undefined): level is Chat
  */
 export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): boolean {
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
+}
+
+/**
+ * True for {@link ChatPermissionLevel.Autopilot} only. Unlike {@link isAutoApproveLevel}, this
+ * excludes {@link ChatPermissionLevel.AutoApprove}, so it can gate Autopilot-only behavior such as
+ * risk-based skipping of tool calls.
+ */
+export function isAutopilotLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.Autopilot;
 }
 
 // Thinking display modes for pinned content
@@ -211,15 +218,34 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 	return true;
 }
 
+/**
+ * Returns the effective default session type for a new chat in the VS Code
+ * window, honoring the experimental
+ * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting. Falls back to
+ * {@link localChatSessionType} when the setting is disabled or the agent host
+ * contribution is not registered.
+ */
+export function getDefaultNewChatSessionType(
+	configurationService: IConfigurationService,
+	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>
+): string {
+	if (configurationService.getValue<boolean>(ChatConfiguration.AgentHostDefaultChatProvider) &&
+		chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot)) {
+		return SessionType.AgentHostCopilot;
+	}
+	return localChatSessionType;
+}
+
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
-	ProductQualityContext.notEqualsTo('stable'),
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
 	IsSessionsWindowContext.negate(),
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	IsAuxiliaryWindowContext.negate()
 );
 
 export const ChatEditorTitleMaxLength = 30;

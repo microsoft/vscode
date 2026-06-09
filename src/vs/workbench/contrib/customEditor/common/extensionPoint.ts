@@ -22,6 +22,24 @@ const Fields = Object.freeze({
 	priority: 'priority',
 });
 
+const PriorityFields = Object.freeze({
+	editor: 'editor',
+	diff: 'diff',
+	merge: 'merge',
+});
+
+const customEditorPrioritySchema = {
+	type: 'string',
+	enum: [
+		CustomEditorPriority.default,
+		CustomEditorPriority.option,
+	],
+	markdownEnumDescriptions: [
+		nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
+		nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+	],
+} as const satisfies IJSONSchema;
+
 const customEditorsContributionSchema = {
 	type: 'object',
 	required: [
@@ -59,15 +77,28 @@ const customEditorsContributionSchema = {
 			}
 		},
 		[Fields.priority]: {
-			type: 'string',
-			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
-			enum: [
-				CustomEditorPriority.default,
-				CustomEditorPriority.option,
-			],
-			markdownEnumDescriptions: [
-				nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
-				nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
+			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file, diff, or merge editor. This may be overridden by users using the `workbench.editorAssociations` or `workbench.diffEditorAssociations` setting.'),
+			anyOf: [
+				customEditorPrioritySchema,
+				{
+					type: 'object',
+					required: [PriorityFields.editor],
+					additionalProperties: false,
+					properties: {
+						[PriorityFields.editor]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.editor', 'Controls if the custom editor is enabled automatically when the user opens a file.'),
+						},
+						[PriorityFields.diff]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.diff', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified, the value of `editor` is used.'),
+						},
+						[PriorityFields.merge]: {
+							...customEditorPrioritySchema,
+							markdownDescription: nls.localize('contributes.priority.merge', 'Controls if the custom editor is enabled automatically when the user opens a merge editor. When not specified, the value of `editor` is used.'),
+						},
+					}
+				}
 			],
 			default: CustomEditorPriority.default
 		}
@@ -127,7 +158,7 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 			.map(customEditor => {
 				return [
 					customEditor.viewType,
-					customEditor.priority ?? '',
+					renderPriority(customEditor.priority),
 					coalesce(customEditor.selector.map(x => x.filenamePattern)).join(', ')
 				];
 			});
@@ -140,6 +171,20 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 			dispose: () => { }
 		};
 	}
+}
+
+function renderPriority(priority: ICustomEditorsExtensionPoint['priority'] | string | undefined): string {
+	if (!priority) {
+		return '';
+	}
+	if (typeof priority === 'string') {
+		return priority;
+	}
+	return coalesce([
+		priority.editor ? `editor: ${priority.editor}` : undefined,
+		priority.diff ? `diff: ${priority.diff}` : undefined,
+		priority.merge ? `merge: ${priority.merge}` : undefined,
+	]).join(', ');
 }
 
 Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({

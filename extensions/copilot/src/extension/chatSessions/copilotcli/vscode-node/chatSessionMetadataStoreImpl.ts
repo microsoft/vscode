@@ -9,8 +9,8 @@ import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/
 import { createDirectoryIfNotExists, IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { findLast } from '../../../../util/vs/base/common/arraysFind';
-import { SequencerByKey, ThrottledDelayer } from '../../../../util/vs/base/common/async';
-import { Disposable } from '../../../../util/vs/base/common/lifecycle';
+import { disposableTimeout, SequencerByKey, ThrottledDelayer } from '../../../../util/vs/base/common/async';
+import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifecycle';
 import { dirname } from '../../../../util/vs/base/common/resources';
 import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
@@ -64,7 +64,13 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 	private readonly _updateStorageDebouncer = this._register(new ThrottledDelayer<void>(1_000));
 	private readonly _requestMappingWriteSequencer = new SequencerByKey<string>();
+	private readonly _requestMappingReadSequencer = new SequencerByKey<string>();
 	private readonly _metadataWriteSequencer = new SequencerByKey<string>();
+	private readonly _metadataReadSequencer = new SequencerByKey<string>();
+	private readonly _requestDetailsCache = new Map<string, RequestDetails[]>();
+	/** Per-session eviction timers for {@link _requestDetailsCache}. Keyed by sessionId so a new timer replaces (and disposes) the previous one and entries are dropped on fire. */
+	private readonly _requestDetailsCacheTimers = this._register(new DisposableMap<string>());
+
 	/** Serializes bulk-file flush against {@link reloadBulkFromDisk}. */
 	private readonly _bulkSequencer = new SequencerByKey<string>();
 
@@ -186,6 +192,8 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 	async deleteSessionMetadata(sessionId: string): Promise<void> {
 		await this._ready;
+		this._requestDetailsCache.delete(sessionId);
+		this._requestDetailsCacheTimers.deleteAndDispose(sessionId);
 		if (sessionId in this._cache) {
 			delete this._cache[sessionId];
 			this._updateFolderIndex(sessionId, undefined);
@@ -303,14 +311,34 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	}
 
 	async getRequestDetails(sessionId: string): Promise<RequestDetails[]> {
-		await this._ready;
-		const fileUri = this.getRequestMappingFileUri(sessionId);
-		try {
-			const content = await this.fileSystemService.readFile(fileUri);
-			return JSON.parse(new TextDecoder().decode(content)) as RequestDetails[];
-		} catch {
-			return [];
+		const details = this._requestDetailsCache.get(sessionId);
+		if (details) {
+			this.cacheRequestDetails(sessionId, details);
+			return details;
 		}
+		return this._requestMappingReadSequencer.queue(sessionId, async () => {
+			await this._ready;
+			const fileUri = this.getRequestMappingFileUri(sessionId);
+			try {
+				const content = await this.fileSystemService.readFile(fileUri);
+				const details = JSON.parse(new TextDecoder().decode(content)) as RequestDetails[];
+				this.cacheRequestDetails(sessionId, details);
+				return details;
+			} catch {
+				return [];
+			}
+		});
+	}
+
+	private cacheRequestDetails(sessionId: string, details: RequestDetails[]): void {
+		this._requestDetailsCache.set(sessionId, details);
+		// Cache for the next 5s, if not used, delete from cache. Storing in a DisposableMap
+		// keyed by sessionId means a re-cache disposes the previous timer (extending TTL),
+		// and the handler removes its own map entry so timers do not accumulate over time.
+		this._requestDetailsCacheTimers.set(sessionId, disposableTimeout(() => {
+			this._requestDetailsCache.delete(sessionId);
+			this._requestDetailsCacheTimers.deleteAndLeak(sessionId);
+		}, 5_000));
 	}
 
 	async updateRequestDetails(sessionId: string, details: (Partial<RequestDetails> & { vscodeRequestId: string })[]): Promise<void> {
@@ -339,7 +367,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 	async getSessionAgent(sessionId: string): Promise<string | undefined> {
 		const details = await this.getRequestDetails(sessionId);
-		return findLast(details, d => !!d.agentId)?.agentId ?? this.copilotCLIAgents.getSessionAgent(sessionId);
+		return findLast(details, d => !!d.modeInstructions)?.modeInstructions?.uri ?? findLast(details, d => !!d.agentId)?.agentId ?? this.copilotCLIAgents.getSessionAgent(sessionId);
 	}
 
 	private async writeRequestDetails(sessionId: string, details: RequestDetails[]): Promise<void> {
@@ -347,6 +375,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		if (isUntitledSessionId(sessionId)) {
 			return;
 		}
+		this.cacheRequestDetails(sessionId, details);
 		const fileUri = this.getRequestMappingFileUri(sessionId);
 		const dirUri = dirname(fileUri);
 		await createDirectoryIfNotExists(this.fileSystemService, dirUri);
@@ -364,6 +393,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			parentSessionId: sourceSessionId,
 			origin: 'vscode',
 			kind: 'forked',
+			archived: false,
 		};
 		await this.updateMetadataFields(targetSessionId, forkedMetadata);
 	}
@@ -394,14 +424,30 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this.updateMetadataFields(sessionId, { parentSessionId, kind: 'sub-session' });
 	}
 
-	public async getSessionParentId(sessionId: string): Promise<string | undefined> {
+	public async getSessionParentId(sessionId: string): Promise<{ parentSessionId: string; kind: 'forked' | 'sub-session' } | undefined> {
 		const metadata = await this.getSessionMetadata(sessionId, false);
-		return metadata?.parentSessionId;
+		if (!metadata?.parentSessionId || !metadata.kind) {
+			return undefined;
+		}
+		return { parentSessionId: metadata.parentSessionId, kind: metadata.kind };
+	}
+
+	public async setSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		await this._ready;
+		await this.updateMetadataFields(sessionId, { archived });
+	}
+
+	public async getSessionArchived(sessionId: string): Promise<boolean> {
+		const metadata = await this.getSessionMetadata(sessionId, false);
+		return metadata?.archived === true;
 	}
 
 	private async getSessionMetadata(sessionId: string, createMetadataFileIfNotFound = true): Promise<ChatSessionMetadataFile | undefined> {
 		if (isUntitledSessionId(sessionId)) {
 			return undefined;
+		}
+		if (sessionId in this._cache) {
+			return this._cache[sessionId];
 		}
 		await this._ready;
 		if (sessionId in this._cache) {
@@ -410,8 +456,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 		const metadata = await this.readSessionMetadataFile(sessionId);
 		if (metadata) {
-			this._cache[sessionId] = metadata;
-			this._updateFolderIndex(sessionId, metadata);
 			return metadata;
 		}
 
@@ -426,13 +470,26 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 	/** Reads a per-session metadata file directly. Returns `undefined` if it doesn't exist or is invalid. */
 	private async readSessionMetadataFile(sessionId: string): Promise<ChatSessionMetadataFile | undefined> {
-		try {
-			const fileUri = this.getMetadataFileUri(sessionId);
-			const content = await this.fileSystemService.readFile(fileUri);
-			return JSON.parse(new TextDecoder().decode(content)) as ChatSessionMetadataFile;
-		} catch {
-			return undefined;
-		}
+		return this._metadataReadSequencer.queue(sessionId, async () => {
+			try {
+				const fileUri = this.getMetadataFileUri(sessionId);
+				const content = await this.fileSystemService.readFile(fileUri);
+				const metadata = JSON.parse(new TextDecoder().decode(content)) as ChatSessionMetadataFile;
+				if (metadata) {
+					this._cache[sessionId] = metadata;
+					this._updateFolderIndex(sessionId, metadata);
+					return metadata;
+				}
+
+				// So we don't try again.
+				this._cache[sessionId] = {};
+				return undefined;
+			} catch {
+				// So we don't try again.
+				this._cache[sessionId] = {};
+				return undefined;
+			}
+		});
 	}
 
 	private async updateSessionMetadata(sessionId: string, updates: Partial<ChatSessionMetadataFile>, createDirectoryIfNotFound = true): Promise<void> {

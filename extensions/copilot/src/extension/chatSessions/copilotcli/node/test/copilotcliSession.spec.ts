@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Session, SessionOptions } from '@github/copilot/sdk';
+import type { SessionOptions } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChatParticipantToolToken } from 'vscode';
+import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
+import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
+import type { ITelemetryService, TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../../platform/telemetry/common/telemetry';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationToken, CancellationTokenSource } from '../../../../../util/vs/base/common/cancellation';
@@ -25,11 +28,11 @@ import { ExternalEditTracker } from '../../../common/externalEditTracker';
 import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessionMetadataStore';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService, ToolCall } from '../../common/copilotCLITools';
+import { Session } from '../../common/utils';
 import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler, UserInputResponse } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
-import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -147,8 +150,14 @@ class MockSdkSession {
 	set toolMetadata(value: unknown[] | undefined) { this._toolMetadata = value; }
 
 	setAuthInfo(info: any) { this.authInfo = info; }
+	updateOptions(options: { authInfo?: unknown }) {
+		if (options.authInfo !== undefined) {
+			this.authInfo = options.authInfo;
+		}
+	}
 	async getSelectedModel() { return this._selectedModel; }
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
+	getReasoningEffort(): string | undefined { return undefined; }
 	async getEvents() { return []; }
 	getPlanPath(): string | null { return null; }
 
@@ -214,6 +223,7 @@ describe('CopilotCLISession', () => {
 	let chatSessionMetadataStore: MockChatSessionMetadataStore;
 	let authInfo: NonNullable<SessionOptions['authInfo']>;
 	let userQuestionAnswer: IQuestionAnswer | undefined;
+	let telemetryService: ITelemetryService;
 	beforeEach(async () => {
 		const services = disposables.add(createExtensionUnitTestingServices());
 		const accessor = services.createTestingAccessor();
@@ -234,6 +244,7 @@ describe('CopilotCLISession', () => {
 		instaService = services.seal();
 		toolsService = new FakeToolsService();
 		userQuestionAnswer = undefined;
+		telemetryService = new NullTelemetryService();
 	});
 
 	afterEach(() => {
@@ -254,6 +265,7 @@ describe('CopilotCLISession', () => {
 			sessionAgentName,
 			sdkSession as unknown as Session,
 			[],
+			false,
 			logger,
 			workspaceService,
 			chatSessionMetadataStore,
@@ -266,7 +278,8 @@ describe('CopilotCLISession', () => {
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			new MockGitService(),
 			{ _serviceBrand: undefined } as any,
-			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any
+			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
+			telemetryService
 		));
 	}
 
@@ -281,6 +294,100 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
+	});
+
+	it('routes in-flight output to the latest attached stream', async () => {
+		let continueSend!: () => void;
+		let markSendStarted!: () => void;
+		const sendStarted = new Promise<void>(resolve => { markSendStarted = resolve; });
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			markSendStarted();
+			await new Promise<void>(resolve => { continueSend = resolve; });
+			sdkSession.emit('assistant.message', { messageId: 'after-reattach', content: 'After reattach' });
+		};
+
+		const session = await createSession();
+		const firstStream = new MockChatResponseStream();
+		const firstStreamAttachment = disposables.add(session.attachStream(firstStream));
+		const request = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+		await sendStarted;
+
+		const secondStream = new MockChatResponseStream();
+		disposables.add(session.attachStream(secondStream));
+		firstStreamAttachment.dispose();
+		continueSend();
+		await request;
+
+		expect(firstStream.output.join('\n')).not.toContain('After reattach');
+		expect(secondStream.output.join('\n')).toContain('After reattach');
+	});
+
+	it('routed response stream is not thenable', async () => {
+		const session = await createSession();
+		const routedStream = (session as unknown as { readonly _stream: unknown })._stream;
+
+		await expect(Promise.race([
+			Promise.resolve(routedStream).then(value => value === routedStream),
+			new Promise<boolean>(resolve => setTimeout(() => resolve(false), 10)),
+		])).resolves.toBe(true);
+	});
+
+	it('drops writes to a closed attached stream', async () => {
+		class ClosedChatResponseStream extends MockChatResponseStream {
+			override markdown(): void {
+				throw new Error('Response stream has been closed');
+			}
+		}
+
+		sdkSession.send = async () => {
+			sdkSession.emit('assistant.message', { messageId: 'closed-stream', content: 'Dropped' });
+		};
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new ClosedChatResponseStream()));
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+		expect(session.status).toBe(ChatSessionStatus.Completed);
+	});
+
+	it('falls back when async stream methods reject as closed', async () => {
+		class ClosedExternalEditStream extends MockChatResponseStream {
+			override externalEdit(): Promise<string> {
+				return Promise.reject(new Error('Response stream has been closed'));
+			}
+		}
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new ClosedExternalEditStream()));
+		const routedStream = (session as unknown as { readonly _stream: ChatResponseStream })._stream;
+		let callbackRan = false;
+
+		await expect(routedStream.externalEdit(Uri.file('/workspace/file.ts'), async () => {
+			callbackRan = true;
+		})).resolves.toBe('');
+
+		expect(callbackRan).toBe(true);
+	});
+
+	it('does not re-invoke externalEdit callback when the underlying call already started it', async () => {
+		class MidFlightCloseStream extends MockChatResponseStream {
+			override async externalEdit(_target: Uri | Uri[], callback: () => Thenable<unknown>): Promise<string> {
+				await callback();
+				throw new Error('Response stream has been closed');
+			}
+		}
+
+		const session = await createSession();
+		disposables.add(session.attachStream(new MidFlightCloseStream()));
+		const routedStream = (session as unknown as { readonly _stream: ChatResponseStream })._stream;
+		let invocations = 0;
+
+		await expect(routedStream.externalEdit(Uri.file('/workspace/file.ts'), async () => {
+			invocations++;
+		})).resolves.toBe('');
+
+		expect(invocations).toBe(1);
 	});
 
 	it('switches model when different modelId provided', async () => {
@@ -678,6 +785,60 @@ describe('CopilotCLISession', () => {
 		sdkSession.emit('tool.execution_complete', { toolCallId: 'bash-delay-1', toolName: 'bash', success: true, result: { content: 'hi' } });
 		resolveSend!();
 		await requestPromise;
+	});
+
+	it('emits languageModelToolInvoked telemetry for each completed tool invocation', async () => {
+		class RecordingTelemetryService extends NullTelemetryService {
+			readonly events: { name: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
+			override sendMSFTTelemetryEvent(name: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+				this.events.push({ name, properties, measurements });
+			}
+		}
+		const recorder = new RecordingTelemetryService();
+		telemetryService = recorder;
+
+		let resolveSend: () => void;
+		sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+
+		const session = await createSession();
+		session.attachStream(new MockChatResponseStream());
+		const sessionResource = Uri.parse('copilotcli:/test-session');
+		const requestPromise = session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never, sessionResource }, { prompt: 'Run tools' }, [], undefined, authInfo, CancellationToken.None);
+		await new Promise(r => setTimeout(r, 0));
+
+		// Native CLI tool: success
+		sdkSession.emit('tool.execution_start', { toolName: 'bash', toolCallId: 't-success', arguments: {} });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-success', toolName: 'completion_bash', success: true, result: { content: 'ok' } });
+
+		// MCP tool: failure
+		sdkSession.emit('tool.execution_start', { toolName: 'mcp_tool', toolCallId: 't-mcp', mcpServerName: 'srv', mcpToolName: 'mt', arguments: {} });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-mcp', toolName: 'mcp_tool', success: false, error: { code: 'tool_error', message: 'boom' } });
+
+		// User-denied permission: userCancelled
+		sdkSession.emit('tool.execution_start', { toolName: 'bash', toolCallId: 't-denied', arguments: {} });
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-denied', toolName: 'bash', success: false, error: { code: 'denied', message: 'no' } });
+
+		// Completion-only event: fallback to toolName from the completion event
+		sdkSession.emit('tool.execution_complete', { toolCallId: 't-complete-only', toolName: 'completion_tool', success: true, result: { content: 'ok' } });
+
+		resolveSend!();
+		await requestPromise;
+
+		const invokedEvents = recorder.events.filter(e => e.name === 'languageModelToolInvoked');
+		const invokedSnapshot = invokedEvents.map(e => ({
+			result: e.properties?.result,
+			chatSessionId: e.properties?.chatSessionId,
+			toolId: e.properties?.toolId,
+			toolExtensionId: e.properties?.toolExtensionId,
+			toolSourceKind: e.properties?.toolSourceKind,
+			hasInvocationTimeMs: typeof e.measurements?.invocationTimeMs === 'number',
+		}));
+		expect(invokedSnapshot).toEqual([
+			{ result: 'success', chatSessionId: 'copilotcli:/test-session', toolId: 'bash', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: true },
+			{ result: 'error', chatSessionId: 'copilotcli:/test-session', toolId: 'mcp_tool', toolExtensionId: undefined, toolSourceKind: 'mcp', hasInvocationTimeMs: true },
+			{ result: 'userCancelled', chatSessionId: 'copilotcli:/test-session', toolId: 'bash', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: true },
+			{ result: 'success', chatSessionId: 'copilotcli:/test-session', toolId: 'completion_tool', toolExtensionId: undefined, toolSourceKind: 'copilotCli', hasInvocationTimeMs: false },
+		]);
 	});
 
 	it('uses remote permission responses when Mission Control is active', async () => {
@@ -1548,6 +1709,143 @@ describe('CopilotCLISession', () => {
 		await requestPromise;
 	});
 
+	describe('assistant message text separation', () => {
+		// The bug we're guarding against: when the CLI emits multiple
+		// assistant messages in a single turn (e.g. text → tool_call → more
+		// text, or two distinct phases), the markdown chunks were being
+		// concatenated directly producing run-on text like
+		// `"...wiring:Now add..."`. Each emission carries its own `messageId`
+		// from the SDK, so we insert `\n\n` whenever the id changes.
+
+		const allText = (stream: MockChatResponseStream) => stream.output.join('');
+
+		it('inserts paragraph break between assistant.message_delta events with different messageIds', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two phases' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: 'msg-2' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('wiring:\n\nNow add');
+			expect(allText(stream)).not.toContain('wiring:Now add');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT insert paragraph break between assistant.message_delta events with the same messageId', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Streamed' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Hello ', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'world', messageId: 'msg-1' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('Hello world');
+			expect(allText(stream)).not.toContain('Hello \n\nworld');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('inserts paragraph break between assistant.message events with different messageIds', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Two messages' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message', { content: 'First phase.', messageId: 'msg-a' });
+			sdkSession.emit('assistant.message', { content: 'Second phase.', messageId: 'msg-b' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('First phase.\n\nSecond phase.');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('inserts paragraph break between a delta-streamed message and a subsequent full message', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Mixed' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: 'msg-1' });
+			sdkSession.emit('assistant.message', { content: 'Now add', messageId: 'msg-2' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(allText(stream)).toContain('wiring:\n\nNow add');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT prepend a separator before the very first text emission', async () => {
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'First' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Hello', messageId: 'msg-1' });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output[0]).toBe('Hello');
+
+			resolveSend!();
+			await requestPromise;
+		});
+
+		it('does NOT insert a separator when messageId is undefined on both sides (legacy)', async () => {
+			// Defensive regression test: if an SDK build ever emits message
+			// events without a `messageId`, we should fall back to the
+			// pre-fix behavior (no separator) rather than inserting one
+			// between every chunk — that would produce spurious blank
+			// paragraphs.
+			let resolveSend: () => void;
+			sdkSession.send = async () => new Promise<void>(r => { resolveSend = r; });
+			const session = await createSession();
+			const stream = new MockChatResponseStream();
+			session.attachStream(stream);
+
+			const requestPromise = session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Legacy' }, [], undefined, authInfo, CancellationToken.None);
+			await new Promise(r => setTimeout(r, 0));
+
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'wiring:', messageId: undefined });
+			sdkSession.emit('assistant.message_delta', { deltaContent: 'Now add', messageId: undefined });
+			await new Promise(r => setTimeout(r, 0));
+
+			expect(stream.output).not.toContain('\n\n');
+
+			resolveSend!();
+			await requestPromise;
+		});
+	});
+
 	describe('/compact command', () => {
 		it('compacts the conversation and reports success', async () => {
 			const session = await createSession();
@@ -1694,9 +1992,9 @@ describe('CopilotCLISession', () => {
 			await Promise.all([firstRequest, remoteRequest]);
 
 			firstTokenSource.dispose(true);
-			expect(firstStream.output.join('')).toContain('Echo: First prompt');
+			expect(firstStream.output.join('')).toEqual('');
 			const output = remoteStream.output.join('');
-			expect(output).not.toContain('Echo: First prompt');
+			expect(output).toContain('Echo: First prompt');
 			expect(output).toContain('Remote control is disabled. Use /remote on to enable it.');
 		});
 

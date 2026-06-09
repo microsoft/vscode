@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
+import { normalize } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
-import { FileAccess } from '../../../base/common/network.js';
+import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
+import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { localize } from '../../../nls.js';
 
 // Same as webviews, minus clipboard-read
 const allowedPermissions = new Set([
@@ -177,11 +182,25 @@ export class BrowserSession {
 		}
 	}
 
+	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
+	/**
+	 * Set trusted file roots for all browser sessions.
+	 */
+	static setTrustedFileRoots(roots: readonly string[]): void {
+		BrowserSession._trustedFileRoots.clear();
+		for (const root of roots) {
+			if (root) {
+				BrowserSession._trustedFileRoots.set(normalize(root), true);
+			}
+		}
+	}
+
 	// #endregion
 
 	// #region Instance
 
 	private readonly _trust: BrowserSessionTrust;
+	private readonly _history: BrowserSessionHistory;
 
 	private constructor(
 		/**
@@ -196,6 +215,7 @@ export class BrowserSession {
 		readonly storageScope: BrowserViewStorageScope,
 	) {
 		this._trust = new BrowserSessionTrust(this);
+		this._history = new BrowserSessionHistory(this);
 		this.configure();
 		BrowserSession.knownSessions.add(electronSession);
 		BrowserSession._bySession.set(electronSession, this);
@@ -208,14 +228,20 @@ export class BrowserSession {
 		return this._trust;
 	}
 
+	/** Public history interface for consumers that record visits. */
+	get history(): IBrowserSessionHistory {
+		return this._history;
+	}
+
 	/**
 	 * Connect application storage to this session so that preferences
-	 * (trusted certificates, permissions, etc.) are persisted across
-	 * restarts. Restores any previously-saved data on first call;
-	 * subsequent calls are no-ops.
+	 * (trusted certificates, history, etc.) are persisted across restarts.
+	 * Restores any previously-saved data on first call; subsequent calls
+	 * are no-ops.
 	 */
 	connectStorage(storage: IApplicationStorageMainService): void {
 		this._trust.connectStorage(storage);
+		this._history.connectStorage(storage);
 	}
 
 	/**
@@ -232,13 +258,21 @@ export class BrowserSession {
 			type: 'frame',
 			filePath: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath
 		});
+		this.electronSession.protocol.handle(Schemas.file, request => {
+			const filePath = normalize(URI.parse(request.url).fsPath);
+			if (!BrowserSession._trustedFileRoots.findSubstr(filePath)) {
+				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
+			}
+			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
+		});
 	}
 
 	/**
-	 * Clear all session data including trust state and all browsing data.
+	 * Clear all session data including trust state, history, and all browsing data.
 	 */
 	async clearData(): Promise<void> {
 		await this._trust.clear();
+		this._history.delete();
 		await this.electronSession.clearData();
 	}
 

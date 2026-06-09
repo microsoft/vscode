@@ -89,6 +89,7 @@
 	-webkit-user-select: none;
 	user-select: none;
 	border-radius: 0;
+	pointer-events: none;
 }
 
 .action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator:hover,
@@ -136,6 +137,21 @@
 
 .action-widget .monaco-list-row.action .action-list-item-toolbar .codicon {
 	font-size: 16px;
+}
+
+/* Compact icon modifier: render the leading row codicon at the compact size */
+.action-widget .actionList.compact-icons .monaco-list-row.action .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+/* Toolbar codicons keep the regular codicon size even in compact lists */
+.action-widget .actionList.compact-icons .monaco-list-row.action .action-list-item-toolbar .codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* The submenu indicator keeps the regular codicon size even in compact lists */
+.action-widget .actionList.compact-icons .monaco-list-row.action .action-list-submenu-indicator.codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
 }
 
 .action-widget .monaco-list-row.action.option-disabled,
@@ -235,6 +251,15 @@
 	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;
 	font-size: 12px;
+}
+
+.action-widget .monaco-list .monaco-list-row .description a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .monaco-list .monaco-list-row .description a:hover,
+.action-widget .monaco-list .monaco-list-row .description a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .action-widget .monaco-list-row.action .group-title {
@@ -412,6 +437,7 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 50;
 	width: max-content;
+	outline: none;
 }
 
 .action-list-submenu-hover-header {
@@ -420,6 +446,8 @@
 	font-size: 12px;
 	max-width: 300px;
 	word-wrap: break-word;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .action-list-submenu-hover-header a {

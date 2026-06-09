@@ -6,7 +6,15 @@
 import { Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { ISandboxDependencyStatus, ISandboxHelperService } from './sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
+
+interface IBuildWindowsMxcSandboxPayloadArgs {
+	commandLine: string;
+	policy: IWindowsMxcSandboxPolicy;
+	workingDirectory?: string;
+	containerName?: string;
+	containment?: IWindowsMxcPolicyContainment;
+}
 
 export const SANDBOX_HELPER_CHANNEL_NAME = 'sandboxHelper';
 
@@ -22,6 +30,14 @@ export class SandboxHelperChannel implements IServerChannel {
 		switch (command) {
 			case 'checkSandboxDependencies':
 				return this.service.checkSandboxDependencies() as Promise<T>;
+			case 'getWindowsMxcFilesystemPolicy':
+				return this.service.getWindowsMxcFilesystemPolicy() as Promise<T>;
+			case 'getWindowsMxcEnvironment':
+				return this.service.getWindowsMxcEnvironment() as Promise<T>;
+			case 'buildWindowsMxcSandboxPayload': {
+				const { commandLine, policy, workingDirectory, containerName, containment } = _arg as IBuildWindowsMxcSandboxPayloadArgs;
+				return this.service.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment) as Promise<T>;
+			}
 		}
 
 		throw new Error('Invalid call');
@@ -35,5 +51,17 @@ export class SandboxHelperChannelClient implements ISandboxHelperService {
 
 	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
 		return this.channel.call<ISandboxDependencyStatus | undefined>('checkSandboxDependencies');
+	}
+
+	getWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
+		return this.channel.call<IWindowsMxcFilesystemPolicy | undefined>('getWindowsMxcFilesystemPolicy');
+	}
+
+	getWindowsMxcEnvironment(): Promise<string[] | undefined> {
+		return this.channel.call<string[] | undefined>('getWindowsMxcEnvironment');
+	}
+
+	buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined> {
+		return this.channel.call<IWindowsMxcConfig | undefined>('buildWindowsMxcSandboxPayload', { commandLine, policy, workingDirectory, containerName, containment } satisfies IBuildWindowsMxcSandboxPayloadArgs);
 	}
 }

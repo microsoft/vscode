@@ -18,7 +18,7 @@ import { ContextManagementResponse } from '../../networking/common/anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { Response } from '../../networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
-import { ChatCompletion } from '../../networking/common/openai';
+import { APIUsage, ChatCompletion, isApiUsage } from '../../networking/common/openai';
 import { IOTelService } from '../../otel/common/otelService';
 import { retrieveCapturingTokenByCorrelation, storeCapturingTokenForCorrelation } from '../../requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
@@ -42,7 +42,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 	public readonly isDefault: boolean = false;
 	public readonly isFallback: boolean = false;
 	public readonly isPremium: boolean = false;
-	public readonly multiplier: number = 0;
+	public readonly multiplier: number | undefined = undefined;
 	public readonly isExtensionContributed = true;
 	public readonly supportedEditTools?: readonly EndpointEditToolName[] | undefined;
 
@@ -167,6 +167,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		finishedCb,
 		location,
 		source,
+		telemetryProperties,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages);
 		const ourRequestId = generateUuid();
@@ -177,6 +178,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		// - Anthropic: inside AnthropicLMProvider
 		// - Gemini: inside GeminiNativeBYOKLMProvider
 		const activeTraceCtx = this._otelService.getActiveTraceContext();
+		const telemetryTurn = getTelemetryTurnFromProperties(telemetryProperties);
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
@@ -188,6 +190,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			modelOptions: {
 				_capturingTokenCorrelationId: ourRequestId,
 				_otelTraceContext: activeTraceCtx ?? null,
+				...(telemetryTurn !== undefined ? { _telemetryTurn: telemetryTurn } : {}),
 			}
 		};
 
@@ -204,6 +207,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			const response = await this.languageModel.sendRequest(vscodeMessages, vscodeOptions, token);
 			let text = '';
 			let numToolsCalled = 0;
+			let reportedUsage: APIUsage | undefined;
 			const requestId = ourRequestId;
 
 			// consume stream
@@ -230,6 +234,26 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.ContextManagement) {
 						const contextManagement = JSON.parse(new TextDecoder().decode(chunk.data)) as ContextManagementResponse;
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
+					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
+						try {
+							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;
+							if (isApiUsage(parsed)) {
+								// Clamp sentinel negative values that some BYOK providers emit
+								// when the API hasn't reported a count yet (e.g. -1).
+								reportedUsage = {
+									...parsed,
+									prompt_tokens: Math.max(0, parsed.prompt_tokens),
+									completion_tokens: Math.max(0, parsed.completion_tokens),
+									total_tokens: Math.max(0, parsed.total_tokens),
+									prompt_tokens_details: {
+										...parsed.prompt_tokens_details,
+										cached_tokens: Math.max(0, parsed.prompt_tokens_details?.cached_tokens ?? 0)
+									}
+								};
+							}
+						} catch {
+							// ignore malformed usage payload
+						}
 					}
 				} else if (chunk instanceof vscode.LanguageModelThinkingPart) {
 					if (streamRecorder.callback) {
@@ -250,7 +274,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 					type: ChatFetchResponseType.Success,
 					requestId,
 					serverRequestId: requestId,
-					usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+					usage: reportedUsage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
 					value: text,
 					resolvedModel: this.languageModel.id
 				};
@@ -284,6 +308,19 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 			maxInputTokens: modelMaxPromptTokens
 		});
 	}
+}
+
+function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOptions['telemetryProperties']): number | undefined {
+	if (typeof telemetryProperties?.turnIndex !== 'string') {
+		return undefined;
+	}
+
+	if (!/^\d+$/.test(telemetryProperties.turnIndex)) {
+		return undefined;
+	}
+
+	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
+	return Number.isSafeInteger(turn) ? turn : undefined;
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {

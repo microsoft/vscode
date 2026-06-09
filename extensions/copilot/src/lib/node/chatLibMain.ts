@@ -67,7 +67,7 @@ import { IChatQuotaService } from '../../platform/chat/common/chatQuotaService';
 import { ChatQuotaService } from '../../platform/chat/common/chatQuotaServiceImpl';
 import { IConversationOptions } from '../../platform/chat/common/conversationOptions';
 import { IInteractionService, InteractionService } from '../../platform/chat/common/interactionService';
-import { BaseConfig, Config, ConfigKey, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
+import { BaseConfig, Config, ConfigKey, ConfigTarget, CopilotConfigPrefix, ExperimentBasedConfig, ExperimentBasedConfigType, globalConfigRegistry, IConfigurationService } from '../../platform/configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { IDiffService } from '../../platform/diff/common/diffService';
 import { DiffServiceImpl } from '../../platform/diff/node/diffServiceImpl';
@@ -188,6 +188,12 @@ export interface INESProviderOptions {
 	readonly waitForTreatmentVariables?: boolean;
 	readonly undesiredModelsManager?: IUndesiredModelsManager;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
+	/**
+	 * Diagnostics provider used to enrich the NES prompt with the active file's
+	 * lint/error context. When omitted, falls back to an in-memory
+	 * {@link TestLanguageDiagnosticsService} that returns empty diagnostics
+	 */
+	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 }
 
 export interface INESResult {
@@ -197,6 +203,13 @@ export interface INESResult {
 			readonly start: number;
 			readonly endExclusive: number;
 		};
+		/**
+		 * URI of the document the edit should be applied to. When omitted, the
+		 * edit targets the document that was passed to {@link INESProvider.getNextEdit}.
+		 * For cross-file suggestions this points at a different document, and the
+		 * {@link range} offsets are resolved against that target document.
+		 */
+		readonly targetDocumentUri?: string;
 	};
 }
 
@@ -326,6 +339,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 				result: internalResult.result?.edit ? {
 					newText: internalResult.result.edit.newText,
 					range: internalResult.result.edit.replaceRange,
+					...(internalResult.result.targetDocumentId ? { targetDocumentUri: internalResult.result.targetDocumentId.uri } : {}),
 				} : undefined,
 				docId,
 				requestUuid: context.requestUuid,
@@ -371,7 +385,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(ILogService, new SyncDescriptor(LogServiceImpl, [[logTarget || new ConsoleLog(undefined, InternalLogLevel.Trace)]]));
 	builder.define(IGitExtensionService, new SyncDescriptor(NullGitExtensionService));
 	builder.define(ILanguageContextProviderService, new SyncDescriptor(NullLanguageContextProviderService));
-	builder.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
+	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IIgnoreService, new SyncDescriptor(NullIgnoreService));
 	builder.define(ISnippyService, new SyncDescriptor(NullSnippyService));
 	builder.define(IDomainService, new SyncDescriptor(DomainService));
@@ -419,7 +433,7 @@ class OverridableConfigurationService extends DefaultsOnlyConfigurationService {
 		this._overrides = overrides;
 	}
 
-	override async setConfig<T>(key: BaseConfig<T>, value: T): Promise<void> {
+	override async setConfig<T>(key: BaseConfig<T>, value: T, _target?: ConfigTarget): Promise<void> {
 		const existing = this._overrides.get(key.id);
 		if (existing === value) {
 			return;
@@ -743,6 +757,7 @@ export interface IInlineCompletionsProviderOptions {
 	readonly capiClientService?: ICAPIClientService;
 	readonly citationHandler?: IInlineCompletionsCitationHandler;
 	readonly configOverrides?: Map<ConfigKeyType, unknown>;
+	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
 }
 
 export type IGetInlineCompletionsOptions = Exclude<Partial<GetGhostTextOptions>, 'promptOnly'> & {
@@ -997,7 +1012,7 @@ function setupCompletionServices(options: IInlineCompletionsProviderOptions): II
 		}
 	});
 	builder.define(ILanguageContextProviderService, options.languageContextProvider ?? new NullLanguageContextProviderService());
-	builder.define(ILanguageDiagnosticsService, new SyncDescriptor(TestLanguageDiagnosticsService));
+	builder.define(ILanguageDiagnosticsService, options.languageDiagnosticsService || new SyncDescriptor(TestLanguageDiagnosticsService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
 
 	return builder.seal();

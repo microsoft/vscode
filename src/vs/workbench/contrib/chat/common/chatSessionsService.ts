@@ -31,6 +31,30 @@ export interface IChatSessionCommandContribution {
 	readonly when?: string;
 }
 
+export interface IChatSessionProviderOptionModelMetadata {
+	readonly name: string;
+	readonly id: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tooltip?: string;
+	readonly pricing?: string;
+	readonly multiplierNumeric?: number;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly priceCategory?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+	};
+}
+
 export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
@@ -40,6 +64,8 @@ export interface IChatSessionProviderOptionItem {
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
 	readonly slashCommand?: string;
+	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 	// [key: string]: any;
 }
 
@@ -133,7 +159,38 @@ export interface IChatSessionItem {
 		readonly deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	readonly archived?: boolean;
-	readonly metadata?: { readonly [key: string]: unknown };
+	readonly metadata?: IChatSessionItemMetadata;
+	/**
+	 * Resource identifier the item was previously known by. When set, host-stored
+	 * per-resource state (archive, pin, read) recorded under that URI is adopted
+	 * forward onto {@link resource} on first state read, and the legacy entry is
+	 * removed. Scheme must match {@link resource}'s scheme; otherwise ignored.
+	 */
+	readonly legacyResource?: URI;
+}
+
+export interface IChatSessionItemMetadata {
+	//#region Changes metadata (for sessions window)
+	readonly repositoryPath?: string;
+	readonly workingDirectoryPath?: string;
+	readonly firstCheckpointRef?: string;
+	readonly lastCheckpointRef?: string;
+	readonly worktreePath?: string;
+	readonly uncommittedChanges?: number;
+	readonly baseRefOid?: string;
+	readonly headRefOid?: string;
+	readonly branchName?: string;
+	readonly branch?: string;
+	readonly baseBranchName?: string;
+	readonly baseBranch?: string;
+	readonly baseBranchProtected?: boolean;
+	readonly hasGitHubRemote?: boolean;
+	readonly upstreamBranchName?: string;
+	readonly incomingChanges?: number;
+	readonly outgoingChanges?: number;
+	//#endregion
+
+	readonly [key: string]: unknown;
 }
 
 export interface IChatSessionFileChange {
@@ -160,6 +217,8 @@ export type IChatSessionHistoryItem = {
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
 	modeInstructions?: IChatRequestModeInstructions;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -169,6 +228,12 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+export interface IChatSessionServerRequest {
+	readonly prompt: string;
+	readonly variableData?: IChatRequestVariableData;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
+}
 
 /**
  * A set of well-known session types
@@ -180,22 +245,35 @@ export namespace SessionType {
 	export const ClaudeCode = 'claude-code';
 	export const Codex = 'openai-codex';
 	export const Growth = 'copilot-growth';
-	export const AgentHostCopilot = 'agent-host-copilot';
+	export const AgentHostCopilot = 'agent-host-copilotcli';
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Returns whether the given session type is a local agent host target.
+ */
+export function isLocalAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-');
+}
+
+/**
+ * Returns whether the given session type is a remote agent host target.
  *
  * Note: The `remote-` prefix convention is established by
  * `RemoteAgentHostContribution` which generates session types as
  * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
+export function isRemoteAgentHostTarget(target: string): boolean {
+	return target.startsWith('remote-');
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ */
 export function isAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
@@ -224,7 +302,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+	readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
@@ -249,6 +327,14 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+
+	/**
+	 * Renames the session.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 * @returns A promise that resolves once the rename has been dispatched. The promise is rejected if renaming fails.
+	 */
+	renameSession?: (title: string, token: CancellationToken) => Promise<void>;
 }
 
 export interface IChatSessionContentProvider {
@@ -306,18 +392,50 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionAttachment;
+	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment;
 }
 
 /**
  * Resource attachment associated with a completion item. The workbench
  * adds it to the input's variable model when the item is accepted.
  */
-export interface IChatInputCompletionAttachment {
+export interface IChatInputCompletionResourceAttachment {
 	readonly kind: 'resource';
 	readonly uri: URI;
 	readonly displayName?: string;
 	readonly isDirectory?: boolean;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Command attachment associated with a completion item.
+ */
+export interface IChatInputCompletionCommandAttachment {
+	readonly kind: 'command';
+	readonly command: string;
+	readonly description: string;
+	/**
+	 * Implementation-defined metadata that MUST be preserved by the
+	 * workbench when the accepted completion is sent back as part of a
+	 * user message attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+}
+
+/**
+ * Skill attachment associated with a completion item. The workbench
+ * adds it to the input's variable model when the item is accepted.
+ */
+export interface IChatInputCompletionSkillAttachment {
+	readonly kind: 'skill';
+	readonly uri: URI;
+	readonly displayName?: string;
+	readonly description?: string;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a
@@ -338,6 +456,16 @@ export interface IChatNewSessionRequest {
 	readonly command?: string;
 
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+
+	/**
+	 * The chat-input session resource the user was typing into when this
+	 * request was issued. Set when the chat infrastructure is rewriting an
+	 * untitled session URI to a real one on first send. Controllers can use
+	 * this to bridge any pre-creation state they tracked under the old URI
+	 * (e.g. provisional agent-host sessions) to the new resource that the
+	 * controller returns.
+	 */
+	readonly untitledResource?: URI;
 }
 
 export interface IChatSessionItemsDelta {
@@ -574,6 +702,19 @@ export interface IChatSessionsService {
 	 * @returns The forked session item, or undefined if forking failed.
 	 */
 	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
+
+	/**
+	 * Returns whether the loaded session supports renaming.
+	 */
+	sessionSupportsRename(sessionResource: URI): boolean;
+
+	/**
+	 * Renames a contributed chat session.
+	 * @param sessionResource The session resource to rename.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 */
+	renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void>;
 
 	readonly onDidChangeOptionGroups: Event<string>;
 

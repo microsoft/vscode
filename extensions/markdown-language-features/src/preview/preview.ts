@@ -42,6 +42,32 @@ interface MarkdownPreviewDelegate {
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined): void;
 }
 
+function getFirstChangedLine(lineChanges: MarkdownPreviewLineChanges): number | undefined {
+	let firstLine: number | undefined;
+	if (lineChanges.added?.length) {
+		firstLine = lineChanges.added[0];
+	}
+	if (lineChanges.deleted?.length) {
+		const line = lineChanges.deleted[0];
+		if (firstLine === undefined || line < firstLine) {
+			firstLine = line;
+		}
+	}
+	if (lineChanges.innerChanges?.length) {
+		const line = lineChanges.innerChanges[0].line;
+		if (firstLine === undefined || line < firstLine) {
+			firstLine = line;
+		}
+	}
+	if (lineChanges.changeIndicators?.length) {
+		const line = lineChanges.changeIndicators[0].modifiedLine;
+		if (firstLine === undefined || line < firstLine) {
+			firstLine = line;
+		}
+	}
+	return firstLine;
+}
+
 class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	static readonly #unwatchedImageSchemes = new Set(['https', 'http', 'data']);
@@ -53,10 +79,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	readonly #resource: vscode.Uri;
 	readonly #webviewPanel: vscode.WebviewPanel;
+	readonly #isDiffView: boolean;
 
 	#line: number | undefined;
 	readonly #scrollToFragment: string | undefined;
 	#firstUpdate = true;
+	#scrollToFirstDiffChange: boolean;
 	#currentVersion?: PreviewDocumentVersion;
 	#isScrolling = false;
 	#scrollingTimer?: NodeJS.Timeout;
@@ -98,6 +126,9 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 		this.#webviewPanel = webview;
 		this.#resource = resource;
+
+		this.#isDiffView = !!delegate.getLineChanges;
+		this.#scrollToFirstDiffChange = !startingScroll && this.#isDiffView;
 
 		switch (startingScroll?.type) {
 			case 'line':
@@ -184,6 +215,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.#disposed = true;
 
 		clearTimeout(this.#throttleTimer);
+		clearTimeout(this.#scrollingTimer);
 		for (const entry of this.#fileWatchersBySrc.values()) {
 			entry.dispose();
 		}
@@ -192,6 +224,10 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 	public get resource(): vscode.Uri {
 		return this.#resource;
+	}
+
+	public get isDiffView(): boolean {
+		return this.#isDiffView;
 	}
 
 	public get state() {
@@ -296,6 +332,15 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 
 		const lineChanges = await this.#delegate.getLineChanges?.();
 		const diffScrollSync = await this.#delegate.getDiffScrollSync?.();
+
+		if (this.#scrollToFirstDiffChange && lineChanges) {
+			this.#scrollToFirstDiffChange = false;
+			const firstLine = getFirstChangedLine(lineChanges);
+			if (firstLine !== undefined) {
+				this.#line = firstLine;
+			}
+		}
+
 		const content = await (shouldReloadPage
 			? this.#contentProvider.renderDocument(document, this, this.#previewConfigurations, this.#line, selectedLine, this.state, this.#imageInfo, lineChanges, diffScrollSync, this.#disposeCts.token)
 			: this.#contentProvider.renderBody(document, this, lineChanges));
@@ -481,6 +526,7 @@ export interface IManagedMarkdownPreview {
 
 	readonly resource: vscode.Uri;
 	readonly resourceColumn: vscode.ViewColumn;
+	readonly isDiffView: boolean;
 
 	readonly onDispose: vscode.Event<void>;
 	readonly onDidChangeViewState: vscode.Event<vscode.WebviewPanelOnDidChangeViewStateEvent>;
@@ -627,6 +673,10 @@ export class StaticMarkdownPreview extends Disposable implements IManagedMarkdow
 
 	public get resourceColumn() {
 		return this.#webviewPanel.viewColumn || vscode.ViewColumn.One;
+	}
+
+	public get isDiffView(): boolean {
+		return this.#preview.isDiffView;
 	}
 }
 
@@ -784,6 +834,10 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 
 	public get resourceColumn() {
 		return this.#resourceColumn;
+	}
+
+	public get isDiffView(): boolean {
+		return this.#preview.isDiffView;
 	}
 
 	public reveal(viewColumn: vscode.ViewColumn) {

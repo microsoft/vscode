@@ -187,6 +187,11 @@ declare module 'vscode' {
 		status?: string;
 
 		/**
+		 * The per-request cost from `copilot_usage.total_nano_aiu`, in nano-AIUs.
+		 */
+		copilotUsageNanoAiu?: number;
+
+		/**
 		 * Create a new ChatDebugModelTurnEvent.
 		 * @param created The timestamp when the event was created.
 		 */

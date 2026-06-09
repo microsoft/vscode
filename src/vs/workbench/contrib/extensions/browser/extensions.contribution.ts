@@ -5,7 +5,6 @@
 
 import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IStringDictionary } from '../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -56,7 +55,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { EXTENSIONS_SUPPORT_SESSIONS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -73,7 +72,6 @@ import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
 import { SearchExtensionsTool, SearchExtensionsToolData } from '../common/searchExtensionsTool.js';
-import { ShowRuntimeExtensionsAction } from './abstractRuntimeExtensionsEditor.js';
 import { ExtensionEditor } from './extensionEditor.js';
 import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from './extensionEnablementWorkspaceTrustTransitionParticipant.js';
 import { ExtensionRecommendationNotificationService } from './extensionRecommendationNotificationService.js';
@@ -138,6 +136,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
+				type: ['boolean', 'string'],
 				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
 					localize('all', "All Extensions"),
@@ -215,10 +214,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			[EXTENSIONS_SUPPORT_SESSIONS_WINDOW]: {
+			[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportSessionsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
+				markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
 				patternProperties: {
 					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
 						type: 'boolean',
@@ -409,10 +408,6 @@ CommandsRegistry.registerCommand({
 							'type': 'boolean',
 							'description': localize('workbench.extensions.installExtension.option.enable', "When enabled, the extension will be enabled if it is installed but disabled. If the extension is already enabled, this has no effect."),
 							default: false
-						},
-						'context': {
-							'type': 'object',
-							'description': localize('workbench.extensions.installExtension.option.context', "Context for the installation. This is a JSON object that can be used to pass any information to the installation handlers. i.e. `{skipWalkthrough: true}` will skip opening the walkthrough upon install."),
 						}
 					}
 				}
@@ -428,7 +423,6 @@ CommandsRegistry.registerCommand({
 			donotSync?: boolean;
 			justification?: string | { reason: string; action: string };
 			enable?: boolean;
-			context?: IStringDictionary<any>;
 		}) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
@@ -446,13 +440,13 @@ CommandsRegistry.registerCommand({
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
 						installPreReleaseVersion: options?.installPreReleaseVersion,
 						installGivenVersion: !!version,
-						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
+						context: { [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 					});
 				} else {
 					await extensionsWorkbenchService.install(id, {
 						version,
 						installPreReleaseVersion: options?.installPreReleaseVersion,
-						context: { ...options?.context, [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
+						context: { [EXTENSION_INSTALL_SOURCE_CONTEXT]: ExtensionInstallSource.COMMAND },
 						justification: options?.justification,
 						enable: options?.enable,
 						isMachineScoped: options?.donotSync ? true : undefined, /* do not allow syncing extensions automatically while installing through the command */
@@ -549,9 +543,9 @@ const CONTEXT_GALLERY_ALL_PUBLIC_REPOSITORY_SIGNED = new RawContextKey<boolean>(
 const CONTEXT_GALLERY_ALL_PRIVATE_REPOSITORY_SIGNED = new RawContextKey<boolean>('galleryAllPrivateRepositorySigned', false);
 const CONTEXT_GALLERY_HAS_EXTENSION_LINK = new RawContextKey<boolean>('galleryHasExtensionLink', false);
 
-async function runAction(action: IAction): Promise<void> {
+async function runAction<T = void>(action: IAction): Promise<T> {
 	try {
-		await action.run();
+		return await action.run() as T;
 	} finally {
 		if (isDisposable(action)) {
 			action.dispose();
@@ -779,7 +773,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					when: ContextKeyExpr.and(CONTEXT_HAS_GALLERY, ContextKeyExpr.or(CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER))
 				}, {
 					id: MenuId.ViewContainerTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), ContextKeyExpr.or(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`).negate(), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'))),
+					when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 					group: '1_updates',
 					order: 2
 				}, {
@@ -1363,7 +1357,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetColorThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1384,7 +1378,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetFileIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1405,7 +1399,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(SetProductIconThemeAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1464,7 +1458,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1487,7 +1481,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1509,7 +1503,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1531,7 +1525,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(TogglePreReleaseExtensionAction);
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1551,7 +1545,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = (await extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				const action = instantiationService.createInstance(ClearLanguageAction);
 				action.extension = extension;
-				return action.run();
+				return runAction(action);
 			}
 		});
 
@@ -1572,7 +1566,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionManagementService.preferPreReleases });
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1596,7 +1590,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						isMachineScoped: true,
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1620,7 +1614,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 						preRelease: true
 					});
 					action.extension = extension;
-					return action.run();
+					return runAction(action);
 				}
 			}
 		});
@@ -1639,7 +1633,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
-					return instantiationService.createInstance(InstallAnotherVersionAction, extension, false).run();
+					return runAction(instantiationService.createInstance(InstallAnotherVersionAction, extension, false));
 				}
 			}
 		});
@@ -2082,10 +2076,6 @@ if (isWeb) {
 
 registerWorkbenchContribution2(ExtensionToolsContribution.ID, ExtensionToolsContribution, WorkbenchPhase.AfterRestored);
 
-
-// Running Extensions
-registerAction2(ShowRuntimeExtensionsAction);
-
 registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 	constructor() {
 		super({
@@ -2107,6 +2097,14 @@ Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.Co
 		key: AutoUpdateConfigurationKey,
 		migrateFn: (value, accessor) => {
 			if (value === 'onlySelectedExtensions') {
+				return { value: false };
+			}
+			// Migrate insiders values ('on' | 'delayed' | 'off') that were
+			// rolled out with the delayed auto-update mode back to booleans.
+			if (value === 'on' || value === 'delayed') {
+				return { value: true };
+			}
+			if (value === 'off') {
 				return { value: false };
 			}
 			return [];

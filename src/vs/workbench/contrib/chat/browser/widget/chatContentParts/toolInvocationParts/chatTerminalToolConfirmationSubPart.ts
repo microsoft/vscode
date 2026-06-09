@@ -8,10 +8,9 @@ import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js'
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
-import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
-import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
 import { isObject } from '../../../../../../../base/common/types.js';
@@ -41,7 +40,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
+import { createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -191,10 +190,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 
-		// LLM-generated risk assessment badge — slotted between the title and the
-		// message body of the confirmation widget via the `headerBanner` option.
-		const riskBadge = this._createRiskBadge(state.parameters);
-		const messageRoot = elements.root;
+		const riskBadge = createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
@@ -202,23 +198,97 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			{
 				title,
 				icon: Codicon.terminal,
-				message: messageRoot,
-				headerBanner: riskBadge,
+				message: elements.root,
+				footerBanner: riskBadge?.domNode,
 				buttons: this._createButtons(moreActions)
 			},
 		));
 
+		// Build the unsandboxed-execution reason and disclaimer markdown. When
+		// the risk badge is shown, surface them via its details hover (with
+		// labelled prefixes) instead of the dedicated disclaimer row to keep
+		// the confirmation compact.
+		interface IDetailPart {
+			readonly inline: IMarkdownString;
+			readonly hoverLabel: string;
+			readonly hoverBody: string;
+			readonly isTrusted: IMarkdownString['isTrusted'];
+		}
+		const detailParts: IDetailPart[] = [];
 		if (terminalData.requestUnsandboxedExecution) {
 			const reasonText = (terminalData.requestUnsandboxedExecutionReason && terminalData.requestUnsandboxedExecutionReason.trim())
 				|| localize('chat.terminal.unsandboxedExecution.defaultReason', "The model did not provide a reason for requesting unsandboxed execution.");
-			const unsandboxedReasonMarkdown = new MarkdownString(undefined, { supportThemeIcons: true });
-			unsandboxedReasonMarkdown.appendMarkdown(`$(${Codicon.info.id}) `);
-			unsandboxedReasonMarkdown.appendText(reasonText);
-			this._appendMarkdownPart(elements.disclaimer, unsandboxedReasonMarkdown, codeBlockRenderOptions);
+			const inline = new MarkdownString(undefined, { supportThemeIcons: true });
+			inline.appendMarkdown(`$(${Codicon.info.id}) `);
+			inline.appendText(reasonText);
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.sandboxInsufficient', "Sandbox insufficient:"),
+				hoverBody: escapeMarkdownSyntaxTokens(reasonText),
+				isTrusted: undefined,
+			});
+		}
+		if (terminalData.requestAllowNetwork) {
+			const reasonText = (terminalData.requestAllowNetworkReason && terminalData.requestAllowNetworkReason.trim())
+				|| localize('chat.terminal.allowNetwork.defaultReason', "The model did not provide a reason for requesting unrestricted network access in the sandbox.");
+			const inline = new MarkdownString(undefined, { supportThemeIcons: true });
+			inline.appendMarkdown(`$(${Codicon.info.id}) `);
+			inline.appendText(reasonText);
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.unrestrictedNetwork', "Unrestricted network access:"),
+				hoverBody: escapeMarkdownSyntaxTokens(reasonText),
+				isTrusted: undefined,
+			});
+		}
+		if (disclaimer) {
+			const inline = typeof disclaimer === 'string' ? new MarkdownString(disclaimer) : disclaimer;
+			// For the hover, drop the leading `$(info) ` icon prefix that the
+			// disclaimer carries for inline rendering — the labelled prefix
+			// already conveys the same role.
+			const hoverBody = inline.value.replace(/^\s*\$\([^)]+\)\s*/, '');
+			detailParts.push({
+				inline,
+				hoverLabel: localize('chat.terminal.detail.approvalNeeded', "Approval needed:"),
+				hoverBody,
+				isTrusted: inline.isTrusted,
+			});
 		}
 
-		if (disclaimer) {
-			this._appendMarkdownPart(elements.disclaimer, disclaimer, codeBlockRenderOptions);
+		const renderInlineDisclaimers = () => {
+			elements.disclaimer.replaceChildren();
+			for (const part of detailParts) {
+				this._appendMarkdownPart(elements.disclaimer, part.inline, codeBlockRenderOptions);
+			}
+		};
+
+		if (riskBadge && detailParts.length) {
+			const combined = new MarkdownString(undefined, {
+				supportThemeIcons: true,
+				isTrusted: detailParts.reduce<MarkdownString['isTrusted']>((acc, part) => {
+					if (part.isTrusted === true || acc === true) {
+						return true;
+					}
+					if (typeof part.isTrusted === 'object' && part.isTrusted) {
+						const enabled = new Set([
+							...(typeof acc === 'object' && acc?.enabledCommands ? acc.enabledCommands : []),
+							...part.isTrusted.enabledCommands,
+						]);
+						return { enabledCommands: [...enabled] };
+					}
+					return acc;
+				}, undefined),
+			});
+			detailParts.forEach((part, i) => {
+				if (i > 0) {
+					combined.appendMarkdown('\n\n');
+				}
+				combined.appendMarkdown(`**${escapeMarkdownSyntaxTokens(part.hoverLabel)}** ${part.hoverBody}`);
+			});
+			riskBadge.setDetails(combined);
+			this._register(riskBadge.onDidHide(() => renderInlineDisclaimers()));
+		} else {
+			renderInlineDisclaimers();
 		}
 
 		const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
@@ -434,40 +504,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		});
 		return promptResult.result === true;
-	}
-
-	private _createRiskBadge(parameters: unknown): HTMLElement | undefined {
-		if (!this.riskAssessmentService.isEnabled()) {
-			return undefined;
-		}
-		const tool = this.languageModelToolsService.getTool(this.toolInvocation.toolId);
-		if (!tool) {
-			return undefined;
-		}
-		const widget = this._register(this.instantiationService.createInstance(ToolRiskBadgeWidget));
-		const cached = this.riskAssessmentService.getCached(tool, parameters);
-		if (cached) {
-			widget.setAssessment(cached);
-		} else {
-			widget.setLoading();
-			const cts = this._register(new CancellationTokenSource());
-			(async () => {
-				try {
-					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
-					if (cts.token.isCancellationRequested) {
-						return;
-					}
-					if (!result) {
-						widget.setHidden();
-						return;
-					}
-					widget.setAssessment(result);
-				} catch {
-					widget.setHidden();
-				}
-			})();
-		}
-		return widget.domNode;
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {

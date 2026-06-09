@@ -53,6 +53,11 @@ export interface IChatSessionWorkspaceFolderService {
 	handleRequestCompleted(sessionId: string): Promise<void>;
 
 	/**
+	 * Refresh the changes in the workspace folder for a session.
+	 */
+	refreshWorkspaceChanges(sessionId: string): Promise<void>;
+
+	/**
 	 * Get the changes in the workspace folder for a session.
 	 */
 	getWorkspaceChanges(sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined>;
@@ -70,4 +75,9 @@ export interface IChatSessionWorkspaceFolderService {
 	clearWorkspaceChanges(folderUri: vscode.Uri): string[];
 
 	hasCachedChanges(sessionId: string): Promise<boolean>;
+
+	/**
+	 * Returns the ids of sessions whose tracked workspace folder matches the given URI.
+	 */
+	getAssociatedSessions(folderUri: vscode.Uri): string[];
 }

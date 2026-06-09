@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -57,10 +57,17 @@ export interface IChatConfirmationWidgetOptions<T> {
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
+export interface IChatQueryTitlePartOptions {
+	readonly markdownRenderOptions?: MarkdownRenderOptions;
+	readonly renderFileWidgets?: boolean;
+}
+
 export class ChatQueryTitlePart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly _renderedTitle = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private readonly _fileWidgetStore = this._register(new DisposableStore());
+	private options: IChatQueryTitlePartOptions | undefined;
 
 	public get title() {
 		return this._title;
@@ -69,9 +76,7 @@ export class ChatQueryTitlePart extends Disposable {
 	public set title(value: string | IMarkdownString) {
 		this._title = value;
 
-		const next = this._renderer.render(this.toMdString(value), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		});
+		const next = this.renderTitle(value);
 
 		const previousEl = this._renderedTitle.value?.element;
 		if (previousEl?.parentElement) {
@@ -88,20 +93,18 @@ export class ChatQueryTitlePart extends Disposable {
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
 		@IMarkdownRendererService private readonly _renderer: IMarkdownRendererService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly _chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
 		element.classList.add('chat-query-title-part');
 
-		this._renderedTitle.value = _renderer.render(this.toMdString(_title), {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		});
+		this._renderedTitle.value = this.renderTitle(_title);
 		element.append(this._renderedTitle.value.element);
 		if (subtitle) {
 			const str = this.toMdString(subtitle);
-			const renderedTitle = this._register(_renderer.render(str, {
-				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-			}));
+			const renderedTitle = this._register(_renderer.render(str, this.getRenderOptions()));
 			const wrapper = document.createElement('small');
 			wrapper.appendChild(renderedTitle.element);
 			element.append(wrapper);
@@ -114,6 +117,27 @@ export class ChatQueryTitlePart extends Disposable {
 		} else {
 			return new MarkdownString(value.value, { supportThemeIcons: true, isTrusted: value.isTrusted });
 		}
+	}
+
+	setOptions(options: IChatQueryTitlePartOptions): void {
+		this.options = options;
+		this.title = this._title;
+	}
+
+	private renderTitle(value: IMarkdownString | string): IRenderedMarkdown {
+		const renderedTitle = this._renderer.render(this.toMdString(value), this.getRenderOptions());
+		this._fileWidgetStore.clear();
+		if (this.options?.renderFileWidgets) {
+			renderFileWidgets(renderedTitle.element, this._instantiationService, this._chatMarkdownAnchorService, this._fileWidgetStore);
+		}
+		return renderedTitle;
+	}
+
+	private getRenderOptions(): MarkdownRenderOptions {
+		return {
+			...this.options?.markdownRenderOptions,
+			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+		};
 	}
 }
 
@@ -165,7 +189,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 			ChatQueryTitlePart,
 			elements.title,
 			title,
-			subtitle
+			subtitle,
 		));
 
 		this.messageElement = elements.message;
@@ -283,7 +307,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	message: string | IMarkdownString | HTMLElement;
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
-	headerBanner?: HTMLElement;
+	footerBanner?: HTMLElement;
 	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
@@ -327,7 +351,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	) {
 		super();
 
-		const { title, subtitle, message, buttons, icon, headerBanner } = options;
+		const { title, subtitle, message, buttons, icon, footerBanner } = options;
 
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget2@root', [
@@ -343,7 +367,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				]),
 			]),]);
 
-		configureAccessibilityContainer(elements.container, title, message);
+		configureAccessibilityContainer(elements.container, title, message, footerBanner);
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
@@ -353,14 +377,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
 		));
-
-		if (headerBanner) {
-			elements.message.parentElement?.insertBefore(headerBanner, elements.message);
-			configureAccessibilityContainer(elements.container, title, message, headerBanner);
-			if (!headerBanner.hasAttribute('aria-live')) {
-				headerBanner.setAttribute('aria-live', 'polite');
-			}
-		}
 
 		this.messageElement = elements.message;
 		const messageParent = this.messageElement.parentElement;
@@ -375,6 +391,13 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		const messageResizeObserver = this._register(new dom.DisposableResizeObserver('BaseChatConfirmationWidget.message', () => this.messageScrollable.scanDomNode()));
 		this._register(messageResizeObserver.observe(this.messageElement));
 		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
+
+		if (footerBanner) {
+			this.messageScrollable.getDomNode().insertAdjacentElement('afterend', footerBanner);
+			if (!footerBanner.hasAttribute('aria-live')) {
+				footerBanner.setAttribute('aria-live', 'polite');
+			}
+		}
 
 		this.updateButtons(buttons);
 
@@ -521,13 +544,13 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 	}
 }
 
-function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement, headerBanner?: HTMLElement): void {
+function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement, footerBanner?: HTMLElement): void {
 	container.tabIndex = 0;
 	const titleAsString = typeof title === 'string' ? title : title.value;
 	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
-	const bannerAsString = headerBanner?.textContent?.trim() ?? '';
+	const bannerAsString = footerBanner?.textContent?.trim() ?? '';
 	container.setAttribute('aria-label', bannerAsString
-		? localize('chat.confirmationWidget.ariaLabelWithBanner', "Chat Confirmation Dialog {0} {1} {2}", titleAsString, bannerAsString, messageAsString)
+		? localize('chat.confirmationWidget.ariaLabelWithBannerTitleMessageBanner', "Chat Confirmation Dialog {0} {1} {2}", titleAsString, messageAsString, bannerAsString)
 		: localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
 }
