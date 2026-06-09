@@ -124,7 +124,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		switch (attachment.kind) {
 			case 'command': {
 				return {
-					label: item.insertText,
+					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
@@ -133,9 +133,9 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				};
 			}
 			case 'skill': {
-				const label = item.insertText.trimEnd();
+				const label = attachment.displayName ? '/' + attachment.displayName : item.insertText.trimEnd();
 				return {
-					label: attachment.displayName ? { label, description: attachment.displayName } : label,
+					label: { label, description: attachment.description },
 					insertText: item.insertText,
 					filterText: item.insertText,
 					range: replaceRange,
