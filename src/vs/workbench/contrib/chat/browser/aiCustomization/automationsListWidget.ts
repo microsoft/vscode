@@ -23,6 +23,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -89,6 +90,7 @@ export class AutomationsListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -431,7 +433,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
+		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 		});
 		if (!result || result.kind !== 'create') {
@@ -461,7 +463,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
+		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 			existing: automation,
 		});
