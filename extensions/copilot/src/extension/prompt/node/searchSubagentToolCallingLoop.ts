@@ -7,7 +7,8 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
@@ -113,7 +114,8 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				}
 				this._logService.warn(`Search-agent model not available in CAPI, falling back to main agent endpoint`);
 			} catch (error) {
-				this._logService.warn(`Failed to get search-agent endpoint from CAPI, falling back to main agent: ${error}`);
+				const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+				this._logService.warn(`Failed to get search-agent endpoint from CAPI, falling back to main agent: ${message}`);
 			}
 			return await this.endpointProvider.getChatEndpoint(this.options.request);
 		}

@@ -166,6 +166,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
 	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
+	const logService = accessor.get<ILogService>(ILogService);
 
 	model ??= await endpointProvider.getChatEndpoint(request);
 
@@ -214,7 +215,10 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		// Only look up endpoints when a subagent that depends on model availability
 		// could actually be enabled, since the lookup is otherwise unnecessary.
 		const allEndpoints = isGptOrAnthropic && (searchSubagentEnabled || executionSubagentEnabled)
-			? await endpointProvider.getAllChatEndpoints().catch(() => [] as IChatEndpoint[])
+			? await endpointProvider.getAllChatEndpoints().catch(err => {
+				logService.warn(`getAgentTools: failed to fetch chat endpoints, disabling availability-gated subagents: ${err}`);
+				return [] as IChatEndpoint[];
+			})
 			: [];
 
 		const searchAgentAvailable = allEndpoints.some(e => e.family === SEARCH_AGENT_FAMILY);
