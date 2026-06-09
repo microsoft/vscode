@@ -212,6 +212,22 @@
 	padding-left: 4px;
 }
 
+/* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
+ * lack the chevron that visually balances the 7px left padding, so use
+ * symmetric horizontal padding and drop the picker min-width that would
+ * otherwise leave the icon left-aligned inside a 30px box. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item .action-label {
+	min-width: 0;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
+	padding: 3px 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 /* Pickers row - two equal halves */
 .session-workspace-picker {
 	display: flex;

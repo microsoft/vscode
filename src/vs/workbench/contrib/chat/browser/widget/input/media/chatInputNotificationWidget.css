@@ -19,11 +19,14 @@
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-top-left-radius: var(--vscode-cornerRadius-small, 4px);
+	border-top-right-radius: var(--vscode-cornerRadius-small, 4px);
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 2px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Severity variants */
@@ -56,7 +59,7 @@
 .chat-input-notification .chat-input-notification-header {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 6px;
 	min-width: 0;
 }
 
@@ -81,9 +84,15 @@
 
 /* Title */
 .chat-input-notification .chat-input-notification-title {
+<<<<<<< HEAD
 	font-size: var(--vscode-agents-fontSize-label1);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
+=======
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-weight: 600;
+	line-height: 1.4;
+>>>>>>> ad3036df97c ([release/1.124] Cherry-pick MSRC fixes (#320655))
 	color: var(--vscode-foreground);
 	flex: 1;
 	min-width: 0;
@@ -117,12 +126,18 @@
 	align-items: flex-start;
 	gap: 8px;
 	min-width: 0;
+	padding-left: 22px; /* align with title text after the severity icon */
 }
 
 /* Description */
 .chat-input-notification .chat-input-notification-description {
+<<<<<<< HEAD
 	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
+=======
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: 1.4;
+>>>>>>> ad3036df97c ([release/1.124] Cherry-pick MSRC fixes (#320655))
 	color: var(--vscode-descriptionForeground);
 	flex: 1 1 auto;
 	min-width: 0;
@@ -142,8 +157,13 @@
 
 /* Action buttons */
 .chat-input-notification .chat-input-notification-action-button {
+<<<<<<< HEAD
 	font-size: var(--vscode-agents-fontSize-label2);
 	padding: 4px 12px;
+=======
+	font-size: var(--vscode-chat-font-size-body-s);
+	padding: 2px 8px;
+>>>>>>> ad3036df97c ([release/1.124] Cherry-pick MSRC fixes (#320655))
 	min-width: unset;
 	width: auto;
 	height: 24px;
