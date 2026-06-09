@@ -189,7 +189,7 @@ export class AcceptInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: inlineSuggestCommitId,
-			label: nls.localize2('action.inlineSuggest.accept', "Accept Inline Suggestion"),
+			label: nls.localize2('action.inlineSuggest.accept', "Accept Inline Suggestion or Inline Edit"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
@@ -317,7 +317,7 @@ export class HideInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: HideInlineCompletion.ID,
-			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion"),
+			label: nls.localize2('action.inlineSuggest.hide', "Hide Inline Suggestion or Inline Edit"),
 			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -366,6 +366,18 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
+
+// Higher-priority rule so that dismissing an inline edit works even when an extension
+// (e.g. VS Code Neovim) has its own Escape keybinding at ExternalExtension weight.
+KeybindingsRegistry.registerKeybindingRule({
+	id: HideInlineCompletion.ID,
+	weight: KeybindingWeight.ExternalExtension + 1,
+	primary: KeyCode.Escape,
+	when: ContextKeyExpr.and(
+		EditorContextKeys.editorTextFocus,
+		InlineCompletionContextKeys.inlineEditVisible
+	)
 });
 
 export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
