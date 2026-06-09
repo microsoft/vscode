@@ -30,6 +30,8 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+
+	getWorkingDirectory(sessionResource: URI): string | undefined;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -41,6 +43,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	}
 	getCustomizations(_sessionResource: URI): readonly Customization[] {
 		return [];
+	}
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		return undefined;
 	}
 }
 
@@ -101,6 +106,11 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		return sessionState?.customizations ?? [];
 	}
 
+	getWorkingDirectory(sessionResource: URI): string | undefined {
+		const sessionState = this._readSessionState(sessionResource);
+		return sessionState?.summary.workingDirectory;
+	}
+
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
 		const backendSession = this._resolveBackendSession(sessionResource);
 		const value = backendSession ? this._ensureSessionStateSubscription(sessionResource, backendSession)?.sub.value : undefined;
@@ -114,7 +124,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 			return existing;
 		}
 
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostCustomizationService');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => {
 			this._fireCustomizationsChanged();

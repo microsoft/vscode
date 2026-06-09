@@ -16,6 +16,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
@@ -24,7 +25,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { TitleBarLeadingActionsGroup } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { TitleBarLeadingActionsGroup, ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../browser/chat.js';
@@ -62,7 +63,10 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 				id: MenuId.TitleBar,
 				group: TitleBarLeadingActionsGroup,
 				order: -1000,
-				when: OPEN_AGENTS_WINDOW_PRECONDITION,
+				when: ContextKeyExpr.and(
+					OPEN_AGENTS_WINDOW_PRECONDITION,
+					ContextKeyExpr.notEquals(`config.${ChatConfiguration.TitleBarOpenInAgentsWindowEnabled}`, false),
+				),
 			}]
 		});
 	}
@@ -72,6 +76,18 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined });
+	}
+}
+
+export class ToggleOpenInAgentsWindowTitleBarAction extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(
+			ChatConfiguration.TitleBarOpenInAgentsWindowEnabled,
+			localize('toggle.openInAgentsWindow', 'Open in Agents Window'),
+			localize('toggle.openInAgentsWindowDescription', "Toggle visibility of the Open in Agents Window button in title bar"),
+			6,
+			OPEN_AGENTS_WINDOW_PRECONDITION,
+		);
 	}
 }
 
@@ -155,7 +171,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 
 		// No real session URI to hand off (empty-workspace path triggered
 		// from the input tip): pre-seed the agents window's session-type
-		// picker so it lands on Copilot CLI [Local].
+		// picker so it lands on Copilot CLI.
 		let preferredSessionType: { providerId?: string; sessionTypeId: string } | undefined;
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
 		if (!hasRealSession) {
@@ -181,6 +197,7 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(undefined, action, options);
 	}
@@ -192,7 +209,7 @@ class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 		container.setAttribute('role', 'button');
 
 		const label = this.action.label;
-		const hoverText = localize('openInAgentsHover', "Open in Agents Window");
+		const hoverText = this.keybindingService.appendKeybinding(localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
 		container.setAttribute('aria-label', hoverText);
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
@@ -422,7 +439,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		// than a generic "continue in agents" upsell.
 		const useEmptyWorkspaceCopy = emptyWorkspaceEligible && !eligible;
 		const message = useEmptyWorkspaceCopy
-			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot CLI [Local] isn't available without an open folder")
+			? localize('chat.agentsHandoff.tip.emptyWorkspace.message', "Copilot CLI [Agent Host] isn't available without an open folder")
 			: localize('chat.agentsHandoff.tip.message', "Continue this session in the Agents Window");
 		const description = useEmptyWorkspaceCopy
 			? localize('chat.agentsHandoff.tip.emptyWorkspace.description', "Open the Agents Window to start a Copilot CLI session.")

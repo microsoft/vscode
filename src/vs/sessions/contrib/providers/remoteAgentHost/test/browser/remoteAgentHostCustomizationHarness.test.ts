@@ -150,6 +150,9 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			}
 			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
 		},
+		getWorkingDirectory(sessionResource: URI): string | undefined {
+			return undefined;
+		}
 	};
 }
 
@@ -661,7 +664,7 @@ suite('RemoteAgentHostCustomizationHarness', () => {
 		// Each expanded (non-bundle) item must carry a `pluginUri` so that
 		// downstream slash-command resolution can build a `plugin:`-prefixed
 		// command id via `getCanonicalPluginCommandId`.
-		const expectedPluginUri = 'vscode-agent-host://test-authority/file/-/plugins/skills-bundle';
+		const expectedPluginUri = 'vscode-agent-host://test-authority/plugins/skills-bundle?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0';
 		for (const skillItem of skillItems) {
 			assert.strictEqual(skillItem.pluginUri?.toString(), expectedPluginUri, `skill ${skillItem.name} should carry pluginUri`);
 		}

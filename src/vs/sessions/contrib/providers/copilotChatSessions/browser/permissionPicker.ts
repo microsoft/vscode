@@ -157,7 +157,6 @@ export class PermissionPicker extends Disposable {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
@@ -186,10 +185,7 @@ export class PermissionPicker extends Disposable {
 				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
-		];
-
-		if (isAutopilotEnabled) {
-			items.push({
+			{
 				kind: ActionListItemKind.Action,
 				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
 				item: {
@@ -200,9 +196,12 @@ export class PermissionPicker extends Disposable {
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				hover: {
+					content: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
+				},
 				disabled: policyRestricted,
-			});
-		}
+			},
+		];
 
 		items.push({
 			kind: ActionListItemKind.Separator,
@@ -229,7 +228,7 @@ export class PermissionPicker extends Disposable {
 				if (item.level) {
 					await this._selectLevel(item.level);
 				} else {
-					await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
 			onHide: () => { triggerElement.focus(); },

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -34,27 +34,23 @@ import {
 	CONTEXT_BROWSER_FOCUSED,
 	CONTEXT_BROWSER_HAS_URL,
 	IBrowserEditorWidget,
-	IBrowserUrlRenderer,
 } from '../browserEditor.js';
+import { BrowserUrlBarWidget, IBrowserUrlBarHost } from '../widgets/browserUrlBarWidget.js';
 
 const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 
 /**
- * Browser navigation bar widget: nav toolbar (back/forward/etc), URL
- * display+input, pre/post-URL slots, actions toolbar. Owned by
- * {@link BrowserNavigationFeatures}.
+ * Browser navigation bar widget: nav toolbar (back/forward/etc), URL bar
+ * (display + editing picker, see {@link BrowserUrlBarWidget}), actions toolbar.
+ * Owned by {@link BrowserNavigationFeatures}.
  */
 class BrowserNavigationBar extends Disposable {
 	readonly element: HTMLElement;
-	private readonly _urlInput: HTMLInputElement;
-	private readonly _urlDisplay: HTMLElement;
-	private readonly _preUrlWidgetsContainer: HTMLElement;
-	private readonly _urlBarWidgetsContainer: HTMLElement;
-	private readonly _urlRenderers: IBrowserUrlRenderer[] = [];
+	private readonly _urlBar: BrowserUrlBarWidget;
 
 	constructor(
-		private readonly _editor: BrowserEditor,
+		editor: BrowserEditor,
 		instantiationService: IInstantiationService,
 		scopedContextKeyService: IContextKeyService,
 	) {
@@ -71,10 +67,11 @@ class BrowserNavigationBar extends Disposable {
 			)
 		);
 
-		const navContainer = $('.browser-nav-toolbar');
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
+
+		const navContainer = $('.browser-nav-toolbar');
 		const navToolbar = this._register(scopedInstantiationService.createInstance(
 			MenuWorkbenchToolBar,
 			navContainer,
@@ -87,27 +84,13 @@ class BrowserNavigationBar extends Disposable {
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
+		navToolbar.context = editor;
 
-		const urlContainer = $('.browser-url-container');
-		this._preUrlWidgetsContainer = $('.browser-site-info-slot');
-
-		// URL input is hidden until the user activates the display.
-		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
-		this._urlInput.type = 'text';
-		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
-		this._urlInput.style.display = 'none';
-
-		const urlInputWrapper = $('.browser-url-input-wrapper');
-		this._urlDisplay = $('span.browser-url-display');
-		this._urlDisplay.tabIndex = 0;
-		urlInputWrapper.appendChild(this._urlDisplay);
-		urlInputWrapper.appendChild(this._urlInput);
-
-		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
-
-		urlContainer.appendChild(this._preUrlWidgetsContainer);
-		urlContainer.appendChild(urlInputWrapper);
-		urlContainer.appendChild(this._urlBarWidgetsContainer);
+		const urlBarHost: IBrowserUrlBarHost = {
+			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
+			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
+		};
+		this._urlBar = this._register(instantiationService.createInstance(BrowserUrlBarWidget, urlBarHost));
 
 		const actionsContainer = $('.browser-actions-toolbar');
 		const actionsToolbar = this._register(scopedInstantiationService.createInstance(
@@ -117,123 +100,41 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
-				menuOptions: { shouldForwardArgs: true }
+				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
+				menuOptions: { shouldForwardArgs: true },
+				responsiveBehavior: {
+					enabled: true,
+					kind: 'last',
+					minItems: 0,
+
+					// The URL bar is the flexible element, so the actions toolbar's own
+					// element width does not reflect the room it could occupy.
+					// So we pass manual calculations based on the navbar's overall width and the URL bar's width.
+					observedElement: this.element,
+					getAvailableWidth: () => {
+						const toolbarBounds = this.element.getBoundingClientRect();
+						const urlBarBounds = this._urlBar.element.getBoundingClientRect();
+						return Math.max(0, toolbarBounds.right - urlBarBounds.left - 240 /* approximate: preferred width of the URL input plus padding */);
+					}
+				},
 			}
 		));
-
-		navToolbar.context = this._editor;
-		actionsToolbar.context = this._editor;
+		actionsToolbar.context = editor;
 
 		this.element.appendChild(navContainer);
-		this.element.appendChild(urlContainer);
+		this.element.appendChild(this._urlBar.element);
 		this.element.appendChild(actionsContainer);
-
-		this._register(addDisposableListener(this._urlInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter') {
-				const url = this._urlInput.value.trim();
-				if (url) {
-					this._navigateTo(url);
-				}
-			}
-		}));
-
-		// Browser-like behaviour: select all text on focus.
-		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
-			this._urlInput.select();
-		}));
-
-		this._register(addDisposableListener(this._urlInput, EventType.BLUR, () => {
-			this._showDisplay();
-		}));
-		this._register(addDisposableListener(this._urlDisplay, EventType.FOCUS, () => {
-			this._showInput();
-		}));
 	}
 
-	setUrl(url: string): void {
-		this._urlInput.value = url;
-		this._renderUrl();
-	}
+	refreshUrl(): void { this._urlBar.refreshUrl(); }
+	previewUrl(url: string): void { this._urlBar.previewUrl(url); }
+	focusUrlInput(): void { this._urlBar.focusUrlInput(); }
+	openUrlPicker(): void { this._urlBar.openUrlPicker(); }
+	clear(): void { this._urlBar.clear(); }
 
-	focusUrlInput(): void {
-		this._showInput();
-	}
-
-	addPreUrlWidgets(widgets: readonly IBrowserEditorWidget[]): void {
-		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
-		for (const widget of sorted) {
-			this._preUrlWidgetsContainer.appendChild(widget.element);
-		}
-	}
-
-	addUrlBarWidgets(widgets: readonly IBrowserEditorWidget[]): void {
-		const sorted = widgets.slice().sort((a, b) => a.order - b.order);
-		for (const widget of sorted) {
-			this._urlBarWidgetsContainer.appendChild(widget.element);
-		}
-	}
-
-	addUrlRenderers(renderers: readonly IBrowserUrlRenderer[]): void {
-		for (const renderer of renderers) {
-			this._urlRenderers.push(renderer);
-			this._register(renderer.onDidChange(() => this._renderUrl()));
-		}
-		this._renderUrl();
-	}
-
-	private _showInput(): void {
-		this._urlDisplay.style.display = 'none';
-		this._urlInput.style.display = '';
-		this._urlInput.select();
-		this._urlInput.focus();
-	}
-
-	private _showDisplay(): void {
-		this._urlInput.style.display = 'none';
-		this._urlDisplay.style.display = '';
-		this._renderUrl();
-	}
-
-	private _renderUrl(): void {
-		const url = this._urlInput.value;
-
-		this._urlDisplay.textContent = '';
-		this._urlDisplay.classList.toggle('placeholder', !url);
-
-		for (const renderer of this._urlRenderers) {
-			if (renderer.render(url, this._urlDisplay)) {
-				return;
-			}
-		}
-
-		this._urlDisplay.textContent = url || localize('browser.urlPlaceholder', "Enter a URL");
-	}
-
-	clear(): void {
-		this._urlInput.value = '';
-		this._renderUrl();
-	}
-
-	private async _navigateTo(url: string): Promise<void> {
-		const model = this._editor.model;
-		if (!model) {
-			return;
-		}
-		this._editor.group.pinEditor(this._editor.input); // pin editor on navigation
-
-		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
-		if (/^localhost(:|\/|$)/i.test(url)) {
-			url = 'http://' + url;
-		} else if (!URL.parse(url)?.protocol) {
-			// No scheme — default to http://; sites typically upgrade to https://.
-			url = 'http://' + url;
-		}
-
-		this._editor.ensureBrowserFocus();
-		await model.loadURL(url);
-	}
+	mountContributions(contributions: readonly BrowserEditorContribution[]): void { this._urlBar.mountContributions(contributions); }
 }
+
 
 /**
  * Owns the navbar widget and the navigation-related context keys. Mounts
@@ -261,29 +162,17 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	override onContainerCreated(): void {
-		const preUrl: IBrowserEditorWidget[] = [];
-		const postUrl: IBrowserEditorWidget[] = [];
-		const urlRenderers: IBrowserUrlRenderer[] = [];
+		const contributions: BrowserEditorContribution[] = [];
 		for (const contribution of this.editor.getContributions()) {
-			if (contribution === this) {
-				continue;
+			if (contribution !== this) {
+				contributions.push(contribution);
 			}
-			for (const widget of contribution.widgets) {
-				if (widget.location === BrowserWidgetLocation.PreUrl) {
-					preUrl.push(widget);
-				} else if (widget.location === BrowserWidgetLocation.PostUrl) {
-					postUrl.push(widget);
-				}
-			}
-			urlRenderers.push(...contribution.urlRenderers);
 		}
-		this._navbar.addPreUrlWidgets(preUrl);
-		this._navbar.addUrlBarWidgets(postUrl);
-		this._navbar.addUrlRenderers(urlRenderers);
+		this._navbar.mountContributions(contributions);
 	}
 
-	override prerenderInput(input: BrowserEditorInput): void {
-		this._navbar.setUrl(input.url || '');
+	override prerenderInput(_input: BrowserEditorInput): void {
+		this._navbar.refreshUrl();
 		this._canGoBackContext.set(false);
 		this._canGoForwardContext.set(false);
 	}
@@ -291,6 +180,7 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._updateFromModel(model);
 		store.add(model.onDidNavigate(() => this._updateFromModel(model)));
+		store.add(model.onWillNavigate(url => this._navbar.previewUrl(url)));
 	}
 
 	override onModelDetached(): void {
@@ -300,18 +190,33 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	override tryFocus(): boolean {
-		this._navbar.focusUrlInput();
+		// A new tab (no URL loaded) auto-opens the picker so the user can
+		// immediately type / browse suggestions. For tabs that already have a
+		// URL (e.g. error or loading state — page-renderer focus didn't claim
+		// us, or input is still prerendering before the model attaches) we
+		// just focus the display so the URL stays visible.
+		const input = this.editor.input;
+		const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
+		if (!url) {
+			this._navbar.openUrlPicker();
+		} else {
+			this._navbar.focusUrlInput();
+		}
 		return true;
 	}
 
 	private _updateFromModel(model: IBrowserViewModel): void {
-		this._navbar.setUrl(model.url);
+		this._navbar.refreshUrl();
 		this._canGoBackContext.set(model.canGoBack);
 		this._canGoForwardContext.set(model.canGoForward);
 	}
 
 	focusUrlInput(): void {
 		this._navbar.focusUrlInput();
+	}
+
+	openUrlPicker(): void {
+		this._navbar.openUrlPicker();
 	}
 }
 
@@ -466,7 +371,7 @@ class FocusUrlInputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserNavigationFeatures)?.focusUrlInput();
+			browserEditor.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
 		}
 	}
 }
@@ -485,8 +390,9 @@ class OpenInExternalBrowserAction extends Action2 {
 			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Page,
-				order: 10
+				group: BrowserActionGroup.Tools,
+				order: 10,
+				isHiddenByDefault: true,
 			}
 		});
 	}
@@ -520,7 +426,8 @@ class OpenBrowserSettingsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Settings,
-				order: 2
+				order: 2,
+				isHiddenByDefault: true,
 			}
 		});
 	}

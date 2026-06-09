@@ -6,10 +6,9 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from '../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 
@@ -43,7 +42,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 	constructor(
 		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -61,7 +60,7 @@ export class PluginAutoUpdate extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const autoUpdate = this._configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
+		const autoUpdate = this._extensionsWorkbenchService.getAutoUpdateValue();
 		if (autoUpdate !== true) {
 			return;
 		}

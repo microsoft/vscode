@@ -325,7 +325,7 @@ export function modelCanUseImageURL(model: LanguageModelChat | IChatEndpoint): b
  * The model supports native PDF document processing via document content parts.
  */
 export function modelSupportsPDFDocuments(model: LanguageModelChat | IChatEndpoint): boolean {
-	return isAnthropicFamily(model);
+	return isAnthropicFamily(model) || isGpt5PlusFamily(model) || isHiddenModelM(model);
 }
 
 /**
@@ -436,8 +436,9 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 
 /**
  * Tool search is supported by:
- * - Claude Sonnet 4.5 / 4.6 (claude-sonnet-4-5-* or 4-6-*)
- * - Claude Opus 4.5 / 4.6 / 4.7 (claude-opus-4-5-*, 4-6-*, or 4-7-*)
+ * - Current-generation Claude models (4.5 and newer), so new and future Claude
+ *   models are picked up automatically. Haiku (no tool search support) and the
+ *   pre-4.5 generations are denied explicitly.
  * - OpenAI gpt-5.4 and gpt-5.5 (via Responses API client-side tool search)
  *
  * Accepts either an id string, a {@link LanguageModelChat}, or an
@@ -450,11 +451,29 @@ export function modelSupportsToolSearch(model: LanguageModelChat | IChatEndpoint
 	const family = typeof model === 'string' ? model : model.family;
 	const matches = (s: string) => {
 		const n = s.toLowerCase().replace(/\./g, '-');
-		return n === 'gpt-5-4' ||
-			n === 'gpt-5-5' ||
-			n.startsWith('claude-sonnet-4-5') ||
-			n.startsWith('claude-sonnet-4-6') ||
-			(!n.startsWith('claude-opus-4-1') && n.startsWith('claude-opus-4-'));
+		// OpenAI models with client-side tool search.
+		if (n === 'gpt-5-4' || n === 'gpt-5-5') {
+			return true;
+		}
+		if (!n.startsWith('claude')) {
+			return false;
+		}
+		// Haiku has no tool search support — deny it explicitly.
+		if (n.startsWith('claude-haiku')) {
+			return false;
+		}
+		// Pre-4.5 Claude generations are unsupported; everything newer
+		// (including future families) is allowed automatically. The `-4-2`
+		// prefixes also catch the datestamped 4.0 bases (e.g.
+		// `claude-sonnet-4-20250514`, which normalizes to `...-4-2...`).
+		const isPre45 =
+			n.startsWith('claude-1') ||
+			n.startsWith('claude-2') ||
+			n.startsWith('claude-3') ||
+			n.startsWith('claude-instant') ||
+			n === 'claude-sonnet-4' || n.startsWith('claude-sonnet-4-2') ||
+			n === 'claude-opus-4' || n.startsWith('claude-opus-4-1') || n.startsWith('claude-opus-4-2');
+		return !isPre45;
 	};
 	return matches(id) || matches(family) || isHiddenModelM(family);
 }
