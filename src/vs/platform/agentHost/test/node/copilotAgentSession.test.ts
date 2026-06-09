@@ -1365,12 +1365,16 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
 			const telemetryService = new RecordingTelemetryService();
+			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('test-client', tools);
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: {
-					tools: [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }],
+					tools,
 					plugins: [],
 				},
+				activeClientState,
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -2482,7 +2486,38 @@ suite('CopilotAgentSession', () => {
 			return state;
 		};
 
+		test('client tool started with no connected client fails immediately', async () => {
+			// No activeClientState is provided, so the session seeds one with
+			// an undefined clientId — i.e. no client is connected to run the tool.
+			const { runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-no-client',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// tool_start is stamped as a client contributor with no owner...
+			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
+			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: undefined });
+
+			// ...and is failed immediately (ready + complete) rather than left
+			// pending for the server-side disconnect timeout.
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallReady)).length, 1);
+			const completeSignal = signals.find(s => isAction(s, ActionType.SessionToolCallComplete));
+			assert.ok(completeSignal && isAction(completeSignal, ActionType.SessionToolCallComplete));
+			assert.strictEqual((completeSignal.action as SessionToolCallCompleteAction).result.success, false);
+
+			// When the SDK invokes the handler it resolves immediately with the
+			// buffered failure result.
+			const tools = runtime.createClientSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-no-client');
+			assert.strictEqual(result.resultType, 'failure');
+		});
+
 		test('client tool handler waits for completion without emitting tool_ready', async () => {
+
 			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
@@ -2574,7 +2609,7 @@ suite('CopilotAgentSession', () => {
 			// SessionToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
 			// SessionToolCallStart).
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			mockSession.fire('subagent.started', {
 				toolCallId: 'tc-parent-subagent',

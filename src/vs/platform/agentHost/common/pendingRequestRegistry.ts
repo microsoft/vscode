@@ -29,8 +29,8 @@ export class PendingRequestRegistry<T> {
 	private readonly _earlyResults = new Map<string, T>();
 
 	registerAndFire(key: string, fire: () => void): Promise<T> {
-		const buffered = this._earlyResults.get(key);
-		if (buffered !== undefined) {
+		if (this._earlyResults.has(key)) {
+			const buffered = this._earlyResults.get(key) as T;
 			this._earlyResults.delete(key);
 			return Promise.resolve(buffered);
 		}
@@ -53,8 +53,8 @@ export class PendingRequestRegistry<T> {
 	 * leaking forever.
 	 */
 	register(key: string): Promise<T> {
-		const buffered = this._earlyResults.get(key);
-		if (buffered !== undefined) {
+		if (this._earlyResults.has(key)) {
+			const buffered = this._earlyResults.get(key) as T;
 			this._earlyResults.delete(key);
 			return Promise.resolve(buffered);
 		}

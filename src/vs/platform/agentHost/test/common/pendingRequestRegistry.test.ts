@@ -102,6 +102,23 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(await promise, 'value');
 	});
 
+	test('respondOrBuffer: a buffered `undefined` value still resolves a subsequent register', async () => {
+		// Guards against the `get() !== undefined` sentinel bug: when T includes
+		// undefined, a buffered undefined must be distinguished from "no entry"
+		// so register() resolves immediately instead of parking and hanging.
+		const registry = new PendingRequestRegistry<string | undefined>();
+		registry.respondOrBuffer('k', undefined);
+		assert.strictEqual(await registry.register('k'), undefined);
+		// Buffer consumed exactly once: a fresh register parks a new deferred.
+		const pending = registry.register('k');
+		let settled = false;
+		void pending.then(() => { settled = true; });
+		await Promise.resolve();
+		assert.strictEqual(settled, false);
+		registry.respondOrBuffer('k', 'second');
+		assert.strictEqual(await pending, 'second');
+	});
+
 	test('rejectAll clears buffered early results', async () => {
 		const registry = new PendingRequestRegistry<string>();
 		registry.respondOrBuffer('k', 'early');

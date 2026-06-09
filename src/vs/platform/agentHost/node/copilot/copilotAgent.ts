@@ -1079,11 +1079,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return activeClient.pluginController.sync(clientId, customizations);
 	}
 
-	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void {
+	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {
 		const sessionId = AgentSession.id(session);
 		const activeClient = this._getOrCreateActiveClient(session, undefined);
 		const hasCachedEntry = this._sessions.has(sessionId);
-		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
+		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId ?? '(none)'}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
 		activeClient.updateTools(clientId, tools);
 	}
 
@@ -1131,7 +1131,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${sessionId}] Session config changed (requiresRestart=true), refreshing session. clientId=${activeClient.state.clientId}`);
+				this._logService.info(`[Copilot:${sessionId}] Session config changed (requiresRestart=true), refreshing session. clientId=${activeClient.state.clientId ?? '(none)'}`);
 				this._sessions.deleteAndDispose(sessionId);
 				entry = undefined;
 			}
@@ -2557,7 +2557,7 @@ class ActiveClient extends Disposable {
 		}));
 	}
 
-	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {
+	updateTools(clientId: string | undefined, tools: readonly ToolDefinition[]): void {
 		this.state.update(clientId, tools);
 	}
 

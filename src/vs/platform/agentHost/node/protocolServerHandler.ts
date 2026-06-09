@@ -171,8 +171,7 @@ interface IClientRecord {
 	connection: IConnectedClient | undefined;
 	/**
 	 * Epoch ms the client was last seen connected (handshake or disconnect).
-	 * `undefined` when the client has never connected — e.g. the empty-id owner
-	 * of a tool call stamped while no client was connected. Drives the
+	 * `undefined` when the client has never connected. Drives the
 	 * disconnect-timeout grace window: a pending client tool call fails
 	 * `CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT` ms after this point, never instantly
 	 * and never never.
@@ -279,13 +278,14 @@ export class ProtocolServerHandler extends Disposable {
 				this._replayBuffer.shift();
 			}
 			this._broadcastAction(envelope);
-			// A client tool call may be issued for a client that is not (or no
-			// longer) connected — e.g. a stale stamp from a window that
-			// reloaded, or a call stamped while no client is connected. The
+			// A client tool call may be issued for a client that is no longer
+			// connected — e.g. a stale stamp from a window that reloaded. The
 			// live-disconnect path (`_handleClientDisconnected`) does not cover
 			// these because no disconnect event fires for an already-gone
 			// client. Detect the orphan at issuance time and arm the same
-			// grace-period timeout so the call cannot hang forever.
+			// grace-period timeout so the call cannot hang forever. Calls
+			// stamped while no client is connected are failed immediately by
+			// the provider, so they never reach this path.
 			if (envelope.action.type === ActionType.SessionToolCallStart || envelope.action.type === ActionType.SessionToolCallReady) {
 				this._checkOrphanedClientToolCalls(envelope.channel);
 			}
@@ -753,13 +753,18 @@ export class ProtocolServerHandler extends Disposable {
 	 * delay is the remaining grace measured from when the client was last
 	 * seen — so a client that disconnected a while before the call was issued
 	 * gets the residual window rather than a fresh one, and a stamp from a
-	 * long-dead client fails promptly. A client never seen at all (or pruned)
-	 * gets the full grace window.
+	 * long-dead client fails promptly. A client never seen at all has its
+	 * grace clock pinned to the first arm, so re-arms triggered by later
+	 * orphaned tool calls in the same session shrink the remaining window
+	 * instead of resetting it.
 	 */
 	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
 		this._clearClientToolCallDisconnectTimeout(clientId, session);
 		const record = this._ensureClientRecord(clientId);
-		const elapsed = record.lastSeenAt !== undefined ? Date.now() - record.lastSeenAt : 0;
+		if (record.lastSeenAt === undefined) {
+			record.lastSeenAt = Date.now();
+		}
+		const elapsed = Date.now() - record.lastSeenAt;
 		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
 		record.disconnectTimeouts.set(session, disposableTimeout(() => {
 			record.disconnectTimeouts.deleteAndDispose(session);
@@ -768,19 +773,20 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	/**
-	 * Scan a session for pending client tool calls whose owning client is
-	 * empty (no client connected at stamp time) or not currently connected,
-	 * and arm the disconnect timeout for each such owner. Called when a
-	 * `SessionToolCallStart` / `SessionToolCallReady` envelope is observed —
-	 * covering calls issued for an already-gone client, which the live
-	 * disconnect path never sees.
+	 * Scan a session for pending client tool calls whose owning client is not
+	 * currently connected, and arm the disconnect timeout for each such owner.
+	 * Called when a `SessionToolCallStart` / `SessionToolCallReady` envelope is
+	 * observed — covering calls issued for an already-gone client, which the
+	 * live disconnect path never sees. Ownerless client tool calls (no client
+	 * connected at stamp time) are failed immediately by the provider, so they
+	 * never reach a pending state here.
 	 */
 	private _checkOrphanedClientToolCalls(session: string): void {
 		const state = this._stateManager.getSessionState(session);
 		const orphanOwners = new Set<string>();
 		for (const { clientId } of this._pendingClientToolCalls(state)) {
 			const ownerRecord = this._clients.get(clientId);
-			if (clientId === '' || !ownerRecord || ownerRecord.connection === undefined) {
+			if (!ownerRecord || ownerRecord.connection === undefined) {
 				orphanOwners.add(clientId);
 			}
 		}
@@ -791,9 +797,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	/**
 	 * Get the existing per-client record or create an empty one. A freshly
-	 * created record has no connection and `lastSeenAt === undefined`, so an
-	 * orphaned tool call stamped for an unknown/empty clientId gets the full
-	 * grace window.
+	 * created record has no connection and `lastSeenAt === undefined`.
 	 */
 	private _ensureClientRecord(clientId: string): IClientRecord {
 		let record = this._clients.get(clientId);
@@ -818,8 +822,8 @@ export class ProtocolServerHandler extends Disposable {
 	/**
 	 * Drop disconnected, timer-less client records whose last-seen time is
 	 * stale beyond the retention window (10× the disconnect timeout), plus
-	 * never-connected placeholder records (e.g. the empty-id orphan owner)
-	 * once their timeouts have fired. Bounds {@link _clients} without
+	 * never-connected placeholder records (e.g. a stamp from a long-dead
+	 * client) once their timeouts have fired. Bounds {@link _clients} without
 	 * tracking liveness precisely — a pruned-then-resurfacing stamp simply
 	 * falls back to the full grace window.
 	 */

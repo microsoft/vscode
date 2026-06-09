@@ -1118,39 +1118,6 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client tool call stamped with an empty clientId fails after the grace period', () => {
-		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			stateManager.createSession(makeSessionSummary());
-			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
-			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
-				turnId: 'turn-1',
-				message: { text: 'run it', origin: { kind: MessageKind.User } },
-			});
-			// A client tool issued while no client was connected is stamped as
-			// a Client contributor with an empty id (Copilot orphan path).
-			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
-				turnId: 'turn-1',
-				toolCallId: 'tool-1',
-				toolName: 'runTask',
-				displayName: 'Run Task',
-				contributor: { kind: ToolCallContributorKind.Client, clientId: '' },
-			});
-
-			await new Promise(r => setTimeout(r, 30_001));
-
-			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
-			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
-				status: part.toolCall.status,
-				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
-			} : undefined, {
-				status: ToolCallStatus.Completed,
-				success: false,
-			});
-		});
-	});
-
 	test('orphaned client tool call timeout is cleared when the owning client connects within the window', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
@@ -1177,6 +1144,51 @@ suite('ProtocolServerHandler', () => {
 
 			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
 			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+		});
+	});
+
+	test('a later orphaned tool call does not extend an earlier one past the grace window', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			// First orphaned tool call (owner never connected) arms the grace timer.
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+			});
+
+			// A second call for the same never-connected owner arrives partway
+			// through the window and re-arms the (shared) timer. The grace clock
+			// is pinned to the first arm, so the re-arm must NOT reset the
+			// deadline — otherwise the first call could be kept alive
+			// indefinitely.
+			await new Promise(r => setTimeout(r, 20_000));
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-2',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+			});
+
+			// 31s after the FIRST call: both must have failed.
+			await new Promise(r => setTimeout(r, 11_000));
+
+			const parts = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts ?? [];
+			const statuses = parts
+				.filter(p => p.kind === ResponsePartKind.ToolCall)
+				.map(p => p.kind === ResponsePartKind.ToolCall ? p.toolCall.status : undefined);
+			assert.deepStrictEqual(statuses, [ToolCallStatus.Completed, ToolCallStatus.Completed]);
 		});
 	});
 

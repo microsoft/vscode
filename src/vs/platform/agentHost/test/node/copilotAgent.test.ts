@@ -1273,7 +1273,7 @@ suite('CopilotAgent', () => {
 	suite('client tool refresh on reload (#319516)', () => {
 		/** Minimal structural view of the agent's private per-session ActiveClient. */
 		type TestActiveClient = {
-			readonly state: { readonly clientId: string };
+			readonly state: { readonly clientId: string | undefined };
 			snapshot(): Promise<IActiveClientSnapshot>;
 			requiresRestart(snap: IActiveClientSnapshot): Promise<boolean>;
 		};

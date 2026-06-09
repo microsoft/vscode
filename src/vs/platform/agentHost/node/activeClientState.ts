@@ -64,11 +64,11 @@ export function structuralToolsEqual(
  * live `clientId` instead of a frozen one baked in at session creation.
  */
 export class ActiveClientState {
-	private _clientId = '';
+	private _clientId: string | undefined = undefined;
 	private _tools: readonly ToolDefinition[] = [];
 
-	/** Live owning client id. Empty string means no client is currently connected. */
-	get clientId(): string {
+	/** Live owning client id, or `undefined` when no client is currently connected. */
+	get clientId(): string | undefined {
 		return this._clientId;
 	}
 
@@ -78,11 +78,11 @@ export class ActiveClientState {
 	}
 
 	/**
-	 * Replace the owning `clientId` and the contributed tool list. A
-	 * `clientId`-only change does NOT mark structural dirt (see
-	 * {@link structuralEquals}).
+	 * Replace the owning `clientId` (`undefined` when no client is connected)
+	 * and the contributed tool list. A `clientId`-only change does NOT mark
+	 * structural dirt (see {@link structuralEquals}).
 	 */
-	update(clientId: string, tools: readonly ToolDefinition[]): void {
+	update(clientId: string | undefined, tools: readonly ToolDefinition[]): void {
 		this._clientId = clientId;
 		this._tools = tools;
 	}
