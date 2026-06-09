@@ -171,3 +171,96 @@ export function validateFontSizeTokens(text: string): IDesignTokenViolation[] {
 
 	return violations;
 }
+
+// ---------------------------------------------------------------------------
+// Corner-radius token suggestions (sessions design-system area only)
+// ---------------------------------------------------------------------------
+//
+// The corner-radius ramp has six tokens; off-scale literals snap to the nearest
+// (ties round up), so every hardcoded px value can be mapped to a token. Values
+// that are not a radius - 0, 50%, inherit, and var()/calc() expressions - are
+// left untouched. Pills (radius ~= half the element height) are meant to be
+// `circle`, but the linter cannot read element height, so very large values
+// (>= 100px) map to circle while everything else snaps among the finite tokens.
+
+const RE_BORDER_RADIUS = /border-radius\s*:\s*([^;{}]+)/i;
+/** First px length inside a border-radius value (handles shorthand like `4px 4px 0 0`). */
+const RE_FIRST_PX = /(\d+(?:\.\d+)?)px/;
+
+interface ICornerRadiusToken {
+	readonly px: number;
+	readonly name: string;
+}
+
+/** Finite corner-radius tokens, ascending. `circle` (9999) is handled separately. */
+const CORNER_RADIUS_TOKENS: readonly ICornerRadiusToken[] = [
+	{ px: 2, name: 'xSmall' },
+	{ px: 4, name: 'small' },
+	{ px: 6, name: 'medium' },
+	{ px: 8, name: 'large' },
+	{ px: 12, name: 'xLarge' },
+];
+
+/** At/above this px a radius reads as fully rounded -> `circle`. */
+const CIRCLE_THRESHOLD_PX = 100;
+
+/** Maps a px radius to its token, snapping off-scale values (ties round up). */
+function snapCornerRadius(px: number): ICornerRadiusToken {
+	if (px >= CIRCLE_THRESHOLD_PX) {
+		return { px: 9999, name: 'circle' };
+	}
+	let best = CORNER_RADIUS_TOKENS[0];
+	let bestDistance = Math.abs(best.px - px);
+	for (const token of CORNER_RADIUS_TOKENS) {
+		const distance = Math.abs(token.px - px);
+		// `<=` makes ties prefer the later (larger) token, i.e. round up.
+		if (distance <= bestDistance) {
+			best = token;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+
+/**
+ * Finds hardcoded `border-radius` px values and suggests the corner-radius token
+ * var. Exact token-value matches are flagged as drop-in replacements; off-scale
+ * values are snapped to the nearest token (with the token's px shown so the
+ * size change is explicit). `0`, `50%`, `inherit` and var()/calc() expressions
+ * are ignored. Returns one finding per occurrence so the terminal can linkify
+ * each `file(line,col)` prefix.
+ */
+export function validateCornerRadiusTokens(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+
+	forEachDeclaration(text, (line, _selector, declaration) => {
+		const decl = RE_BORDER_RADIUS.exec(declaration);
+		if (!decl) {
+			return;
+		}
+		const value = decl[1];
+		if (/var\(|calc\(/i.test(value)) {
+			return;
+		}
+		const pxMatch = RE_FIRST_PX.exec(value);
+		if (!pxMatch) {
+			return;
+		}
+		const px = parseFloat(pxMatch[1]);
+		if (px === 0) {
+			return;
+		}
+		const token = snapCornerRadius(px);
+		const exact = token.px === px;
+		const headline = exact
+			? `border-radius ${pxMatch[1]}px matches a corner-radius token - prefer the var:`
+			: `border-radius ${pxMatch[1]}px is off the corner-radius scale - nearest token (${token.px}px):`;
+		violations.push({
+			line,
+			isNearMiss: !exact,
+			message: `${headline}\n           -> use var(--vscode-cornerRadius-${token.name})`
+		});
+	});
+
+	return violations;
+}
