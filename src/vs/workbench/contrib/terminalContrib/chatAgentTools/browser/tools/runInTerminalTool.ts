@@ -2779,12 +2779,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture agent/model/mode/tools from the last request so the notification
-		// resumes the same agent context that started the background terminal
-		// command. The notification message starts a full agent turn, so it must
-		// run on the conversation's own model — a weaker utility model cannot
-		// reliably assess the command output or continue the agentic tool loop,
-		// which left the agent silent after a backgrounded command finished.
+		// Capture agent/model/mode/tools so the notification resumes the same
+		// agent context that started the background terminal command. The
+		// notification message starts a full agent turn, so it must run on a
+		// real conversation model — a weaker utility model cannot reliably
+		// assess the command output or continue the agentic tool loop, which
+		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
 		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
 		if (lastRequest) {
