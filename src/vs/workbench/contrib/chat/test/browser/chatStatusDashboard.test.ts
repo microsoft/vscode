@@ -605,7 +605,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Enterprise,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'You\'re approaching your included credits. Your organization covers additional usage, so there\'s no interruption.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when your limits are reached. Please contact your admin to increase your limits.');
 	});
 
 	test('Callout: Business — shows org-specific wording when approaching limit with additional usage', () => {
@@ -616,7 +616,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Business,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'You\'re approaching your included credits. Your organization covers additional usage, so there\'s no interruption.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot will pause when your limits are reached. Please contact your admin to increase your limits.');
 	});
 
 	test('Callout: Enterprise — shows org-specific wording when quota exhausted with additional usage', () => {
@@ -628,7 +628,7 @@ suite('ChatStatusDashboard', () => {
 			entitlement: ChatEntitlement.Enterprise,
 		}));
 
-		assert.strictEqual(getCalloutText(dashboard.element), 'You\'ve used your included credits. Your organization covers additional usage, so you can keep working.');
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
 	});
 
 	// --- LIVE UPDATES ---
