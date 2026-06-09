@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SessionStore } from '../sessionStore';
 
@@ -235,3 +238,81 @@ describe('SessionStore', () => {
 		expect(store.getPath()).toBe(':memory:');
 	});
 });
+
+describe('SessionStore (on-disk resilience)', () => {
+	let dir: string;
+	let dbPath: string;
+	let store: SessionStore | undefined;
+
+	beforeEach(() => {
+		dir = mkdtempSync(join(tmpdir(), 'session-store-test-'));
+		dbPath = join(dir, 'session-store.db');
+	});
+
+	afterEach(() => {
+		store?.close();
+		store = undefined;
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('remote mode uses a rollback journal instead of WAL', () => {
+		store = new SessionStore(dbPath, { remote: true });
+		store.upsertSession({ id: 'session-1' });
+
+		const mode = (store as unknown as { ensureDb(): { prepare(sql: string): { get(): { journal_mode: string } } } })
+			.ensureDb().prepare('PRAGMA journal_mode').get().journal_mode.toLowerCase();
+		expect(mode).not.toBe('wal');
+	});
+
+	it('local mode uses WAL', () => {
+		store = new SessionStore(dbPath);
+		store.upsertSession({ id: 'session-1' });
+
+		const mode = (store as unknown as { ensureDb(): { prepare(sql: string): { get(): { journal_mode: string } } } })
+			.ensureDb().prepare('PRAGMA journal_mode').get().journal_mode.toLowerCase();
+		expect(mode).toBe('wal');
+	});
+
+	it('recreates a corrupt database file on open', () => {
+		// Simulate a malformed database (e.g. corruption on a network filesystem).
+		writeFileSync(dbPath, 'this is not a sqlite database');
+
+		store = new SessionStore(dbPath);
+		store.upsertSession({ id: 'session-1', branch: 'main' });
+
+		const session = store.getSession('session-1');
+		expect(session).toBeDefined();
+		expect(session!.id).toBe('session-1');
+	});
+
+	it('persists writes across reopen', () => {
+		store = new SessionStore(dbPath);
+		store.upsertSession({ id: 'session-1', branch: 'main' });
+		store.close();
+
+		store = new SessionStore(dbPath);
+		expect(store.getSession('session-1')!.branch).toBe('main');
+	});
+
+	it('runInTransaction commits all writes atomically', () => {
+		store = new SessionStore(dbPath);
+		store.runInTransaction(() => {
+			store!.upsertSession({ id: 'session-1' });
+			store!.insertTurn({ session_id: 'session-1', turn_index: 0, user_message: 'hi' });
+		});
+
+		expect(store.getStats().sessions).toBe(1);
+		expect(store.getTurns('session-1')).toHaveLength(1);
+	});
+
+	it('runInTransaction rolls back on error', () => {
+		store = new SessionStore(dbPath);
+		expect(() => store!.runInTransaction(() => {
+			store!.upsertSession({ id: 'session-1' });
+			throw new Error('boom');
+		})).toThrow('boom');
+
+		expect(store.getStats().sessions).toBe(0);
+	});
+});
+

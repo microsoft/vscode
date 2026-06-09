@@ -465,11 +465,33 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			}
 		} catch (err) {
 
+			// The flush failed (e.g. a transient lock or I/O error on a network
+			// filesystem). Re-queue the swapped-out operations so the next flush
+			// retries them instead of silently dropping the writes. Writes that
+			// arrived during this flush take precedence on a per-session basis.
+			this._requeueFailedFlush(sessionsToFlush, filesToFlush, refsToFlush, turnsToFlush);
+
 			this._telemetryService.sendMSFTTelemetryErrorEvent('chronicle.localStore', {
 				operation: 'flush',
 				success: 'false',
 				error: err instanceof Error ? err.message.substring(0, 100) : 'unknown',
 			}, { opsCount: totalOps });
 		}
+	}
+
+	/**
+	 * Restore operations from a failed flush back into the buffer so they are
+	 * retried on the next flush. Sessions are only restored when no newer upsert
+	 * for the same session has been buffered since the flush started.
+	 */
+	private _requeueFailedFlush(sessions: SessionRow[], files: FileRow[], refs: RefRow[], turns: TurnRow[]): void {
+		for (const session of sessions) {
+			if (!this._buffer.sessions.has(session.id)) {
+				this._buffer.sessions.set(session.id, session);
+			}
+		}
+		this._buffer.files.unshift(...files);
+		this._buffer.refs.unshift(...refs);
+		this._buffer.turns.unshift(...turns);
 	}
 }
