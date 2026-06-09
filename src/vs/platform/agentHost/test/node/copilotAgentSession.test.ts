@@ -370,6 +370,136 @@ suite('CopilotAgentSession', () => {
 		}]);
 	});
 
+	test('forwards image Resource attachments as SDK blobs with detected MIME (#320516)', async () => {
+		const pngUri = URI.file('/workspace/attachments/abc/Pasted Image.png');
+		const pngBytes = 'fake png bytes';
+		const noExtUri = URI.file('/workspace/attachments/def/photo');
+		const noExtBytes = 'fake image bytes';
+		const docUri = URI.file('/workspace/notes.txt');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[pngUri.toString()]: pngBytes,
+				[noExtUri.toString()]: noExtBytes,
+				[docUri.toString()]: 'plain document',
+			},
+		});
+
+		await session.send('look at this', [
+			// Path-based MIME detection: a `.png` resource (any displayKind) goes as a blob.
+			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'Pasted Image', displayKind: 'image' },
+			// `displayKind: 'image'` with no path extension falls back to image/png.
+			{ type: MessageAttachmentKind.Resource, uri: noExtUri.toString(), label: 'photo', displayKind: 'image' },
+			// Non-image resources still go as `file` references.
+			{ type: MessageAttachmentKind.Resource, uri: docUri.toString(), label: 'notes.txt', displayKind: 'document' },
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'look at this',
+			attachments: [
+				{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString(pngBytes)),
+					mimeType: 'image/png',
+					displayName: 'Pasted Image',
+				},
+				{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString(noExtBytes)),
+					mimeType: 'image/png',
+					displayName: 'photo',
+				},
+				{ type: 'file', path: docUri.fsPath, displayName: 'notes.txt' },
+			],
+		}]);
+	});
+
+	test('falls back to file reference when reading an image Resource attachment fails', async () => {
+		const pngUri = URI.file('/workspace/missing.png');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileReadErrors: [pngUri.toString()],
+		});
+
+		await session.send('look at this', [
+			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'missing.png', displayKind: 'image' },
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'look at this',
+			attachments: [
+				{ type: 'file', path: pngUri.fsPath, displayName: 'missing.png' },
+			],
+		}]);
+	});
+
+	test('maps symbol Resource attachments to SDK selection so the range survives (#315193)', async () => {
+		const symbolUri = URI.file('/workspace/sym.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				[symbolUri.toString()]: 'line0\nline1\nfunction foo() {}\nline3',
+			},
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{
+					type: 'selection',
+					filePath: symbolUri.fsPath,
+					displayName: 'foo',
+					text: 'foo',
+					selection: {
+						start: { line: 2, character: 9 },
+						end: { line: 2, character: 12 },
+					},
+				},
+			],
+		}]);
+	});
+
+	test('falls back to file reference when reading a symbol Resource attachment fails', async () => {
+		const symbolUri = URI.file('/workspace/missing.ts');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileReadErrors: [symbolUri.toString()],
+		});
+
+		await session.send('explain this', [
+			{
+				type: MessageAttachmentKind.Resource,
+				uri: symbolUri.toString(),
+				label: 'foo',
+				displayKind: 'symbol',
+				selection: {
+					range: {
+						start: { line: 0, character: 0 },
+						end: { line: 0, character: 3 },
+					},
+				},
+			},
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'explain this',
+			attachments: [
+				{ type: 'file', path: symbolUri.fsPath, displayName: 'foo' },
+			],
+		}]);
+	});
+
 	test('sends simple attachments as text blobs and restores them from SDK blobs', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 

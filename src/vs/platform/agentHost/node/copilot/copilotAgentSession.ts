@@ -9,6 +9,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
@@ -824,6 +825,15 @@ export class CopilotAgentSession extends Disposable {
 	 * {@link MessageAttachmentBase.displayKind} advisory hint controls
 	 * which one). Embedded resources (e.g. inline image bytes) map to the
 	 * SDK's `blob` variant.
+	 *
+	 * Any Resource attachment carrying a {@link TextSelection} (e.g. `displayKind === 'selection'` or `'symbol'`) is
+	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
+	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
+	 *
+	 * Image resource attachments are also forwarded as `blob` variants so the SDK gets an explicit MIME type and can
+	 * route them to the model's native vision channel — the SDK's `file` variant carries no MIME info, so vision-capable
+	 * models would otherwise fall back to a tool-call view path and effectively miss the image (#320516).
+	 *
 	 * Simple attachments with a model representation map to `text/plain`
 	 * blob attachments.
 	 *
@@ -853,7 +863,7 @@ export class CopilotAgentSession extends Disposable {
 		const uri = URI.parse(attachment.uri);
 		const path = uri.scheme === 'file' ? uri.fsPath : uri.toString();
 		const displayName = attachment.label ?? path;
-		if (attachment.displayKind === 'selection' && attachment.selection) {
+		if (attachment.selection) {
 			try {
 				const text = await this._readSelectedText(uri, attachment.selection.range);
 				return { type: 'selection' as const, filePath: path, displayName, text, selection: attachment.selection.range };
@@ -865,8 +875,53 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.displayKind === 'selection') {
 			return { type: 'file' as const, path, displayName };
 		}
+		if (attachment.displayKind !== 'directory') {
+			const mimeType = this._getImageMimeType(attachment.displayKind, uri.path);
+			if (mimeType) {
+				const blob = await this._tryReadAsBlob(uri, mimeType, displayName);
+				if (blob) {
+					return blob;
+				}
+			}
+		}
 		const type = attachment.displayKind === 'directory' ? 'directory' : 'file';
 		return { type, path, displayName };
+	}
+
+	/**
+	 * Returns an image MIME type when the attachment is known (or can be detected from its path) to be an image. Returns
+	 * `undefined` otherwise, so non-image attachments keep the reference-style `file` path through the SDK.
+	 */
+	private _getImageMimeType(displayKind: string | undefined, path: string): string | undefined {
+		const mime = getMediaMime(path);
+		if (mime?.startsWith('image/')) {
+			return mime;
+		}
+		// Honor the protocol's advisory `'image'` hint even when the path has no extension we recognize — fall back to
+		// PNG so the SDK still routes through the vision channel rather than dropping it on the `file` path with no MIME.
+		if (displayKind === 'image') {
+			return mime ?? 'image/png';
+		}
+		return undefined;
+	}
+
+	/**
+	 * Reads the attachment bytes from `uri` and wraps them as a `blob` SDK attachment. Returns `undefined` on read
+	 * failure so the caller can fall back to a `file` reference attachment.
+	 */
+	private async _tryReadAsBlob(uri: URI, mimeType: string, displayName: string): Promise<CopilotSdkAttachment | undefined> {
+		try {
+			const contents = await this._fileService.readFile(uri);
+			return {
+				type: 'blob' as const,
+				data: encodeBase64(contents.value),
+				mimeType,
+				displayName,
+			};
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read image attachment ${uri.toString()} as blob; falling back to file reference: ${err}`);
+			return undefined;
+		}
 	}
 
 	private async _readSelectedText(uri: URI, range: { readonly start: { readonly line: number; readonly character: number }; readonly end: { readonly line: number; readonly character: number } }): Promise<string> {
