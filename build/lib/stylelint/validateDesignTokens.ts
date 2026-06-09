@@ -30,15 +30,13 @@ function isNearMiss(px: number): boolean {
 	return px > 12 && px < 16;
 }
 
-/** The two standard codicon sizes, formatted for the warning detail line. */
-const STANDARD_CODICON_SIZES = 'var(--vscode-codiconFontSize) for 16px, var(--vscode-codiconFontSize-compact) for 12px';
+/** The two standard codicon sizes, formatted for the suggestion. */
+const STANDARD_CODICON_SIZES = 'var(--vscode-codiconFontSize) [16] or var(--vscode-codiconFontSize-compact) [12]';
 
-/** Builds a readable, multi-line warning for an off-scale codicon font-size. */
+/** Builds a compact, single-line warning for an off-scale codicon font-size. */
 function formatCodiconMessage(px: string, nearMiss: boolean): string {
-	const headline = nearMiss
-		? `Codicon font-size ${px}px is off-scale - codicons are only 12px or 16px.`
-		: `Codicon font-size ${px}px is off-scale (large hero or <=11px glyph - may be intentional).`;
-	return `${headline}\n           -> use ${STANDARD_CODICON_SIZES}`;
+	const note = nearMiss ? '' : ' (large/small glyph - may be intentional)';
+	return `${px}px -> ${STANDARD_CODICON_SIZES}${note}`;
 }
 
 /**
@@ -165,7 +163,7 @@ export function validateFontSizeTokens(text: string): IDesignTokenViolation[] {
 		violations.push({
 			line,
 			isNearMiss: false,
-			message: `font-size ${match[1]}px matches a design ramp token - prefer the var:\n           -> use ${suggestion}`
+			message: `${match[1]}px -> ${suggestion}`
 		});
 	});
 
@@ -252,13 +250,11 @@ export function validateCornerRadiusTokens(text: string): IDesignTokenViolation[
 		}
 		const token = snapCornerRadius(px);
 		const exact = token.px === px;
-		const headline = exact
-			? `border-radius ${pxMatch[1]}px matches a corner-radius token - prefer the var:`
-			: `border-radius ${pxMatch[1]}px is off the corner-radius scale - nearest token (${token.px}px):`;
+		const note = exact ? '' : ` (off-scale, ${token.px}px)`;
 		violations.push({
 			line,
 			isNearMiss: !exact,
-			message: `${headline}\n           -> use var(--vscode-cornerRadius-${token.name})`
+			message: `${pxMatch[1]}px -> var(--vscode-cornerRadius-${token.name})${note}`
 		});
 	});
 
@@ -343,13 +339,11 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 		const token = snapFontWeight(weight);
 		const exact = token.weight === weight;
 		const shown = value.trim();
-		const headline = exact
-			? `font-weight ${shown} matches a design ramp token - prefer the var:`
-			: `font-weight ${shown} is off the agents weight ramp (400/600) - nearest token (${token.weight}):`;
+		const note = exact ? '' : ' (off-ramp, 400/600 only)';
 		violations.push({
 			line,
 			isNearMiss: !exact,
-			message: `${headline}\n           -> use var(--vscode-agents-fontWeight-${token.name})`
+			message: `${shown} -> var(--vscode-agents-fontWeight-${token.name})${note}`
 		});
 	});
 

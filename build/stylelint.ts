@@ -28,6 +28,10 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 
+	// Per-category tally of design-token suggestions for the summary footer.
+	const designTokenCounts: Record<string, number> = { codicon: 0, 'font-size': 0, weight: 0, radius: 0 };
+	let designTokenFileCount = 0;
+
 	return es.through(function (this, file: FileWithLines) {
 		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
@@ -51,21 +55,27 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 
 		// Design-token checks that need block (selector + declaration) awareness.
 		// Scoped to the design-system area (src/vs/sessions). All findings are
-		// advisory warnings (never fail the build) and emitted one per occurrence
-		// so the terminal linkifies each file(line,col) prefix.
+		// advisory warnings (never fail the build). Findings for a file are
+		// gathered, sorted by source line, then printed under a one-line file
+		// header as compact `path(line,col): [category] value -> var` rows so the
+		// terminal both groups them visually and linkifies each row.
 		const contents = file.contents.toString('utf8');
 		if (designSystemPattern.test(file.relative)) {
-			for (const violation of validateCodiconFontSizes(contents)) {
-				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
-			}
-			for (const violation of validateFontSizeTokens(contents)) {
-				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
-			}
-			for (const violation of validateFontWeightTokens(contents)) {
-				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
-			}
-			for (const violation of validateCornerRadiusTokens(contents)) {
-				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
+			const findings: { line: number; category: string; message: string }[] = [];
+			for (const v of validateCodiconFontSizes(contents)) { findings.push({ line: v.line, category: 'codicon', message: v.message }); }
+			for (const v of validateFontSizeTokens(contents)) { findings.push({ line: v.line, category: 'font-size', message: v.message }); }
+			for (const v of validateFontWeightTokens(contents)) { findings.push({ line: v.line, category: 'weight', message: v.message }); }
+			for (const v of validateCornerRadiusTokens(contents)) { findings.push({ line: v.line, category: 'radius', message: v.message }); }
+
+			if (findings.length > 0) {
+				findings.sort((a, b) => a.line - b.line);
+				reporter('', false); // blank line separates file groups
+				reporter(file.relative + ' (' + findings.length + ' design-token suggestion' + (findings.length === 1 ? '' : 's') + ')', false);
+				for (const f of findings) {
+					reporter('  ' + file.relative + '(' + f.line + ',1): [' + f.category + '] ' + f.message, false);
+					designTokenCounts[f.category]++;
+				}
+				designTokenFileCount++;
 			}
 		}
 
@@ -73,6 +83,18 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 	}, function () {
 		if (errorCount > 0) {
 			reporter('All valid variable names are in `build/lib/stylelint/vscode-known-variables.json`\nTo update that file, run `./scripts/test-documentation.sh|bat.`', false);
+		}
+		const designTokenTotal = designTokenCounts.codicon + designTokenCounts['font-size'] + designTokenCounts.weight + designTokenCounts.radius;
+		if (designTokenTotal > 0) {
+			reporter('', false);
+			reporter(
+				'Design-token suggestions: ' + designTokenTotal + ' in ' + designTokenFileCount + ' file' + (designTokenFileCount === 1 ? '' : 's') +
+				' (codicon ' + designTokenCounts.codicon +
+				', font-size ' + designTokenCounts['font-size'] +
+				', weight ' + designTokenCounts.weight +
+				', radius ' + designTokenCounts.radius + ')',
+				false
+			);
 		}
 		this.emit('end');
 	});
