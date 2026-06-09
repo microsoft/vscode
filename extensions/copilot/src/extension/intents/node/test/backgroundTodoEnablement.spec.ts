@@ -215,7 +215,7 @@ describe('AgentIntentInvocation._maybeStartBackgroundTodoAgentPass subagent guar
 	// The helper now evaluates background-todo eligibility first, so these tests
 	// provide a CAPI endpoint + paid auth + experiment enabled baseline and then
 	// vary only the subagent fields to validate the guard behavior.
-	const endpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions } } as unknown as IChatEndpoint;
+	const endpoint = { urlOrRequestMetadata: { type: RequestType.ChatCompletions }, modelProvider: '' } as unknown as IChatEndpoint;
 	const paidToken = new CopilotToken(createTestExtendedTokenInfo({ sku: 'copilot_individual', copilot_plan: 'individual' }));
 
 	function makeStub(request: TestChatRequest, processorLookup: () => unknown) {
