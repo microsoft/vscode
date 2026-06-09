@@ -851,13 +851,30 @@ suite('CopilotAgent', () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
+			const agentContent = [
+				'---',
+				'name: helper',
+				'description: helps out',
+				'---',
+				'agent body',
+			];
+			const instructionContent = [
+				'---',
+				'name: nested',
+				'description: nested instructions',
+				'applyTo: *.ts, *.js',
+				'---',
+				'instruction body',
+			];
+
+
 			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 			await fileService.createFolder(URI.joinPath(workspace, '.github', 'agents'));
 			await fileService.createFolder(URI.joinPath(workspace, '.github', 'instructions', 'team'));
 			const agentFile = URI.joinPath(workspace, '.github', 'agents', 'helper.agent.md');
 			const instructionFile = URI.joinPath(workspace, '.github', 'instructions', 'team', 'nested.instructions.md');
-			await fileService.writeFile(agentFile, VSBuffer.fromString('agent body'));
-			await fileService.writeFile(instructionFile, VSBuffer.fromString('instruction body'));
+			await fileService.writeFile(agentFile, VSBuffer.fromString(agentContent.join('\n')));
+			await fileService.writeFile(instructionFile, VSBuffer.fromString(instructionContent.join('\n')));
 			const agentsMdFile = URI.joinPath(workspace, 'AGENTS.md');
 			await fileService.writeFile(agentsMdFile, VSBuffer.fromString('agents md body'));
 
@@ -892,6 +909,7 @@ suite('CopilotAgent', () => {
 					id: customizationId(agentFile.toString()),
 					uri: agentFile.toString(),
 					name: 'helper',
+					description: 'helps out',
 				}]);
 
 				const instructionDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'instructions').toString());
@@ -901,7 +919,10 @@ suite('CopilotAgent', () => {
 					type: CustomizationType.Rule,
 					id: customizationId(instructionFile.toString()),
 					uri: instructionFile.toString(),
-					name: 'nested.instructions.md',
+					name: 'nested',
+					description: 'nested instructions',
+					globs: ['*.ts', '*.js'],
+					alwaysApply: undefined,
 				}]);
 
 				const agentInstructionsDirectory = discoveredDirectories.find(customization => customization.uri === workspace.toString());
