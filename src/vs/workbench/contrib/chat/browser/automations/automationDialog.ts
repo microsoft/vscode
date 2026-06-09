@@ -429,12 +429,23 @@ function renderForm(
 	};
 
 	// {@link ChatInputPart.render} requires an {@link IChatWidget}. The modal
-	// has no live chat session, so we supply a minimal stub. Every `_widget`
-	// access inside `ChatInputPart` is optional-chained, so the input
-	// degrades gracefully to a stand-alone composer. Pattern mirrors the
-	// component fixture at `chatInput.fixture.ts`. The cast is intentional:
-	// the lifetime here never invokes the methods we omit (no live session,
-	// no message tree, no editor sibling).
+	// has no live chat session, so we supply a minimal stub. Almost every
+	// `_widget` access inside {@link ChatInputPart} is optional-chained, so
+	// the input degrades gracefully to a stand-alone composer.
+	//
+	// Two methods on {@link IChatWidget} ARE invoked on a truthy widget
+	// without a method-existence guard: `lockToCodingAgent` and
+	// `unlockFromCodingAgent` (called via `this._widget?.lockToCodingAgent(...)`
+	// in {@link ChatInputPart.updateWidgetLockStateFromSessionType}). The
+	// optional chain only guards against a null/undefined widget; once
+	// `_widget` is set, calling a missing method throws TypeError. The
+	// session-target chip delegate triggers that lock path whenever the
+	// resolved session type is non-local (e.g. our Copilot CLI default),
+	// so the stub provides no-op implementations.
+	//
+	// Pattern otherwise mirrors the component fixture at `chatInput.fixture.ts`.
+	// The cast is intentional: the lifetime here never invokes the methods
+	// we omit (no live session, no message tree, no editor sibling).
 	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const stubWidget = {
 		onDidChangeViewModel: Event.None,
@@ -442,6 +453,8 @@ function renderForm(
 		contribs: [],
 		location: ChatAgentLocation.Chat,
 		viewContext: {},
+		lockToCodingAgent: () => { /* no-op: dialog has no widget lock state to manage */ },
+		unlockFromCodingAgent: () => { /* no-op: dialog has no widget lock state to manage */ },
 	} as unknown as IChatWidget;
 
 	// {@link ChatInputPart} does not bind {@link ChatContextKeys.location}
@@ -534,8 +547,26 @@ function renderForm(
 
 	// Two layout passes mirror the fixture: the first one establishes the
 	// editor's container size, then we let layout settle before re-measuring.
-	chatInput.layout(500);
-	queueMicrotask(() => chatInput.layout(500));
+	// 740 is a conservative starting width for a 760-920px dialog with form
+	// padding; once the dialog mounts and the host has real dimensions the
+	// ResizeObserver below re-layouts the input with the actual host width.
+	chatInput.layout(740);
+	queueMicrotask(() => chatInput.layout(740));
+
+	// Once the dialog mounts, the prompt host gets its real dimensions.
+	// Re-layout the chat input with the actual host width so the Monaco
+	// editor's word wrap and toolbar overflow logic match what the user
+	// sees (without this the editor measures itself at 740px and clips
+	// long lines / mis-wraps even though the visible box fills 100%).
+	const resizeObserver = disposables.add(new DOM.DisposableResizeObserver('automationDialog.promptHost', entries => {
+		for (const entry of entries) {
+			const width = entry.contentRect.width;
+			if (width > 0) {
+				chatInput.layout(width);
+			}
+		}
+	}, DOM.getWindow(promptHost)));
+	disposables.add(resizeObserver.observe(promptHost));
 
 	// --- Interval ---
 	const intervalRow = DOM.append(form, $('.automation-form-row'));
