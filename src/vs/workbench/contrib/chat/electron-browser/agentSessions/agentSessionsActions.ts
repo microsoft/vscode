@@ -251,15 +251,17 @@ export const enum AgentsHandoffTipMode {
 }
 
 type AgentsHandoffTipActionEvent = {
+	action: string;
 	mode: string;
 	sessionType: string;
 };
 
 type AgentsHandoffTipActionClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which tip affordance the user activated: open, dismiss, or mute.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured tip mode active when the tip was clicked (default, custom).' };
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session type / agent harness being handed off (e.g. copilot-cli, agent-host-copilot).' };
 	owner: 'justschen';
-	comment: 'Tracks clicks on the agents-window handoff input tip to measure engagement across wording variants.';
+	comment: 'Tracks user interactions (open, dismiss, mute) with the agents-window handoff input tip to measure engagement across wording variants.';
 };
 
 /**
@@ -281,6 +283,13 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 	 * intentionally not tracked here).
 	 */
 	private static readonly TIP_OPEN_COMMAND_ID = 'workbench.action.chat.agentsHandoffTip.open';
+
+	/**
+	 * Dedicated command backing the tip's "Don't Show Again" button. Closes the
+	 * tip and flips {@link ChatConfiguration.AgentsHandoffTipMode} to `hidden`
+	 * so it never shows again.
+	 */
+	private static readonly TIP_MUTE_COMMAND_ID = 'workbench.action.chat.agentsHandoffTip.mute';
 
 	/** Session types eligible for the handoff tip — the same set the Agents window can render directly. */
 	private static readonly ELIGIBLE_SESSION_TYPES: ReadonlySet<string> = new Set([SessionType.CopilotCLI, SessionType.AgentHostCopilot]);
@@ -312,13 +321,18 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 		super();
 
 		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID, (accessor, ...args) => {
-			this._telemetryService.publicLog2<AgentsHandoffTipActionEvent, AgentsHandoffTipActionClassification>('chat.agentsHandoffTip.action', {
-				mode: this._getMode(),
-				sessionType: this._lastPostedSessionType ?? '',
-			});
+			this._logTipAction('open');
 			// Opening the tip counts as handling it: don't show it again this window.
 			this._dismissForWindow();
 			return accessor.get(ICommandService).executeCommand(OpenChatSessionInAgentsWindowAction.ID, ...args);
+		}));
+
+		this._register(CommandsRegistry.registerCommand(AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID, () => {
+			this._logTipAction('mute');
+			// Tear down the visible tip first (uses the still-valid `_lastPostedFor`),
+			// then persist `hidden` so it never shows again.
+			this._dismissForWindow();
+			return this._configurationService.updateValue(ChatConfiguration.AgentsHandoffTipMode, AgentsHandoffTipMode.Hidden);
 		}));
 
 		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => this._update()));
@@ -337,10 +351,20 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			if (id !== AgentsHandoffInputTipContribution.NOTIFICATION_ID) {
 				return;
 			}
+			this._logTipAction('dismiss');
 			this._dismissForWindow();
 		}));
 
 		this._update();
+	}
+
+	/** Log a user interaction (open, dismiss, mute) with the handoff tip. */
+	private _logTipAction(action: 'open' | 'dismiss' | 'mute'): void {
+		this._telemetryService.publicLog2<AgentsHandoffTipActionEvent, AgentsHandoffTipActionClassification>('chat.agentsHandoffTip.action', {
+			action,
+			mode: this._getMode(),
+			sessionType: this._lastPostedSessionType ?? '',
+		});
 	}
 
 	private _getMode(): AgentsHandoffTipMode {
@@ -453,6 +477,10 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			],
 			dismissible: true,
 			autoDismissOnMessage: false,
+			mute: {
+				commandId: AgentsHandoffInputTipContribution.TIP_MUTE_COMMAND_ID,
+				tooltip: localize('chat.agentsHandoff.tip.mute', "Don't Show Again"),
+			},
 			sessionTypes: useEmptyWorkspaceCopy
 				? [SessionType.AgentHostCopilot]
 				: Array.from(AgentsHandoffInputTipContribution.ELIGIBLE_SESSION_TYPES),

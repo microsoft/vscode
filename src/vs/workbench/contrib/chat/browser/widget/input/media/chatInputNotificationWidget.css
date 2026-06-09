@@ -167,8 +167,9 @@
 	opacity: 1;
 }
 
-/* Dismiss button */
-.chat-input-notification .chat-input-notification-dismiss {
+/* Dismiss + mute icon buttons (header, right-aligned) */
+.chat-input-notification .chat-input-notification-dismiss,
+.chat-input-notification .chat-input-notification-mute {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -181,14 +182,19 @@
 	border: none;
 	outline: none;
 	flex-shrink: 0;
+}
+
+.chat-input-notification .chat-input-notification-dismiss {
 	margin-left: auto;
 }
 
-.chat-input-notification .chat-input-notification-dismiss:hover {
+.chat-input-notification .chat-input-notification-dismiss:hover,
+.chat-input-notification .chat-input-notification-mute:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.chat-input-notification .chat-input-notification-dismiss:focus-visible {
+.chat-input-notification .chat-input-notification-dismiss:focus-visible,
+.chat-input-notification .chat-input-notification-mute:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
