@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.52.0",
+  "version": "0.53.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.124.0",
+    "vscode": "^1.125.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -1236,7 +1236,7 @@
         "toolReferenceName": "sessionStoreSql",
         "when": "github.copilot.sessionSearch.enabled",
         "userDescription": "Query your Copilot session history using SQL",
-        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index from debug logs).",
+        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
         "tags": [],
         "canBeReferencedInPrompt": false,
         "inputSchema": {
@@ -1246,10 +1246,9 @@
               "type": "string",
               "enum": [
                 "query",
-                "standup",
                 "reindex"
               ],
-              "description": "The action to perform. 'query' (default) executes a SQL query. 'standup' pre-fetches last 24h session data for standup reports. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
+              "description": "The action to perform. 'query' (default) executes a SQL query. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
             },
             "query": {
               "type": "string",
@@ -3076,6 +3075,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.createPullRequestForTask.title%",
+        "icon": "$(git-pull-request-create)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -3231,6 +3236,11 @@
             ],
             "markdownDescription": "%github.copilot.nextEditSuggestions.enabled%",
             "scope": "language-overridable"
+          },
+          "github.copilot.completions.chat.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.completions.chat.enabled%"
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
@@ -4030,6 +4040,15 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheKey.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.responsesApi.persistentCoT.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.persistentCoT.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -5399,6 +5418,11 @@
           "command": "github.copilot.chat.checkoutPullRequestReroute",
           "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
@@ -6205,18 +6229,6 @@
           "group": "1_edit@4"
         }
       ],
-      "chatSessions/header/context": [
-        {
-          "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        },
-        {
-          "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
-          "group": "2_edit@4"
-        }
-      ],
       "chat/multiDiff/context": [
         {
           "command": "github.copilot.cloud.sessions.installPRExtension",
@@ -7002,7 +7014,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.57",
+    "@github/copilot": "^1.0.60",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
@@ -7032,7 +7044,6 @@
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
     "diff": "^8.0.3",
-    "dompurify": "^3.4.8",
     "express": "^5.2.1",
     "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.4",

@@ -213,6 +213,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.1', "Bribing the hamster"),
 	localize('chat.working.fun.2', "Reticulating splines"),
 	localize('chat.working.fun.3', "Untangling the spaghetti"),
+	localize('chat.working.fun.4', "Communing with the codebase"),
 
 	// Minecraft
 	localize('chat.working.fun.minecraft.1', "Mining diamonds"),
@@ -221,7 +222,7 @@ const funWorkingMessages = [
 	localize('chat.working.fun.ms.1', "Summoning Clippy"),
 ];
 
-const FUN_WORKING_MESSAGE_RATE = 100;
+const FUN_WORKING_MESSAGE_RATE = 50;
 
 type ThinkingPhrasesConfiguration = { mode?: 'replace' | 'append'; phrases?: string[] };
 

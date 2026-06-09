@@ -793,7 +793,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// open with hydrated state. Use the unmanaged accessor to peek
 		// without taking a fresh subscription, which would trigger a
 		// duplicate snapshot fetch and (in tests) unrelated mock behaviour.
-		const existingState = this._readEagerlyCreatedSessionState(resolvedSession);
+		const existingState = await this._readEagerlyCreatedSessionState(resolvedSession, cancellationToken);
 
 		if (!existingState) {
 			// Eager-create did not produce server-side state (e.g. no
@@ -842,14 +842,45 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * subscription (which would issue a duplicate snapshot fetch on the wire,
 	 * and in tests would synthesise placeholder state via the mock's auto-
 	 * hydration path).
+	 *
+	 * If the eager subscription exists but hasn't received its first snapshot
+	 * yet (creation in flight), waits for it to hydrate or error before
+	 * returning. This closes a race where the chat request arrives between
+	 * `createSession` resolving and the snapshot landing.
 	 */
-	private _readEagerlyCreatedSessionState(resolvedSession: URI): SessionState | undefined {
+	private async _readEagerlyCreatedSessionState(resolvedSession: URI, token: CancellationToken): Promise<SessionState | undefined> {
 		const sub = this._config.connection.getSubscriptionUnmanaged(StateComponents.Session, resolvedSession);
 		if (!sub) {
 			return undefined;
 		}
-		const value = sub.value;
-		return (value && !(value instanceof Error)) ? value : undefined;
+		if (sub.value !== undefined) {
+			return sub.value instanceof Error ? undefined : sub.value;
+		}
+
+		// Snapshot is in flight. Pin the subscription with a fresh
+		// refcount for the duration of the await so the eager holder
+		// releasing concurrently can't tear down the underlying emitter
+		// (which would leave `onDidChange` silent and hang the await).
+		const pinRef = this._config.connection.getSubscription(StateComponents.Session, resolvedSession, 'AgentHostSessionHandler');
+		try {
+			await new Promise<void>(resolve => {
+				const store = new DisposableStore();
+				const settle = () => {
+					store.dispose();
+					resolve();
+				};
+				store.add(pinRef.object.onDidChange(settle));
+				store.add(token.onCancellationRequested(settle));
+				if (pinRef.object.value !== undefined || token.isCancellationRequested) {
+					settle();
+				}
+			});
+			const value = pinRef.object.value;
+			this._logService.info(`[AgentHost] _readEagerlyCreatedSessionState: hydrated value=${value === undefined ? 'undefined' : value instanceof Error ? `error(${value.message})` : 'state'} cancelled=${token.isCancellationRequested} for ${resolvedSession.toString()}`);
+			return value instanceof Error ? undefined : value;
+		} finally {
+			pinRef.dispose();
+		}
 	}
 
 	// ---- Pending message sync -----------------------------------------------
@@ -1584,7 +1615,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, this._config.connectionAuthority);
 				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession);
-				updateRunningToolSpecificData(invocation, tc, this._config.connectionAuthority);
+				updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority);
 			}
 
 			if ((status === ToolCallStatus.Completed || status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(invocation)) {
@@ -2663,6 +2694,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/**
 	 * Extracts the raw model id from a language-model service identifier.
 	 * E.g. "agent-host-copilot:claude-sonnet-4-20250514" → "claude-sonnet-4-20250514".
+	 * Foreign extension-host identifiers (`${vendor}/${id}`) are dropped so
+	 * the agent host falls back to its default model.
 	 */
 	private _extractRawModelId(languageModelIdentifier: string | undefined): string | undefined {
 		if (!languageModelIdentifier) {
@@ -2671,6 +2704,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const prefix = this._config.sessionType + ':';
 		if (languageModelIdentifier.startsWith(prefix)) {
 			return languageModelIdentifier.substring(prefix.length);
+		}
+		if (languageModelIdentifier.includes('/')) {
+			this._logService.warn(`[AgentHost] Dropping foreign model identifier '${languageModelIdentifier}' for session type '${this._config.sessionType}'; falling back to default model.`);
+			return undefined;
 		}
 		return languageModelIdentifier;
 	}
@@ -2792,9 +2829,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
-		if (uri.scheme !== 'file') {
-			return undefined;
-		}
 		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
 		const attachment: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
 		if (_meta) {
@@ -2804,9 +2838,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
-		if (location.uri.scheme !== 'file') {
-			return undefined;
-		}
 		const attachmentUri = this._rebaseAttachmentUri(location.uri, sessionResource);
 		const attachment: MessageAttachment = {
 			type: MessageAttachmentKind.Resource,
@@ -2937,7 +2968,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref = undefined;
 		}
 		if (!ref) {
-			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri));
+			ref = this._config.connection.getSubscription(StateComponents.Session, URI.parse(sessionUri), 'AgentHostSessionHandler');
 			this._sessionSubscriptions.set(sessionUri, ref);
 		}
 		return ref.object;

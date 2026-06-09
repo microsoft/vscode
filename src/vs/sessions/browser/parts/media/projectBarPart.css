@@ -59,7 +59,7 @@
 	position: absolute;
 	inset: 6px;
 	border: 1px solid var(--vscode-focusBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	pointer-events: none;
 }
 
@@ -70,7 +70,7 @@
 	width: 24px;
 	height: 24px;
 	font-size: 16px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-activityBar-inactiveForeground);
 }
 
@@ -94,7 +94,7 @@
 	text-transform: uppercase;
 	background-color: var(--vscode-activityBar-inactiveForeground);
 	color: var(--vscode-activityBar-background);
-	border-radius: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-workbench .projectbar .action-item.workspace-entry:hover .action-label.workspace-icon {
@@ -134,7 +134,7 @@
 	width: 2px;
 	height: 24px;
 	background-color: transparent;
-	border-radius: 0 2px 2px 0;
+	border-radius: 0 var(--vscode-cornerRadius-xSmall) var(--vscode-cornerRadius-xSmall) 0;
 }
 
 .monaco-workbench .projectbar .action-item.workspace-entry.checked .active-item-indicator {
@@ -238,7 +238,7 @@
 	height: 16px;
 	line-height: 16px;
 	padding: 0 4px;
-	border-radius: 20px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 	text-align: center;
 }
 
@@ -250,7 +250,7 @@
 	top: 24px;
 	right: 6px;
 	padding: 2px 3px;
-	border-radius: 7px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-profileBadge-background);
 	color: var(--vscode-profileBadge-foreground);
 	border: 2px solid var(--vscode-activityBar-background);

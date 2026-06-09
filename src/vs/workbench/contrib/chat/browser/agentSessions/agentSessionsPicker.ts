@@ -23,7 +23,7 @@ interface ISessionPickItem extends IQuickPickItem {
 }
 
 export const archiveButton: IQuickInputButton = {
-	iconClass: ThemeIcon.asClassName(Codicon.archive),
+	iconClass: ThemeIcon.asClassName(Codicon.check),
 	tooltip: localize('archiveSession', "Archive")
 };
 

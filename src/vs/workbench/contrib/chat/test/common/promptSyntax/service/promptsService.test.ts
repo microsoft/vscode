@@ -20,7 +20,7 @@ import { IModelService } from '../../../../../../../editor/common/services/model
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -41,7 +41,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { IAgentDiscoveryResult, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -211,6 +211,29 @@ suite('PromptsService', () => {
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	suite('IAgentSource.isEquals', () => {
+		test('returns true for equivalent local sources', () => {
+			const left: IAgentSource = { storage: PromptsStorage.local };
+			const right: IAgentSource = { storage: PromptsStorage.local };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), true);
+		});
+
+		test('returns true for equivalent extension sources', () => {
+			const left: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('ms.vscode') };
+			const right: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('ms.vscode') };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), true);
+		});
+
+		test('returns false for different plugin source URIs', () => {
+			const left: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-a') };
+			const right: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-b') };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), false);
+		});
 	});
 
 	suite('parse', () => {

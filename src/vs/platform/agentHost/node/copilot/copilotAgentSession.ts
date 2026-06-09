@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExitPlanModeRequest, ExitPlanModeResult, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -29,12 +29,13 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import type { ICopilotPluginInfo, IExitPlanModeResponse } from './copilotAgent.js';
+import type { IExitPlanModeResponse } from './copilotAgent.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import type { CopilotSessionLaunchPlan, IActiveClientSnapshot, ICopilotSessionLauncher, ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
@@ -247,46 +248,14 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 }
 
 /**
- * Immutable snapshot of the active client's contributions at session creation
- * time. Used to detect when the session needs to be refreshed.
- */
-export interface IActiveClientSnapshot {
-	readonly clientId: string;
-	readonly tools: readonly ToolDefinition[];
-	readonly plugins: readonly ICopilotPluginInfo[];
-}
-
-/**
- * Factory function that produces a {@link CopilotSessionWrapper}.
- * Called by {@link CopilotAgentSession.initializeSession} with the
- * session's permission handler and edit-tracking hooks so the factory
- * can wire them into the SDK session it creates.
- *
- * In production, the factory calls `CopilotClient.createSession()` or
- * `resumeSession()`. In tests, it returns a mock wrapper directly.
- */
-export type SessionWrapperFactory = (callbacks: {
-	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
-	readonly onUserInputRequest: (request: UserInputRequest, invocation: { sessionId: string }) => Promise<UserInputResponse>;
-	readonly onElicitationRequest: (context: ElicitationContext) => Promise<ElicitationResult>;
-	readonly onExitPlanModeRequest: (request: ExitPlanModeRequest, invocation: { sessionId: string }) => Promise<ExitPlanModeResult>;
-	readonly requestUnsandboxedCommandConfirmation: (request: IUnsandboxedCommandConfirmationRequest) => Promise<boolean>;
-	readonly hooks: {
-		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
-	};
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	readonly clientTools: Tool<any>[];
-}) => Promise<CopilotSessionWrapper>;
-
-/**
  * Options for constructing a {@link CopilotAgentSession}.
  */
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly rawSessionId: string;
 	readonly onDidSessionProgress: Emitter<AgentSignal>;
-	readonly wrapperFactory: SessionWrapperFactory;
+	readonly sessionLauncher: ICopilotSessionLauncher;
+	readonly launchPlan: CopilotSessionLaunchPlan;
 	readonly shellManager: ShellManager | undefined;
 	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
 	readonly workingDirectory?: URI;
@@ -378,7 +347,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingEditContentUris = new Map<string, URI>();
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
-	private readonly _wrapperFactory: SessionWrapperFactory;
+	private readonly _sessionLauncher: ICopilotSessionLauncher;
+	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
@@ -409,7 +379,8 @@ export class CopilotAgentSession extends Disposable {
 		this.sessionId = options.rawSessionId;
 		this.sessionUri = options.sessionUri;
 		this._onDidSessionProgress = options.onDidSessionProgress;
-		this._wrapperFactory = options.wrapperFactory;
+		this._sessionLauncher = options.sessionLauncher;
+		this._launchPlan = options.launchPlan;
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
@@ -701,7 +672,7 @@ export class CopilotAgentSession extends Disposable {
 	 * for the client to dispatch `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	createClientSdkTools(): Tool<any>[] {
+	private _createClientSdkTools(): Tool<any>[] {
 		const tools = this._appliedSnapshot.tools;
 		if (tools.length === 0) {
 			return [];
@@ -765,25 +736,14 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Creates (or resumes) the SDK session via the injected factory and
+	 * Creates (or resumes) the SDK session via the injected launcher and
 	 * wires up all event listeners. Must be called exactly once after
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		const wrapper = await this._wrapperFactory({
-			onPermissionRequest: request => this.handlePermissionRequest(request),
-			onExitPlanModeRequest: (request, invocation) => this.handleExitPlanModeRequest(request, invocation),
-			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
-			onElicitationRequest: context => this.handleElicitationRequest(context),
-			requestUnsandboxedCommandConfirmation: request => this.requestUnsandboxedCommandConfirmation(request),
-			clientTools: this.createClientSdkTools(),
-			hooks: {
-				onPreToolUse: input => this._handlePreToolUse(input),
-				onPostToolUse: input => this._handlePostToolUse(input),
-			},
-		});
+		const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
 		// The session may have been disposed while we were awaiting the
-		// wrapper factory. If so, dispose the freshly-created wrapper and
+		// launcher. If so, dispose the freshly-created wrapper and
 		// skip subscribing — registering on a disposed store would leak.
 		if (this._store.isDisposed) {
 			wrapper.dispose();
@@ -792,6 +752,19 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
+	}
+
+	private _createRuntimeAdapter(): ICopilotSessionRuntime {
+		return {
+			handlePermissionRequest: request => this._handlePermissionRequest(request),
+			handleExitPlanModeRequest: (request, invocation) => this._handleExitPlanModeRequest(request, invocation),
+			handleUserInputRequest: (request, invocation) => this._handleUserInputRequest(request, invocation),
+			handleElicitationRequest: context => this._handleElicitationRequest(context),
+			requestUnsandboxedCommandConfirmation: request => this._requestUnsandboxedCommandConfirmation(request),
+			createClientSdkTools: () => this._createClientSdkTools(),
+			handlePreToolUse: input => this._handlePreToolUse(input),
+			handlePostToolUse: input => this._handlePostToolUse(input),
+		};
 	}
 
 	// ---- session operations -------------------------------------------------
@@ -810,6 +783,11 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
+			// `/compact` is handled inline via the history RPC rather than by
+			// driving an SDK turn, so the SDK never fires `onIdle` to close the
+			// turn. Complete the turn here so the session returns to idle
+			// instead of spinning forever.
+			this._completeActiveTurn();
 			return;
 		}
 		if (slashCommand?.command === 'research') {
@@ -1032,7 +1010,7 @@ export class CopilotAgentSession extends Disposable {
 	 * (which transitions the tool to PendingConfirmation) and waiting for the
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
 	 */
-	async handlePermissionRequest(
+	private async _handlePermissionRequest(
 		request: ITypedPermissionRequest,
 	): Promise<PermissionRequestResult> {
 		this._logService.info(`[Copilot:${this.sessionId}] Permission request: kind=${request.kind}`);
@@ -1191,14 +1169,15 @@ export class CopilotAgentSession extends Disposable {
 	 * SDK's pre-call permission prompt is redundant in that case.
 	 *
 	 * Returns false when shell tools are not registered (the SDK's built-in
-	 * terminal runs unsandboxed via `AgentHostConfigKey.DisableCustomTerminalTool`)
+	 * terminal runs unsandboxed unless `AgentHostConfigKey.EnableCustomTerminalTool`
+	 * is set)
 	 * so the standard confirmation flow is preserved.
 	 */
 	private async _isShellSandboxedByDefault(): Promise<boolean> {
 		if (!this._shellManager) {
 			return false;
 		}
-		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.DisableCustomTerminalTool) === true) {
+		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) !== true) {
 			return false;
 		}
 		return this._shellManager.getOrCreateSandboxEngine().isEnabled();
@@ -1277,7 +1256,7 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
-	async requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
+	private async _requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean> {
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(request.toolCallId, deferred);
 
@@ -1323,7 +1302,7 @@ export class CopilotAgentSession extends Disposable {
 	 * `user_input_request` progress event and waiting for the renderer to
 	 * respond via {@link respondToUserInputRequest}.
 	 */
-	async handleUserInputRequest(
+	private async _handleUserInputRequest(
 		request: UserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<UserInputResponse> {
@@ -1414,7 +1393,7 @@ export class CopilotAgentSession extends Disposable {
 	 * available to fill in a form, and accepting with empty content would
 	 * be misleading to the MCP server.
 	 */
-	async handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
 		const isAutopilot = this._configurationService.getEffectiveValue(this.sessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autopilot';
 		if (isAutopilot) {
 			return { action: 'cancel' };
@@ -2029,7 +2008,7 @@ export class CopilotAgentSession extends Disposable {
 	 * paused `exit_plan_mode` tool call and (on accept) updates the SDK's
 	 * `currentMode` so the model can continue with implementation.
 	 */
-	async handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
+	private async _handleExitPlanModeRequest(data: ExitPlanModeRequest, _invocation: { sessionId: string }): Promise<IExitPlanModeResponse> {
 		const requestId = generateUuid();
 		const questionId = generateUuid();
 		this._logService.info(`[Copilot:${this.sessionId}] exitPlanMode.request: rpcId=${requestId}, actions=[${data.actions.join(',')}], recommended=${data.recommendedAction}`);
