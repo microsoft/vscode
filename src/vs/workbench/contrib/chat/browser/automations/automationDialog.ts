@@ -383,6 +383,63 @@ function renderForm(
 		nameError.textContent = validation.nameError ?? '';
 	}));
 
+	// --- Schedule (interval + inline time + inline day) ---
+	// All three controls live on the same horizontal axis. The interval
+	// select is narrow (matching the folder chip's footprint); the time
+	// fields appear inline to the right when the interval is daily or
+	// weekly, and the day-of-week select joins the row only for weekly.
+	// We use flex-wrap so very narrow viewports drop overflowing groups
+	// onto the next line instead of overflowing the dialog.
+	const scheduleRow = DOM.append(form, $('.automation-form-row.automation-form-schedule-row'));
+
+	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
+	DOM.append(intervalGroup, $('label.automation-form-label', { for: 'automation-interval' }, localize('automation.form.interval', "Schedule")));
+	const intervalSelect = DOM.append(intervalGroup, $('select.automation-form-select.automation-form-schedule-select', { id: 'automation-interval' })) as HTMLSelectElement;
+	for (const item of INTERVALS) {
+		const optEl = DOM.append(intervalSelect, $('option', { value: item.value }, item.label)) as HTMLOptionElement;
+		if (item.value === state.interval) {
+			optEl.selected = true;
+		}
+	}
+
+	const timeGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-time-group'));
+	DOM.append(timeGroup, $('label.automation-form-label', undefined, localize('automation.form.time', "Time")));
+	const timeFields = DOM.append(timeGroup, $('.automation-form-time-fields'));
+	const hourInput = DOM.append(timeFields, $('input.automation-form-input.automation-form-time-input', { type: 'number', min: '0', max: '23', value: String(state.hour), 'aria-label': localize('automation.form.hour', "Hour (0 to 23)") })) as HTMLInputElement;
+	DOM.append(timeFields, $('span.automation-form-time-sep', undefined, ':'));
+	const minuteInput = DOM.append(timeFields, $('input.automation-form-input.automation-form-time-input', { type: 'number', min: '0', max: '59', value: String(state.minute), 'aria-label': localize('automation.form.minute', "Minute (0 to 59)") })) as HTMLInputElement;
+	disposables.add(DOM.addStandardDisposableListener(hourInput, 'input', () => {
+		state.hour = clampInt(hourInput.value, 0, 23, state.hour);
+	}));
+	disposables.add(DOM.addStandardDisposableListener(minuteInput, 'input', () => {
+		state.minute = clampInt(minuteInput.value, 0, 59, state.minute);
+	}));
+
+	const dayGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-day-group'));
+	DOM.append(dayGroup, $('label.automation-form-label', { for: 'automation-day' }, localize('automation.form.day', "Day of week")));
+	const daySelect = DOM.append(dayGroup, $('select.automation-form-select.automation-form-schedule-select', { id: 'automation-day' })) as HTMLSelectElement;
+	for (let i = 0; i < DAYS_OF_WEEK.length; i++) {
+		const opt = DOM.append(daySelect, $('option', { value: String(i) }, DAYS_OF_WEEK[i])) as HTMLOptionElement;
+		if (i === state.day) {
+			opt.selected = true;
+		}
+	}
+	disposables.add(DOM.addStandardDisposableListener(daySelect, 'change', () => {
+		state.day = clampInt(daySelect.value, 0, 6, state.day);
+	}));
+
+	const applyIntervalVisibility = () => {
+		const showTime = state.interval === 'daily' || state.interval === 'weekly';
+		const showDay = state.interval === 'weekly';
+		timeGroup.style.display = showTime ? '' : 'none';
+		dayGroup.style.display = showDay ? '' : 'none';
+	};
+	applyIntervalVisibility();
+	disposables.add(DOM.addStandardDisposableListener(intervalSelect, 'change', () => {
+		state.interval = (intervalSelect.value as AutomationInterval);
+		applyIntervalVisibility();
+	}));
+
 	// --- Folder (required) ---
 	// Rendered as a chat-input style chip and placed above the prompt so
 	// changing the folder updates the session-type / mode pickers in the
@@ -406,6 +463,13 @@ function renderForm(
 	// re-renders of the chip and the quick pick.
 	const browsedFolders: URI[] = [];
 
+	// All folder-chip elements (the dedicated form row chip plus the
+	// pragmatic toolbar-style chip rendered above the chat input below)
+	// re-render through this list whenever the selected folder changes.
+	// Initially populated with the form-row chip's renderer; the prompt
+	// section adds the toolbar chip's renderer once `promptHost` exists.
+	const folderChipRefreshers: Array<() => void> = [];
+
 	const renderChipLabel = () => {
 		DOM.clearNode(folderChip);
 		const labelText = state.folderUri
@@ -421,6 +485,7 @@ function renderForm(
 			: localize('automation.form.folderTitleEmpty', "Select a workspace folder for this automation.");
 		folderChip.setAttribute('aria-label', folderChip.title);
 	};
+	folderChipRefreshers.push(renderChipLabel);
 	renderChipLabel();
 
 	const setFolder = (uri: URI | undefined) => {
@@ -429,7 +494,9 @@ function renderForm(
 		// folder's available list. Fires the binder's emitter so the
 		// chat input refreshes its option-group pickers.
 		sessionTypeBinder.setFolder(uri);
-		renderChipLabel();
+		for (const refresh of folderChipRefreshers) {
+			refresh();
+		}
 		revalidate();
 		folderError.textContent = validation.folderError ?? '';
 	};
@@ -537,6 +604,41 @@ function renderForm(
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const promptError = DOM.append(promptRow, $('.automation-form-error'));
+
+	// Pragmatic "folder chip in the chat input toolbar" approximation:
+	// render a chat-style chip immediately above the chat input box so
+	// it visually flows with the chip row at the bottom of the composer.
+	// Truly hosting the chip *inside* the chat input toolbar would
+	// require registering a global MenuId.ChatInput action and adding
+	// custom action-view-item handling inside ChatInputPart — too much
+	// surface area for a feature only this dialog uses.
+	//
+	// The chip mirrors the form-row folder picker's state via
+	// {@link folderChipRefreshers}; clicking either opens the same
+	// quick pick.
+	const toolbarChipRow = DOM.append(promptHost, $('.automation-toolbar-chip-row'));
+	const toolbarFolderChip = DOM.append(toolbarChipRow, $('button.automation-folder-chip.chat-input-picker-item', { type: 'button' })) as HTMLButtonElement;
+	toolbarFolderChip.setAttribute('aria-haspopup', 'listbox');
+	const renderToolbarFolderChip = () => {
+		DOM.clearNode(toolbarFolderChip);
+		const labelText = state.folderUri
+			? basenameOrUri(state.folderUri)
+			: localize('automation.form.folderPlaceholder', "Select folder…");
+		toolbarFolderChip.append(
+			...renderLabelWithIcons(`$(${Codicon.folder.id})`),
+			$('span.chat-input-picker-label', undefined, labelText),
+			...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`),
+		);
+		toolbarFolderChip.title = state.folderUri
+			? localize('automation.form.folderTitle', "Workspace folder: {0}", state.folderUri.fsPath ?? state.folderUri.toString())
+			: localize('automation.form.folderTitleEmpty', "Select a workspace folder for this automation.");
+		toolbarFolderChip.setAttribute('aria-label', toolbarFolderChip.title);
+	};
+	folderChipRefreshers.push(renderToolbarFolderChip);
+	renderToolbarFolderChip();
+	disposables.add(DOM.addStandardDisposableListener(toolbarFolderChip, 'click', () => {
+		openFolderPicker();
+	}));
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -705,57 +807,6 @@ function renderForm(
 		}
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
-
-	// --- Interval ---
-	const intervalRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(intervalRow, $('label.automation-form-label', { for: 'automation-interval' }, localize('automation.form.interval', "Schedule")));
-	const intervalSelect = DOM.append(intervalRow, $('select.automation-form-select', { id: 'automation-interval' })) as HTMLSelectElement;
-	for (const item of INTERVALS) {
-		const optEl = DOM.append(intervalSelect, $('option', { value: item.value }, item.label)) as HTMLOptionElement;
-		if (item.value === state.interval) {
-			optEl.selected = true;
-		}
-	}
-
-	// --- Time row (hour/minute, conditional) ---
-	const timeRow = DOM.append(form, $('.automation-form-row.automation-form-time-row'));
-	DOM.append(timeRow, $('label.automation-form-label', undefined, localize('automation.form.time', "Time")));
-	const timeFields = DOM.append(timeRow, $('.automation-form-time-fields'));
-	const hourInput = DOM.append(timeFields, $('input.automation-form-input.automation-form-time-input', { type: 'number', min: '0', max: '23', value: String(state.hour), 'aria-label': localize('automation.form.hour', "Hour (0 to 23)") })) as HTMLInputElement;
-	DOM.append(timeFields, $('span.automation-form-time-sep', undefined, ':'));
-	const minuteInput = DOM.append(timeFields, $('input.automation-form-input.automation-form-time-input', { type: 'number', min: '0', max: '59', value: String(state.minute), 'aria-label': localize('automation.form.minute', "Minute (0 to 59)") })) as HTMLInputElement;
-	disposables.add(DOM.addStandardDisposableListener(hourInput, 'input', () => {
-		state.hour = clampInt(hourInput.value, 0, 23, state.hour);
-	}));
-	disposables.add(DOM.addStandardDisposableListener(minuteInput, 'input', () => {
-		state.minute = clampInt(minuteInput.value, 0, 59, state.minute);
-	}));
-
-	// --- Day-of-week (weekly only) ---
-	const dayRow = DOM.append(form, $('.automation-form-row.automation-form-day-row'));
-	DOM.append(dayRow, $('label.automation-form-label', { for: 'automation-day' }, localize('automation.form.day', "Day of week")));
-	const daySelect = DOM.append(dayRow, $('select.automation-form-select', { id: 'automation-day' })) as HTMLSelectElement;
-	for (let i = 0; i < DAYS_OF_WEEK.length; i++) {
-		const opt = DOM.append(daySelect, $('option', { value: String(i) }, DAYS_OF_WEEK[i])) as HTMLOptionElement;
-		if (i === state.day) {
-			opt.selected = true;
-		}
-	}
-	disposables.add(DOM.addStandardDisposableListener(daySelect, 'change', () => {
-		state.day = clampInt(daySelect.value, 0, 6, state.day);
-	}));
-
-	const applyIntervalVisibility = () => {
-		const showTime = state.interval === 'daily' || state.interval === 'weekly';
-		const showDay = state.interval === 'weekly';
-		timeRow.style.display = showTime ? '' : 'none';
-		dayRow.style.display = showDay ? '' : 'none';
-	};
-	applyIntervalVisibility();
-	disposables.add(DOM.addStandardDisposableListener(intervalSelect, 'change', () => {
-		state.interval = (intervalSelect.value as AutomationInterval);
-		applyIntervalVisibility();
-	}));
 
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
