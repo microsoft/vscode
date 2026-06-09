@@ -7,6 +7,7 @@ import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
+import { validateCodiconFontSizes } from './lib/stylelint/validateDesignTokens.ts';
 
 interface FileWithLines {
 	__lines?: string[];
@@ -46,6 +47,13 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 				errorCount++;
 			}
 		});
+
+		// Design-token checks that need block (selector + declaration) awareness.
+		// Codicon size findings are advisory: always reported as warnings so they
+		// surface during development without failing the build.
+		for (const violation of validateCodiconFontSizes(file.contents.toString('utf8'))) {
+			reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
+		}
 
 		this.emit('data', file);
 	}, function () {
