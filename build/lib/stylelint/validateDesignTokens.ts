@@ -349,3 +349,132 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 
 	return violations;
 }
+
+// ---------------------------------------------------------------------------
+// Spacing scale adherence (sessions design-system area only)
+// ---------------------------------------------------------------------------
+//
+// `padding`, `margin` and `gap` use a fixed scale. Adopting the `var()` token is
+// NOT required - a raw px value is fine as long as it lands ON the scale. What
+// breaks visual rhythm is an OFF-scale value (3/5/7/14px etc.), so this only
+// flags lengths that are neither `0` nor an exact ramp value, and suggests the
+// nearest ramp px. Values are often shorthands (`padding: 5px 8px`); each length
+// is checked independently. `0`/`0px`, `auto`, `%`, `em`/`rem`, and any
+// var()/calc() expression are left untouched.
+
+const RE_SPACING_PROP = /(?:^|[\s;])(padding|margin|gap|row-gap|column-gap)(?:-(?:top|right|bottom|left))?\s*:\s*([^;{}]+)/i;
+
+/** Spacing scale in px, ascending. */
+const SPACING_SCALE: readonly number[] = [2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40];
+
+/** Snaps an off-scale spacing px to the nearest ramp value (ties round up). */
+function snapSpacing(px: number): number {
+	let best = SPACING_SCALE[0];
+	let bestDistance = Math.abs(best - px);
+	for (const value of SPACING_SCALE) {
+		const distance = Math.abs(value - px);
+		if (distance <= bestDistance) {
+			best = value;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+
+/**
+ * Finds `padding`/`margin`/`gap` lengths that are off the spacing scale and
+ * suggests the nearest on-scale px value. On-scale literals are accepted as-is
+ * (token adoption is optional). `0`, `auto`, `%`, `em`/`rem`, var()/calc() are
+ * ignored. Returns one finding per declaration that contains an off-scale value.
+ */
+export function validateSpacingTokens(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+	const scale = new Set(SPACING_SCALE);
+
+	forEachDeclaration(text, (line, _selector, declaration) => {
+		const decl = RE_SPACING_PROP.exec(declaration);
+		if (!decl) {
+			return;
+		}
+		const value = decl[2].trim();
+		if (/var\(|calc\(|auto|%|\b\d+(?:\.\d+)?(?:r?em|vh|vw|ch|fr)\b/i.test(value)) {
+			return;
+		}
+		const parts = value.split(/\s+/);
+		const snapped: string[] = [];
+		let hasOffScale = false;
+		let ok = true;
+		for (const part of parts) {
+			if (part === '0' || part === '0px') {
+				snapped.push(part);
+				continue;
+			}
+			const pxMatch = /^(\d+(?:\.\d+)?)px$/i.exec(part);
+			if (!pxMatch) {
+				ok = false;
+				break;
+			}
+			const px = parseFloat(pxMatch[1]);
+			if (scale.has(px)) {
+				snapped.push(part);
+				continue;
+			}
+			hasOffScale = true;
+			snapped.push(`${snapSpacing(px)}px`);
+		}
+		if (!ok || !hasOffScale) {
+			return;
+		}
+		violations.push({
+			line,
+			isNearMiss: true,
+			message: `${value} is off the spacing scale -> nearest: ${snapped.join(' ')}`
+		});
+	});
+
+	return violations;
+}
+
+// ---------------------------------------------------------------------------
+// Stroke (border / outline width) token suggestions (sessions area only)
+// ---------------------------------------------------------------------------
+//
+// The design system has a single stroke thickness: 1px. Any border/outline
+// width of exactly 1px should use `var(--vscode-strokeThickness)`. The width is
+// the first px length in the value (handles the `border: 1px solid <color>`
+// shorthand as well as `border-width: 1px`). Other widths have no token and are
+// left alone. `border-radius` is intentionally not matched. Declarations whose
+// width already uses a var()/calc() expression are skipped.
+
+const RE_STROKE_PROP = /(?:^|[\s;])(border(?:-(?:top|right|bottom|left))?(?:-width)?|outline(?:-width)?)\s*:\s*([^;{}]+)/i;
+
+/**
+ * Finds `border`/`outline` declarations whose width is exactly `1px` and
+ * suggests `var(--vscode-strokeThickness)`. Returns one finding per occurrence.
+ */
+export function validateStrokeTokens(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+
+	forEachDeclaration(text, (line, _selector, declaration) => {
+		const decl = RE_STROKE_PROP.exec(declaration);
+		if (!decl) {
+			return;
+		}
+		const value = decl[2];
+		// Skip when the width is already tokenised or computed.
+		if (/var\(|calc\(/i.test(value)) {
+			return;
+		}
+		const pxMatch = RE_FIRST_PX.exec(value);
+		if (!pxMatch || parseFloat(pxMatch[1]) !== 1) {
+			return;
+		}
+		violations.push({
+			line,
+			isNearMiss: false,
+			message: `${decl[1].trim()}: ${value.trim()} -> use var(--vscode-strokeThickness) for the 1px width`
+		});
+	});
+
+	return violations;
+}

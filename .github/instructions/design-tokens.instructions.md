@@ -40,13 +40,18 @@ The numeric token name is the value in tenths of a px (`size200` = 20px).
 | 40 | `--vscode-spacing-size400` |
 
 ```css
-/* avoid */            padding: 8px 12px;
-/* prefer */           padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+/* token   */          padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+/* also ok */          padding: 8px 12px;   /* on-scale raw px is fine */
+/* avoid   */          padding: 5px 7px;    /* off-scale - breaks rhythm */
 ```
 
-Off-ramp values (e.g. 14px) have no token — leave them as-is rather than
-forcing a mismatched token, or round to the nearest ramp value only if the
-design intent allows.
+**What matters is the value, not the token.** Adopting the `var()` is optional —
+a raw px value is fine **as long as it lands on the scale** (0, 2, 4, 6, 8, 10,
+12, 16, 20, 24, 28, 32, 36, 40). What breaks visual rhythm is an **off-scale**
+value (3, 5, 7, 14, 26px…). Snap those to the nearest scale value (ties round
+**up**), e.g. `5px → 6px`, `3px → 4px`, `1px → 2px`, `26px → 28px`. Each length
+of a shorthand is checked independently (`0 5px → 0 6px`). `auto`, `%`,
+`em`/`rem`, and any `var()`/`calc()` expression are left untouched.
 
 ## Corner radius — `border-radius`
 
@@ -145,6 +150,17 @@ plus) have no compact variant — keep the regular glyph at the compact size.
 
 ## Stroke — border width
 
+The design system has a **single** stroke thickness: 1px. Any `border`/`outline`
+width of 1px should use the token.
+
 | px | Variable |
 |----|----------|
 | 1  | `--vscode-strokeThickness` |
+
+```css
+/* prefer */           border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+/* avoid  */           border: 1px solid var(--vscode-widget-border);
+```
+
+Applies to the `border: 1px solid <color>` shorthand and `border-width: 1px`.
+Other widths have no token — leave them as-is.
