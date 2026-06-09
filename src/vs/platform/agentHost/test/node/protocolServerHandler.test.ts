@@ -1079,6 +1079,107 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('client tool call stamped for a never-connected client fails after the grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			// Tool call stamped for a clientId that never connected (e.g. a
+			// stale stamp from a long-dead window). No disconnect event ever
+			// fires for it; the issuance-time orphan check must arm the timeout.
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'ghost-client' },
+			});
+
+			let part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client ghost-client disconnected before completing Run Task',
+			});
+		});
+	});
+
+	test('client tool call stamped with an empty clientId fails after the grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			// A client tool issued while no client was connected is stamped as
+			// a Client contributor with an empty id (Copilot orphan path).
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: '' },
+			});
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual(part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+			} : undefined, {
+				status: ToolCallStatus.Completed,
+				success: false,
+			});
+		});
+	});
+
+	test('orphaned client tool call timeout is cleared when the owning client connects within the window', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run it', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'late-client' },
+			});
+
+			// The owning client connects (and subscribes) within the grace
+			// window — the subscribe path clears the armed timeout.
+			connectClient('late-client', [sessionUri]);
+
+			await new Promise(r => setTimeout(r, 30_001));
+
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined, ToolCallStatus.Streaming);
+		});
+	});
+
 	test('handshake includes defaultDirectory from side effects', () => {
 		const transport = connectClient('client-home');
 
