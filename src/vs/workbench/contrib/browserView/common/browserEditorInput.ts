@@ -158,11 +158,6 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	navigate(url: string, options?: INavigateOptions): void {
-		// `navigate` is a pure "load this URL" entry point: callers (the URL bar,
-		// favorites, history, tab restore) pass an already-resolved destination.
-		// Address bar search routing (query → search-engine URL) happens in the
-		// nav bar before calling here. `options.source` is forwarded purely for
-		// telemetry so a search-initiated navigation is tracked as such.
 		const destination = url.trim();
 		if (this._model) {
 			void this._model.loadURL(destination, options);

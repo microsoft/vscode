@@ -104,7 +104,7 @@ class BrowserNavigationBar extends Disposable {
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
 			getPlaceholder: () => this._searchEngine
-				? localize('browser.urlOrSearchPlaceholder', "Search or enter a URL")
+				? localize({ key: 'browser.urlOrSearchPlaceholder', comment: ['Placeholder text shown in the integrated browser\'s address (URL) bar when it is empty. The user can either type a search query to search the web, or type a URL to navigate to it.'] }, "Search or enter URL")
 				: localize('browser.urlPlaceholder', "Enter a URL"),
 		};
 		this._urlBar = this._register(instantiationService.createInstance(BrowserUrlBarWidget, urlBarHost));

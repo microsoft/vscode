@@ -90,8 +90,8 @@ type IntegratedBrowserNavigationEvent = {
 };
 
 /**
- * Telemetry source for an address-bar-initiated navigation: whether the user
- * typed a URL or ran a web search. Defaults to `'urlInput'` when omitted.
+ * To be used in telemetry, this is the  source for an address-bar-initiated navigation:
+ * whether the user typed a URL or ran a web search. Defaults to `'urlInput'` when omitted.
  */
 export type BrowserNavigationSource = 'urlInput' | 'searchInput';
 
@@ -101,7 +101,7 @@ export type BrowserNavigationSource = 'urlInput' | 'searchInput';
  */
 export interface INavigateOptions {
 	/**
-	 * Telemetry source of the navigation. Defaults to `'urlInput'` when omitted.
+	 * Source of the navigation, for telemetry purposes. Defaults to `'urlInput'` when omitted.
 	 */
 	readonly source?: BrowserNavigationSource;
 }
