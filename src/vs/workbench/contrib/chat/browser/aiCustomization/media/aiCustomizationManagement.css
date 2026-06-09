@@ -2027,18 +2027,24 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 /*
- * Hide the "Configure Tools" chip from the embedded chat input. The
- * action (`workbench.action.chat.configureTools`) is registered into
- * MenuId.ChatInput with the `Codicon.settings` icon (class
- * `.codicon-settings`); other chips in this toolbar use either custom
- * action view items (Model/Mode pickers) or different codicons
- * (`.codicon-add` for attach context), so `.action-label.codicon-settings`
- * is a unique selector for the chip we want to remove. We hide it via
- * CSS instead of through a context-key gate because the natural gate
+ * Hide chips from the embedded chat input that don't fit the automation
+ * dialog's reduced surface:
+ *  - "Configure Tools" (`workbench.action.chat.configureTools`,
+ *    `.codicon-settings`) — tool selection is not relevant for a
+ *    scheduled prompt.
+ *  - "Attach context" (`workbench.action.chat.attachContext`,
+ *    `.codicon-add`, the `+`) — the dialog doesn't support attachments;
+ *    the prompt is the only payload sent at run time.
+ * Other chips in this toolbar use either custom action view items
+ * (Model / Mode / Session pickers) or different codicons, so codicon
+ * selectors are unique to the chips we want to remove. CSS-hiding is
+ * preferred over context-key gating because the natural gate
  * (`ChatContextKeys.lockedToCodingAgent`) also hides several unrelated
- * chips (attach, fork, model, mode) that we want to keep visible.
+ * chips we want to keep visible. Hiding the `.action-item` (not just the
+ * `.action-label`) removes the slot from keyboard tab order too.
  */
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(> .action-label.codicon-settings) {
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(> .action-label.codicon-settings),
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(> .action-label.codicon-add) {
 	display: none;
 }
 
@@ -2057,9 +2063,45 @@ body:has(.automation-dialog) .monaco-menu-container {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 }
 
-.automation-form-row.automation-form-time-row,
-.automation-form-row.automation-form-day-row {
+/*
+ * Lay the Schedule / Time / Day controls along a single horizontal axis.
+ * Each control lives in its own `.automation-form-schedule-group`
+ * (label-above-control flex column). Time and Day join the row only
+ * when the interval is daily or weekly; flex-wrap keeps the layout
+ * stable if a translation pushes the row past the dialog width.
+ */
+.automation-form-row.automation-form-schedule-row {
+	flex-direction: row;
+	align-items: flex-end;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+
+.automation-form-schedule-group {
+	display: flex;
 	flex-direction: column;
+	gap: 4px;
+}
+
+/* Narrow select so Schedule + Time + Day fit on one line for typical
+ * intervals. Matches the visual footprint of the folder picker chip. */
+.automation-form-schedule-select {
+	width: 160px;
+	min-width: 0;
+}
+
+/*
+ * Row that hosts the pragmatic folder chip immediately above the
+ * embedded chat input box. Right-aligned and gapped so the chip floats
+ * next to where the chat input's chip row appears, suggesting a
+ * continuation of that row.
+ */
+.automation-toolbar-chip-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	padding: 0 0 4px;
 }
 
 .automation-form-label {
