@@ -317,24 +317,22 @@ export class PackageJSONContribution implements IJSONContribution {
 				commandPath = `"${npmCommandPath}"`;
 			}
 			cp.execFile(commandPath, args, options, (error, stdout) => {
-				resolve(error ? undefined : stdout);
+				resolve(error ? undefined : stdout.toString());
 			});
 		});
 	}
 
 	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
-		// Request @latest to avoid fetching publish timestamps for all versions in the time field.
-		const args = ['view', '--json', '--', `${pack}@latest`, 'description', 'homepage', 'version', 'time'];
-
+		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
 		if (stdout) {
 			try {
 				const content = JSON.parse(stdout);
-				const version = content['version'];
+				const version = content['dist-tags.latest'] || content['version'];
 				return {
 					description: content['description'],
-					version: content['version'],
-					time: version ? content['time']?.[version] : undefined,
+					version,
+					time: content.time?.[version],
 					homepage: content['homepage']
 				};
 			} catch (e) {

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
+import { buildOptions, buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
+import type { IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
 
 suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
@@ -75,5 +77,53 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 		const env = buildSubprocessEnv();
 
 		assert.strictEqual(env.ELECTRON_RUN_AS_NODE, '1');
+	});
+});
+
+suite('claudeSdkOptions / buildOptions plugins projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const proxyHandle: IClaudeProxyHandle = {
+		baseUrl: 'http://127.0.0.1:0',
+		nonce: 'n',
+		dispose: () => { },
+	};
+
+	function input(plugins: readonly URI[] | undefined) {
+		return {
+			sessionId: 's1',
+			workingDirectory: URI.file('/tmp/x'),
+			model: undefined,
+			abortController: new AbortController(),
+			permissionMode: 'default' as const,
+			canUseTool: async () => ({ behavior: 'allow' as const, updatedInput: {} }),
+			isResume: false,
+			mcpServers: undefined,
+			...(plugins !== undefined ? { plugins } : {}),
+		};
+	}
+
+	test('non-empty plugins project to Options.plugins as local entries', async () => {
+		const opts = await buildOptions(
+			input([URI.file('/p/a'), URI.file('/p/b')]),
+			proxyHandle,
+			() => { },
+			() => { },
+		);
+		assert.deepStrictEqual(opts.plugins, [
+			{ type: 'local', path: URI.file('/p/a').fsPath },
+			{ type: 'local', path: URI.file('/p/b').fsPath },
+		]);
+	});
+
+	test('empty plugins array omits Options.plugins', async () => {
+		const opts = await buildOptions(input([]), proxyHandle, () => { }, () => { });
+		assert.strictEqual(opts.plugins, undefined);
+	});
+
+	test('undefined plugins omits Options.plugins', async () => {
+		const opts = await buildOptions(input(undefined), proxyHandle, () => { }, () => { });
+		assert.strictEqual(opts.plugins, undefined);
 	});
 });

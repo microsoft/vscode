@@ -25,7 +25,7 @@ const blockMarkdownSyntax = /(^|\n)\s{0,3}(?:#{1,6}\s|>\s?|[-+]\s|\d+[.)]\s|---+
 
 function renderPlainTextMarkdown(markdown: IMarkdownString, outElement?: HTMLElement): IRenderedMarkdown | undefined {
 	const value = markdown.value;
-	if (!value || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || blockMarkdownSyntax.test(value)) {
+	if (!value || value.includes('\n') || nonPlainTextMarkdownSyntax.test(value) || gfmAutolink.test(value) || blockMarkdownSyntax.test(value)) {
 		return undefined;
 	}
 

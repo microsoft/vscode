@@ -123,39 +123,47 @@ suite('AgentHostAuthTokenCache', () => {
 
 	test('first token for a resource is reported as changed', () => {
 		const cache = new AgentHostAuthTokenCache();
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), true);
 	});
 
 	test('repeating the same token for the same resource is reported as unchanged', () => {
 		const cache = new AgentHostAuthTokenCache();
-		cache.updateAndIsChanged('https://api.example.com', 'tok1');
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), false);
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), false);
+		cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1');
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), false);
 	});
 
 	test('a different token for the same resource is reported as changed', () => {
 		const cache = new AgentHostAuthTokenCache();
-		cache.updateAndIsChanged('https://api.example.com', 'tok1');
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok2'), true);
+		cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1');
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok2'), true);
 		// And the new token is now the cached one.
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok2'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok2'), false);
+	});
+
+	test('tokens for distinct scopes are tracked independently', () => {
+		const cache = new AgentHostAuthTokenCache();
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'read-token'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['write'], 'write-token'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'read-token'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['write'], 'write-token'), false);
 	});
 
 	test('tokens for distinct resources are tracked independently', () => {
 		const cache = new AgentHostAuthTokenCache();
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), true);
-		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', 'tok1'), true);
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), false);
-		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', 'tok1'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', ['read'], 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), false);
+		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', ['read'], 'tok1'), false);
 	});
 
 	test('clear forgets every cached token', () => {
 		const cache = new AgentHostAuthTokenCache();
-		cache.updateAndIsChanged('https://api.example.com', 'tok1');
-		cache.updateAndIsChanged('https://other.example.com', 'tok2');
+		cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1');
+		cache.updateAndIsChanged('https://other.example.com', ['read'], 'tok2');
 		cache.clear();
-		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', 'tok1'), true);
-		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', 'tok2'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://api.example.com', ['read'], 'tok1'), true);
+		assert.strictEqual(cache.updateAndIsChanged('https://other.example.com', ['read'], 'tok2'), true);
 	});
 });
 
@@ -182,7 +190,7 @@ suite('authenticateProtectedResources', () => {
 			},
 		});
 		const cache = new AgentHostAuthTokenCache();
-		const requests: { resource: string; token: string }[] = [];
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
 		const agents = [{ protectedResources: [protectedResource] }] as unknown as readonly AgentInfo[];
 
 		await authenticateProtectedResources(agents, {
@@ -204,7 +212,7 @@ suite('authenticateProtectedResources', () => {
 			},
 		});
 
-		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, token: 'cached-token' }]);
+		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'cached-token' }]);
 	});
 });
 
@@ -235,7 +243,7 @@ suite('resolveAuthenticationInteractively', () => {
 				return { accessToken: 'new-token' };
 			},
 		});
-		const requests: { resource: string; token: string }[] = [];
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
 
 		const success = await resolveAuthenticationInteractively([protectedResource], {
 			authTokenCache: new AgentHostAuthTokenCache(),
@@ -248,7 +256,7 @@ suite('resolveAuthenticationInteractively', () => {
 		});
 
 		assert.strictEqual(success, true);
-		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, token: 'existing-token' }]);
+		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'existing-token' }]);
 		assert.strictEqual(createSessionCalls, 0);
 	});
 
@@ -258,7 +266,7 @@ suite('resolveAuthenticationInteractively', () => {
 			getSessions: () => Promise.resolve([]),
 			createSession: async () => ({ accessToken: 'new-token' }),
 		});
-		const requests: { resource: string; token: string }[] = [];
+		const requests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
 
 		const success = await resolveAuthenticationInteractively([protectedResource], {
 			authTokenCache: new AgentHostAuthTokenCache(),
@@ -271,6 +279,6 @@ suite('resolveAuthenticationInteractively', () => {
 		});
 
 		assert.strictEqual(success, true);
-		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, token: 'new-token' }]);
+		assert.deepStrictEqual(requests, [{ resource: protectedResource.resource, scopes: ['read'], token: 'new-token' }]);
 	});
 });

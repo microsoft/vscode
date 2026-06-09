@@ -199,11 +199,11 @@ export interface ILanguageModelChatMetadata {
 	readonly multiplierNumeric?: number;
 	readonly pricing?: string;
 	readonly inputCost?: number;
-	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly outputCost?: number;
 	readonly longContextInputCost?: number;
-	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextOutputCost?: number;
 	readonly priceCategory?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
