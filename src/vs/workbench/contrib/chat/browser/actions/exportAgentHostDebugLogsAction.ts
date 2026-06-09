@@ -285,10 +285,12 @@ async function logStreamContains(
 		let settled = false;
 		let previous = '';
 
-		const cleanup = () => {
+		const cleanup = (removeErrorListener: boolean) => {
 			stream.removeListener('data', onData);
-			stream.removeListener('error', onError);
 			stream.removeListener('end', onEnd);
+			if (removeErrorListener) {
+				stream.removeListener('error', onError);
+			}
 		};
 		const settle = (contains: boolean) => {
 			if (settled) {
@@ -296,10 +298,7 @@ async function logStreamContains(
 			}
 			settled = true;
 			tokenSource.dispose(contains);
-			cleanup();
-			if (contains) {
-				stream.destroy();
-			}
+			cleanup(!contains);
 			resolve(contains);
 		};
 		const onData = (chunk: VSBuffer) => {
@@ -316,7 +315,7 @@ async function logStreamContains(
 			}
 			settled = true;
 			tokenSource.dispose();
-			cleanup();
+			cleanup(true);
 			reject(error);
 		};
 		const onEnd = () => {
