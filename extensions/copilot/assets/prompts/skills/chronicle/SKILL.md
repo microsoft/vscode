@@ -231,9 +231,10 @@ When the user asks to search, find, or look up past sessions by keyword (e.g. `/
 
 **Search strategy**
 
-1. Search across session summaries, conversation turns (user messages AND assistant responses), and any other indexed content (checkpoints, file paths, refs like PR/issue/commit). The user's query may match a topic, a file path, or a PR/issue number — cover all three.
-2. For each matching session, gather enough metadata to label it: `s.id`, `s.repository`, `s.branch`, `s.summary`, `s.updated_at`, plus a short snippet that shows *why* it matched (e.g. `substr(user_message, 1, 160)` on cloud, or the matched `file_path` / `ref_value`).
-3. Present results grouped by repository, ordered by most recently updated.
+1. **Default time window: the last 7 days.** Scope every search to sessions updated within the last 7 days unless the user explicitly asks for a longer window (e.g. "all time", "last 90 days", "include older sessions"). Filter on `updated_at` for `sessions` and on the per-row timestamp for heavy tables (`turns.timestamp`, `checkpoints.created_at`). Always state the active window in your summary header so the user knows it's bounded.
+2. Search across session summaries, conversation turns (user messages AND assistant responses), and any other indexed content (checkpoints, file paths, refs like PR/issue/commit). The user's query may match a topic, a file path, or a PR/issue number — cover all three.
+3. For each matching session, gather enough metadata to label it: `s.id`, `s.repository`, `s.branch`, `s.summary`, `s.updated_at`, plus a short snippet that shows *why* it matched (e.g. `substr(user_message, 1, 160)` on cloud, or the matched `file_path` / `ref_value`).
+4. Present results grouped by repository, ordered by most recently updated.
 
 **Writing the query**
 
@@ -254,18 +255,18 @@ Escape single quotes in the user's query by doubling them (`it's` → `it''s`). 
 
 - Collect matching session IDs into a single CTE (`WITH hits AS (...)`) and then **`JOIN`** back to `sessions` once. Don't use correlated subqueries in the SELECT list — they re-scan the CTE per row.
 - Aggregate match info per session with `GROUP BY session_id` and `any_value()` / `MIN()` / `array_agg()` rather than scalar subqueries.
-- On cloud, default to a **90-day window** on the heavy tables (`WHERE timestamp >= now() - INTERVAL '90 days'` on `turns`, same on `checkpoints` via `created_at`). Mention the window in your summary line so the user knows it's bounded; widen it if the user asks for "all time" or no results come back.
+- Apply the **default 7-day window** on the heavy tables — local: `WHERE timestamp >= datetime('now', '-7 days')` on `turns` (and `created_at >= datetime('now', '-7 days')` on `checkpoints`); cloud: `WHERE timestamp >= now() - INTERVAL '7 days'` on `turns` (same on `checkpoints` via `created_at`). Mention the window in your summary line so the user knows it's bounded; only widen it when the user explicitly asks for a longer range (e.g. "all time", "last 90 days") or no results come back.
 - Keep `LIMIT 50` on the final SELECT.
-- If a query times out, retry with a tighter window (30 days) or drop the heaviest table (usually `turns`) and tell the user what you trimmed.
+- If a query times out, retry with a tighter window (e.g. 3 days) or drop the heaviest table (usually `turns`) and tell the user what you trimmed.
 
 **Output format**
 
 For each session, build a one-line label from `summary` if present, else from the returned `snippet` (truncate to ~80 chars). Never emit `(no summary)`, `(no metadata)`, or bare session-id lists.
 
-If you applied a time window (e.g. the cloud 90-day default), include it in the header so the user knows the scope; otherwise omit the scope phrase or say "all time". Example:
+Always include the active time window in the header so the user knows the scope — the default is "last 7 days"; say "all time" or the explicit range the user requested when widened. Example:
 
 ```
-**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 90 days" / "all time">)
+**Search results for "<query>"** (<n> sessions, <scope: e.g. "last 7 days" / "all time">)
 
 _owner/repo_
 - `session-id` — **<summary or snippet>**
@@ -288,7 +289,7 @@ Rules:
 
 If no rows are returned, tell the user and suggest:
 - Trying different keywords or a broader search term (single word, or a substring instead of a phrase)
-- Widening the time window ("search all time", "include older sessions")
+- Widening the time window beyond the default 7 days ("search all time", "include older sessions")
 - Running `/chronicle reindex` if they haven't indexed their sessions yet
 - Running `/chronicle standup` to see recent activity
 
