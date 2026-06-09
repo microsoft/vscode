@@ -166,7 +166,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
 	const authenticationService = accessor.get<IAuthenticationService>(IAuthenticationService);
-	const logService = accessor.get<ILogService>(ILogService); 
+	const logService = accessor.get<ILogService>(ILogService);
 
 	model ??= await endpointProvider.getChatEndpoint(request);
 
