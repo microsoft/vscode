@@ -18,6 +18,7 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -87,6 +88,7 @@ export class AutomationsListWidget extends Disposable {
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -429,7 +431,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
+		const result = await showAutomationDialog(this.instantiationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 		});
 		if (!result || result.kind !== 'create') {
@@ -459,7 +461,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
+		const result = await showAutomationDialog(this.instantiationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 			existing: automation,
 		});

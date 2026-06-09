@@ -205,23 +205,39 @@ export interface IChatWidgetLocationInfo {
 	readonly isMaximized: boolean;
 }
 
-const emptyInputState = observableMemento<IChatModelInputState | undefined>({
-	defaultValue: undefined,
-	key: 'chat.untitledInputState',
-	toStorage: JSON.stringify,
-	fromStorage(value) {
-		const obj = JSON.parse(value) as IChatModelInputState;
-		if (obj.selectedModel && !obj.selectedModel.metadata.isDefaultForLocation) {
-			// Migrate old `isDefault` to `isDefaultForLocation`
-			type OldILanguageModelChatMetadata = ILanguageModelChatMetadata & { isDefault?: boolean };
-			const oldIsDefault = (obj.selectedModel.metadata as OldILanguageModelChatMetadata).isDefault;
-			const isDefaultForLocation = { [ChatAgentLocation.Chat]: Boolean(oldIsDefault) };
-			mixin(obj.selectedModel.metadata, { isDefaultForLocation: isDefaultForLocation } satisfies Partial<ILanguageModelChatMetadata>);
-			delete (obj.selectedModel.metadata as OldILanguageModelChatMetadata).isDefault;
-		}
-		return obj;
-	},
-});
+const LEGACY_SHARED_INPUT_STATE_TAGS = new Set(['view', 'editor', 'quick']);
+
+function getInputStateStorageKey(widgetViewKindTag: string): string {
+	// Legacy tags (the original chat composer surfaces) historically shared
+	// a single storage key. Keep them on that key so we don't invalidate
+	// existing user drafts. New surfaces (e.g. the automations dialog) get
+	// a per-tag key so their input state does not bleed into or out of the
+	// chat composer.
+	if (LEGACY_SHARED_INPUT_STATE_TAGS.has(widgetViewKindTag)) {
+		return 'chat.untitledInputState';
+	}
+	return `chat.untitledInputState.${widgetViewKindTag}`;
+}
+
+function createEmptyInputStateMemento(widgetViewKindTag: string) {
+	return observableMemento<IChatModelInputState | undefined>({
+		defaultValue: undefined,
+		key: getInputStateStorageKey(widgetViewKindTag),
+		toStorage: JSON.stringify,
+		fromStorage(value) {
+			const obj = JSON.parse(value) as IChatModelInputState;
+			if (obj.selectedModel && !obj.selectedModel.metadata.isDefaultForLocation) {
+				// Migrate old `isDefault` to `isDefaultForLocation`
+				type OldILanguageModelChatMetadata = ILanguageModelChatMetadata & { isDefault?: boolean };
+				const oldIsDefault = (obj.selectedModel.metadata as OldILanguageModelChatMetadata).isDefault;
+				const isDefaultForLocation = { [ChatAgentLocation.Chat]: Boolean(oldIsDefault) };
+				mixin(obj.selectedModel.metadata, { isDefaultForLocation: isDefaultForLocation } satisfies Partial<ILanguageModelChatMetadata>);
+				delete (obj.selectedModel.metadata as OldILanguageModelChatMetadata).isDefault;
+			}
+			return obj;
+		},
+	});
+}
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
@@ -584,7 +600,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			logChangesToStateModel(this._inputModel, `[DEBOUNCE] _syncTextDebounced fired -> _syncInputStateToModel in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 			this._syncInputStateToModel();
 		}, 150));
-		this._emptyInputState = this._register(emptyInputState(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
+		this._emptyInputState = this._register(createEmptyInputStateMemento(this.options.widgetViewKindTag)(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);

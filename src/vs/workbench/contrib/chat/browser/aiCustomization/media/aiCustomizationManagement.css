@@ -1871,6 +1871,16 @@ pane is first mounted. View switches inside the modal are not animated. */
 	padding: 2px 2px 4px;
 }
 
+.automation-form-prompt-host {
+	display: flex;
+	flex-direction: column;
+	min-height: 80px;
+}
+
+.automation-form-prompt-host .interactive-input-part {
+	width: 100%;
+}
+
 .automation-form-row {
 	display: flex;
 	flex-direction: column;
