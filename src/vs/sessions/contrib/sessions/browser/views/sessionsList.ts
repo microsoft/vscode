@@ -44,9 +44,6 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
-<<<<<<< HEAD
-=======
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
@@ -61,8 +58,6 @@ import { IWorkbenchAssignmentService } from '../../../../../workbench/services/a
 // DO NOT add further usages of this import in the sessions workbench, and DO NOT
 // copy this suppression elsewhere.
 // =============================================================================
-// eslint-disable-next-line no-restricted-imports
->>>>>>> 0b63e81f3a1 (sessions: make per-workspace session limit configurable via ExP (#320591))
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
