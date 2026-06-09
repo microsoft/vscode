@@ -51,19 +51,14 @@ function blankComments(text: string): string {
 }
 
 /**
- * Validates that any `font-size` applied to a codicon resolves to one of the two
- * allowed codicon sizes (16px base, 12px compact). Off-scale values are reported
- * as warnings: the 13-15px near-miss band is always a mistake for 12 or 16, while
- * other off sizes (large hero icons / small chevrons) may be intentional and are
- * worded accordingly. Values expressed via `var(--vscode-codiconFontSize...)` are
- * not matched by the px regex and are therefore always accepted.
- *
- * The scan tracks the nesting stack of rule selectors so a `font-size`
- * declaration is checked against the selector of the rule that directly contains
- * it (the innermost selector), correctly handling native CSS nesting.
+ * Scans CSS character-by-character, tracking the nesting stack of rule selectors,
+ * and invokes `callback` for every declaration (text terminated by `;`) with the
+ * 1-based line it ends on and the innermost selector that contains it. This gives
+ * block (selector + declaration) awareness that a line-based linter lacks and
+ * correctly handles native CSS nesting. Comment bodies are blanked first so their
+ * contents cannot disturb the scan.
  */
-export function validateCodiconFontSizes(text: string): IDesignTokenViolation[] {
-	const violations: IDesignTokenViolation[] = [];
+function forEachDeclaration(text: string, callback: (line: number, selector: string, declaration: string) => void): void {
 	const source = blankComments(text);
 	const selectorStack: string[] = [];
 	let pending = '';
@@ -83,29 +78,96 @@ export function validateCodiconFontSizes(text: string): IDesignTokenViolation[] 
 				selectorStack.pop();
 				pending = '';
 				break;
-			case ';': {
-				const selector = selectorStack[selectorStack.length - 1] ?? '';
-				if (RE_CODICON_SELECTOR.test(selector)) {
-					const match = RE_FONT_SIZE_PX.exec(pending);
-					if (match) {
-						const px = parseFloat(match[1]);
-						if (!ALLOWED_CODICON_PX.has(px)) {
-							const nearMiss = isNearMiss(px);
-							violations.push({
-								line,
-								isNearMiss: nearMiss,
-								message: formatCodiconMessage(match[1], nearMiss)
-							});
-						}
-					}
-				}
+			case ';':
+				callback(line, selectorStack[selectorStack.length - 1] ?? '', pending);
 				pending = '';
 				break;
-			}
 			default:
 				pending += ch;
 		}
 	}
+}
+
+/**
+ * Validates that any `font-size` applied to a codicon resolves to one of the two
+ * allowed codicon sizes (16px base, 12px compact). Off-scale values are reported
+ * as warnings: the 13-15px near-miss band is always a mistake for 12 or 16, while
+ * other off sizes (large hero icons / small chevrons) may be intentional and are
+ * worded accordingly. Values expressed via `var(--vscode-codiconFontSize...)` are
+ * not matched by the px regex and are therefore always accepted.
+ */
+export function validateCodiconFontSizes(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+
+	forEachDeclaration(text, (line, selector, declaration) => {
+		if (!RE_CODICON_SELECTOR.test(selector)) {
+			return;
+		}
+		const match = RE_FONT_SIZE_PX.exec(declaration);
+		if (!match) {
+			return;
+		}
+		const px = parseFloat(match[1]);
+		if (ALLOWED_CODICON_PX.has(px)) {
+			return;
+		}
+		const nearMiss = isNearMiss(px);
+		violations.push({ line, isNearMiss: nearMiss, message: formatCodiconMessage(match[1], nearMiss) });
+	});
+
+	return violations;
+}
+
+// ---------------------------------------------------------------------------
+// Font-size ramp token suggestions (sessions design-system area only)
+// ---------------------------------------------------------------------------
+//
+// Unlike codicons (which have a clean 12/16 off-ramp), text font-sizes such as
+// 14px and 16px are common and often intentional, so flagging "off-ramp" values
+// would be noise. Instead this only suggests adopting a token when a hardcoded px
+// value EXACTLY matches a design-ramp token value, where the var is a drop-in
+// replacement. Findings are advisory (warning-only), one clickable link per
+// occurrence.
+
+/** Exact px value -> suggested token var(s). Ambiguous values list alternatives. */
+const FONT_SIZE_RAMP: ReadonlyMap<number, string> = new Map([
+	[26, 'var(--vscode-agents-fontSize-heading1)'],
+	[18, 'var(--vscode-agents-fontSize-heading2)'],
+	[13, 'var(--vscode-bodyFontSize) or var(--vscode-agents-fontSize-body1)'],
+	[12, 'var(--vscode-bodyFontSize-small) or var(--vscode-agents-fontSize-label1)'],
+	[11, 'var(--vscode-bodyFontSize-xSmall) or var(--vscode-agents-fontSize-body2)'],
+	[10, 'var(--vscode-agents-fontSize-label3)'],
+]);
+
+/**
+ * Finds hardcoded `font-size` px values that exactly match a design-ramp token
+ * value and could be replaced by the token var. Codicon selectors are skipped
+ * (covered by {@link validateCodiconFontSizes}). Returns one finding per
+ * occurrence with the line it appears on, so callers can emit a clickable
+ * `file(line,col)` link per match (the terminal linkifies that prefix).
+ */
+export function validateFontSizeTokens(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+
+	forEachDeclaration(text, (line, selector, declaration) => {
+		if (RE_CODICON_SELECTOR.test(selector)) {
+			return;
+		}
+		const match = RE_FONT_SIZE_PX.exec(declaration);
+		if (!match) {
+			return;
+		}
+		const px = parseFloat(match[1]);
+		const suggestion = FONT_SIZE_RAMP.get(px);
+		if (suggestion === undefined) {
+			return;
+		}
+		violations.push({
+			line,
+			isNearMiss: false,
+			message: `font-size ${match[1]}px matches a design ramp token - prefer the var:\n           -> use ${suggestion}`
+		});
+	});
 
 	return violations;
 }
