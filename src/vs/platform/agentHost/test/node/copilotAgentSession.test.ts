@@ -462,6 +462,7 @@ suite('CopilotAgentSession', () => {
 		await session.send('/compact', undefined, 'turn-compact');
 
 		assert.strictEqual(mockSession.compactCalls.length, 1);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
 		const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
 	});
