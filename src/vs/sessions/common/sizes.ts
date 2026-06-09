@@ -36,6 +36,11 @@ const fontWeightSemiBoldValue = sizeForAllThemes(600, '');
 // ============================================================================
 // Font ramp — generic (canonical) tokens
 // ============================================================================
+//
+// "Strong" variants in the design (e.g. "Body 1 Strong", "Label 2 Strong") are
+// NOT separate size tokens: they reuse the matching size token paired with
+// `agents.fontWeight.semiBold` (600). Regular text pairs with
+// `agents.fontWeight.regular` (400). The ramp defines only these two weights.
 
 /** 26 px · SemiBold (600) — Welcome screen title */
 export const fontSizeHeading1 = registerSize(

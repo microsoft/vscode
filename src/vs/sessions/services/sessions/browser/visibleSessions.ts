@@ -7,7 +7,6 @@ import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/
 import { IObservable, ISettableObservable, ITransaction, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { IChat, ISession, SessionStatus } from '../common/session.js';
 
@@ -148,6 +147,16 @@ export class VisibleSessions extends Disposable {
 	private readonly _activeSession = observableValue<IActiveSession | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSession | undefined> = this._activeSession;
 
+	/**
+	 * Whether the most recent active-session change asked to preserve keyboard
+	 * focus (i.e. show the session without moving focus into it). Always set in
+	 * the **same transaction** as {@link _activeSession} via
+	 * {@link _setActiveSession} so the pair can never go stale, and read
+	 * reactively by the consumer that drives focus.
+	 */
+	private readonly _activePreserveFocus = observableValue<boolean>(this, false);
+	readonly activePreserveFocus: IObservable<boolean> = this._activePreserveFocus;
+
 	private readonly _visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>(this, [undefined]);
 	readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = this._visibleSessions;
 
@@ -172,10 +181,20 @@ export class VisibleSessions extends Disposable {
 
 	constructor(
 		private readonly _resolveInitialChat: (session: ISession) => IChat,
-		private readonly _uriIdentityService: IUriIdentityService,
-		private readonly _agentSessionsService: IAgentSessionsService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
+	}
+
+	/**
+	 * Set the active session together with its preserve-focus intent in a
+	 * single transaction. Routing every active-session change through here
+	 * guarantees the two observables are always consistent and that the intent
+	 * never goes stale (callers that do not preserve focus pass `false`).
+	 */
+	private _setActiveSession(session: IActiveSession | undefined, preserveFocus: boolean, tsx: ITransaction): void {
+		this._activeSession.set(session, tsx);
+		this._activePreserveFocus.set(preserveFocus, tsx);
 	}
 
 	/**
@@ -195,7 +214,7 @@ export class VisibleSessions extends Disposable {
 	 * Returns the wrapper for the active session, or `undefined` when the
 	 * active slot is the empty slot.
 	 */
-	setActive(session: ISession | undefined): VisibleSession | undefined {
+	setActive(session: ISession | undefined, preserveFocus: boolean = false): VisibleSession | undefined {
 		const targetId: string | undefined = session?.sessionId;
 
 		if (!this._visibleList.includes(targetId)) {
@@ -227,7 +246,7 @@ export class VisibleSessions extends Disposable {
 
 		const visibleSession = session ? this._getOrCreateVisibleSession(session) : undefined;
 		transaction((tsx) => {
-			this._activeSession.set(visibleSession, tsx);
+			this._setActiveSession(visibleSession, preserveFocus, tsx);
 			this._refresh(tsx);
 		});
 		return visibleSession;
@@ -292,7 +311,7 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			if (activate) {
 				const wrapper = id !== undefined ? this._wrappers.get(id) : undefined;
-				this._activeSession.set(wrapper, tsx);
+				this._setActiveSession(wrapper, false, tsx);
 			}
 			this._refresh(tsx);
 		});
@@ -354,7 +373,7 @@ export class VisibleSessions extends Disposable {
 			: lastNonStickySlot;
 
 		transaction(tsx => {
-			this._activeSession.set(activeWrapper, tsx);
+			this._setActiveSession(activeWrapper, false, tsx);
 			this._refresh(tsx);
 		});
 	}
@@ -417,12 +436,12 @@ export class VisibleSessions extends Disposable {
 			}
 			if (activeRemoved) {
 				if (this._visibleList.length === 0) {
-					this._activeSession.set(undefined, tsx);
+					this._setActiveSession(undefined, false, tsx);
 				} else {
 					const fallbackIdx = Math.max(0, Math.min(activeIdx - 1, this._visibleList.length - 1));
 					const fallbackId = this._visibleList[fallbackIdx];
 					const fallbackWrapper = fallbackId !== undefined ? this._wrappers.get(fallbackId) : undefined;
-					this._activeSession.set(fallbackWrapper, tsx);
+					this._setActiveSession(fallbackWrapper, false, tsx);
 				}
 			}
 			if (changed) {
@@ -462,7 +481,7 @@ export class VisibleSessions extends Disposable {
 		transaction((tsx) => {
 			const visibleSession = this._getOrCreateVisibleSession(updatedSession);
 			if (wasActive) {
-				this._activeSession.set(visibleSession, tsx);
+				this._setActiveSession(visibleSession, false, tsx);
 			}
 			this._refresh(tsx);
 		});
@@ -587,19 +606,7 @@ export class VisibleSessions extends Disposable {
 
 		const initialChat = this._resolveInitialChat(session);
 		visibleSession = new VisibleSession(session, initialChat);
-
-		// Trigger lazy resolve for expensive session properties (e.g. changes,
-		// badge). Per-wrapper so visible-but-not-active sessions also have their
-		// data populated for rendering in the grid.
-		let observedSession = false;
 		const visibleSessionRef = visibleSession;
-		visibleSession.addDisposable(autorun(reader => {
-			if (observedSession || session.loading.read(reader)) {
-				return;
-			}
-			observedSession = true;
-			this._agentSessionsService.model.observeSession(session.resource);
-		}));
 
 		// Track chat list changes — if the active chat is removed, fall back to last.
 		visibleSession.addDisposable(autorun(reader => {

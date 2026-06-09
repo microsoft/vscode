@@ -8,7 +8,6 @@ import { HoverStyle } from '../../../../../../../base/browser/ui/hover/hover.js'
 import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { asArray } from '../../../../../../../base/common/arrays.js';
-import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -41,7 +40,7 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { CodeBlockPart, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
+import { createToolRiskBadge } from './toolRiskBadgeHelper.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -191,7 +190,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			position: { hoverPosition: HoverPosition.LEFT },
 		}));
 
-		const riskBadge = this._createRiskBadge(state.parameters);
+		const riskBadge = createToolRiskBadge(this._store, this.instantiationService, this.riskAssessmentService, this.languageModelToolsService, this.toolInvocation.toolId, state.parameters, 'terminal');
 
 		const confirmWidget = this._register(this.instantiationService.createInstance(
 			ChatCustomConfirmationWidget<TerminalNewAutoApproveButtonData | boolean>,
@@ -505,43 +504,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			}
 		});
 		return promptResult.result === true;
-	}
-
-	private _createRiskBadge(parameters: unknown): ToolRiskBadgeWidget | undefined {
-		if (!this.riskAssessmentService.isEnabled()) {
-			return undefined;
-		}
-		const tool = this.languageModelToolsService.getTool(this.toolInvocation.toolId);
-		if (!tool) {
-			return undefined;
-		}
-		const widget = this._register(this.instantiationService.createInstance(ToolRiskBadgeWidget));
-		const cached = this.riskAssessmentService.getCached(tool, parameters);
-		if (cached) {
-			widget.setAssessment(cached);
-		} else {
-			widget.setLoading();
-			const cts = new CancellationTokenSource();
-			this._register(toDisposable(() => cts.dispose(true)));
-			(async () => {
-				try {
-					const result = await this.riskAssessmentService.assess(tool, parameters, cts.token);
-					if (cts.token.isCancellationRequested || widget.isDisposed) {
-						return;
-					}
-					if (!result) {
-						widget.setHidden();
-						return;
-					}
-					widget.setAssessment(result);
-				} catch {
-					if (!widget.isDisposed) {
-						widget.setHidden();
-					}
-				}
-			})();
-		}
-		return widget;
 	}
 
 	private _appendMarkdownPart(container: HTMLElement, message: string | IMarkdownString, codeBlockRenderOptions: ICodeBlockRenderOptions) {

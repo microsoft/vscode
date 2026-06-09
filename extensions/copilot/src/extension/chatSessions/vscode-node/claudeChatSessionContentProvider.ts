@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
+import { CLAUDE_CONTEXT_SIZE_PROPERTY, CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels, pickReasoningEffort } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -176,6 +176,10 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
 			const reasoningEffort = pickReasoningEffort(endpoint, typeof rawReasoningEffort === 'string' ? rawReasoningEffort : undefined);
 			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
+
+			const rawContextSize = request.modelConfiguration?.[CLAUDE_CONTEXT_SIZE_PROPERTY];
+			const contextSize = typeof rawContextSize === 'number' && rawContextSize > 0 ? rawContextSize : undefined;
+			this.sessionStateService.setContextSizeForSession(effectiveSessionId, contextSize);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {

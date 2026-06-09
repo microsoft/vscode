@@ -25,6 +25,7 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -34,6 +35,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 const FILTER_THRESHOLD = 10;
 
@@ -47,14 +49,6 @@ interface IConfigPickerItem {
 }
 
 function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
-	if (property === SessionConfigKey.Isolation) {
-		if (value === 'folder') { return Codicon.folder; }
-		if (value === 'worktree') { return Codicon.worktree; }
-		return undefined;
-	}
-	if (property === SessionConfigKey.Branch) {
-		return Codicon.gitBranch;
-	}
 	if (property === SessionConfigKey.Mode) {
 		switch (value) {
 			case 'plan': return Codicon.checklist;
@@ -129,20 +123,6 @@ function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: 
 	return trigger;
 }
 
-function toBackendSessionUri(sessionResource: URI): URI | undefined {
-	const scheme = sessionResource.scheme;
-	const prefix = 'agent-host-';
-	if (!scheme.startsWith(prefix)) {
-		return undefined;
-	}
-	const provider = scheme.substring(prefix.length);
-	if (!provider) {
-		return undefined;
-	}
-	const rawId = sessionResource.path.replace(/^\//, '');
-	return URI.from({ scheme: provider, path: `/${rawId}` });
-}
-
 /**
  * Returns `true` when an `autoApprove` schema uses the well-known shape the
  * dedicated Auto-Approve picker understands: a string enum that includes
@@ -162,11 +142,10 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 }
 
 /**
- * The set of well-known session-config property names that have a dedicated
- * picker chip in the secondary toolbar (registered as `MenuId.ChatInputSecondary`
- * actions). The generic-fallback chip lane filters these out so unknown
- * properties advertised by an agent get their own chip without duplicating
- * the dedicated ones.
+ * The set of well-known session-config property names that are either handled
+ * by dedicated UI or intentionally hidden from the workbench chat-input chip
+ * lane. The generic-fallback chip lane filters these out so unknown properties
+ * advertised by an agent get their own chip.
  *
  * `Permissions` has no chip — it is surfaced through other UI — but is
  * included so the generic lane does not invent a chip for it.
@@ -174,19 +153,21 @@ export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema
 export const WELL_KNOWN_PICKER_PROPERTIES: ReadonlySet<string> = new Set<string>([
 	SessionConfigKey.Mode,
 	SessionConfigKey.AutoApprove,
+	SessionConfigKey.Isolation,
+	SessionConfigKey.Branch,
 	SessionConfigKey.Permissions,
 	ClaudeSessionConfigKey.PermissionMode,
 ]);
 
 /**
- * Whether the given `(property, schema)` pair will be rendered by a dedicated
- * chip widget on the secondary toolbar. Used by the generic-fallback chip
- * lane to decide whether to render a chip for `property`.
+ * Whether the given `(property, schema)` pair is handled outside the
+ * generic-fallback chip lane. This includes properties rendered by dedicated
+ * chip widgets and properties intentionally hidden from workbench chat.
  *
- * For most well-known keys this is purely a property-name check. AutoApprove
- * is special: only well-known schema shapes are claimed by the dedicated
- * picker; non-conforming schemas (e.g. Claude's approval mode) fall through
- * to the generic lane.
+ * For most well-known keys this is purely a property-name check. AutoApprove is
+ * special: only well-known schema shapes are claimed by the dedicated picker;
+ * non-conforming schemas (e.g. Claude's approval mode) fall through to the
+ * generic lane.
  */
 export function isClaimedByDedicatedPicker(property: string, schema: SessionConfigPropertySchema): boolean {
 	if (property === SessionConfigKey.AutoApprove) {
@@ -198,9 +179,8 @@ export function isClaimedByDedicatedPicker(property: string, schema: SessionConf
 /**
  * One workbench chat-input chip bound to a single agent-host session-config
  * property. Used both for dedicated well-known property chips
- * (`SessionConfigKey.Mode`, `.Isolation`, `.Branch`, `.AutoApprove`) and for
- * generic per-property chips advertised by an agent's config schema but not
- * known to VS Code.
+ * (`SessionConfigKey.Mode`, `.AutoApprove`) and for generic per-property chips
+ * advertised by an agent's config schema but not known to VS Code.
  */
 export class AgentHostChatInputPicker extends Disposable {
 
@@ -217,6 +197,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		private readonly _property: string,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -248,7 +229,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const provisionalBackend = sessionResource ? this._provisional.get(sessionResource) : undefined;
 		const backendSession = provisionalBackend
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 
 		if (!sessionResource || !backendSession) {
 			this._subRef.clear();
@@ -286,7 +267,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._renderChip());
 		this._subRef.value = {
@@ -363,6 +344,10 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
+		const tooltip = ctx.schema.description ?? ctx.schema.title;
+		if (tooltip) {
+			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+		}
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
@@ -433,7 +418,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!schema) {
 				return undefined;
 			}
-			const backendSession = toBackendSessionUri(sessionResource);
+			const backendSession = toAgentHostBackendSessionUri(sessionResource);
 			if (!backendSession) {
 				return undefined;
 			}
@@ -517,7 +502,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
 		const backendSession = this._subRef.value?.backendSession
-			?? (sessionResource ? toBackendSessionUri(sessionResource) : undefined);
+			?? (sessionResource ? toAgentHostBackendSessionUri(sessionResource) : undefined);
 		if (schema.enumDynamic && backendSession) {
 			try {
 				const result = await this._agentHostService.sessionConfigCompletions({

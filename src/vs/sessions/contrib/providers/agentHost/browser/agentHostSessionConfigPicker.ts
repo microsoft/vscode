@@ -24,6 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -251,6 +252,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
 		@IDialogService protected readonly _dialogService: IDialogService,
+		@IHoverService protected readonly _hoverService: IHoverService,
 		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
@@ -349,6 +351,10 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// keeping it focusable and using correct ARIA semantics. The
 			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			const tooltip = schema.description ?? schema.title;
+			if (tooltip) {
+				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+			}
 			if (!isReadOnly && isLoading) {
 				slot.classList.add('disabled');
 				trigger.setAttribute('aria-disabled', 'true');

@@ -128,7 +128,7 @@
 	font-weight: 600;
 	font-variant-numeric: tabular-nums;
 	text-align: center;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-agentsUnreadBadge-background);
 	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
