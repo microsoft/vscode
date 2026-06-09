@@ -6,7 +6,7 @@ import type tt from 'typescript/lib/tsserverlibrary';
 import TS from './typescript';
 const ts = TS();
 
-import type { CodeUsage, CodeUsages, Container, FilePath, LineRange } from './protocol';
+import type { CodeUsage, CodeUsages, Container, FileCodeUsage, FilePath, LineRange } from './protocol';
 import type { ComputeContextSession } from './contextProvider';
 import tss, { type TokenInfo } from './typescripts';
 
@@ -44,9 +44,9 @@ export class CodeUsageProvider {
 			throw new Error('No source file available');
 		}
 		const seen: Set<string> = new Set();
-		const definitions: CodeUsage[] = [];
-		const references: CodeUsage[] = [];
-		const implementations: CodeUsage[] = [];
+		const definitions: Map<string, FileCodeUsage> = new Map();
+		const references: Map<string, FileCodeUsage> = new Map();
+		const implementations: Map<string, FileCodeUsage> = new Map();
 		const tokenInfo: TokenInfo = tss.getRelevantTokens(sourceFile, this.position);
 		const token = tokenInfo.touching ?? tokenInfo.token;
 		if (!token) {
@@ -79,19 +79,19 @@ export class CodeUsageProvider {
 				}
 			}
 		}
-		if (definitions.length > 0) {
-			result.definitions = definitions;
+		if (definitions.size > 0) {
+			result.definitions = Array.from(definitions.values());
 		}
-		if (references.length > 0) {
-			result.references = references;
+		if (references.size > 0) {
+			result.references = Array.from(references.values());
 		}
-		if (implementations.length > 0) {
-			result.implementations = implementations;
+		if (implementations.size > 0) {
+			result.implementations = Array.from(implementations.values());
 		}
 		return result;
 	}
 
-	private getCodeUsage(seen: Set<string>, collection: CodeUsage[], kind: CodeUsageKind, fileName: FilePath, pos: number): void {
+	private getCodeUsage(seen: Set<string>, collection: Map<string, FileCodeUsage>, kind: CodeUsageKind, fileName: FilePath, pos: number): void {
 		const fileAndProject = this.session.getFileAndProject(fileName);
 		if (!fileAndProject) {
 			return;
@@ -107,8 +107,15 @@ export class CodeUsageProvider {
 		}
 		seen.add(key);
 		const containers = this.getContainers(sourceFile, pos, kind);
-		collection.push({
-			file: fileName,
+		let fileCodeUsage: FileCodeUsage | undefined = collection.get(file);
+		if (fileCodeUsage === undefined) {
+			fileCodeUsage = {
+				file: fileName,
+				usages: []
+			};
+			collection.set(file, fileCodeUsage);
+		}
+		fileCodeUsage.usages.push({
 			line: sourceFile.getLineAndCharacterOfPosition(pos).line,
 			containers: containers
 		});
@@ -154,8 +161,9 @@ export class CodeUsageProvider {
 		return result.length > 0 ? result : undefined;
 	}
 
-	private isNamedStructuralEntity(node: tt.Node, kind: CodeUsageKind): { kind: string; name: string; rangeNode?: tt.Node } | undefined {
+	private isNamedStructuralEntity(node: tt.Node, kind: CodeUsageKind): { kind: string; name?: string; rangeNode?: tt.Node } | undefined {
 		let name: string | undefined;
+		const parent: tt.Node | undefined = node.parent;
 		switch (node.kind) {
 			case ts.SyntaxKind.FunctionDeclaration:
 				name = (node as tt.FunctionDeclaration).name?.text;
@@ -172,13 +180,18 @@ export class CodeUsageProvider {
 				}
 				return undefined;
 			case ts.SyntaxKind.ArrowFunction:
-				if (ts.isPropertyAssignment(node.parent) && ts.isIdentifier(node.parent.name)) {
-					name = node.parent.name.text;
+				if (ts.isPropertyAssignment(parent) && ts.isIdentifier(parent.name)) {
+					name = parent.name.text;
 					// We use kind 'function' for arrow functions that are properties because from a usage perspective
 					// they are more similar to named functions or methods than to anonymous functions.
-					return name ? { kind: 'function', name, rangeNode: node.parent } : undefined;
+					return name ? { kind: 'function', name, rangeNode: parent } : undefined;
+				} else if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
+					name = parent.name.text;
+					return name ? { kind: 'arrow-function', name, rangeNode: parent } : undefined;
+				} else if (ts.isCallExpression(parent)) {
+					return { kind: 'arrow-function', rangeNode: parent };
 				}
-				return undefined;
+				return { kind: 'arrow-function' };
 			case ts.SyntaxKind.PropertyDeclaration:
 				name = (node as tt.PropertyDeclaration).name?.getText();
 				return name ? { kind: 'property', name } : undefined;

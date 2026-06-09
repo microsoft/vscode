@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type UriComponents } from '../../../../../base/common/uri.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -18,12 +18,12 @@ export interface LineRange {
 
 export interface Container {
 	kind: string;
-	name: string;
+	name?: string;
 	range: LineRange;
 }
 
 export interface CodeUsage {
-	uri: UriComponents;
+	uri: URI;
 	line: number;
 	containers?: Container[];
 }

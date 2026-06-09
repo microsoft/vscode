@@ -617,21 +617,25 @@ export interface LineRange {
 
 export interface Container {
 	kind: string;
-	name: string;
+	name?: string;
 	range: LineRange;
 }
 
 export interface CodeUsage {
-	file: FilePath;
 	line: number;
 	containers?: Container[];
 }
 
+export interface FileCodeUsage {
+	file: FilePath;
+	usages: CodeUsage[];
+}
+
 export interface CodeUsages {
 	symbol: string;
-	definitions?: CodeUsage[];
-	references?: CodeUsage[];
-	implementations?: CodeUsage[];
+	definitions?: FileCodeUsage[];
+	references?: FileCodeUsage[];
+	implementations?: FileCodeUsage[];
 }
 
 export namespace CodeUsages {

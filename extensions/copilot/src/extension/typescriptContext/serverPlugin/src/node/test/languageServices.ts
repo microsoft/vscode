@@ -320,15 +320,15 @@ export class LanguageServicesSession extends ComputeContextSession {
 		return this.languageServices.values();
 	}
 
-	public getFileAndProject(fileName: string): Sessions.FileAndProject | undefined {
+	public getFileAndProject(_fileName: string): Sessions.FileAndProject | undefined {
 		return undefined;
 	}
 
-	public getReferences(fileName: string, line: number, offset: number): tt.ReferencedSymbol[] | undefined {
+	public getReferences(_fileName: string, _line: number, _offset: number): tt.ReferencedSymbol[] | undefined {
 		return undefined;
 	}
 
-	getImplementation(fileName: string, line: number, offset: number): tt.ImplementationLocation[] | undefined {
+	public getImplementation(_fileName: string, _line: number, _offset: number): tt.ImplementationLocation[] | undefined {
 		return undefined;
 	}
 

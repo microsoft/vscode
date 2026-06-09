@@ -31,24 +31,27 @@ namespace Result {
 
 	export interface Container {
 		kind: string;
-		name: string;
+		name?: string;
 		range: LineRange;
 	}
 
 	export interface CodeUsage {
-		uri: vscode.Uri;
 		line: number;
 		containers?: Container[];
 	}
 
+	export interface FileCodeUsage {
+		uri: vscode.Uri;
+		usages: CodeUsage[];
+	}
+
 	export interface CodeUsages {
 		symbol: string;
-		definitions?: CodeUsage[];
-		references?: CodeUsage[];
-		implementations?: CodeUsage[];
+		definitions?: FileCodeUsage[];
+		references?: FileCodeUsage[];
+		implementations?: FileCodeUsage[];
 	}
 }
-
 
 export class CodeUsageContribution extends TypeScriptServiceContribution {
 
@@ -101,34 +104,40 @@ export class CodeUsageContribution extends TypeScriptServiceContribution {
 		if (codeUsages.definitions) {
 			result.definitions = codeUsages.definitions.map(def => ({
 				uri: vscode.Uri.file(def.file),
-				line: def.line + 1,
-				containers: def.containers ? def.containers.map(c => ({
-					kind: c.kind,
-					name: c.name,
-					range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
-				})) : undefined
+				usages: def.usages.map(u => ({
+					line: u.line + 1,
+					containers: u.containers ? u.containers.map(c => ({
+						kind: c.kind,
+						name: c.name,
+						range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
+					})) : undefined
+				}))
 			}));
 		}
 		if (codeUsages.references) {
 			result.references = codeUsages.references.map(ref => ({
 				uri: vscode.Uri.file(ref.file),
-				line: ref.line + 1,
-				containers: ref.containers ? ref.containers.map(c => ({
-					kind: c.kind,
-					name: c.name,
-					range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
-				})) : undefined
+				usages: ref.usages.map(u => ({
+					line: u.line + 1,
+					containers: u.containers ? u.containers.map(c => ({
+						kind: c.kind,
+						name: c.name,
+						range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
+					})) : undefined
+				}))
 			}));
 		}
 		if (codeUsages.implementations) {
 			result.implementations = codeUsages.implementations.map(impl => ({
 				uri: vscode.Uri.file(impl.file),
-				line: impl.line + 1,
-				containers: impl.containers ? impl.containers.map(c => ({
-					kind: c.kind,
-					name: c.name,
-					range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
-				})) : undefined
+				usages: impl.usages.map(u => ({
+					line: u.line + 1,
+					containers: u.containers ? u.containers.map(c => ({
+						kind: c.kind,
+						name: c.name,
+						range: { startLine: c.range.start + 1, endLine: c.range.end + 1 }
+					})) : undefined
+				}))
 			}));
 		}
 		return result;

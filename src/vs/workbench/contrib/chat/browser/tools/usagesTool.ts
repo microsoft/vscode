@@ -102,16 +102,20 @@ namespace CodeUsageResult {
 	}
 
 	export interface CodeUsage {
-		uri: UriComponents;
 		line: number;
 		containers?: Container[];
 	}
 
+	export interface FileCodeUsage {
+		uri: UriComponents;
+		usages: CodeUsage[];
+	}
+
 	export interface CodeUsages {
 		symbol: string;
-		definitions?: CodeUsage[];
-		references?: CodeUsage[];
-		implementations?: CodeUsage[];
+		definitions?: FileCodeUsage[];
+		references?: FileCodeUsage[];
+		implementations?: FileCodeUsage[];
 	}
 
 	export namespace CodeUsages {
@@ -129,20 +133,24 @@ namespace ToolResult {
 	export interface Scope {
 		depth: number;
 		kind: string;
-		name: string;
+		name?: string;
 	}
 
 	export interface CodeUsage {
 		usageId: string;
-		uri: string;
 		scopes?: Scope[];
+	}
+
+	export interface FileCodeUsage {
+		uri: string;
+		usages: CodeUsage[];
 	}
 
 	export interface CodeUsages {
 		symbol: string;
-		definitions?: CodeUsage[];
-		references?: CodeUsage[];
-		implementations?: CodeUsage[];
+		definitions?: FileCodeUsage[];
+		references?: FileCodeUsage[];
+		implementations?: FileCodeUsage[];
 	}
 }
 
@@ -405,34 +413,39 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	private convertCodeUsages(usages: CodeUsageResult.CodeUsages): string {
 		const result: ToolResult.CodeUsages = {
 			symbol: usages.symbol,
-			definitions: this.convertCodeUsageCategory(usages.definitions),
-			references: this.convertCodeUsageCategory(usages.references),
-			implementations: this.convertCodeUsageCategory(usages.implementations),
+			definitions: this.convertFileCodeUsageCategory(usages.definitions),
+			references: this.convertFileCodeUsageCategory(usages.references),
+			implementations: this.convertFileCodeUsageCategory(usages.implementations),
 		};
 
 		return JSON.stringify(result, null, '\t');
 	}
 
-	private convertCodeUsageCategory(usages: CodeUsageResult.CodeUsage[] | undefined): ToolResult.CodeUsage[] | undefined {
+	private convertFileCodeUsageCategory(usages: CodeUsageResult.FileCodeUsage[] | undefined): ToolResult.FileCodeUsage[] | undefined {
 		if (!usages || usages.length === 0) {
 			return undefined;
 		}
-		return usages.map(u => this.convertCodeUsage(u));
+		return usages.map(u => this.convertFileCodeUsage(u));
 	}
 
-	private convertCodeUsage(usage: CodeUsageResult.CodeUsage): ToolResult.CodeUsage {
+	private convertFileCodeUsage(fileUsage: CodeUsageResult.FileCodeUsage): ToolResult.FileCodeUsage {
+		const uri = URI.revive(fileUsage.uri);
+		return {
+			uri: uri.toString(),
+			usages: fileUsage.usages ? fileUsage.usages.map(u => this.convertCodeUsage(uri, u)) : undefined
+		};
+	}
+
+	private convertCodeUsage(uri: URI, usage: CodeUsageResult.CodeUsage): ToolResult.CodeUsage {
 		const id = this._codeUsageService.nextUsageId();
-		this._codeUsageService.storeUsage(id, usage);
-		const uri = URI.revive(usage.uri);
+		this._codeUsageService.storeUsage(id, { uri, line: usage.line, containers: usage.containers });
 		if (usage.containers === undefined || usage.containers.length === 0) {
 			return {
 				usageId: id,
-				uri: uri.toString()
 			};
 		}
 		const result: ToolResult.CodeUsage = {
 			usageId: id,
-			uri: uri.toString(),
 			scopes: usage.containers.map((c, i) => this.convertContainer(c, i))
 		};
 		return result;

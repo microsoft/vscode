@@ -13,7 +13,7 @@ import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, Requ
 import type { Host } from '../../common/host';
 import { PrepareNesRenameResult } from '../../common/nesRenameValidator';
 import { CodeSnippet, ContextKind, type ContextItem, type FullContextItem, type PriorityTag, type Range, type RenameGroup, type RenameKind, type Trait } from '../../common/protocol';
-import { NullCancellationToken } from '../../common/typescripts';
+import { NullCancellationToken, type Sessions } from '../../common/typescripts';
 import { NodeHost } from '../host';
 import { LanguageServices } from './languageServices';
 
@@ -68,6 +68,18 @@ export class SingleLanguageServiceSession extends ComputeContextSession {
 	}
 
 	public override getScriptVersion(_sourceFile: tt.SourceFile): string | undefined {
+		return undefined;
+	}
+
+	public getFileAndProject(_fileName: string): Sessions.FileAndProject | undefined {
+		return undefined;
+	}
+
+	public getReferences(_fileName: string, _line: number, _offset: number): tt.ReferencedSymbol[] | undefined {
+		return undefined;
+	}
+
+	public getImplementation(_fileName: string, _line: number, _offset: number): tt.ImplementationLocation[] | undefined {
 		return undefined;
 	}
 }
