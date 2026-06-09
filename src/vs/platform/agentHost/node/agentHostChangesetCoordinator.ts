@@ -163,6 +163,16 @@ export class ChangesetSessionCoordinator extends Disposable {
 	}
 
 	/**
+	 * Called after `_meta.git` is attached or updated. Git state can provide
+	 * the base branch used by Branch Changes and fresh uncommitted counts, so
+	 * refresh both static changesets once the session has a working directory.
+	 */
+	onSessionGitStateChanged(sessionStr: string): void {
+		this._triggerSessionRefresh(sessionStr);
+		this._triggerUncommittedRefresh(sessionStr);
+	}
+
+	/**
 	 * Called when a session is disposed. Forgets any pending refresh
 	 * queued for that session.
 	 */
