@@ -359,13 +359,13 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (statusOut === undefined) {
 			return undefined;
 		}
-		const changedPaths = parseChangedPaths(statusOut);
 		const hasUntracked = parseUntrackedPaths(statusOut).length > 0;
 
 		let rawDiffOutput: string | undefined;
 		if (!hasUntracked) {
 			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--']);
 		} else {
+			const changedPaths = parseChangedPaths(statusOut);
 			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit, changedPaths);
 		}
 
