@@ -381,6 +381,11 @@ function snapSpacing(px: number): number {
 	return best;
 }
 
+/** Maps an on-scale spacing px to its CSS variable (0 -> sizeNone). */
+function spacingVar(px: number): string {
+	return px === 0 ? 'var(--vscode-spacing-sizeNone)' : `var(--vscode-spacing-size${px * 10})`;
+}
+
 /**
  * Finds `padding`/`margin`/`gap` lengths that are off the spacing scale and
  * suggests the nearest on-scale px value. On-scale literals are accepted as-is
@@ -402,11 +407,13 @@ export function validateSpacingTokens(text: string): IDesignTokenViolation[] {
 		}
 		const parts = value.split(/\s+/);
 		const snapped: string[] = [];
+		const vars: string[] = [];
 		let hasOffScale = false;
 		let ok = true;
 		for (const part of parts) {
 			if (part === '0' || part === '0px') {
 				snapped.push(part);
+				vars.push(spacingVar(0));
 				continue;
 			}
 			const pxMatch = /^(\d+(?:\.\d+)?)px$/i.exec(part);
@@ -417,10 +424,13 @@ export function validateSpacingTokens(text: string): IDesignTokenViolation[] {
 			const px = parseFloat(pxMatch[1]);
 			if (scale.has(px)) {
 				snapped.push(part);
+				vars.push(spacingVar(px));
 				continue;
 			}
 			hasOffScale = true;
-			snapped.push(`${snapSpacing(px)}px`);
+			const nearest = snapSpacing(px);
+			snapped.push(`${nearest}px`);
+			vars.push(spacingVar(nearest));
 		}
 		if (!ok || !hasOffScale) {
 			return;
@@ -428,7 +438,7 @@ export function validateSpacingTokens(text: string): IDesignTokenViolation[] {
 		violations.push({
 			line,
 			isNearMiss: true,
-			message: `${value} is off the spacing scale -> nearest: ${snapped.join(' ')}`
+			message: `${value} is off the spacing scale -> nearest: ${snapped.join(' ')} (${vars.join(' ')})`
 		});
 	});
 
