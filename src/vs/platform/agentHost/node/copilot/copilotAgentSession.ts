@@ -909,7 +909,7 @@ export class CopilotAgentSession extends Disposable {
 		// Honor the protocol's advisory `'image'` hint even when the path has no extension we recognize — fall back to
 		// PNG so the SDK still routes through the vision channel rather than dropping it on the `file` path with no MIME.
 		if (displayKind === 'image') {
-			return mime ?? 'image/png';
+			return 'image/png';
 		}
 		return undefined;
 	}

@@ -380,11 +380,14 @@ suite('CopilotAgentSession', () => {
 		const pngBytes = 'fake png bytes';
 		const noExtUri = URI.file('/workspace/attachments/def/photo');
 		const noExtBytes = 'fake image bytes';
+		const wavUri = URI.file('/workspace/attachments/ghi/voice.wav');
+		const wavBytes = 'fake audio bytes';
 		const docUri = URI.file('/workspace/notes.txt');
 		const { session, mockSession } = await createAgentSession(disposables, {
 			fileContents: {
 				[pngUri.toString()]: pngBytes,
 				[noExtUri.toString()]: noExtBytes,
+				[wavUri.toString()]: wavBytes,
 				[docUri.toString()]: 'plain document',
 			},
 		});
@@ -394,6 +397,9 @@ suite('CopilotAgentSession', () => {
 			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'Pasted Image', displayKind: 'image' },
 			// `displayKind: 'image'` with no path extension falls back to image/png.
 			{ type: MessageAttachmentKind.Resource, uri: noExtUri.toString(), label: 'photo', displayKind: 'image' },
+			// `displayKind: 'image'` over a path that resolves to a NON-image MIME (.wav -> audio/x-wav): still force
+			// image/png — never propagate a non-image MIME under an `'image'` hint.
+			{ type: MessageAttachmentKind.Resource, uri: wavUri.toString(), label: 'voice', displayKind: 'image' },
 			// Non-image resources still go as `file` references.
 			{ type: MessageAttachmentKind.Resource, uri: docUri.toString(), label: 'notes.txt', displayKind: 'document' },
 		]);
@@ -412,6 +418,12 @@ suite('CopilotAgentSession', () => {
 					data: encodeBase64(VSBuffer.fromString(noExtBytes)),
 					mimeType: 'image/png',
 					displayName: 'photo',
+				},
+				{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString(wavBytes)),
+					mimeType: 'image/png',
+					displayName: 'voice',
 				},
 				{ type: 'file', path: docUri.fsPath, displayName: 'notes.txt' },
 			],
