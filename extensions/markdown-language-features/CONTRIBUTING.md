@@ -6,7 +6,7 @@ Almost all language features are implemented in the upstream [Markdown Language 
 
 ## Project Structure
 
-Here is a quick look at the important files in this proejcts
+Here is a quick look at the important files in this project:
 
 ```
 src/
