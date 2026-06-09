@@ -310,6 +310,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 						notificationList.updateNotificationHeight(item);
 					}
 					break;
+				case NotificationViewItemContentChangeKind.PROGRESS:
+					if (!item.hasProgress) {
+						notificationList.updateNotificationsList(0, 1, [item]);
+					}
+					break;
 			}
 		}));
 

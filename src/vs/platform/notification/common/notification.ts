@@ -226,6 +226,14 @@ export interface INotificationProgress {
 
 	/**
 	 * Indicate that the long running operation is done.
+	 *
+	 * This call is terminal: once `done()` is called, no further progress
+	 * updates (`infinite`, `total`, `worked`) should be issued on this
+	 * handle. The notification subsystem does not enforce this contract at
+	 * runtime, but callers that violate it may observe stale UI affordances
+	 * (e.g. a close button that remains visible while progress resumes).
+	 *
+	 * Note: calling `done()` more than once is safe and has no effect.
 	 */
 	done(): void;
 }
