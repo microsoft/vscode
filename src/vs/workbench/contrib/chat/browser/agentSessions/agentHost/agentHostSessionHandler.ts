@@ -2596,6 +2596,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		this._logService.trace(`[AgentHost] Created session: ${session.toString()}`);
 
+		// The backend session now owns the working directory, so the per-session
+		// folder selection is no longer needed; drop it to avoid retaining
+		// state beyond the "new session" phase.
+		this._newSessionFolderService.clear(sessionResource);
+
 		// Subscribe to the new session's state
 		const newSub = this._ensureSessionSubscription(session.toString());
 		if (!this._getSessionState(session.toString())) {

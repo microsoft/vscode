@@ -103,9 +103,18 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	private _selectedFolder(): URI | undefined {
+		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
-		const stored = sessionResource && this._newSessionFolderService.getFolder(sessionResource);
-		return stored ?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
+		if (stored) {
+			if (folders.some(folder => folder.uri.toString() === stored.toString())) {
+				return stored;
+			}
+			// The stored folder is no longer part of the workspace (folders
+			// changed); drop the stale selection and fall back to the first folder.
+			this._newSessionFolderService.clear(sessionResource!);
+		}
+		return folders[0]?.uri;
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
@@ -121,7 +130,8 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 
 		this.setAriaLabelAttributes(element);
 		const selected = this._selectedFolder();
-		const label = selected ? basename(selected) : localize('agentHost.selectFolder', "Folder");
+		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
+		const label = folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
 		dom.reset(
 			element,
 			...renderLabelWithIcons(`$(folder)`),
