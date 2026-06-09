@@ -83,7 +83,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
-		description: item.description,
+		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
 		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
