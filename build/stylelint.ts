@@ -7,7 +7,7 @@ import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
-import { validateCodiconFontSizes, validateFontSizeTokens, validateCornerRadiusTokens } from './lib/stylelint/validateDesignTokens.ts';
+import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens } from './lib/stylelint/validateDesignTokens.ts';
 
 interface FileWithLines {
 	__lines?: string[];
@@ -59,6 +59,9 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
 			}
 			for (const violation of validateFontSizeTokens(contents)) {
+				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
+			}
+			for (const violation of validateFontWeightTokens(contents)) {
 				reporter(file.relative + '(' + violation.line + ',1): ' + violation.message, false);
 			}
 			for (const violation of validateCornerRadiusTokens(contents)) {

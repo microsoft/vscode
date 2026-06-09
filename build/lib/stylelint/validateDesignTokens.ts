@@ -264,3 +264,94 @@ export function validateCornerRadiusTokens(text: string): IDesignTokenViolation[
 
 	return violations;
 }
+
+// ---------------------------------------------------------------------------
+// Font-weight token suggestions (sessions design-system area only)
+// ---------------------------------------------------------------------------
+//
+// The agents font ramp defines exactly two weights: regular (400) and
+// semiBold (600). Any other numeric weight (e.g. 500, 700) is off the ramp and
+// snaps to the nearer of the two. The CSS keywords `normal` (400) and `bold`
+// (700) are normalised before snapping. `inherit`, `lighter`, `bolder` and
+// var()/calc() expressions are left untouched.
+
+const RE_FONT_WEIGHT = /font-weight\s*:\s*([^;{}]+)/i;
+
+interface IFontWeightToken {
+	readonly weight: number;
+	readonly name: string;
+}
+
+/** The only two weights in the agents ramp. */
+const FONT_WEIGHT_TOKENS: readonly IFontWeightToken[] = [
+	{ weight: 400, name: 'regular' },
+	{ weight: 600, name: 'semiBold' },
+];
+
+/** Resolves a font-weight value to a number, or undefined if not numeric. */
+function parseFontWeight(value: string): number | undefined {
+	const trimmed = value.trim().toLowerCase();
+	if (trimmed === 'normal') {
+		return 400;
+	}
+	if (trimmed === 'bold') {
+		return 700;
+	}
+	const numeric = /^(\d{3})$/.exec(trimmed);
+	return numeric ? parseInt(numeric[1], 10) : undefined;
+}
+
+/** Maps a numeric weight to its token, snapping off-ramp values to the nearer. */
+function snapFontWeight(weight: number): IFontWeightToken {
+	let best = FONT_WEIGHT_TOKENS[0];
+	let bestDistance = Math.abs(best.weight - weight);
+	for (const token of FONT_WEIGHT_TOKENS) {
+		const distance = Math.abs(token.weight - weight);
+		// `<=` makes the 500 tie prefer the heavier (600) token.
+		if (distance <= bestDistance) {
+			best = token;
+			bestDistance = distance;
+		}
+	}
+	return best;
+}
+
+/**
+ * Finds hardcoded `font-weight` values and suggests the agents weight-ramp var.
+ * Exact ramp values (400 / 600, plus `normal` = 400) are flagged as drop-in
+ * replacements; off-ramp values (e.g. 500, 700, `bold`) snap to the nearer
+ * token and call out that the value is off the two-weight ramp. `inherit`,
+ * `lighter`, `bolder` and var()/calc() expressions are ignored. Returns one
+ * finding per occurrence so the terminal can linkify each `file(line,col)`.
+ */
+export function validateFontWeightTokens(text: string): IDesignTokenViolation[] {
+	const violations: IDesignTokenViolation[] = [];
+
+	forEachDeclaration(text, (line, _selector, declaration) => {
+		const decl = RE_FONT_WEIGHT.exec(declaration);
+		if (!decl) {
+			return;
+		}
+		const value = decl[1];
+		if (/var\(|calc\(/i.test(value)) {
+			return;
+		}
+		const weight = parseFontWeight(value);
+		if (weight === undefined) {
+			return;
+		}
+		const token = snapFontWeight(weight);
+		const exact = token.weight === weight;
+		const shown = value.trim();
+		const headline = exact
+			? `font-weight ${shown} matches a design ramp token - prefer the var:`
+			: `font-weight ${shown} is off the agents weight ramp (400/600) - nearest token (${token.weight}):`;
+		violations.push({
+			line,
+			isNearMiss: !exact,
+			message: `${headline}\n           -> use var(--vscode-agents-fontWeight-${token.name})`
+		});
+	});
+
+	return violations;
+}
