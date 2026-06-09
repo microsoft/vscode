@@ -3555,14 +3555,13 @@ export namespace ChatPromptReference {
 			value = Location.to(revive(value));
 		} else if (isImageVariableEntry(variable)) {
 			const ref = variable.references?.[0]?.reference;
-			const binaryData = new types.ChatReferenceBinaryData(
+			value = new types.ChatReferenceBinaryData(
 				variable.mimeType ?? 'image/png',
 				() => Promise.resolve(new Uint8Array(Object.values(variable.value as number[]))),
-				ref && URI.isUri(ref) ? ref : undefined
+				ref && URI.isUri(ref) ? ref : undefined,
+				variable.isPasted,
+				variable.isURL
 			);
-			binaryData.isPasted = variable.isPasted;
-			binaryData.isURL = variable.isURL;
-			value = binaryData;
 		} else if (variable.kind === 'diagnostic') {
 			const filterSeverity = variable.filterSeverity && DiagnosticSeverity.to(variable.filterSeverity);
 			const filterUri = variable.filterUri && URI.revive(variable.filterUri).toString();
