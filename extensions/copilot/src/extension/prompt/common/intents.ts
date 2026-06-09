@@ -44,8 +44,8 @@ export interface IToolCallRound {
 	hookContext?: string;
 	/** The phase of the agent loop during which this tool call round occurred. */
 	phase?: string;
-	/** The model ID that produced the phase value. */
-	phaseModelId?: string;
+	/** The model ID. */
+	modelId?: string;
 }
 
 export interface InternalToolReference extends vscode.ChatLanguageModelToolReference {
@@ -120,6 +120,16 @@ export interface IBuildPromptContext {
 	 * Additional context provided by a hook.
 	 */
 	readonly additionalHookContext?: string;
+	/**
+	 * The headerRequestId from the most recent parent fetch response.
+	 * Used by subagent tools to link their telemetry back to the parent's HTTP request.
+	 */
+	readonly parentHeaderRequestId?: string;
+	/**
+	 * The modelCallId from the most recent parent model call.
+	 * Used by subagent tools to link their telemetry back to the parent's specific model call.
+	 */
+	readonly parentModelCallId?: string;
 }
 
 export const IBuildPromptContext = createServiceIdentifier<IBuildPromptContext>('IBuildPromptContext');

@@ -29,6 +29,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent, LanguageModelToolTelemetryClassification, LanguageModelToolTelemetryData } from '../../../../../platform/telemetry/common/languageModelToolTelemetry.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -41,17 +42,21 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { ChatConfiguration, isAutoApproveLevel } from '../../common/constants.js';
+import { ChatConfiguration, isAutoApproveLevel, isAutopilotLevel } from '../../common/constants.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { chatSessionResourceToId, getChatSessionType } from '../../common/model/chatUri.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
+import { CopilotChatSettingId, CopilotToolId } from '../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
+import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { IToolResultCompressor } from '../../common/tools/toolResultCompressor.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { IChatWidgetService } from '../chat.js';
+import { IChatToolRiskAssessmentService, ToolRiskLevel } from './chatToolRiskAssessmentService.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -70,11 +75,27 @@ export const enum AutoApproveStorageKeys {
 
 const SkipAutoApproveConfirmationKey = 'vscode.chat.tools.global.autoApprove.testMode';
 
+/**
+ * Marks a {@link ToolConfirmKind.ConfirmationNotNeeded} decision that came from the session
+ * auto-approving everything, rather than a per-tool setting or an explicit user action. Shared so
+ * `shouldAutoConfirm`, the Autopilot risk gate, and approval telemetry use the same string.
+ */
+const autoApproveAllReason = 'auto-approve-all';
+
 // This tool will always require user confirmation even in auto approval mode.
 // Users cannot auto approve this tool via settings either, as this is a tool used before the agentic loop.
 const toolIdsThatCannotBeAutoApproved = new Set([
 	'vscode_get_confirmation_with_options',
 	'vscode_get_modified_files_confirmation',
+]);
+
+// Fetch uses two tools: the model-facing 'copilot_fetchWebPage' and the internal
+// 'vscode_fetchWebPage_internal' it delegates to. Both auto-approve themselves, so the Autopilot
+// risk gate classifies them to catch dangerous fetches (leaking secrets to an attacker URL,
+// hitting internal hosts).
+const fetchWebPageToolIds = new Set([
+	'copilot_fetchWebPage',
+	'vscode_fetchWebPage_internal',
 ]);
 
 export const globalAutoApproveDescription = localize2(
@@ -136,6 +157,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IToolResultCompressor private readonly _toolResultCompressor: IToolResultCompressor,
+		@IChatToolRiskAssessmentService private readonly _riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
 		super();
 
@@ -149,7 +172,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled) || e.affectsConfiguration(CopilotChatSettingId.Gpt55ReadFileToolEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -208,6 +231,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				description: localize('copilot.toolSet.agent.description', 'Delegate tasks to other agents'),
 			}
 		));
+	}
+
+	private isToolEnabledForModel(toolData: IToolData, model: ILanguageModelChatMetadata | undefined): boolean {
+		if (!toolMatchesModel(toolData, model)) {
+			return false;
+		}
+
+		if (toolData.id === CopilotToolId.ReadFile && model?.family.startsWith('gpt-5.5') && this._configurationService.getValue<boolean>(CopilotChatSettingId.Gpt55ReadFileToolEnabled) === false) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -338,7 +373,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				const satisfiesPermittedCheck = this.isPermitted(toolData);
-				const satisfiesModelFilter = toolMatchesModel(toolData, model);
+				const satisfiesModelFilter = this.isToolEnabledForModel(toolData, model);
 				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
 			});
 	}
@@ -460,6 +495,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
 				throw new CancellationError();
 			}
+
+			// Enrich context with working directory from the model if available
+			if (model?.workingDirectory && !dto.context.workingDirectory) {
+				dto = { ...dto, context: { ...dto.context, workingDirectory: model.workingDirectory } };
+			}
 		}
 
 		// Check if there's an existing pending tool call from streaming phase BEFORE hook check
@@ -570,9 +610,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocationWithHookResult(tool, dto, preToolUseHookResult, token);
 				prepareTimeWatch.stop();
 
-				const { autoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
+				const { autoConfirmed: resolvedAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
 				preparedInvocation = updatedPreparedInvocation;
 
+				// In Autopilot, run the risk classifier on an auto-approved call that would
+				// otherwise show a confirmation. A "red" rating skips the call; anything else
+				// (including a classifier failure) keeps the original auto-confirmation.
+				const { autoConfirmed, skipExplanation: riskSkipExplanation } = await this._maybeApplyAutopilotRiskGate(tool, dto, preparedInvocation, resolvedAutoConfirmed, token);
 
 				// Important: a tool invocation that will be autoconfirmed should never
 				// be in the chat response in the `NeedsConfirmation` state, even briefly,
@@ -591,11 +635,33 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+
+				// Enforce a risk skip here, before the confirmation flow below: run_in_terminal
+				// suppresses its own confirmation under Autopilot and never reaches it. The tool
+				// is not run, and an info note explains why.
+				if (riskSkipExplanation) {
+					this._logToolApprovalTelemetry(tool, dto, { type: ToolConfirmKind.Skipped });
+					// Terminal and edit tools hide their invocation part once complete, so show the
+					// reason as a separate info note.
+					this._chatService.appendProgress(request, {
+						kind: 'info',
+						content: new MarkdownString(localize('autopilotRiskSkipped', "Autopilot skipped \"{0}\" because it was assessed as high-risk: {1}", tool.data.displayName, riskSkipExplanation)),
+					});
+					toolResult = {
+						content: [{
+							kind: 'text',
+							value: `Autopilot skipped this tool call because it was automatically assessed as high-risk: ${riskSkipExplanation} The action was not performed. Do not retry it as-is — choose a safer approach or leave it for the user to run manually.`
+						}]
+					};
+					return toolResult;
+				}
+
 				if (preparedInvocation?.confirmationMessages?.title) {
 					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation], dto.context?.sessionResource);
 					}
 					const userConfirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token);
+					this._logToolApprovalTelemetry(tool, dto, userConfirmed);
 					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
 					}
@@ -617,6 +683,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 						dto.parameters = dto.toolSpecificData.rawInput;
 						dto.toolSpecificData = undefined;
 					}
+				} else {
+					this._logToolApprovalTelemetry(tool, dto, autoConfirmed ?? { type: ToolConfirmKind.ConfirmationNotNeeded });
 				}
 			} else {
 				prepareTimeWatch = StopWatch.create(true);
@@ -645,10 +713,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			}, token);
 			invocationTimeWatch.stop();
+			// Apply post-processing compression (e.g. for run_in_terminal output)
+			// before the result reaches the model. Returns undefined when no
+			// compression applied.
+			const compressed = this._toolResultCompressor.maybeCompress(tool.data.id, dto.parameters, toolResult);
+			if (compressed) {
+				toolResult = compressed;
+			}
 			this.ensureToolDetails(dto, toolResult, tool.data, toolInvocation);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>
-				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId));
+				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId, dto.context?.workingDirectory));
 
 			if (toolInvocation && afterExecuteState?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				const postConfirm = await IChatToolInvocation.awaitPostConfirmation(toolInvocation, token);
@@ -718,6 +793,40 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				: hookMessage;
 		}
 		return this.prepareToolInvocation(tool, dto, forceConfirmationReason, token);
+	}
+
+	private _logToolApprovalTelemetry(tool: IToolEntry, dto: IToolInvocation, reason: ConfirmedReason): void {
+		const confirmKindNames: Record<ToolConfirmKind, string> = {
+			[ToolConfirmKind.Denied]: 'denied',
+			[ToolConfirmKind.ConfirmationNotNeeded]: 'confirmationNotNeeded',
+			[ToolConfirmKind.Setting]: 'setting',
+			[ToolConfirmKind.LmServicePerTool]: 'lmServicePerTool',
+			[ToolConfirmKind.UserAction]: 'userAction',
+			[ToolConfirmKind.Skipped]: 'skipped',
+		};
+		const allowedConfirmationNotNeededReasons = new Set([autoApproveAllReason, 'inlineChat']);
+		let confirmationNotNeededReason: string | undefined;
+		if (reason.type === ToolConfirmKind.ConfirmationNotNeeded && reason.reason) {
+			const raw = typeof reason.reason === 'string' ? reason.reason : reason.reason.value;
+			confirmationNotNeededReason = allowedConfirmationNotNeededReasons.has(raw) ? raw : 'other';
+		}
+		const terminalData = dto.toolSpecificData?.kind === 'terminal' ? dto.toolSpecificData : undefined;
+		this._telemetryService.publicLog2<ToolApprovalEvent, ToolApprovalClassification>(
+			'chat.toolApproval',
+			{
+				confirmKind: confirmKindNames[reason.type],
+				requestId: dto.chatRequestId,
+				settingId: reason.type === ToolConfirmKind.Setting ? reason.id : undefined,
+				lmServiceScope: reason.type === ToolConfirmKind.LmServicePerTool ? reason.scope : undefined,
+				customButtonKind: reason.type === ToolConfirmKind.UserAction ? reason.selectedButtonKind : undefined,
+				confirmationNotNeededReason,
+				sandboxWrapped: terminalData?.commandLine.isSandboxWrapped,
+				requestUnsandboxedExecution: terminalData?.requestUnsandboxedExecution,
+				chatSessionId: dto.context?.sessionResource ? chatSessionResourceToId(dto.context.sessionResource) : undefined,
+				toolId: tool.data.id,
+				toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
+				toolSourceKind: tool.data.source.type,
+			});
 	}
 
 	/**
@@ -806,8 +915,97 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				key: approveCombination.key,
 			};
 		}
-		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combination);
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId, combination, dto.context?.workingDirectory);
 		return { autoConfirmed, preparedInvocation };
+	}
+
+	/**
+	 * In Autopilot, runs the risk classifier on an auto-approved call and skips it when the rating
+	 * is {@link ToolRiskLevel.Red}. Any other result returns the original auto-confirmation
+	 * unchanged.
+	 *
+	 * To keep the classifier off the hot path, it only runs when all of these hold:
+	 * - the call was auto-approved by the session approving everything, or is a `run_in_terminal` /
+	 *   fetch call that self-approved (these can run risky commands or prompt-injected URLs without
+	 *   ever showing a confirmation);
+	 * - it would otherwise show a confirmation (the self-approving tools above are the exception);
+	 * - the session is a local panel session at the Autopilot level with Advanced Autopilot on.
+	 *
+	 * This is independent of `chat.tools.riskAssessment.enabled`, which only controls the
+	 * confirmation risk badge. CLI and agent-host sessions handle their own confirmations and are
+	 * excluded.
+	 *
+	 * Fails open: a cancelled, unavailable, or failed assessment keeps the original
+	 * auto-confirmation so Autopilot keeps moving.
+	 */
+	private async _maybeApplyAutopilotRiskGate(
+		tool: IToolEntry,
+		dto: IToolInvocation,
+		preparedInvocation: IPreparedToolInvocation | undefined,
+		autoConfirmed: ConfirmedReason | undefined,
+		token: CancellationToken,
+	): Promise<{ autoConfirmed: ConfirmedReason | undefined; skipExplanation?: string }> {
+		const isTerminalTool = tool.data.id === TerminalToolId.RunInTerminal;
+		const isFetchTool = fetchWebPageToolIds.has(tool.data.id);
+		const isAlwaysClassifyTool = isTerminalTool || isFetchTool;
+
+		// Normally only gate calls the session auto-approved wholesale (the `autoApproveAllReason`
+		// sentinel). A per-tool setting, user action, or hook carries a concrete reason and is
+		// respected as-is.
+		//
+		// Exception: run_in_terminal and fetch self-approve without a confirmation, so a risky command
+		// or a prompt-injected URL would run unclassified. Gate them when they arrive self-approved
+		// (no reason and no confirmation of their own); an explicit allow carries a concrete reason
+		// instead of `undefined`, so it stays respected.
+		const isBlanketSessionApprove = autoConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded
+			&& autoConfirmed.reason === autoApproveAllReason;
+		const isSelfApprovedAlwaysClassify = isAlwaysClassifyTool
+			&& autoConfirmed === undefined
+			&& !preparedInvocation?.confirmationMessages?.title;
+		if (!isBlanketSessionApprove && !isSelfApprovedAlwaysClassify) {
+			return { autoConfirmed };
+		}
+
+		// Only gate calls that would otherwise show a confirmation, plus the self-approving tools above.
+		if (!isAlwaysClassifyTool && !preparedInvocation?.confirmationMessages?.title) {
+			return { autoConfirmed };
+		}
+
+		// Check the Advanced Autopilot flag first: it is default-off, so the common case bails before
+		// the session lookups below. This does not consult `chat.tools.riskAssessment.enabled`, which
+		// only controls the confirmation risk badge.
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.AutopilotAdvancedEnabled) !== true) {
+			return { autoConfirmed };
+		}
+
+		// Scope to local panel sessions at the Autopilot level. CLI and agent-host sessions handle
+		// their own confirmations.
+		const sessionResource = dto.context?.sessionResource;
+		if (!sessionResource || getChatSessionType(sessionResource) !== localChatSessionType) {
+			return { autoConfirmed };
+		}
+		if (!this._isSessionInAutopilotLevel(sessionResource)) {
+			return { autoConfirmed };
+		}
+
+		try {
+			// ignoreEnablement: assess even when the risk-badge setting is off.
+			const assessment = await this._riskAssessmentService.assess(tool.data, dto.parameters, token, undefined, { ignoreEnablement: true });
+			if (token.isCancellationRequested) {
+				return { autoConfirmed };
+			}
+			if (assessment?.risk === ToolRiskLevel.Red) {
+				const fallbackExplanation = localize('autopilotRiskSkipFallback', "The action was assessed as potentially destructive or irreversible.");
+				const explanation = assessment.explanation.trim() || fallbackExplanation;
+				this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping high-risk tool ${tool.data.id}: ${explanation}`);
+				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+			}
+		} catch (err) {
+			this._logService.warn(`[LanguageModelToolsService#invokeTool] Autopilot risk assessment failed for tool ${tool.data.id}, allowing: ${toErrorMessage(err)}`);
+		}
+
+		// Green/orange, no assessment, or a failure: keep the original auto-confirmation (fail open).
+		return { autoConfirmed };
 	}
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, forceConfirmationReason: string | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -820,7 +1018,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				chatSessionResource: dto.context?.sessionResource,
 				chatInteractionId: dto.chatInteractionId,
 				modelId: dto.modelId,
-				forceConfirmationReason: forceConfirmationReason
+				forceConfirmationReason: forceConfirmationReason,
+				workingDirectory: dto.context?.workingDirectory,
 			}, token);
 
 			const raceResult = await Promise.race([
@@ -1076,6 +1275,42 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return !!widget && isAutoApproveLevel(widget.input.currentModeInfo.permissionLevel);
 	}
 
+	/**
+	 * True if the session is in an auto-approve level (Auto-Approve / Autopilot),
+	 * via either the last request's stamped level or the live picker level.
+	 */
+	private _isSessionInAutoApproveLevel(chatSessionResource: URI | undefined): boolean {
+		if (!chatSessionResource) {
+			return false;
+		}
+		const model = this._chatService.getSession(chatSessionResource);
+		const request = model?.getRequests().at(-1);
+		return isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource);
+	}
+
+	/**
+	 * True if the session's live permission picker level is Autopilot. Like
+	 * {@link _isSessionLiveAutoApproveLevel}, but excludes plain Auto-Approve.
+	 */
+	private _isSessionLiveAutopilotLevel(chatSessionResource: URI): boolean {
+		const widget = this._chatWidgetService.getWidgetBySessionResource(chatSessionResource)
+			?? this._chatWidgetService.lastFocusedWidget;
+		return !!widget && isAutopilotLevel(widget.input.currentModeInfo.permissionLevel);
+	}
+
+	/**
+	 * True if the session is at the Autopilot level (not plain Auto-Approve), via either the last
+	 * request's stamped level or the live picker level.
+	 */
+	private _isSessionInAutopilotLevel(chatSessionResource: URI | undefined): boolean {
+		if (!chatSessionResource) {
+			return false;
+		}
+		const model = this._chatService.getSession(chatSessionResource);
+		const request = model?.getRequests().at(-1);
+		return isAutopilotLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutopilotLevel(chatSessionResource);
+	}
+
 	private getEligibleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
 		if (toolData.id === 'vscode_fetchWebPage_internal') {
 			return 'fetch';
@@ -1120,25 +1355,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }, workingDirectory?: URI): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
 		}
 
-		// Auto-Approve All permission level bypasses all tool confirmations,
-		// unless enterprise policy has explicitly disabled global auto-approve.
-		// Check both the request-stamped level AND the live picker level so that
-		// switching to Autopilot mid-session takes effect immediately.
-		if (chatSessionResource && !this._isAutoApprovePolicyRestricted()) {
-			const model = this._chatService.getSession(chatSessionResource);
-			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
-				// CLI sessions must always show their multi-option confirmation dialogs
-				// (e.g. uncommitted-changes prompt) even under Bypass Approvals
-				if (!(toolIdsThatCannotBeAutoApproved.has(tool.data.id) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
-					return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
-				}
+		// Bypass confirmation under Auto-Approve / Autopilot, unless enterprise
+		// policy disables global auto-approve.
+		if (chatSessionResource && !this._isAutoApprovePolicyRestricted() && this._isSessionInAutoApproveLevel(chatSessionResource)) {
+			// CLI sessions still need their multi-option dialogs (e.g. uncommitted changes).
+			if (!(toolIdsThatCannotBeAutoApproved.has(tool.data.id) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: autoApproveAllReason };
 			}
 		}
 
@@ -1146,7 +1374,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
-		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, combination });
+		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource, workingDirectory, combination });
 		if (reason) {
 			return reason;
 		}
@@ -1173,25 +1401,23 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
-		// Auto-Approve All permission level bypasses all post-execution confirmations,
-		// unless enterprise policy has explicitly disabled global auto-approve.
-		// Check both the request-stamped level AND the live picker level.
-		if (chatSessionResource && !this._isAutoApprovePolicyRestricted()) {
-			const model = this._chatService.getSession(chatSessionResource);
-			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) || this._isSessionLiveAutoApproveLevel(chatSessionResource)) {
-				if (!(toolIdsThatCannotBeAutoApproved.has(toolId) && getChatSessionType(chatSessionResource) !== localChatSessionType)) {
-					return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
-				}
+	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, workingDirectory?: URI): Promise<ConfirmedReason | undefined> {
+		// Bypass post-execution confirmation under Auto-Approve / Autopilot,
+		// unless enterprise policy disables global auto-approve.
+		const sessionAutoApprove = chatSessionResource && !this._isAutoApprovePolicyRestricted() && this._isSessionInAutoApproveLevel(chatSessionResource);
+		if (sessionAutoApprove) {
+			if (!(toolIdsThatCannotBeAutoApproved.has(toolId) && getChatSessionType(chatSessionResource!) !== localChatSessionType)) {
+				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: autoApproveAllReason };
 			}
 		}
 
-		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
+		// Don't show the YOLO opt-in dialog under autopilot: this runs after the
+		// tool result is already back in the agent loop, so it can't block anything.
+		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && !sessionAutoApprove && await this._checkGlobalAutoApprove()) {
 			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
 		}
 
-		return this._confirmationService.getPostConfirmAction({ toolId, source, parameters, chatSessionResource });
+		return this._confirmationService.getPostConfirmAction({ toolId, source, parameters, chatSessionResource, workingDirectory });
 	}
 
 	private async _checkGlobalAutoApprove(): Promise<boolean> {
@@ -1381,7 +1607,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				}
 			} else {
-				if (model && !toolMatchesModel(tool, model)) {
+				if (!this.isToolEnabledForModel(tool, model)) {
 					continue;
 				}
 
@@ -1461,7 +1687,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return this.toolSets.read(reader);
 		}
 
-		return Iterable.map(this.toolSets.read(reader), ts => new ToolSetForModel(ts, model));
+		return Iterable.map(this.toolSets.read(reader), ts => new ToolSetForModel(ts, model, toolData => this.isToolEnabledForModel(toolData, model)));
 	}
 
 	getToolSet(id: string): ToolSet | undefined {
@@ -1653,24 +1879,26 @@ function getToolSetFullReferenceName(toolSet: IToolSet) {
 }
 
 
-type LanguageModelToolInvokedEvent = {
-	result: 'success' | 'error' | 'userCancelled';
-	chatSessionId: string | undefined;
-	toolId: string;
-	toolExtensionId: string | undefined;
-	toolSourceKind: string;
-	prepareTimeMs?: number;
-	invocationTimeMs?: number;
+type ToolApprovalEvent = LanguageModelToolTelemetryData & {
+	confirmKind: string;
+	requestId: string | undefined;
+	settingId: string | undefined;
+	lmServiceScope: string | undefined;
+	customButtonKind: string | undefined;
+	confirmationNotNeededReason: string | undefined;
+	sandboxWrapped: boolean | undefined;
+	requestUnsandboxedExecution: boolean | undefined;
 };
 
-type LanguageModelToolInvokedClassification = {
-	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the LanguageModelTool resulted in an error.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
-	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the tool used.' };
-	toolExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension that contributed the tool.' };
-	toolSourceKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source (mcp/extension/internal) of the tool.' };
-	prepareTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in prepareToolInvocation method in milliseconds.' };
-	invocationTimeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time spent in tool invoke method in milliseconds.' };
-	owner: 'roblourens';
-	comment: 'Provides insight into the usage of language model tools.';
+type ToolApprovalClassification = LanguageModelToolTelemetryClassification & {
+	confirmKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the confirmation was resolved (userAction, setting, lmServicePerTool, confirmationNotNeeded, denied, skipped). Anything other than userAction implies auto-approval. "denied" and "skipped" mean the tool did not run; otherwise it ran (note: a custom Deny button click resolves as userAction since the tool still runs and the chosen label is passed to it; see customButtonKind to distinguish).' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat request turn that this tool approval is associated with, if available.' };
+	settingId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is setting, the configuration id that auto-approved the tool.' };
+	lmServiceScope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is lmServicePerTool, the scope (session/workspace/profile).' };
+	customButtonKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the user clicked a custom button on the confirmation widget, whether the button represents approve or deny semantics. Undefined when no custom button was clicked.' };
+	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation. Limited to a known allowlist (e.g. auto-approve-all, inlineChat); set to "other" for any other reason; undefined when no reason was supplied.' };
+	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox. Undefined for non-terminal tools.' };
+	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation. Undefined for non-terminal tools.' };
+	owner: 'chrmarti';
+	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval).';
 };

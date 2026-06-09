@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -231,7 +234,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 		super({
 			id: 'agentSessionSection.archive',
 			title: localize2('archiveSection', "Archive All"),
-			icon: Codicon.archive,
+			icon: Codicon.checkAll,
 			menu: [{
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
@@ -472,7 +475,7 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		super({
 			id: 'agentSession.archive',
 			title: localize2('archive', "Archive"),
-			icon: Codicon.archive,
+			icon: Codicon.check,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace },
@@ -565,7 +568,7 @@ export class PinAgentSessionAction extends BaseAgentSessionAction {
 			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPinnedAgentSession.negate(),
 					ChatContextKeys.isArchivedAgentSession.negate()
@@ -599,7 +602,7 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.isPinnedAgentSession,
 					ChatContextKeys.isArchivedAgentSession.negate()
@@ -623,6 +626,16 @@ export class UnpinAgentSessionAction extends BaseAgentSessionAction {
 	}
 }
 
+/**
+ * Matches every session type that supports renaming: local sessions and all
+ * agent-host session types (`agent-host-*` and `remote-*`), mirroring the
+ * generic `isAgentHostTarget` check used by the rename action body.
+ */
+const renameSupportedSessionTypes = ContextKeyExpr.or(
+	ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+	ChatContextKeyExprs.isAgentHostSessionItem,
+);
+
 export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
@@ -638,14 +651,14 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+					renameSupportedSessionTypes
 				),
 			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 3,
-				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+				when: renameSupportedSessionTypes
 			}
 		});
 	}
@@ -658,10 +671,15 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 
 		const quickInputService = accessor.get(IQuickInputService);
 		const chatService = accessor.get(IChatService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
 		if (title) {
-			chatService.setChatSessionTitle(session.resource, title);
+			if (isAgentHostAgentSessionItem(session)) {
+				await chatSessionsService.renameChatSession(session.resource, title, CancellationToken.None);
+			} else {
+				chatService.setChatSessionTitle(session.resource, title);
+			}
 		}
 	}
 }
@@ -689,6 +707,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const widgetService = accessor.get(IChatWidgetService);
+		const commandService = accessor.get(ICommandService);
 
 		const confirmed = await dialogService.confirm({
 			message: sessions.length === 1
@@ -702,6 +721,8 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			return;
 		}
 
+		const deletedSessionIds: string[] = [];
+
 		for (const session of sessions) {
 
 			// Clear chat widget
@@ -709,6 +730,17 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 
 			// Remove from storage
 			await chatService.removeHistoryEntry(session.resource);
+
+			// Track session ID for cloud cleanup
+			const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
+			if (sessionId) {
+				deletedSessionIds.push(sessionId);
+			}
+		}
+
+		// Notify extensions to clean up cloud data (best effort)
+		if (deletedSessionIds.length > 0) {
+			commandService.executeCommand('github.copilot.sessionSync.deleteSessionFromCloud', deletedSessionIds).catch(() => { /* best effort */ });
 		}
 	}
 }

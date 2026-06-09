@@ -153,6 +153,19 @@ export interface ITerminalChatService {
 	getTerminalInstanceByToolSessionId(terminalToolSessionId: string): Promise<ITerminalInstance | undefined>;
 
 	/**
+	 * Associate a terminal execution id (the per-invocation id used by `RunInTerminalTool`)
+	 * with a terminal instance. The association is automatically cleared when the instance is
+	 * disposed or when the returned disposable is disposed.
+	 */
+	registerTerminalInstanceWithExecutionId(terminalExecutionId: string, instance: ITerminalInstance): IDisposable;
+
+	/**
+	 * Resolve a terminal instance by its execution id (the per-invocation id used by
+	 * `RunInTerminalTool`). Returns undefined if no active execution exists for the id.
+	 */
+	getTerminalInstanceByExecutionId(terminalExecutionId: string): ITerminalInstance | undefined;
+
+	/**
 	 * Returns the list of terminal instances that have been registered with a tool session id.
 	 * This is used for surfacing tool-driven/background terminals in UI (eg. quick picks).
 	 */
@@ -632,6 +645,13 @@ export interface ITerminalConfigurationService {
 	setPanelContainer(panelContainer: HTMLElement): void;
 	configFontIsMonospace(): boolean;
 	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont;
+
+	/**
+	 * Whether a particular command should skip the shell and go to be handled like a regular
+	 * keybinding instead.
+	 * @param commandId The command ID to check.
+	 */
+	shouldCommandSkipShell(commandId: string): boolean;
 }
 
 export class TerminalLinkQuickPickEvent extends MouseEvent {

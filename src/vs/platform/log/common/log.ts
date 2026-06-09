@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
@@ -71,6 +71,110 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 		case LogLevel.Off: /* do nothing */ break;
 		default: throw new Error(`Invalid log level ${level}`);
 	}
+}
+
+type ConsoleMethod = 'debug' | 'error' | 'info' | 'log' | 'warn';
+type ConsoleMethodFn = (...args: unknown[]) => void;
+
+/**
+ * Flag to enable forwarding of console.* calls to the log service in development.
+ * This is intended for the use of agents to quickly instrument the code with console.logs
+ * which will end up in the log service's file outputs.
+ */
+export const isDevConsoleLogForwardingEnabled = false
+	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	;
+
+let isConsoleForwarding = false;
+let isLogServiceConsoleEcho = false;
+
+function getConsoleMethod(method: ConsoleMethod): ConsoleMethodFn {
+	switch (method) {
+		case 'debug': return console.debug;
+		case 'error': return console.error;
+		case 'info': return console.info;
+		case 'log': return console.log;
+		case 'warn': return console.warn;
+	}
+}
+
+function setConsoleMethod(method: ConsoleMethod, fn: ConsoleMethodFn): void {
+	switch (method) {
+		case 'debug': console.debug = fn; break;
+		case 'error': console.error = fn; break;
+		case 'info': console.info = fn; break;
+		case 'log': console.log = fn; break;
+		case 'warn': console.warn = fn; break;
+	}
+}
+
+function logToConsole(method: ConsoleMethod, ...args: unknown[]): void {
+	if (isConsoleForwarding) {
+		return;
+	}
+	isLogServiceConsoleEcho = true;
+	try {
+		getConsoleMethod(method).apply(console, args);
+	} finally {
+		isLogServiceConsoleEcho = false;
+	}
+}
+
+export function registerDevConsoleLogForwarder(logService: ILogService): IDisposable {
+	const originalConsoleMethods: Record<ConsoleMethod, ConsoleMethodFn> = {
+		debug: console.debug,
+		error: console.error,
+		info: console.info,
+		log: console.log,
+		warn: console.warn
+	};
+
+	const forward = (method: ConsoleMethod, level: LogLevel, args: unknown[]): void => {
+		if (!isLogServiceConsoleEcho) {
+			isConsoleForwarding = true;
+			try {
+				log(logService, level, format(args));
+			} catch {
+				// Best-effort development logging must not break normal console semantics.
+			} finally {
+				isConsoleForwarding = false;
+			}
+		}
+
+		originalConsoleMethods[method].apply(console, args);
+	};
+
+	const wrappers: Record<ConsoleMethod, ConsoleMethodFn> = {
+		debug: (...args: unknown[]) => forward('debug', LogLevel.Debug, args),
+		error: (...args: unknown[]) => forward('error', LogLevel.Error, args),
+		info: (...args: unknown[]) => forward('info', LogLevel.Info, args),
+		log: (...args: unknown[]) => forward('log', LogLevel.Info, args),
+		warn: (...args: unknown[]) => forward('warn', LogLevel.Warning, args)
+	};
+
+	setConsoleMethod('debug', wrappers.debug);
+	setConsoleMethod('error', wrappers.error);
+	setConsoleMethod('info', wrappers.info);
+	setConsoleMethod('log', wrappers.log);
+	setConsoleMethod('warn', wrappers.warn);
+
+	return toDisposable(() => {
+		if (console.debug === wrappers.debug) {
+			console.debug = originalConsoleMethods.debug;
+		}
+		if (console.error === wrappers.error) {
+			console.error = originalConsoleMethods.error;
+		}
+		if (console.info === wrappers.info) {
+			console.info = originalConsoleMethods.info;
+		}
+		if (console.log === wrappers.log) {
+			console.log = originalConsoleMethods.log;
+		}
+		if (console.warn === wrappers.warn) {
+			console.warn = originalConsoleMethods.warn;
+		}
+	});
 }
 
 function format(args: any, verbose: boolean = false): string {
@@ -354,9 +458,9 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	trace(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Trace)) {
 			if (this.useColors) {
-				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
+				logToConsole('log', `\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.log(`[main ${now()}]`, message, ...args);
+				logToConsole('log', `[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -364,9 +468,9 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	debug(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Debug)) {
 			if (this.useColors) {
-				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
+				logToConsole('log', `\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.log(`[main ${now()}]`, message, ...args);
+				logToConsole('log', `[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -374,9 +478,9 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	info(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Info)) {
 			if (this.useColors) {
-				console.log(`\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
+				logToConsole('log', `\x1b[90m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.log(`[main ${now()}]`, message, ...args);
+				logToConsole('log', `[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -384,9 +488,9 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	warn(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
-				console.warn(`\x1b[93m[main ${now()}]\x1b[0m`, message, ...args);
+				logToConsole('warn', `\x1b[93m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.warn(`[main ${now()}]`, message, ...args);
+				logToConsole('warn', `[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -394,9 +498,9 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 	error(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
-				console.error(`\x1b[91m[main ${now()}]\x1b[0m`, message, ...args);
+				logToConsole('error', `\x1b[91m[main ${now()}]\x1b[0m`, message, ...args);
 			} else {
-				console.error(`[main ${now()}]`, message, ...args);
+				logToConsole('error', `[main ${now()}]`, message, ...args);
 			}
 		}
 	}
@@ -417,9 +521,9 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	trace(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Trace)) {
 			if (this.useColors) {
-				console.log('%cTRACE', 'color: #888', message, ...args);
+				logToConsole('log', '%cTRACE', 'color: #888', message, ...args);
 			} else {
-				console.log(message, ...args);
+				logToConsole('log', message, ...args);
 			}
 		}
 	}
@@ -427,9 +531,9 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	debug(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Debug)) {
 			if (this.useColors) {
-				console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+				logToConsole('log', '%cDEBUG', 'background: #eee; color: #888', message, ...args);
 			} else {
-				console.log(message, ...args);
+				logToConsole('log', message, ...args);
 			}
 		}
 	}
@@ -437,9 +541,9 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	info(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Info)) {
 			if (this.useColors) {
-				console.log('%c INFO', 'color: #33f', message, ...args);
+				logToConsole('log', '%c INFO', 'color: #33f', message, ...args);
 			} else {
-				console.log(message, ...args);
+				logToConsole('log', message, ...args);
 			}
 		}
 	}
@@ -447,9 +551,9 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	warn(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
-				console.warn('%c WARN', 'color: #993', message, ...args);
+				logToConsole('warn', '%c WARN', 'color: #993', message, ...args);
 			} else {
-				console.log(message, ...args);
+				logToConsole('log', message, ...args);
 			}
 		}
 	}
@@ -457,9 +561,9 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	error(message: string, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
-				console.error('%c  ERR', 'color: #f33', message, ...args);
+				logToConsole('error', '%c  ERR', 'color: #f33', message, ...args);
 			} else {
-				console.error(message, ...args);
+				logToConsole('error', message, ...args);
 			}
 		}
 	}

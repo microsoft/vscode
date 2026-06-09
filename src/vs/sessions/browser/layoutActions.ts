@@ -9,12 +9,15 @@ import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
+import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { mainWindow } from '../../base/browser/window.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -48,13 +51,7 @@ class ToggleSidebarVisibilityAction extends Action2 {
 					id: Menus.TitleBarLeftLayout,
 					group: 'navigation',
 					order: 0,
-					when: IsAuxiliaryWindowContext.toNegated()
-				},
-				{
-					id: Menus.TitleBarContext,
-					group: 'navigation',
-					order: 0,
-					when: IsAuxiliaryWindowContext.toNegated()
+					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 				}
 			]
 		});
@@ -87,20 +84,19 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 				description: localize('openAndCloseSecondarySidebar', 'Open/Show and Close/Hide Secondary Side Bar'),
 			},
 			category: Categories.View,
-			f1: true,
-			menu: [
-				{
-					id: Menus.TitleBarContext,
-					order: 1,
-					when: IsAuxiliaryWindowContext.toNegated()
-				}
-			]
+			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		// When hiding and unhidning editor part and auxiliary bar, hiding must be done
+		// in the opposite order than showing for sizing to restore correct dimensions.
+		if (isCurrentlyVisible && layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		}
 
 		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
 

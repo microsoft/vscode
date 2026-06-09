@@ -87,8 +87,8 @@
 	.agent-sessions-header-label {
 		flex: 1;
 		min-width: 0;
-		font-size: 12px;
-		font-weight: 500;
+		font-size: var(--vscode-agents-fontSize-label1, 12px);
+		font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -156,9 +156,9 @@
 		justify-content: center;
 		gap: 6px;
 		padding: 2px 8px;
-		font-size: 12px;
+		font-size: var(--vscode-agents-fontSize-label1, 12px);
 		line-height: 18px;
-		border-radius: var(--vscode-cornerRadius-medium);
+		border-radius: var(--vscode-cornerRadius-small);
 		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
 		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
 		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
@@ -166,6 +166,10 @@
 		min-width: 0;
 		height: auto;
 		white-space: nowrap;
+	}
+
+	.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
+		cursor: pointer;
 	}
 
 	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
@@ -188,11 +192,11 @@
 		display: inline-block;
 		flex-shrink: 0;
 		font-family: var(--monaco-monospace-font);
-		font-size: 10px;
+		font-size: var(--vscode-agents-fontSize-label3, 10px);
 		line-height: 1;
 		padding: 1px 3px;
 		border: 1px solid transparent;
-		border-radius: 2px;
+		border-radius: var(--vscode-cornerRadius-xSmall);
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
 		box-shadow: none;
@@ -225,14 +229,14 @@
 	}
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background .agent-sessions-viewpane {
+.agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {
 	background: transparent !important;
 }
 
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .pane-body,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list,
-.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list-rows {
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .pane-body,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-list,
+.agent-sessions-workbench.shell-gradient-background .part.sidebar > .content .monaco-list-rows {
 	background: transparent !important;
 }
 

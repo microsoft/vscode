@@ -7,7 +7,7 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { StatelessNextEditDocument } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLanguageDiagnosticsService } from '../../../../platform/languages/common/testLanguageDiagnosticsService';
 import { Result } from '../../../../util/common/result';
@@ -45,6 +45,7 @@ describe('expandRangeToPageRange', () => {
 			PAGE_SIZE,
 			2 * PAGE_SIZE, // budget for 2 pages
 			computeTokens, // pay 1 token per line (1 token for newline)
+			false,
 			false
 		);
 
@@ -67,6 +68,7 @@ describe('expandRangeToPageRange', () => {
 			PAGE_SIZE,
 			UNLIM_BUDGET,
 			computeTokens,
+			false,
 			false
 		);
 
@@ -75,6 +77,57 @@ describe('expandRangeToPageRange', () => {
 			  "budgetLeft": 4973,
 			  "firstPageIdx": 0,
 			  "lastPageIdxIncl": 4,
+			}
+		`);
+	});
+
+	it('does not donate leftover above-cursor budget to below-cursor by default', () => {
+
+		// Focal page is page 0, so there are no pages above the cursor to spend the
+		// upper half of the budget on. With an even split that upper half is
+		// discarded, so the lower half (15 tokens) only reaches one more page.
+		const nDocLines = 47;
+		const docLines = nLines(nDocLines).getLines();
+		const r = expandRangeToPageRange(
+			docLines,
+			new OffsetRange(0, 1),
+			PAGE_SIZE,
+			40, // page 0 costs 10 => availableTokenBudget 30 => 15 per half
+			computeTokens,
+			false,
+			false /* useLeftoverBudgetFromAbove */
+		);
+
+		expect(r).toMatchInlineSnapshot(`
+			{
+			  "budgetLeft": 5,
+			  "firstPageIdx": 0,
+			  "lastPageIdxIncl": 1,
+			}
+		`);
+	});
+
+	it('donates leftover above-cursor budget to below-cursor when enabled', () => {
+
+		// Same setup, but with donation enabled the unused upper half is given to
+		// the below-cursor expansion, so it reaches three more pages instead of one.
+		const nDocLines = 47;
+		const docLines = nLines(nDocLines).getLines();
+		const r = expandRangeToPageRange(
+			docLines,
+			new OffsetRange(0, 1),
+			PAGE_SIZE,
+			40,
+			computeTokens,
+			false,
+			true /* useLeftoverBudgetFromAbove */
+		);
+
+		expect(r).toMatchInlineSnapshot(`
+			{
+			  "budgetLeft": 0,
+			  "firstPageIdx": 0,
+			  "lastPageIdxIncl": 3,
 			}
 		`);
 	});
@@ -556,6 +609,7 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
+		aggressivenessLevel?: AggressivenessLevel;
 	}): PromptPieces {
 		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
 		const docText = new StringText(currentDocLines.join('\n'));
@@ -592,7 +646,7 @@ describe('getUserPrompt', () => {
 			currentDocLines,
 			'<area>some code</area>',
 			undefined,
-			AggressivenessLevel.Medium,
+			opts.aggressivenessLevel ?? AggressivenessLevel.Medium,
 			new LintErrors(documentId, currentDocument, new TestLanguageDiagnosticsService()),
 			s => Math.ceil(s.length / 4),
 			promptOptions,
@@ -702,5 +756,168 @@ describe('getUserPrompt', () => {
 
 		// No line number prefix — cursor line starts directly with content
 		expect(prompt).toContain(PromptTags.CURSOR_LOCATION.start + '\n' + '  const ' + PromptTags.CURSOR + 'x = 1;' + '\n' + PromptTags.CURSOR_LOCATION.end);
+	});
+
+	describe('Xtab275AggressivenessHighLow', () => {
+		test('medium level does not include aggressive tag', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.Medium,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('Do not skip any lines. Do not be lazy.');
+			expect(prompt).not.toContain('<|aggressive|>');
+			expect(prompt).not.toContain('<|/aggressive|>');
+		});
+
+		test('high level includes aggressive tag with high', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.High,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('<|aggressive|>high<|/aggressive|>');
+		});
+
+		test('low level includes aggressive tag with low', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.Low,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('<|aggressive|>low<|/aggressive|>');
+		});
+
+		test('high level includes xtab275 base postscript text', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275AggressivenessHighLow,
+				aggressivenessLevel: AggressivenessLevel.High,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('Do not skip any lines. Do not be lazy.');
+		});
+	});
+
+	describe('Xtab275Aggressiveness', () => {
+		test('medium level includes aggressive tag (unlike HighLow variant)', () => {
+			const pieces = createTestPromptPieces({
+				cursorLine: 2, cursorColumn: 1,
+				strategy: PromptingStrategy.Xtab275Aggressiveness,
+				aggressivenessLevel: AggressivenessLevel.Medium,
+			});
+			const { prompt } = getUserPrompt(pieces);
+
+			expect(prompt).toContain('<|aggressive|>medium<|/aggressive|>');
+		});
+	});
+});
+
+describe('getUserPrompt — globalBudget cascade', () => {
+
+	function makeActiveDoc(): { activeDoc: StatelessNextEditDocument; currentDocument: CurrentDocument; currentDocLines: string[] } {
+		const currentDocLines = ['function foo() {', '  const x = 1;', '  return x;', '}', ''];
+		const docText = new StringText(currentDocLines.join('\n'));
+		const documentId = DocumentId.create('file:///test/file.ts');
+		const currentDocument = new CurrentDocument(docText, new Position(2, 1));
+		const activeDoc = new StatelessNextEditDocument(
+			documentId,
+			undefined,
+			LanguageId.create('typescript'),
+			currentDocLines,
+			LineEdit.empty,
+			docText,
+			new Edits(StringEdit, []),
+		);
+		return { activeDoc, currentDocument, currentDocLines };
+	}
+
+	function makePieces(globalBudget: PromptOptions['globalBudget']): PromptPieces {
+		const { activeDoc, currentDocument, currentDocLines } = makeActiveDoc();
+		const promptOptions: PromptOptions = {
+			...DEFAULT_OPTIONS,
+			currentFile: { ...DEFAULT_OPTIONS.currentFile, maxTokens: 10000 },
+			globalBudget,
+		};
+		return new PromptPieces(
+			currentDocument,
+			new OffsetRange(1, 3),
+			new OffsetRange(0, 5),
+			activeDoc,
+			[],
+			currentDocLines,
+			'<area>some code</area>',
+			undefined,
+			AggressivenessLevel.Medium,
+			new LintErrors(activeDoc.id, currentDocument, new TestLanguageDiagnosticsService()),
+			s => Math.ceil(s.length / 4),
+			promptOptions,
+		);
+	}
+
+	test('produces the same prompt as legacy path when budgets are large', () => {
+		const legacy = getUserPrompt(makePieces(undefined));
+		const cascaded = getUserPrompt(makePieces({
+			totalTokens: 100000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		}));
+		// History is empty and language context/neighbor files are disabled, so
+		// both paths produce identical output (current file + empty sections).
+		expect(cascaded.prompt).toBe(legacy.prompt);
+		expect(cascaded.nDiffsInPrompt).toBe(legacy.nDiffsInPrompt);
+	});
+
+	test('throws when neighborFiles is ordered before recentlyViewedDocuments', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: ['neighborFiles', 'recentlyViewedDocuments', 'languageContext', 'diffHistory'],
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/'recentlyViewedDocuments' before 'neighborFiles'/);
+	});
+
+	test('throws on duplicate part in order', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: ['recentlyViewedDocuments', 'recentlyViewedDocuments', 'neighborFiles', 'languageContext', 'diffHistory'],
+			shares: GlobalBudgetOptions.DEFAULT_SHARES,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/duplicate part 'recentlyViewedDocuments'/);
+	});
+
+	test('throws when shares do not sum to ~1', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			shares: {
+				recentlyViewedDocuments: 0.5,
+				languageContext: 0.5,
+				neighborFiles: 0.5,
+				diffHistory: 0.5,
+			},
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares across order must sum to ~1/);
+	});
+
+	test('throws when shares is missing an entry for a part in order', () => {
+		const pieces = makePieces({
+			totalTokens: 1000,
+			order: GlobalBudgetOptions.DEFAULT_ORDER,
+			// missing 'diffHistory'
+			shares: {
+				languageContext: 0.4,
+				recentlyViewedDocuments: 0.4,
+				neighborFiles: 0.2,
+			} as Record<'languageContext' | 'recentlyViewedDocuments' | 'neighborFiles' | 'diffHistory', number>,
+		});
+		expect(() => getUserPrompt(pieces)).toThrow(/shares is missing entry for 'diffHistory'/);
 	});
 });

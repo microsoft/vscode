@@ -422,7 +422,6 @@ Object.assign(product, {
 			'completionsQuotaExceededContext': 'github.copilot.completions.quotaExceeded',
 			'walkthroughCommand': 'github.copilot.open.walkthrough',
 			'completionsMenuCommand': 'github.copilot.toggleStatusMenu',
-			'completionsRefreshTokenCommand': 'github.copilot.signIn',
 			'chatRefreshTokenCommand': 'github.copilot.refreshToken',
 			'completionsAdvancedSetting': 'github.copilot.advanced',
 			'completionsEnablementSetting': 'github.copilot.enable',

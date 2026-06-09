@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, test } from 'vitest';
-import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizationThresholds, BackgroundSummarizer, IBackgroundSummarizationResult, resolveSummaryAnchorRoundId, shouldKickOffBackgroundSummarization } from '../backgroundSummarizer';
 
 describe('BackgroundSummarizer', () => {
 
@@ -254,65 +254,93 @@ describe('BackgroundSummarizer', () => {
 	});
 });
 
-const { base, warmJitterMin, warmJitterSpan, emergency } = BackgroundSummarizationThresholds;
+const { warmJitterMin, warmJitterSpan, emergency } = BackgroundSummarizationThresholds;
 
 // rng that always returns 0.5 -> threshold sits exactly at the center of the
 // jitter range. With [0.78, 0.82) that's 0.80.
 const midRng = () => 0.5;
 // rng that forces the maximum of the jitter range.
 const maxRng = () => 1 - Number.EPSILON;
-// rng that should never be called on cold/non-inline branches.
+// rng that should never be called on cold-cache branches.
 const unusedRng = () => {
 	throw new Error('rng should not be consumed');
 };
 
 describe('shouldKickOffBackgroundSummarization', () => {
-	describe('inline + cold cache', () => {
+	describe('cold cache', () => {
 		test('defers kick-off below the emergency threshold', () => {
 			// Cold turn sitting in the old 0.80 trigger band — must not fire.
-			expect(shouldKickOffBackgroundSummarization(0.85, true, false, unusedRng)).toBe(false);
+			expect(shouldKickOffBackgroundSummarization(0.85, false, unusedRng)).toBe(false);
 		});
 
 		test('kicks off at the emergency threshold', () => {
-			expect(shouldKickOffBackgroundSummarization(emergency, true, false, unusedRng)).toBe(true);
-			expect(shouldKickOffBackgroundSummarization(0.91, true, false, unusedRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(emergency, false, unusedRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(0.91, false, unusedRng)).toBe(true);
 		});
 
 		test('does not consume the rng on the cold branch', () => {
 			// The unusedRng would throw if consumed — asserting no throw is the check.
-			expect(() => shouldKickOffBackgroundSummarization(0.85, true, false, unusedRng)).not.toThrow();
-			expect(() => shouldKickOffBackgroundSummarization(0.91, true, false, unusedRng)).not.toThrow();
+			expect(() => shouldKickOffBackgroundSummarization(0.85, false, unusedRng)).not.toThrow();
+			expect(() => shouldKickOffBackgroundSummarization(0.91, false, unusedRng)).not.toThrow();
 		});
 	});
 
-	describe('inline + warm cache', () => {
+	describe('warm cache', () => {
 		test('kicks off at the jittered midpoint (0.80) when ratio meets it', () => {
-			expect(shouldKickOffBackgroundSummarization(0.80, true, true, midRng)).toBe(true);
-			expect(shouldKickOffBackgroundSummarization(0.81, true, true, midRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(0.80, true, midRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(0.81, true, midRng)).toBe(true);
 		});
 
 		test('defers when ratio is under the jittered threshold', () => {
 			// midRng -> 0.80; 0.77 is below the entire jitter window.
-			expect(shouldKickOffBackgroundSummarization(0.77, true, true, midRng)).toBe(false);
+			expect(shouldKickOffBackgroundSummarization(0.77, true, midRng)).toBe(false);
 			// Also below the minimum of the window regardless of rng.
-			expect(shouldKickOffBackgroundSummarization(warmJitterMin - 0.0001, true, true, () => 0)).toBe(false);
+			expect(shouldKickOffBackgroundSummarization(warmJitterMin - 0.0001, true, () => 0)).toBe(false);
 		});
 
 		test('respects the top of the jitter range', () => {
 			// With maxRng, threshold approaches warmJitterMin + warmJitterSpan = 0.82.
 			// 0.81 lands below it, so we defer.
-			expect(shouldKickOffBackgroundSummarization(0.81, true, true, maxRng)).toBe(false);
+			expect(shouldKickOffBackgroundSummarization(0.81, true, maxRng)).toBe(false);
 			// 0.82 meets it.
-			expect(shouldKickOffBackgroundSummarization(warmJitterMin + warmJitterSpan, true, true, maxRng)).toBe(true);
+			expect(shouldKickOffBackgroundSummarization(warmJitterMin + warmJitterSpan, true, maxRng)).toBe(true);
 		});
 	});
+});
 
-	describe('non-inline path', () => {
-		test('uses the fixed base threshold and ignores cache warmth', () => {
-			// Warm, cold — both behave the same on non-inline.
-			expect(shouldKickOffBackgroundSummarization(base, false, false, unusedRng)).toBe(true);
-			expect(shouldKickOffBackgroundSummarization(base, false, true, unusedRng)).toBe(true);
-			expect(shouldKickOffBackgroundSummarization(base - 0.0001, false, true, unusedRng)).toBe(false);
-		});
+describe('resolveSummaryAnchorRoundId', () => {
+	const round = (id: string) => ({ id });
+	const turn = (...ids: string[]) => ({ rounds: ids.map(round) });
+
+	test('returns undefined with no current rounds and no history', () => {
+		// Regression for #319433: on an early turn (or a cold-cache emergency
+		// kick-off) there is no round to anchor a summary to. Returning undefined
+		// lets the caller skip *before* firing an expensive summarization request
+		// that could only fail with 'no round ID to apply summary to'.
+		expect(resolveSummaryAnchorRoundId([], [])).toBeUndefined();
+	});
+
+	test('returns undefined when there are no current rounds and every history turn is empty', () => {
+		expect(resolveSummaryAnchorRoundId([], [turn(), turn()])).toBeUndefined();
+	});
+
+	test('anchors to the only current-turn round', () => {
+		expect(resolveSummaryAnchorRoundId([round('r1')], [])).toBe('r1');
+	});
+
+	test('anchors to the round before the last so the most recent round is preserved verbatim', () => {
+		expect(resolveSummaryAnchorRoundId([round('r1'), round('r2'), round('r3')], [])).toBe('r2');
+	});
+
+	test('falls back to the most recent history round when the current turn has none', () => {
+		expect(resolveSummaryAnchorRoundId([], [turn('a1', 'a2'), turn('b1', 'b2')])).toBe('b2');
+	});
+
+	test('skips trailing empty history turns when falling back', () => {
+		expect(resolveSummaryAnchorRoundId([], [turn('a1'), turn('b1', 'b2'), turn()])).toBe('b2');
+	});
+
+	test('prefers current-turn rounds over history', () => {
+		expect(resolveSummaryAnchorRoundId([round('c1')], [turn('h1', 'h2')])).toBe('c1');
 	});
 });

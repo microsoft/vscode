@@ -49,7 +49,7 @@ function parseArgs() {
 					'Merge per-group perf results into a single CI summary.',
 					'',
 					'Options:',
-					'  --results-dir <dir>     Directory containing perf-results-* subdirs',
+					'  --results-dir <dir>     Directory containing perf-results-* or perf-summary-* subdirs',
 					'  --output <path>         Output path for ci-summary.md',
 					'  --leak-summary <path>   Path to ci-summary-leak.md (optional)',
 					'  --threshold <frac>      Regression threshold fraction (default: 0.2)',
@@ -72,14 +72,23 @@ function parseArgs() {
  * @param {string} resultsDir
  */
 function mergeResults(resultsDir) {
-	const groupDirs = fs.readdirSync(resultsDir)
-		.filter(d => d.startsWith('perf-results-'))
+	let groupDirs = fs.readdirSync(resultsDir)
+		.filter(d => d.startsWith('perf-results-') || d.startsWith('perf-summary-'))
 		.map(d => path.join(resultsDir, d))
 		.filter(d => fs.statSync(d).isDirectory());
 
+	// Fallback: when download-artifact extracts a single artifact directly into
+	// resultsDir (no artifact-named subdirectory), treat resultsDir itself as the
+	// sole group directory if it contains a .chat-simulation-data folder.
 	if (groupDirs.length === 0) {
-		console.error(`No perf-results-* directories found in ${resultsDir}`);
-		return null;
+		const simDataDir = path.join(resultsDir, '.chat-simulation-data');
+		if (fs.existsSync(simDataDir) && fs.statSync(simDataDir).isDirectory()) {
+			console.log(`No named subdirectories found; using ${resultsDir} directly as single group`);
+			groupDirs = [resultsDir];
+		} else {
+			console.error(`No perf-results-* or perf-summary-* directories found in ${resultsDir}`);
+			return null;
+		}
 	}
 
 	/** @type {Record<string, any>} */
@@ -88,6 +97,8 @@ function mergeResults(resultsDir) {
 	const mergedBaselineScenarios = {};
 	let runsPerScenario = 0;
 	let platform = 'linux';
+	/** @type {string | undefined} */
+	let buildMode;
 	/** @type {string | undefined} */
 	let baselineBuildVersion;
 	/** @type {string | undefined} */
@@ -115,6 +126,7 @@ function mergeResults(resultsDir) {
 				const results = JSON.parse(fs.readFileSync(resultsPath, 'utf-8'));
 				runsPerScenario = results.runsPerScenario || runsPerScenario;
 				platform = results.platform || platform;
+				buildMode = results.buildMode || buildMode;
 				for (const [scenario, data] of Object.entries(results.scenarios || {})) {
 					mergedScenarios[scenario] = data;
 				}
@@ -158,6 +170,7 @@ function mergeResults(resultsDir) {
 		timestamp: new Date().toISOString(),
 		platform,
 		runsPerScenario,
+		buildMode,
 		scenarios: mergedScenarios,
 	};
 
@@ -224,11 +237,14 @@ function round2(v) { return Math.round(v * 100) / 100; }
  *
  * @param {Record<string, any>} jsonReport
  * @param {Record<string, any> | null} baseline
- * @param {{ threshold: number, metricThresholds?: Record<string, number | string>, runs: number, baselineBuild?: string, build?: string }} opts
+ * @param {{ threshold: number, metricThresholds?: Record<string, number | string>, runs: number, baselineBuild?: string, build?: string, hasLeakFailure?: boolean }} opts
  */
 function generateUnifiedSummary(jsonReport, baseline, opts) {
 	const baseLabel = opts.baselineBuild || 'baseline';
-	const testLabel = opts.build || 'dev (local)';
+	const testBuildMode = jsonReport.buildMode || 'dev';
+	const testLabel = testBuildMode === 'dev' ? 'dev (local)'
+		: testBuildMode === 'production' ? 'production (local)'
+			: opts.build || testBuildMode;
 	const baseLink = formatBuildLink(baseLabel);
 	const testLink = formatBuildLink(testLabel);
 	const compareLink = formatCompareLink(baseLabel, testLabel);
@@ -316,17 +332,23 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 
 	// -- Header ----------------------------------------------------------
 	const hasRegressions = totalRegressions > 0;
-	const verdictIcon = hasRegressions ? '\u274C' : '\u2705';
-	let verdictText;
+	const hasLeakFailure = !!opts.hasLeakFailure;
+	const hasFailed = hasRegressions || hasLeakFailure;
+	const verdictIcon = hasFailed ? '\u274C' : '\u2705';
+	const verdictParts = [];
 	if (hasRegressions && totalImprovements > 0) {
-		verdictText = `${totalRegressions} regression(s), ${totalImprovements} improvement(s)`;
+		verdictParts.push(`${totalRegressions} regression(s), ${totalImprovements} improvement(s)`);
 	} else if (hasRegressions) {
-		verdictText = `${totalRegressions} regression(s) detected`;
+		verdictParts.push(`${totalRegressions} regression(s) detected`);
 	} else if (totalImprovements > 0) {
-		verdictText = `No regressions \u2014 ${totalImprovements} improvement(s)`;
+		verdictParts.push(`No regressions \u2014 ${totalImprovements} improvement(s)`);
 	} else {
-		verdictText = 'No significant changes';
+		verdictParts.push('No significant changes');
 	}
+	if (hasLeakFailure) {
+		verdictParts.push('memory leak detected');
+	}
+	const verdictText = verdictParts.join('; ');
 
 	lines.push(`# ${verdictIcon} Chat Performance: ${verdictText}`);
 	lines.push('');
@@ -508,9 +530,18 @@ function main() {
 
 	const { report, baseline, baselineBuildVersion } = merged;
 	const scenarioCount = Object.keys(report.scenarios).length;
-	console.log(`[merge] Merged ${scenarioCount} scenarios from ${fs.readdirSync(opts.resultsDir).filter(d => d.startsWith('perf-results-')).length} groups`);
+	console.log(`[merge] Merged ${scenarioCount} scenarios from ${fs.readdirSync(opts.resultsDir).filter(d => d.startsWith('perf-results-') || d.startsWith('perf-summary-')).length} groups`);
 	if (baseline) {
 		console.log(`[merge] Baseline: ${baselineBuildVersion || 'unknown'} (${Object.keys(baseline.scenarios).length} scenarios)`);
+	}
+
+	// Read leak summary early so we can reflect it in the header verdict
+	let leakSummaryContent = '';
+	let hasLeakFailure = false;
+	if (opts.leakSummary && fs.existsSync(opts.leakSummary)) {
+		leakSummaryContent = fs.readFileSync(opts.leakSummary, 'utf-8');
+		hasLeakFailure = leakSummaryContent.includes('\u274C');
+		console.log(`[merge] Leak summary found (failure: ${hasLeakFailure})`);
 	}
 
 	const summary = generateUnifiedSummary(report, baseline, {
@@ -519,13 +550,13 @@ function main() {
 		runs: report.runsPerScenario,
 		baselineBuild: baselineBuildVersion,
 		build: process.env.TEST_COMMIT || undefined,
+		hasLeakFailure,
 	});
 
 	// Append leak summary if available
 	let fullSummary = summary;
-	if (opts.leakSummary && fs.existsSync(opts.leakSummary)) {
-		fullSummary += '\n' + fs.readFileSync(opts.leakSummary, 'utf-8');
-		console.log('[merge] Appended leak summary');
+	if (leakSummaryContent) {
+		fullSummary += '\n' + leakSummaryContent;
 	}
 
 	fs.writeFileSync(opts.output, fullSummary);

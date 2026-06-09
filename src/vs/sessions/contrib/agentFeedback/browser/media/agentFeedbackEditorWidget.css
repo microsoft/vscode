@@ -10,7 +10,7 @@
 	min-width: 180px;
 	background-color: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
 	font-size: 12px;
 	line-height: 1.4;
@@ -21,6 +21,10 @@
 
 .agent-feedback-widget.visible {
 	opacity: 1;
+}
+
+.agent-feedback-widget:focus {
+	outline: none;
 }
 
 .agent-feedback-widget.fadeOut {
@@ -67,7 +71,7 @@
 	align-items: center;
 	padding: 4px 4px 4px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	overflow: hidden;
 	cursor: pointer;
 	gap: 6px;
@@ -75,7 +79,7 @@
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-header {
 	border-bottom: none;
-	border-radius: 8px 8px 8px 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .agent-feedback-widget-header:hover {
@@ -85,7 +89,7 @@
 /* Title */
 .agent-feedback-widget-title {
 	font-weight: 500;
-	line-height: 12px;
+	line-height: 16px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -189,7 +193,7 @@
 	display: inline-flex;
 	align-items: center;
 	padding: 1px 6px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	font-size: 10px;
 	font-weight: 600;
 	letter-spacing: 0.2px;
@@ -220,6 +224,9 @@
 .agent-feedback-widget-text {
 	color: var(--vscode-foreground);
 	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 .agent-feedback-widget-text .rendered-markdown p {
@@ -230,7 +237,7 @@
 	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	padding: 1px 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
 
@@ -267,13 +274,16 @@
 .agent-feedback-widget-suggestion-text {
 	margin: 0;
 	padding: 6px 8px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	overflow-x: auto;
 	white-space: pre-wrap;
 	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	line-height: 1.45;
 	background: var(--vscode-editorWidget-background);
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
 }
 
 /* Gutter decoration for range indicator on hover */
@@ -293,7 +303,7 @@
 	min-height: 22px;
 	padding: 4px 6px;
 	border: 1px solid var(--vscode-focusBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	font: inherit;
@@ -307,4 +317,47 @@
 .agent-feedback-widget-edit-textarea:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
+}
+
+/* Replies — visually grouped with the parent comment but with subtle separation */
+.agent-feedback-widget-replies {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.agent-feedback-widget-reply {
+	padding-top: 4px;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
+}
+
+.agent-feedback-widget-reply-text {
+	color: var(--vscode-foreground);
+	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	cursor: text;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown p {
+	margin: 0;
+}
+
+.agent-feedback-widget-reply-text .rendered-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
+	padding: 1px 4px;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
+}
+
+/* Reply composer shown when adding to a comment */
+.agent-feedback-widget-add-reply {
+	padding-top: 4px;
+	border-top: 1px dashed color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 60%, transparent);
+}
+
+.agent-feedback-widget-add-reply .agent-feedback-widget-edit-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 1;
 }

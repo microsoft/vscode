@@ -11,10 +11,9 @@ import { IParserService } from '../../../../platform/parser/node/parserService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { isNotebookCellOrNotebookChatInput } from '../../../../util/common/notebooks';
 import { illegalArgument } from '../../../../util/vs/base/common/errors';
-import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { GenericInlinePromptProps } from '../../../context/node/resolvers/genericInlineIntentInvocation';
 import { SelectionSplitKind, SummarizedDocumentData, SummarizedDocumentWithSelection } from '../../../intents/node/testIntent/summarizedDocumentWithSelection';
-import { EarlyStopping, LeadingMarkdownStreaming, TelemetryData } from '../../../prompt/node/intents';
+import { EarlyStopping, LeadingMarkdownStreaming } from '../../../prompt/node/intents';
 import { TextPieceClassifiers } from '../../../prompt/node/streamingEdits';
 import { InstructionMessage } from '../base/instructionMessage';
 import { LegacySafetyRules } from '../base/safetyRules';
@@ -26,15 +25,6 @@ import { ProjectLabels } from '../panel/projectLabels';
 import { LanguageServerContextPrompt } from './languageServerContextPrompt';
 import { SummarizedDocumentSplit } from './promptingSummarizedDocument';
 
-export class DocumentToAstSelectionData extends TelemetryData {
-
-	constructor(
-		readonly original: OffsetRange,
-		readonly adjusted: OffsetRange,
-	) {
-		super();
-	}
-}
 
 export interface InlineChatEditCodePromptProps extends GenericInlinePromptProps {
 	readonly ignoreCustomInstructions?: boolean;
@@ -117,10 +107,6 @@ export class InlineChatEditCodePrompt extends PromptElement<InlineChatEditCodePr
 					</Tag>
 					{data.hasCodeWithoutSelection && <>The modified {data.placeholderText} code with ``` is:</>}
 				</UserMessage>
-				<meta value={new DocumentToAstSelectionData(
-					data.offsetSelections.original,
-					data.offsetSelections.adjusted,
-				)} />
 			</>
 		);
 	}

@@ -31,7 +31,8 @@ import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
 import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
-import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractInlineSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
+import { ITokenizerProvider } from '../../../../../platform/tokenizer/node/tokenizer';
+import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
 	let accessor: ITestingServicesAccessor;
@@ -40,7 +41,7 @@ suite('Agent Summarization', () => {
 
 	let conversation: Conversation;
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		const testDoc = createTextDocumentData(fileTsUri, 'line 1\nline 2\n\nline 4\nline 5', 'ts').document;
 
 		const services = createExtensionUnitTestingServices();
@@ -57,6 +58,12 @@ suite('Agent Summarization', () => {
 		accessor.get(IConfigurationService).setConfig(ConfigKey.CodeGenerationInstructions, [{
 			text: 'This is a test custom instruction file',
 		} satisfies CodeGenerationTextInstruction]);
+
+		// Warm up the tokenizer once so per-test timing is predictable. The first
+		// tokenizer use parses a ~3.6MB BPE file which can take seconds on slow CI
+		// machines and would otherwise be charged to whichever test runs first.
+		const endpoint = accessor.get(IInstantiationService).createInstance(MockEndpoint, undefined);
+		await accessor.get(ITokenizerProvider).acquireTokenizer(endpoint).tokenLength('warmup');
 	});
 
 	beforeEach(() => {
@@ -88,6 +95,7 @@ suite('Agent Summarization', () => {
 			location: ChatLocation.Panel,
 			promptContext,
 			maxToolResultLength: Infinity,
+			enableSummarization: true,
 			...otherProps
 		};
 
@@ -98,8 +106,9 @@ suite('Agent Summarization', () => {
 			renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
 		} else {
 			const propsInfo = instaService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(baseProps);
+			expect(propsInfo, 'expected propsInfo to be defined for test scenario').toBeDefined();
 			const simpleMode = promptType === TestPromptType.SimpleSummarization;
-			renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode });
+			renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo!.props, simpleMode });
 		}
 
 		const r = await renderer.render();
@@ -329,6 +338,55 @@ suite('Agent Summarization', () => {
 	test('FullSummarization - render summary in previous turn (with multiple)', () => testSummaryPrevTurnMultiple(TestPromptType.FullSummarization));
 	test('SimpleSummarization - render summary in previous turn (with multiple)', () => testSummaryPrevTurnMultiple(TestPromptType.SimpleSummarization));
 
+	test('manual /compact summary is honored when summarization is disabled (#311503)', async () => {
+		// Repro for #311503: with chat.summarizeAgentConversationHistory.enabled = false
+		// the agent renders the non-summarizing history path. A summary stored by a
+		// manual `/compact` must still cause the superseded history to be dropped
+		// instead of replayed verbatim, otherwise the context window immediately
+		// refills on the next turn.
+		const previousTurn = new Turn('id', { type: 'user', message: 'first user message EXCLUDED' });
+		previousTurn.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {
+			metadata: {
+				toolCallRounds: [
+					new ToolCallRound('first response EXCLUDED', [createEditFileToolCall(1)], undefined, 'roundId1'),
+				],
+				toolCallResults: createEditFileToolResult(1),
+			}
+		});
+
+		const compactedTurn = new Turn('id', { type: 'user', message: 'second user message EXCLUDED' });
+		compactedTurn.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {
+			metadata: {
+				summary: {
+					text: 'COMPACTED SUMMARY',
+					toolCallRoundId: 'roundId2'
+				},
+				toolCallRounds: [
+					new ToolCallRound('summarized round EXCLUDED', [createEditFileToolCall(2)], undefined, 'roundId2'),
+					new ToolCallRound('round after summary KEPT', [createEditFileToolCall(3)], undefined, 'roundId3'),
+				],
+				toolCallResults: createEditFileToolResult(2, 3),
+			}
+		});
+
+		const rendered = await agentPromptToString(
+			accessor,
+			{
+				chatVariables: new ChatVariablesCollection([{ id: 'vscode.file', name: 'file', value: fileTsUri }]),
+				history: [previousTurn, compactedTurn],
+				query: 'next prompt',
+				toolCallRounds: [],
+				tools,
+			},
+			{ enableSummarization: false },
+			TestPromptType.Agent
+		);
+
+		expect(rendered).toContain('COMPACTED SUMMARY');
+		expect(rendered).toContain('round after summary KEPT');
+		expect(rendered).not.toContain('EXCLUDED');
+	});
+
 	async function testSummarizeWithNoRoundsInCurrentTurn(promptType: TestPromptType) {
 		const previousTurn1 = new Turn('id', { type: 'user', message: 'previous turn 1' });
 		previousTurn1.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {});
@@ -481,7 +539,8 @@ suite('Agent Summarization', () => {
 		};
 
 		const propsInfo = instaService.createInstance(SummarizedConversationHistoryPropsBuilder).getProps(baseProps);
-		const renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode: true });
+		expect(propsInfo, 'expected propsInfo to be defined for test scenario').toBeDefined();
+		const renderer = PromptRenderer.create(instaService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo!.props, simpleMode: true });
 		const result = await renderer.render();
 
 		// prompt-tsx prunes all content and silently drops empty messages → 0 messages
@@ -538,47 +597,47 @@ suite('Agent Summarization', () => {
 	});
 });
 
-suite('extractInlineSummary', () => {
+suite('extractSummary', () => {
 	test('extracts clean summary tags', () => {
 		const text = 'Some preamble\n<summary>\nThis is the summary content.\n</summary>\nSome trailing text';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('This is the summary content.');
 	});
 
 	test('extracts summary with no closing tag', () => {
 		const text = 'Preamble text\n<summary>\nThis is a partial summary that was cut off';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('This is a partial summary that was cut off');
 	});
 
 	test('returns undefined when no tags found', () => {
 		const text = 'This is just a normal response with no summary tags at all.';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBeUndefined();
 	});
 
 	test('uses first complete summary when multiple blocks exist', () => {
 		const text = '<summary>First summary</summary>\n<summary>Second summary</summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('First summary');
 	});
 
 	test('handles empty summary tags', () => {
 		const text = '<summary></summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('');
 	});
 
 	test('handles summary with analysis tags inside', () => {
 		const text = '<summary>\n<analysis>Some analysis</analysis>\n\n1. Overview: test\n2. Details: test\n</summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toContain('1. Overview: test');
 		expect(result).toContain('<analysis>Some analysis</analysis>');
 	});
 
 	test('trims whitespace from extracted summary', () => {
 		const text = '<summary>\n\n  Padded summary text  \n\n</summary>';
-		const result = extractInlineSummary(text);
+		const result = extractSummary(text);
 		expect(result).toBe('Padded summary text');
 	});
 });

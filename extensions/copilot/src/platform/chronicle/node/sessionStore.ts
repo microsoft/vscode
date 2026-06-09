@@ -28,8 +28,14 @@ const READ_ONLY_ACTION_CODES = new Set([
 	SQLITE_RECURSIVE, // recursive CTE
 ]);
 
+/**
+ * Functions denied at the authorizer layer for defense-in-depth, even though the tool
+ * layer also blocks them by regex. Names are compared case-insensitively.
+ */
+const DENIED_FUNCTIONS = new Set(['load_extension']);
+
 /** Schema version — bump when altering tables so existing DBs get migrated. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Session store backed by SQLite + FTS5.
@@ -118,6 +124,8 @@ export class SessionStore implements ISessionStore {
 				host_type TEXT,
 				branch TEXT,
 				summary TEXT,
+				agent_name TEXT,
+				agent_description TEXT,
 				created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
 				updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 			);
@@ -193,6 +201,10 @@ export class SessionStore implements ISessionStore {
 		if (currentVersion >= 1 && currentVersion < 2) {
 			db.exec('ALTER TABLE sessions ADD COLUMN host_type TEXT');
 		}
+		if (currentVersion >= 1 && currentVersion < 3) {
+			db.exec('ALTER TABLE sessions ADD COLUMN agent_name TEXT');
+			db.exec('ALTER TABLE sessions ADD COLUMN agent_description TEXT');
+		}
 
 		// Update or insert schema version
 		if (currentVersion === 0) {
@@ -210,14 +222,16 @@ export class SessionStore implements ISessionStore {
 	upsertSession(session: SessionRow): void {
 		const db = this.ensureDb();
 		db.prepare(
-			`INSERT INTO sessions (id, cwd, repository, host_type, branch, summary, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO sessions (id, cwd, repository, host_type, branch, summary, agent_name, agent_description, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET
 				cwd = COALESCE(excluded.cwd, cwd),
 				repository = COALESCE(excluded.repository, repository),
 				host_type = COALESCE(excluded.host_type, host_type),
 				branch = COALESCE(excluded.branch, branch),
 				summary = COALESCE(excluded.summary, summary),
+				agent_name = COALESCE(excluded.agent_name, agent_name),
+				agent_description = COALESCE(excluded.agent_description, agent_description),
 				created_at = MIN(created_at, excluded.created_at),
 				updated_at = MAX(updated_at, excluded.updated_at)`,
 		).run(
@@ -227,6 +241,8 @@ export class SessionStore implements ISessionStore {
 			session.host_type ?? null,
 			session.branch ?? null,
 			session.summary ?? null,
+			session.agent_name ?? null,
+			session.agent_description ?? null,
 			session.created_at ?? new Date().toISOString(),
 			session.updated_at ?? new Date().toISOString(),
 		);
@@ -377,6 +393,22 @@ export class SessionStore implements ISessionStore {
 	}
 
 	/**
+	 * Delete a session and all associated data.
+	 * Removes turns, checkpoints, files, refs, search index entries, and the session row.
+	 */
+	deleteSession(sessionId: string): void {
+		const db = this.ensureDb();
+		this.runInTransaction(() => {
+			db.prepare('DELETE FROM search_index WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM session_refs WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM session_files WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM checkpoints WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM turns WHERE session_id = ?').run(sessionId);
+			db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId);
+		});
+	}
+
+	/**
 	 * Full-text search across all indexed content (turns, checkpoint sections, and workspace artifacts).
 	 * Uses FTS5 MATCH with BM25 ranking.
 	 *
@@ -430,43 +462,44 @@ export class SessionStore implements ISessionStore {
 	}
 
 	/**
-	 * Execute a raw read-only SQL query against the store.
-	 * Uses SQLite's authorizer API to enforce read-only access at the engine level,
-	 * blocking INSERT, UPDATE, DELETE, DROP, CREATE, ATTACH, PRAGMA, etc.
+	 * Execute a read-only SQL query against the store.
+	 * When SQLite's authorizer API is available (Node.js 24.2+), installs a positive
+	 * action-code allowlist so the engine enforces read-only. When unavailable, runs the
+	 * prepared statement directly — callers MUST validate the SQL (allowlist + blocklist)
+	 * before calling this method.
 	 */
 	executeReadOnly(sql: string): Record<string, unknown>[] {
 		const db = this.ensureDb();
 
-		// Use setAuthorizer to enforce read-only when available (Node.js 24.2+)
 		const hasAuthorizer = typeof (db as DatabaseSync & { setAuthorizer?: unknown }).setAuthorizer === 'function';
 
-		if (!hasAuthorizer) {
-			// Fail closed: refuse to execute arbitrary SQL without engine-level enforcement
-			throw new Error('executeReadOnly requires SQLite authorizer support (Node.js 24.2+)');
+		if (hasAuthorizer) {
+			(db as DatabaseSync & { setAuthorizer: (cb: ((actionCode: number, p1: string | null) => number) | null) => void }).setAuthorizer((actionCode: number, p1: string | null) => {
+				if (actionCode === SQLITE_FUNCTION && p1 && DENIED_FUNCTIONS.has(p1.toLowerCase())) {
+					return SQLITE_DENY;
+				}
+				if (READ_ONLY_ACTION_CODES.has(actionCode)) {
+					return SQLITE_OK;
+				}
+				// FTS5 internally uses PRAGMA data_version to detect DB changes
+				if (actionCode === SQLITE_PRAGMA && p1 === 'data_version') {
+					return SQLITE_OK;
+				}
+				return SQLITE_DENY;
+			});
 		}
-
-		(db as DatabaseSync & { setAuthorizer: (cb: ((actionCode: number, p1: string | null) => number) | null) => void }).setAuthorizer((actionCode: number, p1: string | null) => {
-			if (READ_ONLY_ACTION_CODES.has(actionCode)) {
-				return SQLITE_OK;
-			}
-			// FTS5 internally uses PRAGMA data_version to detect DB changes
-			if (actionCode === SQLITE_PRAGMA && p1 === 'data_version') {
-				return SQLITE_OK;
-			}
-			return SQLITE_DENY;
-		});
 
 		try {
 			return db.prepare(sql).all() as Record<string, unknown>[];
 		} finally {
-			(db as DatabaseSync & { setAuthorizer: (cb: null) => void }).setAuthorizer(null);
+			if (hasAuthorizer) {
+				(db as DatabaseSync & { setAuthorizer: (cb: null) => void }).setAuthorizer(null);
+			}
 		}
 	}
 
 	/**
-	 * Execute a read-only SQL query without authorizer enforcement.
-	 * Used as a fallback when the authorizer API is unavailable (Node.js < 24.2).
-	 * Callers MUST validate SQL safety before calling this method.
+	 * Execute SQL, used for hard-coded, trusted SQL composed inside the extension.
 	 */
 	executeReadOnlyFallback(sql: string): Record<string, unknown>[] {
 		const db = this.ensureDb();

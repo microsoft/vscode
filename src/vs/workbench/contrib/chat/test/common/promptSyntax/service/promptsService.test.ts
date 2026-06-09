@@ -20,7 +20,7 @@ import { IModelService } from '../../../../../../../editor/common/services/model
 import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -41,7 +41,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstru
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentDiscoveryResult, IAgentSource, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -211,6 +211,29 @@ suite('PromptsService', () => {
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
+	});
+
+	suite('IAgentSource.isEquals', () => {
+		test('returns true for equivalent local sources', () => {
+			const left: IAgentSource = { storage: PromptsStorage.local };
+			const right: IAgentSource = { storage: PromptsStorage.local };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), true);
+		});
+
+		test('returns true for equivalent extension sources', () => {
+			const left: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('ms.vscode') };
+			const right: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier('ms.vscode') };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), true);
+		});
+
+		test('returns false for different plugin source URIs', () => {
+			const left: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-a') };
+			const right: IAgentSource = { storage: PromptsStorage.plugin, pluginUri: URI.file('/workspace/plugin-b') };
+
+			assert.strictEqual(IAgentSource.isEquals(left, right), false);
+		});
 	});
 
 	suite('parse', () => {
@@ -814,6 +837,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Agent file 1.',
 					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now' }],
@@ -831,7 +855,8 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 			];
 
@@ -872,6 +897,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Agent file 1.',
 					tools: ['tool1', 'tool2'],
@@ -890,8 +916,10 @@ suite('PromptsService', () => {
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md').toString(),
 					name: 'agent2',
 					agentInstructions: {
 						content: 'First use #tool:tool2\nThen use #tool:tool1',
@@ -901,11 +929,13 @@ suite('PromptsService', () => {
 						],
 						metadata: undefined
 					},
+					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
 					target: Target.Undefined,
-					visibility: { userInvocable: true, agentInvocable: true }
+					visibility: { userInvocable: true, agentInvocable: true },
+					enabled: true,
 				}
 			];
 
@@ -950,6 +980,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md').toString(),
 					name: 'agent1',
 					description: 'Code review agent.',
 					argumentHint: 'Provide file path or code snippet to review',
@@ -967,9 +998,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md').toString(),
 					name: 'agent2',
 					description: 'Documentation generator.',
 					argumentHint: 'Specify function or class name to document',
@@ -987,7 +1020,8 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 			];
 
@@ -1042,6 +1076,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md').toString(),
 					name: 'github-agent',
 					description: 'GitHub Copilot specialized agent.',
 					target: Target.GitHubCopilot,
@@ -1059,9 +1094,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					sessionTypes: undefined,
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md').toString(),
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: Target.VSCode,
@@ -1079,9 +1116,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					sessionTypes: undefined,
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md').toString(),
 					name: 'generic-agent',
 					description: 'Generic agent without target.',
 					agentInstructions: {
@@ -1099,7 +1138,8 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					sessionTypes: undefined,
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 			];
 
@@ -1160,6 +1200,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md').toString(),
 					name: 'copilot-agent',
 					description: 'Copilot agent with same tool names.',
 					target: Target.GitHubCopilot,
@@ -1178,9 +1219,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
 					sessionTypes: undefined,
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md').toString(),
 					name: 'claude-agent',
 					description: 'Claude agent with tools and model.',
 					target: Target.Claude,
@@ -1200,9 +1243,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
 					sessionTypes: undefined,
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md').toString(),
 					name: 'claude-agent2',
 					description: 'Claude agent with various tools.',
 					target: Target.Claude,
@@ -1221,7 +1266,8 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					sessionTypes: undefined,
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 			];
 
@@ -1262,6 +1308,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md').toString(),
 					name: 'demonstrate',
 					description: 'Demonstrate agent.',
 					tools: ['demo-tool'],
@@ -1279,7 +1326,8 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				}
 			];
 
@@ -1334,6 +1382,7 @@ suite('PromptsService', () => {
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md').toString(),
 					name: 'restricted-agent',
 					description: 'Agent with restricted access.',
 					agents: ['subagent1', 'subagent2'],
@@ -1351,9 +1400,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md').toString(),
 					name: 'no-access-agent',
 					description: 'Agent with no access to subagents, skills, or instructions.',
 					agents: [],
@@ -1371,9 +1422,11 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 				{
+					id: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md').toString(),
 					name: 'full-access-agent',
 					description: 'Agent with full access.',
 					agents: ['*'],
@@ -1391,7 +1444,8 @@ suite('PromptsService', () => {
 					hooks: undefined,
 					sessionTypes: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
-					source: { storage: PromptsStorage.local }
+					source: { storage: PromptsStorage.local },
+					enabled: true,
 				},
 			];
 
@@ -1535,6 +1589,141 @@ suite('PromptsService', () => {
 			const simpleUserAgent = userAgents.find(a => a.name === 'simple-user-agent');
 			assert.ok(simpleUserAgent, 'Should find simple user agent');
 			assert.strictEqual(simpleUserAgent.agentInstructions.content, 'A simple user agent without header.');
+		});
+
+		test('disabled agents are reported with enabled: false', async () => {
+			const rootFolderName = 'custom-agents-disabled';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Use a real InMemoryStorageService instance so disabled state actually persists
+			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			service.dispose();
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/enabled-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Enabled agent.\'',
+						'---',
+						'I am enabled.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/disabled-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Disabled agent.\'',
+						'---',
+						'I am disabled.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/another-disabled-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Another disabled agent.\'',
+						'---',
+						'I am also disabled.',
+					]
+				}
+			]);
+
+			// First load to discover URIs as the service sees them
+			const initial = await testService.getCustomAgents(CancellationToken.None);
+			const toDisable = initial.filter(a => a.name === 'disabled-agent' || a.name === 'another-disabled-agent');
+
+			// Disable two of the three agents
+			const disabledUris = new ResourceSet();
+			for (const a of toDisable) {
+				disabledUris.add(URI.from(a.uri));
+			}
+			testService.setDisabledPromptFiles(PromptsType.agent, disabledUris);
+
+			// Sanity check: the service reports the URIs as disabled
+			const persisted = testService.getDisabledPromptFiles(PromptsType.agent);
+			assert.strictEqual(persisted.size, 2, `Expected 2 disabled agents, got ${persisted.size}`);
+
+			const result = await testService.getCustomAgents(CancellationToken.None);
+
+			assert.strictEqual(result.length, 3, 'Should still discover all 3 agents');
+
+			const enabledAgent = result.find(a => a.name === 'enabled-agent');
+			assert.ok(enabledAgent, 'Should find enabled-agent');
+			assert.strictEqual(enabledAgent.enabled, true, 'enabled-agent should be enabled');
+
+			const disabledAgent = result.find(a => a.name === 'disabled-agent');
+			assert.ok(disabledAgent, 'Should find disabled-agent');
+			assert.strictEqual(disabledAgent.enabled, false, 'disabled-agent should be disabled');
+
+			const anotherDisabledAgent = result.find(a => a.name === 'another-disabled-agent');
+			assert.ok(anotherDisabledAgent, 'Should find another-disabled-agent');
+			assert.strictEqual(anotherDisabledAgent.enabled, false, 'another-disabled-agent should be disabled');
+		});
+
+		test('getDiscoveryInfo reports enabled and disabled agents', async () => {
+			const rootFolderName = 'discovery-info-agents';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Use a real InMemoryStorageService instance so disabled state actually persists
+			instaService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+			service.dispose();
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/enabled-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Enabled agent.\'',
+						'---',
+						'I am enabled.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/disabled-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Disabled agent.\'',
+						'---',
+						'I am disabled.',
+					]
+				}
+			]);
+
+			// Discover the URIs as the service sees them, then disable one
+			const initial = await testService.getCustomAgents(CancellationToken.None);
+			const disabled = initial.find(a => a.name === 'disabled-agent');
+			assert.ok(disabled, 'Should find disabled-agent in initial discovery');
+
+			const disabledUris = new ResourceSet();
+			disabledUris.add(URI.from(disabled.uri));
+			testService.setDisabledPromptFiles(PromptsType.agent, disabledUris);
+
+			const discoveryInfo = await testService.getDiscoveryInfo(PromptsType.agent, CancellationToken.None);
+			assert.strictEqual(discoveryInfo.type, PromptsType.agent);
+			assert.strictEqual(discoveryInfo.files.length, 2, 'Discovery should include both agents');
+
+			const enabledFile = discoveryInfo.files.find(f => f.promptPath.uri.path.endsWith('enabled-agent.agent.md')) as IAgentDiscoveryResult | undefined;
+			assert.ok(enabledFile, 'Should report enabled-agent in discovery info');
+			assert.strictEqual(enabledFile.status, 'loaded', 'Enabled agent should be loaded');
+			assert.strictEqual(enabledFile.skipReason, undefined, 'Enabled agent should not have a skip reason');
+			assert.ok(enabledFile.agent, 'Enabled agent file should carry resolved agent');
+			assert.strictEqual(enabledFile.agent.enabled, true);
+
+			const disabledFile = discoveryInfo.files.find(f => f.promptPath.uri.path.endsWith('disabled-agent.agent.md')) as IAgentDiscoveryResult | undefined;
+			assert.ok(disabledFile, 'Should report disabled-agent in discovery info');
+			assert.strictEqual(disabledFile.status, 'skipped', 'Disabled agent should be skipped');
+			assert.strictEqual(disabledFile.skipReason, 'disabled', 'Disabled agent should have skipReason "disabled"');
+			assert.ok(disabledFile.agent, 'Disabled agent file should still carry resolved agent');
+			assert.strictEqual(disabledFile.agent.enabled, false);
 		});
 	});
 
@@ -3286,6 +3475,112 @@ suite('PromptsService', () => {
 			assert.strictEqual(resultAfterDispose?.length, 1, 'Should find 1 skill after disposal');
 			assert.strictEqual(resultAfterDispose?.[0].name, 'Local Skill');
 		});
+
+		test('should use folder name for contributed skill with missing name', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-no-name-test';
+			const rootFolder = `/${rootFolderName}`;
+			workspaceContextService.setWorkspace(testWorkspace(URI.file(rootFolder)));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/my-skill/SKILL.md');
+			const extension = { identifier: { value: 'test.my-extension' } } as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'description: "A skill without a name"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(result, 'Should return results');
+
+			const skill = result.find(s => s.name === 'my-skill');
+			assert.ok(skill, 'Should find skill using folder name as fallback');
+			assert.strictEqual(skill.description, 'A skill without a name');
+
+			registered.dispose();
+		});
+
+		test('should accept contributed skill with missing description', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-no-desc-test';
+			const rootFolder = `/${rootFolderName}`;
+			workspaceContextService.setWorkspace(testWorkspace(URI.file(rootFolder)));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/no-desc-skill/SKILL.md');
+			const extension = { identifier: { value: 'test.my-extension' } } as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'name: "no-desc-skill"',
+						'---',
+						'Skill content without description',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(result, 'Should return results');
+
+			const skill = result.find(s => s.name === 'no-desc-skill');
+			assert.ok(skill, 'Should find skill even without description');
+			assert.strictEqual(skill.description, undefined);
+
+			registered.dispose();
+		});
+
+		test('should override contributed skill name with folder name on mismatch', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'contributed-mismatch-test';
+			const rootFolder = `/${rootFolderName}`;
+			workspaceContextService.setWorkspace(testWorkspace(URI.file(rootFolder)));
+
+			const contributedSkillUri = URI.parse('file://extensions/my-extension/actual-folder/SKILL.md');
+			const extension = { identifier: { value: 'test.my-extension' } } as unknown as IExtensionDescription;
+
+			await mockFiles(fileService, [
+				{
+					path: contributedSkillUri.path,
+					contents: [
+						'---',
+						'name: "wrong-name"',
+						'description: "A skill with mismatched name"',
+						'---',
+						'Skill content',
+					],
+				},
+			]);
+
+			const registered = service.registerContributedFile(PromptsType.skill, contributedSkillUri, extension, undefined, undefined);
+
+			const result = await service.findAgentSkills(CancellationToken.None);
+			assert.ok(result, 'Should return results');
+
+			const skill = result.find(s => s.name === 'actual-folder');
+			assert.ok(skill, 'Should find skill using folder name instead of mismatched name');
+			assert.strictEqual(skill.description, 'A skill with mismatched name');
+
+			registered.dispose();
+		});
 	});
 
 	suite('getPromptSlashCommands - skills', () => {
@@ -3640,14 +3935,47 @@ suite('PromptsService', () => {
 
 			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
-			// Should include skill with fallback name from filename (SKILL without extension)
-			const fallbackNameCommand = slashCommands.find(cmd => cmd.name === 'SKILL');
-			assert.ok(fallbackNameCommand, 'Should find skill with fallback name from filename');
+			// Should include skill with fallback name from folder name
+			const fallbackNameCommand = slashCommands.find(cmd => cmd.name === 'no-name');
+			assert.ok(fallbackNameCommand, 'Should find skill with fallback name from folder name');
 			assert.strictEqual(fallbackNameCommand.description, 'Skill without name');
 
 			// Should include valid skill
 			const validSkillCommand = slashCommands.find(cmd => cmd.name === 'valid-skill');
 			assert.ok(validSkillCommand, 'Should find valid skill');
+		});
+
+		test('should use folder name as slash command name when frontmatter name differs', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'slash-commands-folder-name-override';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/test/SKILL.md`,
+					contents: [
+						'---',
+						'name: "foo"',
+						'description: "A skill with mismatched frontmatter name"',
+						'---',
+						'say hiya!',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const folderNameCommand = slashCommands.find(cmd => cmd.name === 'test');
+			assert.ok(folderNameCommand, 'Should find skill using folder name as slash command name');
+			assert.strictEqual(folderNameCommand.description, 'A skill with mismatched frontmatter name');
+
+			const frontmatterNameCommand = slashCommands.find(cmd => cmd.name === 'foo');
+			assert.strictEqual(frontmatterNameCommand, undefined, 'Should not find skill using frontmatter name');
 		});
 
 		test('should not duplicate slash commands with same name from different types', async () => {
@@ -4088,12 +4416,15 @@ suite('PromptsService', () => {
 
 			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
 
-			// Even when SKILL.md has name: "run-ci", it must be prefixed with the plugin name
-			const skillCommand = slashCommands.find(cmd => cmd.name === 'devtools:run-ci');
-			assert.ok(skillCommand, 'Plugin skill frontmatter name should be qualified with plugin prefix');
+			// Skill name is derived from folder name (ci), not frontmatter name (run-ci),
+			// and prefixed with the plugin name
+			const skillCommand = slashCommands.find(cmd => cmd.name === 'devtools:ci');
+			assert.ok(skillCommand, 'Plugin skill folder name should be qualified with plugin prefix');
 			assert.strictEqual(skillCommand.description, 'Run CI pipeline');
 
-			// The unprefixed name should not appear
+			// The frontmatter name should not appear
+			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'devtools:run-ci'), undefined,
+				'Frontmatter skill name should not appear as slash command');
 			assert.strictEqual(slashCommands.find(cmd => cmd.name === 'run-ci'), undefined,
 				'Unprefixed skill name should not appear as slash command');
 

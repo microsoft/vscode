@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from '../../../../../../base/browser/dom.js';
+import { $, append, isHTMLElement } from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -19,16 +19,15 @@ import { IChatRendererContent, IChatWorkingProgress, IChatWorkingProgressState, 
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getToolApprovalMessage, isAskQuestionsToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { buildPhrasePool, defaultThinkingMessages } from './chatThinkingContentPart.js';
+import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -76,6 +75,9 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		const result = this.chatContentMarkdownRenderer.render(progress.content);
 		result.element.classList.add('progress-step');
 		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._fileWidgetStore);
+		if (useShimmer) {
+			this.applyPartialShimmer(result.element);
+		}
 
 		const tooltip: IMarkdownString | undefined = this.createApprovalMessage();
 		const progressPart = this._register(instantiationService.createInstance(ChatProgressSubPart, result.element, codicon, tooltip));
@@ -84,6 +86,52 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			this.domNode.classList.add('shimmer-progress');
 		}
 		this.renderedMessage.value = result;
+	}
+
+	private applyPartialShimmer(element: HTMLElement): void {
+		if (!this.toolInvocation || !isAskQuestionsToolInvocation(this.toolInvocation)) {
+			return;
+		}
+
+		const firstChild = element.firstElementChild;
+		const messageElement = isHTMLElement(firstChild) && firstChild.tagName === 'P' ? firstChild : element;
+		const message = messageElement.textContent;
+		const suffixOffset = message?.indexOf(' (') ?? -1;
+		if (suffixOffset <= 0) {
+			return;
+		}
+
+		element.classList.add('chat-progress-partial-shimmer');
+		this.wrapLeadingText(messageElement, suffixOffset);
+	}
+
+	private wrapLeadingText(element: HTMLElement, length: number): void {
+		let remaining = length;
+		const walker = element.ownerDocument.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+		while (remaining > 0) {
+			const node = walker.nextNode();
+			if (!node) {
+				return;
+			}
+
+			const text = node.nodeValue ?? '';
+			if (!text) {
+				continue;
+			}
+
+			const shimmerText = text.slice(0, remaining);
+			const suffixText = text.slice(remaining);
+			const span = element.ownerDocument.createElement('span');
+			span.classList.add('chat-progress-shimmer-text');
+			span.textContent = shimmerText;
+			node.parentNode?.insertBefore(span, node);
+			if (suffixText) {
+				node.nodeValue = suffixText;
+			} else {
+				node.parentNode?.removeChild(node);
+			}
+			remaining -= shimmerText.length;
+		}
 	}
 
 	updateMessage(content: IMarkdownString): void {
@@ -166,6 +214,41 @@ export class ChatProgressSubPart extends Disposable {
 	}
 }
 
+/**
+ * Picks a working-progress label, debounced per response so rapid
+ * re-instantiations during streaming reuse the previous label instead of
+ * flickering. Each response gets its own dwell window keyed by
+ * `element.id`; stale entries are pruned opportunistically on each call.
+ */
+const WORKING_LABEL_MIN_DWELL_MS = 1200;
+const lastPickedWorkingLabelByElement = new Map<string, { label: string; pickedAt: number }>();
+
+function pickWorkingLabel(elementId: string, configurationService: IConfigurationService): string {
+	const now = Date.now();
+
+	// Prune entries older than the dwell window. The map only holds entries
+	// for actively-streaming responses, so this stays small.
+	for (const [id, entry] of lastPickedWorkingLabelByElement) {
+		if (now - entry.pickedAt >= WORKING_LABEL_MIN_DWELL_MS) {
+			lastPickedWorkingLabelByElement.delete(id);
+		}
+	}
+
+	const existing = lastPickedWorkingLabelByElement.get(elementId);
+	if (existing && now - existing.pickedAt < WORKING_LABEL_MIN_DWELL_MS) {
+		existing.pickedAt = now;
+		return existing.label;
+	}
+
+	const fun = maybePickFunWorkingMessage(configurationService);
+	const label = fun ?? (() => {
+		const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
+		return pool[Math.floor(Math.random() * pool.length)];
+	})();
+	lastPickedWorkingLabelByElement.set(elementId, { label, pickedAt: now });
+	return label;
+}
+
 export class ChatWorkingProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 	private readonly labelElement: HTMLElement;
@@ -182,18 +265,11 @@ export class ChatWorkingProgressContentPart extends Disposable implements IChatC
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this.explicitContent = workingProgress.content;
-		const persistentProgressEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
-			&& configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
-		if (persistentProgressEnabled) {
-			const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
-			this.label = pool[Math.floor(Math.random() * pool.length)];
-		} else {
-			this.label = localize('workingMessage', "Working");
-		}
+		this.label = pickWorkingLabel(context.element.id, configurationService);
 
 		// Build the DOM
 		this.domNode = $('.progress-container');

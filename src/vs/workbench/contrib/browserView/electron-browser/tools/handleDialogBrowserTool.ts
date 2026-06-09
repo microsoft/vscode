@@ -9,12 +9,13 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { createBrowserPageLink, errorResult } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getSessionId } from './browserToolHelpers.js';
+import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
 export const HandleDialogBrowserToolData: IToolData = {
 	id: 'handle_dialog',
-	toolReferenceName: 'handleDialog',
+	toolReferenceName: BrowserChatToolReferenceName.HandleDialog,
 	displayName: localize('handleDialogBrowserTool.displayName', 'Handle Dialog'),
 	userDescription: localize('handleDialogBrowserTool.userDescription', 'Respond to a dialog in a browser page'),
 	modelDescription: 'Respond to a pending modal (alert, confirm, prompt) or file chooser dialog on a browser page.',
@@ -67,6 +68,7 @@ export class HandleDialogBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IHandleDialogBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
@@ -83,9 +85,9 @@ export class HandleDialogBrowserTool implements IToolImpl {
 		try {
 			let result;
 			if (params.selectFiles !== undefined) {
-				result = await this.playwrightService.replyToFileChooser(params.pageId, params.selectFiles);
+				result = await this.playwrightService.replyToFileChooser(sessionId, params.pageId, params.selectFiles);
 			} else {
-				result = await this.playwrightService.replyToDialog(params.pageId, params.acceptModal, params.promptText);
+				result = await this.playwrightService.replyToDialog(sessionId, params.pageId, params.acceptModal, params.promptText);
 			}
 			return { content: [{ kind: 'text', value: result.summary }] };
 		} catch (e) {

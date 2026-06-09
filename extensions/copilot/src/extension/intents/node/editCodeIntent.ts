@@ -123,7 +123,7 @@ export class EditCodeIntent implements IIntent {
 				const { references } = await renderPromptElement(this.instantiationService, endpoint, ToolCallResultWrapper, { toolCallResults }, undefined, token);
 				foundReferences.push(...toNewChatReferences(variables, references));
 				// TODO: how should we splice in the assistant message?
-				conversation = new Conversation(conversation.sessionId, [...conversation.turns.slice(0, -1), new Turn(latestTurn.id, latestTurn.request, undefined)]);
+				conversation = new Conversation(conversation.sessionId, [...conversation.turns.slice(0, -1), new Turn(latestTurn.id, latestTurn.request, undefined, [], undefined, undefined, false, latestTurn.modeInstructions)]);
 			}
 			return { conversation, request: { ...request, references: [...request.references, ...foundReferences], toolReferences: request.toolReferences.filter((r) => r.name !== CodebaseTool.toolName) } };
 		}
@@ -421,7 +421,6 @@ export class EditCodeIntentInvocation implements IIntentInvocation {
 			// Don't report file references that came in via chat variables in an editing session, unless they have warnings,
 			// because they are already displayed as part of the working set
 			references: result.references.filter((ref) => this.shouldKeepReference(editCodeStep, ref, toolReferences, chatVariables)),
-			// telemetryData: result.metadata.getAll(DocumentToAstSelectionData)
 		};
 	}
 

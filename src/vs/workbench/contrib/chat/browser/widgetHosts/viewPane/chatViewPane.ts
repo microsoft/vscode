@@ -9,6 +9,7 @@ import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
@@ -48,7 +49,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -64,9 +65,8 @@ import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -128,7 +128,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IHostService private readonly hostService: IHostService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -479,7 +478,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Sessions control: stacked
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				newSessionsContainerVisible =
-					!!this.chatEntitlementService.sentiment.completed &&																// chat is setup (otherwise make room for terms and welcome)
+					(!!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels) &&					// chat is setup (otherwise make room for terms and welcome)
 					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
 					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
@@ -528,10 +527,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(chatControlsContainer)).appendChild($('.chat-editor-overflow.monaco-editor'));
 		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
 
-		// Chat Title (unless we are hosted in the chat bar)
-		if (this.viewDescriptorService.getViewLocationById(this.id) !== ViewContainerLocation.ChatBar) {
-			this.createChatTitleControl(chatControlsContainer);
-		}
+		// Chat Title
+		this.createChatTitleControl(chatControlsContainer);
 
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
@@ -553,13 +550,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				},
 				editorOverflowWidgetsDomNode,
 				enableImplicitContext: true,
-				enableWorkingSet: this.workbenchEnvironmentService.isSessionsWindow
-					? 'implicit'
-					: 'explicit',
+				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 				dndContainer: parent,
-				inputEditorMinLines: this.workbenchEnvironmentService.isSessionsWindow ? 2 : undefined,
-				isSessionsWindow: this.workbenchEnvironmentService.isSessionsWindow,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,
@@ -598,10 +591,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// - chat widget being in empty state or showing a chat
 		// - extensions provided welcome view showing or not
 		// - configuration setting
+		// - `hasByokModels` flipping (BYOK models becoming available or going away)
+		const hasByokModelsContextKeys = new Set([ChatEntitlementContextKeys.hasByokModels.key]);
 		this._register(Event.any(
 			chatWidget.onDidChangeEmptyState,
 			Event.fromObservable(welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)),
+			Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(hasByokModelsContextKeys))
 		)(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				sessionsControl.clearFocus(); // improve visual appearance when switching visibility by clearing focus
@@ -722,15 +718,49 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		await this.showModel(CancellationToken.None, modelRef);
 	}
 
+	/**
+	 * Force-start a new local chat session in the view, bypassing the
+	 * default-provider override applied by `showModel()`. Used by the
+	 * picker when the user explicitly selects "Local".
+	 */
+	async startNewLocalSession(): Promise<IChatModel | undefined> {
+		const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#startNewLocalSession' });
+		return this.showModel(CancellationToken.None, ref);
+	}
+
+	/**
+	 * When the experimental `chat.agentHost.defaultChatProvider` setting is
+	 * enabled and an agent-host contribution is registered, return a new
+	 * session reference for the agent host instead of the built-in local
+	 * provider. Returns `undefined` to fall back to `startNewLocalSession`.
+	 */
+	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);
+		if (defaultType === localChatSessionType) {
+			return undefined;
+		}
+		const resource = URI.from({ scheme: defaultType, path: `/untitled-${generateUuid()}` });
+		try {
+			return await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession');
+		} catch (error) {
+			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
+			return undefined;
+		}
+	}
+
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
 		this.modelRef.value = undefined;
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
-			ref = modelRef ?? (this.chatService.transferredSessionResource
-				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel')
-				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' }));
+			if (modelRef) {
+				ref = modelRef;
+			} else if (this.chatService.transferredSessionResource) {
+				ref = await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel');
+			} else {
+				ref = await this.acquireDefaultNewSession(token) ?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' });
+			}
 			if (!ref) {
 				throw new Error('Could not start chat session');
 			}
@@ -764,12 +794,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update the toolbar context with new sessionId
 		this.updateActions();
 
-		// Mark the old model as read when closing unless explicitly marked unread
+		// Mark the old model as read when closing unless explicitly marked unread.
+		// Deferred because setRead fires _onDidChangeSessions which synchronously
+		// re-renders the sessions list (~250ms), and that doesn't need to block
+		// the new chat from displaying.
 		if (oldModelResource) {
-			const oldSession = this.agentSessionsService.model.getSession(oldModelResource);
-			if (oldSession && !oldSession.isMarkedUnread()) {
-				oldSession.setRead(true);
-			}
+			const capturedOldResource = oldModelResource;
+			this._register(disposableTimeout(() => {
+				const oldSession = this.agentSessionsService.model.getSession(capturedOldResource);
+				if (oldSession && !oldSession.isMarkedUnread()) {
+					oldSession.setRead(true);
+				}
+			}, 0));
 		}
 
 		return model;
@@ -815,6 +851,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+		const t0 = Date.now();
+		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
+
 		// Cancel any in-flight loadSession call so the last one always wins
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
@@ -827,6 +866,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		if (token.isCancellationRequested) {
+			this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=preAcquire`);
 			return undefined;
 		}
 
@@ -852,15 +892,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				if (token.isCancellationRequested) {
 					newModelRef?.dispose();
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=postAcquire`);
 					return undefined;
 				}
 
-				return this.showModel(token, newModelRef);
+				const result = await this.showModel(token, newModelRef);
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
+				return result;
 			} catch (err) {
 				clearWidget.dispose();
 				await queue;
 
 				if (token.isCancellationRequested) {
+					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} cancelled=true phase=error`);
 					return undefined;
 				}
 
@@ -868,7 +912,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				// is not left in a broken state without title or back button.
 				this.logService.error(`Failed to load chat session '${sessionResource.toString()}'`, err);
 				this.notificationService.error(localize('chat.loadSessionFailed', "Failed to open chat session: {0}", toErrorMessage(err)));
-				return this.showModel(token, undefined);
+				const result = await this.showModel(token, undefined);
+				this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} error=true`);
+				return result;
 			} finally {
 				clearWidgetCancellationListener.dispose();
 			}

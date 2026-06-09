@@ -9,6 +9,7 @@ import { BrowserView } from './browserView.js';
 import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 import { IBrowserViewGroup, IBrowserViewGroupViewEvent } from '../common/browserViewGroup.js';
+import { IBrowserViewOwner } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { BrowserSession } from './browserSession.js';
@@ -48,7 +49,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 
 	constructor(
 		readonly id: string,
-		private readonly windowId: number,
+		readonly owner: IBrowserViewOwner,
 		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService,
 		@IProductService private readonly productService: IProductService
 	) {
@@ -165,7 +166,7 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		const view = target.view.getWebContentsView();
 		const viewBounds = view.getBounds();
 		return {
-			windowId: this.windowId,
+			windowId: this.owner.mainWindowId,
 			bounds: {
 				left: viewBounds.x,
 				top: viewBounds.y,
@@ -197,12 +198,12 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		};
 	}
 
-	async createTarget(url: string, browserContextId?: string, windowId = this.windowId): Promise<ICDPTarget> {
+	async createTarget(url: string, browserContextId?: string): Promise<ICDPTarget> {
 		if (browserContextId && !this.knownContextIds.has(browserContextId)) {
 			throw new Error(`Unknown browser context ${browserContextId}`);
 		}
 
-		const target = await this.browserViewMainService.createTarget(url, browserContextId, windowId);
+		const target = await this.browserViewMainService.createTarget(url, this.owner, browserContextId);
 		if (target instanceof BrowserView) {
 			await this.addView(target.id);
 			return this.viewTargets.get(target.id)!;

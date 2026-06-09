@@ -7,35 +7,17 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
-import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { ICustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
-
-/**
- * Maps section ID to prompt type. Duplicated from aiCustomizationListWidget
- * to avoid a circular dependency.
- */
-function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
-	switch (section) {
-		case AICustomizationManagementSection.Agents:
-			return PromptsType.agent;
-		case AICustomizationManagementSection.Skills:
-			return PromptsType.skill;
-		case AICustomizationManagementSection.Instructions:
-			return PromptsType.instructions;
-		case AICustomizationManagementSection.Hooks:
-			return PromptsType.hook;
-		case AICustomizationManagementSection.Prompts:
-		default:
-			return PromptsType.prompt;
-	}
-}
+import { IAICustomizationWorkspaceService, IStorageSourceFilter, AICustomizationSources, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { type AICustomizationSource, AICustomizationManagementSection, sectionToPromptType } from './aiCustomizationManagement.js';
+import { ICustomizationHarnessService, type ICustomizationItem } from '../../common/customizationHarnessService.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAICustomizationItemSource } from './aiCustomizationItemSource.js';
 
 /**
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly { readonly name?: string; readonly storage?: PromptsStorage; readonly groupKey?: string }[];
+	readonly allItems: readonly { readonly name?: string; readonly source?: AICustomizationSource; readonly groupKey?: string; readonly syncable?: boolean; readonly pluginUri?: URI }[];
 	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
@@ -53,8 +35,9 @@ export async function generateCustomizationDebugReport(
 	promptsService: IPromptsService,
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
-	activeDescriptor?: IHarnessDescriptor,
-	promptsServiceItemProvider?: ICustomizationItemProvider,
+	itemSource: IAICustomizationItemSource,
+	harnessService: ICustomizationHarnessService,
+	agentPluginService: IAgentPluginService,
 ): Promise<string> {
 	const promptType = sectionToPromptType(section);
 	const filter = workspaceService.getStorageSourceFilter(promptType);
@@ -66,6 +49,8 @@ export async function generateCustomizationDebugReport(
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
 	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
 
+	const activeDescriptor = harnessService.getActiveDescriptor();
+
 	// Active harness descriptor
 	if (activeDescriptor) {
 		lines.push('');
@@ -73,7 +58,7 @@ export async function generateCustomizationDebugReport(
 		lines.push(`  id: ${activeDescriptor.id}`);
 		lines.push(`  label: ${activeDescriptor.label}`);
 		lines.push(`  hasItemProvider: ${!!activeDescriptor.itemProvider}`);
-		lines.push(`  hasSyncProvider: ${!!activeDescriptor.syncProvider}`);
+		lines.push(`  hasDisableProvider: ${!!activeDescriptor.syncProvider}`);
 		lines.push(`  hiddenSections: ${activeDescriptor.hiddenSections ? `[${activeDescriptor.hiddenSections.join(', ')}]` : '(none)'}`);
 		lines.push(`  workspaceSubpaths: ${activeDescriptor.workspaceSubpaths ? `[${activeDescriptor.workspaceSubpaths.join(', ')}]` : '(none)'}`);
 		lines.push(`  hideGenerateButton: ${activeDescriptor.hideGenerateButton ?? false}`);
@@ -92,32 +77,20 @@ export async function generateCustomizationDebugReport(
 	lines.push('');
 
 	// Determine which provider the widget actually uses (mirrors getItemSource logic)
-	const extensionProvider = activeDescriptor?.itemProvider;
-	const hasSyncProvider = !!activeDescriptor?.syncProvider;
-	const effectiveProvider = extensionProvider ?? (hasSyncProvider ? undefined : promptsServiceItemProvider);
+	const extensionProvider = activeDescriptor.itemProvider;
 
 	// Stage 1: Provider output
-	if (effectiveProvider) {
-		let providerLabel: string;
-		if (extensionProvider) {
-			providerLabel = 'Extension Provider';
-		} else {
-			providerLabel = 'PromptsService Adapter (fallback — no extension provider registered)';
-		}
-		await appendProviderData(lines, effectiveProvider, promptType, providerLabel);
-	} else if (hasSyncProvider) {
-		lines.push('--- Stage 1: No item provider (sync-only harness) ---');
-		lines.push('');
+	if (extensionProvider) {
+		const providerLabel = 'Extension Provider';
+		await appendProviderData(lines, itemSource, promptType, providerLabel);
 	} else {
+		// Stage 2: Raw PromptsService data — always useful for diagnostics
 		lines.push('--- Stage 1: No provider available ---');
 		lines.push('');
-	}
-
-	// Stage 2: Raw PromptsService data — always useful for diagnostics
-	if (!extensionProvider) {
 		await appendRawServiceData(lines, promptsService, promptType);
 		await appendFilteredData(lines, promptsService, promptType, filter);
 	}
+
 
 	// Stage 3: Widget state
 	appendWidgetState(lines, widgetState);
@@ -125,23 +98,48 @@ export async function generateCustomizationDebugReport(
 	// Stage 4: Source folders
 	await appendSourceFolders(lines, promptsService, promptType);
 
+	// Stage 5: All registered harnesses
+	if (harnessService) {
+		appendAllHarnesses(lines, harnessService);
+	}
+
+	// Stage 6: Installed plugins
+	if (agentPluginService) {
+		appendInstalledPlugins(lines, agentPluginService);
+	}
+
 	return lines.join('\n');
 }
 
-async function appendProviderData(lines: string[], provider: ICustomizationItemProvider, promptType: PromptsType, label: string): Promise<void> {
+interface IPromptFilesByStorage {
+	readonly localFiles: readonly IPromptPath[];
+	readonly userFiles: readonly IPromptPath[];
+	readonly extensionFiles: readonly IPromptPath[];
+}
+
+async function getPromptFilesByStorage(promptsService: IPromptsService, promptType: PromptsType): Promise<IPromptFilesByStorage> {
+	const [localFiles, userFiles, extensionFiles] = await Promise.all([
+		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.local, CancellationToken.None),
+		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.user, CancellationToken.None),
+		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.extension, CancellationToken.None),
+	]);
+
+	return { localFiles, userFiles, extensionFiles };
+}
+
+async function appendProviderData(lines: string[], itemSource: IAICustomizationItemSource, promptType: PromptsType, label: string): Promise<void> {
 	lines.push(`--- Stage 1: Provider Output (${label}) ---`);
 
-	const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
-	if (!allItems) {
-		lines.push('  Provider returned undefined');
-		lines.push('');
-		return;
+	const allItems = await itemSource.fetchProviderItems();
+
+	if (allItems.length === 0) {
+		lines.push(`  Total items from provider: 0 (or provider returned undefined and the item source normalized it to an empty array)`);
+	} else {
+		lines.push(`  Total items from provider: ${allItems.length}`);
 	}
 
-	lines.push(`  Total items from provider: ${allItems.length}`);
-
 	// Group by type for summary
-	const byType = new Map<string, typeof allItems>();
+	const byType = new Map<string, ICustomizationItem[]>();
 	for (const item of allItems) {
 		const existing = byType.get(item.type) ?? [];
 		existing.push(item);
@@ -155,14 +153,18 @@ async function appendProviderData(lines: string[], provider: ICustomizationItemP
 			if (item.description) {
 				lines.push(`      desc: ${item.description}`);
 			}
-			if (item.storage) {
-				lines.push(`      storage: ${item.storage}`);
-			}
+			lines.push(`      source: ${item.source}`);
 			if (item.groupKey) {
 				lines.push(`      groupKey: ${item.groupKey}`);
 			}
-			if (item.extensionLabel) {
-				lines.push(`      extensionLabel: ${item.extensionLabel}`);
+			if (item.itemKey) {
+				lines.push(`      itemKey: ${item.itemKey}`);
+			}
+			if (item.extensionId) {
+				lines.push(`      extensionId: ${item.extensionId}`);
+			}
+			if (item.pluginUri) {
+				lines.push(`      pluginUri: ${item.pluginUri.toString()}`);
 			}
 			if (item.badge) {
 				lines.push(`      badge: ${item.badge}`);
@@ -184,11 +186,7 @@ async function appendProviderData(lines: string[], provider: ICustomizationItemP
 async function appendRawServiceData(lines: string[], promptsService: IPromptsService, promptType: PromptsType): Promise<void> {
 	lines.push('--- Stage 2a: Raw PromptsService Data ---');
 
-	const [localFiles, userFiles, extensionFiles] = await Promise.all([
-		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.local, CancellationToken.None),
-		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.user, CancellationToken.None),
-		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.extension, CancellationToken.None),
-	]);
+	const { localFiles, userFiles, extensionFiles } = await getPromptFilesByStorage(promptsService, promptType);
 
 	lines.push(`  listPromptFilesForStorage(local):  ${localFiles.length} files`);
 	appendFileList(lines, localFiles);
@@ -238,12 +236,7 @@ async function appendRawServiceData(lines: string[], promptsService: IPromptsSer
 async function appendFilteredData(lines: string[], promptsService: IPromptsService, promptType: PromptsType, filter: IStorageSourceFilter): Promise<void> {
 	lines.push('--- Stage 2b: After applyStorageSourceFilter ---');
 
-	const [localFiles, userFiles, extensionFiles] = await Promise.all([
-		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.local, CancellationToken.None),
-		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.user, CancellationToken.None),
-		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.extension, CancellationToken.None),
-	]);
-
+	const { localFiles, userFiles, extensionFiles } = await getPromptFilesByStorage(promptsService, promptType);
 	const all: IPromptPath[] = [...localFiles, ...userFiles, ...extensionFiles];
 	const filtered = applyStorageSourceFilter(all, filter);
 	lines.push(`  Input: ${all.length} → Filtered: ${filtered.length}`);
@@ -267,13 +260,25 @@ async function appendFilteredData(lines: string[], promptsService: IPromptsServi
 function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push('--- Stage 3: Widget State (loadItems → filterItems) ---');
 	lines.push(`  allItems (after loadItems): ${state.allItems.length}`);
-	lines.push(`    local:     ${state.allItems.filter(i => i.storage === PromptsStorage.local).length}`);
-	lines.push(`    user:      ${state.allItems.filter(i => i.storage === PromptsStorage.user).length}`);
-	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
-	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
+	lines.push(`    local:     ${state.allItems.filter(i => i.source === AICustomizationSources.local).length}`);
+	lines.push(`    user:      ${state.allItems.filter(i => i.source === AICustomizationSources.user).length}`);
+	lines.push(`    extension: ${state.allItems.filter(i => i.source === AICustomizationSources.extension).length}`);
+	lines.push(`    plugin:    ${state.allItems.filter(i => i.source === AICustomizationSources.plugin).length}`);
+	lines.push(`    built-in:  ${state.allItems.filter(i => i.source === AICustomizationSources.builtin).length}`);
+	const syncableCount = state.allItems.filter(i => i.syncable).length;
+	if (syncableCount > 0) {
+		lines.push(`    syncable:  ${syncableCount}`);
+	}
 
 	for (const item of state.allItems) {
-		lines.push(`    - ${item.name} [storage=${item.storage ?? '?'}, groupKey=${item.groupKey ?? '(none)'}]`);
+		const flags: string[] = [`storage=${item.source ?? '?'}`, `groupKey=${item.groupKey ?? '(none)'}`];
+		if (item.syncable) {
+			flags.push('syncable');
+		}
+		if (item.pluginUri) {
+			flags.push(`pluginUri=${item.pluginUri.toString()}`);
+		}
+		lines.push(`    - ${item.name} [${flags.join(', ')}]`);
 	}
 
 	lines.push(`  displayEntries (after filterItems): ${state.displayEntries.length}`);
@@ -309,4 +314,43 @@ function appendFileList(lines: string[], files: readonly { uri: URI }[]): void {
 	for (const f of files) {
 		lines.push(`    ${f.uri.fsPath}`);
 	}
+}
+
+function appendAllHarnesses(lines: string[], harnessService: ICustomizationHarnessService): void {
+	lines.push('--- Stage 5: All Registered Harnesses ---');
+	const activeId = harnessService.activeHarness.get();
+	const harnesses = harnessService.availableHarnesses.get();
+	lines.push(`  Active: ${activeId}`);
+	lines.push(`  Total harnesses: ${harnesses.length}`);
+	for (const h of harnesses) {
+		const isActive = h.id === activeId ? ' (ACTIVE)' : '';
+		lines.push(`  [${h.id}]${isActive} "${h.label}"`);
+		lines.push(`    hasItemProvider: ${!!h.itemProvider}`);
+		lines.push(`    hasDisableProvider: ${!!h.syncProvider}`);
+		lines.push(`    hiddenSections: ${h.hiddenSections ? `[${h.hiddenSections.join(', ')}]` : '(none)'}`);
+		lines.push(`    hideGenerateButton: ${h.hideGenerateButton ?? false}`);
+		lines.push(`    pluginActions: ${h.pluginActions?.length ?? 0}`);
+		if (h.pluginActions) {
+			for (const a of h.pluginActions) {
+				lines.push(`      - ${a.id}: ${a.label}`);
+			}
+		}
+	}
+	lines.push('');
+}
+
+function appendInstalledPlugins(lines: string[], agentPluginService: IAgentPluginService): void {
+	lines.push('--- Stage 6: Installed Plugins ---');
+	const plugins = agentPluginService.plugins.get();
+	lines.push(`  Total: ${plugins.length}`);
+	for (const p of plugins) {
+		lines.push(`  [${p.label}] ${p.uri.toString()}`);
+		if (p.fromMarketplace) {
+			const m = p.fromMarketplace;
+			lines.push(`    fromMarketplace: ${m.name}@${m.version} (marketplace=${m.marketplace}, type=${m.marketplaceType})`);
+		} else {
+			lines.push(`    fromMarketplace: (none)`);
+		}
+	}
+	lines.push('');
 }

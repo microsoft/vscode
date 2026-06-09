@@ -17,7 +17,7 @@ import { IToolCall, IToolCallRound } from './intents';
 export class ToolCallRound implements IToolCallRound {
 	public summary: string | undefined;
 	public phase?: string;
-	public phaseModelId?: string;
+	public modelId?: string;
 
 	/**
 	 * Creates a ToolCallRound from an existing IToolCallRound object.
@@ -36,7 +36,7 @@ export class ToolCallRound implements IToolCallRound {
 		);
 		round.summary = params.summary;
 		round.phase = params.phase;
-		round.phaseModelId = params.phaseModelId;
+		round.modelId = params.modelId;
 		return round;
 	}
 
@@ -70,6 +70,7 @@ export class ThinkingDataItem implements ThinkingData {
 	public metadata?: { [key: string]: any };
 	public tokens?: number;
 	public encrypted?: string;
+	public redacted?: boolean;
 
 	static createOrUpdate(item: ThinkingDataItem | undefined, delta: ThinkingDelta) {
 		if (!item) {
@@ -90,6 +91,9 @@ export class ThinkingDataItem implements ThinkingData {
 		}
 		if (isEncryptedThinkingDelta(delta)) {
 			this.encrypted = delta.encrypted;
+			if (delta.redacted !== undefined) {
+				this.redacted = delta.redacted;
+			}
 		}
 		if (delta.text !== undefined) {
 

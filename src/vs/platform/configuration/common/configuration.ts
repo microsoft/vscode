@@ -302,7 +302,7 @@ function doRemoveFromValueTree(valueTree: IStringDictionary<unknown> | unknown, 
 
 	if (Object.keys(valueTreeRecord).indexOf(first) !== -1) {
 		const value = valueTreeRecord[first];
-		if (typeof value === 'object' && !Array.isArray(value)) {
+		if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
 			doRemoveFromValueTree(value, segments);
 			if (Object.keys(value as object).length === 0) {
 				delete valueTreeRecord[first];

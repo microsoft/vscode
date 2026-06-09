@@ -20,9 +20,9 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { getCachedSha256Hash } from '../../../util/common/crypto';
-import { hash } from '../../../util/vs/base/common/hash';
 import { clamp } from '../../../util/vs/base/common/numbers';
 import { dirname, extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
+import { sendSkillContentReadTelemetry } from '../common/skillTelemetry';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelPromptTsxPart, LanguageModelToolResult, Location, MarkdownString, Range } from '../../../vscodeTypes';
@@ -74,6 +74,7 @@ export interface IReadFileParamsV2 {
 }
 
 const MAX_LINES_PER_READ = 2000;
+const MAX_LINE_LENGTH = 2000;
 
 export type ReadFileParams = IReadFileParamsV1 | IReadFileParamsV2;
 
@@ -218,7 +219,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 			// Check if file is external (outside workspace, not open in editor, etc.)
 			const isExternal = await this.instantiationService.invokeFunction(
-				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true })
+				accessor => isFileExternalAndNeedsConfirmation(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory })
 			);
 
 			if (isExternal) {
@@ -243,7 +244,7 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 				};
 			}
 
-			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true }));
+			await this.instantiationService.invokeFunction(accessor => assertFileOkForTool(accessor, uri!, this._promptContext, { readOnly: true, workingDirectory: options.workingDirectory }));
 
 			try {
 				documentSnapshot = await this.getSnapshot(uri);
@@ -374,37 +375,9 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 
 		// Send separate skillContentRead event only for successful skill file reads.
 		// Reuses extensionSkillInfo/skillInfo already computed above.
-		// TODO: Add pluginNameHash and pluginVersion properties once vscode core's
-		// extensionPromptFileProvider command exposes IAgentPluginService metadata.
 		if (skillInfo && documentSnapshot && uri && this.customInstructionsService.isSkillMdFile(uri)) {
 			const content = documentSnapshot instanceof TextDocumentSnapshot ? documentSnapshot.getText() : '';
-			const extensionId = extensionSkillInfo?.extensionId ?? '';
-			const extensionVersion = extensionId ? this.extensionsService.getExtension(extensionId)?.packageJSON?.version ?? '' : '';
-			const contentHash = content ? String(hash(content)) : '';
-
-			// Plaintext properties shared by enhanced GH and internal MSFT events
-			const plaintextProps = {
-				skillName: skillInfo.skillName,
-				skillPath: uri.toString(),
-				extensionId,
-				extensionVersion,
-				skillStorage: skillInfo.storage,
-				contentHash,
-			};
-
-			this.telemetryService.sendGHTelemetryEvent('skillContentRead',
-				{
-					skillNameHash: String(hash(skillInfo.skillName)),
-					extensionIdHash: extensionId ? String(hash(extensionId)) : '',
-					extensionVersion: plaintextProps.extensionVersion,
-					skillStorage: plaintextProps.skillStorage,
-					contentHash,
-				}
-			);
-
-			this.telemetryService.sendEnhancedGHTelemetryEvent('skillContentRead', plaintextProps);
-
-			this.telemetryService.sendInternalMSFTTelemetryEvent('skillContentRead', plaintextProps);
+			sendSkillContentReadTelemetry(this.telemetryService, this.customInstructionsService, this.extensionsService, uri, skillInfo, content);
 		}
 	}
 
@@ -453,7 +426,19 @@ class ReadFileResult extends PromptElement<ReadFileResultProps> {
 			this.props.startLine - 1, 0,
 			this.props.endLine - 1, Infinity,
 		);
-		let contents = documentSnapshot.getText(range);
+		const rawContents = documentSnapshot.getText(range);
+		let hadLongLines = false;
+		let contents = rawContents.split('\n').map(line => {
+			if (line.length > MAX_LINE_LENGTH) {
+				hadLongLines = true;
+				return line.slice(0, MAX_LINE_LENGTH) + ' [truncated]';
+			}
+			return line;
+		}).join('\n');
+
+		if (hadLongLines) {
+			contents += `\n[One or more long lines were truncated at ${MAX_LINE_LENGTH} characters]\n`;
+		}
 
 		if (this.props.truncated) {
 			contents += `\n[File content truncated at line ${this.props.endLine}. Use ${ToolName.ReadFile} with offset/limit parameters to view more.]\n`;

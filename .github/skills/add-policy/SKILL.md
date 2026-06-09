@@ -230,3 +230,7 @@ See `chat.tools.global.autoApprove` and `chat.useHooks` in `src/vs/workbench/con
 ## Examples
 
 Search the codebase for `policy:` to find all the examples of different policy configurations.
+
+## Learnings
+
+* Never hand-edit `build/lib/policies/policyData.jsonc` (its header explicitly forbids it). If `npm run export-policy-data` is failing, fix the script — don't patch the JSON. Common cause: running it in the wrong working directory (e.g. main repo instead of a worktree), which silently exports the wrong source tree.

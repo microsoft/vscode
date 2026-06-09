@@ -8,6 +8,7 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -17,9 +18,10 @@ import * as event from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
+import { joinPath } from '../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -39,6 +41,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { fillInSymbolsDragData } from '../../../../../platform/dnd/browser/dnd.js';
 import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../platform/editor/browser/editor.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -47,6 +50,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
@@ -60,16 +64,19 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { BrowserEditorInput } from '../../../browserView/common/browserEditorInput.js';
+import { BrowserViewSharingState, IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { getImageAttachmentLimit, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
+import { getOrCreateImageThumbnail } from '../chatImageUtils.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -245,6 +252,9 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -278,11 +288,46 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
+		if (attachment.kind === 'file') {
+			this.attachSaveButton(resource, fileBasename, options.supportsDeletion);
+		}
 
 		this.instantiationService.invokeFunction(accessor => {
 			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, resource));
 		});
 		this.addResourceOpenHandlers(resource, range);
+	}
+
+	private attachSaveButton(resource: URI, name: string, supportsDeletion: boolean): void {
+		if (supportsDeletion) {
+			return;
+		}
+
+		const saveButton = new Button(this.element, {
+			supportIcons: true,
+			hoverDelegate: createInstantHoverDelegate(),
+			title: localize('chat.attachment.saveFileButton', "Save As...")
+		});
+		saveButton.element.classList.add('chat-attached-context-download-button');
+		saveButton.element.tabIndex = -1;
+		saveButton.icon = Codicon.cloudDownload;
+		this.element.insertBefore(saveButton.element, this.label.element);
+		this._register(saveButton);
+		this._register(saveButton.onDidClick(async e => {
+			e.preventDefault();
+			e.stopPropagation();
+			const defaultUri = joinPath(await this.fileDialogService.defaultFilePath(), name);
+			const target = await this.fileDialogService.showSaveDialog({ defaultUri });
+			if (!target) {
+				return;
+			}
+
+			try {
+				await this.fileService.copy(resource, target, true);
+			} catch (error) {
+				this.notificationService.error(localize('chat.attachment.saveFileError', "Failed to save file: {0}", error));
+			}
+		}));
 	}
 
 	private renderOmittedWarning(friendlyName: string, ariaLabel: string) {
@@ -448,8 +493,12 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		@ILabelService private readonly labelService: ILabelService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
+		this.element.classList.add('image-attachment');
 
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
@@ -476,7 +525,8 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, imageData ?? (attachment.value as Uint8Array), attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 
 		// Wire up click + keyboard (Enter/Space) open handlers
@@ -499,11 +549,55 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const resource = referenceUri ?? URI.from({ scheme: 'data', path: `${id}/${encodeURIComponent(name)}` });
 		await this.chatImageCarouselService.openCarouselAtResource(resource, data);
 	}
+
+	private attachSaveButton(resource: URI | undefined, imageData: Uint8Array | undefined, name: string, supportsDeletion: boolean): void {
+		if (supportsDeletion || (!resource && !imageData)) {
+			return;
+		}
+
+		const saveButton = new Button(this.element, {
+			supportIcons: true,
+			hoverDelegate: createInstantHoverDelegate(),
+			title: localize('chat.attachment.saveImageButton', "Save Image As...")
+		});
+		saveButton.element.classList.add('chat-attached-context-download-button');
+		saveButton.element.tabIndex = -1;
+		saveButton.icon = Codicon.cloudDownload;
+		this._register(saveButton);
+		this._register(saveButton.onDidClick(async e => {
+			e.preventDefault();
+			e.stopPropagation();
+			const defaultUri = joinPath(await this.fileDialogService.defaultFilePath(), name);
+			const target = await this.fileDialogService.showSaveDialog({ defaultUri });
+			if (!target) {
+				return;
+			}
+
+			try {
+				if (resource) {
+					await this.fileService.copy(resource, target, true);
+				} else if (imageData) {
+					await this.fileService.writeFile(target, VSBuffer.wrap(imageData));
+				}
+			} catch (error) {
+				this.notificationService.error(localize('chat.attachment.saveImageError', "Failed to save image: {0}", error));
+			}
+		}));
+	}
 }
+
+/**
+ * Maximum width/height (in pixels) of the downscaled image rendered in the hover
+ * preview. The preview is capped at ~350px by CSS, so 768px keeps it crisp on
+ * high-DPI displays. The same thumbnail is reused for the pill to avoid decoding
+ * and resizing the original bitmap twice.
+ */
+const IMAGE_HOVER_THUMBNAIL_MAX_SIZE = 768;
 
 function createImageElements(resource: URI | undefined, name: string, fullName: string,
 	element: HTMLElement,
 	buffer: ArrayBuffer | Uint8Array,
+	cacheKey: string,
 	hoverService: IHoverService, ariaLabel: string,
 	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
@@ -527,6 +621,13 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
 	element.appendChild(pillIcon);
 	element.appendChild(textLabel);
+
+	// Tracks the currently rendered pill so it can be swapped without querying the DOM.
+	let currentPill: HTMLElement = pillIcon;
+	const replacePill = (pill: HTMLElement) => {
+		currentPill.replaceWith(pill);
+		currentPill = pill;
+	};
 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	hoverElement.setAttribute('aria-label', ariaLabel);
@@ -561,18 +662,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			style: HoverStyle.Pointer,
 		}));
 
-		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: 'image/png' });
-		const url = URL.createObjectURL(blob);
-		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
-		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
-
-		// eslint-disable-next-line no-restricted-syntax
-		const existingPill = element.querySelector('.chat-attached-context-pill');
-		if (existingPill) {
-			existingPill.replaceWith(pill);
-		}
-
-		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		const hoverImage = dom.$<HTMLImageElement>('img.chat-attached-context-image', { alt: '' });
 		const imageContainer = dom.$('div.chat-attached-context-image-container', {}, hoverImage);
 		hoverElement.appendChild(imageContainer);
 
@@ -583,17 +673,37 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			hoverElement.append(separator, urlContainer);
 		}
 
-		hoverImage.onload = () => { URL.revokeObjectURL(url); };
-		hoverImage.onerror = () => {
+		const onImageFailed = () => {
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
-			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
-			// eslint-disable-next-line no-restricted-syntax
-			const existingPill = element.querySelector('.chat-attached-context-pill');
-			if (existingPill) {
-				existingPill.replaceWith(pill);
-			}
+			replacePill(pillIcon);
 		};
+
+		const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+
+		// Both the always-visible pill and the hover preview render small. Use one
+		// generated thumbnail for both so the original bytes are decoded and resized
+		// only once, and the UI keeps a small object URL for steady-state rendering.
+		const previewImageUrl = disposable.add(new MutableDisposable<IDisposable>());
+		const renderPreviewImage = async () => {
+			const thumbnail = await getOrCreateImageThumbnail(cacheKey, data, IMAGE_HOVER_THUMBNAIL_MAX_SIZE, dom.getWindow(element));
+			if (disposable.isDisposed) {
+				return;
+			}
+			// Fall back to the full-resolution image only if downscaling failed, so
+			// the larger original bytes aren't copied into a Blob in the common case.
+			const source = thumbnail ?? new Blob([data as Uint8Array<ArrayBuffer>]);
+			const url = URL.createObjectURL(source);
+			previewImageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
+			if (thumbnail) {
+				const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
+				const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
+				replacePill(pill);
+			}
+			hoverImage.onerror = onImageFailed;
+			hoverImage.src = url;
+		};
+		void renderPreviewImage();
 	}
 	return disposable;
 }
@@ -990,7 +1100,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const clickHandler = async () => await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
-		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, attachment.id, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 	}
 
@@ -1451,6 +1561,115 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 			label: `${originalUriTitle} ↔ ${modifiedUriTitle}`,
 			options: { ...options.editorOptions }
 		}, options.openToSide ? SIDE_GROUP : undefined);
+	}
+}
+
+export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	private readonly _inputListeners = this._register(new DisposableStore());
+	private _input: BrowserEditorInput | undefined;
+
+	constructor(
+		private readonly _attachment: IBrowserViewVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		private readonly _options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IBrowserViewWorkbenchService private readonly _browserViewService: IBrowserViewWorkbenchService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super(_attachment, _options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
+
+		this._resolveInput();
+		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._resolveInput()));
+		this._register(this._browserViewService.onDidChangeSharingAvailable(() => this._updateLabel()));
+
+		this._register(this._hoverService.setupDelayedHover(this.element, () => ({
+			...commonHoverOptions,
+			content: this._input
+				? {
+					[BrowserViewSharingState.Shared]: this._input.getTitle() ?? '',
+					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared', "This browser page is not shared with the agent."),
+					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled', "Browser tools are not enabled."),
+				}[this._input.model?.sharingState ?? BrowserViewSharingState.Shared]
+				: localize('chat.browserViewClosed', "This browser page is no longer open."),
+		}), commonHoverLifecycleOptions));
+
+		this._instantiationService.invokeFunction(accessor => {
+			this._register(hookUpResourceAttachmentDragAndContextMenu(accessor, this.element, _attachment.value));
+		});
+		this.addResourceOpenHandlers(_attachment.value, undefined);
+	}
+
+	/**
+	 * Look up the current BrowserEditorInput for this attachment's browser ID, bind listeners, and refresh the UI.
+	 */
+	private _resolveInput(): void {
+		const input = this._browserViewService.getKnownBrowserViews().get(this._attachment.browserId);
+		if (this._input === input) {
+			return;
+		}
+
+		this._inputListeners.clear();
+		this._input = input;
+
+		if (input) {
+			this._inputListeners.add(input.onWillDispose(() => {
+				this._input = undefined;
+				this._inputListeners.clear();
+				this._updateLabel();
+			}));
+
+			// Live name updates while the attachment is still in the input area
+			if (this._options.supportsDeletion) {
+				this._inputListeners.add(input.onDidChangeLabel(() => this._updateLabel()));
+			}
+
+			if (input.model) {
+				this._inputListeners.add(input.model.onDidChangeSharingState(() => this._updateLabel()));
+			} else {
+				this._inputListeners.add(input.onDidResolveModel(() => {
+					this._inputListeners.add(input.model!.onDidChangeSharingState(() => this._updateLabel()));
+					this._updateLabel();
+				}));
+			}
+		}
+
+		this._updateLabel();
+	}
+
+	private _updateLabel(): void {
+		const name = this._input?.getName() ?? this._attachment.name;
+		const sharingState = this._input?.model?.sharingState ?? BrowserViewSharingState.Shared;
+		const isAvailable = !!this._input && sharingState === BrowserViewSharingState.Shared;
+
+		this.element.classList.toggle('warning', !isAvailable);
+		this.label.setLabel(name, undefined, {
+			iconPath: Codicon.globe,
+			strikethrough: !isAvailable,
+		});
+		this.element.ariaLabel = this.appendDeletionHint(
+			this._input
+				? {
+					[BrowserViewSharingState.Shared]: localize('chat.browserViewAttachment.aria', "Attached browser page, {0}", name),
+					[BrowserViewSharingState.NotShared]: localize('chat.browserViewNotShared.aria', "Browser page not shared with agent, {0}", name),
+					[BrowserViewSharingState.Unavailable]: localize('chat.browserToolsDisabled.aria', "Browser tools are not enabled, {0}", name),
+				}[sharingState]
+				: localize('chat.browserViewClosed.aria', "Browser page unavailable, {0}", name)
+		);
+	}
+
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: true): Promise<void>;
+	protected override async openResource(resource: URI, options: IOpenEditorOptions, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected override async openResource(_resource: URI, options: IOpenEditorOptions, _isDirectory?: boolean, _range?: IRange): Promise<void> {
+		if (this._input) {
+			await this._editorService.openEditor(this._input, options.editorOptions, options.openToSide ? SIDE_GROUP : undefined);
+		}
 	}
 }
 

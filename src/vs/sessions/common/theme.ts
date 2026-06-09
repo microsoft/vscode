@@ -14,8 +14,9 @@ import { localize } from '../../nls.js';
 import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, focusBorder } from '../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
-import { buttonBackground, buttonBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
+import { foreground } from '../../platform/theme/common/colors/baseColors.js';
+import { buttonBackground, buttonSecondaryBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // ============================================================================
 // Shell background (used by the gradient system)
@@ -44,7 +45,7 @@ export const agentsPanelForeground = registerColor(
 
 export const agentsPanelBorder = registerColor(
 	'agentsPanel.border',
-	{ dark: PANEL_BORDER, light: editorWidgetBorder, hcDark: contrastBorder, hcLight: contrastBorder },
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('agentsPanel.border', 'Border color of the card panels (chat, files, terminal) in the agent sessions window.')
 );
 
@@ -125,7 +126,7 @@ export const agentsNewSessionButtonForeground = registerColor(
 );
 
 export const agentsNewSessionButtonBorder = registerColor(
-	'agentsNewSessionButton.border', buttonBorder,
+	'agentsNewSessionButton.border', buttonSecondaryBorder,
 	localize('agentsNewSessionButton.border', 'Border color of the New Session button in the agent sessions sidebar.')
 );
 
@@ -160,4 +161,24 @@ export const agentsUnreadBadgeBackground = registerColor(
 export const agentsUnreadBadgeForeground = registerColor(
 	'agentsUnreadBadge.foreground', ACTIVITY_BAR_BADGE_FOREGROUND,
 	localize('agentsUnreadBadge.foreground', 'Foreground color of the unread sessions count badge on the sidebar toggle.')
+);
+
+export const activeSessionViewBackground = registerColor(
+	'activeSessionView.background', agentsPanelBackground,
+	localize('activeSessionView.background', 'Background color of an active session view in the agent sessions window.')
+);
+
+export const inactiveSessionViewBackground = registerColor(
+	'inactiveSessionView.background', agentsBackground,
+	localize('inactiveSessionView.background', 'Background color of an inactive session view in the agent sessions window.')
+);
+
+export const activeSessionViewForeground = registerColor(
+	'activeSessionView.foreground', agentsPanelForeground,
+	localize('activeSessionView.foreground', 'Foreground color of an active session view in the agent sessions window.')
+);
+
+export const inactiveSessionViewForeground = registerColor(
+	'inactiveSessionView.foreground', agentsPanelForeground,
+	localize('inactiveSessionView.foreground', 'Foreground color of an inactive session view in the agent sessions window.')
 );

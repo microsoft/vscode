@@ -37,6 +37,14 @@ interface IBaseChatRequestVariableEntry {
 	readonly value: IChatRequestVariableValue;
 	readonly references?: IChatContentReference[];
 
+	/**
+	 * Implementation-defined metadata that providers attach to a variable
+	 * entry. Used to round-trip provider-specific data (e.g. agent-host
+	 * `_meta`) when an entry is sent back to the provider as part of a
+	 * request attachment.
+	 */
+	readonly _meta?: Record<string, unknown>;
+
 	omittedState?: OmittedState;
 }
 
@@ -338,6 +346,8 @@ export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEnt
 		readonly diffHunks?: string;
 		/** When this item was converted from a PR review comment, the original thread ID. */
 		readonly sourcePRReviewCommentId?: string;
+		/** Additional replies that belong to the same comment thread as {@link text}. */
+		readonly replies?: readonly string[];
 	}>;
 }
 
@@ -354,6 +364,16 @@ export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequ
 	readonly value: URI;
 }
 
+export interface IBrowserViewVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'browserView';
+	readonly value: URI;
+	readonly browserId: string;
+}
+
+export function isBrowserViewVariableEntry(entry: IChatRequestVariableEntry): entry is IBrowserViewVariableEntry {
+	return entry.kind === 'browserView';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -361,7 +381,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
-	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry;
+	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -444,6 +464,27 @@ export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
 	return obj.kind === 'image';
+}
+
+export function isExplicitFileOrImageVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry | IChatRequestDirectoryEntry | IImageVariableEntry {
+	return obj.kind === 'file' || obj.kind === 'directory' || obj.kind === 'image';
+}
+
+export function getExplicitFileOrImageAttachmentSummary(entries: readonly IChatRequestVariableEntry[]): string | undefined {
+	const fileOrImageEntries = entries.filter(isExplicitFileOrImageVariableEntry);
+	if (!fileOrImageEntries.length) {
+		return undefined;
+	}
+
+	if (fileOrImageEntries.every(isImageVariableEntry)) {
+		return fileOrImageEntries.length === 1
+			? localize('chat.attachmentSummary.image.one', "Attached 1 image")
+			: localize('chat.attachmentSummary.image.many', "Attached {0} images", fileOrImageEntries.length);
+	}
+
+	return fileOrImageEntries.length === 1
+		? localize('chat.attachmentSummary.file.one', "Attached 1 file")
+		: localize('chat.attachmentSummary.file.many', "Attached {0} files", fileOrImageEntries.length);
 }
 
 export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): obj is INotebookOutputVariableEntry {

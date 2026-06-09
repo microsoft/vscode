@@ -87,6 +87,23 @@ export function normalizeCommandForExecution(command: string): string {
 	return command.replace(/\r\n|\r|\n/g, ' ').trim();
 }
 
+/**
+ * Whether a command spans multiple lines (heredoc, multi-statement block, etc.).
+ * Multi-line commands must be sent verbatim through bracketed paste mode so the
+ * shell treats them as a single paste instead of executing each line as it
+ * arrives.
+ *
+ * Bare line continuations (`\` immediately before a newline) are **not**
+ * considered multi-line because the shell joins them into a single logical
+ * line. Only newlines that are *not* preceded by a backslash count.
+ */
+export function isMultilineCommand(command: string): boolean {
+	// Normalize all line-ending variants to \n, then check for a newline
+	// that is not preceded by a backslash (i.e. not a line continuation).
+	const normalized = command.replace(/\r\n|\r/g, '\n');
+	return /(?<!\\)\n/.test(normalized);
+}
+
 export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 

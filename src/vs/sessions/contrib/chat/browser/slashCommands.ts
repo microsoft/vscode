@@ -23,7 +23,10 @@ import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../..
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { INewChatModelPickerService } from './newChatModelPicker.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -49,6 +52,19 @@ interface ISessionsSlashCommandData {
 	readonly execute: (args: string) => void;
 }
 
+
+/**
+ * Returns `true` when the widget's chat session is backed by an agent
+ * host (local or remote). For these sessions, completions are delegated
+ * to the agent host via `AgentHostInputCompletions`, and the workbench's
+ * default in-process providers (file/symbol/tool/agent) short-circuit.
+ */
+function isAgentHostBackedWidget(widget: IChatWidget): boolean {
+	const sessionResource = widget.viewModel?.model.sessionResource;
+	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
+}
+
+
 /**
  * Manages slash commands for the sessions new-chat input widget — registration,
  * autocompletion, decorations (syntax highlighting + placeholder text), and execution.
@@ -70,6 +86,8 @@ export class SlashCommandHandler extends Disposable {
 		@IThemeService private readonly themeService: IThemeService,
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._registerSlashCommands();
@@ -110,30 +128,6 @@ export class SlashCommandHandler extends Disposable {
 		return true;
 	}
 
-	/**
-	 * If the query starts with a prompt/skill slash command (e.g. `/my-prompt args`),
-	 * expands it into a CLI-friendly markdown reference so the agent can locate the
-	 * file. Returns `undefined` when the query is not a prompt slash command.
-	 */
-	tryExpandPromptSlashCommand(query: string): string | undefined {
-		const match = query.match(/^\/([\w\p{L}\d_\-\.:]+)\s*(.*)/su);
-		if (!match) {
-			return undefined;
-		}
-
-		const commandName = match[1];
-		const promptCommand = this._cachedPromptCommands.find(c => c.name === commandName);
-		if (!promptCommand) {
-			return undefined;
-		}
-
-		const args = match[2]?.trim() ?? '';
-		const uri = promptCommand.uri;
-		const typeLabel = promptCommand.type === PromptsType.skill ? 'skill' : 'prompt file';
-		const expanded = `Use the ${typeLabel} located at [${promptCommand.name}](${uri.toString()}).`;
-		return args ? `${expanded} ${args}` : expanded;
-	}
-
 	private _registerSlashCommands(): void {
 		const openSection = (section: AICustomizationManagementSection) =>
 			() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, section);
@@ -165,6 +159,13 @@ export class SlashCommandHandler extends Disposable {
 			sortText: 'z3_hooks',
 			executeImmediately: true,
 			execute: openSection(AICustomizationManagementSection.Hooks),
+		});
+		this._slashCommands.push({
+			command: 'models',
+			detail: localize('slashCommand.models', "Open the model picker"),
+			sortText: 'z3_models',
+			executeImmediately: true,
+			execute: () => this.newChatModelPickerService.openModelPicker(),
 		});
 	}
 
@@ -279,6 +280,14 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (widget && isAgentHostBackedWidget(widget)) {
+					// Agent-host sessions delegate completions to the host
+					// process via `AgentHostInputCompletions`.
+					return null;
+				}
+
+
 				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
 				if (!range) {
 					return null;

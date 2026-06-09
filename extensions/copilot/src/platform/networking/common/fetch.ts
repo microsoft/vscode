@@ -288,7 +288,17 @@ export interface OpenAiResponsesFunctionTool extends OpenAiFunctionDef {
 	type: 'function';
 }
 
-export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool): tool is OpenAiFunctionTool {
+/** OpenAI Responses API client-executed tool_search tool declaration. See https://developers.openai.com/api/docs/guides/tools-tool-search */
+export interface OpenAiToolSearchTool {
+	type: 'tool_search';
+	execution: 'client';
+	/** Description for client-executed tool search. */
+	description?: string;
+	/** Parameters schema for client-executed tool search. */
+	parameters?: Record<string, unknown>;
+}
+
+export function isOpenAiFunctionTool(tool: OpenAiResponsesFunctionTool | OpenAiFunctionTool | AnthropicMessagesTool | OpenAiToolSearchTool): tool is OpenAiFunctionTool {
 	return (tool as OpenAiFunctionTool).function !== undefined;
 }
 
@@ -311,10 +321,7 @@ export type Prediction = {
 	content: string | { type: string; text: string }[];
 };
 
-/** based on https://platform.openai.com/docs/api-reference/chat/create
- *
- * 'stream' param is not respected because we don't yet support non-streamed responses
- */
+/** based on https://platform.openai.com/docs/api-reference/chat/create */
 export interface OptionalChatRequestParams {
 
 	/** Non-negative temperature sampling parameter (default 1). */

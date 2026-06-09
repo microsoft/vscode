@@ -13,6 +13,7 @@ import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { shouldShowSessionInPicker } from '../../../browser/agentSessions/agentSessionsPicker.js';
 
 suite('sessionDateFromNow', () => {
 
@@ -125,12 +126,13 @@ suite('AgentSessionsDataSource', () => {
 			sessions,
 			resolved: true,
 			getSession: () => undefined,
+			observeSession: () => { throw new Error('Not implemented'); },
 			onWillResolve: Event.None as Event<string>,
 			onDidResolve: Event.None as Event<string>,
 			onDidChangeSessions: Event.None,
 			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
-		};
+		} satisfies IAgentSessionsModel;
 	}
 
 	function createMockFilter(options: {
@@ -1344,6 +1346,62 @@ suite('AgentSessionsSorter', () => {
 
 		const sorted = [withRequest, withoutRequest].sort((a, b) => sorter.compare(a, b));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session no-request', 'Session with-request']);
+	});
+});
+
+suite('AgentSessionsPicker', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession(overrides: Partial<{
+		id: string;
+		status: ChatSessionStatus;
+		isArchived: boolean;
+	}>): IAgentSession {
+		return {
+			providerType: 'test',
+			providerLabel: 'Test',
+			resource: URI.parse(`test://session/${overrides.id ?? 'default'}`),
+			status: overrides.status ?? ChatSessionStatus.Completed,
+			label: `Session ${overrides.id ?? 'default'}`,
+			icon: Codicon.terminal,
+			timing: {
+				created: Date.now(),
+				lastRequestStarted: undefined,
+				lastRequestEnded: undefined,
+			},
+			changes: undefined,
+			metadata: undefined,
+			isArchived: () => overrides.isArchived ?? false,
+			setArchived: () => { },
+			isPinned: () => false,
+			setPinned: () => { },
+			isRead: () => true,
+			isMarkedUnread: () => false,
+			setRead: () => { },
+		};
+	}
+
+	const filter: IAgentSessionsFilter = {
+		onDidChange: Event.None,
+		exclude: () => false,
+		getExcludes: () => ({ providers: [], states: [], archived: true, read: false, repositoryGroupCapped: true }),
+		isDefault: () => true,
+		limitResults: () => undefined,
+		notifyResults: () => { },
+		reset: () => { },
+		sortResults: () => undefined,
+	};
+
+	test('keeps completed sessions but excludes archived sessions', () => {
+		const completed = createSession({ id: 'completed', status: ChatSessionStatus.Completed });
+		const inProgress = createSession({ id: 'in-progress', status: ChatSessionStatus.InProgress });
+		const archived = createSession({ id: 'archived', status: ChatSessionStatus.Completed, isArchived: true });
+
+		assert.deepStrictEqual(
+			[completed, inProgress, archived].filter(session => shouldShowSessionInPicker(session, filter)).map(session => session.label),
+			['Session completed', 'Session in-progress']
+		);
 	});
 });
 

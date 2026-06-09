@@ -3,81 +3,85 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestType } from '@vscode/copilot-api';
+import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IAuthenticationService } from '../../authentication/common/authentication';
-import { IHeaders } from '../../networking/common/fetcherService';
-import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, IRateLimitWarning, QuotaSnapshots } from './chatQuotaService';
+import { ICAPIClientService } from '../../endpoint/common/capiClient';
+import { ILogService } from '../../log/common/logService';
+import { FetchOptions, IHeaders, Response } from '../../networking/common/fetcherService';
+import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
 
 export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	declare readonly _serviceBrand: undefined;
-	private static readonly _RATE_LIMIT_THRESHOLDS = [50, 75, 90, 95];
+
 	private _quotaInfo: IChatQuota | undefined;
 	private _rateLimitInfo: { session: IChatQuota | undefined; weekly: IChatQuota | undefined };
-	private readonly _shownSessionThresholds = new Set<number>();
-	private readonly _shownWeeklyThresholds = new Set<number>();
-	private _pendingRateLimitWarning: IRateLimitWarning | undefined;
+	private readonly _turnCredits = new Map<string, number>();
 
-	constructor(@IAuthenticationService private readonly _authService: IAuthenticationService) {
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@ILogService private readonly _logService: ILogService,
+		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
+	) {
 		super();
 		this._rateLimitInfo = { session: undefined, weekly: undefined };
 		this._register(this._authService.onDidAuthenticationChange(() => {
-			this.processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
+			this._processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
 		}));
+	}
+
+	get quotaInfo(): IChatQuota | undefined {
+		return this._quotaInfo;
+	}
+
+	get rateLimitInfo(): { readonly session: IChatQuota | undefined; readonly weekly: IChatQuota | undefined } {
+		return this._rateLimitInfo;
 	}
 
 	get quotaExhausted(): boolean {
 		if (!this._quotaInfo) {
 			return false;
 		}
-		return this._quotaInfo.percentRemaining <= 0 && !this._quotaInfo.overageEnabled && !this._quotaInfo.unlimited;
+		if (this._quotaInfo.additionalUsageEnabled) {
+			return false;
+		}
+		// For pooled entitlements (unlimited per-user), has_quota being false signals exhaustion
+		if (this._quotaInfo.unlimited) {
+			return !this._quotaInfo.hasQuota;
+		}
+		return this._quotaInfo.percentRemaining <= 0;
 	}
 
-	get overagesEnabled(): boolean {
+	get additionalUsageEnabled(): boolean {
 		if (!this._quotaInfo) {
 			return false;
 		}
-		return this._quotaInfo.overageEnabled;
+		return this._quotaInfo.additionalUsageEnabled;
+	}
+
+	getCreditsForTurn(turnId: string): number | undefined {
+		return this._turnCredits.get(turnId);
+	}
+
+	setLastCopilotUsage(totalNanoAiu: number, turnId: string): void {
+		// Convert nano-AIUs to AIC credits: 1 AIC = 1_000_000_000 nano-AIU
+		const aic = totalNanoAiu / 1_000_000_000;
+		if (aic > 0) {
+			this._turnCredits.set(turnId, (this._turnCredits.get(turnId) ?? 0) + aic);
+		}
+	}
+
+	resetTurnCredits(turnId: string): void {
+		this._turnCredits.delete(turnId);
 	}
 
 	clearQuota(): void {
 		this._quotaInfo = undefined;
 	}
-
-	private _processHeaderValue(header: string): IChatQuota | undefined {
-		try {
-			// Parse URL encoded string into key-value pairs
-			const params = new URLSearchParams(header);
-
-			// Extract values with fallbacks to ensure type safety
-			const entitlement = parseInt(params.get('ent') || '0', 10);
-			const overageUsed = parseFloat(params.get('ov') || '0.0');
-			const overageEnabled = params.get('ovPerm') === 'true';
-			const percentRemaining = parseFloat(params.get('rem') || '0.0');
-			const resetDateString = params.get('rst');
-
-			let resetDate: Date;
-			if (resetDateString) {
-				resetDate = new Date(resetDateString);
-			} else {
-				// Default to one month from now if not provided
-				resetDate = new Date();
-				resetDate.setMonth(resetDate.getMonth() + 1);
-			}
-
-			return {
-				quota: entitlement,
-				unlimited: entitlement === -1,
-				percentRemaining,
-				overageUsed,
-				overageEnabled,
-				resetDate
-			};
-		} catch (error) {
-			console.error('Failed to parse quota header', error);
-			return undefined;
-		}
-	}
-
 
 	processQuotaHeaders(headers: IHeaders): void {
 		const quotaHeader = this._authService.copilotToken?.isFreeUser ? headers.get('x-quota-snapshot-chat') : headers.get('x-quota-snapshot-premium_models') || headers.get('x-quota-snapshot-premium_interactions');
@@ -89,13 +93,12 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return;
 		}
 		this._quotaInfo = quotaInfo;
+		this._logService.trace(`[ChatQuota] processQuotaHeaders: ${JSON.stringify(quotaInfo)}`);
 		const sessionRateLimitHeader = headers.get('x-usage-ratelimit-session');
 		const weeklyRateLimitHeader = headers.get('x-usage-ratelimit-weekly');
 		this._rateLimitInfo.session = sessionRateLimitHeader ? this._processHeaderValue(sessionRateLimitHeader) : undefined;
 		this._rateLimitInfo.weekly = weeklyRateLimitHeader ? this._processHeaderValue(weeklyRateLimitHeader) : undefined;
-		this._clearStaleThresholds(this._rateLimitInfo.session, this._shownSessionThresholds);
-		this._clearStaleThresholds(this._rateLimitInfo.weekly, this._shownWeeklyThresholds);
-		this._pendingRateLimitWarning = this._computeRateLimitWarning() ?? this._pendingRateLimitWarning;
+		this._onDidChange.fire();
 	}
 
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void {
@@ -113,74 +116,96 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			this._quotaInfo = {
 				quota: entitlement,
 				unlimited: entitlement === -1,
+				hasQuota: snapshot.has_quota ?? true,
 				percentRemaining: snapshot.percent_remaining,
-				overageUsed: snapshot.overage_count,
-				overageEnabled: snapshot.overage_permitted,
-				resetDate
+				additionalUsageUsed: snapshot.overage_count,
+				additionalUsageEnabled: snapshot.overage_permitted,
+				resetDate,
 			};
+			this._logService.trace(`[ChatQuota] processQuotaSnapshots: ${JSON.stringify(this._quotaInfo)}`);
+			this._onDidChange.fire();
 		} catch (error) {
 			console.error('Failed to process quota snapshots', error);
 		}
 	}
 
-	consumeRateLimitWarning(): IRateLimitWarning | undefined {
-		const warning = this._pendingRateLimitWarning;
-		this._pendingRateLimitWarning = undefined;
-		return warning;
-	}
-
-	private _computeRateLimitWarning(): IRateLimitWarning | undefined {
-		// Session rate limit takes priority over weekly
-		const sessionWarning = this._checkThreshold(this._rateLimitInfo.session, this._shownSessionThresholds, 'session');
-		if (sessionWarning) {
-			return sessionWarning;
-		}
-		return this._checkThreshold(this._rateLimitInfo.weekly, this._shownWeeklyThresholds, 'weekly');
-	}
-
-	private _clearStaleThresholds(info: IChatQuota | undefined, shownThresholds: Set<number>): void {
-		if (!info) {
-			shownThresholds.clear();
+	async refreshQuota(): Promise<void> {
+		const githubToken = this._authService.anyGitHubSession?.accessToken;
+		if (!githubToken) {
 			return;
 		}
-		const percentUsed = 100 - info.percentRemaining;
-		for (const threshold of shownThresholds) {
-			if (percentUsed < threshold) {
-				shownThresholds.delete(threshold);
-			}
+		try {
+			const options: FetchOptions = {
+				callSite: 'copilot-quota-refresh',
+				headers: {
+					Authorization: `token ${githubToken}`,
+					'X-GitHub-Api-Version': '2025-04-01',
+				},
+				retryFallbacks: true,
+				expectJSON: true,
+			};
+			const response = await this._capiClientService.makeRequest<Response>(options, { type: RequestType.CopilotUserInfo });
+			const data: CopilotUserQuotaInfo = await response.json();
+			this._processUserInfoQuotaSnapshot(data);
+			this._logService.trace('[ChatQuota] refreshQuota: fetched up-to-date quota data');
+		} catch (error) {
+			this._logService.trace(`[ChatQuota] refreshQuota: failed to fetch quota data: ${error}`);
 		}
 	}
 
-	private _checkThreshold(info: IChatQuota | undefined, shownThresholds: Set<number>, type: 'session' | 'weekly'): IRateLimitWarning | undefined {
-		if (!info || info.unlimited) {
+	private _processHeaderValue(header: string): IChatQuota | undefined {
+		try {
+			// Parse URL encoded string into key-value pairs
+			const params = new URLSearchParams(header);
+
+			// Extract values with fallbacks to ensure type safety
+			const entitlement = parseInt(params.get('ent') || '0', 10);
+			const additionalUsageUsed = parseFloat(params.get('ov') || '0.0');
+			const additionalUsageEnabled = params.get('ovPerm') === 'true';
+			const percentRemaining = parseFloat(params.get('rem') || '0.0');
+			const resetDateString = params.get('rst');
+
+			let resetDate: Date;
+			if (resetDateString) {
+				resetDate = new Date(resetDateString);
+			} else {
+				// Default to one month from now if not provided
+				resetDate = new Date();
+				resetDate.setMonth(resetDate.getMonth() + 1);
+			}
+
+			return {
+				quota: entitlement,
+				unlimited: entitlement === -1,
+				hasQuota: true,
+				percentRemaining,
+				additionalUsageUsed,
+				additionalUsageEnabled,
+				resetDate,
+			};
+		} catch (error) {
+			console.error('Failed to parse quota header', error);
 			return undefined;
 		}
-		const percentUsed = 100 - info.percentRemaining;
-		// Walk thresholds highest-first so we report the most severe crossed threshold
-		for (let i = ChatQuotaService._RATE_LIMIT_THRESHOLDS.length - 1; i >= 0; i--) {
-			const threshold = ChatQuotaService._RATE_LIMIT_THRESHOLDS[i];
-			if (percentUsed >= threshold && !shownThresholds.has(threshold)) {
-				// Mark this and all lower thresholds as shown
-				for (let j = 0; j <= i; j++) {
-					shownThresholds.add(ChatQuotaService._RATE_LIMIT_THRESHOLDS[j]);
-				}
-				return { percentUsed: Math.round(percentUsed), type, resetDate: info.resetDate };
-			}
-		}
-		return undefined;
 	}
 
-	private processUserInfoQuotaSnapshot(quotaInfo: CopilotUserQuotaInfo | undefined) {
+	private _processUserInfoQuotaSnapshot(quotaInfo: CopilotUserQuotaInfo | undefined) {
 		if (!quotaInfo || !quotaInfo.quota_snapshots || !quotaInfo.quota_reset_date) {
 			return;
 		}
+		const snapshot = this._authService.copilotToken?.isFreeUser
+			? quotaInfo.quota_snapshots.chat
+			: quotaInfo.quota_snapshots.premium_interactions;
 		this._quotaInfo = {
-			unlimited: quotaInfo.quota_snapshots.premium_interactions.unlimited,
-			overageEnabled: quotaInfo.quota_snapshots.premium_interactions.overage_permitted,
-			overageUsed: quotaInfo.quota_snapshots.premium_interactions.overage_count,
-			quota: quotaInfo.quota_snapshots.premium_interactions.entitlement,
+			unlimited: snapshot.unlimited,
+			hasQuota: snapshot.has_quota ?? true,
+			additionalUsageEnabled: snapshot.overage_permitted,
+			additionalUsageUsed: snapshot.overage_count,
+			quota: snapshot.entitlement,
 			resetDate: new Date(quotaInfo.quota_reset_date),
-			percentRemaining: quotaInfo.quota_snapshots.premium_interactions.percent_remaining,
+			percentRemaining: snapshot.percent_remaining,
 		};
+		this._logService.trace(`[ChatQuota] processUserInfoQuotaSnapshot: ${JSON.stringify(this._quotaInfo)}`);
+		this._onDidChange.fire();
 	}
 }

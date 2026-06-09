@@ -13,6 +13,7 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
 import { agentsPanelBackground } from './common/theme.js';
+import './common/sizes.js';
 
 getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
 getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
@@ -125,7 +126,6 @@ import '../workbench/services/authentication/browser/authenticationQueryService.
 import '../platform/hover/browser/hoverService.js';
 import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import '../workbench/services/assignment/common/assignmentService.js';
-import '../workbench/services/outline/browser/outlineService.js';
 import '../workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
 import '../editor/common/services/languageFeaturesService.js';
 import '../editor/common/services/semanticTokensStylingService.js';
@@ -141,6 +141,8 @@ import '../workbench/services/dataChannel/browser/dataChannelService.js';
 import '../workbench/services/inlineCompletions/common/inlineCompletionsUnification.js';
 import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
+import '../workbench/services/agentHost/common/agentHostResourceService.js';
+import './services/agentHost/browser/agentHostCustomizationService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -170,6 +172,7 @@ import { McpGalleryService } from '../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../platform/mcp/common/allowedMcpServersService.js';
 import { IWebWorkerService } from '../platform/webWorker/browser/webWorkerService.js';
 import { WebWorkerService } from '../platform/webWorker/browser/webWorkerServiceImpl.js';
+import { ISessionsSetUpService, SessionsSetUpService } from './browser/sessionsSetUpService.js';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IAllowedExtensionsService, AllowedExtensionsService, InstantiationType.Delayed);
@@ -187,6 +190,7 @@ registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 registerSingleton(IWebWorkerService, WebWorkerService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryService, McpGalleryService, InstantiationType.Delayed);
 registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, InstantiationType.Delayed);
+registerSingleton(ISessionsSetUpService, SessionsSetUpService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -214,7 +218,7 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/browser/chat.contribution.js';
+import '../workbench/contrib/chat/browser/chat.shared.contribution.js';
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
@@ -227,8 +231,14 @@ import '../workbench/contrib/interactive/browser/interactive.contribution.js';
 // repl
 import '../workbench/contrib/replNotebook/browser/repl.contribution.js';
 
-// Testing
-import '../workbench/contrib/testing/browser/testing.contribution.js';
+// Testing (service)
+import { NullTestProfileService, NullTestResultService, NullTestService } from '../workbench/contrib/testing/common/nullTestingService.js';
+import { ITestProfileService } from '../workbench/contrib/testing/common/testProfileService.js';
+import { ITestResultService } from '../workbench/contrib/testing/common/testResultService.js';
+import { ITestService } from '../workbench/contrib/testing/common/testService.js';
+registerSingleton(ITestService, NullTestService, InstantiationType.Delayed);
+registerSingleton(ITestProfileService, NullTestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestResultService, NullTestResultService, InstantiationType.Delayed);
 
 // Logs
 import '../workbench/contrib/logs/common/logs.contribution.js';
@@ -243,17 +253,18 @@ import '../workbench/contrib/files/browser/files.contribution.js';
 
 // Bulk Edit
 import '../workbench/contrib/bulkEdit/browser/bulkEditService.js';
-import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
+// import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
 // Rename Symbol Tracker for Inline completions.
 import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
 
-// Search
-import '../workbench/contrib/search/browser/search.contribution.js';
-import '../workbench/contrib/search/browser/searchView.js';
+// Search Quick Access (file picker only, not the full search contribution)
+import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 
 // Search Editor
 import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
+import '../workbench/contrib/search/browser/search.common.contribution.js';
+import './contrib/search/browser/search.contribution.js';
 
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
@@ -262,18 +273,15 @@ import '../workbench/contrib/sash/browser/sash.contribution.js';
 import '../workbench/contrib/git/browser/git.contributions.js';
 
 // SCM
-import '../workbench/contrib/scm/browser/scm.contribution.js';
+import '../workbench/contrib/scm/browser/quickDiff.contribution.js';
+import '../workbench/contrib/scm/browser/scm.service.contribution.js';
 
-// Debug
-import '../workbench/contrib/debug/browser/debug.contribution.js';
-import '../workbench/contrib/debug/browser/debugEditorContribution.js';
-import '../workbench/contrib/debug/browser/breakpointEditorContribution.js';
-import '../workbench/contrib/debug/browser/callStackEditorContribution.js';
-import '../workbench/contrib/debug/browser/repl.js';
-import '../workbench/contrib/debug/browser/debugViewlet.js';
-
-// Markers
-import '../workbench/contrib/markers/browser/markers.contribution.js';
+// Debug (service)
+import { NullDebugService, NullDebugVisualizerService } from '../workbench/contrib/debug/common/nullDebugService.js';
+import { IDebugService } from '../workbench/contrib/debug/common/debug.js';
+import { IDebugVisualizerService } from '../workbench/contrib/debug/common/debugVisualizers.js';
+registerSingleton(IDebugService, NullDebugService, InstantiationType.Delayed);
+registerSingleton(IDebugVisualizerService, NullDebugVisualizerService, InstantiationType.Delayed);
 
 // Process Explorer
 import '../workbench/contrib/processExplorer/browser/processExplorer.contribution.js';
@@ -303,8 +311,12 @@ import '../workbench/contrib/customEditor/browser/customEditor.contribution.js';
 import '../workbench/contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
 // Extensions Management
-import '../workbench/contrib/extensions/browser/extensions.contribution.js';
-import '../workbench/contrib/extensions/browser/extensionsViewlet.js';
+import { IExtensionsWorkbenchService } from '../workbench/contrib/extensions/common/extensions.js';
+import { ExtensionsWorkbenchService } from '../workbench/contrib/extensions/browser/extensionsWorkbenchService.js';
+import { IExtensionRecommendationNotificationService } from '../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { NullExtensionRecommendationNotificationService } from './services/extensionRecommendations/common/extensionRecommendationNotificationService.js';
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
+registerSingleton(IExtensionRecommendationNotificationService, NullExtensionRecommendationNotificationService, InstantiationType.Delayed);
 
 // Output View
 import '../workbench/contrib/output/browser/output.contribution.js';
@@ -339,7 +351,7 @@ import '../workbench/contrib/markdown/browser/markdown.contribution.js';
 import '../workbench/contrib/keybindings/browser/keybindings.contribution.js';
 
 // Snippets
-import '../workbench/contrib/snippets/browser/snippets.contribution.js';
+import '../workbench/contrib/snippets/browser/snippets.service.contribution.js';
 
 // Formatter Help
 import '../workbench/contrib/format/browser/format.contribution.js';
@@ -359,14 +371,7 @@ import '../workbench/contrib/themes/browser/themes.contribution.js';
 // Update
 import '../workbench/contrib/update/browser/update.contribution.js';
 
-// Surveys
-import '../workbench/contrib/surveys/browser/nps.contribution.js';
-import '../workbench/contrib/surveys/browser/languageSurveys.contribution.js';
-
 // Welcome
-// import '../workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
-// import '../workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
-// import '../workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import '../workbench/contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import '../workbench/contrib/welcomeViews/common/newFile.contribution.js';
 
@@ -377,20 +382,13 @@ import '../workbench/contrib/callHierarchy/browser/callHierarchy.contribution.js
 import '../workbench/contrib/typeHierarchy/browser/typeHierarchy.contribution.js';
 
 // Outline
+import '../workbench/services/outline/browser/outlineService.js';
 import '../workbench/contrib/codeEditor/browser/outline/documentSymbolsOutline.js';
-import '../workbench/contrib/outline/browser/outline.contribution.js';
-
 // Language Detection
 import '../workbench/contrib/languageDetection/browser/languageDetection.contribution.js';
 
-// Language Status
-import '../workbench/contrib/languageStatus/browser/languageStatus.contribution.js';
-
 // Authentication
 import '../workbench/contrib/authentication/browser/authentication.contribution.js';
-
-// User Data Sync
-import '../workbench/contrib/userDataSync/browser/userDataSync.contribution.js';
 
 // User Data Profiles
 import '../workbench/contrib/userDataProfile/browser/userDataProfile.contribution.js';
@@ -405,7 +403,7 @@ import '../workbench/contrib/remoteCodingAgents/browser/remoteCodingAgents.contr
 import '../workbench/contrib/codeActions/browser/codeActions.contribution.js';
 
 // Timeline
-import '../workbench/contrib/timeline/browser/timeline.contribution.js';
+import '../workbench/contrib/timeline/browser/timeline.service.contribution.js';
 
 // Local History
 import '../workbench/contrib/localHistory/browser/localHistory.contribution.js';
@@ -422,14 +420,8 @@ import '../workbench/contrib/list/browser/list.contribution.js';
 // Accessibility Signals
 import '../workbench/contrib/accessibilitySignals/browser/accessibilitySignal.contribution.js';
 
-// Bracket Pair Colorizer 2 Telemetry
-import '../workbench/contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Telemetry.contribution.js';
-
 // Accessibility
 import '../workbench/contrib/accessibility/browser/accessibility.contribution.js';
-
-// Metered Connection
-import '../workbench/contrib/meteredConnection/browser/meteredConnection.contribution.js';
 
 // Share
 import '../workbench/contrib/share/browser/share.contribution.js';
@@ -455,35 +447,39 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
+import './browser/parts/sessionsParts.js';
+import './browser/sessionsViewService.js';
+import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/agentHost/agentHostSessionConfigPicker.js';
+import './contrib/providers/agentHost/browser/exportDebugLogsAction.js';
+import './contrib/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import './contrib/providers/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import './contrib/providers/localChatSessions/browser/localChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/views/sessionsListModelService.js';
+import './services/sessions/browser/sessionsListModelService.js';
+import './services/agentHostFilter/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changes/browser/changesView.contribution.js';
-import './contrib/layout/browser/layout.contribution.js';
+import './contrib/changes/browser/changes.contribution.js';
+import './contrib/layout/browser/sessionLayout.contribution.js';
 import './contrib/codeReview/browser/codeReview.contributions.js';
 import './contrib/files/browser/files.contribution.js';
 import './contrib/github/browser/github.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
-import './contrib/workingSet/browser/workingSet.contribution.js';
+import './contrib/browserView/browser/sessionBrowserView.contribution.js';
 import './contrib/editor/browser/editor.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
-import './contrib/logs/browser/logs.contribution.js';
 import './contrib/chatDebug/browser/chatDebug.contribution.js';
 import './contrib/workspace/browser/workspace.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
+import './contrib/aquarium/browser/aquarium.contribution.js';
 import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
 
 import './services/sessions/browser/sessionsManagementService.js';
-
 //#endregion
