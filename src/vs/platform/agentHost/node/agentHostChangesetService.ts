@@ -70,7 +70,7 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 	return kind === 'uncommitted' ? META_CHANGESET_UNCOMMITTED : META_CHANGESET_SESSION;
 }
 
-/**Add a comment on  line R64Add diff commentMarkdown input: hybrid mode selected.WritePreviewHybridAdd a suggestionBold(command b) command⌘ bBItalic(command i) command⌘ iILink(command k) command⌘ kKCode(command e) command⌘ eEQuote(shift command period) shift⇧ command⌘ period.Unordered list(shift command 8) shift⇧ command⌘ 88Ordered list(shift command 7) shift⇧ command⌘ 77Task list(shift command l) shift⇧ command⌘ lLAttachmentCode blockHeadingStrikethrough(shift command x) shift⇧ command⌘ xXMore Formatting tools items 11Private previewLeave a commentCancelCommentStart a review
+/**
  * Sums the per-file diff counts into the {@link ChangesSummary} shape
  * that lives on `summary.changes`. Returns `undefined` for an undefined
  * input so callers can distinguish "no data yet" from "data, zero changes".
