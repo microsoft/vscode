@@ -3,6 +3,13 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+# Shell integration is only supported in real bash. Busybox ash (and other
+# bash-compatible shells) do not set BASH_VERSION, so exit early to avoid
+# errors from bash-specific syntax used throughout this script.
+if [ -z "${BASH_VERSION:-}" ]; then
+	return 2>/dev/null
+fi
+
 # Prevent the script recursing when setting up
 if [[ -n "${VSCODE_SHELL_INTEGRATION:-}" ]]; then
 	builtin return
