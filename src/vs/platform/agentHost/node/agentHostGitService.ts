@@ -356,13 +356,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// included in `--cached --raw` output; otherwise a plain `git diff`
 		// is sufficient and avoids the temp-dir overhead.
 		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
-		const untracked = parseUntrackedPaths(statusOut);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const hasUntracked = parseUntrackedPaths(statusOut).length > 0;
 
 		let rawDiffOutput: string | undefined;
-		if (untracked.length === 0) {
+		if (!hasUntracked) {
 			rawDiffOutput = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--']);
 		} else {
-			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit);
+			const changedPaths = parseChangedPaths(statusOut);
+			rawDiffOutput = await this._runWithTempIndex(repositoryRoot, mergeBaseCommit, changedPaths);
 		}
 
 		if (rawDiffOutput === undefined) {
@@ -372,9 +376,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return parseGitDiffRawNumstat(rawDiffOutput, repositoryRoot, options.sessionUri, mergeBaseCommit);
 	}
 
-	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string): Promise<string | undefined> {
-		// Build a throwaway index so we can stage the entire working tree
-		// (including untracked files) without disturbing the user's real
+	private async _runWithTempIndex(repositoryRoot: URI, mergeBaseCommit: string, changedPaths: readonly string[]): Promise<string | undefined> {
+		// Build a throwaway index so we can stage the changed working tree
+		// paths (including untracked files) without disturbing the user's real
 		// index. `read-tree HEAD` seeds it; in empty repos that fails so we
 		// fall back to the empty tree, leaving everything as "added".
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-git-diff-${generateUuid()}`);
@@ -394,14 +398,30 @@ export class AgentHostGitService implements IAgentHostGitService {
 				// Empty repo (no HEAD yet) - `read-tree` of the empty tree always succeeds.
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			// Stage every change in the working tree (modified, deleted,
-			// untracked, renamed). `add -A` plus an explicit `:/` pathspec
-			// covers the entire repo from any cwd.
-			await this._runGit(repositoryRoot, ['add', '-A', '--', ':/'], { env });
+			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+				return undefined;
+			}
 			return await this._runGit(repositoryRoot, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--'], { env });
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
+	}
+
+	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<boolean> {
+		if (changedPaths.length === 0) {
+			return true;
+		}
+		const pathspecFile = URI.joinPath(tempDir, 'pathspec');
+		// Stage only the paths `git status` reported as changed. The previous
+		// full-repo `git add -A -- :/` walked nested repos/worktrees and large
+		// checkouts, which made temp-index diffing slow and timeout-prone. A
+		// NUL-separated pathspec preserves odd filenames while keeping deletes
+		// and rename/copy sources in scope.
+		await this._fileService.writeFile(pathspecFile, VSBuffer.fromString(changedPaths.join('\x00') + '\x00'));
+		this._logService.debug(`[agentHostGitService] Staging ${changedPaths.length} changed path(s) into temp index`);
+		return await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
+			env: { ...env, GIT_LITERAL_PATHSPECS: '1' },
+		}) !== undefined;
 	}
 
 	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
@@ -450,6 +470,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 		const repositoryRoot = URI.file(repoRoot);
+		const statusOut = await this._runGit(repositoryRoot, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const changedPaths = parseChangedPaths(statusOut);
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
 		await this._fileService.createFolder(tempDir);
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
@@ -460,8 +485,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (seeded === undefined) {
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			// Stage the entire working tree (including untracked, excluding ignored).
-			await this._runGit(repositoryRoot, ['add', '-A', '--', ':/'], { env });
+			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+				return undefined;
+			}
 			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
 			return tree || undefined;
 		} finally {
@@ -685,22 +711,47 @@ export const EMPTY_TREE_OBJECT = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
  * Exported for tests.
  */
 export function parseUntrackedPaths(output: string | undefined): string[] {
+	return parseChangedPaths(output, status => status === '??');
+}
+
+/**
+ * Parses NUL-separated `git status --porcelain=v1 -z --untracked-files=all`
+ * output and returns all changed repo-relative paths. Rename/copy entries
+ * include both the destination and source paths so scoped `git add -A`
+ * stages both sides of the change.
+ *
+ * Exported for tests.
+ */
+export function parseChangedPaths(output: string | undefined, includeStatus: (status: string) => boolean = () => true): string[] {
 	if (!output) {
 		return [];
 	}
 	const result: string[] = [];
+	const seen = new Set<string>();
+	const addPath = (path: string) => {
+		if (path && !seen.has(path)) {
+			seen.add(path);
+			result.push(path);
+		}
+	};
 	const segments = output.split('\x00');
 	for (let i = 0; i < segments.length; i++) {
 		const seg = segments[i];
 		if (!seg) { continue; }
 		// Each entry is "XY <path>"; for renames v1 emits a second NUL-separated
-		// "from" path that we have to skip. We only care about untracked here.
+		// "from" path.
 		const status = seg.substring(0, 2);
 		const path = seg.substring(3);
-		if (status === '??') {
-			result.push(path);
-		} else if (status[0] === 'R' || status[0] === 'C') {
-			// Skip the "from" path for renames/copies.
+		const isRenameOrCopy = status[0] === 'R' || status[1] === 'R' || status[0] === 'C' || status[1] === 'C';
+		if (includeStatus(status)) {
+			addPath(path);
+			if (isRenameOrCopy) {
+				const sourcePath = segments[++i];
+				if (sourcePath) {
+					addPath(sourcePath);
+				}
+			}
+		} else if (isRenameOrCopy) {
 			i++;
 		}
 	}

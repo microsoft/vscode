@@ -20,6 +20,7 @@ import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
@@ -215,6 +216,44 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		void byPath;
 	});
 
+	(hasGit ? test : test.skip)('reports staged rename source when untracked files force temp-index staging', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'old.txt'), 'one\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		run('mv', 'old.txt', 'new.txt');
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+		assert.ok(result, 'expected diffs');
+		const rename = result.find(d => d.before?.uri.endsWith('/old.txt') && d.after?.uri.endsWith('/new.txt'));
+		const fresh = result.find(d => !d.before && d.after?.uri.endsWith('/fresh.txt'));
+
+		assert.deepStrictEqual({
+			rename: rename && { before: URI.parse(rename.before!.uri).path.split('/').pop(), after: URI.parse(rename.after!.uri).path.split('/').pop() },
+			fresh: fresh && URI.parse(fresh.after!.uri).path.split('/').pop(),
+		}, {
+			rename: { before: 'old.txt', after: 'new.txt' },
+			fresh: 'fresh.txt',
+		});
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('returns undefined when temp-index staging fails', async () => {
+		const fs = await import('fs/promises');
+		const { dir } = initRepo();
+		const blockedPath = join(dir, 'blocked.txt');
+		await fs.writeFile(blockedPath, 'blocked\n');
+		await fs.chmod(blockedPath, 0);
+		try {
+			const result = await svc!.computeSessionFileDiffs(URI.file(dir), { sessionUri: 'copilot:/s' });
+			assert.strictEqual(result, undefined);
+		} finally {
+			await fs.chmod(blockedPath, 0o600);
+		}
+	});
+
 	(hasGit ? test : test.skip)('anchors against the merge-base of the requested base branch', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();
@@ -289,6 +328,41 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		assert.ok(result, 'expected diffs');
 		assert.strictEqual(result.length, 1);
 		assert.ok(result[0].after && !result[0].before, 'untracked file in empty repo should be an addition');
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree stages scoped rename source and untracked paths', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'old.txt'), 'one\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		run('mv', 'old.txt', 'new.txt');
+		await fs.writeFile(join(dir, 'fresh.txt'), 'fresh\n');
+
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree, 'expected tree object');
+		const treePaths = cp.execFileSync('git', ['ls-tree', '-r', '--name-only', tree], { cwd: dir, encoding: 'utf8' })
+			.trim()
+			.split(/\r?\n/g)
+			.filter(Boolean)
+			.sort();
+
+		assert.deepStrictEqual(treePaths, ['fresh.txt', 'new.txt']);
+	});
+
+	(hasGit && !isWindows ? test : test.skip)('captureWorkingTreeAsTree returns undefined when staging fails', async () => {
+		const fs = await import('fs/promises');
+		const { dir } = initRepo();
+		const blockedPath = join(dir, 'blocked.txt');
+		await fs.writeFile(blockedPath, 'blocked\n');
+		await fs.chmod(blockedPath, 0);
+		try {
+			const result = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+			assert.strictEqual(result, undefined);
+		} finally {
+			await fs.chmod(blockedPath, 0o600);
+		}
 	});
 
 	(hasGit ? test : test.skip)('showBlob retrieves committed content', async () => {
