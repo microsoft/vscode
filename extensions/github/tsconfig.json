@@ -6,6 +6,9 @@
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
 		"skipLibCheck": true,
+		"types": [
+			"node"
+		],
 		"typeRoots": [
 			"./node_modules/@types"
 		]

@@ -47,10 +47,12 @@
                       "action": {
                         "type": "string",
                         "enum": [
-                          "openExternally"
+                          "openExternally",
+                          "openIntegratedBrowser"
                         ],
                         "enumDescriptions": [
-                          "%debug.server.ready.action.openExternally.description%"
+                          "%debug.server.ready.action.openExternally.description%",
+                          "%debug.server.ready.action.openIntegratedBrowser.description%"
                         ],
                         "markdownDescription": "%debug.server.ready.action.description%",
                         "default": "openExternally"
@@ -212,7 +214,7 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "22.x"
+    "@types/node": "24.x"
   },
   "repository": {
     "type": "git",

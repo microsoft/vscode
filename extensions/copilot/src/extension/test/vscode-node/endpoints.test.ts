@@ -295,4 +295,18 @@ suite('ProductionEndpointProvider — utility model overrides', () => {
 		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
 		assert.strictEqual(endpoint.model, 'copilot-utility');
 	});
+
+	test('arbitrary CAPI model family resolves to that model (execution/search subagent override)', async () => {
+		// Regression for https://github.com/microsoft/vscode/issues/320231: the
+		// execution and search subagents pass their `*.model` override (e.g.
+		// 'gemini-3-flash') straight to getChatEndpoint(). It must resolve the CAPI
+		// family rather than throwing 'Unrecognized chat endpoint family' and
+		// silently falling back to the parent model.
+		const subagentModel = 'gemini-3-flash';
+		setFetcher([makeChatModel('copilot-utility'), makeChatModel(subagentModel)]);
+
+		const endpoint = await endpointProvider.getChatEndpoint(subagentModel);
+		assert.ok(endpoint instanceof CopilotChatEndpoint);
+		assert.strictEqual(endpoint.model, subagentModel);
+	});
 });

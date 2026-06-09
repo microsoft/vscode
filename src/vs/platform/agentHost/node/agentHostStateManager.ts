@@ -12,7 +12,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, ChangesetAction, isRootAction, isSessionAction, isChangesetAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, changesetReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, type ChangesetState, type ChangesetSummary, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type ChangesetState, type ChangesetSummary, type IHostBuildInfo, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -20,6 +20,12 @@ import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOpt
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
+	/**
+	 * Build information about the program hosting the agent host. When
+	 * provided, it is published on {@link RootState._meta} so clients can see
+	 * which build is hosting them.
+	 */
+	readonly hostBuildInfo?: IHostBuildInfo;
 }
 
 /**
@@ -85,6 +91,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidEmitNotification = this._register(new Emitter<INotification>());
 	readonly onDidEmitNotification: Event<INotification> = this._onDidEmitNotification.event;
+	private readonly _onDidChangeSessionActiveTurn = this._register(new Emitter<{ session: string; active: boolean }>());
+	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -106,6 +114,7 @@ export class AgentHostStateManager extends Disposable {
 					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE),
 				}),
 			},
+			_meta: withHostBuildInfo(this._rootState._meta, options.hostBuildInfo),
 		};
 	}
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
@@ -130,6 +139,10 @@ export class AgentHostStateManager extends Disposable {
 
 	getSessionUris(): string[] {
 		return [...this._sessionStates.keys()];
+	}
+
+	getAnnouncedSessionSummaries(): SessionSummary[] {
+		return [...this._lastNotifiedSummaries.values()];
 	}
 
 	/**
@@ -346,6 +359,7 @@ export class AgentHostStateManager extends Disposable {
 		// Without this, evicting a session that still has an active turn
 		// silently strands the active-sessions count above zero forever.
 		if (this._sessionsWithActiveTurn.delete(session)) {
+			this._onDidChangeSessionActiveTurn.fire({ session, active: false });
 			this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 		}
 
@@ -597,6 +611,7 @@ export class AgentHostStateManager extends Disposable {
 					} else {
 						this._sessionsWithActiveTurn.delete(key);
 					}
+					this._onDidChangeSessionActiveTurn.fire({ session: key, active: hasActive });
 					this.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootActiveSessionsChanged, activeSessions: this._sessionsWithActiveTurn.size });
 				}
 

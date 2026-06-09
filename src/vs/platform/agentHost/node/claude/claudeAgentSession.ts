@@ -12,23 +12,27 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { ClaudeRuntimeEffortLevel, clampEffortForRuntime, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
-import type { ToolCallResult } from '../../common/state/sessionState.js';
+import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
 import { ClaudeSessionMetadataStore } from './claudeSessionMetadataStore.js';
 import { convertToolCallResult } from './clientTools/claudeClientToolResult.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { SessionClientToolsDiff } from './clientTools/claudeSessionClientToolsModel.js';
+import { SessionClientCustomizationsDiff } from './customizations/claudeSessionClientCustomizationsModel.js';
+import { projectSessionCustomizations } from './customizations/claudeSessionCustomizationsProjector.js';
+import { ClaudeSdkCustomizationBundler } from './customizations/claudeSdkCustomizationBundler.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle } from './claudeProxyService.js';
-import { ClaudeSdkPipeline, IRematerializer } from './claudeSdkPipeline.js';
+import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } from './claudeSdkPipeline.js';
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 
@@ -68,9 +72,20 @@ function resolveCurrentPermissionMode(
 export class ClaudeAgentSession extends Disposable {
 
 	private _pipeline: ClaudeSdkPipeline | undefined;
+	private _sdkBundler: ClaudeSdkCustomizationBundler | undefined;
 
 	/** Pre-materialize model selection. Mutable; flows into `Options.model` on first installPipeline. */
 	private _provisionalModel: ModelSelection | undefined;
+	/**
+	 * Pre-materialize custom-agent selection. Mutable; flows into
+	 * `Options.agent` (resolved to the SDK agent name) on materialize
+	 * and on every rematerializer call. Mid-session changes via
+	 * {@link setAgent} flip {@link clientCustomizationsDiff} dirty so the
+	 * next `send()` rebinds and the new agent reaches the SDK on the
+	 * rebuilt `Query`. The SDK's `Options.agent` is captured at startup
+	 * — there is no runtime control-plane equivalent.
+	 */
+	private _provisionalAgent: AgentSelection | undefined;
 	/** Pre-materialize `IAgentCreateSessionConfig.config` bag. Read at materialize time. */
 	readonly provisionalConfig: Record<string, unknown> | undefined;
 	/** Resolved project metadata captured at create time (if any). */
@@ -89,6 +104,7 @@ export class ClaudeAgentSession extends Disposable {
 		workingDirectory: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
+		agent: AgentSelection | undefined,
 		config: Record<string, unknown> | undefined,
 		pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
 		permissionModeFallback: ClaudePermissionMode,
@@ -102,6 +118,7 @@ export class ClaudeAgentSession extends Disposable {
 			workingDirectory,
 			project,
 			model,
+			agent,
 			config,
 			new AbortController(),
 			pendingClientToolCalls,
@@ -145,6 +162,22 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	readonly toolDiff: SessionClientToolsDiff;
 
+	/**
+	 * Phase 11 — per-session **client-pushed** synced customization
+	 * snapshot + enablement map. Owns the workbench-supplied
+	 * {@link ISyncedCustomization} list, the per-URI enablement bits,
+	 * and the dirty flag drained at the next {@link send} pre-flight.
+	 * Exists from `createProvisional` onward so client-side reads /
+	 * toggles work uniformly before and after materialize.
+	 *
+	 * Server-side (SDK-discovered) customizations are NOT stored here
+	 * — they're fetched on demand from the live `Query` in
+	 * {@link getSessionCustomizations}.
+	 *
+	 * See {@link SessionClientCustomizationsDiff}.
+	 */
+	readonly clientCustomizationsDiff: SessionClientCustomizationsDiff = this._register(new SessionClientCustomizationsDiff());
+
 	private readonly _onDidSessionProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidSessionProgress: Event<AgentSignal> = this._onDidSessionProgress.event;
 
@@ -154,6 +187,7 @@ export class ClaudeAgentSession extends Disposable {
 		readonly workingDirectory: URI | undefined,
 		project: IAgentSessionProjectInfo | undefined,
 		model: ModelSelection | undefined,
+		agent: AgentSelection | undefined,
 		config: Record<string, unknown> | undefined,
 		abortController: AbortController,
 		private readonly _pendingClientToolCalls: PendingRequestRegistry<CallToolResult>,
@@ -169,9 +203,11 @@ export class ClaudeAgentSession extends Disposable {
 		super();
 		this.project = project;
 		this._provisionalModel = model;
+		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
 		this.abortController = abortController;
 		this.toolDiff = this._register(toolDiff);
+		this._register(this.clientCustomizationsDiff.onDidChange(() => this._onDidCustomizationsChange.fire()));
 	}
 
 	/**
@@ -208,6 +244,8 @@ export class ClaudeAgentSession extends Disposable {
 				canUseTool: ctx.canUseTool,
 				isResume: ctx.isResume,
 				mcpServers,
+				plugins: this.clientCustomizationsDiff.consume(),
+				agent: this._resolveAgentName(this._provisionalAgent),
 			},
 			ctx.proxyHandle,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -243,6 +281,15 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		this._register(pipeline.onDidProduceSignal(s => this._onDidSessionProgress.fire(s)));
 		this._pipeline = pipeline;
+		// On-disk Open Plugin bundle for SDK-discovered customizations.
+		// The bundle directory is content-addressed by the SDK snapshot
+		// hash and lives under the plugin manager's user-data tree;
+		// disposing the bundler does NOT delete the on-disk tree (kept
+		// as a warm cache across sessions on the same workingDirectory).
+		this._sdkBundler = this._register(this._instantiationService.createInstance(
+			ClaudeSdkCustomizationBundler,
+			this.workingDirectory,
+		));
 
 		// Seed the pipeline's bijective config cache so a rebuild re-applies
 		// the user's last-chosen model / effort without losing the picker
@@ -294,19 +341,28 @@ export class ClaudeAgentSession extends Disposable {
 						canUseTool: ctx.canUseTool,
 						isResume: true,
 						mcpServers: rebuildMcp,
+						plugins: this.clientCustomizationsDiff.consume(),
+						agent: this._resolveAgentName(this._provisionalAgent),
 					},
 					ctx.proxyHandle,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
 					msg => this._logService.info(`[Claude] declining elicitation from MCP server (Phase 7 stub): ${msg}`),
 				);
-				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild`);
+				this._logService.info(`[Claude] session ${this.sessionId}: resume rebuild agent=${rebuildOptions.agent ?? '(none)'}`);
 				const rebuildWarm = await this._sdkService.startup({ options: rebuildOptions });
 				return { warm: rebuildWarm, abortController: rebuildAbort };
 			} catch (err) {
 				this.toolDiff.markDirty();
+				this.clientCustomizationsDiff.markDirty();
 				throw err;
 			}
 		});
+
+		// Surface the SDK-resolved customization tier to the workbench.
+		// Pre-materialize, getSessionCustomizations returns only the
+		// client-pushed slice; firing here prompts the workbench to refetch
+		// and pick up the bundled `Discovered in Claude` entry.
+		this._onDidCustomizationsChange.fire();
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
@@ -342,10 +398,13 @@ export class ClaudeAgentSession extends Disposable {
 	 * Send a user prompt. Performs the per-turn pre-flight before
 	 * yielding to the pipeline:
 	 *
-	 * - If {@link toolDiff} reports the workbench client-tool snapshot has
-	 *   diverged from what the live `Query` was started with, yield-restart
-	 *   so the SDK picks up the new `Options.mcpServers`. The rebind itself
-	 *   re-applies the live `permissionMode` via the rematerializer.
+	 * - If {@link toolDiff} or {@link clientCustomizationsDiff} reports the
+	 *   live `Query` is out of sync with the workbench's view, yield-restart
+	 *   so the SDK picks up the new `Options.mcpServers` / `Options.plugins`.
+	 *   `Query.reloadPlugins()` cannot help here — the SDK's plugin URI set
+	 *   is captured at startup, so any add / remove / nonce-bump must go
+	 *   through a full rebuild. The rebind itself re-applies the live
+	 *   `permissionMode` via the rematerializer.
 	 * - Otherwise forward the live `permissionMode` to the bound `Query` so
 	 *   a `SessionConfigChanged` action that arrived between turns wins.
 	 *   The pipeline's bijective cache dedupes a no-op `setPermissionMode`,
@@ -357,12 +416,30 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	async send(prompt: SDKUserMessage, turnId: string): Promise<void> {
 		const pipeline = this._requirePipeline();
-		if (this.toolDiff.hasDifference) {
-			await this.rebindForClientTools();
+		if (this.toolDiff.hasDifference || this.clientCustomizationsDiff.hasDifference) {
+			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, this.sessionUri, this._permissionModeFallback));
 		}
 		return pipeline.send(prompt, turnId);
+	}
+
+	/**
+	 * Single yield-restart that covers both client-tool and
+	 * customization divergence in one trip. Drains the parked
+	 * client-tool MCP handlers (same as the original tool-only
+	 * rebind), then triggers the pipeline rebind — the rematerializer
+	 * reads `toolDiff` and `clientCustomizationsDiff.consume()` while
+	 * building the new `Options`, so the bit on each diff clears in
+	 * lockstep with the SDK actually receiving the new values. Fires
+	 * `_onDidCustomizationsChange` afterwards so the workbench
+	 * refetches `getSessionCustomizations` and picks up any newly
+	 * resolved server-side entries from the rebuilt `Query`.
+	 */
+	private async _rebindForSyncedState(): Promise<void> {
+		this._pendingClientToolCalls.rejectAll(new CancellationError());
+		await this._requirePipeline().rebindForRestart();
+		this._onDidCustomizationsChange.fire();
 	}
 
 	/**
@@ -410,6 +487,61 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
+	 * Pre-materialize custom-agent selection accessor.
+	 */
+	get provisionalAgent(): AgentSelection | undefined { return this._provisionalAgent; }
+
+	/**
+	 * Change (or clear with `undefined`) the selected custom agent for this
+	 * session. The SDK captures `Options.agent` at startup with no
+	 * working runtime control (`applyFlagSettings({ agent })` exists on
+	 * the SDK surface but doesn't actually swap the live agent), so
+	 * post-materialize calls flip {@link clientCustomizationsDiff}
+	 * dirty and the next `send()` pre-flight rebinds with the new agent
+	 * baked into the rebuilt `Query`. Persisted to the per-session
+	 * metadata overlay so a resume picks up the choice.
+	 */
+	async setAgent(agent: AgentSelection | undefined): Promise<void> {
+		if (this._provisionalAgent === agent) {
+			return;
+		}
+		this._provisionalAgent = agent;
+		if (this._pipeline) {
+			// Force a rebind on the next send(); the SDK has no working
+			// runtime hook to swap the agent in place.
+			this.clientCustomizationsDiff.markDirty();
+		}
+		await this._metadataStore.write(this.sessionUri, { agent: agent ?? null });
+	}
+
+	/**
+	 * Resolve an {@link AgentSelection} URI to the SDK agent name the
+	 * SDK expects on `Options.agent`. Every custom agent the picker can
+	 * surface for a Claude session comes from the SDK side
+	 * ({@link ClaudeSdkCustomizationBundler} populates
+	 * `SessionCustomization.agents` from `Query.supportedAgents()`),
+	 * pointing at on-disk `.../agents/<name>.md` files we wrote
+	 * ourselves, so the name is the file basename.
+	 *
+	 * Returns `undefined` when no agent is selected (or the URI doesn't
+	 * resolve to a known agent file) so the SDK falls back to its default
+	 * (no `--agent` flag).
+	 */
+	private _resolveAgentName(agent: AgentSelection | undefined): string | undefined {
+		if (!agent) {
+			return undefined;
+		}
+		const uri = URI.parse(agent.uri);
+		const basename = uri.path.split('/').pop() ?? '';
+		const name = basename.replace(/\.md$/i, '');
+		if (!name) {
+			this._logService.warn(`[Claude:${this.sessionId}] _resolveAgentName: could not extract agent name from URI '${agent.uri}'`);
+			return undefined;
+		}
+		return name;
+	}
+
+	/**
 	 * Inject a steering message. Builds the `priority: 'now'`
 	 * {@link SDKUserMessage} and hands it to the pipeline; the pipeline
 	 * inherits the parent's turnId (CONTEXT.md M10) and fires
@@ -422,8 +554,8 @@ export class ClaudeAgentSession extends Disposable {
 			return;
 		}
 		const contentBlocks = resolvePromptToContentBlocks(
-			steeringMessage.userMessage.text,
-			steeringMessage.userMessage.attachments,
+			steeringMessage.message.text,
+			steeringMessage.message.attachments,
 		);
 		const sdkMessage: SDKUserMessage = {
 			type: 'user',
@@ -536,16 +668,97 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Drive a yield-restart so the SDK picks up the new client-tool set on
-	 * its next user request. Cancels any in-flight client-tool MCP handlers
-	 * and resets the bridge state before swapping the {@link Query}; the
-	 * agent's rematerializer rebuilds `Options.mcpServers` from
-	 * {@link toolDiff} during the rebind and pins `applied` to the
-	 * build-time snapshot via {@link SessionClientToolsDiff.build}.
+	 * Drive a yield-restart so the SDK picks up the new client-tool set
+	 * on its next user request. Public entry point for callers that need
+	 * to force a tool-only rebind; internal pre-flight goes through
+	 * {@link _rebindForSyncedState}.
 	 */
 	async rebindForClientTools(): Promise<void> {
-		this._pendingClientToolCalls.rejectAll(new CancellationError());
-		await this._requirePipeline().rebindForRestart();
+		await this._rebindForSyncedState();
+	}
+
+	// #endregion
+
+	// #region Phase 11 — customizations / plugins
+
+	/**
+	 * Merged fire-and-forget signal that this session's customization
+	 * surface changed. Fires from three sources:
+	 *
+	 * 1. Client-side writes (`adoptClientCustomizations` /
+	 *    `setClientCustomizationEnabled`) — via the
+	 *    {@link SessionClientCustomizationsDiff} observable wired up in the
+	 *    constructor.
+	 * 2. Materialize completes — surfaces the server-side
+	 *    (SDK-discovered) tier to the workbench for the first time.
+	 * 3. The send() pre-flight rebind completes — the rebuilt SDK's
+	 *    resolved set may have changed.
+	 *
+	 * Drives a workbench refetch of {@link getSessionCustomizations}.
+	 * Does NOT itself trigger any SDK action — the dirty bit on
+	 * {@link SessionClientCustomizationsDiff} drives plugin rebinds,
+	 * and only flips on client-side writes.
+	 */
+	private readonly _onDidCustomizationsChange = this._register(new Emitter<void>());
+	readonly onDidCustomizationsChange: Event<void> = this._onDidCustomizationsChange.event;
+
+	/**
+	 * Adopt the result of a global {@link IAgentPluginManager.syncCustomizations}
+	 * pass (**client-pushed** path). The agent owns the manager (it's
+	 * a process-wide singleton with a shared on-disk cache) and pushes
+	 * the resulting snapshot down here. Flips the client-side dirty bit
+	 * so the next {@link send} pre-flight reloads SDK plugins.
+	 */
+	adoptClientCustomizations(synced: readonly ISyncedCustomization[]): void {
+		this.clientCustomizationsDiff.model.setSyncedCustomizations(synced);
+	}
+
+	/** Toggle a **client-pushed** customization on/off for this session. */
+	setClientCustomizationEnabled(id: string, enabled: boolean): void {
+		this.clientCustomizationsDiff.model.setEnabled(id, enabled);
+	}
+
+	/**
+	 * Snapshot of the **client-pushed** customizations on this session.
+	 * Does NOT include server-side (SDK-discovered) entries — use
+	 * {@link getSessionCustomizations} for the merged view.
+	 */
+	getClientCustomizations(): readonly ISyncedCustomization[] {
+		return this.clientCustomizationsDiff.model.state.get().synced;
+	}
+
+	/**
+	 * Project the union of (a) **client-pushed** customizations and
+	 * (b) the **server-side** (SDK-discovered) view (commands / agents
+	 * / MCP servers, including those the SDK discovered on its own
+	 * from `~/.claude/**`) onto the protocol's
+	 * {@link Customization} surface, with the per-id enablement
+	 * overlay applied to client-pushed entries.
+	 *
+	 * Pre-materialize sessions return only the client-pushed projection
+	 * — the SDK side has no Query to query yet. A failure to read the
+	 * SDK snapshot is warn-logged and the client-pushed projection is
+	 * still returned, so a transient SDK hiccup doesn't blank the UI.
+	 */
+	async getSessionCustomizations(): Promise<readonly Customization[]> {
+		const { synced, enablement } = this.clientCustomizationsDiff.model.state.get();
+		let bundled: Customization | undefined;
+		if (this._pipeline && this._sdkBundler) {
+			let sdk: ISdkResolvedCustomizations | undefined;
+			try {
+				sdk = await this._pipeline.snapshotResolvedCustomizations();
+			} catch (err) {
+				this._logService.warn(`[Claude:${this.sessionId}] snapshotResolvedCustomizations failed`, err);
+			}
+			if (sdk) {
+				try {
+					bundled = await this._sdkBundler.bundle(sdk);
+				} catch (err) {
+					this._logService.warn(`[Claude:${this.sessionId}] SDK bundle failed`, err);
+				}
+			}
+		}
+		return projectSessionCustomizations(synced, enablement, bundled);
 	}
 
 	// #endregion

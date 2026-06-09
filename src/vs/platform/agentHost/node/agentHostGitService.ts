@@ -46,6 +46,27 @@ export interface IAgentHostGitService {
 	 * worktree that still contains uncommitted work.
 	 */
 	hasUncommittedChanges(workingDirectory: URI): Promise<boolean>;
+
+	/**
+	 * Stages and commits all tracked, staged, and untracked changes in the
+	 * working tree. Mirrors the Copilot CLI session PR path, which commits
+	 * uncommitted work before creating a pull request.
+	 */
+	commitAll(workingDirectory: URI, message: string): Promise<void>;
+
+	/**
+	 * Returns true when the named branch has an upstream tracking ref
+	 * (i.e. `<branch>@{upstream}` resolves). Used before {@link pushBranch}
+	 * to decide whether `--set-upstream` is needed.
+	 */
+	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
+
+	/**
+	 * Pushes {@link branchName} to `origin`. When {@link setUpstream} is
+	 * true, the push uses `--set-upstream` so subsequent fetch/push
+	 * commands track the remote branch.
+	 */
+	pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void>;
 	/**
 	 * Computes the {@link ISessionGitState} for the working directory by
 	 * shelling out to `git`. Returns undefined if the directory is not a
@@ -273,6 +294,25 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async hasUncommittedChanges(workingDirectory: URI): Promise<boolean> {
 		const output = await this._runGit(workingDirectory, ['status', '--porcelain']);
 		return !!output && output.trim().length > 0;
+	}
+
+	async commitAll(workingDirectory: URI, message: string): Promise<void> {
+		await this._runGit(workingDirectory, ['add', '-A', '--', ':/'], { throwOnError: true });
+		await this._runGit(workingDirectory, ['commit', '--no-verify', '--no-gpg-sign', '-m', message], { timeout: 60_000, throwOnError: true });
+	}
+
+	async hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean> {
+		const output = await this._runGit(workingDirectory, ['rev-parse', '--abbrev-ref', `${branchName}@{upstream}`]);
+		return output !== undefined && output.trim().length > 0;
+	}
+
+	async pushBranch(workingDirectory: URI, branchName: string, setUpstream: boolean): Promise<void> {
+		const args = ['push'];
+		if (setUpstream) {
+			args.push('--set-upstream');
+		}
+		args.push('origin', branchName);
+		await this._runGit(workingDirectory, args, { timeout: 60_000, throwOnError: true });
 	}
 
 	async computeSessionFileDiffs(workingDirectory: URI, options: IComputeSessionFileDiffsOptions): Promise<readonly ISessionFileDiff[] | undefined> {
@@ -621,9 +661,13 @@ export function summarizeStderrForError(stderr: string): string {
 	if (lines.length === 0) {
 		return '';
 	}
-	const last = lines[lines.length - 1];
 	const MAX = 200;
-	return last.length > MAX ? `${last.slice(0, MAX - 1)}…` : last;
+	const gitLfsMissing = lines.find(line =>
+		/\bgit-lfs\b/i.test(line) &&
+		/(command not found|not recognized|no such file)/i.test(line)
+	);
+	const summary = gitLfsMissing ?? lines[lines.length - 1];
+	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
 }
 
 /**
@@ -748,27 +792,35 @@ export function parseGitDiffRawNumstat(output: string, repositoryRoot: URI, sess
 
 	return changes.map(change => {
 		const stats = numStats.get(change.newPath ?? change.oldPath ?? '');
-		const hasBefore = change.kind !== FileEditKind.Create;
-		const hasAfter = change.kind !== FileEditKind.Delete;
+
+		const beforeFileUri = change.oldPath ? URI.joinPath(repositoryRoot, change.oldPath) : undefined;
+		const afterFileUri = change.newPath ? URI.joinPath(repositoryRoot, change.newPath) : undefined;
+
+		const before = change.kind !== FileEditKind.Create && change.oldPath && beforeFileUri
+			? {
+				uri: beforeFileUri.toString(),
+				content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath, beforeFileUri.path) },
+			}
+			: undefined;
+
+		const after = change.kind !== FileEditKind.Delete && change.newPath && afterFileUri
+			? {
+				uri: afterFileUri.toString(),
+				content: afterRef !== undefined
+					? { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath, afterFileUri.path) }
+					: { uri: afterFileUri.toString() }
+			}
+			: undefined;
+
+		const diff = {
+			added: stats?.added ?? 0,
+			removed: stats?.removed ?? 0
+		};
+
 		return {
-			...(hasBefore && change.oldPath ? {
-				before: {
-					uri: URI.joinPath(repositoryRoot, change.oldPath).toString(),
-					content: { uri: buildGitBlobUri(sessionUri, beforeRef, change.oldPath) },
-				},
-			} : {}),
-			...(hasAfter && change.newPath ? {
-				after: afterRef !== undefined
-					? {
-						uri: buildGitBlobUri(sessionUri, afterRef, change.newPath),
-						content: { uri: buildGitBlobUri(sessionUri, afterRef, change.newPath) },
-					}
-					: {
-						uri: URI.joinPath(repositoryRoot, change.newPath).toString(),
-						content: { uri: URI.joinPath(repositoryRoot, change.newPath).toString() },
-					},
-			} : {}),
-			diff: { added: stats?.added ?? 0, removed: stats?.removed ?? 0 },
+			...(before ? { before } : {}),
+			...(after ? { after } : {}),
+			diff
 		};
 	});
 }
