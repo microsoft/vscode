@@ -532,7 +532,7 @@ suite('ChatStatusDashboard', () => {
 	test('Callout: Free — shows paused when chat limit is reached', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			chat: { percentRemaining: 0, unlimited: false },
-			completions: { percentRemaining: 0, unlimited: false },
+			completions: { percentRemaining: 90, unlimited: false },
 			additionalUsageEnabled: false,
 			entitlement: ChatEntitlement.Free,
 		}));
