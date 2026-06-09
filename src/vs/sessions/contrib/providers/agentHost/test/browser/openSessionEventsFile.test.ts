@@ -11,7 +11,7 @@ import { IRemoteAgentHostConnectionInfo, RemoteAgentHostConnectionStatus } from 
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { OpenCopilotCliStateFileAction } from '../../../../../../workbench/contrib/chat/browser/actions/openCopilotCliStateFileAction.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, getCopilotCliSessionRawId, resolveEventsUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IsAgentHostSession } from '../../browser/agentHostSkillButtons.js';
 import { OpenSessionEventsFileAction } from '../../browser/openSessionEventsFileActions.js';
 
@@ -71,6 +71,21 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 			{ kind: result.kind, resource: result.kind === 'ok' ? result.resource.toString() : undefined },
 			{ kind: 'ok', resource: 'file:///home/me/.copilot/session-state/abc/events.jsonl' },
 		);
+	});
+
+	test('copilot log roots resolve beside session-state', () => {
+		const conn = makeRemoteConn('localhost:4321', '/home/remote');
+		assert.deepStrictEqual({
+			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
+			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
+			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
+			remoteLogs: buildRemoteCopilotLogsUri(conn)?.toString(),
+		}, {
+			rawId: 'abc',
+			nonCopilotRawId: undefined,
+			localLogs: 'file:///home/me/.copilot/logs',
+			remoteLogs: 'vscode-agent-host://localhost__4321/file/-/home/remote/.copilot/logs',
+		});
 	});
 
 	test('EH CLI copilotcli session resolves to ~/.copilot/session-state/<id>/events.jsonl', () => {
