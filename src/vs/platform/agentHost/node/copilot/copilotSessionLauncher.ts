@@ -11,6 +11,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
@@ -18,6 +19,7 @@ import type { ActiveClientState } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { buildSandboxConfigForSdk, type ISdkSandboxConfig } from './sandboxConfigForSdk.js';
 import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 
@@ -181,8 +183,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		const config = await this._buildSessionConfig(plan, runtime);
+		const sandboxConfig = this._computeSandboxConfig();
 		if (plan.kind === 'create') {
-			return this._createSession(plan, config);
+			return this._createSession(plan, config, sandboxConfig);
 		}
 
 		try {
@@ -193,6 +196,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			});
 			this._logService.info(`[Copilot:${plan.sessionId}] SDK resumeSession succeeded`);
+			await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 			return new CopilotSessionWrapper(raw);
 		} catch (err) {
 			const errCode = getCopilotSdkErrorCode(err);
@@ -210,13 +214,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				...plan,
 				kind: 'create',
 				model: plan.fallback.model,
-			}, config);
+			}, config, sandboxConfig);
 			this._logService.info(`[Copilot:${plan.sessionId}] Fallback createSession succeeded`);
 			return wrapper;
 		}
 	}
 
-	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: CopilotSessionLaunchConfig): Promise<CopilotSessionWrapper> {
+	private async _createSession(plan: ICopilotCreateSessionLaunchPlan, config: CopilotSessionLaunchConfig, sandboxConfig: ISdkSandboxConfig | undefined): Promise<CopilotSessionWrapper> {
 		const raw = await plan.client.createSession({
 			...config,
 			sessionId: plan.sessionId,
@@ -226,7 +230,50 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});
+		await this._applySandboxConfig(raw, sandboxConfig, plan.sessionId);
 		return new CopilotSessionWrapper(raw);
+	}
+
+	/**
+	 * Compute the SDK-shaped sandbox policy to push to the runtime for the
+	 * SDK's built-in shell tool.
+	 *
+	 * Returns `undefined` when {@link AgentHostConfigKey.EnableCustomTerminalTool}
+	 * is ON — in that case the AgentHost provides its own shell tools, which
+	 * wrap commands via the host terminal sandbox engine, so no SDK-side
+	 * sandbox policy is needed. Otherwise the policy is derived from the
+	 * host's `sandbox` config bag (forwarded from the workbench's
+	 * `chat.agent.sandbox.*` settings), mirroring what
+	 * `buildSandboxConfigForCLI` does for the Copilot extension's CLI path.
+	 */
+	private _computeSandboxConfig(): ISdkSandboxConfig | undefined {
+		const enableCustomTerminalTool = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+		if (enableCustomTerminalTool) {
+			return undefined;
+		}
+		return buildSandboxConfigForSdk(process.platform, this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox));
+	}
+
+	/**
+	 * Forward the SDK-shaped sandbox policy to the runtime via
+	 * `session.options.update`, immediately after the session is created or
+	 * resumed. `SessionUpdateOptionsParams.sandboxConfig` is now typed by the
+	 * SDK (as `SandboxConfig`), and our {@link ISdkSandboxConfig} shape is
+	 * structurally assignable to it, so we forward it directly.
+	 *
+	 * No-op when {@link _computeSandboxConfig} returned `undefined` (custom
+	 * terminal tool enabled, or the host sandbox config evaluates to disabled).
+	 */
+	private async _applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: ISdkSandboxConfig | undefined, sessionId: string): Promise<void> {
+		if (!sandboxConfig) {
+			return;
+		}
+		try {
+			await session.rpc.options.update({ sandboxConfig });
+			this._logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
+		}
 	}
 
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionLaunchConfig> {
