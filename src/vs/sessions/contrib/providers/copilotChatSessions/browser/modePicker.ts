@@ -85,6 +85,7 @@ export class ModePickerModel extends Disposable {
 			this._chatModesDisposable.value = undefined;
 			this._chatModes = undefined;
 			this._selectedModeId = undefined;
+			this._onDidChange.fire();
 			return;
 		}
 
