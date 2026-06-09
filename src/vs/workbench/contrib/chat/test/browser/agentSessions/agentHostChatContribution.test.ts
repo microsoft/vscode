@@ -59,6 +59,7 @@ import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } f
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { type ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
@@ -1137,7 +1138,7 @@ suite('AgentHostChatContribution', () => {
 			const when = item.when;
 			assert.ok(when, 'folder picker menu item has a when clause');
 
-			const evalWhen = (values: Record<string, unknown>) => when.evaluate({ getValue: (key: string) => values[key] });
+			const evalWhen = (values: Record<string, ContextKeyValue>) => when.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T });
 			const agentHost = { [ChatContextKeys.lockedCodingAgentId.key]: 'agent-host-copilot' };
 
 			assert.deepStrictEqual({
