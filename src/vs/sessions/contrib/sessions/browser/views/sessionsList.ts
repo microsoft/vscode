@@ -16,7 +16,7 @@ import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabe
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IObservable, IReader, autorun } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
@@ -44,6 +44,25 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+<<<<<<< HEAD
+=======
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
+// =============================================================================
+// TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
+// -----------------------------------------------------------------------------
+// `IAgentSessionsService` is a Copilot-provider internal and must normally only
+// be consumed by the Copilot chat sessions provider — the rest of the Agents
+// window stays provider-agnostic (see SESSIONS.md). This single, deliberate
+// exception lets the sessions list trigger lazy resolution of expensive session
+// properties (e.g. changes) for rows that scroll into view, until Don
+// re-implements it the right way (driven from inside the Copilot provider, or
+// via a provider-agnostic visibility signal on the shared services).
+// DO NOT add further usages of this import in the sessions workbench, and DO NOT
+// copy this suppression elsewhere.
+// =============================================================================
+// eslint-disable-next-line no-restricted-imports
+>>>>>>> 0b63e81f3a1 (sessions: make per-workspace session limit configurable via ExP (#320591))
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -833,7 +852,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
-	private static readonly WORKSPACE_GROUP_LIMIT = 5;
+	private static readonly DEFAULT_WORKSPACE_GROUP_LIMIT = 5;
+
+	/**
+	 * Experiment treatment that overrides how many sessions are shown per
+	 * workspace group before the "show more" affordance appears. Falls back to
+	 * {@link DEFAULT_WORKSPACE_GROUP_LIMIT} when the treatment is not set.
+	 */
+	private static readonly WORKSPACE_GROUP_LIMIT_TREATMENT = 'sessions.workspaceGroupLimit';
 
 	private readonly listContainer: HTMLElement;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
@@ -844,6 +870,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private _excludeArchived: boolean;
 	private _excludeRead: boolean;
 	private workspaceGroupCapped: boolean;
+
+	/**
+	 * Maximum number of sessions shown per workspace group before "show more"
+	 * is rendered. Backed by an experiment treatment (see
+	 * {@link WORKSPACE_GROUP_LIMIT_TREATMENT}) and refreshed whenever the
+	 * assignment service refetches its treatments.
+	 */
+	private readonly workspaceGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT);
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private expandedMoreFolders = false;
 	private openWindowSourceFolder: URI | undefined;
@@ -872,6 +906,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -1099,7 +1134,31 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		// Resolve the per-workspace session limit from the experiment service and
+		// keep it current when treatments are refetched. The async fetch is
+		// confined to `updateWorkspaceGroupLimit`; the rest of the list reads the
+		// resolved value synchronously off `workspaceGroupLimit`. The autorun runs
+		// immediately for the initial fetch and again whenever treatments refetch.
+		const assignmentRefetchSignal = observableSignalFromEvent(this, this.assignmentService.onDidRefetchAssignments);
+		this._register(autorun(reader => {
+			assignmentRefetchSignal.read(reader);
+			this.updateWorkspaceGroupLimit();
+		}));
+
 		this.refresh();
+	}
+
+	/**
+	 * Fetches the workspace group limit treatment and updates the backing
+	 * observable. Invalid or unset treatments fall back to the default limit.
+	 */
+	private updateWorkspaceGroupLimit(): void {
+		this.assignmentService.getTreatment<number>(SessionsList.WORKSPACE_GROUP_LIMIT_TREATMENT).then(value => {
+			const limit = typeof value === 'number' && Number.isInteger(value) && value > 0
+				? value
+				: SessionsList.DEFAULT_WORKSPACE_GROUP_LIMIT;
+			this.workspaceGroupLimit.set(limit, undefined);
+		});
 	}
 
 	refresh(): void {
@@ -1193,19 +1252,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
+		const workspaceGroupLimit = this.workspaceGroupLimit.get();
+
 		const renderSection = (section: ISessionSection): IObjectTreeElement<SessionListItem> => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
 				&& section.id.startsWith('workspace:');
 			const exceedsLimit = isWorkspaceGroup
 				&& !this.hasFindPattern
-				&& section.sessions.length > SessionsList.WORKSPACE_GROUP_LIMIT;
+				&& section.sessions.length > workspaceGroupLimit;
 			const isExpanded = exceedsLimit && (this.expandedWorkspaceGroups.has(section.label) || !this.workspaceGroupCapped);
 			const isCapped = exceedsLimit && !isExpanded;
 
 			let sectionChildren: IObjectTreeElement<SessionListItem>[];
 			if (isCapped) {
-				const visible = section.sessions.slice(0, SessionsList.WORKSPACE_GROUP_LIMIT);
-				const remainingCount = section.sessions.length - SessionsList.WORKSPACE_GROUP_LIMIT;
+				const visible = section.sessions.slice(0, workspaceGroupLimit);
+				const remainingCount = section.sessions.length - workspaceGroupLimit;
 				sectionChildren = [
 					...visible.map(session => ({ element: session as SessionListItem })),
 					{ element: { showMore: true as const, kind: 'sessions' as const, mode: 'more' as const, sectionLabel: section.label, remainingCount } },
