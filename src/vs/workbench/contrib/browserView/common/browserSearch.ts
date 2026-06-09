@@ -3,6 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * NOTE: {@link resolveAddressBarInputType} is a deliberate, self-contained
+ * APPROXIMATION of Chromium's omnibox parser (`AutocompleteInput::Parse`), not
+ * a faithful port. It intentionally diverges in places — most notably it uses a
+ * lightweight "any 2+ letter last label is a TLD" heuristic instead of a Public
+ * Suffix List lookup — to avoid maintaining large data tables for an address
+ * bar. Please treat the unit tests in `browserSearch.test.ts` as the
+ * specification: do not "fix" this to byte-match Chromium. If Chromium's
+ * behavior changes in a way we care about, re-sync deliberately and update the
+ * tests.
+ */
+
 import { localize } from '../../../../nls.js';
 
 /**
@@ -17,11 +29,6 @@ export enum BrowserSearchEngineId {
 
 export const BrowserSearchEngineSettingId =
 	'workbench.browser.searchEngine';
-
-/**
- * The search engine selected by default for the integrated browser address bar.
- */
-export const DEFAULT_BROWSER_SEARCH_ENGINE = BrowserSearchEngineId.Bing;
 
 /**
  * Value of {@link BrowserSearchEngineSettingId} when no search engine is

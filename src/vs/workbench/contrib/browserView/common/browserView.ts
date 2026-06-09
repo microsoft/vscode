@@ -95,6 +95,17 @@ type IntegratedBrowserNavigationEvent = {
  */
 export type BrowserNavigationSource = 'urlInput' | 'searchInput';
 
+/**
+ * Options for a navigation initiated via {@link IBrowserViewModel.loadURL}
+ * (and {@link BrowserEditorInput.navigate}).
+ */
+export interface INavigateOptions {
+	/**
+	 * Telemetry source of the navigation. Defaults to `'urlInput'` when omitted.
+	 */
+	readonly source?: BrowserNavigationSource;
+}
+
 type IntegratedBrowserNavigationClassification = {
 	navigationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the navigation was triggered' };
 	isLocalhost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the URL is a localhost address' };
@@ -268,7 +279,7 @@ export interface IBrowserViewModel extends IDisposable {
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
-	loadURL(url: string, options?: { source?: BrowserNavigationSource }): Promise<void>;
+	loadURL(url: string, options?: INavigateOptions): Promise<void>;
 	goBack(): Promise<void>;
 	goForward(): Promise<void>;
 	reload(hard?: boolean): Promise<void>;
@@ -554,7 +565,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.setVisible(this.id, visible);
 	}
 
-	async loadURL(url: string, options?: { source?: BrowserNavigationSource }): Promise<void> {
+	async loadURL(url: string, options?: INavigateOptions): Promise<void> {
 		this.logNavigationTelemetry(options?.source ?? 'urlInput', url);
 		this._onWillNavigate.fire(url);
 
