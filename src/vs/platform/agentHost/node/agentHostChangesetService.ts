@@ -738,6 +738,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					// snapshot. Leave whatever live/persisted state is
 					// already there; the next successful path A will
 					// refresh it.
+					this._logService.debug(`[AgentHostChangesetService] Uncommitted git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
 					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 					return;
 				}
@@ -909,9 +910,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} catch {
 			return undefined;
 		}
-		const baseBranch = kind === 'session'
-			? (await db.getMetadata(META_DIFF_BASE_BRANCH)) ?? readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName
-			: undefined;
+		let baseBranch: string | undefined;
+		if (kind === 'session') {
+			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
+			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
+			if (!persistedBaseBranch && gitStateBaseBranch) {
+				this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+			}
+		}
 		try {
 			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
 		} catch (err) {

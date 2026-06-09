@@ -416,6 +416,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// NUL-separated pathspec preserves odd filenames while keeping deletes
 		// and rename/copy sources in scope.
 		await this._fileService.writeFile(pathspecFile, VSBuffer.fromString(changedPaths.join('\x00') + '\x00'));
+		this._logService.debug(`[agentHostGitService] Staging ${changedPaths.length} changed path(s) into temp index`);
 		await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
 			env: { ...env, GIT_LITERAL_PATHSPECS: '1' },
 			timeout: 60_000,
