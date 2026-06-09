@@ -398,16 +398,18 @@ export class AgentHostGitService implements IAgentHostGitService {
 				// Empty repo (no HEAD yet) - `read-tree` of the empty tree always succeeds.
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env);
-			return await this._runGit(repositoryRoot, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--'], { env, timeout: 60_000, throwOnError: true });
+			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+				return undefined;
+			}
+			return await this._runGit(repositoryRoot, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', mergeBaseCommit, '--'], { env, timeout: 60_000 });
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
 	}
 
-	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<void> {
+	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<boolean> {
 		if (changedPaths.length === 0) {
-			return;
+			return true;
 		}
 		const pathspecFile = URI.joinPath(tempDir, 'pathspec');
 		// Stage only the paths `git status` reported as changed. The previous
@@ -417,11 +419,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// and rename/copy sources in scope.
 		await this._fileService.writeFile(pathspecFile, VSBuffer.fromString(changedPaths.join('\x00') + '\x00'));
 		this._logService.debug(`[agentHostGitService] Staging ${changedPaths.length} changed path(s) into temp index`);
-		await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
+		return await this._runGit(repositoryRoot, ['add', '-A', `--pathspec-from-file=${pathspecFile.fsPath}`, '--pathspec-file-nul'], {
 			env: { ...env, GIT_LITERAL_PATHSPECS: '1' },
 			timeout: 60_000,
-			throwOnError: true,
-		});
+		}) !== undefined;
 	}
 
 	private async _resolveRemoteTrackingBranch(repositoryRoot: URI, branch: string): Promise<string | undefined> {
@@ -485,8 +486,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (seeded === undefined) {
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env);
-			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env, timeout: 60_000, throwOnError: true }))?.trim();
+			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+				return undefined;
+			}
+			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env, timeout: 60_000 }))?.trim();
 			return tree || undefined;
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
