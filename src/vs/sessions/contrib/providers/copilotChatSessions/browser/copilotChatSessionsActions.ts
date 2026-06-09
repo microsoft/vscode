@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IReader, autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
@@ -24,7 +24,7 @@ import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
 import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
-import { ModePicker } from './modePicker.js';
+import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
@@ -165,8 +165,24 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
+		this._register(autorun(reader => {
+			const session = sessionsManagementService.activeSession.read(reader);
+			if (session) {
+				const provider = sessionsProvidersService.getProvider(session.providerId);
+				if (provider instanceof CopilotChatSessionsProvider) {
+					const selectedModeId = session.mode.read(reader)?.id;
+					modePickerModel.setSession(session, selectedModeId);
+					return;
+				}
+			}
+			modePickerModel.setSession(undefined, undefined);
+		}));
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.isolationPicker',
@@ -187,9 +203,19 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
 			(_action, _options, scopedInstantiationService) => {
-				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
-				const picker = scopedInstantiationService.createInstance(ModePicker, session);
-				return new PickerActionViewItem(picker);
+				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
+				const disposableStore = new DisposableStore();
+				disposableStore.add(picker.onDidSelect(mode => {
+					const session = sessionsManagementService.activeSession.get();
+					if (!session) {
+						return;
+					}
+					const provider = sessionsProvidersService.getProvider(session.providerId);
+					if (provider instanceof CopilotChatSessionsProvider) {
+						provider.getSession(session.sessionId)?.setMode(mode);
+					}
+				}));
+				return new PickerActionViewItem(picker, disposableStore);
 			},
 		));
 		// Permission picker registration is skipped on web so the

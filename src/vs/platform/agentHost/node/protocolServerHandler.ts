@@ -849,7 +849,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
-					changesets: s.changesets ? [...s.changesets] : undefined,
+					changes: s.changes,
 				};
 			});
 			return { items };
