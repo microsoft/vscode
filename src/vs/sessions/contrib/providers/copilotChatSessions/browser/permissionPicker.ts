@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -161,7 +161,7 @@ export class PermissionPicker extends Disposable {
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
 				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.shield },
+				group: { kind: ActionListItemKind.Header, title: '', icon: getCompactCodicon(Codicon.shield) },
 				item: {
 					level: ChatPermissionLevel.Default,
 					label: localize('permissions.default', "Default Approvals"),
@@ -174,7 +174,7 @@ export class PermissionPicker extends Disposable {
 			},
 			{
 				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.warning },
+				group: { kind: ActionListItemKind.Header, title: '', icon: getCompactCodicon(Codicon.warning) },
 				item: {
 					level: ChatPermissionLevel.AutoApprove,
 					label: localize('permissions.autoApprove', "Bypass Approvals"),
@@ -187,7 +187,7 @@ export class PermissionPicker extends Disposable {
 			},
 			{
 				kind: ActionListItemKind.Action,
-				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
+				group: { kind: ActionListItemKind.Header, title: '', icon: getCompactCodicon(Codicon.rocket) },
 				item: {
 					level: ChatPermissionLevel.Autopilot,
 					label: localize('permissions.autopilot', "Autopilot (Preview)"),
@@ -302,7 +302,7 @@ export class PermissionPicker extends Disposable {
 				break;
 		}
 
-		dom.append(trigger, renderIcon(icon));
+		dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 

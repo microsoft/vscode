@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -745,7 +745,7 @@ export class WorkspacePicker extends Disposable {
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
 				description: workspace.description,
-				group: { title: '', icon: workspace.icon },
+				group: { title: '', icon: getCompactCodicon(workspace.icon) },
 				disabled: this._isProviderUnavailable(providerId),
 				item: { folderUri, providerId, checked: selected || undefined },
 				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(folderUri) : () => this._removeVSCodeRecentWorkspace(folderUri),
@@ -783,7 +783,7 @@ export class WorkspacePicker extends Disposable {
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.browseSelectAction', "Select..."),
 				description: action.description,
-				group: { title: '', icon: action.icon },
+				group: { title: '', icon: getCompactCodicon(action.icon) },
 				disabled: isUnavailable,
 				item: { browseActionIndex: index },
 			});
@@ -841,7 +841,7 @@ export class WorkspacePicker extends Disposable {
 					kind: ActionListItemKind.Action,
 					label: action.label,
 					description: extended.onRemove ? action.tooltip || undefined : undefined,
-					group: { title: '', icon: extended.icon ?? Codicon.settingsGear },
+					group: { title: '', icon: getCompactCodicon(extended.icon ?? Codicon.settingsGear) },
 					item: { run: () => action.run(), commandId: action.id },
 					onRemove: extended.onRemove,
 				});
@@ -874,7 +874,7 @@ export class WorkspacePicker extends Disposable {
 			? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
 			: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
 
-		dom.append(this._triggerElement, renderIcon(icon));
+		dom.append(this._triggerElement, renderIcon(getCompactCodicon(icon)));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown)).classList.add('sessions-chat-dropdown-chevron');

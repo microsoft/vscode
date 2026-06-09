@@ -64,3 +64,25 @@ export const Codicon = {
 	...codiconsDerived
 
 } as const;
+
+const compactCodiconSuffix = '-compact';
+
+let compactCodiconsById: Map<string, ThemeIcon> | undefined;
+
+/**
+ * Returns the 12px-optimized `*-compact` variant of the given codicon if one
+ * exists, otherwise returns the icon unchanged. Use this when rendering an
+ * arbitrary codicon at the compact codicon size (`--vscode-codiconFontSize-compact`)
+ * so the visually-distinct compact glyph is drawn instead of a scaled-down full glyph.
+ */
+export function getCompactCodicon(icon: ThemeIcon): ThemeIcon {
+	if (!compactCodiconsById) {
+		compactCodiconsById = new Map();
+		for (const codicon of Object.values(codiconsLibrary)) {
+			if (codicon.id.endsWith(compactCodiconSuffix)) {
+				compactCodiconsById.set(codicon.id.slice(0, -compactCodiconSuffix.length), codicon);
+			}
+		}
+	}
+	return compactCodiconsById.get(icon.id) ?? icon;
+}

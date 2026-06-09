@@ -11,7 +11,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Delayer } from '../../../../../base/common/async.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable } from '../../../../../base/common/observable.js';
@@ -102,14 +102,17 @@ export function getConfigIcon(property: string, value: unknown | undefined): The
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
-	return items.map(item => ({
-		kind: ActionListItemKind.Action,
-		label: item.label,
-		description: item.description,
-		group: { title: '', icon: getConfigIcon(property, item.value) },
-		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
-	}));
+	return items.map(item => {
+		const configIcon = getConfigIcon(property, item.value);
+		return {
+			kind: ActionListItemKind.Action,
+			label: item.label,
+			description: item.description,
+			group: { title: '', icon: configIcon ? getCompactCodicon(configIcon) : undefined },
+			disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
+			item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		};
+	});
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -420,7 +423,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 		const icon = getConfigIcon(property, value);
 		if (icon) {
-			dom.append(trigger, renderIcon(icon));
+			dom.append(trigger, renderIcon(getCompactCodicon(icon)));
 		}
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		const label = this._getLabel(schema, value);

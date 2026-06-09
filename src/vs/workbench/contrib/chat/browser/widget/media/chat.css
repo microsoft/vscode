@@ -1595,8 +1595,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editor-container .monaco-editor .chat-prompt-spinner {
-	transform-origin: 6px 6px;
-	font-size: 12px;
+	transform-origin: 0.5em 0.5em;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
@@ -1700,7 +1700,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			.codicon {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
 			}
 		}
 
@@ -1791,13 +1791,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				align-items: center;
 				margin-left: 4px;
 				flex-shrink: 0;
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
 
 				.codicon.codicon-info {
 					color: var(--vscode-problemsInfoIcon-foreground) !important;
 				}
 
-				.codicon.codicon-warning {
+				.codicon.codicon-warning-compact {
 					color: var(--vscode-problemsWarningIcon-foreground) !important;
 				}
 			}
@@ -1807,7 +1807,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 
 			.codicon {
-				font-size: 12px;
+				font-size: var(--vscode-codiconFontSize-compact, 12px);
 			}
 		}
 
@@ -1914,7 +1914,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .chat-input-picker-item .action-label.model-picker-split .model-picker-section span + .chat-input-picker-label {
@@ -1969,14 +1969,20 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 
 /* Add context button icon sizing */
-.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .action-label {
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add-compact) .action-label {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.interactive-session .chat-input-toolbar .action-item:has(.codicon-add) .codicon-add {
-	font-size: 14px;
+.interactive-session .chat-input-toolbar .action-item:has(.codicon-add-compact) .codicon-add-compact {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+/* Standalone menu-entry leading icons (e.g. Add Context, Configure Tools) match the
+ * compact picker icons so the input toolbar row is visually uniform. */
+.monaco-workbench .interactive-session .chat-input-toolbar .monaco-action-bar .action-item.menu-entry > .action-label.codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
@@ -2303,7 +2309,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 3px;
 	height: calc(100% + 4px);
 	outline-offset: -4px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-plus {

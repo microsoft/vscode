@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
@@ -89,7 +89,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						id: `chat.permissions.ext.${sessionTypeSeg}.${groupSeg}.${sanitizeIdSegment(item.id)}`,
 						label: item.name,
 						detail: item.description,
-						icon: item.icon,
+						icon: item.icon ? getCompactCodicon(item.icon) : undefined,
 						checked: ext.selectedId === item.id,
 						enabled: !item.locked,
 						tooltip: item.locked ? localize('permissions.ext.locked', "This option is locked") : '',
@@ -110,7 +110,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						id: 'chat.permissions.default',
 						label: localize('permissions.default', "Default Approvals"),
 						detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
-						icon: ThemeIcon.fromId(Codicon.shield.id),
+						icon: getCompactCodicon(Codicon.shield),
 						checked: currentLevel === ChatPermissionLevel.Default,
 						tooltip: '',
 						hover: {
@@ -128,7 +128,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						id: 'chat.permissions.autoApprove',
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
 						detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
-						icon: ThemeIcon.fromId(Codicon.warning.id),
+						icon: getCompactCodicon(Codicon.warning),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						enabled: !policyRestricted,
 						tooltip: policyRestricted ? localize('permissions.autoApprove.policyDisabled', "Disabled by enterprise policy") : '',
@@ -153,7 +153,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					id: 'chat.permissions.autopilot',
 					label: localize('permissions.autopilot', "Autopilot (Preview)"),
 					detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
-					icon: ThemeIcon.fromId(Codicon.rocket.id),
+					icon: getCompactCodicon(Codicon.rocket),
 					checked: currentLevel === ChatPermissionLevel.Autopilot,
 					enabled: !policyRestricted,
 					tooltip: policyRestricted ? localize('permissions.autopilot.policyDisabled', "Disabled by enterprise policy") : '',
@@ -233,7 +233,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
-		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+		labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 
 		dom.reset(element, ...labelElements);

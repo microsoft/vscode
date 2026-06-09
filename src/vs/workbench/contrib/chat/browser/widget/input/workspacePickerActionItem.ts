@@ -19,6 +19,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { IWorkspacePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 
 /**
  * Action view item for selecting a target workspace in the chat interface.
@@ -108,13 +109,12 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements: (string | HTMLElement)[] = [];
 
+		labelElements.push(...renderLabelWithIcons(`$(${Codicon.folderCompact.id})`));
 		if (currentWorkspace) {
 			// Show the workspace label or folder name
 			const label = currentWorkspace.label || basename(currentWorkspace.uri);
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		} else {
-			labelElements.push(...renderLabelWithIcons(`$(folder)`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, localize('selectWorkspace', "Workspace")));
 		}
 

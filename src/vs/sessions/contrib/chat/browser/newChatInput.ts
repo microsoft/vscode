@@ -461,7 +461,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			position: { hoverPosition: HoverPosition.BELOW },
 			appearance: { showPointer: true }
 		}));
-		dom.append(attachButton, renderIcon(Codicon.add));
+		dom.append(attachButton, renderIcon(Codicon.addCompact));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._contextAttachments.showPicker(this.options.getContextFolderUri());
 		}));

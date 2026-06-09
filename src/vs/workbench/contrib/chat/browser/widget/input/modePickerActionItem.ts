@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../../../base/common/codicons.js';
 import { groupBy } from '../../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -91,6 +91,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				mode.kind === ChatModeKind.Agent &&
 				agentModeDisabledViaPolicy;
 
+			const modeIcon = mode.icon.get();
+
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			// Add toolbar actions for Agent modes
@@ -126,7 +128,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
 				label: mode.label.get(),
-				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : mode.icon.get(),
+				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : (modeIcon ? getCompactCodicon(modeIcon) : undefined),
 				class: isDisabledViaPolicy ? 'disabled-by-policy' : undefined,
 				enabled: !isDisabledViaPolicy,
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
@@ -151,11 +153,12 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		};
 
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+			const customIcon = mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined);
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
 				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
-				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
+				icon: customIcon ? getCompactCodicon(customIcon) : undefined,
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
 		};
@@ -292,7 +295,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		const labelElements = [];
 		const collapsed = this.pickerOptions.compact.get();
 		if (icon) {
-			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+			labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		}
 		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+import { Codicon, getCompactCodicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
@@ -195,7 +195,7 @@ export class RepoPicker extends Disposable {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: this._selectedRepo.name,
-				group: { title: '', icon: Codicon.repo },
+				group: { title: '', icon: getCompactCodicon(Codicon.repo) },
 				item: this._selectedRepo,
 			});
 		}
@@ -208,7 +208,7 @@ export class RepoPicker extends Disposable {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: repo.name,
-				group: { title: '', icon: Codicon.repo },
+				group: { title: '', icon: getCompactCodicon(Codicon.repo) },
 				item: repo,
 				onRemove: () => this._removeRepo(repo.id),
 			});
@@ -221,7 +221,7 @@ export class RepoPicker extends Disposable {
 		items.push({
 			kind: ActionListItemKind.Action,
 			label: localize('browseRepo', "Browse..."),
-			group: { title: '', icon: Codicon.search },
+			group: { title: '', icon: getCompactCodicon(Codicon.search) },
 			item: { id: 'browse', name: localize('browseRepo', "Browse...") },
 		});
 
@@ -245,7 +245,7 @@ export class RepoPicker extends Disposable {
 		dom.clearNode(this._triggerElement);
 		const label = this._selectedRepo?.name ?? localize('pickRepo', "Pick Repository");
 
-		dom.append(this._triggerElement, renderIcon(Codicon.repo));
+		dom.append(this._triggerElement, renderIcon(getCompactCodicon(Codicon.repo)));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
