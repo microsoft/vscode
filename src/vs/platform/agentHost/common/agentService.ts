@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
-import type { IAgentSubscription } from './state/agentSubscription.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -1011,8 +1011,21 @@ export interface IAgentConnection {
 
 	// ---- State subscriptions ------------------------------------------------
 	readonly rootState: IAgentSubscription<RootState>;
-	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>>;
+	/**
+	 * Acquire a refcounted subscription to `resource`. `owner` names the
+	 * caller holding the reference so inspection surfaces can attribute who
+	 * is retaining a subscription; use a stable identifier such as the
+	 * acquiring class name.
+	 */
+	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+
+	/**
+	 * Read-only descriptors of every active resource subscription on this
+	 * connection, for inspection/debug surfaces. Excludes the always-live
+	 * {@link rootState}.
+	 */
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[];
 
 	// ---- Action dispatch ----------------------------------------------------
 	/**

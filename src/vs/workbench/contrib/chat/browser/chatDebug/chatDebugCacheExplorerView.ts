@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Orientation, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../../base/common/date.js';
@@ -14,6 +15,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { defaultBreadcrumbsWidgetStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
@@ -32,6 +34,9 @@ const RAIL_DEFAULT_WIDTH = 280;
 const RAIL_MIN_WIDTH = 180;
 const RAIL_MAX_WIDTH = 600;
 const CURRENT_CONTINUATION_DELTA_COMPONENT = 'current continuation delta';
+
+/** The main panel edit agent, selected by default in the agent filter. */
+const DEFAULT_AGENT_KEY = 'panel/editAgent';
 
 /**
  * Navigation events fired by the Cache Explorer breadcrumb.
@@ -84,17 +89,41 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	readonly container: HTMLElement;
 	private readonly breadcrumbWidget: BreadcrumbsWidget;
 	private readonly rail: HTMLElement;
+	private readonly railToolbar: HTMLElement;
 	private readonly railList: HTMLElement;
 	private readonly content: HTMLElement;
 	private readonly sash: Sash;
 	private railWidth = RAIL_DEFAULT_WIDTH;
-	private readonly loadDisposables = this._register(new DisposableStore());
+	/** Disposables for the left rail (toolbar + turn rows). Cleared on every full render. */
+	private readonly railDisposables = this._register(new DisposableStore());
+	/** Disposables for the right content panel. Cleared whenever the content is re-rendered. */
+	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly refreshScheduler: RunOnceScheduler;
 
 	private currentSessionResource: URI | undefined;
+	/** All model turns for the session, before the agent filter is applied. */
+	private allModelTurns: IChatDebugModelTurnEvent[] = [];
+	/** Model turns after the agent filter — the list the rail and diff operate on. */
 	private modelTurns: IChatDebugModelTurnEvent[] = [];
 	/** Selected turn (B side). A is computed as `selectedIndex - 1`. -1 = no explicit selection yet. */
 	private selectedIndex = -1;
+	/**
+	 * Selected agent names (keyed by {@link agentKey}). `undefined` until the
+	 * first render applies the default selection. An empty set is never stored —
+	 * clearing the last agent falls back to "all".
+	 */
+	private selectedAgents: Set<string> | undefined;
+	/**
+	 * Turn to re-select after the next render, used to keep the user's place
+	 * when the agent filter changes. Stored as the event object rather than its
+	 * id because {@link IChatDebugModelTurnEvent.id} is optional; matching falls
+	 * back to object reference and a composite identity for turns without an id.
+	 */
+	private pendingSelectTurn: IChatDebugModelTurnEvent | undefined;
+	/** Whether the per-chunk signature breakdown table is expanded. */
+	private sigBreakdownOpen = false;
+	/** Rail turn-row elements by turn index, for in-place selection updates without rebuilding the rail. */
+	private readonly railRowsByIndex = new Map<number, HTMLElement>();
 
 	/**
 	 * Monotonically-increasing render token. Each call to {@link render}
@@ -118,6 +147,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		parent: HTMLElement,
 		@IChatService private readonly chatService: IChatService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-cache'));
@@ -144,6 +174,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		const body = DOM.append(this.container, $('.chat-debug-cache-body'));
 		this.rail = DOM.append(body, $('.chat-debug-cache-rail'));
 		this.rail.style.width = `${this.railWidth}px`;
+		this.railToolbar = DOM.append(this.rail, $('.chat-debug-cache-rail-toolbar'));
 		this.railList = DOM.append(this.rail, $('.chat-debug-cache-rail-list'));
 		this.content = DOM.append(body, $('.chat-debug-cache-content'));
 
@@ -179,6 +210,9 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			this.openComponents.add('system');
 			this.openComponents.add('tools');
 			this.selectedIndex = -1;
+			this.selectedAgents = undefined;
+			this.pendingSelectTurn = undefined;
+			this.sigBreakdownOpen = false;
 		}
 		this.currentSessionResource = sessionResource;
 	}
@@ -219,23 +253,62 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		const token = ++this.renderToken;
 		const isCurrent = () => token === this.renderToken;
 
+		// Preserve the rail scroll position across a full rebuild so a
+		// background refresh (new events) doesn't yank the list while the
+		// user is reading it.
+		const railScrollTop = this.railList.scrollTop;
+
 		this.updateBreadcrumb();
-		this.loadDisposables.clear();
+		this.railDisposables.clear();
+		DOM.clearNode(this.railToolbar);
 		DOM.clearNode(this.railList);
-		DOM.clearNode(this.content);
+		this.railRowsByIndex.clear();
 
 		if (!this.currentSessionResource) {
+			this.contentDisposables.clear();
+			DOM.clearNode(this.content);
 			return;
 		}
 
 		const events = this.chatDebugService.getEvents(this.currentSessionResource);
-		this.modelTurns = events.filter((e): e is IChatDebugModelTurnEvent => e.kind === 'modelTurn');
+		this.allModelTurns = events.filter((e): e is IChatDebugModelTurnEvent => e.kind === 'modelTurn');
 		const userMessages = events.filter((e): e is IChatDebugUserMessageEvent => e.kind === 'userMessage');
 
-		if (this.modelTurns.length === 0) {
+		if (this.allModelTurns.length === 0) {
+			this.contentDisposables.clear();
+			DOM.clearNode(this.content);
 			const empty = DOM.append(this.content, $('.chat-debug-cache-empty'));
 			empty.textContent = localize('chatDebug.cache.noTurns', "No model turns recorded for this session yet.");
 			return;
+		}
+
+		// Agent filter: derive the distinct agents and apply the default
+		// selection (the main panel edit agent) the first time we render a
+		// session. The toolbar lets the user reveal the other agents.
+		const agentCounts = computeAgentCounts(this.allModelTurns);
+		if (this.selectedAgents === undefined) {
+			this.selectedAgents = defaultAgentSelection(agentCounts);
+		}
+		this.renderRailToolbar(agentCounts);
+
+		this.modelTurns = this.allModelTurns.filter(t => this.selectedAgents!.has(agentKey(t)));
+
+		if (this.modelTurns.length === 0) {
+			this.contentDisposables.clear();
+			DOM.clearNode(this.content);
+			const empty = DOM.append(this.content, $('.chat-debug-cache-empty'));
+			empty.textContent = localize('chatDebug.cache.noTurnsForAgents', "No model turns match the selected agent filter.");
+			return;
+		}
+
+		// Restore the previously-selected turn when the filter changes, so
+		// toggling agents keeps the user on the same request when possible.
+		// When that turn no longer survives the filter, fall back to the most
+		// recent turn rather than leaving the stale ordinal index pointing at
+		// an unrelated turn.
+		if (this.pendingSelectTurn) {
+			this.selectedIndex = resolveFilteredSelectionIndex(this.modelTurns, this.pendingSelectTurn);
+			this.pendingSelectTurn = undefined;
 		}
 
 		// Default to the most recent turn on first display, and silently
@@ -247,6 +320,25 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		}
 
 		this.renderRail(buildTurnGroups(this.modelTurns, userMessages));
+		this.railList.scrollTop = railScrollTop;
+
+		await this.renderContentInner(token, isCurrent);
+	}
+
+	/**
+	 * Render the right-hand content panel (summary, signature, options,
+	 * components) for the current selection. Split out of {@link render} so a
+	 * selection change can refresh just the content without rebuilding the
+	 * rail \u2014 which is what keeps keyboard focus and scroll position stable
+	 * while navigating turns.
+	 *
+	 * @param preserveScroll keep the content scroll position (used for zoom
+	 * and breakdown toggles where the selection is unchanged).
+	 */
+	private async renderContentInner(token: number, isCurrent: () => boolean, preserveScroll = false): Promise<void> {
+		const prevScroll = preserveScroll ? this.content.scrollTop : 0;
+		this.contentDisposables.clear();
+		DOM.clearNode(this.content);
 		this.renderTitleRow();
 
 		const bEvent = this.modelTurns[this.selectedIndex];
@@ -260,6 +352,9 @@ export class ChatDebugCacheExplorerView extends Disposable {
 				return;
 			}
 			this.renderSingleSummary(b);
+			if (preserveScroll) {
+				this.content.scrollTop = prevScroll;
+			}
 			return;
 		}
 
@@ -279,6 +374,186 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		this.renderSignature(a, b, diff, compareInputMessages);
 		this.renderRequestOptions(a, b);
 		this.renderComponents(drift, a, b, compareInputMessages);
+		if (preserveScroll) {
+			this.content.scrollTop = prevScroll;
+		}
+	}
+
+	/**
+	 * Select a turn (the B side of the diff) and refresh only the content
+	 * panel. The rail is updated in place \u2014 just the selected classes move \u2014
+	 * so clicking or arrowing through turns never rebuilds the list, keeping
+	 * focus and scroll position stable.
+	 */
+	private selectTurn(index: number, focusOptions?: FocusOptions): void {
+		if (index < 0 || index >= this.modelTurns.length || index === this.selectedIndex) {
+			return;
+		}
+		const prevRow = this.railRowsByIndex.get(this.selectedIndex);
+		if (prevRow) {
+			prevRow.classList.remove('is-selected');
+			prevRow.removeAttribute('aria-current');
+		}
+		this.selectedIndex = index;
+		const nextRow = this.railRowsByIndex.get(index);
+		if (nextRow) {
+			nextRow.classList.add('is-selected');
+			nextRow.setAttribute('aria-current', 'true');
+			if (focusOptions) {
+				nextRow.focus(focusOptions);
+			}
+		}
+		const token = ++this.renderToken;
+		void this.renderContentInner(token, () => token === this.renderToken);
+	}
+
+	/** Move the selection to the previous/next visible turn row (arrow keys). */
+	private moveSelection(delta: number): void {
+		// `railRowsByIndex` is populated in render (visual) order and `Map`
+		// iteration preserves insertion order, so the keys already match the
+		// order rows appear in the rail — no need to sort on every keypress.
+		const indices = [...this.railRowsByIndex.keys()];
+		if (indices.length === 0) {
+			return;
+		}
+		const pos = indices.indexOf(this.selectedIndex);
+		const nextPos = pos === -1
+			? (delta > 0 ? 0 : indices.length - 1)
+			: Math.min(indices.length - 1, Math.max(0, pos + delta));
+		this.selectTurn(indices[nextPos], { preventScroll: false });
+	}
+
+	/**
+	 * Render the agent filter dropdown at the top of the rail. Hidden when a
+	 * session only used a single agent (nothing to filter).
+	 */
+	private renderRailToolbar(agentCounts: Map<string, number>): void {
+		const agents = [...agentCounts.keys()];
+		if (agents.length <= 1) {
+			DOM.hide(this.railToolbar);
+			return;
+		}
+		DOM.show(this.railToolbar);
+
+		const selected = this.selectedAgents ?? new Set(agents);
+		const selectedCount = agents.filter(a => selected.has(a)).length;
+
+		const label = DOM.append(this.railToolbar, $('span.chat-debug-cache-filter-label'));
+		label.textContent = localize('chatDebug.cache.filterAgentsLabel', "Agent");
+
+		const button = DOM.append(this.railToolbar, $('button.chat-debug-cache-filter-button'));
+		button.setAttribute('aria-haspopup', 'menu');
+		const summary = selectedCount === agents.length
+			? localize('chatDebug.cache.filterAll', "All agents ({0})", agents.length)
+			: selectedCount === 1
+				? agents.find(a => selected.has(a)) ?? ''
+				: localize('chatDebug.cache.filterSome', "{0} of {1} agents", selectedCount, agents.length);
+		const text = DOM.append(button, $('span.chat-debug-cache-filter-button-text'));
+		text.textContent = summary;
+		text.title = summary;
+		DOM.append(button, $('span.codicon.codicon-chevron-down.chat-debug-cache-filter-chevron', { 'aria-hidden': 'true' }));
+
+		this.railDisposables.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, () => this.showAgentFilterMenu(button, agentCounts)));
+	}
+
+	private showAgentFilterMenu(anchor: HTMLElement, agentCounts: Map<string, number>): void {
+		const agents = [...agentCounts.keys()].sort((a, b) => a.localeCompare(b));
+		const selected = this.selectedAgents ?? new Set(agents);
+		const agentActions: IAction[] = agents.map(agent => toAction({
+			id: `chatDebug.cache.agent.${agent}`,
+			label: localize('chatDebug.cache.agentItem', "{0} ({1})", agent, agentCounts.get(agent) ?? 0),
+			checked: selected.has(agent),
+			run: () => this.toggleAgent(agent),
+		}));
+		const selectAll = toAction({
+			id: 'chatDebug.cache.agentSelectAll',
+			label: localize('chatDebug.cache.selectAllAgents', "Show All Agents"),
+			run: () => this.setAgentSelection(new Set(agents)),
+		});
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => [selectAll, new Separator(), ...agentActions],
+		});
+	}
+
+	/** Toggle a single agent on/off. Never leaves the selection empty. */
+	private toggleAgent(agent: string): void {
+		const agents = [...computeAgentCounts(this.allModelTurns).keys()];
+		const next = new Set(this.selectedAgents ?? agents);
+		if (next.has(agent)) {
+			next.delete(agent);
+		} else {
+			next.add(agent);
+		}
+		this.setAgentSelection(next.size === 0 ? new Set(agents) : next);
+	}
+
+	private setAgentSelection(agents: Set<string>): void {
+		// Remember the current turn so we can keep the user on it after the
+		// list is refiltered (if it survives the new filter).
+		this.pendingSelectTurn = this.modelTurns[this.selectedIndex];
+		this.selectedAgents = agents;
+		this.render();
+	}
+
+	/**
+	 * Render a collapsible per-chunk breakdown table. Lists every signature
+	 * chunk (including identical ones the bar may hide) with its exact char
+	 * count on each side and its share of the current request \u2014 i.e. where the
+	 * bytes are allocated.
+	 */
+	private renderChunkBreakdown(
+		section: HTMLElement,
+		rows: readonly IChunkBreakdownRow[],
+		totalA: number,
+		totalB: number,
+	): void {
+		const wrap = DOM.append(section, $('.chat-debug-cache-sig-breakdown'));
+		if (this.sigBreakdownOpen) {
+			wrap.classList.add('open');
+		}
+		const toggle = DOM.append(wrap, $('button.chat-debug-cache-sig-breakdown-toggle'));
+		toggle.setAttribute('aria-expanded', this.sigBreakdownOpen ? 'true' : 'false');
+		DOM.append(toggle, $('span.codicon.codicon-chevron-right.chat-debug-cache-sig-breakdown-chev', { 'aria-hidden': 'true' }));
+		DOM.append(toggle, $('span', undefined, localize('chatDebug.cache.chunkBreakdown', "Chunk breakdown")));
+		this.contentDisposables.add(DOM.addDisposableListener(toggle, DOM.EventType.CLICK, () => {
+			this.sigBreakdownOpen = !this.sigBreakdownOpen;
+			const token = ++this.renderToken;
+			void this.renderContentInner(token, () => token === this.renderToken, true);
+		}));
+		if (!this.sigBreakdownOpen) {
+			return;
+		}
+
+		const table = DOM.append(wrap, $('.chat-debug-cache-sig-breakdown-table', { role: 'table' }));
+		const head = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row.head', { role: 'row' }));
+		DOM.append(head, $('.cell.idx', { role: 'columnheader' }, localize('chatDebug.cache.chunkIdxCol', "#")));
+		DOM.append(head, $('.cell.chunk', { role: 'columnheader' }, localize('chatDebug.cache.chunkCol', "Chunk")));
+		DOM.append(head, $('.cell.num', { role: 'columnheader' }, localize('chatDebug.cache.prevCol', "Previous")));
+		DOM.append(head, $('.cell.num', { role: 'columnheader' }, localize('chatDebug.cache.currCol', "Current")));
+		DOM.append(head, $('.cell.num', { role: 'columnheader' }, localize('chatDebug.cache.pctCol', "% of current")));
+
+		rows.forEach((r, i) => {
+			const row = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row', { role: 'row' }));
+			if (r.drift) {
+				row.classList.add('is-drift');
+			}
+			DOM.append(row, $('.cell.idx', { role: 'cell' }, String(i)));
+			const chunk = DOM.append(row, $('.cell.chunk', { role: 'cell' }));
+			DOM.append(chunk, $(`span.chat-debug-cache-sig-swatch.role-${roleClass(r.role)}`, { 'aria-hidden': 'true' }));
+			DOM.append(chunk, $('span.chat-debug-cache-sig-breakdown-chunk-label', undefined, r.label));
+			DOM.append(row, $('.cell.num', { role: 'cell' }, r.aChars !== undefined ? numberFormatter.value.format(r.aChars) : '\u2014'));
+			DOM.append(row, $('.cell.num', { role: 'cell' }, r.bChars !== undefined ? numberFormatter.value.format(r.bChars) : '\u2014'));
+			const pct = r.bChars !== undefined && totalB > 0 ? (r.bChars / totalB) * 100 : undefined;
+			DOM.append(row, $('.cell.num', { role: 'cell' }, pct !== undefined ? localize('chatDebug.cache.pctValue', "{0}%", pct.toFixed(1)) : '\u2014'));
+		});
+
+		const totals = DOM.append(table, $('.chat-debug-cache-sig-breakdown-row.total', { role: 'row' }));
+		DOM.append(totals, $('.cell.idx', { role: 'cell' }, ''));
+		DOM.append(totals, $('.cell.chunk', { role: 'cell' }, localize('chatDebug.cache.totalRow', "Total")));
+		DOM.append(totals, $('.cell.num', { role: 'cell' }, numberFormatter.value.format(totalA)));
+		DOM.append(totals, $('.cell.num', { role: 'cell' }, numberFormatter.value.format(totalB)));
+		DOM.append(totals, $('.cell.num', { role: 'cell' }, localize('chatDebug.cache.pctValue', "{0}%", '100')));
 	}
 
 	private async resolveSide(event: IChatDebugModelTurnEvent): Promise<ISideData> {
@@ -356,8 +631,8 @@ export class ChatDebugCacheExplorerView extends Disposable {
 				}
 				this.refresh();
 			};
-			this.loadDisposables.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, toggle));
-			this.loadDisposables.add(DOM.addDisposableListener(header, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			this.railDisposables.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, toggle));
+			this.railDisposables.add(DOM.addDisposableListener(header, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
 					toggle();
@@ -370,6 +645,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 
 			for (const { turn: evt, index: i } of group.turns) {
 				const row = DOM.append(this.railList, $('.chat-debug-cache-turn'));
+				this.railRowsByIndex.set(i, row);
 				if (i === this.selectedIndex) { row.classList.add('is-selected'); }
 				const idx = DOM.append(row, $('.chat-debug-cache-turn-idx'));
 				idx.textContent = String(i).padStart(2, ' ');
@@ -402,19 +678,21 @@ export class ChatDebugCacheExplorerView extends Disposable {
 				row.title = localize('chatDebug.cache.turnHelp', "Click to compare this request against the previous one");
 				row.tabIndex = 0;
 				row.setAttribute('role', 'button');
-				row.setAttribute('aria-selected', i === this.selectedIndex ? 'true' : 'false');
+				if (i === this.selectedIndex) {
+					row.setAttribute('aria-current', 'true');
+				}
 				row.setAttribute('aria-label', localize('chatDebug.cache.turnAria', "Turn {0}: {1}", i, evt.requestName ?? evt.model ?? localize('chatDebug.cache.modelTurn', "Model Turn")));
-				const select = () => {
-					if (this.selectedIndex !== i) {
-						this.selectedIndex = i;
-						this.refresh();
-					}
-				};
-				this.loadDisposables.add(DOM.addDisposableListener(row, DOM.EventType.CLICK, select));
-				this.loadDisposables.add(DOM.addDisposableListener(row, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				this.railDisposables.add(DOM.addDisposableListener(row, DOM.EventType.CLICK, () => this.selectTurn(i, { preventScroll: true })));
+				this.railDisposables.add(DOM.addDisposableListener(row, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					if (e.key === 'Enter' || e.key === ' ') {
 						e.preventDefault();
-						select();
+						this.selectTurn(i, { preventScroll: true });
+					} else if (e.key === 'ArrowDown') {
+						e.preventDefault();
+						this.moveSelection(1);
+					} else if (e.key === 'ArrowUp') {
+						e.preventDefault();
+						this.moveSelection(-1);
 					}
 				}));
 			}
@@ -783,6 +1061,11 @@ export class ChatDebugCacheExplorerView extends Disposable {
 		lanes.appendChild(buildLane(localize('chatDebug.cache.lanePrevious', "Previous"), aSegs, breakCharPos(aSegs)));
 		lanes.appendChild(buildLane(localize('chatDebug.cache.laneCurrent', "Current"), bSegs, breakCharPos(bSegs)));
 
+		// Per-chunk breakdown: an exact, scannable table of where the bytes go on
+		// each side. Complements the bar (which hides small chunks) and the
+		// Components section (which only lists drifting components).
+		this.renderChunkBreakdown(section, alignSignatureChunks(aSegs, bSegs), totalA, totalB);
+
 		// Single-line text summary below the bars. Compute this in the
 		// same order the provider sees cache-keying inputs: system, tools,
 		// then captured input messages. This avoids reporting messages[0] as
@@ -912,7 +1195,7 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			}
 			body.appendChild(this.renderComponentDiff(aText, bText, c.aSize, c.bSize));
 
-			this.loadDisposables.add(DOM.addDisposableListener(head, DOM.EventType.CLICK, () => {
+			this.contentDisposables.add(DOM.addDisposableListener(head, DOM.EventType.CLICK, () => {
 				if (this.openComponents.has(c.name)) {
 					this.openComponents.delete(c.name);
 					item.classList.remove('open');
@@ -955,6 +1238,156 @@ function findSection(sections: readonly IChatDebugMessageSection[] | undefined, 
 		}
 	}
 	return undefined;
+}
+
+/** A prompt-signature segment: a synthetic prefix (system/tools) or an input message. */
+export interface ISignatureSegment {
+	readonly role: string;
+	readonly chars: number;
+	readonly drift: boolean;
+	readonly label: string;
+	/** True for the synthetic system/tools prefix segments, false for input messages. */
+	readonly synthetic: boolean;
+}
+
+/** One aligned row of the chunk breakdown — a chunk present on either or both sides. */
+export interface IChunkBreakdownRow {
+	readonly role: string;
+	readonly label: string;
+	readonly aChars: number | undefined;
+	readonly bChars: number | undefined;
+	readonly drift: boolean;
+}
+
+/**
+ * Align the previous (A) and current (B) signature segments into comparable
+ * rows for the chunk breakdown table.
+ *
+ * Synthetic prefix segments (system, tools) are matched by identity so that a
+ * tool catalog or system prompt present on only one side does not shift every
+ * later message row. Input messages are matched positionally, consistent with
+ * the positional prompt-signature diff used elsewhere in this view.
+ */
+export function alignSignatureChunks(aSegs: readonly ISignatureSegment[], bSegs: readonly ISignatureSegment[]): IChunkBreakdownRow[] {
+	const rows: IChunkBreakdownRow[] = [];
+	const toRow = (aS: ISignatureSegment | undefined, bS: ISignatureSegment | undefined): IChunkBreakdownRow => {
+		const ref = bS ?? aS!;
+		return {
+			role: ref.role,
+			label: ref.label,
+			aChars: aS?.chars,
+			bChars: bS?.chars,
+			// A row drifts if either side flags drift (e.g. OnlyInA marks only
+			// the A segment) or the chunk is present on just one side.
+			drift: (aS?.drift ?? false) || (bS?.drift ?? false) || (!!aS !== !!bS),
+		};
+	};
+
+	// Synthetic prefixes first, matched by role so presence asymmetry is shown
+	// as an added/removed row rather than knocking the message rows out of sync.
+	for (const role of ['system', 'tools']) {
+		const aS = aSegs.find(s => s.synthetic && s.role === role);
+		const bS = bSegs.find(s => s.synthetic && s.role === role);
+		if (aS || bS) {
+			rows.push(toRow(aS, bS));
+		}
+	}
+
+	const aMsgs = aSegs.filter(s => !s.synthetic);
+	const bMsgs = bSegs.filter(s => !s.synthetic);
+	const count = Math.max(aMsgs.length, bMsgs.length);
+	for (let i = 0; i < count; i++) {
+		rows.push(toRow(aMsgs[i], bMsgs[i]));
+	}
+	return rows;
+}
+
+/**
+ * The agent a model turn belongs to. `requestName` carries the debug/agent
+ * name the producer tagged the request with (e.g. `panel/editAgent`,
+ * `backgroundTodoAgent`, or a utility name such as `title`).
+ */
+export function agentKey(turn: IChatDebugModelTurnEvent): string {
+	return turn.requestName?.trim() || localize('chatDebug.cache.unnamedAgent', "(unnamed)");
+}
+
+/** Count model turns per agent, preserving first-seen order. */
+export function computeAgentCounts(turns: readonly IChatDebugModelTurnEvent[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const turn of turns) {
+		const key = agentKey(turn);
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	return counts;
+}
+
+/**
+ * Default agent selection: focus on the main panel edit agent when present so
+ * background and utility calls don't clutter the rail. Falls back to all agents
+ * when the edit agent isn't part of the session.
+ */
+export function defaultAgentSelection(agentCounts: Map<string, number>): Set<string> {
+	if (agentCounts.has(DEFAULT_AGENT_KEY)) {
+		return new Set([DEFAULT_AGENT_KEY]);
+	}
+	return new Set(agentCounts.keys());
+}
+
+/**
+ * Whether two model-turn events refer to the *exact same* turn. This is the
+ * precise identity test: the same object reference, or the same stable span
+ * `id` when both events carry one. It never reports two distinct turns as equal,
+ * so it is safe to scan a list with it even when several turns look alike.
+ */
+export function isSameModelTurn(a: IChatDebugModelTurnEvent, b: IChatDebugModelTurnEvent): boolean {
+	if (a === b) {
+		return true;
+	}
+	// Distinct objects: only a stable span id can prove they are the same turn.
+	return a.id !== undefined && b.id !== undefined && a.id === b.id;
+}
+
+/**
+ * Best-effort identity for a turn that carries no `id`, used only when the
+ * exact object can no longer be found (e.g. events were re-fetched as fresh
+ * instances). Both sides must lack an `id`; a turn with an id is matched
+ * precisely by {@link isSameModelTurn} instead. This can match two distinct
+ * turns that happen to share every field, so it is only consulted as a
+ * fallback after the precise pass fails.
+ */
+function isSimilarNoIdModelTurn(a: IChatDebugModelTurnEvent, b: IChatDebugModelTurnEvent): boolean {
+	return a.id === undefined && b.id === undefined
+		&& a.created.getTime() === b.created.getTime()
+		&& a.parentEventId === b.parentEventId
+		&& a.requestName === b.requestName
+		&& a.model === b.model;
+}
+
+/**
+ * Resolve which turn index to select after the agent filter changes. Prefers
+ * the previously-selected turn; when that turn no longer survives the filter —
+ * or there was no prior selection — falls back to the most recent turn so the
+ * selection never lands on an unrelated turn that happens to occupy the old
+ * ordinal position. Returns -1 when there are no turns to select.
+ *
+ * Matching runs in two passes so the exact turn always wins: first the precise
+ * id/reference identity ({@link isSameModelTurn}), then a best-effort composite
+ * match for id-less turns ({@link isSimilarNoIdModelTurn}). Without the split,
+ * an earlier look-alike turn could be picked by `findIndex` before the real
+ * object is reached.
+ */
+export function resolveFilteredSelectionIndex(turns: readonly IChatDebugModelTurnEvent[], previous: IChatDebugModelTurnEvent | undefined): number {
+	if (previous) {
+		const exact = turns.findIndex(t => isSameModelTurn(t, previous));
+		if (exact >= 0) {
+			return exact;
+		}
+		const similar = turns.findIndex(t => isSimilarNoIdModelTurn(t, previous));
+		if (similar >= 0) {
+			return similar;
+		}
+	}
+	return turns.length - 1;
 }
 
 /**

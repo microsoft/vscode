@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.52.0",
+  "version": "0.53.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.124.0",
+    "vscode": "^1.125.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -3075,6 +3075,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.createPullRequestForTask.title%",
+        "icon": "$(git-pull-request-create)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -4034,6 +4040,15 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.responsesApi.promptCacheKey.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.responsesApi.persistentCoT.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.persistentCoT.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -5402,6 +5417,11 @@
         {
           "command": "github.copilot.chat.checkoutPullRequestReroute",
           "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
+          "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
           "group": "navigation@0"
         }
       ],
@@ -6994,7 +7014,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.57",
+    "@github/copilot": "^1.0.60",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

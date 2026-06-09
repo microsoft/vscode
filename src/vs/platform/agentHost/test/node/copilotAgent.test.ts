@@ -43,8 +43,8 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
-import { CopilotAgentSession, type SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
-import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
+import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import type { CopilotSessionLaunchPlan } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -265,14 +265,12 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		private readonly _copilotClient: ITestCopilotClient,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService,
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
-		@IAgentHostTerminalManager terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -289,14 +287,12 @@ class TestableCopilotAgent extends CopilotAgent {
 		private readonly _copilotClient: ITestCopilotClient,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService,
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
-		@IAgentHostTerminalManager terminalManager: IAgentHostTerminalManager,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 	) {
-		super(logService, instantiationService, fileService, sessionDataService, gitService, terminalManager, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -386,13 +382,33 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { 
 	return createTestAgentContext(disposables, options).agent;
 }
 
-function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService): CopilotAgentSession {
+type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0];
+
+function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService): { readonly session: CopilotAgentSession; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, undefined);
-	const wrapperFactory: SessionWrapperFactory = async () => new CopilotSessionWrapper(new MockCopilotSession() as unknown as CopilotSession);
-	return (agent as unknown as {
-		_createAgentSession: (wrapperFactory: SessionWrapperFactory, sessionId: string, shellManager: ShellManager) => CopilotAgentSession;
-	})._createAgentSession(wrapperFactory, 'test-session-1', shellManager);
+	let createOptions: CopilotCreateSessionOptions | undefined;
+	const launchPlan: CopilotSessionLaunchPlan = {
+		kind: 'create',
+		client: {
+			createSession: async options => {
+				createOptions = options;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			},
+			resumeSession: async () => new MockCopilotSession() as unknown as CopilotSession,
+		},
+		sessionId: 'test-session-1',
+		workingDirectory: undefined,
+		resolvedAgentName: undefined,
+		snapshot: { clientId: '', tools: [], plugins: [] },
+		shellManager,
+		githubToken: 'token',
+		model: undefined,
+	};
+	const session = (agent as unknown as {
+		_createAgentSession: (launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined) => CopilotAgentSession;
+	})._createAgentSession(launchPlan, undefined);
+	return { session, createOptions: () => createOptions };
 }
 
 function withoutUndefinedProperties(metadata: IAgentSessionMetadata): Record<string, unknown> {
@@ -585,14 +601,18 @@ suite('CopilotAgent', () => {
 		const previousXdgStateHome = process.env['XDG_STATE_HOME'];
 		delete process.env['XDG_STATE_HOME'];
 		try {
-			const agentSession = disposables.add(createAgentSessionThroughAgent(agent, instantiationService));
+			const createdSession = createAgentSessionThroughAgent(agent, instantiationService);
+			const agentSession = disposables.add(createdSession.session);
 			await agentSession.initializeSession();
+			const onPermissionRequest = createdSession.createOptions()?.onPermissionRequest;
+			assert.ok(onPermissionRequest);
 
-			const result = await agentSession.handlePermissionRequest({
+			const result = await onPermissionRequest({
 				kind: 'read',
+				intention: 'read plan',
 				path: URI.file('/mock-home/.copilot/session-state/test-session-1/plan.md').fsPath,
 				toolCallId: 'tc-read-plan-agent-composition',
-			});
+			}, { sessionId: 'test-session-1' });
 
 			assert.strictEqual(result.kind, 'approve-once');
 		} finally {
@@ -932,6 +952,66 @@ suite('CopilotAgent', () => {
 					after = await agent.getSessionCustomizations(session);
 				}
 				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), []);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('getSessionCustomizations does not republish discovered directories when watcher changes are discovery-neutral', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			const agentsRoot = URI.joinPath(workspace, '.github', 'agents');
+			await fileService.createFolder(agentsRoot);
+			await fileService.writeFile(URI.joinPath(agentsRoot, 'helper.agent.md'), VSBuffer.fromString('agent body'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			const actions: SessionAction[] = [];
+			disposables.add(agent.onDidSessionProgress(progress => {
+				if (progress.kind === 'action') {
+					actions.push(progress.action);
+				}
+			}));
+
+			const countDirectoryPublishesForAgentsRoot = (): number => actions.filter(action => {
+				if (action.type === ActionType.SessionCustomizationUpdated) {
+					const customization = (action as Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }>).customization;
+					return customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString();
+				}
+				if (action.type === ActionType.SessionCustomizationsChanged) {
+					const customizations = (action as Extract<SessionAction, { type: ActionType.SessionCustomizationsChanged }>).customizations;
+					return customizations.some(customization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString());
+				}
+				return false;
+			}).length;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-neutral-watcher-change');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				await agent.getSessionCustomizations(session);
+				await new Promise(resolve => setTimeout(resolve, 50));
+				const publishCountBefore = countDirectoryPublishesForAgentsRoot();
+
+				// README.md is intentionally excluded from discovered agents.
+				await fileService.writeFile(URI.joinPath(agentsRoot, 'README.md'), VSBuffer.fromString('ignored'));
+
+				for (let i = 0; i < 20; i++) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+					assert.strictEqual(countDirectoryPublishesForAgentsRoot(), publishCountBefore, 'expected no republish when discovery output is unchanged');
+				}
+
+				const after = await agent.getSessionCustomizations(session);
+				assert.deepStrictEqual(after.filter(customization => customization.type === CustomizationType.Directory).map(customization => customization.uri), [agentsRoot.toString()]);
 			} finally {
 				await disposeAgent(agent);
 			}
