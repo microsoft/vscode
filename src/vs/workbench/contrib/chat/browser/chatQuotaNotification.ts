@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { safeIntl } from '../../../../base/common/date.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatEntitlement, IChatEntitlementService, IQuotaSnapshot, IRateLimitSnapshot } from '../../../services/chat/common/chatEntitlementService.js';
 import { getSelectedModelVendor, SELECTED_MODEL_STORAGE_KEY_PREFIX } from '../common/chatSelectedModel.js';
@@ -16,6 +19,37 @@ import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotifi
 
 const QUOTA_NOTIFICATION_ID = 'copilot.quotaStatus';
 const THRESHOLDS = [50, 75, 90, 95];
+const TRAJECTORY_DAILY_USAGE_THRESHOLD = 3.5;
+const TRAJECTORY_MINIMUM_PERCENT_USED = 10;
+const TRAJECTORY_MAXIMUM_PERCENT_USED = 35;
+const TRAJECTORY_TREATMENT = 'chatQuotaTrajectoryNudge';
+const TRAJECTORY_DISMISSED_STORAGE_KEY = 'chat.quotaTrajectory.dismissedPeriod';
+const CREDIT_EFFICIENCY_LEARN_MORE_URL = 'https://www.microsoft.com';
+
+const enum QuotaNotificationKind {
+	None,
+	Trajectory,
+}
+
+type ChatQuotaTrajectoryNudgeAction = 'learnMore';
+
+type ChatQuotaTrajectoryNudgeEvent = {
+	severity: 'info';
+	entitlement: string;
+	averageDailyUsage: number;
+	percentUsed: number;
+	action?: ChatQuotaTrajectoryNudgeAction;
+};
+
+type ChatQuotaTrajectoryNudgeClassification = {
+	owner: 'rfeltis';
+	comment: 'Tracks when the chat quota trajectory nudge is shown and when users interact with its call to action.';
+	severity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The severity of the quota trajectory nudge shown to the user.' };
+	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The user entitlement when the quota trajectory nudge was shown.' };
+	averageDailyUsage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The average daily monthly quota usage percentage that caused the nudge.' };
+	percentUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The monthly quota percentage used when the nudge was shown.' };
+	action?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The quota trajectory nudge action the user selected.' };
+};
 
 /**
  * Core-side workbench contribution that shows chat input notifications for
@@ -45,6 +79,9 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 	private _prevAdditionalUsageEnabled: boolean | undefined;
 	private _prevSessionPercentUsed: number | undefined;
 	private _prevWeeklyPercentUsed: number | undefined;
+	private _trajectoryNudgeEnabled = false;
+	private _activeQuotaNotificationKind = QuotaNotificationKind.None;
+	private _lastLoggedTrajectoryShownSignature: string | undefined;
 
 	constructor(
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -52,12 +89,24 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly _assignmentService: IWorkbenchAssignmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
 		this._register(this._chatEntitlementService.onDidChangeQuotaRemaining(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => this._update()));
 		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => this._update()));
+		this._register(this._assignmentService.onDidRefetchAssignments(() => this._updateTrajectoryTreatment()));
+		this._register(this._chatInputNotificationService.onDidDismiss(id => {
+			if (id !== QUOTA_NOTIFICATION_ID) {
+				return;
+			}
+			if (this._activeQuotaNotificationKind === QuotaNotificationKind.Trajectory) {
+				this._storeTrajectoryDismissal();
+			}
+			this._activeQuotaNotificationKind = QuotaNotificationKind.None;
+		}));
 
 		// Re-evaluate when the selected model changes (e.g. switching between Copilot and BYOK).
 		// The chatModelId context key is widget-scoped and may not bubble to the global
@@ -70,6 +119,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		}));
 
 		// Check initial state in case quota is already exhausted at startup
+		this._updateTrajectoryTreatment();
+		this._update();
+	}
+
+	private async _updateTrajectoryTreatment(): Promise<void> {
+		const trajectoryTreatment = await this._assignmentService.getTreatment<string>(TRAJECTORY_TREATMENT);
+		const trajectoryEnabled = trajectoryTreatment === 'enabled';
+		if (this._trajectoryNudgeEnabled === trajectoryEnabled) {
+			return;
+		}
+		this._trajectoryNudgeEnabled = trajectoryEnabled;
 		this._update();
 	}
 
@@ -148,6 +208,12 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 		// Priority 2: Quota approaching threshold
 		if (isQuotaNotificationEligible) {
+			const trajectoryWarning = this._computeQuotaTrajectoryWarning();
+			if (trajectoryWarning) {
+				this._showQuotaTrajectoryWarning(trajectoryWarning);
+				return;
+			}
+
 			const quotaWarning = this._computeQuotaWarning();
 			if (quotaWarning) {
 				this._showQuotaApproachingWarning(quotaWarning);
@@ -177,6 +243,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			this._prevQuotaPercentUsed = undefined;
 			return undefined;
 		}
+
 		const percentUsed = 100 - snapshot.percentRemaining;
 		const crossed = this._findCrossedThreshold(percentUsed, this._prevQuotaPercentUsed);
 		this._prevQuotaPercentUsed = percentUsed;
@@ -184,6 +251,92 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 			return { percentUsed: Math.floor(percentUsed) };
 		}
 		return undefined;
+	}
+
+	private _computeQuotaTrajectoryWarning(): { averageDailyUsage: number; percentUsed: number } | undefined {
+		if (!this._trajectoryNudgeEnabled || !this._isTrajectoryEligibleEntitlement() || this._isTrajectoryDismissed()) {
+			return undefined;
+		}
+
+		const snapshot = this._getRelevantSnapshot();
+		if (!snapshot || snapshot.unlimited || snapshot.percentRemaining <= 0) {
+			return undefined;
+		}
+
+		const resetDate = this._chatEntitlementService.quotas.resetDate;
+		if (!resetDate) {
+			return undefined;
+		}
+
+		const resetTime = new Date(resetDate).getTime();
+		if (!Number.isFinite(resetTime)) {
+			return undefined;
+		}
+
+		const periodStartTime = resetTime - (30 * 24 * 60 * 60 * 1000);
+		const elapsedDays = Math.max(0, (Date.now() - periodStartTime) / (24 * 60 * 60 * 1000));
+		if (elapsedDays <= 0) {
+			return undefined;
+		}
+
+		const percentUsed = 100 - snapshot.percentRemaining;
+		if (percentUsed < TRAJECTORY_MINIMUM_PERCENT_USED || percentUsed > TRAJECTORY_MAXIMUM_PERCENT_USED) {
+			return undefined;
+		}
+
+		const averageDailyUsage = percentUsed / elapsedDays;
+		if (averageDailyUsage >= TRAJECTORY_DAILY_USAGE_THRESHOLD) {
+			return { averageDailyUsage, percentUsed };
+		}
+		return undefined;
+	}
+
+	private _showQuotaTrajectoryWarning(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		this._showingExhausted = false;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.Trajectory;
+		this._logQuotaTrajectoryNudgeShown(warning);
+
+		this._setNotification({
+			id: QUOTA_NOTIFICATION_ID,
+			severity: ChatInputNotificationSeverity.Info,
+			message: localize('quota.trajectory.title', "Fast Credit Usage"),
+			description: localize('quota.trajectory.desc', "Based on recent usage, your monthly allowance may run out before it resets."),
+			actions: [{
+				label: localize('quota.trajectory.learnMore', "Review Credit Tips"),
+				commandId: 'vscode.open',
+				commandArgs: [URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL)],
+				secondary: true,
+				run: () => this._logQuotaTrajectoryNudgeActionClicked(warning, 'learnMore'),
+			}],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+	}
+
+	private _logQuotaTrajectoryNudgeShown(warning: { averageDailyUsage: number; percentUsed: number }): void {
+		const resetPeriod = this._getTrajectoryPeriodKey();
+		const signature = resetPeriod ?? 'unknown';
+		if (signature === this._lastLoggedTrajectoryShownSignature) {
+			return;
+		}
+		this._lastLoggedTrajectoryShownSignature = signature;
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeShown', this._getQuotaTrajectoryNudgeTelemetryData(warning));
+	}
+
+	private _logQuotaTrajectoryNudgeActionClicked(warning: { averageDailyUsage: number; percentUsed: number }, action: ChatQuotaTrajectoryNudgeAction): void {
+		this._telemetryService.publicLog2<ChatQuotaTrajectoryNudgeEvent, ChatQuotaTrajectoryNudgeClassification>('chatQuotaTrajectoryNudgeActionClicked', {
+			...this._getQuotaTrajectoryNudgeTelemetryData(warning),
+			action,
+		});
+	}
+
+	private _getQuotaTrajectoryNudgeTelemetryData(warning: { averageDailyUsage: number; percentUsed: number }): ChatQuotaTrajectoryNudgeEvent {
+		return {
+			severity: 'info',
+			entitlement: ChatEntitlement[this._chatEntitlementService.entitlement],
+			averageDailyUsage: Math.round(warning.averageDailyUsage * 100) / 100,
+			percentUsed: Math.round(warning.percentUsed * 100) / 100,
+		};
 	}
 
 	/**
@@ -206,6 +359,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showExhaustedNotification(): void {
 		this._showingExhausted = true;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -246,6 +400,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showOverageActivationNotification(): void {
 		this._showingExhausted = true;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -262,6 +417,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showQuotaApproachingWarning(warning: { percentUsed: number }): void {
 		this._showingExhausted = false;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 
 		const entitlement = this._chatEntitlementService.entitlement;
 		const quotas = this._chatEntitlementService.quotas;
@@ -333,6 +489,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showRateLimitWarning(warning: { percentUsed: number; type: 'session' | 'weekly'; resetDate: string | undefined }): void {
 		this._showingExhausted = false;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 
 		const message = warning.type === 'session'
 			? localize('rateLimit.session', "You've used {0}% of your session rate limit.", warning.percentUsed)
@@ -372,6 +529,11 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		return entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 	}
 
+	private _isTrajectoryEligibleEntitlement(): boolean {
+		const entitlement = this._chatEntitlementService.entitlement;
+		return entitlement === ChatEntitlement.EDU || entitlement === ChatEntitlement.Pro || entitlement === ChatEntitlement.ProPlus;
+	}
+
 	private _isManagedPlanBlocked(): boolean {
 		const snapshot = this._chatEntitlementService.quotas.premiumChat;
 		return !!snapshot && snapshot.hasQuota === false;
@@ -379,6 +541,7 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 
 	private _showManagedPlanBlockedNotification(): void {
 		this._showingExhausted = true;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 
 		this._setNotification({
 			id: QUOTA_NOTIFICATION_ID,
@@ -401,12 +564,38 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 		).value.format(resetDate);
 	}
 
+	private _getTrajectoryPeriodKey(): string | undefined {
+		const resetDate = this._chatEntitlementService.quotas.resetDate;
+		if (!resetDate) {
+			return undefined;
+		}
+		const date = new Date(resetDate);
+		if (!Number.isFinite(date.getTime())) {
+			return undefined;
+		}
+		return `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}`;
+	}
+
+	private _isTrajectoryDismissed(): boolean {
+		const periodKey = this._getTrajectoryPeriodKey();
+		return !!periodKey && this._storageService.get(TRAJECTORY_DISMISSED_STORAGE_KEY, StorageScope.APPLICATION) === periodKey;
+	}
+
+	private _storeTrajectoryDismissal(): void {
+		const periodKey = this._getTrajectoryPeriodKey();
+		if (periodKey) {
+			this._storageService.store(TRAJECTORY_DISMISSED_STORAGE_KEY, periodKey, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+	}
+
 	private _setNotification(notification: IChatInputNotification): void {
 		this._chatInputNotificationService.setNotification(notification);
 	}
 
 	private _hideNotification(): void {
 		this._showingExhausted = false;
+		this._activeQuotaNotificationKind = QuotaNotificationKind.None;
 		this._chatInputNotificationService.deleteNotification(QUOTA_NOTIFICATION_ID);
 	}
+
 }

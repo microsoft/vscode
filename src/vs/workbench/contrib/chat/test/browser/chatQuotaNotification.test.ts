@@ -10,15 +10,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment, IQuotaSnapshot, IRateLimitSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatQuotaNotificationContribution } from '../../browser/chatQuotaNotification.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../common/languageModels.js';
-import { IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 
 // --- Mock IChatEntitlementService -------------------------------------------
 
 interface IMockQuotas {
+	resetDate?: string;
 	usageBasedBilling?: boolean;
+	canUpgradePlan?: boolean;
 	chat?: IQuotaSnapshot;
 	completions?: IQuotaSnapshot;
 	premiumChat?: IQuotaSnapshot;
@@ -45,7 +50,9 @@ function createMockEntitlementService(opts?: {
 		onDidChangeQuotaRemaining: onDidChangeQuotaRemaining.event,
 		onDidChangeUsageBasedBilling: Event.None,
 		quotas: {
+			resetDate: opts?.quotas?.resetDate,
 			usageBasedBilling: opts?.quotas?.usageBasedBilling ?? true,
+			canUpgradePlan: opts?.quotas?.canUpgradePlan,
 			chat: opts?.quotas?.chat,
 			completions: opts?.quotas?.completions,
 			premiumChat: opts?.quotas?.premiumChat,
@@ -100,7 +107,11 @@ function createMockNotificationService() {
 		deleteNotification(_id: string) {
 			deleted = true;
 		},
-		dismissNotification() { },
+		dismissNotification(id: string) {
+			if (lastNotification?.id === id) {
+				onDidDismiss.fire(id);
+			}
+		},
 		getActiveNotification() { return deleted ? undefined : lastNotification; },
 		handleMessageSent() { },
 	};
@@ -110,8 +121,36 @@ function createMockNotificationService() {
 		getNotification(): IChatInputNotification | undefined { return deleted ? undefined : lastNotification; },
 		get wasDeleted() { return deleted; },
 		get setCount() { return setCount; },
+		dismiss() {
+			if (lastNotification) {
+				service.dismissNotification(lastNotification.id);
+			}
+		},
 		reset() { lastNotification = undefined; deleted = false; setCount = 0; },
 	};
+}
+
+function createMockAssignmentService(treatments?: Readonly<Record<string, string | undefined>>) {
+	const onDidRefetchAssignments = new Emitter<void>();
+	const service: IWorkbenchAssignmentService = {
+		_serviceBrand: undefined,
+		onDidRefetchAssignments: onDidRefetchAssignments.event,
+		getTreatment(name: string) { return Promise.resolve(treatments?.[name]); },
+		getCurrentExperiments() { return Promise.resolve(undefined); },
+		addTelemetryAssignmentFilter() { },
+	} as unknown as IWorkbenchAssignmentService;
+
+	return { service, onDidRefetchAssignments };
+}
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; data: unknown }[] = [];
+
+	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName) {
+			this.events.push({ name: eventName, data });
+		}
+	}
 }
 
 // --- Helpers ---------------------------------------------------------------
@@ -124,6 +163,10 @@ function makeQuotaSnapshot(percentRemaining: number, opts?: Partial<IQuotaSnapsh
 	};
 }
 
+async function flushPromises(): Promise<void> {
+	await new Promise(resolve => setTimeout(resolve, 0));
+}
+
 function makeRateLimitSnapshot(percentRemaining: number, opts?: Partial<IRateLimitSnapshot>): IRateLimitSnapshot {
 	return {
 		percentRemaining,
@@ -133,15 +176,23 @@ function makeRateLimitSnapshot(percentRemaining: number, opts?: Partial<IRateLim
 	};
 }
 
+function makeResetDate(daysUntilReset: number): string {
+	const resetDate = new Date(Date.now() + daysUntilReset * 24 * 60 * 60 * 1000);
+	return resetDate.toISOString();
+}
+
 // --- Tests -----------------------------------------------------------------
 
 suite('ChatQuotaNotificationContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string }) {
+	function createContribution(entitlementOpts?: Parameters<typeof createMockEntitlementService>[0], modelOpts?: { vendor?: string; trajectoryTreatment?: string; telemetryService?: ITelemetryService }) {
 		const entitlementMock = createMockEntitlementService(entitlementOpts);
 		const notificationMock = createMockNotificationService();
+		const assignmentMock = createMockAssignmentService({
+			chatQuotaTrajectoryNudge: modelOpts?.trajectoryTreatment,
+		});
 		const contextKeyService = store.add(new MockContextKeyService());
 		const storageService = store.add(new InMemoryStorageService());
 		const vendor = modelOpts?.vendor ?? 'copilot';
@@ -161,6 +212,7 @@ suite('ChatQuotaNotificationContribution', () => {
 		store.add(entitlementMock.onDidChangeQuotaRemaining);
 		store.add(entitlementMock.onDidChangeQuotaExceeded);
 		store.add(entitlementMock.onDidChangeEntitlement);
+		store.add(assignmentMock.onDidRefetchAssignments);
 
 		const contribution = store.add(new ChatQuotaNotificationContribution(
 			entitlementMock.service,
@@ -168,9 +220,11 @@ suite('ChatQuotaNotificationContribution', () => {
 			contextKeyService as IContextKeyService,
 			languageModelsService,
 			storageService,
+			assignmentMock.service,
+			modelOpts?.telemetryService ?? new NullTelemetryServiceShape(),
 		));
 
-		return { contribution, entitlementMock, notificationMock, storageService };
+		return { contribution, entitlementMock, notificationMock, storageService, assignmentMock };
 	}
 
 	function updateQuotas(
@@ -461,6 +515,208 @@ suite('ChatQuotaNotificationContribution', () => {
 		});
 	});
 
+	// --- Quota trajectory warning --------------------------------------------
+
+	suite('quota trajectory warning', () => {
+		test('does not show when experiment treatment is disabled', async () => {
+			const { notificationMock } = createContribution({
+				quotas: {
+					resetDate: makeResetDate(24),
+					canUpgradePlan: true,
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(75),
+				},
+			});
+
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
+		test('does not show outside monthly usage window', async () => {
+			const results = [];
+			for (const percentRemaining of [91, 64]) {
+				const { notificationMock } = createContribution({
+					entitlement: ChatEntitlement.Pro,
+					quotas: {
+						resetDate: makeResetDate(24),
+						usageBasedBilling: true,
+						premiumChat: makeQuotaSnapshot(percentRemaining),
+					},
+				}, { trajectoryTreatment: 'enabled' });
+
+				await flushPromises();
+
+				results.push(notificationMock.getNotification()?.message);
+			}
+
+			assert.deepStrictEqual(results, [undefined, undefined]);
+		});
+
+		test('shows info notification when projected daily usage is above threshold', async () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(78),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+
+			assert.ok(notificationMock.getNotification());
+			assert.deepStrictEqual({
+				message: notificationMock.getNotification()!.message,
+				severity: notificationMock.getNotification()!.severity,
+				action: notificationMock.getNotification()!.actions[0].label,
+				autoDismissOnMessage: notificationMock.getNotification()!.autoDismissOnMessage,
+			}, {
+				message: 'Fast Credit Usage',
+				severity: ChatInputNotificationSeverity.Info,
+				action: 'Review Credit Tips',
+				autoDismissOnMessage: false,
+			});
+		});
+
+		test('does not show when reset date implies no elapsed billing days', async () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(31),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(78),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
+		test('logs shown telemetry once per quota period', async () => {
+			const telemetryService = new TestTelemetryService();
+			const { entitlementMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(78),
+				},
+			}, { trajectoryTreatment: 'enabled', telemetryService });
+
+			await flushPromises();
+			entitlementMock.onDidChangeQuotaRemaining.fire();
+
+			assert.deepStrictEqual(telemetryService.events, [{
+				name: 'chatQuotaTrajectoryNudgeShown',
+				data: {
+					severity: 'info',
+					entitlement: 'Pro',
+					averageDailyUsage: 3.67,
+					percentUsed: 22,
+				},
+			}]);
+		});
+
+		test('logs action click telemetry', async () => {
+			const telemetryService = new TestTelemetryService();
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(78),
+				},
+			}, { trajectoryTreatment: 'enabled', telemetryService });
+
+			await flushPromises();
+			notificationMock.getNotification()!.actions[0].run?.();
+
+			assert.deepStrictEqual(telemetryService.events, [
+				{
+					name: 'chatQuotaTrajectoryNudgeShown',
+					data: {
+						severity: 'info',
+						entitlement: 'Pro',
+						averageDailyUsage: 3.67,
+						percentUsed: 22,
+					},
+				},
+				{
+					name: 'chatQuotaTrajectoryNudgeActionClicked',
+					data: {
+						severity: 'info',
+						entitlement: 'Pro',
+						averageDailyUsage: 3.67,
+						percentUsed: 22,
+						action: 'learnMore',
+					},
+				},
+			]);
+		});
+
+		test('uses info severity even when projected daily usage is high', async () => {
+			const { notificationMock } = createContribution({
+				entitlement: ChatEntitlement.ProPlus,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+
+			assert.ok(notificationMock.getNotification());
+			assert.deepStrictEqual({
+				message: notificationMock.getNotification()!.message,
+				severity: notificationMock.getNotification()!.severity,
+			}, {
+				message: 'Fast Credit Usage',
+				severity: ChatInputNotificationSeverity.Info,
+			});
+		});
+
+		test('remembers trajectory dismissal for the quota period', async () => {
+			const { entitlementMock, notificationMock } = createContribution({
+				entitlement: ChatEntitlement.EDU,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(72),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+			assert.ok(notificationMock.getNotification());
+
+			notificationMock.dismiss();
+			notificationMock.reset();
+			entitlementMock.onDidChangeQuotaRemaining.fire();
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
+		test('does not show for Max, Business, Enterprise, Free, or Unknown users', async () => {
+			for (const entitlement of [ChatEntitlement.Max, ChatEntitlement.Business, ChatEntitlement.Enterprise, ChatEntitlement.Free, ChatEntitlement.Unknown]) {
+				const { notificationMock } = createContribution({
+					entitlement,
+					quotas: {
+						resetDate: makeResetDate(24),
+						usageBasedBilling: true,
+						premiumChat: makeQuotaSnapshot(72),
+						chat: makeQuotaSnapshot(72),
+					},
+				}, { trajectoryTreatment: 'enabled' });
+
+				await flushPromises();
+
+				assert.strictEqual(notificationMock.getNotification(), undefined, `Expected no trajectory notification for ${entitlement}`);
+			}
+		});
+	});
+
 	// --- Rate-limit warnings ------------------------------------------------
 
 	suite('rate-limit warnings', () => {
@@ -606,6 +862,7 @@ suite('ChatQuotaNotificationContribution', () => {
 				quotas: { usageBasedBilling: true, premiumChat: makeQuotaSnapshot(0) },
 			});
 			const notificationMock = createMockNotificationService();
+			const assignmentMock = createMockAssignmentService();
 			const contextKeyService = store.add(new MockContextKeyService());
 			const storageService = store.add(new InMemoryStorageService());
 			// Start with BYOK model
@@ -624,6 +881,7 @@ suite('ChatQuotaNotificationContribution', () => {
 			store.add(entitlementMock.onDidChangeQuotaRemaining);
 			store.add(entitlementMock.onDidChangeQuotaExceeded);
 			store.add(entitlementMock.onDidChangeEntitlement);
+			store.add(assignmentMock.onDidRefetchAssignments);
 
 			store.add(new ChatQuotaNotificationContribution(
 				entitlementMock.service,
@@ -631,6 +889,8 @@ suite('ChatQuotaNotificationContribution', () => {
 				contextKeyService as IContextKeyService,
 				languageModelsService,
 				storageService,
+				assignmentMock.service,
+				new NullTelemetryServiceShape(),
 			));
 
 			// Initially deferred — BYOK model
