@@ -6,6 +6,7 @@
 import { RequestType } from '@vscode/copilot-api';
 import { Codicon } from '../../../util/vs/base/common/codicons';
 import { IAuthenticationService } from '../../authentication/common/authentication';
+import type { ImageTelemetryMeasurements } from '../../image/common/imageTelemetry';
 import { ILogService } from '../../log/common/logService';
 import { Response } from '../../networking/common/fetcherService';
 import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
@@ -66,7 +67,7 @@ export class RouterDecisionFetcher {
 	) {
 	}
 
-	async getRouterDecision(query: string, autoModeToken: string, availableModels: string[], stickyThreshold?: number, contextSignals?: RoutingContextSignals, conversationId?: string, vscodeRequestId?: string, routingMethod?: string, hasImage?: boolean): Promise<RouterDecisionResponse> {
+	async getRouterDecision(query: string, autoModeToken: string, availableModels: string[], stickyThreshold?: number, contextSignals?: RoutingContextSignals, conversationId?: string, vscodeRequestId?: string, routingMethod?: string, hasImage?: boolean, imageTelemetryEventMeasurements?: Partial<ImageTelemetryMeasurements>): Promise<RouterDecisionResponse> {
 		const startTime = Date.now();
 		const requestBody: Record<string, unknown> = { prompt: query, available_models: availableModels, ...contextSignals };
 		if (stickyThreshold !== undefined) {
@@ -204,6 +205,7 @@ export class RouterDecisionFetcher {
 				chosenShortfall: result.chosen_shortfall,
 				scoreNeedsReasoning: result.scores.needs_reasoning,
 				scoreNoReasoning: result.scores.no_reasoning,
+				...imageTelemetryEventMeasurements,
 			}
 		);
 

@@ -185,8 +185,15 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpB
 
 		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = formatDisplayName(element.server.label);
-		if (element.server.description) {
-			templateData.description.textContent = truncateToFirstLine(element.server.description);
+		const description = element.server.description?.trim();
+		// Marketplace (gallery) entries are always clickable so users can install/inspect them,
+		// even when no description is returned by the gallery. Installed rows only opt-in to the
+		// detail view when there is something extra to show.
+		const isGallery = !element.server.local;
+		const hasDetail = !!description || isGallery;
+		templateData.container.classList.toggle('has-detail', hasDetail);
+		if (description) {
+			templateData.description.textContent = truncateToFirstLine(description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.style.display = 'none';
@@ -360,6 +367,7 @@ export class McpListWidget extends Disposable {
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
+	private backButton!: Button;
 	private addButton!: Button;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
@@ -473,6 +481,22 @@ export class McpListWidget extends Disposable {
 		// Button container (Browse Marketplace + Add Server)
 		const buttonContainer = DOM.append(this.searchAndButtonContainer, $('.list-button-group'));
 
+		// Back button (visible only in marketplace browse mode)
+		const backButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
+		this.backButton = this._register(new Button(backButtonContainer, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			title: localize('backToInstalled', "Back to installed servers"),
+			ariaLabel: localize('backToInstalled', "Back to installed servers")
+		}));
+		this.backButton.label = `$(${Codicon.arrowLeft.id}) ${localize('mcpBrowseBack', "Back")}`;
+		this.backButton.element.classList.add('list-add-button');
+		backButtonContainer.style.display = 'none';
+		this._register(this.backButton.onDidClick(() => {
+			this.toggleBrowseMode(false);
+		}));
+
 		// Browse Marketplace button
 		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
 		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -563,7 +587,13 @@ export class McpListWidget extends Disposable {
 				if (e.element.type === 'group-header') {
 					this.toggleGroup(e.element);
 				} else if (e.element.type === 'server-item') {
-					this._onDidSelectServer.fire(e.element.server);
+					// Marketplace entries are always selectable; installed rows only open
+					// detail when there is something extra to show beyond the row.
+					const server = e.element.server;
+					const isGallery = !server.local;
+					if (isGallery || server.description) {
+						this._onDidSelectServer.fire(server);
+					}
 				}
 				// builtin-item: no action on click (read-only)
 			}
@@ -641,6 +671,7 @@ export class McpListWidget extends Disposable {
 		// Update UI for browse vs installed mode
 		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
+		this.backButton.element.parentElement!.style.display = browse ? '' : 'none';
 
 		this.searchInput.setPlaceHolder(browse
 			? localize('searchGalleryPlaceholder', "Search MCP marketplace...")
@@ -1056,7 +1087,7 @@ export class McpListWidget extends Disposable {
 						type: 'question',
 					});
 					if (result.confirmed) {
-						plugin.remove();
+						plugin.remove?.();
 					}
 				}
 			));

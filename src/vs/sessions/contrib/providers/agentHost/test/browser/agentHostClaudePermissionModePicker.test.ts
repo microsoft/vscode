@@ -12,6 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -97,6 +98,9 @@ suite('AgentHostClaudePermissionModePicker', () => {
 			}
 		})());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: () => ({ dispose: () => { } }),
+		} as Partial<IHoverService> as IHoverService);
 
 		const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker));
 		const container = document.createElement('div');
