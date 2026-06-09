@@ -32,6 +32,7 @@ import './features/browserEditorErrorFeatures.js';
 import './features/browserEditorZoomFeature.js';
 import './features/browserEditorEmulationFeatures.js';
 import './features/browserEditorFindFeature.js';
+import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
 import './features/browserRemoteFeatures.js';
 
