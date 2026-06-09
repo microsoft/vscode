@@ -2389,7 +2389,7 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		// Once another session becomes active, the catalogue-seeded summary
 		// takes over again.
 		activeSession.set(makeActive('sess-B'), undefined);
-		fireSessionSummaryChanged(agentHost, 'sess-A', { changesets: catalogueFor('sess-A', 5, 3) } as unknown as Partial<SessionSummary>);
+		fireSessionSummaryChanged(agentHost, 'sess-A', { changes: { additions: 5, deletions: 3, files: 1 } });
 
 		assert.deepStrictEqual(session.changesSummary?.get(), { additions: 5, deletions: 3, files: 1 });
 	});
