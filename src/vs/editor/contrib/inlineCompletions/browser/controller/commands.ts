@@ -280,7 +280,7 @@ export class JumpToNextInlineEdit extends EditorAction {
 	constructor() {
 		super({
 			id: jumpToNextInlineEditId,
-			label: nls.localize2('action.inlineSuggest.jump', "Jump to next inline edit"),
+			label: nls.localize2('action.inlineSuggest.jump', "Jump to Next Edit Suggestion"),
 			precondition: InlineCompletionContextKeys.inlineEditVisible,
 			menuOpts: [{
 				menuId: MenuId.InlineEditsActions,
