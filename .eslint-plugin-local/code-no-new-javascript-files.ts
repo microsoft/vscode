@@ -11,7 +11,7 @@ export default new class NoNewJavaScriptFiles implements eslint.Rule.RuleModule 
 		type: 'problem',
 		schema: [],
 		messages: {
-			noNewJsFiles: 'New JavaScript files are not allowed. Use TypeScript (.ts) instead. If this file genuinely must be JavaScript, add an exception in eslint.config.js.'
+			noNewJsFiles: 'New JavaScript files are not allowed. Use TypeScript (.ts) instead.'
 		}
 	};
 
