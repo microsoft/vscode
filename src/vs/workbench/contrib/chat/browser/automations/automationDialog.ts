@@ -8,7 +8,7 @@ import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/i
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -29,7 +29,8 @@ import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common
 import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, isChatPermissionLevel } from '../../common/constants.js';
-import { IChatWidget } from '../chat.js';
+import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
+import { IChatWidget, ISessionTypePickerDelegate } from '../chat.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../widget/input/chatInputPart.js';
 
 const $ = DOM.$;
@@ -270,6 +271,89 @@ interface IRenderFormHandle {
 	readonly getModelId: () => string | undefined;
 }
 
+/**
+ * Two-way binding between the chat input's session-target chip and the
+ * automation form's `providerId` + `sessionTypeId` fields.
+ *
+ * The chip operates at the {@link AgentSessionTarget} (session-type id)
+ * granularity. The automation runner stores both a `providerId` and a
+ * `sessionTypeId`, so we resolve the chip's pick against the list
+ * returned by {@link IAutomationSessionTypeProvider.getSessionTypesForFolder}
+ * for the currently-selected folder. The first matching choice wins; if
+ * a session type has multiple providers (e.g. two remote hosts both
+ * offering Copilot CLI) the user cannot disambiguate from the chip
+ * alone — accepted limitation of replacing the dedicated session-type
+ * `<select>` with the chip.
+ *
+ * When the folder changes, the previously-selected pair is re-validated
+ * against the new folder's available list; if it's no longer valid we
+ * fall back to the Copilot CLI default (or the first available
+ * choice).
+ */
+function createSessionTypeBinder(
+	state: IFormState,
+	sessionTypeProvider: IAutomationSessionTypeProvider,
+	disposables: DisposableStore,
+): ISessionTypePickerDelegate & { setFolder(folder: URI | undefined): void } {
+	const onDidChange = disposables.add(new Emitter<AgentSessionTarget>());
+
+	const pickDefault = (available: readonly IAutomationSessionTypeChoice[]): IAutomationSessionTypeChoice | undefined => {
+		if (available.length === 0) {
+			return undefined;
+		}
+		return available.find(c => c.sessionTypeId === AgentSessionProviders.Background) ?? available[0];
+	};
+
+	const validateOrDefault = (folder: URI | undefined): void => {
+		if (!folder) {
+			state.providerId = undefined;
+			state.sessionTypeId = undefined;
+			return;
+		}
+		const available = sessionTypeProvider.getSessionTypesForFolder(folder);
+		if (state.providerId && state.sessionTypeId) {
+			const match = available.find(c => c.providerId === state.providerId && c.sessionTypeId === state.sessionTypeId);
+			if (match) {
+				return;
+			}
+		}
+		const def = pickDefault(available);
+		state.providerId = def?.providerId;
+		state.sessionTypeId = def?.sessionTypeId;
+	};
+
+	// Initialize for the current folder before the chip renders so the
+	// label reflects the resolved session type rather than 'Local'.
+	validateOrDefault(state.folderUri);
+
+	return {
+		getActiveSessionProvider: () => state.sessionTypeId as AgentSessionTarget | undefined,
+		setActiveSessionProvider: (target: AgentSessionTarget) => {
+			if (!state.folderUri) {
+				return;
+			}
+			const available = sessionTypeProvider.getSessionTypesForFolder(state.folderUri);
+			const match = available.find(c => c.sessionTypeId === target);
+			if (!match) {
+				return;
+			}
+			state.providerId = match.providerId;
+			state.sessionTypeId = match.sessionTypeId;
+			onDidChange.fire(match.sessionTypeId as AgentSessionTarget);
+		},
+		onDidChangeActiveSessionProvider: onDidChange.event,
+		setFolder: (folder: URI | undefined) => {
+			validateOrDefault(folder);
+			if (state.sessionTypeId) {
+				// Notify the chat input so pickers gated on session type
+				// (mode, model, options) re-evaluate against the new
+				// folder's resolved session type.
+				onDidChange.fire(state.sessionTypeId as AgentSessionTarget);
+			}
+		},
+	};
+}
+
 function renderForm(
 	form: HTMLElement,
 	state: IFormState,
@@ -316,6 +400,13 @@ function renderForm(
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-editor-background)',
 	};
+
+	// Bind the chat input's session-target chip to {@link IFormState}'s
+	// `providerId` + `sessionTypeId`. Defined before `chatInputOptions`
+	// because the delegate is passed into ChatInputPart at construction
+	// time and influences the chip's initial label.
+	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
+
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
@@ -330,6 +421,11 @@ function renderForm(
 		// or out of the chat composer.
 		widgetViewKindTag: 'automations-dialog',
 		inputEditorMinLines: 3,
+		// Drive the session-target chip from form state. Providing
+		// `setActiveSessionProvider` switches the chip into "welcome view
+		// mode" (see {@link ChatInputPart}), which calls our setter
+		// instead of executing the new-session command.
+		sessionTypePickerDelegate: sessionTypeBinder,
 	};
 
 	// {@link ChatInputPart.render} requires an {@link IChatWidget}. The modal
@@ -528,10 +624,13 @@ function renderForm(
 
 	const setFolder = (uri: URI | undefined) => {
 		state.folderUri = uri;
+		// Re-validate the chip's session-type selection against the new
+		// folder's available list. Fires the binder's emitter so the
+		// chat input refreshes its option-group pickers.
+		sessionTypeBinder.setFolder(uri);
 		renderChipLabel();
 		revalidate();
 		folderError.textContent = validation.folderError ?? '';
-		refreshSessionTypeSelect();
 	};
 
 	const browseAction: IQuickPickItem & { kind: 'browse' } = {
@@ -615,83 +714,16 @@ function renderForm(
 
 	// If the dialog opened with no folder yet but folders are available,
 	// default to the first one so the user can save without an extra
-	// click — matches the previous bespoke control's behavior.
+	// click — matches the previous bespoke control's behavior. Re-validate
+	// the session-type selection against the freshly-defaulted folder so
+	// the chip's label resolves to a real (providerId, sessionTypeId)
+	// pair rather than the empty fallback set by
+	// {@link createSessionTypeBinder} when no folder was present.
 	if (!state.folderUri && options.folders.length > 0) {
 		state.folderUri = options.folders[0].uri;
+		sessionTypeBinder.setFolder(state.folderUri);
 		renderChipLabel();
 	}
-
-	// --- Session type (recomputed when folder changes) ---
-	// Captures `providerId` + `sessionTypeId` so scheduled runs spin up the
-	// same kind of session every time (e.g. always Copilot CLI on a given
-	// remote host), regardless of which provider happens to be the
-	// workspace default when the run fires. Hidden when no folder is
-	// selected yet or when the active providers cannot serve the folder.
-	const sessionTypeRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(sessionTypeRow, $('label.automation-form-label', { for: 'automation-session-type' }, localize('automation.form.sessionType', "Session type")));
-	const sessionTypeSelect = DOM.append(sessionTypeRow, $('select.automation-form-select', { id: 'automation-session-type' })) as HTMLSelectElement;
-
-	let availableSessionTypes: readonly IAutomationSessionTypeChoice[] = [];
-
-	const sessionTypeKey = (choice: { providerId: string; sessionTypeId: string }): string => `${choice.providerId}|${choice.sessionTypeId}`;
-
-	const refreshSessionTypeSelect = () => {
-		DOM.clearNode(sessionTypeSelect);
-		availableSessionTypes = state.folderUri ? sessionTypeProvider.getSessionTypesForFolder(state.folderUri) : [];
-		if (availableSessionTypes.length === 0) {
-			sessionTypeRow.style.display = 'none';
-			// When no session types are known, fall back to whatever the
-			// workspace default ends up being at run time.
-			state.providerId = undefined;
-			state.sessionTypeId = undefined;
-			return;
-		}
-		sessionTypeRow.style.display = '';
-		const currentKey = state.providerId && state.sessionTypeId
-			? sessionTypeKey({ providerId: state.providerId, sessionTypeId: state.sessionTypeId })
-			: undefined;
-		let selectedKey: string | undefined;
-		for (const choice of availableSessionTypes) {
-			const key = sessionTypeKey(choice);
-			const label = choice.description ? `${choice.label} — ${choice.description}` : choice.label;
-			const optEl = DOM.append(sessionTypeSelect, $('option', { value: key }, label)) as HTMLOptionElement;
-			if (key === currentKey) {
-				optEl.selected = true;
-				selectedKey = key;
-			}
-		}
-		if (!selectedKey) {
-			// Either nothing was previously selected, or the previous
-			// pick is no longer valid for this folder. Drop down to the
-			// first available choice so the runner always has an explicit
-			// provider/sessionType pair to use.
-			const first = availableSessionTypes[0];
-			state.providerId = first.providerId;
-			state.sessionTypeId = first.sessionTypeId;
-			sessionTypeSelect.value = sessionTypeKey(first);
-		}
-	};
-
-	disposables.add(DOM.addStandardDisposableListener(sessionTypeSelect, 'change', () => {
-		// `split('|', 2)` would silently drop everything after the second
-		// pipe, corrupting both providerId and sessionTypeId whenever
-		// either contains a `|`. Provider IDs come from external services
-		// and are opaque strings, so we split on the FIRST pipe only and
-		// keep the remainder as the session-type id.
-		const raw = sessionTypeSelect.value;
-		const pipeIdx = raw.indexOf('|');
-		if (pipeIdx === -1) {
-			return;
-		}
-		const providerId = raw.slice(0, pipeIdx);
-		const sessionTypeId = raw.slice(pipeIdx + 1);
-		if (providerId && sessionTypeId) {
-			state.providerId = providerId;
-			state.sessionTypeId = sessionTypeId;
-		}
-	}));
-
-	refreshSessionTypeSelect();
 
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
