@@ -684,19 +684,13 @@ function renderForm(
 
 	// Two layout passes mirror the fixture: the first one establishes the
 	// editor's container size, then we let layout settle before re-measuring.
-	// Use the prompt host's actual width (set by the dialog's fixed-width
-	// column) so the chat input doesn't first render too wide and then
-	// visibly shrink when the ResizeObserver below reports the real size.
-	// `clientWidth` is available here because the dialog appends its body
-	// to the DOM before invoking `renderBody` (see dialog.ts). The 600px
-	// fallback is defensive: it only kicks in if the host has no measured
-	// width yet (e.g. tests that render with no layout pass).
-	const initialChatWidth = promptHost.clientWidth > 0 ? promptHost.clientWidth : 600;
-	chatInput.layout(initialChatWidth);
-	queueMicrotask(() => {
-		const w = promptHost.clientWidth > 0 ? promptHost.clientWidth : initialChatWidth;
-		chatInput.layout(w);
-	});
+	// 700 matches the prompt host's width inside the 760px dialog (760 -
+	// dialog box padding - message row padding - dialog icon column).
+	// Picking this value up front (instead of laying out wider) prevents
+	// the chat input from visibly shrinking to its real size when the
+	// ResizeObserver below reports the host's true width after show().
+	chatInput.layout(700);
+	queueMicrotask(() => chatInput.layout(700));
 
 	// Once the dialog mounts, the prompt host gets its real dimensions.
 	// Re-layout the chat input with the actual host width so the Monaco
