@@ -11,7 +11,7 @@ import type * as vscode from 'vscode';
 import type { ChatFetchError } from '../../../../platform/chat/common/commonTypes';
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GitHubCopilotAttr, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle, type TraceContext } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -42,10 +42,16 @@ export interface MessageHandlerState {
 	readonly toolStartTimes: Map<string, number>;
 	readonly otelToolSpans: Map<string, ISpanHandle>;
 	readonly otelHookSpans: Map<string, ISpanHandle>;
+	readonly hookStartTimes: Map<string, number>;
 	readonly parentTraceContext?: TraceContext;
 	/** Trace contexts for subagent tool spans, keyed by tool_use_id. Used to parent
 	 *  child spans (chat, tool) from subagent messages under the Agent tool span. */
 	readonly subagentTraceContexts: Map<string, TraceContext>;
+	/** Injected by the node-layer caller. Produces structured
+	 *  `github.copilot.tool.parameters.*` attributes (hashed/safe in `attrs`,
+	 *  content-sensitive in `gatedAttrs`). Common code cannot import from node
+	 *  directly, so the function is threaded through state. */
+	readonly extractToolParameters: (toolName: string, input: unknown) => { attrs: Record<string, string>; gatedAttrs: Record<string, string> };
 }
 
 export interface MessageHandlerResult {
@@ -208,12 +214,27 @@ export function handleAssistantMessage(
 			if (item.input !== undefined) {
 				try {
 					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(
-						typeof item.input === 'string' ? item.input : JSON.stringify(item.input)
+						typeof item.input === 'string' ? item.input : JSON.stringify(item.input),
+						otelService.config.maxAttributeSizeChars
 					));
 				} catch (e) {
 					logService.warn(`[ClaudeMessageDispatch] Failed to serialize tool arguments for ${item.name}: ${e}`);
 				}
 			}
+
+			// Structured `github.copilot.tool.parameters.*`. Hashes and edit_type emit
+			// unconditionally; raw paths, commands, and MCP names are gated.
+			try {
+				const { attrs: paramAttrs, gatedAttrs: gatedParamAttrs } = state.extractToolParameters(item.name, item.input);
+				for (const [k, v] of Object.entries(paramAttrs)) {
+					toolSpan.setAttribute(k, v);
+				}
+				if (otelService.config.captureContent) {
+					for (const [k, v] of Object.entries(gatedParamAttrs)) {
+						toolSpan.setAttribute(k, v);
+					}
+				}
+			} catch { /* swallow extraction errors */ }
 			otelToolSpans.set(item.id, toolSpan);
 
 			// For Agent/Task (subagent) tool calls, store the span's trace context so that
@@ -491,6 +512,7 @@ export function handleHookStarted(
 		parentTraceContext: state.parentTraceContext,
 	});
 	state.otelHookSpans.set(message.hook_id, span);
+	state.hookStartTimes.set(message.hook_id, Date.now());
 }
 
 // #region Hook JSON output validator
@@ -617,6 +639,17 @@ export function handleHookResponse(
 	// #region OTel span
 	const span = state.otelHookSpans.get(message.hook_id);
 	if (span) {
+		const startTime = state.hookStartTimes.get(message.hook_id);
+		if (startTime !== undefined) {
+			span.setAttribute(GitHubCopilotAttr.HOOK_DURATION_SECONDS, (Date.now() - startTime) / 1000);
+			state.hookStartTimes.delete(message.hook_id);
+		}
+		const hookDecision = message.outcome === 'success'
+			? 'pass'
+			: message.exit_code === 2
+				? 'block'
+				: 'non_blocking_error';
+		span.setAttribute(GitHubCopilotAttr.HOOK_DECISION, hookDecision);
 		if (message.outcome === 'error') {
 			span.setStatus(SpanStatusCode.ERROR, message.stderr || message.output);
 		} else if (message.outcome === 'cancelled') {
