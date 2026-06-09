@@ -2555,7 +2555,11 @@ suite('CopilotAgentSession', () => {
 				success: true,
 				pastTenseMessage: 'did it',
 			});
-			await handlerPromise;
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: undefined,
+			});
 		});
 
 		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
@@ -2755,6 +2759,27 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.resultType, 'success');
 			// Text content should be extracted
 			assert.strictEqual(result.textResultForLlm, 'text part');
+		});
+
+		test('handleClientToolCallComplete with embedded-resource-only content uses empty placeholder text', async () => {
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded-only');
+
+			session.handleClientToolCallComplete('tc-embedded-only', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
+				],
+			});
+
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
+			});
 		});
 	});
 
