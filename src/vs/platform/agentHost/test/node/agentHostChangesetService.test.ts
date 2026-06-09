@@ -68,8 +68,8 @@ suite('AgentHostChangesetService', () => {
 		// Catalogue is seeded by setupSession (mirrors what `_buildInitialSummary`
 		// does in production) — sanity check before exercising registration.
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.changesets, [
-			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session`, changeKind: 'session' },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 		]);
 
 		changesetService.registerStaticChangesets(sessionStr);
@@ -85,8 +85,8 @@ suite('AgentHostChangesetService', () => {
 
 		// Registration must not mutate the seeded catalogue.
 		assert.deepStrictEqual(stateManager.getSessionState(sessionStr)?.changesets, [
-			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session` },
-			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session' },
+			{ label: 'Branch Changes', uriTemplate: `${sessionStr}/changeset/session`, changeKind: 'session' },
+			{ label: 'Uncommitted Changes', uriTemplate: `${sessionStr}/changeset/uncommitted`, description: 'Show uncommitted changes in this session', changeKind: 'uncommitted' },
 		]);
 	});
 
@@ -131,14 +131,13 @@ suite('AgentHostChangesetService', () => {
 			{
 				label: 'Branch Changes',
 				uriTemplate: changesetUri,
-				additions: 6,
-				deletions: 2,
-				files: 2,
+				changeKind: 'session',
 			},
 			{
 				label: 'Uncommitted Changes',
 				uriTemplate: `${sessionStr}/changeset/uncommitted`,
 				description: 'Show uncommitted changes in this session',
+				changeKind: 'uncommitted',
 			},
 		]);
 	});
@@ -183,14 +182,13 @@ suite('AgentHostChangesetService', () => {
 				{
 					label: 'Branch Changes',
 					uriTemplate: changesetUri,
-					additions: 4,
-					deletions: 1,
-					files: 2,
+					changeKind: 'session',
 				},
 				{
 					label: 'Uncommitted Changes',
 					uriTemplate: `${sessionStr}/changeset/uncommitted`,
 					description: 'Show uncommitted changes in this session',
+					changeKind: 'uncommitted',
 				},
 			],
 		});
@@ -566,9 +564,7 @@ suite('AgentHostChangesetService', () => {
 			assert.deepStrictEqual(sessionEntry, {
 				label: 'Branch Changes',
 				uriTemplate: `${sessionStr}/changeset/session`,
-				additions: 3,
-				deletions: 0,
-				files: 2,
+				changeKind: 'session',
 			}, 'catalogue counts must reflect restored files');
 		});
 	});
