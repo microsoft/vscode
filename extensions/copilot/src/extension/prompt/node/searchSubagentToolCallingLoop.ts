@@ -9,7 +9,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
 import { SEARCH_AGENT_FAMILY, SearchAgentChatEndpoint } from '../../../platform/endpoint/node/searchAgentChatEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
