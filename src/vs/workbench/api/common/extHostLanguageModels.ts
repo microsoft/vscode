@@ -295,7 +295,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		};
 
-		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart>(async fragment => {
+		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelResponseUsagePart>(async fragment => {
 			if (token.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.identifier.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
@@ -310,6 +310,27 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'data', mimeType: fragment.mimeType, data: VSBuffer.wrap(fragment.data), audience: fragment.audience };
 			} else if (fragment instanceof extHostTypes.LanguageModelThinkingPart) {
 				part = { type: 'thinking', value: fragment.value, id: fragment.id, metadata: fragment.metadata };
+			} else if (fragment instanceof extHostTypes.LanguageModelResponseUsagePart) {
+				// Translate to the well-known `usage` data part consumed by the editor
+				// (see CustomDataPartMimeTypes.Usage in the Copilot extension). This
+				// preserves the existing wire format while giving providers a typed,
+				// documented API for reporting token usage.
+				const inputTokens = Math.max(0, fragment.inputTokens | 0);
+				const outputTokens = Math.max(0, fragment.outputTokens | 0);
+				const totalTokens = typeof fragment.totalTokens === 'number'
+					? Math.max(0, fragment.totalTokens | 0)
+					: inputTokens + outputTokens;
+				const cachedTokens = typeof fragment.cachedInputTokens === 'number'
+					? Math.max(0, fragment.cachedInputTokens | 0)
+					: 0;
+				const usagePayload = {
+					prompt_tokens: inputTokens,
+					completion_tokens: outputTokens,
+					total_tokens: totalTokens,
+					prompt_tokens_details: { cached_tokens: cachedTokens }
+				};
+				const data = VSBuffer.fromString(JSON.stringify(usagePayload));
+				part = { type: 'data', mimeType: 'usage', data, audience: undefined };
 			}
 
 			if (!part) {

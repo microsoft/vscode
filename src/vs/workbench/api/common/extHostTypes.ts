@@ -4080,6 +4080,20 @@ export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPa
 	}
 }
 
+export class LanguageModelResponseUsagePart implements vscode.LanguageModelResponseUsagePart {
+	readonly inputTokens: number;
+	readonly outputTokens: number;
+	readonly totalTokens?: number;
+	readonly cachedInputTokens?: number;
+
+	constructor(inputTokens: number, outputTokens: number, totalTokens?: number, cachedInputTokens?: number) {
+		this.inputTokens = inputTokens;
+		this.outputTokens = outputTokens;
+		this.totalTokens = totalTokens;
+		this.cachedInputTokens = cachedInputTokens;
+	}
+}
+
 
 
 export class LanguageModelPromptTsxPart {
