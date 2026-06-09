@@ -27,7 +27,7 @@ import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, ExplorerFindProvider } from './explorerViewer.js';
+import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName, ExplorerFindProvider, LoadMoreExplorerItem } from './explorerViewer.js';
 import { IThemeService, IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
 import { ITreeContextMenuEvent, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
@@ -468,7 +468,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			identityProvider,
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (stat: ExplorerItem) => {
-					if (this.explorerService.isEditable(stat)) {
+					if (this.explorerService.isEditable(stat) || stat instanceof LoadMoreExplorerItem) {
 						return undefined;
 					}
 
@@ -536,6 +536,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
+				return;
+			}
+
+			// "Load more" sentinel: reveal the next page of children for the folder
+			if (element instanceof LoadMoreExplorerItem) {
+				const folder = element.parent;
+				if (folder) {
+					folder.showNextPage();
+					await this.tree.updateChildren(folder, false, false);
+				}
 				return;
 			}
 			// Do not react if the user is expanding selection via keyboard.
@@ -634,6 +644,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			return;
 		}
 
+		// No context menu for the "Load more" sentinel
+		if (e.element instanceof LoadMoreExplorerItem) {
+			return;
+		}
+
 		const stat = e.element;
 		let anchor = e.anchor;
 
@@ -684,7 +699,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private onFocusChanged(elements: readonly ExplorerItem[]): void {
-		const stat = elements.at(0);
+		const focused = elements.at(0);
+		// Do not set file-command context keys for the synthetic "Load more" sentinel
+		const stat = focused instanceof LoadMoreExplorerItem ? undefined : focused;
 		this.setContextKeys(stat);
 
 		if (stat) {

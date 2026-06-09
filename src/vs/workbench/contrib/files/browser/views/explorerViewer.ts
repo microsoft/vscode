@@ -74,6 +74,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -91,6 +92,8 @@ export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 export const explorerRootErrorEmitter = new Emitter<URI>();
 export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | ExplorerItem[], ExplorerItem> {
 
+	private readonly sorter: FileSorter;
+
 	constructor(
 		private readonly fileFilter: FilesFilter,
 		private readonly findProvider: ExplorerFindProvider,
@@ -101,8 +104,12 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IFileService private readonly fileService: IFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
-	) { }
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		// Used to sort children before slicing so the visible page matches the tree's own order.
+		this.sorter = this.instantiationService.createInstance(FileSorter);
+	}
 
 	getParent(element: ExplorerItem): ExplorerItem {
 		if (element.parent) {
@@ -131,7 +138,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		const children = element.fetchChildren(sortOrder);
 		if (Array.isArray(children)) {
 			// fast path when children are known sync (i.e. nested children)
-			return children;
+			return this.applyPaging(element, children);
 		}
 		const promise = children.then(
 			children => {
@@ -139,7 +146,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 				if (element instanceof ExplorerItem && element.isRoot && !element.error && hasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 					explorerRootErrorEmitter.fire(element.resource);
 				}
-				return children;
+				return this.applyPaging(element, children);
 			}
 			, e => {
 
@@ -167,10 +174,57 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 
 		return promise;
 	}
+
+	/**
+	 * Caps how many children of `element` are returned to the tree when the folder exceeds the
+	 * configured `explorer.fileLimit`. Only the first `currentPageCount` (or `limit`) children
+	 * in sort order are returned, followed by a {@link LoadMoreExplorerItem} sentinel that the
+	 * user can click to reveal the next page. The directory is still fully resolved on disk; this
+	 * only limits the objects/DOM/decorations the tree has to build for a single expansion.
+	 */
+	private applyPaging(element: ExplorerItem, children: ExplorerItem[]): ExplorerItem[] {
+		const limit = this.configService.getValue<IFilesConfiguration>({ resource: element.root.resource }).explorer.fileLimit;
+		if (limit <= 0 || children.length <= limit) {
+			return children;
+		}
+
+		// Sort before slicing so the visible page is deterministic and matches the order the tree
+		// will render. The tree re-sorts afterwards, but the sentinel always sorts last (see FileSorter).
+		const sorted = children.slice().sort((a, b) => this.sorter.compare(a, b));
+		const showCount = element.currentPageCount > 0 ? element.currentPageCount : limit;
+		if (showCount >= sorted.length) {
+			return sorted; // paged all the way through, no sentinel needed
+		}
+
+		const page = sorted.slice(0, showCount);
+		page.push(new LoadMoreExplorerItem(element, this.fileService, this.configService, this.filesConfigService));
+		return page;
+	}
 }
 
 export class PhantomExplorerItem extends ExplorerItem {
 
+}
+
+/**
+ * A synthetic, non-file tree node rendered as the last child of a folder whose number of
+ * children exceeds `explorer.fileLimit`. Clicking it reveals the next page of children.
+ * It extends {@link ExplorerItem} so that all the tree providers (identity, sorter, filter,
+ * drag-and-drop, ...) keep working; the few places that need different behaviour special-case
+ * it via `instanceof LoadMoreExplorerItem`.
+ */
+export class LoadMoreExplorerItem extends ExplorerItem {
+
+	constructor(
+		parent: ExplorerItem,
+		fileService: IFileService,
+		configService: IConfigurationService,
+		filesConfigService: IFilesConfigurationService
+	) {
+		// Use a synthetic, stable resource derived from the parent so that `getId()` is unique
+		// per folder and stable across `updateChildren`, and cannot collide with a real child.
+		super(parent.resource.with({ query: 'loadMore' }), fileService, configService, filesConfigService, parent, /* isDirectory */ false);
+	}
 }
 
 interface FindHighlightLayer {
@@ -905,6 +959,21 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const stat = node.element;
 		templateData.currentContext = stat;
 
+		// "Load more" sentinel: render through the resource-label path (so it lines up with the icon
+		// column in every file-icon theme) but with a codicon instead of a file icon, and no
+		// decorations, so it reads as an action rather than a file.
+		if (stat instanceof LoadMoreExplorerItem) {
+			templateData.label.element.classList.remove('compressed');
+			templateData.label.element.style.display = 'flex';
+			templateData.contribs.forEach(c => c.setResource(undefined));
+			templateData.label.setResource({ resource: stat.resource, name: localize('loadMore', "Load more") }, {
+				icon: Codicon.ellipsis,
+				extraClasses: ['explorer-load-more'],
+				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority)
+			});
+			return;
+		}
+
 		const editableData = this.explorerService.getEditableData(stat);
 
 		templateData.label.element.classList.remove('compressed');
@@ -1188,6 +1257,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	// IAccessibilityProvider
 
 	getAriaLabel(element: ExplorerItem): string {
+		if (element instanceof LoadMoreExplorerItem) {
+			return localize('loadMoreAriaLabel', "Load more files");
+		}
 		return element.name;
 	}
 
@@ -1384,6 +1456,11 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		// The "Load more" sentinel must always be visible so the user can reveal more children
+		if (stat instanceof LoadMoreExplorerItem) {
+			return true;
+		}
+
 		// Add newly visited .gitignore files to the ignore tree
 		if (stat.name === '.gitignore' && this.ignoreTreesPerRoot.has(stat.root.resource.toString())) {
 			this.processIgnoreFile(stat.root.resource.toString(), stat.resource, false);
@@ -1445,6 +1522,14 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 	) { }
 
 	compare(statA: ExplorerItem, statB: ExplorerItem): number {
+		// Always keep the "Load more" sentinel at the very end of its siblings
+		if (statA instanceof LoadMoreExplorerItem) {
+			return 1;
+		}
+		if (statB instanceof LoadMoreExplorerItem) {
+			return -1;
+		}
+
 		// Do not sort roots
 		if (statA.isRoot) {
 			if (statB.isRoot) {
@@ -1603,6 +1688,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			return false;
 		}
 
+		// The "Load more" sentinel is not a valid drop target
+		if (target instanceof LoadMoreExplorerItem) {
+			return false;
+		}
+
 		// Compressed folders
 		if (target) {
 			const compressedTarget = FileDragAndDrop.getCompressedStatFromDragEvent(target, originalEvent);
@@ -1749,7 +1839,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	getDragURI(element: ExplorerItem): string | null {
-		if (this.explorerService.isEditable(element)) {
+		if (this.explorerService.isEditable(element) || element instanceof LoadMoreExplorerItem) {
 			return null;
 		}
 

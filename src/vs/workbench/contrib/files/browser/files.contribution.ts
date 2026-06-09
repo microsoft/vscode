@@ -574,6 +574,13 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('autoOpenDroppedFile', "Controls whether the Explorer should automatically open a file when it is dropped into the explorer"),
 			'default': true
 		},
+		'explorer.fileLimit': {
+			'type': 'number',
+			'minimum': 0,
+			'markdownDescription': nls.localize('fileLimit', "Controls the maximum number of files and folders the Explorer shows per directory before displaying a \"Load more\" entry. This helps keep very large folders responsive. Set to `0` to always show all entries."),
+			'default': 5000,
+			'scope': ConfigurationScope.RESOURCE
+		},
 		'explorer.compactFolders': {
 			'type': 'boolean',
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
