@@ -103,9 +103,9 @@ suite('ToolSetsContribution', () => {
 		]);
 
 		// The tool set is partially deselected, so it must not be serialized. Only the
-		// enabled member tool is emitted, by its qualified name.
+		// enabled member tool is emitted.
 		assert.deepStrictEqual(getEnabledSelectionReferences(selection, toolsService), [
-			toolsService.getFullReferenceName(enabledTool, userToolSet),
+			toolsService.getFullReferenceName(enabledTool),
 		]);
 	});
 
