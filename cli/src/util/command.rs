@@ -360,19 +360,21 @@ mod tests {
 
 		kill_tree(root_pid).await.expect("kill_tree succeeds");
 
-		let deadline = Instant::now() + Duration::from_secs(5);
+		// Reap the outer sh ourselves so `process_exists(root_pid)` doesn't
+		// observe it as a lingering zombie. Inner sh and sleep get reparented
+		// to init once outer sh exits, and init reaps them shortly after.
+		let _ = child.wait().await;
+
+		let deadline = Instant::now() + Duration::from_secs(10);
 		loop {
 			let alive: Vec<u32> = all_pids.iter().copied().filter(|p| process_exists(*p)).collect();
 			if alive.is_empty() {
 				break;
 			}
 			if Instant::now() >= deadline {
-				let _ = child.kill().await;
 				panic!("pids still alive after kill_tree: {alive:?}");
 			}
 			tokio::time::sleep(Duration::from_millis(50)).await;
 		}
-
-		let _ = child.wait().await;
 	}
 }
