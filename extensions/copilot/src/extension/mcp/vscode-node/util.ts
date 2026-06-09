@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { sanitizeOTelEnv } from '../../../platform/otel/common/agentOTelEnv';
 
 export interface ICommandExecutor {
 	executeWithTimeout(
@@ -53,7 +54,10 @@ async function executeWithTimeout(
 
 		const child: cp.ChildProcessWithoutNullStreams = cp.spawn(command, args, {
 			stdio: 'pipe',
-			env: { ...process.env },
+			// Strip OTel-related env vars before forwarding so MCP helper
+			// subprocesses (e.g. dotnet/nuget probes) don't silently receive
+			// the extension's OpenTelemetry config.
+			env: sanitizeOTelEnv(process.env),
 			cwd: cwd,
 		});
 

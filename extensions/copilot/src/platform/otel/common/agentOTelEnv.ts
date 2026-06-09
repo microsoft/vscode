@@ -85,3 +85,63 @@ export function deriveClaudeOTelEnv(config: OTelConfig, env: Record<string, stri
 
 	return result;
 }
+
+/**
+ * Env-var prefixes considered "OTel-related" for sanitization. Subprocesses
+ * spawned outside the {@link deriveCopilotCliOTelEnv}/{@link deriveClaudeOTelEnv}
+ * allow-lists (e.g. user-defined hooks, ad-hoc tool helpers) inherit
+ * `process.env` by default, which would silently forward the extension's
+ * OpenTelemetry configuration to arbitrary programs the user — or a 3rd-party
+ * MCP server — never opted into. Pass `process.env` (or any sub-env) through
+ * {@link sanitizeOTelEnv} at the spawn boundary to strip these.
+ *
+ * Prefixes (covers all current and future variants we care about):
+ *   - `OTEL_` — standard OpenTelemetry env vars (endpoint, headers, protocol, …)
+ *   - `COPILOT_OTEL_` — extension-specific overrides
+ *   - `CLAUDE_CODE_ENABLE_TELEMETRY` — Claude Code OTel toggle
+ *
+ * If you add a new OTel-related env var name in {@link deriveCopilotCliOTelEnv}
+ * or {@link deriveClaudeOTelEnv}, update {@link OTEL_ENV_PREFIXES} (or
+ * {@link OTEL_ENV_EXACT_NAMES} for non-prefixed names) so the sanitizer keeps
+ * pace.
+ */
+export const OTEL_ENV_PREFIXES: readonly string[] = ['OTEL_', 'COPILOT_OTEL_'];
+
+/** Exact env-var names that are OTel-related but don't share a prefix. */
+export const OTEL_ENV_EXACT_NAMES: ReadonlySet<string> = new Set(['CLAUDE_CODE_ENABLE_TELEMETRY']);
+
+/**
+ * Returns a shallow copy of {@link env} with all OTel-related variables
+ * removed (see {@link OTEL_ENV_PREFIXES} and {@link OTEL_ENV_EXACT_NAMES}).
+ *
+ * Apply at subprocess boundaries that should NOT receive the extension's
+ * OTel configuration — e.g. user-configured hooks, MCP server helpers,
+ * and other tool-spawned processes — to prevent silent telemetry
+ * propagation. For subprocesses that SHOULD inherit OTel config (the
+ * Copilot CLI SDK, Claude Code), use {@link deriveCopilotCliOTelEnv} /
+ * {@link deriveClaudeOTelEnv} instead, which compose the right vars
+ * explicitly.
+ *
+ * `undefined` values are preserved (Node's `spawn` treats them as "not set"),
+ * so callers can safely splat the result into a `{ ...env, ...extras }` object
+ * without changing semantics.
+ */
+export function sanitizeOTelEnv(env: Record<string, string | undefined>): Record<string, string | undefined> {
+	const result: Record<string, string | undefined> = {};
+	for (const [key, value] of Object.entries(env)) {
+		if (OTEL_ENV_EXACT_NAMES.has(key)) {
+			continue;
+		}
+		let isOtel = false;
+		for (const prefix of OTEL_ENV_PREFIXES) {
+			if (key.startsWith(prefix)) {
+				isOtel = true;
+				break;
+			}
+		}
+		if (!isOtel) {
+			result[key] = value;
+		}
+	}
+	return result;
+}

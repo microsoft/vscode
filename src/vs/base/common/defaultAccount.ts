@@ -80,6 +80,33 @@ export interface IPolicyData {
 	 * listed in `extraKnownMarketplaces` (plus the user's own) are trusted.
 	 */
 	readonly strictKnownMarketplaces?: boolean;
+
+	/**
+	 * Enterprise-managed OpenTelemetry kill switch. When `false`, OTel
+	 * emission from Copilot Chat is disabled regardless of env vars or user
+	 * settings; when `true`, OTel emission is forced on. When undefined,
+	 * env/setting/default precedence applies. Delivered via the Copilot
+	 * `managed_settings` API.
+	 */
+	readonly otelEnabled?: boolean;
+
+	/**
+	 * Enterprise-managed OpenTelemetry OTLP collector endpoint. When set,
+	 * overrides `OTEL_EXPORTER_OTLP_ENDPOINT`/`COPILOT_OTEL_ENDPOINT` env
+	 * vars and the `github.copilot.chat.otel.otlpEndpoint` user setting.
+	 * Delivered via the Copilot `managed_settings` API.
+	 */
+	readonly otelOtlpEndpoint?: string;
+
+	/**
+	 * Enterprise-managed OpenTelemetry content capture flag. Controls whether
+	 * input/output messages, system instructions, and tool definitions are
+	 * captured into OTel telemetry. When set, overrides
+	 * `COPILOT_OTEL_CAPTURE_CONTENT` env var and the
+	 * `github.copilot.chat.otel.captureContent` user setting. Delivered via
+	 * the Copilot `managed_settings` API.
+	 */
+	readonly otelCaptureContent?: boolean;
 }
 
 export interface ICopilotTokenInfo {
