@@ -308,7 +308,7 @@ function renderForm(
 	// `executeToolbar` to a dedicated empty MenuId.
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
-	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host'));
+	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const promptError = DOM.append(promptRow, $('.automation-form-error'));
 
 	const chatInputStyles: IChatInputStyles = {
