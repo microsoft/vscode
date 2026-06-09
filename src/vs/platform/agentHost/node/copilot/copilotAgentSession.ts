@@ -1752,8 +1752,9 @@ export class CopilotAgentSession extends Disposable {
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 
-			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId?: string } | undefined;
-			if (this._clientToolNames.has(e.data.toolName)) {
+			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | undefined;
+			const isClientTool = this._clientToolNames.has(e.data.toolName);
+			if (isClientTool && this._activeClientState.clientId) {
 				contributor = { kind: ToolCallContributorKind.Client, clientId: this._activeClientState.clientId };
 			}
 
@@ -1792,42 +1793,43 @@ export class CopilotAgentSession extends Disposable {
 				_meta: meta,
 			}, parentToolCallId);
 
+			// No client is connected to run this client tool. Fail it
+			// immediately instead of leaving it pending until the
+			// server-side disconnect timeout fires. We emit the completion
+			// ourselves and drop the active-tool entry so the SDK's own
+			// tool.execution_complete for this id is suppressed.
+			if (isClientTool && !contributor) {
+				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
+				this._activeToolCalls.delete(e.data.toolCallId);
+				this._emitAction({
+					type: ActionType.SessionToolCallReady,
+					turnId: this._turnId,
+					toolCallId: e.data.toolCallId,
+					invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
+					toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				}, parentToolCallId);
+				this._emitAction({
+					type: ActionType.SessionToolCallComplete,
+					turnId: this._turnId,
+					toolCallId: e.data.toolCallId,
+					result: {
+						success: false,
+						pastTenseMessage: `${displayName} failed`,
+						error: { message: `No client was connected to run ${displayName}` },
+					},
+				}, parentToolCallId);
+				this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
+					textResultForLlm: `No client was connected to run ${displayName}.`,
+					resultType: 'failure',
+					error: 'No client connected',
+				});
+			}
+
 			// For client tools, do NOT auto-ready — the tool handler will fire
 			// a separate tool_ready signal once the deferred is in place (or
 			// the permission flow fires it first).
 			if (contributor) {
-				// No client is connected to run this client tool. Fail it
-				// immediately instead of leaving it pending until the
-				// server-side disconnect timeout fires. We emit the completion
-				// ourselves and drop the active-tool entry so the SDK's own
-				// tool.execution_complete for this id is suppressed.
-				if (contributor.clientId === undefined) {
-					this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
-					this._activeToolCalls.delete(e.data.toolCallId);
-					this._emitAction({
-						type: ActionType.SessionToolCallReady,
-						turnId: this._turnId,
-						toolCallId: e.data.toolCallId,
-						invocationMessage: getInvocationMessage(e.data.toolName, displayName, parameters),
-						toolInput: getToolInputString(e.data.toolName, parameters, toolArgs),
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-					}, parentToolCallId);
-					this._emitAction({
-						type: ActionType.SessionToolCallComplete,
-						turnId: this._turnId,
-						toolCallId: e.data.toolCallId,
-						result: {
-							success: false,
-							pastTenseMessage: `${displayName} failed`,
-							error: { message: `No client was connected to run ${displayName}` },
-						},
-					}, parentToolCallId);
-					this._pendingClientToolCalls.respondOrBuffer(e.data.toolCallId, {
-						textResultForLlm: `No client was connected to run ${displayName}.`,
-						resultType: 'failure',
-						error: 'No client connected',
-					});
-				}
 				return;
 			}
 

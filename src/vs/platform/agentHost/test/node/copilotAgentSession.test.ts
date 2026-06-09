@@ -1365,7 +1365,7 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
 			const telemetryService = new RecordingTelemetryService();
-			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
+			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }] as const;
 			const activeClientState = new ActiveClientState();
 			activeClientState.update('test-client', tools);
 			const { mockSession } = await createAgentSession(disposables, {
