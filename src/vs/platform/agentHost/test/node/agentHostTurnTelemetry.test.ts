@@ -12,7 +12,6 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ActionType, SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -31,6 +30,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { }
 	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	persistChangesSummary(): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshUncommittedChangeset(): void { }
 	refreshSessionChangeset(): void { }
@@ -89,7 +89,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
-			changesets: buildDefaultChangesetCatalogue(sessionKey),
 		});
 		stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
 	}

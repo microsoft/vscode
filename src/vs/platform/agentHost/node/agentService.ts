@@ -446,7 +446,7 @@ export class AgentService extends Disposable implements IAgentService {
 				agent: summary.agent,
 				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
 				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
-				changesets: summary.changesets,
+				changes: summary.changes,
 			});
 		}
 		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
