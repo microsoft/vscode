@@ -2528,7 +2528,7 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	test('should use utility model and preserve previous agent for background completion notifications', async () => {
+	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
 		const termId = 'test-completion-model-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
@@ -2574,7 +2574,7 @@ suite('RunInTerminalTool', () => {
 		commandFinishedEmitter.fire({ exitCode: 0 });
 
 		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
-		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, 'copilot/copilot-utility-small', 'Completion notification should use the utility model');
+		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
 		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
 	});
 
