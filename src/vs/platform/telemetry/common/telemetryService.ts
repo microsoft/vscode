@@ -135,7 +135,7 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
-	setCommonProperty(name: string, value: string): void {
+	setCommonProperty(name: string, value: string | boolean): void {
 		this._commonProperties[name] = value;
 	}
 

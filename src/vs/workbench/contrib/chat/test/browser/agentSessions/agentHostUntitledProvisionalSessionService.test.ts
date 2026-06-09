@@ -181,6 +181,49 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(agentHost.resolveCalls[0].config, { isolation: 'worktree' });
 	});
 
+	test('refreshResolvedConfig stores a schema overlay for running sessions', async () => {
+		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-j' });
+		const resolved: ResolveSessionConfigResult = {
+			schema: makeSchema(true),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		agentHost.resolveQueue = [resolved];
+
+		let changeFires = 0;
+		cleanup.add(provisional.onDidChange(uri => { if (uri.toString() === ui.toString()) { changeFires++; } }));
+
+		await provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'folder' });
+
+		assert.deepStrictEqual({
+			overlay: provisional.getResolvedConfig(ui),
+			changeFires,
+			resolveConfig: agentHost.resolveCalls[0].config,
+		}, {
+			overlay: resolved,
+			changeFires: 1,
+			resolveConfig: { isolation: 'folder' },
+		});
+	});
+
+	test('refreshResolvedConfig ignores stale running-session responses', async () => {
+		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-k' });
+		const first = new DeferredPromise<ResolveSessionConfigResult>();
+		const second = new DeferredPromise<ResolveSessionConfigResult>();
+		cleanup.add({ dispose: () => { first.cancel(); second.cancel(); } });
+		agentHost.resolveQueue = [first.p, second.p];
+
+		const a = provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'worktree' });
+		const b = provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'folder' });
+
+		first.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+		second.complete({ schema: makeSchema(true), values: { isolation: 'folder' } });
+
+		await a;
+		await b;
+
+		assert.deepStrictEqual(provisional.getResolvedConfig(ui), { schema: makeSchema(true), values: { isolation: 'folder' } });
+	});
+
 	test('optimistic merge: overlay.values reflects partial before re-resolve completes', async () => {
 		const ui = untitledChatUri('d');
 		// First applyConfigChange: seed an overlay.

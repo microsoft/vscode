@@ -165,7 +165,7 @@ export interface FetchTurnsResult {
  */
 export const enum CompletionItemKind {
 	/**
-	 * Completions for the text of a {@link UserMessage} the user is composing.
+	 * Completions for the text of a {@link Message} the user is composing.
 	 * Each returned item carries an attachment that gets associated with the
 	 * message when accepted.
 	 */
@@ -235,7 +235,7 @@ export interface CompletionsParams extends BaseParams {
  * When the user accepts an item, the client SHOULD:
  * 1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`
  *    (or insert `insertText` at the cursor when the range is omitted).
- * 2. Associate the item's `attachment` with the resulting {@link UserMessage}.
+ * 2. Associate the item's `attachment` with the resulting {@link Message}.
  *
  * @category Commands
  */
@@ -255,7 +255,7 @@ export interface CompletionItem {
 	 *
 	 * Note: this range refers to positions in the *current* input. The
 	 * attachment's own `rangeStart`/`rangeEnd` (when present) refer to
-	 * positions in the final {@link UserMessage.text} after the item is
+	 * positions in the final {@link Message.text} after the item is
 	 * accepted.
 	 */
 	rangeStart?: number;

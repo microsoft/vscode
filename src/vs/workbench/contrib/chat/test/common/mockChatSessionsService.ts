@@ -250,6 +250,14 @@ export class MockChatSessionsService implements IChatSessionsService {
 		throw new Error('Not implemented');
 	}
 
+	sessionSupportsRename(_sessionResource: URI): boolean {
+		return false;
+	}
+
+	async renameChatSession(_sessionResource: URI, _title: string, _token: CancellationToken): Promise<void> {
+		throw new Error('Not implemented');
+	}
+
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
 	}
