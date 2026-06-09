@@ -462,6 +462,11 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			: mode === AgentsHandoffTipMode.Custom
 				? localize('chat.agentsHandoff.tip.description.copilot', "Free with your Copilot plan — get a dedicated, multi-pane view alongside your workspace.")
 				: localize('chat.agentsHandoff.tip.description', "Get a dedicated, multi-pane view alongside your workspace.");
+		const actionLabel = useEmptyWorkspaceCopy
+			? localize('chat.agentsHandoff.tip.action', "Open in Agents Window")
+			: mode === AgentsHandoffTipMode.Custom
+				? localize('chat.agentsHandoff.tip.action.custom', "Give your agent more room?")
+				: localize('chat.agentsHandoff.tip.action.default', "Continue in Agents Window");
 
 		this._notificationService.setNotification({
 			id: AgentsHandoffInputTipContribution.NOTIFICATION_ID,
@@ -470,7 +475,7 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			description,
 			actions: [
 				{
-					label: localize('chat.agentsHandoff.tip.action', "Open in Agents Window"),
+					label: actionLabel,
 					commandId: AgentsHandoffInputTipContribution.TIP_OPEN_COMMAND_ID,
 					commandArgs,
 				},
