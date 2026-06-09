@@ -392,6 +392,26 @@ export function setup(logger: Logger) {
 			const requestsBefore = mockServer.requestCount();
 			await app.workbench.agentsWindow.waitForNewSessionView();
 			await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
+
+			// The very first query in the AgentHost process lifetime can reach
+			// the CLI before its model list has resolved, surfacing as a
+			// `session/error` ("No model available. Check policy enablement ...")
+			// — a cold-start race (github/copilot-agent-runtime#9876). A fresh
+			// session resolves it because the model list is cached by then, so
+			// send a throwaway warm-up prompt first and ignore its outcome,
+			// then assert on a second session.
+			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_SCENARIO_ID}]`);
+			try {
+				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLY, 30_000);
+			} catch (error) {
+				// Ignore — the warm-up may hit the cold-start race; the real
+				// attempt below runs against an already-warmed model list.
+				logger.log(`Agents Window (AgentHost) warm-up attempt did not produce the expected reply (likely the cold-start race); proceeding with the real attempt. Reason: ${error instanceof Error ? error.message : String(error)}`);
+			}
+
+			await app.workbench.agentsWindow.startNewSession();
+			await app.workbench.agentsWindow.waitForNewSessionView();
+			await app.workbench.agentsWindow.selectSessionType('Local Agent Host');
 			// May intermittently hit the CLI cold-start "No model available" race: github/copilot-agent-runtime#9876
 			await app.workbench.agentsWindow.submitNewSessionPrompt(`hello world [scenario:${AGENT_HOST_SCENARIO_ID}]`);
 
