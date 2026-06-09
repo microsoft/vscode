@@ -19,7 +19,7 @@ import { IChatInputPickerOptions } from '../../../../../workbench/contrib/chat/b
 import { PermissionPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/permissionPickerActionItem.js';
 import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostPermissionPickerDelegate } from './agentHostPermissionPickerDelegate.js';
 
 /**
@@ -39,6 +39,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 	constructor(
 		action: MenuItemAction,
 		pickerOptions: IChatInputPickerOptions,
+		session: IObservable<IActiveSession | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -49,10 +50,9 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
 		@IHoverService hoverService: IHoverService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
-		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate);
+		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
 		super(
 			action,
 			delegate,
@@ -71,15 +71,15 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		// Initialized here (not as a class field) so the `derived` body can
 		// safely close over the parameter-property service references.
 		this._isResolvingActiveSessionConfig = derived(this, reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
-			if (!session) {
+			const activeSession = session.read(reader);
+			if (!activeSession) {
 				return false;
 			}
-			const provider = this._sessionsProvidersService.getProvider(session.providerId);
+			const provider = this._sessionsProvidersService.getProvider(activeSession.providerId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				return false;
 			}
-			return provider.isSessionConfigResolving(session.sessionId).read(reader);
+			return provider.isSessionConfigResolving(activeSession.sessionId).read(reader);
 		});
 
 		// The base widget's label is rendered on demand via `refresh()`. Keep it

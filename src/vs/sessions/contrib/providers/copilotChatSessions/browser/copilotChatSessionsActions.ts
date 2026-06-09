@@ -27,6 +27,7 @@ import { IsolationPicker } from './isolationPicker.js';
 import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
+import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CopilotCLISessionType.id);
 const IsActiveSessionLocal = ContextKeyExpr.equals(ActiveSessionTypeContext.key, LocalSessionType.id);
@@ -164,9 +165,9 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
@@ -185,22 +186,24 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.isolationPicker',
-			() => {
-				const picker = instantiationService.createInstance(IsolationPicker);
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const picker = scopedInstantiationService.createInstance(IsolationPicker, session);
 				return new PickerActionViewItem(picker);
 			},
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.branchPicker',
-			() => {
-				const picker = instantiationService.createInstance(BranchPicker);
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const picker = scopedInstantiationService.createInstance(BranchPicker, session);
 				return new PickerActionViewItem(picker);
 			},
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
-			() => {
-				const picker = instantiationService.createInstance(ModePicker, modePickerModel);
+			(_action, _options, scopedInstantiationService) => {
+				const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
 				const disposableStore = new DisposableStore();
 				disposableStore.add(picker.onDidSelect(mode => {
 					const session = sessionsManagementService.activeSession.get();
@@ -226,17 +229,19 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		if (!isWeb) {
 			this._register(actionViewItemService.register(
 				Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
-				() => {
-					const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
-					const picker = instantiationService.createInstance(PermissionPicker, delegate);
+				(_action, _options, scopedInstantiationService) => {
+					const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+					const delegate = scopedInstantiationService.createInstance(CopilotPermissionPickerDelegate, session);
+					const picker = scopedInstantiationService.createInstance(PermissionPicker, delegate);
 					return new PickerActionViewItem(picker, delegate);
 				},
 			));
 		}
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl, 'sessions.defaultCopilot.claudePermissionModePicker',
-			() => {
-				const picker = instantiationService.createInstance(ClaudePermissionModePicker);
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const picker = scopedInstantiationService.createInstance(ClaudePermissionModePicker, session);
 				return new PickerActionViewItem(picker);
 			},
 		));
