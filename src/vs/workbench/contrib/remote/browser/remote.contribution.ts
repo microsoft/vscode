@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -11,10 +12,8 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { TunnelFactoryContribution } from './tunnelFactory.js';
 import { RemoteAgentConnectionStatusListener, RemoteMarkers } from './remote.js';
 import { RemoteStatusIndicator } from './remoteIndicator.js';
-import { AutomaticPortForwarding, ForwardedPortsView, PortRestore } from './remoteExplorer.js';
+import { AutomaticPortForwarding, ForwardedPortsView, PortRestore, TOGGLE_VIEW_ACTION_ID } from './remoteExplorer.js';
 import { InitialRemoteConnectionHealthContribution } from './remoteConnectionHealth.js';
-import { ForwardedPorts } from '../common/remoteExplorer.js';
-import { Messages } from './messages.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { TUNNEL_VIEW_ID } from '../../../services/remote/common/remoteExplorerService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,8 +21,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: ForwardedPorts.TOGGLE_VIEW_ACTION_ID,
-			title: Messages.FORWARDED_PORTS_TOGGLE_LABEL,
+			id: TOGGLE_VIEW_ACTION_ID,
+			title: localize('remote.togglePortsView', "Toggle Forwarded Ports View"),
 		});
 	}
 

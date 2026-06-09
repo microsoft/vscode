@@ -37,9 +37,9 @@ import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remo
 import { toAction } from '../../../../base/common/actions.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { ForwardedPorts } from '../common/remoteExplorer.js';
 
 export const VIEWLET_ID = 'workbench.view.remote';
+export const TOGGLE_VIEW_ACTION_ID = 'remoteExplorer.toggleForwardedPortsView';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private readonly contextKeyListener = this._register(new MutableDisposable<IDisposable>());
@@ -167,7 +167,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			text: `$(radio-tower) ${text}`,
 			ariaLabel: tooltip,
 			tooltip,
-			command: ForwardedPorts.TOGGLE_VIEW_ACTION_ID
+			command: TOGGLE_VIEW_ACTION_ID
 		};
 	}
 }
