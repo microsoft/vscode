@@ -195,6 +195,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	configValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	fileSizes?: Record<string, number>;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -266,6 +267,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 				throw new Error('read failed');
 			}
 			return { value: VSBuffer.fromString(options?.fileContents?.[resource.toString()] ?? options?.fileContents?.[resource.fsPath] ?? '') };
+		},
+		stat: async (resource: URI) => {
+			const size = options?.fileSizes?.[resource.toString()] ?? options?.fileSizes?.[resource.fsPath] ?? 0;
+			return { size } as unknown as Awaited<ReturnType<IFileService['stat']>>;
 		},
 	} as Partial<IFileService> as IFileService);
 	services.set(ISessionDataService, createSessionDataService());
@@ -427,6 +432,30 @@ suite('CopilotAgentSession', () => {
 			prompt: 'look at this',
 			attachments: [
 				{ type: 'file', path: pngUri.fsPath, displayName: 'missing.png' },
+			],
+		}]);
+	});
+
+	test('falls back to file reference when an image Resource attachment exceeds the inline size cap', async () => {
+		const pngUri = URI.file('/workspace/huge.png');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileSizes: {
+				[pngUri.toString()]: 10 * 1024 * 1024,
+			},
+			fileContents: {
+				// Should never be read once the size cap fires; included to make the test fail loudly if it is.
+				[pngUri.toString()]: 'never-read',
+			},
+		});
+
+		await session.send('describe this image', [
+			{ type: MessageAttachmentKind.Resource, uri: pngUri.toString(), label: 'huge.png', displayKind: 'image' },
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'describe this image',
+			attachments: [
+				{ type: 'file', path: pngUri.fsPath, displayName: 'huge.png' },
 			],
 		}]);
 	});

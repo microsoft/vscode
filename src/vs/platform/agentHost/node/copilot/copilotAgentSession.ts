@@ -60,6 +60,15 @@ const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 
 /**
+ * Defensive cap on the raw byte size of an inline `blob` image attachment. Anything larger falls back to a `file`
+ * reference so we don't inflate a multi-MB file into a base64-bloated JSON-RPC frame. The chat composer's image picker
+ * already runs `resizeImage` (capping at 2048×2048) before producing image variable attachments, so this cap only ever
+ * trips for non-image-variable paths — most commonly a workspace image file attached via `#file:huge.png`, where no
+ * upstream resize runs.
+ */
+const INLINE_IMAGE_BLOB_MAX_BYTES = 5 * 1024 * 1024;
+
+/**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
  * Keys not present here fall back to the raw action id.
  */
@@ -907,10 +916,26 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Reads the attachment bytes from `uri` and wraps them as a `blob` SDK attachment. Returns `undefined` on read
-	 * failure so the caller can fall back to a `file` reference attachment.
+	 * failure (or when the attachment exceeds {@link INLINE_IMAGE_BLOB_MAX_BYTES}) so the caller can fall back to a
+	 * `file` reference attachment.
+	 *
+	 * The cap is a defense for paths where no upstream resize runs — most notably a workspace image file attached as
+	 * `#file:huge.png`, which arrives as a `Resource` with `displayKind: 'document'` and bypasses the chat composer's
+	 * `resizeImage` step. The image-variable path already caps at 2048×2048 well below this limit, so this only trips
+	 * on outliers.
 	 */
 	private async _tryReadAsBlob(uri: URI, mimeType: string, displayName: string): Promise<CopilotSdkAttachment | undefined> {
 		try {
+			try {
+				const stat = await this._fileService.stat(uri);
+				if (stat.size > INLINE_IMAGE_BLOB_MAX_BYTES) {
+					this._logService.warn(`[Copilot:${this.sessionId}] Image attachment ${uri.toString()} is ${stat.size} bytes (cap ${INLINE_IMAGE_BLOB_MAX_BYTES}); falling back to file reference.`);
+					return undefined;
+				}
+			} catch {
+				// Stat failure (e.g. provider doesn't support stat): fall through to read. The read either succeeds with
+				// acceptable bytes or fails and we surface that via the outer catch.
+			}
 			const contents = await this._fileService.readFile(uri);
 			return {
 				type: 'blob' as const,
