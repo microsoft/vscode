@@ -17,31 +17,11 @@ import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
+import { ChangesSummary } from '../common/state/protocol/state.js';
+import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
-}
-
-/**
- * Field-level equality for two changeset catalogue arrays. Used by
- * {@link AgentHostStateManager.setSessionChangesets} to skip a redundant
- * dispatch when the catalogue has not changed in any user-visible way.
- */
-function changesetCataloguesEqual(a: readonly Changeset[] | undefined, b: readonly Changeset[] | undefined): boolean {
-	if (a === b) { return true; }
-	if (!a || !b) { return false; }
-	if (a.length !== b.length) { return false; }
-	for (let i = 0; i < a.length; i++) {
-		const x = a[i];
-		const y = b[i];
-		if (x.label !== y.label
-			|| x.uriTemplate !== y.uriTemplate
-			|| x.description !== y.description
-			|| x.changeKind !== y.changeKind) {
-			return false;
-		}
-	}
-	return true;
 }
 
 /**
@@ -429,16 +409,47 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Replaces the catalogue entries on `summary.changesets` for `session`
-	 * by dispatching a {@link ActionType.SessionChangesetsChanged} action.
-	 * The change is applied through the session reducer so subscribers see
-	 * the mutation in the standard action stream alongside the regular
-	 * `notify/sessionSummaryChanged` notification — the catalogue is not
-	 * its own subscribable resource.
+	 * Updates the aggregate `summary.changes` for a session.
 	 *
-	 * Producers call this after each compute pass to keep the lightweight
-	 * chip-row counts (`additions`, `deletions`, `files`) in sync without
-	 * forcing every observer to subscribe to the full changeset.
+	 * There is no dedicated action for this field: the value is purely
+	 * informational (chip rendering on the session list), so the write
+	 * piggybacks on the existing `sessionSummaryChanged` notification
+	 * path. We mutate `state.summary` in place, mark the session dirty,
+	 * and let {@link _flushSummaryNotificationFor} pick the new value up
+	 * via its `current.changes !== lastNotified.changes` diff.
+	 */
+	setSessionSummaryChanges(session: URI, changes: ChangesSummary | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionSummaryChanges: unknown session ${session}`);
+			return;
+		}
+		if (structuralEquals(state.summary.changes, changes)) {
+			return;
+		}
+
+		const newState = {
+			...state,
+			summary: { ...state.summary, changes },
+		};
+
+		this._sessionStates.set(session, newState);
+
+		this._dirtySummaries.add(session);
+		this._summaryNotifyScheduler.schedule();
+	}
+
+	/**
+	 * Replaces the catalogue entries on `state.changesets` for `session` by
+	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
+	 * Subscribers see the mutation in the standard session action stream —
+	 * the catalogue lives on session state and is not its own subscribable
+	 * resource. Aggregate `summary.changes` counts (additions / deletions /
+	 * files) are propagated separately via {@link setSessionSummaryChanges}.
+	 *
+	 * Producers call this after each compute pass to keep the list of
+	 * available changesets (with their `changeKind`) in sync so observers
+	 * can render the correct entries without subscribing to each one.
 	 */
 	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
 		const state = this._sessionStates.get(session);
@@ -446,17 +457,17 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] setSessionChangesets: unknown session ${session}`);
 			return;
 		}
-		// Skip dispatch when the catalogue is field-equal to the existing
-		// one. The reducer would otherwise allocate a new summary on every
-		// call, dirtying `_dirtySummaries` and broadcasting a redundant
-		// envelope. Producers call this after every compute pass, so
-		// duplicate calls are common.
-		if (changesetCataloguesEqual(state.changesets, changesets)) {
+
+		// Skip dispatch when the catalogue is field-equal to the existing one.
+		// Producers call this after every compute pass, so duplicate calls
+		// are common and would otherwise broadcast a redundant envelope to
+		// every subscriber.
+		if (arrayEquals(state.changesets ?? [], changesets ?? [], structuralEquals)) {
 			return;
 		}
 		// Take a defensive copy so callers can't mutate the catalogue array
 		// after dispatch; the reducer otherwise stores the reference as-is.
-		const next: Changeset[] | undefined = changesets ? [...changesets] : undefined;
+		const next = changesets ? changesets.slice() : undefined;
 		this.dispatchServerAction(session, {
 			type: ActionType.SessionChangesetsChanged,
 			changesets: next,
@@ -671,6 +682,7 @@ export class AgentHostStateManager extends Disposable {
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.model !== lastNotified.model) { changes.model = current.model; }
+		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
 		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
 
 		this._lastNotifiedSummaries.set(session, current);

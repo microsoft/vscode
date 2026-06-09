@@ -558,19 +558,17 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
 	});
 
-	test('listSessions surfaces the changeset catalogue from the agent', async () => {
+	test('listSessions surfaces the changes summary from the agent', async () => {
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Session With Changesets',
-			changesets: [
-				{
-					label: 'Branch Changes',
-					uriTemplate: `${sessionUri}/changeset/session`,
-					changeKind: 'session',
-				},
-			],
+			changes: {
+				additions: 5,
+				deletions: 2,
+				files: 3,
+			},
 		});
 
 		const transport = connectClient('client-list-changesets');
@@ -581,13 +579,11 @@ suite('ProtocolServerHandler', () => {
 		const resp = await responsePromise;
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
-		assert.deepStrictEqual((result.items[0] as unknown as { changesets?: unknown[] }).changesets, [
-			{
-				label: 'Branch Changes',
-				uriTemplate: `${sessionUri}/changeset/session`,
-				changeKind: 'session',
-			},
-		]);
+		assert.deepStrictEqual(result.items[0].changes, {
+			additions: 5,
+			deletions: 2,
+			files: 3,
+		});
 	});
 
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {

@@ -23,7 +23,7 @@ import { getEffectiveAgents } from '../../../../../platform/agentHost/common/cus
 import { KNOWN_AUTO_APPROVE_VALUES, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, AgentSelection, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, AgentSelection, ChangesSummary, Customization, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionGitState, ROOT_STATE_URI, SessionMeta, StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -176,12 +176,29 @@ export class AgentHostSessionAdapter implements ISession {
 
 	private readonly _changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	readonly changesSummary: IObservable<ISessionChangesSummary | undefined>;
-	setChangesSummary(_catalogue: readonly Changeset[] | undefined): boolean {
-		// Catalogue entries no longer carry aggregate counts after the
-		// protocol update that moved them to `SessionSummary.changes`. The
-		// observable is left untouched until callers thread the new summary
-		// through.
-		return false;
+	setChangesSummary(changes: ChangesSummary | undefined): boolean {
+		if (!changes) {
+			return false;
+		}
+
+		const { additions, deletions, files } = changes;
+		const currentChangesSummary = this._changesSummary.get();
+
+		if (
+			(currentChangesSummary?.files ?? 0) === (files ?? 0) &&
+			(currentChangesSummary?.additions ?? 0) === (additions ?? 0) &&
+			(currentChangesSummary?.deletions ?? 0) === (deletions ?? 0)
+		) {
+			return false;
+		}
+
+		this._changesSummary.set({
+			additions: additions ?? 0,
+			deletions: deletions ?? 0,
+			files: files ?? 0
+		}, undefined);
+
+		return true;
 	}
 
 	constructor(
@@ -293,11 +310,11 @@ export class AgentHostSessionAdapter implements ISession {
 			return isEqual(activeSession?.resource, this.resource);
 		});
 
-		// Set the changes summary from the catalogue. While the session is active,
+		// Set the changes summary from the aggregate. While the session is active,
 		// the changes summary will be updated through the session changeset changes.
 		// As soon as the session is no longer active, the changes summary will be
-		// updated from the catalogue.
-		this.setChangesSummary(metadata.changesets);
+		// updated from `metadata.changes` (mirroring `SessionSummary.changes`).
+		this.setChangesSummary(metadata.changes);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
 		const { changesSummary, changes } = this._createChangesObs(sessionUri, isActiveSessionObs);
@@ -474,9 +491,9 @@ export class AgentHostSessionAdapter implements ISession {
 				didChange = true;
 			}
 
-			// `metadata.changesets` (catalogue) drives the chip aggregate.
+			// `metadata.changes` (aggregate) drives the chip aggregate.
 			// The dropdown content is built separately via `createChangesets`.
-			if (metadata.changesets !== undefined && this.setChangesSummary(metadata.changesets)) {
+			if (metadata.changes !== undefined && this.setChangesSummary(metadata.changes)) {
 				didChange = true;
 			}
 
@@ -2508,6 +2525,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			model: summary.model,
 			agent: summary.agent,
 			workingDirectory: workingDir,
+			changes: summary.changes,
 			isArchived: !!(summary.status & ProtocolSessionStatus.IsArchived),
 		};
 		const cached = this.createAdapter(meta);
@@ -2599,6 +2617,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 			if (changes.title !== undefined && changes.title !== cached.title.get()) {
 				cached.title.set(changes.title, tx);
+				didChange = true;
+			}
+
+			// `changes.changes` carries the chip aggregate. The catalogue
+			// itself (label / URI template / `changeKind`) arrives via the
+			// `SessionChangesetsChanged` action, handled by
+			// `_handleChangesetsChanged`.
+			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes)) {
 				didChange = true;
 			}
 

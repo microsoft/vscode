@@ -10,34 +10,13 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { Changeset } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-
-/**
- * Picks the default catalogue entry to render the sidebar chip from.
- *
- * The default is always `summary.changesets[0]` — the first entry of
- * the ordered catalogue. Templated entries (with `{...}` variables in
- * their `uriTemplate`) are skipped because they require expansion the
- * sidebar cannot perform.
- */
-function pickDefaultChangeset(catalogue: readonly Changeset[] | undefined): Changeset | undefined {
-	return catalogue?.find(c => !c.uriTemplate.includes('{'));
-}
-
-/**
- * Catalogue entries no longer carry aggregate counts after the protocol
- * update that moved them to {@link SessionSummary.changes}. The sidebar
- * chip stays empty until callers thread the new summary through.
- */
-function changesetCountsToChanges(_summary: Changeset | undefined): IChatSessionItem['changes'] {
-	return undefined;
-}
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
 	if (status !== undefined && (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded) {
@@ -268,6 +247,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				activity: s.activity,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
+				changes: s.changes,
 				workingDirectory: s.workingDirectory?.toString(),
 			});
 			return this._makeItem(rawId, {
@@ -277,7 +257,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				workingDirectory: s.workingDirectory,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
-				changesets: s.changesets,
+				changesSummary: s.changes,
 			});
 		});
 		this._cacheValid = true;
@@ -331,7 +311,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
-		changesets?: readonly Changeset[];
+		changesSummary?: ChangesSummary;
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
@@ -348,12 +328,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				lastRequestStarted: opts.modifiedAt,
 				lastRequestEnded: opts.modifiedAt,
 			},
-			// Sidebar chip data: aggregate `{ files, insertions, deletions }`
-			// from the catalogue. Per-file detail (used by the session detail
-			// "Changes" view) requires subscribing to the changeset URI;
-			// `BaseAgentHostSessionsProvider._ensureChangesetSubscription`
-			// owns that path.
-			changes: changesetCountsToChanges(pickDefaultChangeset(opts.changesets)),
+			changes: opts.changesSummary
+				? {
+					files: opts.changesSummary.files ?? 0,
+					insertions: opts.changesSummary.additions ?? 0,
+					deletions: opts.changesSummary.deletions ?? 0,
+				}
+				: undefined,
 		};
 	}
 

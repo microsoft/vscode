@@ -21,7 +21,7 @@ import {
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { Changeset, ChangesetState } from '../common/state/protocol/state.js';
+import type { Changeset, ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
@@ -54,6 +54,11 @@ export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
  */
 export const META_LEGACY_DIFFS = 'diffs';
 
+/**
+ * Metadata key under which the session's changes is persisted.
+ */
+export const META_CHANGES_SUMMARY = 'agentHost.changes';
+
 /** The two static changeset kinds we publish by default. */
 export type StaticChangesetKind = 'uncommitted' | 'session';
 
@@ -63,6 +68,61 @@ function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): Pr
 
 function persistKeyFor(kind: StaticChangesetKind): string {
 	return kind === 'uncommitted' ? META_CHANGESET_UNCOMMITTED : META_CHANGESET_SESSION;
+}
+
+/**Add a comment on  line R64Add diff commentMarkdown input: hybrid mode selected.WritePreviewHybridAdd a suggestionBold(command b) command⌘ bBItalic(command i) command⌘ iILink(command k) command⌘ kKCode(command e) command⌘ eEQuote(shift command period) shift⇧ command⌘ period.Unordered list(shift command 8) shift⇧ command⌘ 88Ordered list(shift command 7) shift⇧ command⌘ 77Task list(shift command l) shift⇧ command⌘ lLAttachmentCode blockHeadingStrikethrough(shift command x) shift⇧ command⌘ xXMore Formatting tools items 11Private previewLeave a commentCancelCommentStart a review
+ * Sums the per-file diff counts into the {@link ChangesSummary} shape
+ * that lives on `summary.changes`. Returns `undefined` for an undefined
+ * input so callers can distinguish "no data yet" from "data, zero changes".
+ */
+function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): ChangesSummary | undefined {
+	if (!diffs) {
+		return undefined;
+	}
+	let additions = 0;
+	let deletions = 0;
+	for (const d of diffs) {
+		additions += d.diff?.added ?? 0;
+		deletions += d.diff?.removed ?? 0;
+	}
+	return { additions, deletions, files: diffs.length };
+}
+
+/**
+ * Derives the `summary.changes` aggregate for an unopened session from
+ * the ready live {@link ChangesetState} of the catalogue entry whose
+ * `changeKind === 'session'` — typically because a previous
+ * `restoreStaticChangeset` warmed the cache before the session itself
+ * was attached.
+ *
+ * Returns `undefined` when no live session-wide state is ready, so
+ * `listSessions` leaves the `changes` field unset for sessions without
+ * usable counts — preserving the long-standing contract that unopened
+ * sessions without live or persisted data advertise no aggregate.
+ *
+ * Only the `changeKind: 'session'` entry feeds the summary; other kinds
+ * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
+ * the session-level footprint. The static catalogue itself (built by
+ * {@link buildDefaultChangesetCatalogue}) is independent of counts and
+ * is seeded once at session creation.
+ */
+export function computeChangesSummaryFromLiveState(
+	session: ChangesetState | undefined,
+): ChangesSummary | undefined {
+	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
+	return summariseDiffs(sessionDiffs);
+}
+
+/**
+ * Derives the `summary.changes` aggregate for an unopened session from
+ * parsed persisted diffs for the `changeKind: 'session'` catalogue
+ * entry. Returns `undefined` when the session-wide blob is absent so
+ * malformed metadata leaves `summary.changes` unset.
+ */
+export function computeChangesSummaryFromPersistedDiffs(
+	sessionDiffs: readonly ISessionFileDiff[] | undefined,
+): ChangesSummary | undefined {
+	return summariseDiffs(sessionDiffs);
 }
 
 /**
@@ -165,8 +225,9 @@ export interface IPersistedChangesetMetadata {
 
 /**
  * The parsed diffs returned from {@link IAgentHostChangesetService.restorePersistedStaticChangesets},
- * suitable for passing into {@link buildCatalogueFromPersistedDiffs} when
- * the caller needs to synthesise a catalogue for the session-list overlay.
+ * suitable for passing into {@link computeChangesSummaryFromPersistedDiffs}
+ * when the caller needs to synthesise a `summary.changes` aggregate for
+ * the session-list overlay.
  */
 export interface IRestoredChangesetDiffs {
 	readonly uncommitted?: readonly ISessionFileDiff[];
@@ -197,7 +258,7 @@ export interface IAgentHostChangesetService {
 	 * Registers the two static changeset URIs (`uncommitted`, `session`)
 	 * on the state manager so client subscriptions resolve to a
 	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`summary.changesets`) is seeded
+	 * completes. The catalogue itself (`state.changesets`) is seeded
 	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
 	 * deals with the state-manager-side per-changeset entries.
 	 *
@@ -247,6 +308,16 @@ export interface IAgentHostChangesetService {
 	 * here; the service does not open the database itself for this method.
 	 */
 	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
+
+	/**
+	 * Fire-and-forget persistence of the `summary.changes` aggregate to the
+	 * session DB under {@link META_CHANGES_SUMMARY}. Used both by the
+	 * happy-path turn-complete write and by the {@link ChangesetSessionCoordinator}
+	 * one-shot migration that reads the old `META_CHANGESET_SESSION` /
+	 * `META_LEGACY_DIFFS` blobs and projects them into the new key on
+	 * sessions written by older builds. Errors are logged, not thrown.
+	 */
+	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void;
 
 	/**
 	 * Returns true when the static changeset identified by `changesetUri` is
@@ -400,6 +471,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const parsed = this.parsePersistedStaticChangesets(sessionUri, metadata);
 		this.applyPersistedStaticChangesets(sessionUri, parsed);
 		return parsed;
+	}
+
+	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
+		this._persistSessionFlag(sessionUri, META_CHANGES_SUMMARY, JSON.stringify(summary));
 	}
 
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean {
@@ -732,6 +807,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// during the rollout window.
 			if (kind === 'session') {
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
+
+				// Persist the changes summary
+				const changesSummary = summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 };
+				this.persistChangesSummary(session, changesSummary);
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);

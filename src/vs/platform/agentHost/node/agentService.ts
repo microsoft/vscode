@@ -27,7 +27,7 @@ import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedActio
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
 import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -38,7 +38,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { AgentHostChangesetService, IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { AgentHostChangesetService, IAgentHostChangesetService, META_CHANGES_SUMMARY } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
@@ -395,11 +395,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder. The default `session` changeset
-		// catalogue entry lives on `state.summary.changesets` (published
-		// at session-ready/restore time and refreshed after each compute
-		// pass) and must be surfaced here so a fresh `listSessions` call
-		// returns the same catalogue subscribers see via
+		// initial empty placeholder. The default changeset catalogue lives
+		// on `state.changesets` (seeded after `createSession` /
+		// `restoreSession` and refreshed after each compute pass) and the
+		// chip aggregate on `state.summary.changes`; both must be surfaced
+		// here so a fresh `listSessions` call returns the same values
+		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
@@ -411,6 +412,7 @@ export class AgentService extends Disposable implements IAgentService {
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
 					agent: liveState.summary.agent ?? s.agent,
+					changes: liveState.summary.changes ?? s.changes,
 					changesets: liveState.changesets ?? s.changesets,
 				};
 			}
@@ -548,19 +550,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Initial changeset state is established as part of session creation,
-		// never deferred to materialization. Two halves: (1) the summary
-		// catalogue is seeded by `buildDefaultChangesetCatalogue` inside
-		// `_buildInitialSummary`; (2) the backing per-changeset states are
+		// never deferred to materialization. Two halves: (1) the catalogue
+		// is seeded on `state.changesets` via `setSessionChangesets` right
+		// after `createSession`; (2) the backing per-changeset states are
 		// registered by `_changesetCoordinator.onSessionCreated` here. Both
 		// run before `SessionReady` is dispatched. Any future change must
 		// keep both halves at create time so client subscriptions resolve
-		// to a `status: computing` snapshot rather than a 404 even on
-		// provisional sessions, and so the catalogue chip renders the
-		// default entries (`Branch Changes`, `Uncommitted Changes`,
-		// `This Turn`) immediately. The first two are git-only: a later
 		// `_attachGitState` strips them once the git probe confirms the
 		// resolved working directory is not a git repo. Pinned by item-2
 		// regression tests in `agentService.test.ts`.
+		const changesets = buildDefaultChangesetCatalogue(session.toString());
+		this._stateManager.setSessionChangesets(session.toString(), changesets);
+
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -1274,6 +1275,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let isRead: boolean | undefined;
 		let isArchived: boolean | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
+		let changes: ChangesSummary | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
@@ -1300,10 +1302,16 @@ export class AgentService extends Disposable implements IAgentService {
 						} else if (m.isDone !== undefined) {
 							isArchived = m.isDone === 'true';
 						}
-						// Capture the batched changeset blobs verbatim — the
-						// coordinator parses, validates, and applies them
-						// after `restoreSession` registers the static states.
+
 						changesetMetadata = m as Record<string, string | undefined>;
+						if (changesetMetadata[META_CHANGES_SUMMARY]) {
+							try {
+								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
 						if (m.configValues) {
 							try {
 								persistedConfigValues = JSON.parse(m.configValues);
@@ -1339,16 +1347,19 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
 			agent: meta.agent,
+			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
-		this._stateManager.setSessionChangesets(sessionStr, buildDefaultChangesetCatalogue(sessionStr));
+
+		const changesets = buildDefaultChangesetCatalogue(sessionStr);
+		this._stateManager.setSessionChangesets(sessionStr, changesets);
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
-		// summary is already on the summary above (seeded synchronously by
-		// `buildDefaultChangesetCatalogue`). The coordinator drains any
+		// itself is seeded on `state.changesets` synchronously by the
+		// `setSessionChangesets` call above. The coordinator drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
 		// `<session>/changeset/uncommitted` before this restore ran (e.g.

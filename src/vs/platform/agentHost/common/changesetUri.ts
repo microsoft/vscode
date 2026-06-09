@@ -283,7 +283,16 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  */
 export function buildDefaultChangesetCatalogue(sessionUri: URI): Changeset[] {
 	return [
-		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri), changeKind: 'session' },
-		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), changeKind: 'uncommitted', description: uncommittedChangesetDescription() }
+		{
+			label: sessionChangesetLabel(),
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: 'session'
+		},
+		{
+			label: uncommittedChangesetLabel(),
+			description: uncommittedChangesetDescription(),
+			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			changeKind: 'uncommitted'
+		}
 	];
 }
