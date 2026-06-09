@@ -45,7 +45,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions } 
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon } from '../../../github/common/types.js';
 import { changesetFilesToChanges, mapProtocolStatus } from './agentHostDiffs.js';
-import { AgentHostCatalogChangeset, createChangesets } from './agentHostSessionChangesets.js';
+import { createChangesets } from './agentHostSessionChangesets.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
@@ -138,7 +138,7 @@ export class AgentHostSessionAdapter implements ISession {
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
-	readonly changesets: IObservable<readonly ISessionChangeset[]>;
+	readonly changesets: ISettableObservable<readonly ISessionChangeset[]>;
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: ModelSelection | undefined;
 	readonly mode: ISettableObservable<{ readonly id: string; readonly kind: string } | undefined>;
@@ -200,6 +200,8 @@ export class AgentHostSessionAdapter implements ISession {
 
 		return true;
 	}
+
+	readonly isActiveSessionObs: IObservable<boolean>;
 
 	constructor(
 		metadata: IAgentSessionMetadata,
@@ -305,7 +307,7 @@ export class AgentHostSessionAdapter implements ISession {
 			this.isArchived.set(true, undefined);
 		}
 
-		const isActiveSessionObs = derived(this, reader => {
+		this.isActiveSessionObs = derived(this, reader => {
 			const activeSession = this._sessionsManagementService.activeSession.read(reader);
 			return isEqual(activeSession?.resource, this.resource);
 		});
@@ -317,14 +319,12 @@ export class AgentHostSessionAdapter implements ISession {
 		this.setChangesSummary(metadata.changes);
 
 		const sessionUri = AgentSession.uri(this.sessionType, rawId);
-		const { changesSummary, changes } = this._createChangesObs(sessionUri, isActiveSessionObs);
+		const { changesSummary, changes } = this._createChangesObs(sessionUri);
 		this.changesSummary = changesSummary;
 		this.changes = changes;
 
-		// Set the changesets from the catalogue. When the session is active,
-		// the changesets will be updated as some changeset details are being
-		// provided async (ex: description).
-		this.changesets = constObservable(createChangesets(sessionUri, this._options, isActiveSessionObs, metadata.changesets));
+		// Changesets will be resolved asynchronously when the session is active.
+		this.changesets = observableValue<readonly ISessionChangeset[]>(this, []);
 
 		const mainChat: IChat = {
 			resource: this.resource,
@@ -345,7 +345,7 @@ export class AgentHostSessionAdapter implements ISession {
 		this.chats = this.mainChat.map(c => [c]);
 	}
 
-	private _createChangesObs(sessionUri: URI, isActiveSessionObs: IObservable<boolean>): {
+	private _createChangesObs(sessionUri: URI): {
 		changesSummary: IObservable<ISessionChangesSummary | undefined>;
 		changes: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
 	} {
@@ -355,7 +355,7 @@ export class AgentHostSessionAdapter implements ISession {
 				return constObservable(undefined);
 			}
 
-			const isActiveSession = isActiveSessionObs.read(reader);
+			const isActiveSession = this.isActiveSessionObs.read(reader);
 			if (!isActiveSession) {
 				return constObservable(undefined);
 			}
@@ -368,7 +368,7 @@ export class AgentHostSessionAdapter implements ISession {
 		});
 
 		const changesetChangesObs = derivedObservableWithCache<readonly (IChatSessionFileChange | IChatSessionFileChange2)[] | undefined>(this, (reader, lastValue) => {
-			const isActiveSession = isActiveSessionObs.read(reader);
+			const isActiveSession = this.isActiveSessionObs.read(reader);
 			if (!isActiveSession) {
 				return lastValue;
 			}
@@ -407,7 +407,7 @@ export class AgentHostSessionAdapter implements ISession {
 		});
 
 		const changesSummaryObs = derivedOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, reader => {
-			const isActiveSession = isActiveSessionObs.read(reader);
+			const isActiveSession = this.isActiveSessionObs.read(reader);
 			const changesetSummary = changesetSummaryObs.read(reader);
 			const changesSummary = this._changesSummary.read(reader);
 
@@ -538,26 +538,16 @@ export class AgentHostSessionAdapter implements ISession {
 		return workspaceChanged;
 	}
 
-	updateChangesets(changesets: readonly Changeset[] | undefined) {
-		if (!changesets) {
+	updateChangesets(changesetsMetadata: readonly Changeset[] | undefined) {
+		if (!changesetsMetadata) {
 			return;
 		}
 
-		const existingChangesets = this.changesets.get();
+		const rawId = AgentSession.id(this.resource);
+		const sessionUri = AgentSession.uri(this.sessionType, rawId);
+		const changesets = createChangesets(sessionUri, this._options, this.isActiveSessionObs, changesetsMetadata);
 
-		for (const changeset of changesets) {
-			const existingChangeset = existingChangesets
-				.find(c => c.label === changeset.label);
-
-			if (!(existingChangeset instanceof AgentHostCatalogChangeset)) {
-				continue;
-			}
-
-			// Update the existing changeset with the new descritpion. This
-			// is currently a workaround as the changeset does not have the
-			// correct descritpion in the initial catalog.
-			existingChangeset.update(changeset);
-		}
+		this.changesets.set(changesets, undefined);
 	}
 }
 
