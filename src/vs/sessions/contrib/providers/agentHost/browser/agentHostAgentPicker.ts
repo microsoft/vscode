@@ -27,6 +27,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISession, ISessionAgentRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ModePicker, ModePickerModel } from '../../copilotChatSessions/browser/modePicker.js';
+import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -138,11 +139,12 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		}));
 
 		const factory = (_action: IAction, _options: IActionViewItemOptions, scopedInstantiationService: IInstantiationService) => {
+			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
 			const picker = scopedInstantiationService.createInstance(ModePicker, modePickerModel);
 			const disposableStore = new DisposableStore();
 
 			disposableStore.add(picker.onDidSelect(mode => {
-				this._selectMode(mode, sessionsManagementService, sessionsProvidersService);
+				this._selectMode(mode, session.get(), sessionsProvidersService);
 			}));
 			return scopedInstantiationService.createInstance(AgentHostModePickerActionViewItem, picker, disposableStore);
 		};
@@ -242,8 +244,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 		}
 	}
 
-	private _selectMode(mode: IChatMode, sessionsManagementService: ISessionsManagementService, sessionsProvidersService: ISessionsProvidersService): void {
-		const session = sessionsManagementService.activeSession.get();
+	private _selectMode(mode: IChatMode, session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): void {
 		if (!session) {
 			return;
 		}
