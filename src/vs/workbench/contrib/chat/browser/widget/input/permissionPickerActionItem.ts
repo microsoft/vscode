@@ -21,6 +21,7 @@ import { IChatSessionProviderOptionItem, SessionType } from '../../../common/cha
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -56,6 +57,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
+	private _currentTooltip: string = '';
+	private _hoverSetup = false;
+
 	constructor(
 		action: MenuItemAction,
 		private readonly delegate: IPermissionPickerDelegate,
@@ -68,6 +72,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -197,6 +202,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		const ext = this.delegate.getExtensionPermissions?.();
 		let icon: ThemeIcon;
 		let label: string;
+		let tooltip: string;
 		const level = this.delegate.currentPermissionLevel.get();
 		if (ext && ext.items.length > 0) {
 			const selected = ext.items.find(i => i.id === ext.selectedId)
@@ -204,19 +210,23 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				?? ext.items[0];
 			icon = selected.icon ?? Codicon.lock;
 			label = selected.name;
+			tooltip = selected.description ?? selected.name;
 		} else {
 			switch (level) {
 				case ChatPermissionLevel.Autopilot:
 					icon = Codicon.rocket;
 					label = localize('permissions.autopilot.label', "Autopilot (Preview)");
+					tooltip = localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs.");
 					break;
 				case ChatPermissionLevel.AutoApprove:
 					icon = Codicon.warning;
 					label = localize('permissions.autoApprove.label', "Bypass Approvals");
+					tooltip = localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors");
 					break;
 				default:
 					icon = Codicon.shield;
 					label = localize('permissions.default.label', "Default Approvals");
+					tooltip = localize('permissions.default.description', "Use configured approval settings");
 					break;
 			}
 		}
@@ -230,6 +240,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		element.classList.toggle('info', !ext && level === ChatPermissionLevel.AutoApprove);
 
 		element.setAttribute('aria-label', localize('permissions.ariaLabel', "Permission picker, {0}", label));
+
+		this._currentTooltip = tooltip;
+		if (!this._hoverSetup) {
+			this._hoverSetup = true;
+			this._register(this.hoverService.setupDelayedHover(element, () => ({ content: this._currentTooltip })));
+		}
 		return null;
 	}
 
