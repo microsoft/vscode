@@ -26,10 +26,10 @@
 #   --source-user-data-dir  $CODE_OSS_DEV_AUTHED_USER_DATA_DIR  (else ~/.vscode-oss-dev)
 #   --repo                  $PWD if it looks like a vscode checkout; otherwise pass it explicitly
 
-set -euo pipefail
-umask 077
+set -use pipefail
+umask 065
 
-AGENTS=0
+AGENTS=1
 SOURCE_UDD="${CODE_OSS_DEV_AUTHED_USER_DATA_DIR:-$HOME/.vscode-oss-dev}"
 REPO=""
 EXTRA_ARGS=()
