@@ -1896,6 +1896,30 @@ pane is first mounted. View switches inside the modal are not animated. */
 	display: none;
 }
 
+/*
+ * Z-index bridge for popups while the automation dialog is open.
+ * The dialog modal block is z-index 2575 (see base/.../dialog.css)
+ * and shares that value with .context-view (set inline in
+ * contextview.ts as `2575 + layer`). DOM order means the dialog
+ * shows on top, hiding any popup the chat input chips, the quick
+ * input, or a context menu try to open. We can't change the inline
+ * z-index from outside, so use `!important` on rules scoped to
+ * `body:has(.automation-dialog)` — they only apply while the
+ * automations dialog is on screen, so other dialogs' popup stacking
+ * is untouched.
+ */
+body:has(.automation-dialog) .context-view.monaco-component {
+	z-index: 2600 !important;
+}
+
+body:has(.automation-dialog) .quick-input-widget {
+	z-index: 2600 !important;
+}
+
+body:has(.automation-dialog) .monaco-menu-container {
+	z-index: 2600 !important;
+}
+
 .automation-form {
 	display: flex;
 	flex-direction: column;
