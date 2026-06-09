@@ -656,6 +656,30 @@ suite('ChatQuotaNotificationContribution', () => {
 			]);
 		});
 
+		test('action click dismisses trajectory nudge for the quota period', async () => {
+			const { entitlementMock, notificationMock } = createContribution({
+				entitlement: ChatEntitlement.Pro,
+				quotas: {
+					resetDate: makeResetDate(24),
+					usageBasedBilling: true,
+					premiumChat: makeQuotaSnapshot(78),
+				},
+			}, { trajectoryTreatment: 'enabled' });
+
+			await flushPromises();
+			assert.ok(notificationMock.getNotification());
+
+			notificationMock.getNotification()!.actions[0].run?.();
+			await flushPromises();
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
+
+			notificationMock.reset();
+			entitlementMock.onDidChangeQuotaRemaining.fire();
+
+			assert.strictEqual(notificationMock.getNotification(), undefined);
+		});
+
 		test('uses info severity even when projected daily usage is high', async () => {
 			const { notificationMock } = createContribution({
 				entitlement: ChatEntitlement.ProPlus,

@@ -306,11 +306,17 @@ export class ChatQuotaNotificationContribution extends Disposable implements IWo
 				commandId: 'vscode.open',
 				commandArgs: [URI.parse(CREDIT_EFFICIENCY_LEARN_MORE_URL)],
 				secondary: true,
-				run: () => this._logQuotaTrajectoryNudgeActionClicked(warning, 'learnMore'),
+				run: () => this._handleQuotaTrajectoryNudgeAction(warning, 'learnMore'),
 			}],
 			dismissible: true,
 			autoDismissOnMessage: false,
 		});
+	}
+
+	private _handleQuotaTrajectoryNudgeAction(warning: { averageDailyUsage: number; percentUsed: number }, action: ChatQuotaTrajectoryNudgeAction): void {
+		this._logQuotaTrajectoryNudgeActionClicked(warning, action);
+		this._storeTrajectoryDismissal();
+		queueMicrotask(() => this._hideNotification());
 	}
 
 	private _logQuotaTrajectoryNudgeShown(warning: { averageDailyUsage: number; percentUsed: number }): void {
