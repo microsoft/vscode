@@ -783,6 +783,11 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.error(err, `[Copilot:${this.sessionId}] rpc.history.compact failed`);
 				throw err;
 			}
+			// `/compact` is handled inline via the history RPC rather than by
+			// driving an SDK turn, so the SDK never fires `onIdle` to close the
+			// turn. Complete the turn here so the session returns to idle
+			// instead of spinning forever.
+			this._completeActiveTurn();
 			return;
 		}
 		if (slashCommand?.command === 'research') {

@@ -15,7 +15,7 @@
 }
 
 .monaco-workbench .part.sessionspart .session-view,
-.monaco-workbench .part.sessionspart .session-view > .session-view-content {
+.monaco-workbench .part.sessionspart .session-view .session-view-content {
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
 	position: relative;
