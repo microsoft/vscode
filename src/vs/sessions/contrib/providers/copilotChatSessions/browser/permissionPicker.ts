@@ -228,7 +228,7 @@ export class PermissionPicker extends Disposable {
 				if (item.level) {
 					await this._selectLevel(item.level);
 				} else {
-					await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
 			onHide: () => { triggerElement.focus(); },

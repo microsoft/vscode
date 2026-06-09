@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import { IParsedPlugin, parseAgentFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -46,10 +46,28 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
-import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { areDiscoveredDirectoriesEqual, DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+
+/**
+ * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
+ * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
+ * match the agent host's configured verbosity. `Trace` maps to the CLI's most
+ * verbose `'all'` level so renderer-side trace logging surfaces the CLI's
+ * internal diagnostics.
+ */
+function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOptions['logLevel']> {
+	switch (level) {
+		case LogLevel.Off: return 'none';
+		case LogLevel.Trace: return 'all';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warning';
+		case LogLevel.Error: return 'error';
+	}
+}
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -529,6 +547,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
 				telemetry,
+				logLevel: copilotCliLogLevelFor(this._logService.getLevel()),
 				enableRemoteSessions: this._isSessionSyncEnabled(),
 			};
 			const client = this._createCopilotClient(clientOptions);
@@ -1899,6 +1918,7 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private _customizations: readonly DirectoryCustomization[] = [];
 	private _plugin: IParsedPlugin | undefined;
+	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 	private readonly _fileService: IFileService;
 
@@ -1964,6 +1984,10 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
+			if (this._directories && areDiscoveredDirectoriesEqual(this._directories, directories)) {
+				return false;
+			}
+
 			const customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
 			if (token.isCancellationRequested) {
 				return false;
@@ -1985,6 +2009,7 @@ class SessionDiscoveredEntry extends Disposable {
 				this._customizations = customizations;
 				this._plugin = plugin;
 			}
+			this._directories = directories;
 			return true;
 		} catch (err) {
 			// Don't update `_customizations` / `_plugin` when cancelled.
@@ -1993,9 +2018,11 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
+			const hadState = this._customizations.length > 0 || this._plugin !== undefined || this._directories !== undefined;
 			this._customizations = [];
 			this._plugin = undefined;
-			return true;
+			this._directories = undefined;
+			return hadState;
 		}
 	}
 }
@@ -2012,7 +2039,7 @@ function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDi
 			contents: toDirectoryContentsType(directory.type),
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
-			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file, directory.type, fileService))),
+			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file.uri, directory.type, fileService))),
 		};
 	}));
 }
