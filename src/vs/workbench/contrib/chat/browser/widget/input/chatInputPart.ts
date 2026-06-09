@@ -88,7 +88,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { filterModelsForSession, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
+import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -107,7 +107,7 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostBranchPickerAction, OpenAgentHostIsolationPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
@@ -125,6 +125,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationService } from './chatInputNotificationService.js';
+import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
 import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
@@ -135,9 +136,11 @@ import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permiss
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
+import { ChatInputStatusActionViewItem } from './chatInputStatusActionViewItem.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
+import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 
 const $ = dom.$;
 
@@ -311,6 +314,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputSideToolbarContainer?: HTMLElement;
 	private secondaryToolbarContainer!: HTMLElement;
 	private secondaryToolbar!: MenuWorkbenchToolBar;
+	private statusToolbarContainer!: HTMLElement;
+	private statusToolbar!: MenuWorkbenchToolBar;
 
 	private followupsContainer!: HTMLElement;
 	private readonly followupsDisposables: DisposableStore = this._register(new DisposableStore());
@@ -331,8 +336,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatPlanReviewContainer!: HTMLElement;
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
 	private chatInputNotificationContainer!: HTMLElement;
+	private chatGoalBannerContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
+	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
+	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
+	/** Fired when the user dismisses the autopilot goal banner. */
+	readonly onDidDismissGoalBanner: Event<void> = this._onDidDismissGoalBanner.event;
 
 	private contextUsageWidget?: ChatContextUsageWidget;
 	private contextUsageWidgetContainer!: HTMLElement;
@@ -354,6 +364,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Reference to the input model for syncing input state
 	private _inputModel: IInputModel | undefined;
+	// Session resource of the currently bound _inputModel. Used for diagnostic
+	// logging so we can detect writes that target a different session than the
+	// one the widget viewModel is currently showing (cyclic-ref window).
+	private _inputModelSessionResource: URI | undefined;
 
 	// Disposables for model observation
 	private readonly _modelSyncDisposables = this._register(new DisposableStore());
@@ -372,6 +386,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputEditor() {
 		return this._inputEditor;
+	}
+
+	setHistoryKey(historyKey: string | undefined): void {
+		this.history.setHistoryKey(historyKey);
 	}
 
 	readonly dnd: ChatDragAndDrop;
@@ -576,7 +594,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		// Initialize debounced text sync scheduler
-		this._syncTextDebounced = this._register(new RunOnceScheduler(() => this._syncInputStateToModel(), 150));
+		this._syncTextDebounced = this._register(new RunOnceScheduler(() => {
+			logChangesToStateModel(this._inputModel, `[DEBOUNCE] _syncTextDebounced fired -> _syncInputStateToModel in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
+			this._syncInputStateToModel();
+		}, 150));
 		this._emptyInputState = this._register(emptyInputState(StorageScope.WORKSPACE, StorageTarget.USER, this.storageService));
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
@@ -612,12 +633,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
 			this._register(this.options.sessionTypePickerDelegate.onDidChangeActiveSessionProvider(async (newSessionType) => {
+				// In the welcome view there is no view model yet, so `onDidChangeViewModel` won't fire; seed `_currentSessionType` so storage
+				// lookups key off the new type.
+				this._currentSessionType = newSessionType;
 				this.getVisibleOptionGroupsModeAndUpdateContextKeys(this.getCurrentSessionResource());
 				this.agentSessionTypeKey.set(newSessionType);
 				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
 				this.checkModeInSessionPool(newSessionType);
+				this.revalidateModelForSessionType();
 				this.refreshChatSessionPickers();
+				// Re-evaluate session-type-gated input notifications (e.g. the
+				// Open-in-Agents-Window tip) when the user changes mode.
+				this._notificationWidget.value?.rerender();
 			}));
 		}
 
@@ -695,44 +723,54 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
+		this._register(this._onDidChangeCurrentChatMode.event(() => {
+			this.checkModelSupported();
+		}));
+
 		const resetCurrentLanguageModelIfUnavailable = () => {
 			const modelIdentifier = this._currentLanguageModel.get()?.identifier;
 			const models = this.getModels();
-			if (this._currentSessionType === SessionType.CopilotCLI) {
-				if (shouldResetOnModelListChange(modelIdentifier, models) && !models.some(m => m.metadata.id === modelIdentifier)) {
-					if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
-						const mergedModels = this.getAllMergedModels();
-						const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
-						const messageparts: string[] = [
-							`resetting current language model due to model list change from ${modelIdentifier}`,
-							`this._widget?.viewModel?.model.sessionResource = ${this._widget?.viewModel?.model.sessionResource?.toString()}`,
-							`this.getCurrentSessionType = ${this.getCurrentSessionType()}`,
-							`this._currentSessionType = ${this._currentSessionType}`,
-							`model identifiers: ${models.map(m => m.identifier).join(', ')}`,
-							`model target Session Types: ${models.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
-							`model metadataid: ${models.map(m => m.metadata.id).join(', ')}`,
-							`merged.model identifiers: ${mergedModels.map(m => m.identifier).join(', ')}`,
-							`merged.model target Session Types: ${mergedModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
-							`merged.model metadataid: ${mergedModels.map(m => m.metadata.id).join(', ')}`,
-							`filtered.model identifiers: ${filteredModels.map(m => m.identifier).join(', ')}`,
-							`filtered.model target Session Types: ${filteredModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
-							`filtered.model metadataid: ${filteredModels.map(m => m.metadata.id).join(', ')}`,
-						];
-						if (this.getCurrentSessionType() !== SessionType.CopilotCLI) {
-							const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-							if (delegateSessionType) {
-								messageparts.push(`delegateSessionType = ${delegateSessionType}`);
-							}
-							const sessionResource = this._widget?.viewModel?.model.sessionResource;
-							messageparts.push(`current session resource = ${sessionResource}`);
-						}
-
-						logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
+			if (canLog(this.logService.getLevel(), LogLevel.Debug)) {
+				const mergedModels = this.getAllMergedModels();
+				const filteredModels = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+				const messageparts: string[] = [
+					`resetting current language model due to model list change from ${modelIdentifier}`,
+					`this._widget?.viewModel?.model.sessionResource = ${this._widget?.viewModel?.model.sessionResource?.toString()}`,
+					`this.currentModeKind = ${this.currentModeKind}`,
+					`this.getCurrentSessionType = ${this.getCurrentSessionType()}`,
+					`this._currentSessionType = ${this._currentSessionType}`,
+					`shouldResetOnModelListChange(modelIdentifier, models) = ${shouldResetOnModelListChange(modelIdentifier, models)}`,
+					`vendors: ${this.languageModelsService.getVendors().map(v => v.vendor).join(', ')}`,
+					`hiddenModelIds: ${this.languageModelsService.getHiddenModelIds().join(', ')}`,
+					`model identifiers: ${models.map(m => m.identifier).join(', ')}`,
+					`model target Session Types: ${models.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+					`model metadataid: ${models.map(m => m.metadata.id).join(', ')}`,
+					`merged.model identifiers: ${mergedModels.map(m => m.identifier).join(', ')}`,
+					`merged.model target Session Types: ${mergedModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+					`merged.model metadataid: ${mergedModels.map(m => m.metadata.id).join(', ')}`,
+					`filtered.model identifiers: ${filteredModels.map(m => m.identifier).join(', ')}`,
+					`filtered.model target Session Types: ${filteredModels.map(m => m.metadata.targetChatSessionType || '').join(', ')}`,
+					`filtered.model metadataid: ${filteredModels.map(m => m.metadata.id).join(', ')}`,
+				];
+				if (this.getCurrentSessionType() !== SessionType.CopilotCLI) {
+					const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+					if (delegateSessionType) {
+						messageparts.push(`delegateSessionType = ${delegateSessionType}`);
 					}
+					const sessionResource = this._widget?.viewModel?.model.sessionResource;
+					messageparts.push(`current session resource = ${sessionResource}`);
+				}
+
+				logChangesToStateModel(this._inputModel, messageparts.join(', '), undefined, undefined, this.logService);
+			}
+			if (shouldResetOnModelListChange(modelIdentifier, models)) {
+				// Carry the previous selection across pools when targeted models arrive late.
+				const match = findBestMatchingModel(this._currentLanguageModel.get(), models);
+				if (match) {
+					this.setCurrentLanguageModel(match);
+				} else {
 					this.setCurrentLanguageModelToDefault();
 				}
-			} else if (shouldResetOnModelListChange(modelIdentifier, models)) {
-				this.setCurrentLanguageModelToDefault();
 			}
 		};
 		this._register(this.languageModelsService.onDidChangeLanguageModels(resetCurrentLanguageModelIfUnavailable));
@@ -755,7 +793,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this._register(autorun(reader => {
 			const modes = this._currentChatModesObservable.read(reader);
-			reader.store.add(modes.onDidChange(() => this.validateCurrentChatMode()));
+			reader.store.add(modes.onDidChange(() => {
+				this.validateCurrentChatMode();
+			}));
 		}));
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
@@ -784,7 +824,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getSelectedModelStorageKey(): string {
 		const sessionType = this._currentSessionType;
-		if (sessionType && this.hasModelsTargetingSessionType()) {
+		if (sessionType && this.sessionTypeHasOwnModelPool(sessionType)) {
 			return `chat.currentLanguageModel.${this.location}.${sessionType}`;
 		}
 		return `chat.currentLanguageModel.${this.location}`;
@@ -792,10 +832,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getSelectedModelIsDefaultStorageKey(): string {
 		const sessionType = this._currentSessionType;
-		if (sessionType && this.hasModelsTargetingSessionType()) {
+		if (sessionType && this.sessionTypeHasOwnModelPool(sessionType)) {
 			return `chat.currentLanguageModel.${this.location}.${sessionType}.isDefault`;
 		}
 		return `chat.currentLanguageModel.${this.location}.isDefault`;
+	}
+
+	/**
+	 * True when the session type owns its own model pool (either declared via `requiresCustomModels`,
+	 * or some registered model already targets it). Keeps storage keys stable before targeted models are published.
+	 */
+	private sessionTypeHasOwnModelPool(sessionType: string): boolean {
+		return this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
+			|| hasModelsTargetingSession(this.getAllMergedModels(), sessionType);
 	}
 
 	private initSelectedModel() {
@@ -803,11 +852,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Do not let a delayed restore from a previous session type apply later.
 		this._waitForPersistedLanguageModel.clear();
 
-		const persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
-		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, true);
+		const selectedModelStorageKey = this.getSelectedModelStorageKey();
+		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
+		const persistedSelection = this.storageService.get(selectedModelStorageKey, StorageScope.APPLICATION);
+		const persistedAsDefault = this.storageService.getBoolean(selectedModelIsDefaultStorageKey, StorageScope.APPLICATION, true);
+		logChangesToStateModel(this._inputModel, `[INIT-SELECTED-MODEL] storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, persistedSelection=${persistedSelection}, persistedAsDefault=${persistedAsDefault}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, widgetSession=${this._currentSessionKey}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, this._inputModel?.state.get(), undefined, this.logService);
 
 		if (persistedSelection) {
 			const result = shouldRestorePersistedModel(persistedSelection, persistedAsDefault, this.getModels(), this.location);
+			logChangesToStateModel(this._inputModel, `[INIT-SELECTED-MODEL] restore decision persistedSelection=${persistedSelection}, shouldRestore=${result.shouldRestore}, resultModel=${result.model?.identifier}, storageKey=${selectedModelStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}`, this._inputModel?.state.get(), undefined, this.logService);
 			if (result.shouldRestore && result.model) {
 				this.setCurrentLanguageModel(result.model);
 				this.checkModelSupported();
@@ -828,10 +881,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 			}
 		}
-
-		this._register(this._onDidChangeCurrentChatMode.event(() => {
-			this.checkModelSupported();
-		}));
 	}
 
 	public setEditing(enabled: boolean, editingSentRequest: ChatContextKeys.EditingRequestType | undefined) {
@@ -845,6 +894,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (model) {
 			this.setCurrentLanguageModel(model);
 		}
+	}
+
+	/**
+	 * Switch to a model by its identifier. Returns true if a matching model
+	 * was found and applied.
+	 */
+	public switchModelByIdentifier(identifier: string): boolean {
+		const models = this.getModels();
+		const model = models.find(m => m.identifier === identifier);
+		if (model) {
+			this.setCurrentLanguageModel(model);
+			return true;
+		}
+		return false;
 	}
 
 	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
@@ -968,6 +1031,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (sessionResource) {
 			this.chatSessionsService.setSessionOption(sessionResource, PERMISSION_LEVEL_OPTION_ID, level);
 		}
+		// Log first so the upcoming _syncInputStateToModel write can be attributed
+		// to a permission-level change (which also indirectly writes selectedModel).
+		logChangesToStateModel(this._inputModel, `setPermissionLevel -> _syncInputStateToModel (level=${level}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 		this._syncInputStateToModel();
 	}
 
@@ -1068,14 +1134,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Solution is to pass the SessionResource as an argument to this method.
 	*/
 	setInputModel(model: IInputModel, chatSessionIsEmpty: boolean, forSessionResource: URI): void {
-		logChangesToStateModel(this._inputModel, `setInputModel for ${forSessionResource.toString()}`, model.state.get(), undefined, this.logService);
+		// Pass the OUTGOING session's input state as oldState so we can see what
+		// model the previous session was holding right before we swap it out.
+		logChangesToStateModel(this._inputModel, `setInputModel for ${forSessionResource.toString()} (chatSessionIsEmpty=${chatSessionIsEmpty}, outgoing._inputModel=${this._inputModel ? 'present' : 'undefined'})`, model.state.get(), this._inputModel?.state.get(), this.logService);
 		// Flush current state to the outgoing model before switching,
 		// so it preserves the latest permission level and other picker state.
 		if (this._inputModel) {
+			logChangesToStateModel(this._inputModel, `[FLUSH-PRE] setInputModel pre-flush boundInputModelSession=${this._inputModelSessionResource?.toString()} widgetSession=${this._currentSessionKey} incoming=${forSessionResource.toString()}`, undefined, this._inputModel.state.get(), this.logService);
 			this._syncInputStateToModel();
 		}
 
+		this._currentSessionType = getChatSessionType(forSessionResource);
 		this._inputModel = model;
+		this._inputModelSessionResource = forSessionResource;
 		this._modelSyncDisposables.clear();
 		const chatModes = this.chatModeService.createModes(forSessionResource);
 		this._currentChatModes.value = chatModes;
@@ -1104,16 +1175,43 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
+		// [AUTORUN-REG] Log the moment the model->view autorun is registered, so we can see
+		// whether widget.viewModel still points at the OUTGOING session at registration time
+		// (which would cause the very first run to be flagged stale and skipped).
+		const widgetViewModelSession = this._widget?.viewModel?.model.sessionResource;
+		const isStaleAtRegistration = !!widgetViewModelSession && !isEqual(widgetViewModelSession, forSessionResource);
+		logChangesToStateModel(this._inputModel, `[AUTORUN-REG] registering model->view autorun for ${forSessionResource.toString()}, widgetSession=${this._currentSessionKey}, widgetViewModelSession=${widgetViewModelSession?.toString()}, isStaleAtRegistration=${isStaleAtRegistration}, model.state.selectedModel=${model.state.get()?.selectedModel?.identifier}, _currentLanguageModel=${this._currentLanguageModel.get()?.identifier}`, undefined, undefined, this.logService);
+
 		// Observe changes from model and sync to view
-		this._modelSyncDisposables.add(autorun(async reader => {
+		this._modelSyncDisposables.add(autorun(reader => {
 			let state = model.state.read(reader);
 			let message = `syncing from model for ${forSessionResource.toString()} in ${this._currentSessionKey}`;
 			if (!state && this._chatSessionIsEmpty) {
 				state = this._emptyInputState.read(undefined);
 				message = `syncing from empty input state for ${forSessionResource.toString()}`;
 			}
-			logChangesToStateModel(this._inputModel, message, state, undefined, this.logService);
-			await this._syncFromModel(state, forSessionResource);
+			// Detect autorun firing for a session that is no longer the widget's
+			// active session - indicates a late/stale model.state.read() landed for
+			// the outgoing session.
+			const widgetSessionResource = this._widget?.viewModel?.model.sessionResource;
+			const isStaleSession =
+				!!this._inputModelSessionResource && !isEqual(this._inputModelSessionResource, forSessionResource);
+			if (isStaleSession) {
+				message = `[STALE-SESSION-AUTORUN] ${message} (widget now on ${widgetSessionResource?.toString()}, ${this._inputModelSessionResource?.toString()}, ${forSessionResource.toString()} is old)`;
+			}
+			// Untracked read: we only want a snapshot for the log, not a dependency
+			// that would re-trigger this autorun.
+			const prevState = this._inputModel?.state.read(undefined);
+			logChangesToStateModel(this._inputModel, message, state, prevState, this.logService);
+
+			// A stale autorun must NOT write the outgoing session's model into the
+			// shared _currentLanguageModel — doing so overwrites the active session's
+			// selection (e.g. flips it to Auto). The active session has its own autorun
+			// that syncs the correct model.
+			if (isStaleSession) {
+				return;
+			}
+			this._syncFromModel(state, forSessionResource);
 		}));
 	}
 
@@ -1153,7 +1251,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Sync from model to view (when model state changes)
 	 */
-	private async _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): Promise<void> {
+	private _syncFromModel(state: IChatModelInputState | undefined, forSessionResource: URI): void {
 		// Prevent circular updates
 		if (this._isSyncingToOrFromInputModel) {
 			return;
@@ -1166,8 +1264,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state) {
 				const currentMode = this._currentModeObservable.get();
 				if (currentMode.id !== state.mode.id) {
-					// Await mode list to be up to date before applying
-					await this._currentChatModesObservable.get().waitForPendingUpdates();
 					this.setChatMode(state.mode.id, false);
 				}
 			}
@@ -1176,18 +1272,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (state?.selectedModel) {
 				const allModels = this.getAllMergedModels();
 				const sessionType = getChatSessionType(forSessionResource);
-				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
+				const currentLm = this._currentLanguageModel.get();
+				const syncResult = resolveModelFromSyncState(state.selectedModel, currentLm, allModels, sessionType, {
 					location: this.location,
 					currentModeKind: this.currentModeKind,
 					sessionType,
 				});
+				// [RESOLVE] Log the inputs and decided action regardless of branch so we can confirm
+				// _syncFromModel actually ran for this session and what it decided.
+				logChangesToStateModel(this._inputModel, `[RESOLVE] _syncFromModel resolveModelFromSyncState for ${forSessionResource.toString()} in ${this._currentSessionKey}: stateModel=${state.selectedModel.identifier} currentLm=${currentLm?.identifier} sessionType=${sessionType} -> action=${syncResult.action}`, state, undefined, this.logService);
 				if (syncResult.action === 'apply') {
-					logChangesToStateModel(this._inputModel, `applying selected model from input state for ${forSessionResource.toString()} in ${this._currentSessionKey}`, state, undefined, this.logService);
 					this.setCurrentLanguageModel(state.selectedModel);
 				} else if (syncResult.action === 'default') {
-					logChangesToStateModel(this._inputModel, `applying default model from input state for ${forSessionResource.toString()} in ${this._currentSessionKey}`, state, undefined, this.logService);
-					this.setCurrentLanguageModelToDefault();
+					// Best-match across pools (e.g. local `claude-opus-4.7` → agent-host `claude-opus-4.7`) before defaulting.
+					// Use the incoming session's pool directly; the view model may still be on the old session here.
+					const pool = this.getModelsForSessionType(sessionType);
+					const match = findBestMatchingModel(state.selectedModel, pool) ?? findBestMatchingModel(currentLm, pool);
+					if (match) {
+						this.setCurrentLanguageModel(match);
+					} else {
+						this.setCurrentLanguageModelToDefault(sessionType);
+					}
 				}
+			} else if (state) {
+				// state exists but state.selectedModel is undefined - sync is a NO-OP,
+				// but record it so we can see when a session's persisted state lost its model.
+				logChangesToStateModel(this._inputModel, `_syncFromModel: state has no selectedModel (no-op for model picker) for ${forSessionResource.toString()} in ${this._currentSessionKey} (current=${this._currentLanguageModel.get()?.identifier})`, state, undefined, this.logService);
 			}
 
 			// Sync attachments
@@ -1239,7 +1349,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this._chatSessionIsEmpty) {
 			this._emptyInputState.set(state, undefined);
 		}
-		logChangesToStateModel(this._inputModel, `_syncInputStateToModel for ${this._currentSessionKey}`, undefined, undefined, this.logService);
+		// Pass the actual newState and the previous state so model-identifier
+		// transitions (including transitions to/from undefined) are visible.
+		const prevState = this._inputModel?.state.get();
+		logChangesToStateModel(this._inputModel, `_syncInputStateToModel boundInputModelSession=${this._inputModelSessionResource?.toString()} widgetSession=${this._currentSessionKey} mismatch=${this._inputModelSessionResource?.toString() !== this._currentSessionKey}`, state, prevState, this.logService);
 		this._inputModel?.setState(state);
 		this._isSyncingToOrFromInputModel = false;
 
@@ -1260,7 +1373,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		const modelDetails = this.getModels().map(m => `${m.identifier} (${m.metadata.id})`).join(', ');
-		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, modelDetials = ${modelDetails}`, undefined, undefined, this.logService);
+		const selectedModelStorageKey = this.getSelectedModelStorageKey();
+		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
+		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, modelDetials = ${modelDetails}`, undefined, undefined, this.logService);
 		this._currentLanguageModel.set(model, undefined);
 
 		if (this.cachedWidth) {
@@ -1279,6 +1394,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private checkModelSupported(): void {
 		const lm = this._currentLanguageModel.get();
 		const allModels = this.getAllMergedModels();
+		const willReset = shouldResetModelToDefault(lm, this.getModels(), {
+			location: this.location,
+			currentModeKind: this.currentModeKind,
+			sessionType: this.getCurrentSessionType(),
+		}, allModels);
+		logChangesToStateModel(this._inputModel, `[CMS] checkModelSupported lm=${lm?.identifier} mode=${this.currentModeKind} sessionType=${this.getCurrentSessionType()} willReset=${willReset} in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 		if (shouldResetModelToDefault(lm, this.getModels(), {
 			location: this.location,
 			currentModeKind: this.currentModeKind,
@@ -1313,6 +1434,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidChangeCurrentChatMode.fire();
 
 		// Sync to model (mode is now persisted in the model's input state)
+		// Log first so the upcoming _syncInputStateToModel write can be attributed
+		// to a mode change.
+		logChangesToStateModel(this._inputModel, `setChatMode2 -> _syncInputStateToModel (mode=${mode.id}, storeSelection=${storeSelection}, currentLanguageModel=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 		this._syncInputStateToModel();
 	}
 
@@ -1343,10 +1467,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
-		const models = this.getAllMergedModels();
-		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+		return this.getModelsForSessionType(this.getCurrentSessionType());
+	}
 
-		const sessionFiltered = filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location);
+	private getModelsForSessionType(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
+		const allModels = this.getAllMergedModels();
+
+		// Session owns a pool but no targeted models registered yet: return empty so callers don't treat general-pool models as valid.
+		if (sessionType
+			&& this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
+			&& !hasModelsTargetingSession(allModels, sessionType)) {
+			return [];
+		}
+
+		allModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+
+		const sessionFiltered = filterModelsForSession(allModels, sessionType, this.currentModeKind, this.location);
 		return sessionFiltered.filter(m => !this.languageModelsService.isModelHidden(m.identifier));
 	}
 
@@ -1362,14 +1498,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return sessionResource ? getChatSessionType(sessionResource) : undefined;
 	}
 
-	/**
-	 * Check if any registered models target the current session type.
-	 * This is used to set the context key that controls model picker visibility.
-	 */
-	private hasModelsTargetingSessionType(): boolean {
-		return hasModelsTargetingSession(this.getAllMergedModels(), this.getCurrentSessionType());
-	}
-
 	private isModelValidForCurrentSession(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		return isModelValidForSession(model, this.getAllMergedModels(), this.getCurrentSessionType());
 	}
@@ -1383,6 +1511,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (lm && !this.isModelValidForCurrentSession(lm)) {
 			this.setCurrentLanguageModelToDefault();
 		}
+	}
+
+	/**
+	 * Reconcile the current model after an explicit session-type pick: restore persisted → best-match previous → default.
+	 */
+	private revalidateModelForSessionType(): void {
+		const previousModel = this._currentLanguageModel.get();
+
+		this.initSelectedModel();
+		const restored = this._currentLanguageModel.get();
+		if (restored && this.isModelValidForCurrentSession(restored)) {
+			return;
+		}
+
+		const match = findBestMatchingModel(previousModel, this.getModels());
+		if (match) {
+			this.setCurrentLanguageModel(match);
+			return;
+		}
+
+		this.setCurrentLanguageModelToDefault();
 	}
 
 	/**
@@ -1492,11 +1641,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
-	private setCurrentLanguageModelToDefault() {
-		const allModels = this.getModels();
+	private setCurrentLanguageModelToDefault(forSessionType?: string) {
+		// Defer when the session owns a pool but no targeted models have loaded yet; otherwise the general default would contaminate the session-targeted storage key. `resetCurrentLanguageModelIfUnavailable` retries on arrival.
+		const sessionType = forSessionType ?? this.getCurrentSessionType();
+		if (sessionType
+			&& this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
+			&& !hasModelsTargetingSession(this.getAllMergedModels(), sessionType)) {
+			return;
+		}
+		const allModels = this.getModelsForSessionType(sessionType);
 		const defaultModel = findDefaultModel(allModels, this.location);
+		logChangesToStateModel(this._inputModel, `[DEFAULT] setCurrentLanguageModelToDefault called (defaultModel=${defaultModel?.identifier}, currentLm=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 		if (defaultModel) {
-			logChangesToStateModel(this._inputModel, `setCurrentLanguageModelToDefault to ${defaultModel.identifier} in ${this._currentSessionKey}`, undefined, undefined, this.logService);
 			this.setCurrentLanguageModel(defaultModel);
 		}
 	}
@@ -1748,6 +1904,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
+		logChangesToStateModel(this._inputModel, `[ACCEPT] acceptInput -> attachmentModel.clear() in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 		this.attachmentModel.clear();
 		this._onDidLoadInputState.fire();
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
@@ -2147,9 +2304,45 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private ensureNotificationWidget(): void {
 		if (!this._notificationWidget.value) {
-			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget);
+			// Fall back to `getCurrentSessionType()` so the session-type
+			// picker delegate is consulted before any real session exists
+			// (e.g. empty workspace + Copilot CLI [Agent Host] selected). Without
+			// this fallback, `_currentSessionType` stays undefined until
+			// the user creates a session and `sessionTypes`-gated
+			// notifications never render.
+			this._notificationWidget.value = this.instantiationService.createInstance(ChatInputNotificationWidget, () => this._currentSessionType ?? this.getCurrentSessionType());
 			this.chatInputNotificationContainer.appendChild(this._notificationWidget.value.domNode);
 		}
+	}
+
+	/**
+	 * Lazy-instantiate the goal banner widget on first use.
+	 */
+	private ensureGoalBannerWidget(): ChatGoalBannerWidget {
+		if (!this._goalBannerWidget.value) {
+			// The `_goalBannerWidget` MutableDisposable owns and disposes the widget;
+			// do not also `_register` it here to avoid a double-dispose.
+			const widget = new ChatGoalBannerWidget();
+			this._register(widget.onDismiss(() => this._onDidDismissGoalBanner.fire()));
+			this._goalBannerWidget.value = widget;
+			this.chatGoalBannerContainer.appendChild(widget.domNode);
+		}
+		return this._goalBannerWidget.value;
+	}
+
+	/** Shows the autopilot goal banner with a loading state. */
+	showGoalBannerLoading(): void {
+		this.ensureGoalBannerWidget().setLoading();
+	}
+
+	/** Updates the goal banner with the given summary text. */
+	setGoalBanner(summary: string): void {
+		this.ensureGoalBannerWidget().setGoal(summary);
+	}
+
+	/** Hides the goal banner. */
+	clearGoalBanner(): void {
+		this._goalBannerWidget.value?.clear();
 	}
 
 	/**
@@ -2237,11 +2430,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// when the session type changes (different session types may have
 			// different model pools via targetChatSessionType).
 			const newSessionType = this.getCurrentSessionType();
-			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
+			if (e.currentSessionResource && this._currentSessionType && newSessionType !== this._currentSessionType) {
+				logChangesToStateModel(this._inputModel, `[CVVM].1 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
 				this.checkModeInSessionPool();
+				this._notificationWidget.value?.rerender();
+			} else if (e.currentSessionResource) {
+				logChangesToStateModel(this._inputModel, `[CVVM].2 onDidChangeViewModel -> session change: ${this._currentSessionType} -> ${newSessionType} in ${this._currentSessionKey}, ${e.currentSessionResource.toString()}`, undefined, this._inputModel?.state.get(), this.logService);
+				this._currentSessionType = newSessionType;
 			}
 
 			// For contributed sessions with history, pre-select the model
@@ -2257,6 +2455,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 					dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
+					dom.h('.chat-goal-banner-container@chatGoalBannerContainer'),
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
@@ -2269,6 +2468,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					]),
 					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
+						dom.h('.chat-input-status-container@statusToolbarContainer'),
 					]),
 					dom.h('.chat-attachments-container@attachmentsContainer', [
 						dom.h('.chat-attached-context@attachedContextContainer'),
@@ -2283,6 +2483,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 				dom.h('.interactive-input-followups@followupsContainer'),
 				dom.h('.chat-input-notification-container@chatInputNotificationContainer'),
+				dom.h('.chat-goal-banner-container@chatGoalBannerContainer'),
 				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 				dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
@@ -2298,6 +2499,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				]),
 				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
 					dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
+					dom.h('.chat-input-status-container@statusToolbarContainer'),
 				]),
 			]);
 		}
@@ -2333,7 +2535,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
 		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this.chatInputNotificationContainer = elements.chatInputNotificationContainer;
+		this.chatGoalBannerContainer = elements.chatGoalBannerContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
+		this.statusToolbarContainer = elements.statusToolbarContainer;
 
 		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
 			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
@@ -2397,6 +2601,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.autoClosingBrackets = this.configurationService.getValue('editor.autoClosingBrackets');
 		options.autoClosingQuotes = this.configurationService.getValue('editor.autoClosingQuotes');
 		options.autoSurround = this.configurationService.getValue('editor.autoSurround');
+		options.quickSuggestions = false;
 		options.suggest = {
 			showIcons: true,
 			showSnippets: false,
@@ -2415,7 +2620,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._inputEditorElement = dom.append(editorContainer, $(chatInputEditorContainerSelector));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, DropIntoEditorController.ID, CopyPasteController.ID, LinkDetector.ID, InlineCompletionsController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
@@ -2528,6 +2733,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (this.chatPhoneInputPresenter.enabled.get()) {
 					if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
 						if (!this._currentLanguageModel.get()) {
+							logChangesToStateModel(this._inputModel, `actionViewItemProvider[phone]: _currentLanguageModel is undefined at toolbar build, forcing default for ${this._currentSessionKey}`, undefined, undefined, this.logService);
 							this.setCurrentLanguageModelToDefault();
 						}
 						const modelDelegate = this._createModelPickerDelegate();
@@ -2540,6 +2746,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
 					if (!this._currentLanguageModel.get()) {
+						logChangesToStateModel(this._inputModel, `actionViewItemProvider[desktop]: _currentLanguageModel is undefined at toolbar build, forcing default for ${this._currentSessionKey}`, undefined, undefined, this.logService);
 						this.setCurrentLanguageModelToDefault();
 					}
 
@@ -2659,8 +2866,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			[OpenAgentHostModePickerAction.ID, 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
-			[OpenAgentHostBranchPickerAction.ID, 22],
-			[OpenAgentHostIsolationPickerAction.ID, 22],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
@@ -2770,23 +2975,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (
 					(action.id === OpenAgentHostModePickerAction.ID
 						|| action.id === OpenAgentHostAutoApprovePickerAction.ID
-						|| action.id === OpenAgentHostPermissionModePickerAction.ID
-						|| action.id === OpenAgentHostBranchPickerAction.ID
-						|| action.id === OpenAgentHostIsolationPickerAction.ID)
+						|| action.id === OpenAgentHostPermissionModePickerAction.ID)
 					&& action instanceof MenuItemAction
 				) {
 					if (this.options.isSessionsWindow) {
 						return new HiddenActionViewItem(action);
 					}
-					const property = action.id === OpenAgentHostBranchPickerAction.ID
-						? SessionConfigKey.Branch
-						: action.id === OpenAgentHostIsolationPickerAction.ID
-							? SessionConfigKey.Isolation
-							: action.id === OpenAgentHostAutoApprovePickerAction.ID
-								? SessionConfigKey.AutoApprove
-								: action.id === OpenAgentHostPermissionModePickerAction.ID
-									? ClaudeSessionConfigKey.PermissionMode
-									: SessionConfigKey.Mode;
+					const property = action.id === OpenAgentHostAutoApprovePickerAction.ID
+						? SessionConfigKey.AutoApprove
+						: action.id === OpenAgentHostPermissionModePickerAction.ID
+							? ClaudeSessionConfigKey.PermissionMode
+							: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
@@ -2816,9 +3015,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
+		// Extension-contributed status indicators; non-responsive so items don't collapse.
+		this.statusToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.statusToolbarContainer, MenuId.ChatInputStatus, {
+			telemetrySource: this.options.menus.telemetrySource,
+			menuOptions: { shouldForwardArgs: true },
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			hoverDelegate,
+			actionViewItemProvider: (action, _opts) => {
+				if (action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(ChatInputStatusActionViewItem, action);
+				}
+				return undefined;
+			},
+		}));
+		this.statusToolbar.getElement().classList.add('chat-input-status-toolbar');
+		this.statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
+
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this._register(this.modelService.createModel('', null, this.inputUri, true));
+			inputModel = this._register(this.modelService.createModel('', null, this.inputUri, false));
 		}
 
 		this.textModelResolverService.createModelReference(this.inputUri).then(ref => {

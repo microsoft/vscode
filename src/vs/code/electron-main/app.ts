@@ -40,6 +40,7 @@ import { ipcBrowserViewChannelName } from '../../platform/browserView/common/bro
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { BrowserViewGroupMainService, IBrowserViewGroupMainService } from '../../platform/browserView/electron-main/browserViewGroupMainService.js';
+import { ISharedProcessTunnelProxyService, ipcSharedProcessTunnelProxyChannelName } from '../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -228,20 +229,9 @@ export class CodeApplication extends Disposable {
 			return false;
 		});
 
-		// Without this, starting recording in the issue reporting wizard takes
-		// a few seconds due to overhead of enumerating sources, so we warm up the sources in advance.
 		let cachedScreenSources: Electron.DesktopCapturerSource[] | undefined;
-		const warmUpScreenSources = () => {
-			desktopCapturer.getSources({
-				types: ['screen'],
-				thumbnailSize: { width: 0, height: 0 },
-			}).then(sources => { cachedScreenSources = sources; }).catch(() => { /* best-effort */ });
-		};
 		const invalidateScreenSourceCache = () => {
 			cachedScreenSources = undefined;
-			if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
-				warmUpScreenSources();
-			}
 		};
 		electronScreen.on('display-added', invalidateScreenSourceCache);
 		electronScreen.on('display-removed', invalidateScreenSourceCache);
@@ -251,9 +241,6 @@ export class CodeApplication extends Disposable {
 			electronScreen.off('display-removed', invalidateScreenSourceCache);
 			electronScreen.off('display-metrics-changed', invalidateScreenSourceCache);
 		}));
-		if (!isMacintosh || systemPreferences.getMediaAccessStatus('screen') === 'granted') {
-			warmUpScreenSources();
-		}
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 			try {
 				const frame = request.frame;
@@ -1135,6 +1122,9 @@ export class CodeApplication extends Disposable {
 		// Browser View
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
+
+		// Tunnel Proxy (lives in shared process; main consumes via IPC)
+		services.set(ISharedProcessTunnelProxyService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel(ipcSharedProcessTunnelProxyChannelName)))));
 
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));

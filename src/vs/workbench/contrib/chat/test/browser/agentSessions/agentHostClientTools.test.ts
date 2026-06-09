@@ -17,10 +17,10 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildSubagentSessionUri, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentSessionUri, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, type SessionState, type SessionSummary, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ToolCallConfirmationReason, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
@@ -579,7 +579,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run the task' },
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -587,7 +587,7 @@ suite('AgentHostClientTools', () => {
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
@@ -626,7 +626,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'run the task' },
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -634,7 +634,7 @@ suite('AgentHostClientTools', () => {
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			} as SessionAction);
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallReady,
@@ -685,7 +685,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'turn-1',
-				userMessage: { text: 'do work' },
+				message: { text: 'do work', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(backendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -710,7 +710,7 @@ suite('AgentHostClientTools', () => {
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionTurnStarted,
 				turnId: 'sub-turn-1',
-				userMessage: { text: '' },
+				message: { text: '', origin: { kind: MessageKind.User } },
 			});
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionToolCallStart,
@@ -718,7 +718,7 @@ suite('AgentHostClientTools', () => {
 				toolCallId: 'inner-tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
-				toolClientId: connection.clientId,
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
 			});
 			connection.applySessionAction(URI.parse(subagentBackendSession), {
 				type: ActionType.SessionToolCallReady,

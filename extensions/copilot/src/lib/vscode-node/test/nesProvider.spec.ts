@@ -180,7 +180,8 @@ describe('NESProvider Facade', () => {
 
 		assert(result.result);
 
-		const { range, newText } = result.result;
+		const { range, newText, targetDocumentUri } = result.result;
+		assert.strictEqual(targetDocumentUri, doc.id.toString(), 'targetDocumentUri should reference the requested document');
 		const offsetRange = OffsetRange.fromTo(range.start, range.endExclusive);
 		const replace = StringReplacement.replace(offsetRange, newText);
 		doc.applyEdit(replace.toEdit());

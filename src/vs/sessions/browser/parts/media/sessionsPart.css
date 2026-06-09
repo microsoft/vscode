@@ -15,9 +15,10 @@
 }
 
 .monaco-workbench .part.sessionspart .session-view,
-.monaco-workbench .part.sessionspart .session-view > .session-view-content {
+.monaco-workbench .part.sessionspart .session-view .session-view-content {
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
+	position: relative;
 }
 
 .monaco-workbench .part.sessionspart .session-view .interactive-session {
@@ -26,6 +27,19 @@
 
 .monaco-workbench .part.sessionspart > .content > .monaco-progress-container {
 	top: 0;
+}
+
+/* Each grid leaf surfaces its own load progress on a bar pinned to its top, mirroring how each editor group owns its own ProgressBar. */
+.monaco-workbench .part.sessionspart .chat-view {
+	position: relative;
+}
+
+.monaco-workbench .part.sessionspart .chat-view > .monaco-progress-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 10;
 }
 
 .monaco-workbench .part.sessionspart .title-actions .actions-container {

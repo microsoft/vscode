@@ -27,7 +27,7 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 			&client,
 			"subscribe",
 			SubscribeParams {
-				resource: args.session.clone(),
+				channel: args.session.clone(),
 			},
 		)
 		.await?;
@@ -54,9 +54,9 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 				Some(SubscriptionEvent::Action(envelope)) => {
 					print_action(envelope.server_seq, &envelope.action);
 				}
-				Some(SubscriptionEvent::Notification(notif)) => {
+				Some(other) => {
 					let notif_style = Style::new().magenta();
-					println!("{}", notif_style.apply_to(format!("notification: {notif:?}")));
+					println!("{}", notif_style.apply_to(format!("notification: {other:?}")));
 				}
 				None => {
 					println!("{}", Styles::muted().apply_to("Subscription closed."));
@@ -85,7 +85,11 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 		uri_style.apply_to(uri)
 	);
 
-	if let SnapshotState::Session(ref session) = result.snapshot.state {
+	let Some(ref snapshot) = result.snapshot else {
+		return;
+	};
+
+	if let SnapshotState::Session(ref session) = snapshot.state {
 		let s = &session.summary;
 		if !s.title.is_empty() {
 			println!("  {} {}", label.apply_to("title:"), s.title);
@@ -105,18 +109,18 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 				TurnState::Cancelled => Styles::warning().apply_to("⊘"),
 				TurnState::Error => Styles::error().apply_to("✗"),
 			};
-			let msg = truncate(&turn.user_message.text, 80);
+			let msg = truncate(&turn.message.text, 80);
 			println!("    {} {}", state_str, Styles::muted().apply_to(msg));
 		}
 
 		// Print active turn if any.
 		if let Some(ref active) = session.active_turn {
-			let msg = truncate(&active.user_message.text, 80);
+			let msg = truncate(&active.message.text, 80);
 			println!("    {} {}", Style::new().green().bold().apply_to("►"), msg);
 		}
 	}
 
-	println!("  {} {}", label.apply_to("seq:"), result.snapshot.from_seq);
+	println!("  {} {}", label.apply_to("seq:"), snapshot.from_seq);
 }
 
 fn print_action(seq: u64, action: &StateAction) {

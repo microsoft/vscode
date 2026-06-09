@@ -94,24 +94,6 @@ export function logChangesViewViewModeChange(telemetryService: ITelemetryService
 	telemetryService.publicLog2<ChangesViewViewModeChangeEvent, ChangesViewViewModeChangeClassification>('vscodeAgents.changesView/viewModeChange', { mode });
 }
 
-type ChangesViewReviewCommentAddedEvent = {
-	hasExistingFeedback: boolean;
-	hasSuggestion: boolean;
-	isFromPRReview: boolean;
-};
-
-type ChangesViewReviewCommentAddedClassification = {
-	owner: 'osortega';
-	comment: 'Tracks when a user adds a review comment (feedback) to a file in the Changes panel.';
-	hasExistingFeedback: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether there was already feedback on this file.' };
-	hasSuggestion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback includes a code suggestion.' };
-	isFromPRReview: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the feedback was converted from a PR review comment.' };
-};
-
-export function logChangesViewReviewCommentAdded(telemetryService: ITelemetryService, data: { hasExistingFeedback: boolean; hasSuggestion: boolean; isFromPRReview: boolean }): void {
-	telemetryService.publicLog2<ChangesViewReviewCommentAddedEvent, ChangesViewReviewCommentAddedClassification>('vscodeAgents.changesView/reviewCommentAdded', data);
-}
-
 // --- Tunnel agent host discovery ---
 
 export type TunnelDiscoveryTrigger =

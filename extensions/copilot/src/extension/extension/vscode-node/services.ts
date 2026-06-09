@@ -272,7 +272,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const sessionStoreDbPath = extensionContext.globalStorageUri
 		? path.join(extensionContext.globalStorageUri.fsPath, 'session-store.db')
 		: path.join(os.tmpdir(), 'copilot-session-store.db');
-	const sessionStore = new SessionStore(sessionStoreDbPath);
+	// On remote workspaces the storage path is typically a network filesystem
+	// that does not honour the POSIX locking WAL mode requires, so use a more
+	// robust rollback-journal configuration there.
+	const sessionStore = new SessionStore(sessionStoreDbPath, { remote: !!env.remoteName });
 	builder.define(ISessionStore, sessionStore);
 
 	// OTel SQLite store — created lazily, DB file only appears when dbSpanExporter.enabled is true

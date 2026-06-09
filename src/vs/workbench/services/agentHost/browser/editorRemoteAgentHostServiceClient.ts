@@ -19,10 +19,12 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
-import type { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IRemoteWatchHandle } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
+import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ComponentToState, RootState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
@@ -163,12 +165,16 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.onDidAction ?? Event.None;
 	}
 
-	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
-		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource);
+	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
+		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
 
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
 		return this._protocolClient?.getSubscriptionUnmanaged<ComponentToState[T]>(kind, resource);
+	}
+
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
 	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
@@ -215,6 +221,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeTerminal(terminal);
 	}
 
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._requireClient().invokeChangesetOperation(params);
+	}
+
 	resourceList(uri: URI): Promise<ResourceListResult> {
 		return this._requireClient().resourceList(uri);
 	}
@@ -237,5 +247,21 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._requireClient().resourceMove(params);
+	}
+
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		return this._requireClient().resourceResolve(params);
+	}
+
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		return this._requireClient().resourceMkdir(params);
+	}
+
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return this._requireClient().createResourceWatch(params);
+	}
+
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> {
+		return this._requireClient().watchResource(params);
 	}
 }

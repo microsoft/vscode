@@ -14,7 +14,10 @@ import type { OTelConfig } from './otelConfig';
  * and the terminal CLI session (spread into `TerminalOptions.env`).
  */
 export function deriveCopilotCliOTelEnv(config: OTelConfig, env: Record<string, string | undefined> = process.env): Record<string, string> {
-	if (!config.enabled) {
+	// Only forward to subprocess when the user explicitly opted in. In db-only
+	// mode the in-process SDK uses NoopSpanExporter; the subprocess has no DB
+	// exporter and would silently export to the OTLP endpoint.
+	if (!config.enabled || !config.enabledExplicitly) {
 		return {};
 	}
 
@@ -51,7 +54,9 @@ export function deriveCopilotCliOTelEnv(config: OTelConfig, env: Record<string, 
  * Only sets variables not already present in `process.env`.
  */
 export function deriveClaudeOTelEnv(config: OTelConfig, env: Record<string, string | undefined> = process.env): Record<string, string> {
-	if (!config.enabled) {
+	// See `deriveCopilotCliOTelEnv`: gate on `enabledExplicitly` so db-only
+	// mode doesn't leak the OTLP endpoint to the subprocess.
+	if (!config.enabled || !config.enabledExplicitly) {
 		return {};
 	}
 

@@ -177,7 +177,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	private _registerActionViewItemProvider(): void {
 		const that = this;
 		this._register(this._actionViewItemService.register(
-			Menus.TitleBarSessionMenu,
+			Menus.TitleBarCenterRight,
 			RunScriptDropdownMenuId,
 			(action, options, instantiationService) => {
 				if (!(action instanceof SubmenuItemAction)) {
@@ -575,6 +575,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			{
 				actionProvider: { getActions: () => this._getDropdownActions() },
 				showItemKeybindings: true,
+				listOptions: { className: 'compact-icons' },
 			},
 			this._actionWidgetService,
 			this._keybindingService,
@@ -720,7 +721,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				hover: {
 					content: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
 				},
-				icon: Codicon.play,
+				icon: Codicon.runCompact,
 				enabled: true,
 				class: undefined,
 				category: isWorktreeTask ? worktreeCategory : defaultCategory,
@@ -742,7 +743,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					? localize('addActionTooltip', "Add a new task")
 					: localize('addActionTooltipDisabled', "Cannot add tasks to this session because workspace storage is unavailable"),
 			},
-			icon: Codicon.add,
+			icon: Codicon.addCompact,
 			enabled: canConfigure,
 			class: undefined,
 			category: tasksCategory,
@@ -763,7 +764,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			hover: {
 				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
 			},
-			icon: Codicon.sparkle,
+			icon: Codicon.sparkleCompact,
 			enabled: true,
 			class: undefined,
 			category: tasksCategory,
@@ -789,7 +790,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 					? localize('openBrowserActionTooltip', "Open '{0}' in the integrated browser", browserUrl)
 					: localize('openBrowserActionTooltipUnconfigured', "Open the integrated browser"),
 			},
-			icon: Codicon.browser,
+			icon: Codicon.windowCompact,
 			enabled: true,
 			class: undefined,
 			category: browserCategory,
@@ -837,14 +838,15 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	}
 }
 
-// Register the Run split button submenu on the workbench title bar (background sessions only)
-MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+// Register the Run split button submenu on the workbench title bar (background sessions only).
+// Placed in the center-right toolbar, immediately before the "Open in VS Code" action (order 7).
+MenuRegistry.appendMenuItem(Menus.TitleBarCenterRight, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
 	icon: Codicon.play,
 	group: 'navigation',
-	order: 8,
+	order: 6,
 	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext.toNegated())
 });
 
@@ -858,9 +860,9 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarSessionMenu,
+				id: Menus.TitleBarCenterRight,
 				group: 'navigation',
-				order: 8,
+				order: 6,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), ActiveSessionWorkspaceIsVirtualContext)
 			}]
 		});

@@ -2055,14 +2055,14 @@ class InputModel implements IInputModel {
 	private readonly _state: ReturnType<typeof observableValue<IChatModelInputState | undefined>>;
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
-	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService) {
+	constructor(initialState: IChatModelInputState | undefined, private readonly logger: ILogService, private readonly sessionId: string) {
 		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
 	}
 
 	setState(state: Partial<IChatModelInputState>): void {
 		const current = this._state.get();
-		_logChangesToStateModel(state, current, this.logger);
+		_logChangesToStateModel(state, current, this.logger, this.sessionId);
 		this._state.set({
 			// If current is undefined, provide defaults for required fields
 			attachments: [],
@@ -2411,7 +2411,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections,
 			permissionLevel: serializedInputState.permissionLevel,
-		}, this.logService);
+		}, this.logService, this._sessionId);
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -3101,12 +3101,12 @@ export namespace ChatResponseResource {
 	}
 }
 
-function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
+function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService, sessionId: string) {
 	if (!canLog(logger.getLevel(), LogLevel.Debug) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
 		return;
 	}
 	const stack = new Error().stack;
-	const message = `[ChatModelChanged] ChatModel Input State model changed: ${newState?.selectedModel?.identifier} (was: ${oldState?.selectedModel?.identifier}) ${stack}`;
+	const message = `[ChatModelChanged] ChatModel Input State model changed: ${newState?.selectedModel?.identifier} (was: ${oldState?.selectedModel?.identifier}) in session ${sessionId} ${stack}`;
 	logger.debug(message);
 }
 

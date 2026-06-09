@@ -182,12 +182,12 @@
 .new-chat-widget-container .new-chat-bottom-container .action-label {
 	height: 16px;
 	padding: 3px 6px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-icon-foreground);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 }
 
 .new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down,
@@ -212,6 +212,22 @@
 	padding-left: 4px;
 }
 
+/* Icon-only action items in the bottom row (e.g. OpenTelemetry status pill)
+ * lack the chevron that visually balances the 7px left padding, so use
+ * symmetric horizontal padding and drop the picker min-width that would
+ * otherwise leave the icon left-aligned inside a 30px box. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item .action-label {
+	min-width: 0;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .action-label {
+	padding: 3px 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 /* Pickers row - two equal halves */
 .session-workspace-picker {
 	display: flex;
@@ -230,7 +246,7 @@
 }
 
 .session-workspace-picker-label {
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 	line-height: 1.25;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;
@@ -245,12 +261,12 @@
 .sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label {
 	height: auto;
 	padding: 4px;
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 	line-height: 1.25;
 	border: none;
 	background-color: transparent;
 	color: var(--vscode-foreground);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	touch-action: manipulation;
 }
 
@@ -262,12 +278,12 @@
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label,
 .sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label {
-	font-size: 18px;
+	font-size: var(--vscode-agents-fontSize-heading2, 18px);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron),
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.codicon-chevron-down) {
-	font-size: 16px;
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: var(--vscode-codiconFontSize, 16px);
 	margin: 0;
 }
 
@@ -276,7 +292,7 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 16px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	margin-left: 6px;
 	line-height: 1;
 	transform: translateY(1px);
@@ -308,7 +324,7 @@
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-width: 0;
 	overflow: hidden;
 }
@@ -363,7 +379,7 @@
 }
 
 .sessions-chat-picker-slot .action-label .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so codicons here size naturally to their font-size, matching pickers (like Copilot CLI)
