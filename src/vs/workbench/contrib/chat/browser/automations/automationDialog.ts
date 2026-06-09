@@ -383,6 +383,149 @@ function renderForm(
 		nameError.textContent = validation.nameError ?? '';
 	}));
 
+	// --- Folder (required) ---
+	// Rendered as a chat-input style chip and placed above the prompt so
+	// changing the folder updates the session-type / mode pickers in the
+	// chat input below before the user composes their request. Clicking
+	// opens a quick pick listing currently-open workspace folders, any
+	// folders the user has browsed to during this session, plus a
+	// `Browse for folder…` action that opens the OS folder picker.
+	//
+	// `sessionTypeBinder` is created here (above the prompt section)
+	// because the folder picker calls `sessionTypeBinder.setFolder` and
+	// because the binder must exist before `chatInputOptions` reads it.
+	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
+
+	const folderRow = DOM.append(form, $('.automation-form-row'));
+	DOM.append(folderRow, $('label.automation-form-label', undefined, localize('automation.form.folder', "Workspace folder")));
+	const folderChip = DOM.append(folderRow, $('button.automation-folder-chip.chat-input-picker-item', { type: 'button' })) as HTMLButtonElement;
+	folderChip.setAttribute('aria-haspopup', 'listbox');
+	const folderError = DOM.append(folderRow, $('.automation-form-error'));
+
+	// Folders added at runtime via Browse so they stay available across
+	// re-renders of the chip and the quick pick.
+	const browsedFolders: URI[] = [];
+
+	const renderChipLabel = () => {
+		DOM.clearNode(folderChip);
+		const labelText = state.folderUri
+			? basenameOrUri(state.folderUri)
+			: localize('automation.form.folderPlaceholder', "Select folder…");
+		folderChip.append(
+			...renderLabelWithIcons(`$(${Codicon.folder.id})`),
+			$('span.chat-input-picker-label', undefined, labelText),
+			...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`),
+		);
+		folderChip.title = state.folderUri
+			? localize('automation.form.folderTitle', "Workspace folder: {0}", state.folderUri.fsPath ?? state.folderUri.toString())
+			: localize('automation.form.folderTitleEmpty', "Select a workspace folder for this automation.");
+		folderChip.setAttribute('aria-label', folderChip.title);
+	};
+	renderChipLabel();
+
+	const setFolder = (uri: URI | undefined) => {
+		state.folderUri = uri;
+		// Re-validate the chip's session-type selection against the new
+		// folder's available list. Fires the binder's emitter so the
+		// chat input refreshes its option-group pickers.
+		sessionTypeBinder.setFolder(uri);
+		renderChipLabel();
+		revalidate();
+		folderError.textContent = validation.folderError ?? '';
+	};
+
+	const browseAction: IQuickPickItem & { kind: 'browse' } = {
+		kind: 'browse',
+		label: localize('automation.form.browse', "Browse for folder…"),
+		iconClass: ThemeIcon.asClassName(Codicon.folderOpened),
+	};
+
+	const openFolderPicker = async () => {
+		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		const seen = new Set<string>();
+		const addFolderItem = (uri: URI, label: string, description?: string) => {
+			const key = uri.toString();
+			if (seen.has(key)) {
+				return;
+			}
+			seen.add(key);
+			items.push({
+				label,
+				description,
+				iconClass: ThemeIcon.asClassName(Codicon.folder),
+				id: key,
+			});
+		};
+		for (const f of options.folders) {
+			addFolderItem(f.uri, f.label);
+		}
+		for (const uri of browsedFolders) {
+			addFolderItem(uri, basenameOrUri(uri));
+		}
+		// Editing an automation whose folder is not currently open and was
+		// never browsed: surface it so the user knows what is stored.
+		if (state.folderUri && !seen.has(state.folderUri.toString())) {
+			addFolderItem(
+				state.folderUri,
+				basenameOrUri(state.folderUri),
+				localize('automation.form.folderNotOpen', "(folder not currently open)"),
+			);
+		}
+		if (items.length > 0) {
+			items.push({ type: 'separator' });
+		}
+		items.push(browseAction);
+
+		const picked = await quickInputService.pick(items, {
+			placeHolder: localize('automation.form.folderPickerPlaceholder', "Select workspace folder"),
+			activeItem: state.folderUri
+				? (items.find((i): i is IQuickPickItem => i.type !== 'separator' && (i as IQuickPickItem).id === state.folderUri!.toString()))
+				: undefined,
+		});
+		if (!picked) {
+			return;
+		}
+		if ((picked as typeof browseAction).kind === 'browse') {
+			const result = await fileDialogService.showOpenDialog({
+				canSelectFolders: true,
+				canSelectFiles: false,
+				canSelectMany: false,
+				title: localize('automation.form.browseTitle', "Select Workspace Folder"),
+				defaultUri: state.folderUri,
+			});
+			if (!result || result.length === 0) {
+				return;
+			}
+			const pickedUri = result[0];
+			if (!browsedFolders.some(u => u.toString() === pickedUri.toString())) {
+				browsedFolders.push(pickedUri);
+			}
+			setFolder(pickedUri);
+			return;
+		}
+		const id = (picked as IQuickPickItem).id;
+		if (id) {
+			setFolder(URI.parse(id));
+		}
+	};
+
+	disposables.add(DOM.addStandardDisposableListener(folderChip, 'click', () => {
+		openFolderPicker();
+	}));
+
+	// If the dialog opened with no folder yet but folders are available,
+	// default to the first one so the user can save without an extra
+	// click — matches the previous bespoke control's behavior. Re-validate
+	// the session-type selection against the freshly-defaulted folder so
+	// the chip's label resolves to a real (providerId, sessionTypeId)
+	// pair rather than the empty fallback set by
+	// {@link createSessionTypeBinder} when no folder was present.
+	if (!state.folderUri && options.folders.length > 0) {
+		state.folderUri = options.folders[0].uri;
+		sessionTypeBinder.setFolder(state.folderUri);
+		renderChipLabel();
+	}
+
 	// --- Prompt ---
 	// Hosts the chat composer ({@link ChatInputPart}) so the modal mirrors
 	// the affordances of the regular chat composer: Monaco editor, `@`-style
@@ -400,12 +543,6 @@ function renderForm(
 		listForeground: 'var(--vscode-foreground)',
 		listBackground: 'var(--vscode-editor-background)',
 	};
-
-	// Bind the chat input's session-target chip to {@link IFormState}'s
-	// `providerId` + `sessionTypeId`. Defined before `chatInputOptions`
-	// because the delegate is passed into ChatInputPart at construction
-	// time and influences the chip's initial label.
-	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
 
 	const chatInputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
@@ -547,17 +684,16 @@ function renderForm(
 
 	// Two layout passes mirror the fixture: the first one establishes the
 	// editor's container size, then we let layout settle before re-measuring.
-	// 740 is a conservative starting width for a 760-920px dialog with form
-	// padding; once the dialog mounts and the host has real dimensions the
-	// ResizeObserver below re-layouts the input with the actual host width.
-	chatInput.layout(740);
-	queueMicrotask(() => chatInput.layout(740));
+	// 880 matches the wider dialog (920px width minus horizontal padding);
+	// the ResizeObserver below corrects to the actual host width once the
+	// dialog mounts and CSS settles.
+	chatInput.layout(880);
+	queueMicrotask(() => chatInput.layout(880));
 
 	// Once the dialog mounts, the prompt host gets its real dimensions.
 	// Re-layout the chat input with the actual host width so the Monaco
 	// editor's word wrap and toolbar overflow logic match what the user
-	// sees (without this the editor measures itself at 740px and clips
-	// long lines / mis-wraps even though the visible box fills 100%).
+	// sees.
 	const resizeObserver = disposables.add(new DOM.DisposableResizeObserver('automationDialog.promptHost', entries => {
 		for (const entry of entries) {
 			const width = entry.contentRect.width;
@@ -618,143 +754,6 @@ function renderForm(
 		state.interval = (intervalSelect.value as AutomationInterval);
 		applyIntervalVisibility();
 	}));
-
-	// --- Folder (required) ---
-	// Rendered as a chat-input style chip. Clicking opens a quick pick
-	// listing currently-open workspace folders, any folders the user has
-	// browsed to during this session, plus a `Browse for folder…` action
-	// that opens the OS folder picker. This keeps the modal visually
-	// consistent with the chat composer's chips (model / mode / etc.)
-	// directly above.
-	const folderRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(folderRow, $('label.automation-form-label', undefined, localize('automation.form.folder', "Workspace folder")));
-	const folderChip = DOM.append(folderRow, $('button.automation-folder-chip.chat-input-picker-item', { type: 'button' })) as HTMLButtonElement;
-	folderChip.setAttribute('aria-haspopup', 'listbox');
-	const folderError = DOM.append(folderRow, $('.automation-form-error'));
-
-	// Folders added at runtime via Browse so they stay available across
-	// re-renders of the chip and the quick pick.
-	const browsedFolders: URI[] = [];
-
-	const renderChipLabel = () => {
-		DOM.clearNode(folderChip);
-		const labelText = state.folderUri
-			? basenameOrUri(state.folderUri)
-			: localize('automation.form.folderPlaceholder', "Select folder…");
-		folderChip.append(
-			...renderLabelWithIcons(`$(${Codicon.folder.id})`),
-			$('span.chat-input-picker-label', undefined, labelText),
-			...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`),
-		);
-		folderChip.title = state.folderUri
-			? localize('automation.form.folderTitle', "Workspace folder: {0}", state.folderUri.fsPath ?? state.folderUri.toString())
-			: localize('automation.form.folderTitleEmpty', "Select a workspace folder for this automation.");
-		folderChip.setAttribute('aria-label', folderChip.title);
-	};
-	renderChipLabel();
-
-	const setFolder = (uri: URI | undefined) => {
-		state.folderUri = uri;
-		// Re-validate the chip's session-type selection against the new
-		// folder's available list. Fires the binder's emitter so the
-		// chat input refreshes its option-group pickers.
-		sessionTypeBinder.setFolder(uri);
-		renderChipLabel();
-		revalidate();
-		folderError.textContent = validation.folderError ?? '';
-	};
-
-	const browseAction: IQuickPickItem & { kind: 'browse' } = {
-		kind: 'browse',
-		label: localize('automation.form.browse', "Browse for folder…"),
-		iconClass: ThemeIcon.asClassName(Codicon.folderOpened),
-	};
-
-	const openFolderPicker = async () => {
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		const seen = new Set<string>();
-		const addFolderItem = (uri: URI, label: string, description?: string) => {
-			const key = uri.toString();
-			if (seen.has(key)) {
-				return;
-			}
-			seen.add(key);
-			items.push({
-				label,
-				description,
-				iconClass: ThemeIcon.asClassName(Codicon.folder),
-				id: key,
-			});
-		};
-		for (const f of options.folders) {
-			addFolderItem(f.uri, f.label);
-		}
-		for (const uri of browsedFolders) {
-			addFolderItem(uri, basenameOrUri(uri));
-		}
-		// Editing an automation whose folder is not currently open and was
-		// never browsed: surface it so the user knows what is stored.
-		if (state.folderUri && !seen.has(state.folderUri.toString())) {
-			addFolderItem(
-				state.folderUri,
-				basenameOrUri(state.folderUri),
-				localize('automation.form.folderNotOpen', "(folder not currently open)"),
-			);
-		}
-		if (items.length > 0) {
-			items.push({ type: 'separator' });
-		}
-		items.push(browseAction);
-
-		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('automation.form.folderPickerPlaceholder', "Select workspace folder"),
-			activeItem: state.folderUri
-				? (items.find((i): i is IQuickPickItem => i.type !== 'separator' && (i as IQuickPickItem).id === state.folderUri!.toString()))
-				: undefined,
-		});
-		if (!picked) {
-			return;
-		}
-		if ((picked as typeof browseAction).kind === 'browse') {
-			const result = await fileDialogService.showOpenDialog({
-				canSelectFolders: true,
-				canSelectFiles: false,
-				canSelectMany: false,
-				title: localize('automation.form.browseTitle', "Select Workspace Folder"),
-				defaultUri: state.folderUri,
-			});
-			if (!result || result.length === 0) {
-				return;
-			}
-			const pickedUri = result[0];
-			if (!browsedFolders.some(u => u.toString() === pickedUri.toString())) {
-				browsedFolders.push(pickedUri);
-			}
-			setFolder(pickedUri);
-			return;
-		}
-		const id = (picked as IQuickPickItem).id;
-		if (id) {
-			setFolder(URI.parse(id));
-		}
-	};
-
-	disposables.add(DOM.addStandardDisposableListener(folderChip, 'click', () => {
-		openFolderPicker();
-	}));
-
-	// If the dialog opened with no folder yet but folders are available,
-	// default to the first one so the user can save without an extra
-	// click — matches the previous bespoke control's behavior. Re-validate
-	// the session-type selection against the freshly-defaulted folder so
-	// the chip's label resolves to a real (providerId, sessionTypeId)
-	// pair rather than the empty fallback set by
-	// {@link createSessionTypeBinder} when no folder was present.
-	if (!state.folderUri && options.folders.length > 0) {
-		state.folderUri = options.folders[0].uri;
-		sessionTypeBinder.setFolder(state.folderUri);
-		renderChipLabel();
-	}
 
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
