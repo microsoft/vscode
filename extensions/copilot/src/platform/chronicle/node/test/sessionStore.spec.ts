@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -259,18 +259,16 @@ describe('SessionStore (on-disk resilience)', () => {
 		store = new SessionStore(dbPath, { remote: true });
 		store.upsertSession({ id: 'session-1' });
 
-		const mode = (store as unknown as { ensureDb(): { prepare(sql: string): { get(): { journal_mode: string } } } })
-			.ensureDb().prepare('PRAGMA journal_mode').get().journal_mode.toLowerCase();
-		expect(mode).not.toBe('wal');
+		// A rollback journal never creates the WAL shared-memory sidecar file.
+		expect(existsSync(dbPath + '-wal')).toBe(false);
 	});
 
 	it('local mode uses WAL', () => {
 		store = new SessionStore(dbPath);
 		store.upsertSession({ id: 'session-1' });
 
-		const mode = (store as unknown as { ensureDb(): { prepare(sql: string): { get(): { journal_mode: string } } } })
-			.ensureDb().prepare('PRAGMA journal_mode').get().journal_mode.toLowerCase();
-		expect(mode).toBe('wal');
+		// WAL mode creates the -wal sidecar file once a write has occurred.
+		expect(existsSync(dbPath + '-wal')).toBe(true);
 	});
 
 	it('recreates a corrupt database file on open', () => {

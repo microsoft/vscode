@@ -490,8 +490,9 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				this._buffer.sessions.set(session.id, session);
 			}
 		}
-		this._buffer.files.unshift(...files);
-		this._buffer.refs.unshift(...refs);
-		this._buffer.turns.unshift(...turns);
+
+		this._buffer.files = files.concat(this._buffer.files);
+		this._buffer.refs = refs.concat(this._buffer.refs);
+		this._buffer.turns = turns.concat(this._buffer.turns);
 	}
 }
