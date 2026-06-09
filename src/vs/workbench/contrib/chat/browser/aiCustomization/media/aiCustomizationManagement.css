@@ -1840,14 +1840,25 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Dialog */
-.automation-dialog .dialog-body .dialog-message-container,
-.automation-dialog .dialog-body .dialog-message-detail {
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message,
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message-detail {
 	display: none;
 }
 
-.automation-dialog .dialog-shadow .dialog-box {
-	min-width: 760px;
-	max-width: 920px;
+/*
+ * Lock the dialog box to a stable width. Without this rule the dialog
+ * inherits `width: min-content` from `dialog.css` and re-flows as the
+ * embedded chat input's chips change size (e.g. when the model picker
+ * resolves a shorter label). Use min(920px, 92vw) so the dialog still
+ * shrinks gracefully on narrow viewports.
+ *
+ * Note: `extraClasses` on Dialog adds the class to `.monaco-dialog-box`
+ * itself (not an ancestor), so we attach the rule directly here.
+ */
+.monaco-dialog-box.automation-dialog {
+	width: min(920px, 92vw);
+	min-width: min(760px, 92vw);
+	max-width: 92vw;
 }
 
 /*
@@ -1860,7 +1871,7 @@ pane is first mounted. View switches inside the modal are not animated. */
 	padding: 0;
 }
 
-.automation-dialog .dialog-body .dialog-message-row .dialog-message-container {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
 	padding-right: 6px;
 }
 
@@ -1871,28 +1882,28 @@ pane is first mounted. View switches inside the modal are not animated. */
  * shows the platform's default scrollbar which clashes visually with
  * the chat input embedded above.
  */
-.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar {
 	width: 10px;
 }
 
-.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-track {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-track {
 	background-color: transparent;
 }
 
-.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb {
 	min-height: 20px;
 	background-color: var(--vscode-scrollbarSlider-background);
 }
 
-.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:hover {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:hover {
 	background-color: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
-.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:active {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-.automation-dialog .monaco-dialog-box .dialog-message-row .dialog-message-container::-webkit-scrollbar-corner {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container::-webkit-scrollbar-corner {
 	display: none;
 }
 
@@ -1983,6 +1994,22 @@ body:has(.automation-dialog) .monaco-menu-container {
 .automation-form-prompt-host .chat-secondary-toolbar .chat-input-picker-item .action-label,
 .automation-form-prompt-host .chat-secondary-toolbar .chat-input-picker-item .action-label .codicon {
 	color: var(--vscode-icon-foreground);
+}
+
+/*
+ * Hide the "Configure Tools" chip from the embedded chat input. The
+ * action (`workbench.action.chat.configureTools`) is registered into
+ * MenuId.ChatInput with the `Codicon.settings` icon (class
+ * `.codicon-settings`); other chips in this toolbar use either custom
+ * action view items (Model/Mode pickers) or different codicons
+ * (`.codicon-add` for attach context), so `.action-label.codicon-settings`
+ * is a unique selector for the chip we want to remove. We hide it via
+ * CSS instead of through a context-key gate because the natural gate
+ * (`ChatContextKeys.lockedToCodingAgent`) also hides several unrelated
+ * chips (attach, fork, model, mode) that we want to keep visible.
+ */
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(> .action-label.codicon-settings) {
+	display: none;
 }
 
 .automation-form-row {
