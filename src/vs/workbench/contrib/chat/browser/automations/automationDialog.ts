@@ -684,13 +684,13 @@ function renderForm(
 
 	// Two layout passes mirror the fixture: the first one establishes the
 	// editor's container size, then we let layout settle before re-measuring.
-	// 700 matches the prompt host's width inside the 760px dialog (760 -
+	// 580 matches the prompt host's width inside the 640px dialog (640 -
 	// dialog box padding - message row padding - dialog icon column).
 	// Picking this value up front (instead of laying out wider) prevents
 	// the chat input from visibly shrinking to its real size when the
 	// ResizeObserver below reports the host's true width after show().
-	chatInput.layout(700);
-	queueMicrotask(() => chatInput.layout(700));
+	chatInput.layout(580);
+	queueMicrotask(() => chatInput.layout(580));
 
 	// Once the dialog mounts, the prompt host gets its real dimensions.
 	// Re-layout the chat input with the actual host width so the Monaco

@@ -1856,8 +1856,8 @@ pane is first mounted. View switches inside the modal are not animated. */
  * itself (not an ancestor), so we attach the rule directly here.
  */
 .monaco-dialog-box.automation-dialog {
-	width: min(760px, 92vw);
-	min-width: min(640px, 92vw);
+	width: min(640px, 92vw);
+	min-width: min(520px, 92vw);
 	max-width: 92vw;
 }
 
