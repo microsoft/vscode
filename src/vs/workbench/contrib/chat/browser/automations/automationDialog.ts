@@ -12,8 +12,10 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
@@ -21,6 +23,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, isChatPermissionLevel } from '../../common/constants.js';
 import { IChatWidget } from '../chat.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../widget/input/chatInputPart.js';
@@ -75,6 +78,7 @@ export type IAutomationDialogResult =
  */
 export async function showAutomationDialog(
 	instantiationService: IInstantiationService,
+	contextKeyService: IContextKeyService,
 	keybindingService: IKeybindingService,
 	layoutService: ILayoutService,
 	hostService: IHostService,
@@ -145,7 +149,7 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
+				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, contextKeyService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 				getPrompt = handle.getPrompt;
 				getMode = handle.getMode;
 				getPermissionLevel = handle.getPermissionLevel;
@@ -250,6 +254,7 @@ function renderForm(
 	validation: IValidationState,
 	revalidate: () => void,
 	instantiationService: IInstantiationService,
+	contextKeyService: IContextKeyService,
 	layoutService: ILayoutService,
 	fileDialogService: IFileDialogService,
 	sessionTypeProvider: IAutomationSessionTypeProvider,
@@ -318,8 +323,25 @@ function renderForm(
 		viewContext: {},
 	} as unknown as IChatWidget;
 
+	// {@link ChatInputPart} does not bind {@link ChatContextKeys.location}
+	// itself — that responsibility lives in {@link ChatWidget}. Without
+	// the binding, every chat-input picker chip whose `when` clause checks
+	// `chatLocation === Chat` (model, mode, permission, session-target,
+	// etc.) is filtered out and only the configure-tools chip renders.
+	// Mirror {@link ChatWidget}'s setup by creating a scoped context-key
+	// service for the prompt host, binding the keys the toolbar `when`
+	// clauses read, and feeding that scope to {@link ChatInputPart} via a
+	// child instantiation service so its internal {@link MenuWorkbenchToolBar}s
+	// resolve `@IContextKeyService` to the scoped instance.
+	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptHost));
+	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
+	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
+	const scopedInstantiationService = disposables.add(
+		instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
+	);
+
 	const chatInput = disposables.add(
-		instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
+		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget);
 
