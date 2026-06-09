@@ -95,7 +95,32 @@ Agents window ramp (`src/vs/sessions/**`) — pair size with a weight token,
 
 Weights: `--vscode-agents-fontWeight-regular` (400),
 `--vscode-agents-fontWeight-semiBold` (600). The ramp is **400/600 only** — there
-is no medium (500). "Strong" = same size token + `semiBold`.
+is no medium (500). "Strong" = same size token + `semiBold`. See
+[Font weight](#font-weight--font-weight) below.
+
+## Font weight — `font-weight`
+
+The agents window uses a **two-weight ramp** — there are no other weights.
+Pair every text style with one of these:
+
+| weight | Variable | Use |
+|--------|----------|-----|
+| 400 | `--vscode-agents-fontWeight-regular` | body, labels, metadata |
+| 600 | `--vscode-agents-fontWeight-semiBold` | headings, "strong" emphasis |
+
+- **No medium (500).** `font-weight: 500` is **off the ramp** — snap it to
+  `semiBold` (600). The same goes for `700`/`bold` and any other numeric weight:
+  round to the nearer of 400/600.
+- **"Strong" is not a separate size.** A "Body 1 Strong" / "Label 2 Strong"
+  style reuses the matching `--vscode-agents-fontSize-*` token paired with
+  `semiBold`. Never introduce a separate strong *size* token.
+- `normal` ≡ 400 → `regular`. **Leave untouched:** `inherit`, `lighter`,
+  `bolder`, and any `var()`/`calc()` expression. Preserve `!important`.
+
+```css
+/* avoid */            font-weight: 500;   /* not on the 400/600 ramp */
+/* prefer */           font-weight: var(--vscode-agents-fontWeight-semiBold);
+```
 
 ## Codicon size — icon `font-size`
 
