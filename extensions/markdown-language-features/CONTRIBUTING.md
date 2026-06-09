@@ -32,7 +32,7 @@ You can run the VS Code extension tests by running the `Markdown Extension Tests
 
 Language features such as IntelliSense, validation, document links, and rename are powered by a language server rather than being implemented directly in this extension. There are two packages for this:
 
-- [`vscode-markdown-languageservice`](https://github.com/microsoft/vscode-markdown-languageservice) — the library that implements the actual Markdown language intelligence. Almost all language features bug fixes and additions should be start here.
+- [`vscode-markdown-languageservice`](https://github.com/microsoft/vscode-markdown-languageservice) — the library that implements the actual Markdown language intelligence. Almost all language feature bug fixes and additions should start here.
 
 - [`vscode-markdown-languageserver`](https://github.com/microsoft/vscode-markdown-languageserver) — a thin language server that wraps the language service and exposes it over the Language Server Protocol.
 
