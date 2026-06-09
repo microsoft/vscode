@@ -17,7 +17,6 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import type { IChatWidget } from '../../chat.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from '../../widget/input/chatInputPickerActionItem.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -29,7 +28,8 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
  * will run in. The choice is recorded in {@link IAgentHostNewSessionFolderService},
  * keyed by the (untitled) chat session resource, where the working-directory
  * resolution sites pick it up. Once the session has started its working
- * directory is fixed, so the chip hides itself.
+ * directory is fixed, so the chip stays visible (showing the chosen folder)
+ * but is disabled via the action's precondition.
  */
 export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewItem {
 
@@ -118,16 +118,6 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const sessionResource = this._sessionResource();
-		// The working directory is fixed once the session has started, so only
-		// offer the picker while composing a new (untitled) session.
-		const isNewSession = !!sessionResource && isUntitledChatSession(sessionResource);
-		if (!isNewSession) {
-			dom.hide(element);
-			return null;
-		}
-		dom.show(element);
-
 		this.setAriaLabelAttributes(element);
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());

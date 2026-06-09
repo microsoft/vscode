@@ -34,7 +34,10 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 			id: OpenAgentHostFolderPickerAction.ID,
 			title: localize2('agentHost.folderPicker', "Folder"),
 			f1: false,
-			precondition: ChatContextKeys.enabled,
+			// The working directory is an argument to session creation and is
+			// fixed once the session has started (its first request), so the
+			// chip stays visible afterwards but is disabled.
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty),
 			menu: [{
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',

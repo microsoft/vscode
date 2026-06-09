@@ -452,6 +452,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	const chatService = {
 		getSession: (sessionResource: URI) => chatModels.get(sessionResource.toString()),
 		onDidCreateModel: onDidCreateModel.event,
+		onDidDisposeSession: Event.None,
 		setSession(sessionResource: URI, model: IChatModel) {
 			chatModels.set(sessionResource.toString(), model);
 			onDidCreateModel.fire(model);
@@ -511,7 +512,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		disposeSession: async () => { },
 		...provisionalServiceOverride,
 	} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
-	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService());
+	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByType = new Map<string, IObservable<readonly ClientPluginCustomization[]>>();
 	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly ClientPluginCustomization[]> }): IDisposable => {

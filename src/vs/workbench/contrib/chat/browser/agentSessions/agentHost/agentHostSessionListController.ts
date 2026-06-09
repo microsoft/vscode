@@ -214,11 +214,13 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 			// Carry the chosen folder forward onto the real resource so the
 			// handler's working-directory resolution stays consistent after the
-			// untitled-to-real rebind, then forget the untitled entry.
+			// untitled-to-real rebind. The untitled entry is left in place and
+			// cleaned up when its compose model disposes; clearing it here would
+			// briefly fire a change while the widget still points at the untitled
+			// resource, flickering the chip back to the first folder.
 			if (workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
 			}
-			this._newSessionFolderService.clear(request.untitledResource);
 			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, workingDirectory);
 		}
 

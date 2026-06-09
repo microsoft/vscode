@@ -5,8 +5,11 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
 suite('AgentHostNewSessionFolderService', () => {
@@ -14,9 +17,14 @@ suite('AgentHostNewSessionFolderService', () => {
 
 	let service: AgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
+	let onDidDisposeSession: Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>;
 
 	setup(() => {
-		service = ds.add(new AgentHostNewSessionFolderService());
+		onDidDisposeSession = ds.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' }>());
+		const chatService = new class extends mock<IChatService>() {
+			override readonly onDidDisposeSession = onDidDisposeSession.event;
+		};
+		service = ds.add(new AgentHostNewSessionFolderService(chatService));
 		cleanup = ds.add(new DisposableStore());
 	});
 
@@ -47,6 +55,22 @@ suite('AgentHostNewSessionFolderService', () => {
 			afterSet: folderB.toString(),
 			afterClear: undefined,
 			changes: [sessionA.toString(), sessionA.toString(), sessionA.toString()],
+		});
+	});
+
+	test('clears the chosen folder when its session is disposed', () => {
+		const changes: string[] = [];
+		cleanup.add(service.onDidChangeFolder(uri => changes.push(uri.toString())));
+
+		service.setFolder(sessionA, folderA);
+		onDidDisposeSession.fire({ sessionResources: [sessionA], reason: 'cleared' });
+
+		assert.deepStrictEqual({
+			afterDispose: service.getFolder(sessionA),
+			changes,
+		}, {
+			afterDispose: undefined,
+			changes: [sessionA.toString(), sessionA.toString()],
 		});
 	});
 });

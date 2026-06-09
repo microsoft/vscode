@@ -9,6 +9,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 
 export const IAgentHostNewSessionFolderService = createDecorator<IAgentHostNewSessionFolderService>('agentHostNewSessionFolderService');
 
@@ -55,6 +56,22 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 
 	private readonly _onDidChangeFolder = this._register(new Emitter<URI>());
 	readonly onDidChangeFolder = this._onDidChangeFolder.event;
+
+	constructor(
+		@IChatService chatService: IChatService,
+	) {
+		super();
+
+		// Forget a session's chosen folder once the session is disposed. This
+		// bounds the store to live sessions while keeping the choice available
+		// for the session's whole lifetime (so the Folder chip keeps showing
+		// the right folder after the session has started).
+		this._register(chatService.onDidDisposeSession(e => {
+			for (const sessionResource of e.sessionResources) {
+				this.clear(sessionResource);
+			}
+		}));
+	}
 
 	getFolder(sessionResource: URI): URI | undefined {
 		return this._folders.get(sessionResource);

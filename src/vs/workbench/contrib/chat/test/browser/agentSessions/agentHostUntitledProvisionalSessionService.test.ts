@@ -122,7 +122,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
-		folderService = ds.add(new AgentHostNewSessionFolderService());
+		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
 		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
