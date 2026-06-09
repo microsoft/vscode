@@ -1824,6 +1824,7 @@ export class CopilotAgentSession extends Disposable {
 					resultType: 'failure',
 					error: 'No client connected',
 				});
+				return;
 			}
 
 			// For client tools, do NOT auto-ready — the tool handler will fire

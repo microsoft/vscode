@@ -2500,7 +2500,7 @@ suite('CopilotAgentSession', () => {
 			// tool_start is stamped as a client contributor with no owner...
 			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
 			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
-			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: undefined });
+			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, undefined);
 
 			// ...and is failed immediately (ready + complete) rather than left
 			// pending for the server-side disconnect timeout.
