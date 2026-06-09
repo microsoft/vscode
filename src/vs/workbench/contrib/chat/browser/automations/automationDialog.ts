@@ -52,6 +52,24 @@ export interface IFolderChoice {
 	readonly label: string;
 }
 
+/**
+ * Recognizes the popup container roots used by chat input pickers and
+ * other VS Code overlays. Used as the dialog's `isExternalFocusAllowed`
+ * predicate so dropdowns mounted at the body level by
+ * `IContextViewService` / `IActionWidgetService` / quick picks are not
+ * dismissed by the dialog's focus-trap when they take focus.
+ */
+function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
+	// IContextViewService (used by IActionWidgetService for chat input
+	// pickers) wraps overlays in `.context-view`. Quick picks render as
+	// `.quick-input-widget`. Context menus render as
+	// `.monaco-menu-container`. Hover widgets render as
+	// `.monaco-hover-content` or `.monaco-hover`.
+	return !!relatedTarget.closest(
+		'.context-view, .quick-input-widget, .monaco-menu-container, .monaco-hover, .monaco-hover-content'
+	);
+}
+
 export interface IShowAutomationDialogOptions {
 	/** Folders the user may pick from for the new session's workspace. */
 	readonly folders: readonly IFolderChoice[];
@@ -138,6 +156,7 @@ export async function showAutomationDialog(
 			type: 'none',
 			extraClasses: ['automation-dialog'],
 			cancelId: 1,
+			isExternalFocusAllowed: isAutomationDialogPopupTarget,
 			buttonOptions: [
 				{
 					styleButton: button => {
