@@ -1965,6 +1965,21 @@ body:has(.automation-dialog) .monaco-menu-container {
 	display: flex;
 	flex-direction: column;
 	min-height: 140px;
+	/*
+	 * The host carries the `.interactive-session` class so the shared
+	 * chat input CSS (chip colors, focus borders, etc.) matches what
+	 * users see in a real chat session. That class also sets
+	 * `max-width: 950px; margin: auto; height: 100%` (chat.css), which
+	 * is meant for the full chat panel — in our flex column it makes
+	 * the host take its content's min-content width and center,
+	 * collapsing the chat input to ~chip-bar width. Re-assert
+	 * full-width sizing so the host fills the dialog's form column.
+	 */
+	width: auto;
+	max-width: 100%;
+	margin: 0;
+	height: auto;
+	align-self: stretch;
 }
 
 .automation-form-prompt-host .interactive-input-part {
