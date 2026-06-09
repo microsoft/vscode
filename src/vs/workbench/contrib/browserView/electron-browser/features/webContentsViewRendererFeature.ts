@@ -245,7 +245,12 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		} else {
 			void this._doScreenshot();
 			// Defer the hide one frame so the latest screenshot has a chance to paint first.
-			this.editor.window.requestAnimationFrame(() => void this._model?.setVisible(false));
+			this.editor.window.requestAnimationFrame(() => {
+				// Double check that we should still hide the page.
+				if (this._model && !this._shouldShowPage()) {
+					void this._model.setVisible(false);
+				}
+			});
 		}
 	}
 

@@ -25,7 +25,7 @@
 	border-top-right-radius: 4px;
 	background-color: color-mix(in srgb, var(--vscode-focusBorder) 6%, var(--vscode-editorWidget-background));
 	color: var(--vscode-foreground);
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	min-width: 0;
 }
@@ -39,7 +39,7 @@
 
 .chat-goal-banner .chat-goal-banner-label {
 	flex-shrink: 0;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .chat-goal-banner .chat-goal-banner-text {

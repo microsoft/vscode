@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IReader, autorun } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
@@ -24,7 +24,7 @@ import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
 import { ClaudeCodeSessionType, COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { LocalSessionType } from '../../localChatSessions/browser/localChatSessionsProvider.js';
 import { IsolationPicker } from './isolationPicker.js';
-import { ModePicker } from './modePicker.js';
+import { ModePicker, ModePickerModel } from './modePicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { CopilotCLISessionType } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 
@@ -165,8 +165,23 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+		const modePickerModel = this._register(instantiationService.createInstance(ModePickerModel));
+		this._register(autorun(reader => {
+			const session = sessionsManagementService.activeSession.read(reader);
+			if (session) {
+				const provider = sessionsProvidersService.getProvider(session.providerId);
+				if (provider instanceof CopilotChatSessionsProvider) {
+					const selectedModeId = session.mode.read(reader)?.id;
+					modePickerModel.setSession(session, selectedModeId);
+					return;
+				}
+			}
+			modePickerModel.setSession(undefined, undefined);
+		}));
 
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.isolationPicker',
@@ -185,8 +200,19 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.modePicker',
 			() => {
-				const picker = instantiationService.createInstance(ModePicker);
-				return new PickerActionViewItem(picker);
+				const picker = instantiationService.createInstance(ModePicker, modePickerModel);
+				const disposableStore = new DisposableStore();
+				disposableStore.add(picker.onDidSelect(mode => {
+					const session = sessionsManagementService.activeSession.get();
+					if (!session) {
+						return;
+					}
+					const provider = sessionsProvidersService.getProvider(session.providerId);
+					if (provider instanceof CopilotChatSessionsProvider) {
+						provider.getSession(session.sessionId)?.setMode(mode);
+					}
+				}));
+				return new PickerActionViewItem(picker, disposableStore);
 			},
 		));
 		// Permission picker registration is skipped on web so the

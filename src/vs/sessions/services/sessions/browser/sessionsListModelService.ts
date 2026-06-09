@@ -208,10 +208,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
+				if (isArchived) {
+					return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				}
 				if (pullRequestIcon) {
 					return pullRequestIcon;
 				}
-				if (!isRead && !isArchived) {
+				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };

@@ -105,6 +105,7 @@ interface IProxyRuntime {
 const KNOWN_CLAUDE_VENDORS = new Set(['anthropic']);
 const ANTHROPIC_MESSAGES_ENDPOINT = '/v1/messages';
 const PROXY_USER_FACING_NAME = 'ClaudeProxyService';
+const USER_AGENT_PREFIX = 'vscode_claude_code';
 
 /**
  * Build the 256-bit hex nonce embedded in the `Bearer <nonce>.<sessionId>`
@@ -340,7 +341,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		}
 
 		if (method === 'GET' && pathname === '/v1/models') {
-			await this._handleModels(res, runtime);
+			await this._handleModels(req, res, runtime);
 			return;
 		}
 
@@ -361,10 +362,11 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region GET /v1/models
 
-	private async _handleModels(res: http.ServerResponse, runtime: IProxyRuntime): Promise<void> {
+	private async _handleModels(req: http.IncomingMessage, res: http.ServerResponse, runtime: IProxyRuntime): Promise<void> {
+		const headers = buildOutboundHeaders(req.headers);
 		let models: CCAModel[];
 		try {
-			models = await this._copilotApiService.models(runtime.githubToken);
+			models = await this._copilotApiService.models(runtime.githubToken, { headers });
 		} catch (err) {
 			this._writeUpstreamErrorResponse(res, err);
 			return;
@@ -495,7 +497,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		runtime: IProxyRuntime,
 		originalSdkModelId: string,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
 		let message: Anthropic.Message;
 		try {
 			message = await this._copilotApiService.messages(runtime.githubToken, body, options);
@@ -528,7 +530,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 		runtime: IProxyRuntime,
 		_originalSdkModelId: string,
 	): Promise<void> {
-		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal };
+		const options: ICopilotApiServiceRequestOptions = { headers, signal: entry.ac.signal, suppressIntegrationId: true };
 		let stream: AsyncGenerator<Anthropic.MessageStreamEvent>;
 		try {
 			stream = this._copilotApiService.messages(runtime.githubToken, body, options);
@@ -711,9 +713,9 @@ function rewriteEventModel(
 
 /**
  * Build the headers we forward to {@link ICopilotApiService.messages}
- * from the inbound request. Drops everything except `anthropic-version`
- * (verbatim) and `anthropic-beta` (filtered through
- * {@link filterSupportedBetas}).
+ * from the inbound request. Forwards `anthropic-version` (verbatim),
+ * `anthropic-beta` (filtered through {@link filterSupportedBetas}), and
+ * `user-agent` (transformed via {@link transformUserAgent}).
  */
 function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string, string> {
 	const out: Record<string, string> = {};
@@ -728,7 +730,31 @@ function buildOutboundHeaders(inbound: http.IncomingHttpHeaders): Record<string,
 			out['anthropic-beta'] = filtered;
 		}
 	}
+	const userAgent = inbound['user-agent'];
+	if (typeof userAgent === 'string' && userAgent.length > 0) {
+		out['User-Agent'] = transformUserAgent(userAgent);
+	}
 	return out;
+}
+
+/**
+ * Transform an incoming user-agent string by replacing the client name
+ * portion (before the first `/`) with {@link USER_AGENT_PREFIX}. This
+ * mirrors the pattern used by `claudeLanguageModelServer.ts` in the
+ * extension, ensuring all Claude requests are tagged with a consistent
+ * prefix for server-side identification.
+ *
+ * Examples:
+ * - `claude-code/1.2.3` → `vscode_claude_code/1.2.3`
+ * - `Anthropic/Python/1.0` → `vscode_claude_code/Python/1.0`
+ * - `unknown` → `vscode_claude_code/unknown`
+ */
+function transformUserAgent(userAgent: string): string {
+	const slashIndex = userAgent.indexOf('/');
+	if (slashIndex === -1) {
+		return `${USER_AGENT_PREFIX}/${userAgent}`;
+	}
+	return `${USER_AGENT_PREFIX}${userAgent.substring(slashIndex)}`;
 }
 
 function readRequestBody(req: http.IncomingMessage): Promise<string> {

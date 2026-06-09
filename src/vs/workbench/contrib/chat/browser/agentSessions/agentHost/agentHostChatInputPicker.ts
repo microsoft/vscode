@@ -25,6 +25,7 @@ import { StateComponents } from '../../../../../../platform/agentHost/common/sta
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import type { IAction } from '../../../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -39,7 +40,7 @@ import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 const FILTER_THRESHOLD = 10;
 
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
-const PERMISSION_MODE_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels';
+const PERMISSION_MODE_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
 
 interface IConfigPickerItem {
 	readonly value: string;
@@ -196,6 +197,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		private readonly _property: string,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -265,7 +267,7 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._renderChip());
 		this._subRef.value = {
@@ -342,6 +344,10 @@ export class AgentHostChatInputPicker extends Disposable {
 
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger));
+		const tooltip = ctx.schema.description ?? ctx.schema.title;
+		if (tooltip) {
+			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+		}
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly);
 	}
 
