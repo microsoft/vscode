@@ -177,7 +177,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			case StateType.Disabled:
 				if (startup) {
 					const reason = this.state.reason;
-					if (reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin) {
+					if (reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin || reason === DisablementReason.RunningX64OnArm64) {
 						const lastShown = this.storageService.getNumber(DISABLED_REMINDER_LAST_SHOWN_KEY, StorageScope.APPLICATION);
 						showTooltip = lastShown === undefined || (Date.now() - lastShown) >= DISABLED_REMINDER_PERIOD;
 					}

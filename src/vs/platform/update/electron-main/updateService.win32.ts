@@ -127,6 +127,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return;
 		}
 
+		if (process.arch === 'x64' && await this.nativeHostMainService.isRunningUnderARM64Translation(undefined)) {
+			this.setState(State.Disabled(DisablementReason.RunningX64OnArm64));
+			this.logService.info('update#ctor - updates are disabled because x64 VS Code is running under ARM64 translation');
+			return;
+		}
+
 		await super.initialize();
 	}
 
