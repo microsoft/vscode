@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -199,6 +199,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info('AgentService initialized');
 		this._authService = new AgentHostAuthenticationService(_logService);
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
+			hostBuildInfo: hostBuildInfoFromProduct(this._productService),
 			changesetStateRetention: {
 				// The cache calls this lazily after construction. If a future state-manager
 				// initialization path registers changesets before `_changesets` is assigned,
@@ -417,8 +418,39 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		});
 
-		this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
-		return withStatus;
+		// Overlay any session that has been announced via `sessionAdded`
+		// but is missing from the providers' `listSessions` snapshot.
+		// Providers can briefly drop a just-materialized session (e.g.
+		// between firing `sessionAdded` and the SDK's session DB becoming
+		// visible to the next `listSessions` call), and immediately after
+		// `session/turnComplete` we've observed `CopilotAgent.listSessions`
+		// return an empty array transiently. Without this overlay,
+		// renderer-side session caches evict the live session, which
+		// closes the chat view holding the in-flight response bubble.
+		const known = new Set(withStatus.map(s => s.session.toString()));
+		const additions: IAgentSessionMetadata[] = [];
+		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
+			if (known.has(summary.resource)) {
+				continue;
+			}
+			additions.push({
+				session: URI.parse(summary.resource),
+				startTime: summary.createdAt,
+				modifiedTime: summary.modifiedAt,
+				summary: summary.title,
+				status: summary.status,
+				activity: summary.activity,
+				model: summary.model,
+				agent: summary.agent,
+				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
+				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
+				changesets: summary.changesets,
+			});
+		}
+		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+
+		this._logService.trace(`[AgentService] listSessions returned ${combined.length} sessions (${additions.length} state-manager fallback)`);
+		return combined;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {

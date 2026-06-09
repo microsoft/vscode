@@ -1238,6 +1238,26 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(agentHostService.createSessionCalls[0].model, { id: 'gpt-4o' });
 		}));
 
+		test('drops foreign vendor model id (issue #319583)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// When a user picks a model in another mode (e.g. the in-extension
+			// `copilotcli` participant), then switches to the agent-host mode,
+			// the stale `${vendor}/${id}` identifier can leak in as
+			// `userSelectedModelId`. The handler must drop it and fall back
+			// to the agent's default model, not forward an unknown id to
+			// `session.create`.
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: 'Hi',
+				userSelectedModelId: 'copilotcli/claude-sonnet-4.6',
+			});
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].model, undefined);
+		}));
+
 		test('does not create backend session eagerly for untitled sessions', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -3578,7 +3598,8 @@ suite('AgentHostChatContribution', () => {
 			const agentHostUri = URI.from({
 				scheme: 'vscode-agent-host',
 				authority: 'my-server',
-				path: '/file/-/home/user/project',
+				path: '/home/user/project',
+				query: '_ah=eyJzY2hlbWUiOiJmaWxlIn0',
 			});
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {

@@ -151,6 +151,9 @@ import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.co
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
+// WSL agent host — reconciles cached WSL distros into session providers
+import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
+
 // Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 

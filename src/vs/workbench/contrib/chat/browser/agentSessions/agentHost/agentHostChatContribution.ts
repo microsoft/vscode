@@ -54,6 +54,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _authTokenCache = new AgentHostAuthTokenCache();
 
 	private readonly _isSessionsWindow: boolean;
+	private readonly _enableSmokeTestDriver: boolean;
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
@@ -64,7 +65,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostFileSystemService _agentHostFileSystemService: IAgentHostFileSystemService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
@@ -72,8 +73,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		super();
 
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
-		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		if (!this._configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
 		}
 
@@ -235,6 +237,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
 		this._agentHostService.setAuthenticationPending(true);
 		try {
+			const testToken = this._getScenarioAutomationToken();
+			if (testToken !== undefined) {
+				await this._seedTestToken(agents, testToken);
+				return;
+			}
 			await authenticateProtectedResources(agents, {
 				authTokenCache: this._authTokenCache,
 				authenticationService: this._authenticationService,
@@ -256,6 +263,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to the server. Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
+		const testToken = this._getScenarioAutomationToken();
+		if (testToken !== undefined) {
+			for (const resource of protectedResources) {
+				await this._agentHostService.authenticate({ resource: resource.resource, token: testToken });
+				this._authTokenCache.updateAndIsChanged(resource.resource, resource.scopes_supported, testToken);
+			}
+			return protectedResources.length > 0;
+		}
 		try {
 			return await resolveAuthenticationInteractively(protectedResources, {
 				authTokenCache: this._authTokenCache,
@@ -268,5 +283,30 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._logService.error('[AgentHost] Interactive authentication failed', err);
 		}
 		return false;
+	}
+
+	private async _seedTestToken(agents: readonly AgentInfo[], token: string): Promise<void> {
+		for (const agent of agents) {
+			for (const resource of agent.protectedResources ?? []) {
+				if (!this._authTokenCache.updateAndIsChanged(resource.resource, resource.scopes_supported, token)) {
+					continue;
+				}
+				try {
+					await this._agentHostService.authenticate({ resource: resource.resource, token });
+				} catch (err) {
+					this._authTokenCache.clear(resource.resource);
+					throw err;
+				}
+			}
+		}
+	}
+
+	private _getScenarioAutomationToken(): string | undefined {
+		// Smoke-test escape hatch.
+		if (!this._enableSmokeTestDriver) {
+			return undefined;
+		}
+		const token = this._configurationService.getValue('chat.agentHost.unsafeTestToken');
+		return typeof token === 'string' && token.length > 0 ? token : undefined;
 	}
 }

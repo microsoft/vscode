@@ -17,6 +17,7 @@ import { IAgentHostChangesetService } from './agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -39,6 +40,7 @@ import { SessionPermissionManager } from './sessionPermissions.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -101,6 +103,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+	private readonly _turnTracker: AgentHostTurnTracker;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -113,6 +116,7 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
+		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
@@ -397,6 +401,14 @@ export class AgentSideEffects extends Disposable {
 
 		this._stateManager.dispatchServerAction(sessionKey, action);
 
+		// Mark first visible progress for TTFT telemetry
+		if (action.type === ActionType.SessionDelta
+			|| action.type === ActionType.SessionResponsePart
+			|| action.type === ActionType.SessionToolCallStart
+			|| action.type === ActionType.SessionReasoning) {
+			this._turnTracker.markFirstProgress(sessionKey, turnId);
+		}
+
 		if (action.type === ActionType.SessionToolCallComplete) {
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
@@ -411,7 +423,16 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.SessionTurnComplete) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'success');
 			this._runTurnCompleteSideEffects(sessionKey, turnId);
+		}
+
+		if (action.type === ActionType.SessionTurnCancelled) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
+		}
+
+		if (action.type === ActionType.SessionError) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
 		}
 	}
 
@@ -571,6 +592,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.SessionTurnCancelled,
 						turnId,
 					});
+					this._turnTracker.turnCompleted(subagentUri, turnId, 'cancelled');
 				}
 				this._subagentSessions.delete(key);
 			}
@@ -737,6 +759,8 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
+				const { model, permissionLevel } = this._getTurnTelemetryContext(state);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
 				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -745,6 +769,7 @@ export class AgentSideEffects extends Disposable {
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
 					});
+					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
 				});
 				break;
 			}
@@ -772,6 +797,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionTurnCancelled: {
+				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(channel);
@@ -1025,7 +1051,10 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const attachments = msg.message.attachments;
-		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
+		const queuedState = this._stateManager.getSessionState(session);
+		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
+		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
 		agent.sendMessage(URI.parse(session), msg.message.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction(session, {
@@ -1033,7 +1062,16 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
+			this._turnTracker.turnCompleted(session, turnId, 'error');
 		});
+	}
+
+
+	private _getTurnTelemetryContext(state: SessionState | undefined): { model: string | undefined; permissionLevel: string | undefined } {
+		const model = state?.summary.model?.id;
+		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
+		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
+		return { model, permissionLevel };
 	}
 
 
