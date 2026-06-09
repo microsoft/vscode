@@ -85,7 +85,7 @@
 	min-width: 18px;
 	height: 16px;
 	padding: 0 5px;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
 	font-size: 10px;
@@ -224,7 +224,6 @@
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-summary {

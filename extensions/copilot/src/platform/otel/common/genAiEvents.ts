@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GenAiAttr, GenAiOperationName, StdAttr } from './genAiAttributes';
-import { normalizeProviderMessages, toSystemInstructions, truncateForOTel } from './messageFormatters';
+import { normalizeProviderMessages, stringifyToolsRawForTelemetry, toSystemInstructions, truncateForOTel } from './messageFormatters';
 import type { IOTelService } from './otelService';
 import { type WorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from './workspaceOTelMetadata';
 
@@ -71,7 +71,10 @@ export function emitInferenceDetailsEvent(
 			}
 		}
 		if (request.tools !== undefined) {
-			attributes[GenAiAttr.TOOL_DEFINITIONS] = truncateForOTel(JSON.stringify(request.tools), maxLen);
+			const toolsJson = stringifyToolsRawForTelemetry(request.tools as ReadonlyArray<unknown> | undefined);
+			if (toolsJson !== undefined) {
+				attributes[GenAiAttr.TOOL_DEFINITIONS] = truncateForOTel(toolsJson, maxLen);
+			}
 		}
 	}
 

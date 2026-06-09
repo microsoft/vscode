@@ -190,7 +190,7 @@ export class ChatSubmitAction extends SubmitAction {
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
-			ChatContextKeys.inputHasText,
+			ChatContextKeys.inputHasSendableContent,
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
 		);
@@ -762,7 +762,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
-			ChatContextKeys.inputHasText,
+			ChatContextKeys.inputHasSendableContent,
 			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);
@@ -898,6 +898,8 @@ class SendToNewChatAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -919,7 +921,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}

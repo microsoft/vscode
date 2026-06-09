@@ -9,6 +9,7 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -47,6 +48,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 		@IDialogService dialogService: IDialogService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService storageService: IStorageService,
+		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
@@ -63,6 +65,7 @@ export class AgentHostPermissionPickerActionItem extends PermissionPickerActionI
 			dialogService,
 			openerService,
 			storageService,
+			hoverService,
 		);
 		this._delegate = this._register(delegate);
 		// Initialized here (not as a class field) so the `derived` body can

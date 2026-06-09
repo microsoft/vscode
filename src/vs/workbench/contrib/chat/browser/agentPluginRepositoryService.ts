@@ -137,7 +137,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType);
 			return repoDir;
 		});

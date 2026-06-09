@@ -29,7 +29,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
-import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -60,6 +60,10 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 			break;
 	}
 	return hoverContent;
+}
+
+export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
+	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
 }
 
 /**
@@ -167,6 +171,34 @@ type ChatModelPickerInteractionEvent = {
 	interaction: ChatModelPickerInteraction;
 };
 
+type ChatThinkingEffortChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the thinking effort is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
+};
+
+type ChatThinkingEffortChangeEvent = {
+	model: string | TelemetryTrustedValue<string>;
+	fromValue: string;
+	toValue: string;
+};
+
+type ChatContextSizeChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the context window size is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous context size value' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new context size value' };
+};
+
+type ChatContextSizeChangeEvent = {
+	model: string | TelemetryTrustedValue<string>;
+	fromValue: string;
+	toValue: string;
+};
+
 /**
  * Returns true if the model uses multiplier-based pricing (e.g. "2x").
  * The copilot extension always sets multiplierNumeric alongside multiplier pricing strings.
@@ -253,11 +285,19 @@ function resolveConfigProperty(
  */
 function getPriceCategoryLabel(priceCategory: string | undefined): string | undefined {
 	switch (priceCategory) {
-		case 'low': return localize('chat.priceCategory.low', "Low cost");
-		case 'medium': return localize('chat.priceCategory.medium', "Medium cost");
-		case 'high': return localize('chat.priceCategory.high', "High cost");
-		case 'very_high': return localize('chat.priceCategory.veryHigh', "Very high cost");
-		default: return undefined;
+		case undefined:
+		case '':
+			return undefined;
+		case 'low':
+			return localize('chat.priceCategory.low', "Low cost");
+		case 'medium':
+			return localize('chat.priceCategory.medium', "Medium cost");
+		case 'high':
+			return localize('chat.priceCategory.high', "High cost");
+		case 'very_high':
+			return localize('chat.priceCategory.veryHigh', "Very high cost");
+		default:
+			return localize('chat.priceCategory.unknown', "{0} cost", priceCategory.charAt(0).toUpperCase() + priceCategory.slice(1));
 	}
 }
 
@@ -337,7 +377,8 @@ function createModelAction(
 }
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
-	return chatEntitlementService.hasByokModels ||
+	return chatEntitlementService.clientByokEnabled ||
+		chatEntitlementService.hasByokModels ||
 		chatEntitlementService.entitlement === ChatEntitlement.Free ||
 		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
@@ -999,10 +1040,11 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const isPro = isProUser(this._entitlementService.entitlement);
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
+		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
-		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
+		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
@@ -1203,6 +1245,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
+		const previousEffortValue = String(config.value ?? '');
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 
@@ -1229,6 +1272,11 @@ export class ModelPickerWidget extends Disposable {
 					tooltip: config.schema.enumDescriptions?.[index] ?? '',
 					label: displayLabel,
 					run: () => {
+						this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+							fromValue: previousEffortValue,
+							toValue: String(value),
+						});
 						this._languageModelsService.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
@@ -1290,6 +1338,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
+		const previousTokensValue = String(config.value ?? '');
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 
@@ -1303,10 +1352,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
@@ -1317,6 +1363,11 @@ export class ModelPickerWidget extends Disposable {
 					tooltip: description ?? '',
 					label: displayLabel,
 					run: () => {
+						this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+							fromValue: previousTokensValue,
+							toValue: String(value),
+						});
 						this._languageModelsService.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
@@ -1370,7 +1421,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
@@ -1494,9 +1545,12 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 
 
 export function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
+	if (count >= 1_000_000) {
+		const value = count / 1_000_000;
+		const floored = Math.floor(value * 10) / 10;
+		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
+	} else if (count > 900_000) {
+		return '1M';
 	} else if (count >= 1000) {
 		return `${Math.round(count / 1000)}K`;
 	}
