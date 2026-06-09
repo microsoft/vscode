@@ -6183,7 +6183,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.79 - Apache-2.0
+openssl 0.10.80 - Apache-2.0
 https://github.com/rust-openssl/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -6262,7 +6262,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.115 - MIT
+openssl-sys 0.9.116 - MIT
 https://github.com/rust-openssl/rust-openssl
 
 The MIT License (MIT)
@@ -9793,7 +9793,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tar 0.4.45 - MIT OR Apache-2.0
+tar 0.4.46 - MIT OR Apache-2.0
 https://github.com/composefs/tar-rs
 
 Copyright (c) The tar-rs Project Contributors
