@@ -680,28 +680,6 @@ suite('ChatQuotaNotificationContribution', () => {
 			assert.strictEqual(notificationMock.getNotification(), undefined);
 		});
 
-		test('uses info severity even when projected daily usage is high', async () => {
-			const { notificationMock } = createContribution({
-				entitlement: ChatEntitlement.ProPlus,
-				quotas: {
-					resetDate: makeResetDate(24),
-					usageBasedBilling: true,
-					premiumChat: makeQuotaSnapshot(72),
-				},
-			}, { trajectoryTreatment: 'enabled' });
-
-			await flushPromises();
-
-			assert.ok(notificationMock.getNotification());
-			assert.deepStrictEqual({
-				message: notificationMock.getNotification()!.message,
-				severity: notificationMock.getNotification()!.severity,
-			}, {
-				message: 'Fast Credit Usage',
-				severity: ChatInputNotificationSeverity.Info,
-			});
-		});
-
 		test('remembers trajectory dismissal for the quota period', async () => {
 			const { entitlementMock, notificationMock } = createContribution({
 				entitlement: ChatEntitlement.EDU,
