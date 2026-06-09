@@ -22,8 +22,8 @@ import { localize } from '../../../../nls.js';
  */
 export enum BrowserSearchEngineId {
 	Bing = 'bing',
-	Yahoo = 'yahoo',
 	Google = 'google',
+	Yahoo = 'yahoo',
 	DuckDuckGo = 'duckduckgo',
 }
 
