@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -58,7 +58,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	private _currentTooltip: string = '';
-	private _hoverSetup = false;
+	private _hoverElement: HTMLElement | undefined;
+	private readonly _hover = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		action: MenuItemAction,
@@ -242,9 +243,13 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		element.setAttribute('aria-label', localize('permissions.ariaLabel', "Permission picker, {0}", label));
 
 		this._currentTooltip = tooltip;
-		if (!this._hoverSetup) {
-			this._hoverSetup = true;
-			this._register(this.hoverService.setupDelayedHover(element, () => ({ content: this._currentTooltip })));
+		// `renderLabel` can run against a fresh element on subsequent
+		// `render()` calls (e.g. when the item moves into/out of overflow).
+		// Re-wire the hover on the new element and dispose the previous
+		// registration so it doesn't leak the old element.
+		if (this._hoverElement !== element) {
+			this._hoverElement = element;
+			this._hover.value = this.hoverService.setupDelayedHover(element, () => ({ content: this._currentTooltip }));
 		}
 		return null;
 	}
