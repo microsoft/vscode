@@ -28,6 +28,7 @@ import {
 	type ChangesetFile,
 	type ISessionFileDiff,
 	type URI as ProtocolURI,
+	readSessionGitState,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
@@ -493,11 +494,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshUncommittedChangeset(session: ProtocolURI): void {
-		this._scheduleStaticRecompute(session, 'uncommitted');
+		this._scheduleStaticRecompute(session, 'uncommitted', undefined, this._markStaticChangesetComputing(session, 'uncommitted'));
 	}
 
 	refreshSessionChangeset(session: ProtocolURI): void {
-		this._scheduleStaticRecompute(session, 'session');
+		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
 	}
 
 	async computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
@@ -752,18 +753,33 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * stale `previousDiffs` reads. Fire-and-forget — failures are logged
 	 * but do not fail the turn.
 	 */
-	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string): void {
-		this._diffComputationSequencer.queue(`${session}\u0000${kind}`, () => this._doComputeStaticChangeset(session, kind, changedTurnId));
+	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus): void {
+		this._diffComputationSequencer.queue(`${session}\u0000${kind}`, () => this._doComputeStaticChangeset(session, kind, changedTurnId, statusBeforeRefresh));
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string): Promise<void> {
+	private _markStaticChangesetComputing(session: ProtocolURI, kind: StaticChangesetKind): ChangesetStatus | undefined {
+		const changesetUri = staticChangesetUri(session, kind);
+		this._stateManager.registerChangeset(changesetUri);
+		const status = this._stateManager.getChangesetState(changesetUri)?.status;
+		if (status !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(changesetUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
+		return status;
+	}
+
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus): Promise<void> {
 		const changesetUri = staticChangesetUri(session, kind);
 		this._activeStaticComputes.add(changesetUri);
+		const statusBeforeCompute = statusBeforeRefresh ?? this._stateManager.getChangesetState(changesetUri)?.status;
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
 			ref = this._sessionDataService.openDatabase(URI.parse(session));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for ${kind} diff computation: ${session}`, err);
+			this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 			this._activeStaticComputes.delete(changesetUri);
 			this._stateManager.onChangesetLivenessChanged();
 			return;
@@ -781,6 +797,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					// snapshot. Leave whatever live/persisted state is
 					// already there; the next successful path A will
 					// refresh it.
+					this._logService.debug(`[AgentHostChangesetService] Uncommitted git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
+					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 					return;
 				}
 				// `session` kind: working-tree git is unavailable (no
@@ -825,6 +843,23 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._stateManager.onChangesetLivenessChanged();
 			ref.dispose();
 		}
+	}
+
+	/**
+	 * Refresh requests optimistically mark static changesets as Computing
+	 * while preserving their current files. Some refresh paths intentionally
+	 * do not publish a replacement file list (for example, uncommitted git
+	 * diff is temporarily unavailable), so restore the previous non-computing
+	 * status instead of leaving a stale cached snapshot stuck as Computing.
+	 */
+	private _restoreStaticChangesetStatus(changesetUri: ProtocolURI, status: ChangesetStatus | undefined): void {
+		if (!status || status === ChangesetStatus.Computing) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetStatusChanged,
+			status,
+		});
 	}
 
 	/**
@@ -912,9 +947,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} catch {
 			return undefined;
 		}
-		const baseBranch = kind === 'session'
-			? (await db.getMetadata(META_DIFF_BASE_BRANCH)) ?? undefined
-			: undefined;
+		let baseBranch: string | undefined;
+		if (kind === 'session') {
+			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
+			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
+			if (!persistedBaseBranch && gitStateBaseBranch) {
+				this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+			}
+		}
 		try {
 			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
 		} catch (err) {

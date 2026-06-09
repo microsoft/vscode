@@ -99,10 +99,10 @@ export class ChangesetSessionCoordinator extends Disposable {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, logService));
+		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
 		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
 	}
 
@@ -162,6 +162,17 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onSessionMaterialized(sessionStr: string): void {
 		this._drainPendingRefresh(sessionStr);
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
+	}
+
+	/**
+	 * Called after `_meta.git` is attached or updated. Git state can provide
+	 * the base branch used by Branch Changes and fresh uncommitted counts, so
+	 * refresh both static changesets once the session has a working directory.
+	 */
+	onSessionGitStateChanged(sessionStr: string): void {
+		this._logService.debug(`[ChangesetSessionCoordinator] Git state changed for ${sessionStr}; refreshing static changesets. hasWorkingDirectory=${!!this._configurationService.getEffectiveWorkingDirectory(sessionStr)}`);
+		this._triggerSessionRefresh(sessionStr);
+		this._triggerUncommittedRefresh(sessionStr);
 	}
 
 	/**

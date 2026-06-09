@@ -704,6 +704,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!gitState) {
 					return;
 				}
+				this._changesetCoordinator.onSessionGitStateChanged(sessionKey);
 				this._changesetOperationContributionService.updateOperations(sessionKey, gitState);
 			},
 			e => {
