@@ -33,6 +33,7 @@ import './features/browserEditorZoomFeature.js';
 import './features/browserEditorEmulationFeatures.js';
 import './features/browserEditorFindFeature.js';
 import './features/browserTabManagementFeatures.js';
+import './features/browserRemoteFeatures.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(

@@ -59,6 +59,7 @@ type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 
 const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
+const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 
 /**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
@@ -736,16 +737,17 @@ export class CopilotAgentSession extends Disposable {
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
 			.map(c => ({ data: c.data, mimeType: c.contentType, type: (/^image(\/|$)/.test(c.contentType) ? 'image' : 'resource') as 'image' | 'resource' }));
+		const textResultForLlm = textContent.trim() ? textContent : EMPTY_TOOL_RESULT_TEXT;
 
 		if (result.success) {
 			this._pendingClientToolCalls.respondOrBuffer(toolCallId, {
-				textResultForLlm: textContent,
+				textResultForLlm,
 				resultType: 'success',
 				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,
 			});
 		} else {
 			this._pendingClientToolCalls.respondOrBuffer(toolCallId, {
-				textResultForLlm: textContent || result.error?.message || 'Tool call failed',
+				textResultForLlm: textContent.trim() ? textContent : result.error?.message || 'Tool call failed',
 				resultType: 'failure',
 				error: result.error?.message,
 				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,

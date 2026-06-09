@@ -13,7 +13,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -97,6 +97,7 @@ export class SessionTypePicker extends Disposable {
 	protected _triggerElement: HTMLElement | undefined;
 
 	constructor(
+		private readonly _session: IObservable<ISession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -128,19 +129,19 @@ export class SessionTypePicker extends Disposable {
 		};
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			refresh(session);
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
 		// (e.g. a remote agent host discovers a new agent).
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			refresh(this.sessionsManagementService.activeSession.get());
+			refresh(this._session.get());
 		}));
 		// Re-read when the stored preference changes (e.g. handoff IPC from
 		// the main vscode window pre-seeds Copilot CLI when opening
 		// the agents window from an empty workspace).
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
-			if (!this.sessionsManagementService.activeSession.get()) {
+			if (!this._session.get()) {
 				this._picked = this._readStoredPick();
 				this._updateTriggerLabel();
 			}
@@ -195,7 +196,7 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}

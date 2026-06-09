@@ -2556,7 +2556,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('client-perm', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2598,7 +2600,11 @@ suite('CopilotAgentSession', () => {
 				success: true,
 				pastTenseMessage: 'did it',
 			});
-			await handlerPromise;
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: undefined,
+			});
 		});
 
 		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
@@ -2840,6 +2846,27 @@ suite('CopilotAgentSession', () => {
 			const result = await invokeClientToolHandler(tools[0], 'tc-early');
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'buffered result');
+		});
+
+		test('handleClientToolCallComplete with embedded-resource-only content uses empty placeholder text', async () => {
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded-only');
+
+			session.handleClientToolCallComplete('tc-embedded-only', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
+				],
+			});
+
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
+			});
 		});
 	});
 
