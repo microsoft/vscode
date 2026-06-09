@@ -100,7 +100,6 @@ export async function showAutomationDialog(
 		folderUri: initialFolder,
 		providerId: initial?.providerId,
 		sessionTypeId: initial?.sessionTypeId,
-		modelId: initial?.modelId,
 		enabled: initial?.enabled ?? true,
 	};
 
@@ -116,6 +115,7 @@ export async function showAutomationDialog(
 	let getPrompt: () => string = () => initial?.prompt ?? '';
 	let getMode: () => string | undefined = () => initial?.mode;
 	let getPermissionLevel: () => string | undefined = () => initial?.permissionLevel;
+	let getModelId: () => string | undefined = () => initial?.modelId;
 
 	const title = isEdit
 		? localize('automation.dialog.editTitle', "Edit Automation")
@@ -145,10 +145,11 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel);
+				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, layoutService, fileDialogService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 				getPrompt = handle.getPrompt;
 				getMode = handle.getMode;
 				getPermissionLevel = handle.getPermissionLevel;
+				getModelId = handle.getModelId;
 				revalidate = () => updateSaveButtonState(saveButton, state, validation, form, getPrompt);
 				revalidate();
 			},
@@ -180,6 +181,7 @@ export async function showAutomationDialog(
 		const prompt = getPrompt();
 		const mode = getMode();
 		const permissionLevel = getPermissionLevel();
+		const modelId = getModelId();
 
 		if (isEdit && initial) {
 			const patch: IUpdateAutomationOptions = {
@@ -189,7 +191,7 @@ export async function showAutomationDialog(
 				folderUri: state.folderUri,
 				providerId: state.providerId ?? null,
 				sessionTypeId: state.sessionTypeId ?? null,
-				modelId: state.modelId ?? null,
+				modelId: modelId ?? null,
 				mode: mode ?? null,
 				permissionLevel: permissionLevel ?? null,
 				enabled: state.enabled,
@@ -204,7 +206,7 @@ export async function showAutomationDialog(
 			folderUri: state.folderUri,
 			providerId: state.providerId,
 			sessionTypeId: state.sessionTypeId,
-			modelId: state.modelId,
+			modelId,
 			mode,
 			permissionLevel,
 			enabled: state.enabled,
@@ -224,7 +226,6 @@ interface IFormState {
 	folderUri: URI | undefined;
 	providerId: string | undefined;
 	sessionTypeId: string | undefined;
-	modelId: string | undefined;
 	enabled: boolean;
 }
 
@@ -238,6 +239,7 @@ interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getMode: () => string | undefined;
 	readonly getPermissionLevel: () => string | undefined;
+	readonly getModelId: () => string | undefined;
 }
 
 function renderForm(
@@ -254,6 +256,7 @@ function renderForm(
 	initialPrompt: string,
 	initialMode: string | undefined,
 	initialPermissionLevel: string | undefined,
+	initialModelId: string | undefined,
 ): IRenderFormHandle {
 	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
@@ -332,6 +335,13 @@ function renderForm(
 	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
+	// Pre-seed the language model. switchModelByIdentifier returns false
+	// when the previously-saved model is no longer registered (e.g. the
+	// extension was uninstalled); in that case we leave the picker on its
+	// default and the runner will fall back at execution time.
+	if (initialModelId) {
+		chatInput.switchModelByIdentifier(initialModelId);
+	}
 
 	// Track whether the user actually interacted with each picker so that
 	// a no-op Save on an existing automation preserves the originally
@@ -339,6 +349,20 @@ function renderForm(
 	// from records saved before Phase C). We snapshot the values after
 	// the pre-seed completes and only mark the picker as interacted-with
 	// when the observable diverges from that baseline.
+	//
+	// Mode and permission level are only ever mutated by user action or
+	// our explicit setters, so an observable-diverged signal is a safe
+	// proxy for interaction. The language-model observable is *not* safe
+	// the same way -- {@link ChatInputPart} can asynchronously rewrite
+	// `selectedLanguageModel` on its own (late-arriving persisted model
+	// in `_waitForPersistedLanguageModel`, model-visibility changes via
+	// `resetCurrentLanguageModelIfUnavailable`). Tracking interaction
+	// via autorun on that observable would silently flip the flag on
+	// background events and corrupt the saved `modelId`, so we
+	// deliberately do not capture model changes during an edit. For
+	// edit-mode the modal preserves `initialModelId`; only create-mode
+	// captures the picker's current value at Save. Tracked in
+	// `files/deferred-decisions.md` for a true model-edit follow-up.
 	let modeUserInteracted = false;
 	let permissionUserInteracted = false;
 	const baselineModeKind = chatInput.currentModeObs.get().kind;
@@ -601,12 +625,16 @@ function renderForm(
 		// registered; that environmental concern is the runner's
 		// responsibility at execution time, not capture time.
 		//
-		// If the user never touched the mode picker, fall through to the
+		// If the user never touched a picker, fall through to the
 		// originally-stored value so a no-op Save preserves both
-		// concrete kinds and the legacy `undefined`/`null` "use default"
+		// concrete values and the legacy `undefined`/`null` "use default"
 		// sentinel.
 		getMode: () => modeUserInteracted ? chatInput.currentModeObs.get().kind : initialMode,
 		getPermissionLevel: () => permissionUserInteracted ? chatInput.currentPermissionLevelObs.get() : initialPermissionLevel,
+		// Edit-mode preserves the stored modelId verbatim (see the
+		// async-write hazard explained above). Create-mode captures
+		// whatever the picker resolves to at Save time.
+		getModelId: () => initialModelId !== undefined ? initialModelId : chatInput.selectedLanguageModel.get()?.identifier,
 	};
 }
 
