@@ -6,7 +6,8 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { parse as parseJSONC } from '../../../../../../base/common/json.js';
+import { ParseError, parse as parseJSONC } from '../../../../../../base/common/json.js';
+import { getParseErrorMessage } from '../../../../../../base/common/jsonErrorMessages.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { autorun, IReader } from '../../../../../../base/common/observable.js';
@@ -1089,7 +1090,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
-				const json = parseJSONC(content.value.toString());
+				const parseErrors: ParseError[] = [];
+				const json = parseJSONC(content.value.toString(), parseErrors);
+
+				if (parseErrors.length > 0) {
+					const first = parseErrors[0];
+					const message = getParseErrorMessage(first.error) || 'Invalid JSON';
+					return {
+						file: {
+							status: 'skipped',
+							skipReason: 'parse-error',
+							errorMessage: `${message} at offset ${first.offset}`,
+							promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description),
+						},
+					};
+				}
 
 				// Validate it's an object
 				if (!json || typeof json !== 'object') {

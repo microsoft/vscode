@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
-import type { IAgentSubscription } from './state/agentSubscription.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -391,6 +391,26 @@ export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 	authorization_servers: ['https://github.com/login/oauth'],
 	scopes_supported: ['read:user', 'user:email'],
 	required: true,
+};
+
+/**
+ * Canonical {@link ProtectedResourceMetadata} for GitHub repository write
+ * operations (e.g. creating a pull request). Distinct from
+ * {@link GITHUB_COPILOT_PROTECTED_RESOURCE} so that the broader `repo`
+ * scope is only requested when a session actually needs it (e.g. when a
+ * changeset operation handler throws `AHP_AUTH_REQUIRED` with this
+ * resource), rather than at session create for every agent.
+ *
+ * `required: false` reflects that the resource is only needed on demand —
+ * agents do not have to advertise it eagerly. The workbench-side auth
+ * contributor resolves it lazily in response to operation invocations.
+ */
+export const GITHUB_REPO_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
+	resource: 'https://api.github.com/repos',
+	resource_name: 'GitHub Repository',
+	authorization_servers: ['https://github.com/login/oauth'],
+	scopes_supported: ['repo'],
+	required: false,
 };
 
 export interface IAgentCreateSessionConfig {
@@ -984,8 +1004,21 @@ export interface IAgentConnection {
 
 	// ---- State subscriptions ------------------------------------------------
 	readonly rootState: IAgentSubscription<RootState>;
-	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>>;
+	/**
+	 * Acquire a refcounted subscription to `resource`. `owner` names the
+	 * caller holding the reference so inspection surfaces can attribute who
+	 * is retaining a subscription; use a stable identifier such as the
+	 * acquiring class name.
+	 */
+	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+
+	/**
+	 * Read-only descriptors of every active resource subscription on this
+	 * connection, for inspection/debug surfaces. Excludes the always-live
+	 * {@link rootState}.
+	 */
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[];
 
 	// ---- Action dispatch ----------------------------------------------------
 	/**

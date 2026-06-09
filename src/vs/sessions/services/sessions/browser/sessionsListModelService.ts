@@ -55,9 +55,11 @@ export interface ISessionsListModelService {
 	 * UI (sessions list, sessions picker, session header). Centralized here so
 	 * all surfaces stay in sync.
 	 *
-	 * Note: when motion is allowed, the sessions list renders a pixel spinner for
-	 * the `InProgress`/`NeedsInput` states instead of consulting this method; the
-	 * icons returned here are the reduced-motion fallbacks.
+	 * Note: when motion is allowed, surfaces that host a {@link SessionStatusIcon}
+	 * (sessions list, session header) render a pixel spinner for the
+	 * `InProgress`/`NeedsInput` states instead of consulting this method; the
+	 * icons returned here are the reduced-motion fallbacks (and the glyphs used by
+	 * surfaces that don't host the widget, such as the sessions picker).
 	 */
 	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon;
 }
@@ -206,10 +208,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
+				if (isArchived) {
+					return { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+				}
 				if (pullRequestIcon) {
 					return pullRequestIcon;
 				}
-				if (!isRead && !isArchived) {
+				if (!isRead) {
 					return { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') };
 				}
 				return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };

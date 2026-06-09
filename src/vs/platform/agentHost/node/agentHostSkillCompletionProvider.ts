@@ -78,8 +78,17 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			return [];
 		}
 		const customizations = await agent.getSessionCustomizations(session);
-		return customizations
-			.filter(c => c.enabled)
-			.flatMap(c => (c.children ?? []).filter(child => child.type === CustomizationType.Skill));
+		const result: SkillCustomization[] = [];
+		for (const c of customizations) {
+			if (c.type === CustomizationType.McpServer || !c.enabled || !c.children) {
+				continue;
+			}
+			for (const child of c.children) {
+				if (child.type === CustomizationType.Skill) {
+					result.push(child);
+				}
+			}
+		}
+		return result;
 	}
 }

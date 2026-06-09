@@ -11,6 +11,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatLocation } from '../../../chat/common/commonTypes';
 import { AnthropicMessagesTool, CUSTOM_TOOL_SEARCH_NAME, isExtendedCacheTtlEnabled, isExtendedCacheTtlMessagesEnabled, modelSupportsExtendedCacheTtl, modelSupportsMemory } from '../../../networking/common/anthropic';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
+import { FinishedCallback, IResponseDelta } from '../../../networking/common/fetch';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
 import { createPlatformServices } from '../../../test/node/services';
 import { addMessagesApiCacheControl, addToolsAndSystemCacheControl, AnthropicMessagesProcessor, buildToolInputSchema, clearAllCacheControl, createMessagesRequestBody, processNonStreamingResponseFromMessagesEndpoint, processResponseFromMessagesEndpoint, rawMessagesToMessagesAPI } from '../../node/messagesApi';
@@ -408,6 +409,43 @@ suite('rawMessagesToMessagesAPI', function () {
 			type: 'text',
 			text: 'hello world',
 			cache_control: { type: 'ephemeral' },
+		});
+	});
+
+	suite('thinking blocks', function () {
+		function assistantWithThinking(thinking: { id: string; text?: string | string[]; encrypted?: string; redacted?: boolean }): Raw.ChatMessage[] {
+			return [
+				{
+					role: Raw.ChatRole.Assistant,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { type: 'thinking', thinking } },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
+					],
+				},
+			];
+		}
+
+		test('regular thinking block with text + signature emits a thinking block', function () {
+			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: 'reasoning', encrypted: 'sig123' }));
+			const content = assertContentArray(result.messages[0].content);
+			expect(content[0]).toEqual({ type: 'thinking', thinking: 'reasoning', signature: 'sig123' });
+		});
+
+		test('empty-text block with a signature stays a thinking block (never redacted_thinking)', function () {
+			// Regression: `display: "omitted"` or budget-pruned thinking has an empty `thinking`
+			// field but a valid signature. Previously this was misclassified as a redacted_thinking
+			// block and shipped the signature as `data`, which the Anthropic API rejects with
+			// "Invalid 'data' in 'redacted_thinking' block".
+			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: '', encrypted: 'sig123' }));
+			const content = assertContentArray(result.messages[0].content);
+			expect(content[0]).toEqual({ type: 'thinking', thinking: '', signature: 'sig123' });
+			expect(content.some(b => b.type === 'redacted_thinking')).toBe(false);
+		});
+
+		test('genuine redacted block (redacted=true) emits a redacted_thinking block with data', function () {
+			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: '', encrypted: 'blob123', redacted: true }));
+			const content = assertContentArray(result.messages[0].content);
+			expect(content[0]).toEqual({ type: 'redacted_thinking', data: 'blob123' });
 		});
 	});
 });
@@ -1703,6 +1741,39 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 			new NullTelemetryService(),
 		);
 	}
+
+	test('redacted_thinking content block propagates redacted:true on the thinking delta', () => {
+		// Regression: the converter relies on an explicit `redacted` flag (not empty text)
+		// to decide redacted_thinking vs thinking. The streaming accumulator must set it.
+		const processor = makeProcessor();
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+
+		processor.push({
+			type: 'content_block_start',
+			index: 0,
+			content_block: { type: 'redacted_thinking', data: 'blob123' },
+		} as Parameters<typeof processor.push>[0], capture);
+
+		const thinkingDeltas = deltas.filter(d => d.thinking).map(d => d.thinking);
+		expect(thinkingDeltas).toHaveLength(1);
+		expect(thinkingDeltas[0]).toEqual({ id: 'thinking_0', encrypted: 'blob123', redacted: true });
+	});
+
+	test('regular thinking content block emits a signature without the redacted flag', () => {
+		const processor = makeProcessor();
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+
+		processor.push({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } } as Parameters<typeof processor.push>[0], capture);
+		processor.push({ type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'sig123' } } as Parameters<typeof processor.push>[0], capture);
+		processor.push({ type: 'content_block_stop', index: 0 } as Parameters<typeof processor.push>[0], capture);
+
+		const thinkingDeltas = deltas.filter(d => d.thinking).map(d => d.thinking);
+		expect(thinkingDeltas).toHaveLength(1);
+		expect(thinkingDeltas[0]).toEqual({ id: 'thinking_0', encrypted: 'sig123' });
+		expect((thinkingDeltas[0] as { redacted?: boolean }).redacted).toBeUndefined();
+	});
 
 	test('message_start cache_creation survives a message_delta that omits the breakdown', () => {
 		// Production happy path: Anthropic only emits the cache_creation breakdown
