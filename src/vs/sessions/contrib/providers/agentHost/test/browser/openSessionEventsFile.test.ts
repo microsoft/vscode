@@ -75,16 +75,25 @@ suite('openSessionEventsFile resolveEventsUri', () => {
 
 	test('copilot log roots resolve beside session-state', () => {
 		const conn = makeRemoteConn('localhost:4321', '/home/remote');
+		const remoteLogs = buildRemoteCopilotLogsUri(conn);
 		assert.deepStrictEqual({
 			rawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilotcli:/abc')),
 			nonCopilotRawId: getCopilotCliSessionRawId(URI.parse('agent-host-copilot:/abc')),
 			localLogs: buildLocalCopilotLogsUri(userHome).toString(),
-			remoteLogs: buildRemoteCopilotLogsUri(conn)?.toString(),
+			remoteLogs: remoteLogs ? {
+				scheme: remoteLogs.scheme,
+				authority: remoteLogs.authority,
+				isLogsPath: remoteLogs.path.endsWith('/home/remote/.copilot/logs'),
+			} : undefined,
 		}, {
 			rawId: 'abc',
 			nonCopilotRawId: undefined,
 			localLogs: 'file:///home/me/.copilot/logs',
-			remoteLogs: 'vscode-agent-host://localhost__4321/file/-/home/remote/.copilot/logs',
+			remoteLogs: {
+				scheme: 'vscode-agent-host',
+				authority: 'localhost__4321',
+				isLogsPath: true,
+			},
 		});
 	});
 
