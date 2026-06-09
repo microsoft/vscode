@@ -512,7 +512,7 @@
 	max-width: 950px;
 	margin: 0 auto;
 	padding-left: 32px;
-	padding-right: 12px;
+	padding-right: 32px;
 	box-sizing: border-box;
 }
 
@@ -576,7 +576,7 @@
 	max-width: 950px;
 	margin: 0 auto;
 	display: inherit;
-	padding: 4px 10px 4px 32px;
+	padding: 4px 32px 4px 32px;
 	box-sizing: border-box;
 }
 
