@@ -12,7 +12,6 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -36,12 +35,12 @@ suite('HasByokModelsContribution', () => {
 			readonly nonCopilotUserSelectable?: boolean;
 		};
 		readonly configuration?: {
-			readonly offlineByok?: boolean;
 			readonly aiDisabled?: boolean;
 		};
 		readonly storage?: {
 			readonly lastKnown?: boolean;
 		};
+		readonly deferConfigReady?: boolean;
 	}
 
 	class FakeLanguageModelsConfigurationService {
@@ -50,6 +49,19 @@ suite('HasByokModelsContribution', () => {
 		private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
 		readonly onDidChangeLanguageModelGroups = this._onDidChangeLanguageModelGroups.event;
 		private _groups: readonly FakeProviderGroup[] = [];
+		private _resolveReady!: () => void;
+		readonly whenReady: Promise<void>;
+
+		constructor(defer: boolean) {
+			this.whenReady = new Promise<void>(resolve => { this._resolveReady = resolve; });
+			if (!defer) {
+				this._resolveReady();
+			}
+		}
+
+		resolveReady(): void {
+			this._resolveReady();
+		}
 
 		setGroups(groups: readonly FakeProviderGroup[]): void {
 			this._groups = groups;
@@ -80,7 +92,6 @@ suite('HasByokModelsContribution', () => {
 
 	function createScenario(store: DisposableStore, options: IScenarioOptions = {}): IScenario {
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.OfflineByok, options.configuration?.offlineByok ?? true);
 		configurationService.setUserConfiguration(ChatConfiguration.AIDisabled, options.configuration?.aiDisabled ?? false);
 
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
@@ -95,7 +106,7 @@ suite('HasByokModelsContribution', () => {
 			storage.store('chat.hasByokModels.lastKnown', options.storage.lastKnown, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 
-		const configService = new FakeLanguageModelsConfigurationService();
+		const configService = new FakeLanguageModelsConfigurationService(options.deferConfigReady ?? false);
 		store.add({ dispose: () => configService.dispose() });
 		if (options.groups) {
 			(configService as unknown as { _groups: readonly FakeProviderGroup[] })._groups = options.groups;
@@ -106,7 +117,6 @@ suite('HasByokModelsContribution', () => {
 		instantiation.stub(IExtensionService, new TestExtensionService());
 		instantiation.stub(IContextKeyService, contextKeyService);
 		instantiation.stub(IConfigurationService, configurationService);
-		instantiation.stub(IProductService, { quality: 'dev' } as IProductService);
 		instantiation.stub(ILanguageModelsConfigurationService, configService as unknown as ILanguageModelsConfigurationService);
 
 		const hasByokModels = ChatEntitlementContextKeys.hasByokModels.bindTo(contextKeyService);
@@ -146,18 +156,6 @@ suite('HasByokModelsContribution', () => {
 		const scenario = createScenario(store, {
 			groups: [{ vendor: 'ollama', name: 'Ollama' }],
 			configuration: { aiDisabled: true },
-			storage: { lastKnown: true },
-		});
-		await flush();
-
-		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
-	});
-
-	test('feature disabled (offlineByok=false) → result is false', async () => {
-		const store = disposables.add(new DisposableStore());
-		const scenario = createScenario(store, {
-			groups: [{ vendor: 'ollama', name: 'Ollama' }],
-			configuration: { offlineByok: false },
 			storage: { lastKnown: true },
 		});
 		await flush();
@@ -275,5 +273,42 @@ suite('HasByokModelsContribution', () => {
 		scenario.clientByokEnabled.set(true);
 		await flush();
 		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	// Regression for #319121: during cold start, the language-models configuration file load is
+	// async. A previously-persisted `true` must survive until that load completes; otherwise
+	// BYOK-gated UI (e.g. the Copilot signed-out placeholder) flickers on every restart.
+	test('persisted true survives while config load is pending (#319121)', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			storage: { lastKnown: true },
+			deferConfigReady: true,
+		});
+		await flush();
+
+		// Extensions have registered but configuration has not loaded yet — keep restored value.
+		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: true, persistedLastKnown: true });
+
+		// Once the config loads and reports a BYOK group, the value stays true.
+		(scenario.configService as unknown as { _groups: readonly FakeProviderGroup[] })._groups = [{ vendor: 'ollama', name: 'Ollama' }];
+		scenario.configService.resolveReady();
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario), { hasByokModels: true, persistedLastKnown: true });
+	});
+
+	test('persisted true cleared once config load completes with no BYOK groups', async () => {
+		const store = disposables.add(new DisposableStore());
+		const scenario = createScenario(store, {
+			storage: { lastKnown: true },
+			deferConfigReady: true,
+		});
+		await flush();
+		assert.strictEqual(scenario.hasByokModels.get(), true);
+
+		scenario.configService.resolveReady();
+		await flush();
+
+		assert.deepStrictEqual(snapshot(scenario, true), { hasByokModels: false, persistedLastKnown: false });
 	});
 });

@@ -179,10 +179,14 @@
 	opacity: 1;
 }
 
-/** signature, qualifier, type/details opacity **/
+/** signature, qualifier, type/details styling **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .details-label {
-	opacity: 0.7;
+	color: var(--vscode-editorSuggestWidget-foreground);
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .right > .details-label {
+	color: var(--vscode-editorSuggestWidget-selectedForeground);
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .left > .signature-label {

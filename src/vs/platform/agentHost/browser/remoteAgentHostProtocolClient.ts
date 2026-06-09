@@ -16,22 +16,24 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
-import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
+import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
-import { AgentHostPermissionMode, IAgentHostPermissionService } from '../common/agentHostPermissionService.js';
+import { AgentHostResourcePermissionError, IAgentHostResourceService } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type CustomizationRef, type RootState } from '../common/state/sessionState.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, isAhpRootChannel, type ClientPluginCustomization, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
 import { ContentEncoding, ResourceRequestParams, type CompletionsParams, type CompletionsResult, type CreateTerminalParams, type ResolveSessionConfigResult, type SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import { encodeBase64 } from '../../../base/common/buffer.js';
 import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
 import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
@@ -39,6 +41,7 @@ import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey,
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { dirname } from '../../../base/common/resources.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
@@ -283,8 +286,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		transportOrFactory: IProtocolTransport | (() => IProtocolTransport),
 		loadEstimator: ILoadEstimator | undefined,
 		@ILogService private readonly _logService: ILogService,
-		@IFileService private readonly _fileService: IFileService,
-		@IAgentHostPermissionService private readonly _permissionService: IAgentHostPermissionService,
+		@IAgentHostResourceService private readonly _resourceService: IAgentHostResourceService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
@@ -664,12 +666,16 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.rootState;
 	}
 
-	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
-		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, resource, owner);
 	}
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
 	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
@@ -734,7 +740,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
-		await this._sendRequest('createSession', {
+		const inflight = this._sendRequest('createSession', {
 			channel: session.toString(),
 			provider,
 			model: config?.model,
@@ -742,6 +748,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			config: config?.config,
 			activeClient: config?.activeClient,
 		});
+		this._subscriptionManager.trackSessionCreate(session, inflight);
+		await inflight;
 		return session;
 	}
 
@@ -825,6 +833,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		await this._sendRequest('disposeTerminal', { channel: terminal.toString() });
 	}
 
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return await this._sendRequest('invokeChangesetOperation', params);
+	}
+
 	/**
 	 * List all sessions from the remote agent host.
 	 */
@@ -872,7 +884,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * the customization, but should not need to write them. Grants are
 	 * deduped per connection and revoked when the connection closes.
 	 */
-	private _grantImplicitReadsForCustomizations(refs: readonly CustomizationRef[]): void {
+	private _grantImplicitReadsForCustomizations(refs: readonly ClientPluginCustomization[]): void {
 		for (const ref of refs) {
 			let uri: URI;
 			try {
@@ -880,14 +892,15 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			} catch {
 				continue;
 			}
-			const key = uri.toString();
+			const grantUri = dirname(uri);
+			const key = grantUri.toString();
 			if (this._grantedCustomizationUris.has(key)) {
 				continue;
 			}
 			this._grantedCustomizationUris.add(key);
-			// Disposable is owned by the permission service; cleared on
+			// Disposable is owned by the resource service; cleared on
 			// connectionClosed.
-			this._permissionService.grantImplicitRead(this._address, uri);
+			this._resourceService.grantImplicitRead(this._address, grantUri);
 		}
 	}
 
@@ -919,6 +932,34 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	async resourceMove(params: CommandMap['resourceMove']['params']): Promise<CommandMap['resourceMove']['result']> {
 		return this._sendRequest('resourceMove', params);
+	}
+
+	async resourceResolve(params: CommandMap['resourceResolve']['params']): Promise<CommandMap['resourceResolve']['result']> {
+		return this._sendRequest('resourceResolve', params);
+	}
+
+	async resourceMkdir(params: CommandMap['resourceMkdir']['params']): Promise<CommandMap['resourceMkdir']['result']> {
+		return this._sendRequest('resourceMkdir', params);
+	}
+
+	async createResourceWatch(params: CommandMap['createResourceWatch']['params']): Promise<CommandMap['createResourceWatch']['result']> {
+		return this._sendRequest('createResourceWatch', params);
+	}
+
+	/**
+	 * Convenience wrapper used by {@link AHPFileSystemProvider.watch}:
+	 * runs `createResourceWatch` + `subscribe` and returns a handle that
+	 * surfaces `resourceWatch/changed` envelopes as
+	 * {@link IFileChange}[] events. Disposing the handle unsubscribes
+	 * the watch channel.
+	 */
+	watchResource(params: CommandMap['createResourceWatch']['params']): Promise<IRemoteWatchHandle> {
+		return createRemoteWatchHandle({
+			createResourceWatch: p => this.createResourceWatch(p),
+			subscribe: uri => this.subscribe(uri),
+			unsubscribe: uri => this.unsubscribe(uri),
+			onDidAction: this.onDidAction,
+		}, params);
 	}
 
 	/**
@@ -1024,7 +1065,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			// transition below.
 		}
 		this._rejectPendingRequests(error);
-		this._permissionService.connectionClosed(this._address);
+		this._resourceService.connectionClosed(this._address);
 		this._grantedCustomizationUris.clear();
 		this._transitionTo({ kind: AgentHostClientState.Closed, error });
 		this._onDidClose.fire();
@@ -1049,13 +1090,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 
 	/**
 	 * Handles reverse RPC requests from the server (e.g. resourceList,
-	 * resourceRead). Reads from the local file service and sends a response.
-	 *
-	 * Filesystem-mutating reverse requests are gated through
-	 * {@link IAgentHostPermissionService} — denied operations return a typed
-	 * `PermissionDenied` error advertising a `resourceRequest` payload that,
-	 * if granted, would unlock the operation. Hosts SHOULD then issue a
-	 * `resourceRequest` and retry.
+	 * resourceRead). Thin wire adapter — dispatches each frame to
+	 * {@link IAgentHostResourceService} (which owns gating, virtual reads,
+	 * and the user-prompt flow) and translates results / errors back into
+	 * JSON-RPC frames.
 	 */
 	private _handleReverseRequest(id: number, method: string, params: unknown): void {
 		// Capture the transport at request-entry so async handlers (permission
@@ -1068,6 +1106,18 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			transport.send({ jsonrpc: '2.0', id, result });
 		};
 		const sendError = (err: unknown) => {
+			if (err instanceof AgentHostResourcePermissionError) {
+				transport.send({
+					jsonrpc: '2.0',
+					id,
+					error: {
+						code: AhpErrorCodes.PermissionDenied,
+						message: err.message,
+						data: err.request ? { request: err.request } : undefined,
+					},
+				});
+				return;
+			}
 			const fsCode = toFileSystemProviderErrorCode(err instanceof Error ? err : undefined);
 			let code = -32000;
 			switch (fsCode) {
@@ -1077,124 +1127,80 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			}
 			transport.send({ jsonrpc: '2.0', id, error: { code, message: err instanceof Error ? err.message : String(err) } });
 		};
-		const sendPermissionDenied = (request: ResourceRequestParams | undefined) => {
-			transport.send({
-				jsonrpc: '2.0',
-				id,
-				error: {
-					code: AhpErrorCodes.PermissionDenied,
-					message: request
-						? `Access to ${request.uri} is not granted.`
-						: 'Access to the requested resource is not granted.',
-					data: request ? { request } : undefined,
-				},
-			});
-		};
 
-		/**
-		 * Runs `fn` if the permission service grants access for `(uri, mode)`.
-		 * Otherwise replies with `PermissionDenied` advertising the request
-		 * that, if granted, would unlock the operation. Errors thrown from
-		 * `fn` are reported via `sendError`.
-		 */
-		const gateAndHandle = async (
-			uri: URI,
-			mode: AgentHostPermissionMode,
-			deniedRequest: ResourceRequestParams,
-			fn: () => Promise<unknown>,
-		): Promise<void> => {
+		const p = (params ?? {}) as Record<string, unknown>;
+		const addr = this._address;
+		void (async () => {
 			try {
-				if (!await this._permissionService.check(this._address, uri, mode)) {
-					sendPermissionDenied(deniedRequest);
-					return;
+				switch (method) {
+					case 'resourceList': {
+						if (!p.uri) { throw new Error('Missing uri'); }
+						const result = await this._resourceService.list(addr, URI.parse(p.uri as string));
+						sendResult({ entries: result.entries });
+						return;
+					}
+					case 'resourceRead': {
+						if (!p.uri) { throw new Error('Missing uri'); }
+						const result = await this._resourceService.read(addr, URI.parse(p.uri as string));
+						sendResult({ data: encodeBase64(result.bytes), encoding: ContentEncoding.Base64 });
+						return;
+					}
+					case 'resourceWrite': {
+						if (!p.uri || p.data === undefined) { throw new Error('Missing uri or data'); }
+						await this._resourceService.write(addr, p as unknown as Parameters<typeof this._resourceService.write>[1]);
+						sendResult({});
+						return;
+					}
+					case 'resourceDelete': {
+						if (!p.uri) { throw new Error('Missing uri'); }
+						await this._resourceService.del(addr, p as unknown as Parameters<typeof this._resourceService.del>[1]);
+						sendResult({});
+						return;
+					}
+					case 'resourceMove': {
+						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
+						await this._resourceService.move(addr, p as unknown as Parameters<typeof this._resourceService.move>[1]);
+						sendResult({});
+						return;
+					}
+					case 'resourceCopy': {
+						if (!p.source || !p.destination) { throw new Error('Missing source or destination'); }
+						await this._resourceService.copy(addr, p as unknown as Parameters<typeof this._resourceService.copy>[1]);
+						sendResult({});
+						return;
+					}
+					case 'resourceResolve': {
+						if (!p.uri) { throw new Error('Missing uri'); }
+						const result = await this._resourceService.resolve(addr, p as unknown as Parameters<typeof this._resourceService.resolve>[1]);
+						sendResult(result);
+						return;
+					}
+					case 'resourceMkdir': {
+						if (!p.uri) { throw new Error('Missing uri'); }
+						await this._resourceService.mkdir(addr, p as unknown as Parameters<typeof this._resourceService.mkdir>[1]);
+						sendResult({});
+						return;
+					}
+					case 'resourceRequest': {
+						try {
+							await this._resourceService.request(addr, p as unknown as ResourceRequestParams);
+							sendResult({});
+						} catch (err) {
+							if (err instanceof CancellationError) {
+								throw new AgentHostResourcePermissionError(undefined);
+							}
+							throw err;
+						}
+						return;
+					}
+					default:
+						this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
+						throw new Error(`Unknown method: ${method}`);
 				}
-				sendResult(await fn());
 			} catch (err) {
 				sendError(err);
 			}
-		};
-
-		const p = params as Record<string, unknown>;
-		switch (method) {
-			case 'resourceList': {
-				if (!p.uri) { sendError(new Error('Missing uri')); return; }
-				const uri = URI.parse(p.uri as string);
-				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true }, async () => {
-					const stat = await this._fileService.resolve(uri);
-					return { entries: (stat.children ?? []).map(c => ({ name: c.name, type: c.isDirectory ? 'directory' as const : 'file' as const })) };
-				});
-			}
-			case 'resourceRead': {
-				if (!p.uri) { sendError(new Error('Missing uri')); return; }
-				const uri = URI.parse(p.uri as string);
-				return void gateAndHandle(uri, AgentHostPermissionMode.Read, { channel: ROOT_STATE_URI, uri: uri.toString(), read: true }, async () => {
-					const content = await this._fileService.readFile(uri);
-					return { data: encodeBase64(content.value), encoding: ContentEncoding.Base64 };
-				});
-			}
-			case 'resourceWrite': {
-				if (!p.uri || !p.data) { sendError(new Error('Missing uri or data')); return; }
-				const writeUri = URI.parse(p.uri as string);
-				return void gateAndHandle(writeUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: writeUri.toString(), write: true }, async () => {
-					const buf = p.encoding === ContentEncoding.Base64
-						? decodeBase64(p.data as string)
-						: VSBuffer.fromString(p.data as string);
-					if (p.createOnly) {
-						await this._fileService.createFile(writeUri, buf, { overwrite: false });
-					} else {
-						await this._fileService.writeFile(writeUri, buf);
-					}
-					return {};
-				});
-			}
-			case 'resourceDelete': {
-				if (!p.uri) { sendError(new Error('Missing uri')); return; }
-				const deleteUri = URI.parse(p.uri as string);
-				return void gateAndHandle(deleteUri, AgentHostPermissionMode.Write, { channel: ROOT_STATE_URI, uri: deleteUri.toString(), write: true }, () =>
-					this._fileService.del(deleteUri, { recursive: !!p.recursive }).then(() => ({})));
-			}
-			case 'resourceMove': {
-				if (!p.source || !p.destination) { sendError(new Error('Missing source or destination')); return; }
-				const sourceUri = URI.parse(p.source as string);
-				const destUri = URI.parse(p.destination as string);
-				return void (async () => {
-					try {
-						const [sourceOk, destOk] = await Promise.all([
-							this._permissionService.check(this._address, sourceUri, AgentHostPermissionMode.Write),
-							this._permissionService.check(this._address, destUri, AgentHostPermissionMode.Write),
-						]);
-						if (!sourceOk) {
-							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: sourceUri.toString(), write: true });
-							return;
-						}
-						if (!destOk) {
-							sendPermissionDenied({ channel: ROOT_STATE_URI, uri: destUri.toString(), write: true });
-							return;
-						}
-						await this._fileService.move(sourceUri, destUri, !p.failIfExists);
-						sendResult({});
-					} catch (err) {
-						sendError(err);
-					}
-				})();
-			}
-			case 'resourceRequest': {
-				const requestParams = p as unknown as ResourceRequestParams;
-				this._permissionService.request(this._address, requestParams)
-					.then(() => sendResult({}))
-					.catch(err => {
-						if (err instanceof CancellationError) {
-							sendPermissionDenied(undefined);
-						} else {
-							sendError(err);
-						}
-					});
-				return;
-			}
-			default:
-				this._logService.warn(`[RemoteAgentHostProtocol] Unhandled reverse request: ${method}`);
-				sendError(new Error(`Unknown method: ${method}`));
-		}
+		})();
 	}
 
 	/** Send a typed JSON-RPC notification for a protocol-defined method. */

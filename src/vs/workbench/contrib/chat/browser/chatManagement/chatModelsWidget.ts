@@ -42,6 +42,7 @@ import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
+import { formatTokenCount } from '../widget/input/chatModelPicker.js';
 
 const $ = DOM.$;
 
@@ -53,7 +54,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}@${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
 	} else {
 		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
 	}
@@ -80,16 +81,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 				: localize('models.inputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.inputCost));
 			markdown.appendText(`\n`);
 		}
-		if (model.metadata.outputCost !== undefined) {
-			markdown.appendMarkdown(model.metadata.outputCost === 1
-				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
-				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
-			markdown.appendText(`\n`);
-		}
 		if (model.metadata.cacheCost !== undefined) {
 			markdown.appendMarkdown(model.metadata.cacheCost === 1
 				? localize('models.cacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.cacheCost)
 				: localize('models.cacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.cacheCost));
+			markdown.appendText(`\n`);
+		}
+		if (model.metadata.outputCost !== undefined) {
+			markdown.appendMarkdown(model.metadata.outputCost === 1
+				? localize('models.outputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.outputCost)
+				: localize('models.outputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.outputCost));
 			markdown.appendText(`\n`);
 		}
 
@@ -103,16 +104,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 					: localize('models.longContextInputCost.plural', 'Input Cost: {0} credits per 1M tokens', model.metadata.longContextInputCost));
 				markdown.appendText(`\n`);
 			}
-			if (model.metadata.longContextOutputCost !== undefined) {
-				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
-					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
-					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
-				markdown.appendText(`\n`);
-			}
 			if (model.metadata.longContextCacheCost !== undefined) {
 				markdown.appendMarkdown(model.metadata.longContextCacheCost === 1
 					? localize('models.longContextCacheCost.singular', 'Cache Cost: {0} credit per 1M tokens', model.metadata.longContextCacheCost)
 					: localize('models.longContextCacheCost.plural', 'Cache Cost: {0} credits per 1M tokens', model.metadata.longContextCacheCost));
+				markdown.appendText(`\n`);
+			}
+			if (model.metadata.longContextOutputCost !== undefined) {
+				markdown.appendMarkdown(model.metadata.longContextOutputCost === 1
+					? localize('models.longContextOutputCost.singular', 'Output Cost: {0} credit per 1M tokens', model.metadata.longContextOutputCost)
+					: localize('models.longContextOutputCost.plural', 'Output Cost: {0} credits per 1M tokens', model.metadata.longContextOutputCost));
 				markdown.appendText(`\n`);
 			}
 		}
@@ -490,7 +491,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
 		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}@${entry.model.metadata.version}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
 		} else {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
 		}
@@ -556,8 +557,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 		const elementDisposables = new DisposableStore();
 		const grid = DOM.append(container, $('.model-cost-grid'));
 		const inputCell = DOM.append(grid, $('span.model-cost-cell'));
-		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
 		const cacheCell = DOM.append(grid, $('span.model-cost-cell'));
+		const outputCell = DOM.append(grid, $('span.model-cost-cell'));
 		return {
 			container,
 			inputCell,
@@ -570,8 +571,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: ICombinedCostColumnTemplateData): void {
 		templateData.inputCell.textContent = '';
-		templateData.outputCell.textContent = '';
 		templateData.cacheCell.textContent = '';
+		templateData.outputCell.textContent = '';
 		super.renderElement(entry, index, templateData);
 	}
 
@@ -587,8 +588,8 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 
 		if (hasCost) {
 			templateData.inputCell.textContent = inputCost !== undefined ? localize('cost.input', "In: {0}", inputCost) : '';
-			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
 			templateData.cacheCell.textContent = cacheCost !== undefined ? localize('cost.cache', "Cache: {0}", cacheCost) : '';
+			templateData.outputCell.textContent = outputCost !== undefined ? localize('cost.output', "Out: {0}", outputCost) : '';
 
 			const parts: string[] = [];
 			if (inputCost !== undefined) {
@@ -596,15 +597,15 @@ class CombinedCostColumnRenderer extends ModelsTableColumnRenderer<ICombinedCost
 					? localize('cost.inputHover.singular', "Input: {0} credit per 1M tokens", inputCost)
 					: localize('cost.inputHover.plural', "Input: {0} credits per 1M tokens", inputCost));
 			}
-			if (outputCost !== undefined) {
-				parts.push(outputCost === 1
-					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
-					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
-			}
 			if (cacheCost !== undefined) {
 				parts.push(cacheCost === 1
 					? localize('cost.cacheHover.singular', "Cache: {0} credit per 1M tokens", cacheCost)
 					: localize('cost.cacheHover.plural', "Cache: {0} credits per 1M tokens", cacheCost));
+			}
+			if (outputCost !== undefined) {
+				parts.push(outputCost === 1
+					? localize('cost.outputHover.singular', "Output: {0} credit per 1M tokens", outputCost)
+					: localize('cost.outputHover.plural', "Output: {0} credits per 1M tokens", outputCost));
 			}
 			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
 				content: parts.join('\n'),
@@ -978,14 +979,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 
 
 
-function formatTokenCount(count: number): string {
-	if (count >= 1000000) {
-		return `${(count / 1000000).toFixed(1)}M`;
-	} else if (count >= 1000) {
-		return `${(count / 1000).toFixed(0)}K`;
-	}
-	return count.toString();
-}
+
 
 export class ChatModelsWidget extends Disposable {
 
@@ -1301,15 +1295,15 @@ export class ChatModelsWidget extends Disposable {
 								? localize('inputCost.ariaLabel.singular', "Input cost: {0} credit per 1M tokens", e.model.metadata.inputCost)
 								: localize('inputCost.ariaLabel.plural', "Input cost: {0} credits per 1M tokens", e.model.metadata.inputCost));
 						}
-						if (e.model.metadata.outputCost !== undefined) {
-							ariaLabels.push(e.model.metadata.outputCost === 1
-								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
-								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
-						}
 						if (e.model.metadata.cacheCost !== undefined) {
 							ariaLabels.push(e.model.metadata.cacheCost === 1
 								? localize('cacheCost.ariaLabel.singular', "Cache cost: {0} credit per 1M tokens", e.model.metadata.cacheCost)
 								: localize('cacheCost.ariaLabel.plural', "Cache cost: {0} credits per 1M tokens", e.model.metadata.cacheCost));
+						}
+						if (e.model.metadata.outputCost !== undefined) {
+							ariaLabels.push(e.model.metadata.outputCost === 1
+								? localize('outputCost.ariaLabel.singular', "Output cost: {0} credit per 1M tokens", e.model.metadata.outputCost)
+								: localize('outputCost.ariaLabel.plural', "Output cost: {0} credits per 1M tokens", e.model.metadata.outputCost));
 						}
 						return ariaLabels.join('. ');
 					},

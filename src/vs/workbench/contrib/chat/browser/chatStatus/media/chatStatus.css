@@ -216,6 +216,9 @@
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-title {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
 	font-size: 13px;
 	line-height: 18px;
 	font-weight: 600;
@@ -252,6 +255,7 @@
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
 	font-size: 12px;
+	font-weight: normal;
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 	white-space: nowrap;

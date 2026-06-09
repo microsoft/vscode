@@ -305,4 +305,58 @@ suite('AgentHostSandboxForwarder', () => {
 
 		assert.deepStrictEqual(local.dispatched, []);
 	});
+
+	test('does not push back after initial push when the host updates rootState', () => {
+		const { local } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
+
+		// Initial hydration triggers exactly one push.
+		local.setRootState(rootStateWithSandboxSchema());
+		assert.strictEqual(local.dispatched.length, 1);
+
+		// Subsequent rootState changes from the host side (different sandbox
+		// values, unrelated config keys, anything) must NOT trigger another
+		// push — that's the push-back loop the forwarder is designed to avoid.
+		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off }));
+		local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.AllowUnsandboxedCommands]: true }));
+		local.setRootState(rootStateWithSandboxSchema());
+
+		assert.strictEqual(local.dispatched.length, 1);
+	});
+
+	test('does not re-push to existing connections when a new remote appears', () => {
+		const { local, remote } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
+		local.setRootState(rootStateWithSandboxSchema());
+		assert.strictEqual(local.dispatched.length, 1);
+
+		const firstRemote = remote.addConnection('remote-a.example:9000');
+		firstRemote.setRootState(rootStateWithSandboxSchema());
+		assert.strictEqual(firstRemote.dispatched.length, 1);
+		assert.strictEqual(local.dispatched.length, 1);
+
+		// Adding a second remote must not cause a redundant push to the local
+		// host or to the already-pushed first remote.
+		const secondRemote = remote.addConnection('remote-b.example:9000');
+		secondRemote.setRootState(rootStateWithSandboxSchema());
+
+		assert.strictEqual(local.dispatched.length, 1);
+		assert.strictEqual(firstRemote.dispatched.length, 1);
+		assert.strictEqual(secondRemote.dispatched.length, 1);
+	});
+
+	test('cleans up the pending listener when a remote disconnects before hydrating', () => {
+		const { remote } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
+
+		const remoteConn = remote.addConnection('remote.example:9000');
+		// Connection never hydrates → forwarder is still subscribed to its
+		// rootState.onDidChange waiting for the schema.
+		assert.deepStrictEqual(remoteConn.dispatched, []);
+
+		remote.removeConnection('remote.example:9000');
+		// If the listener wasn't disposed, the leak checker (see
+		// ensureNoDisposablesAreLeakedInTestSuite) would flag it at teardown.
+		// Firing here would also throw if the connection was still observed
+		// after removal — explicitly assert no late dispatch happens.
+		remoteConn.setRootState(rootStateWithSandboxSchema());
+		assert.deepStrictEqual(remoteConn.dispatched, []);
+	});
 });

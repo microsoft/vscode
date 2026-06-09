@@ -19,13 +19,17 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 ## Prerequisites
 
 - macOS or Linux. The launcher is a bash script and depends on `rsync`, `curl`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
-- A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** the Copilot extension. The launcher also runs `node build/lib/preLaunch.ts` before starting Code OSS, which auto-runs `npm run compile` if `out/` is missing and downloads Electron + built-in extensions.
+- A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
+- A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
 - An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev`, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
+  - If Code OSS launches and needs a sign-in, don't give up! Use the questions tool to ask the user to sign in.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
 
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
+
+> The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
 
 ## Launch
 
@@ -92,55 +96,118 @@ PID=$(jq -r .pid            <<<"$INFO")
 
 Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
 
+> **Always pick a unique `PW_SESSION` name and pass it as `-s=$PW_SESSION`** on every `npx @playwright/cli ...` call. The CLI is backed by a persistent daemon (`cliDaemon.js`) keyed by session name; if two shells both omit `-s=`, they share the implicit `"default"` session and the most-recently-attached CDP "wins" for every subsequent command from either shell. The launch skill is built around isolation (per-instance UDD, ports, shared-data-dir), and this pattern keeps that isolation intact at the Playwright-driving layer too. **A note on the alternative `PLAYWRIGHT_CLI_SESSION` env var:** it's documented in the package README and works correctly for `open`-style workflows, but it interacts poorly with `attach --cdp=...` (the daemon ends up with both `--cdp=...` and `--endpoint=<env-value>`, and the latter wins, causing a `connect ENOENT` failure). Confirmed against `@playwright/cli@0.1.13`. Explicit `-s=NAME` works in all modes.
+
 ```bash
+# At the top of your script / subagent prompt:
+PW_SESSION="my-uniq-$$"        # any unique string; $$ is fine for one shell per agent
+
 # launch.sh blocks until CDP is ready, so a single attach is enough.
-npx @playwright/cli attach --cdp=http://127.0.0.1:$CDP
-npx @playwright/cli tab-list
-npx @playwright/cli snapshot
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION tab-list
+npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-After `attach`, later `@playwright/cli` commands keep using the connected app until you close or reattach.
+After `attach`, later `@playwright/cli` commands keep using the connected app until you close or reattach — as long as you keep passing the same `-s=$PW_SESSION`.
 
 ### Selecting the right Electron target
 
 Electron apps can expose multiple windows or webviews. If `tab-list` shows `about:blank`, a webview, or otherwise the wrong target, switch targets before interacting:
 
 ```bash
-npx @playwright/cli tab-list
-npx @playwright/cli tab-select 2
-npx @playwright/cli snapshot
+npx @playwright/cli -s=$PW_SESSION tab-list
+npx @playwright/cli -s=$PW_SESSION tab-select 2
+npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-If a target looks stale after relaunching, run `npx @playwright/cli close`, attach again with `$CDP`, and re-check `tab-list`.
+If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
 
 ### Focusing the chat input (works on Code OSS, including the Agents window)
 
 ```bash
 # macOS
-npx @playwright/cli press Control+Meta+i
+npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
 # Linux / Windows
-npx @playwright/cli press Control+Alt+i
+npx @playwright/cli -s=$PW_SESSION press Control+Alt+i
 ```
 
 ### Typing into Monaco (chat input, editors)
 
-`fill` and `type` **silently fail** on Code OSS. Prefer focus-via-shortcut plus either per-key `press` or clipboard paste, and verify text when the scenario depends on the exact prompt.
+`fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
 
-- **Per-key `press`** (universal but slow):
+- **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
+
   ```bash
-  npx @playwright/cli press H
-  npx @playwright/cli press i
-  npx @playwright/cli press Enter
+  LAUNCH_DIR=<dir-of-this-SKILL.md>           # the same dir that holds scripts/launch.sh
+  PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+  export PW_SESSION                            # helper reads this env var
+
+  # Send a prompt:
+  npx @playwright/cli -s=$PW_SESSION press Control+Meta+i  # focus chat input
+  "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
+  npx @playwright/cli -s=$PW_SESSION press Enter
+
+  # Long / arbitrary text via stdin (avoids any shell-quoting headaches):
+  printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | "$PASTE"
+
+  # Append without clearing:
+  "$PASTE" --append " continued text"
+
+  # Skip the read-back check (useful when intentionally pasting more than the
+  # chat input's ~600-character soft cap):
+  "$PASTE" --no-verify "...long text..."
+
+  # Or pass the session explicitly per call (if you don't want to export PW_SESSION):
+  "$PASTE" --session "$PW_SESSION" "..."
   ```
-- **Clipboard paste** (fast, macOS):
+
+  The helper prints a single JSON line on stdout: `{ok, actualLength, expectedLength, viewLineCount, firstViewLine, error?}`. Exit 0 on success, 1 on verify failure, 2 on argument errors. Tested reliable across 20+ sequential pastes including unicode (中文), emoji (🎉), backticks, ampersands, embedded quotes, and newlines.
+
+  **Why a helper script and not just docs:** the inline recipe involves a multi-line `node -e` heredoc with embedded JS template literals, which is exactly the kind of code that gets miscopied. There are also three non-obvious correctness traps the helper handles internally:
+  1. Monaco's `native-edit-context` doesn't react to `fill` or `type`, only to actual paste events (or per-key `press`).
+  2. Monaco renders ASCII spaces as U+00A0 (NBSP) in the view-line DOM, so verification has to normalize before comparing.
+  3. Monaco updates its DOM **asynchronously** after a paste event — a synchronous read-back inside the same `eval` returns stale state. The helper waits two `requestAnimationFrame` ticks before reading.
+
+- **Per-key `press`** (universal but slow — each press is a separate CLI invocation with Node startup cost):
+  ```bash
+  npx @playwright/cli -s=$PW_SESSION press H
+  npx @playwright/cli -s=$PW_SESSION press i
+  npx @playwright/cli -s=$PW_SESSION press Enter
+  ```
+
+- **Clipboard paste via `pbcopy`** (fast on macOS, **but `NSPasteboard` is system-wide so any concurrent shell that touches the pasteboard will collide**). Only use when nothing else on the machine is using the clipboard for the duration of the paste.
   ```bash
   printf '%s' "Your prompt here" | pbcopy
-  npx @playwright/cli press Control+Meta+i   # focus chat input
-  npx @playwright/cli press Meta+v           # paste
-  npx @playwright/cli press Enter
+  npx @playwright/cli -s=$PW_SESSION press Control+Meta+i
+  npx @playwright/cli -s=$PW_SESSION press Meta+v
+  npx @playwright/cli -s=$PW_SESSION press Enter
   ```
 
 The focus shortcut should leave `document.activeElement` on VS Code's `native-edit-context` editing surface. That is a useful sanity check when key presses appear to do nothing.
+
+### Parallel multi-instance pattern
+
+Because the launch skill is built around isolation, the natural workload is **many agents on one machine, each driving their own Code OSS**. The pattern boils down to giving each agent a unique `PW_SESSION` and passing it everywhere:
+
+```bash
+# In agent A's shell:
+PW_SESSION="agent-A-$$"
+INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+"$PASTE" "prompt for A"   # helper picks up $PW_SESSION
+
+# In agent B's shell (running concurrently):
+PW_SESSION="agent-B-$$"
+INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
+CDP=$(jq -r .cdpPort <<<"$INFO")
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+"$PASTE" "prompt for B"
+```
+
+Each agent gets its own `cliDaemon` bound to its own CDP, so the pastes / clicks / snapshots don't cross-contaminate. Verified live with two concurrent instances. **macOS Mach-ports caveat:** on macOS, beyond ~2–3 concurrent Code OSS instances Crashpad's exception handler tends to die with `mach_port_request_notification: invalid capability`. That's a separate, OS-level limit; it's not affected by the session name.
+
+> **Cleanup for `cliDaemon` processes:** stop your session's daemon with `npx @playwright/cli -s=$PW_SESSION close`, or nuke all stale daemons (after killing all the Code OSS windows) with `npx @playwright/cli kill-all`. Session daemons live under `~/Library/Caches/ms-playwright/daemon/<hash>/`.
 
 ### Agents window selector differences
 
@@ -162,7 +229,7 @@ The `Control+Meta+i` / `Control+Alt+i` focus shortcut still works; only the DOM 
 For the regular workbench sidebar, this confirms that text landed in the Monaco input:
 
 ```bash
-npx @playwright/cli eval '
+npx @playwright/cli -s=$PW_SESSION eval '
 (() => {
   const sidebar = document.querySelector(".part.auxiliarybar");
   const viewLines = sidebar?.querySelectorAll(".interactive-input-editor .view-line") ?? [];
@@ -176,10 +243,10 @@ To clear the focused Monaco input:
 
 ```bash
 # macOS
-npx @playwright/cli press Meta+a
+npx @playwright/cli -s=$PW_SESSION press Meta+a
 # Linux / Windows
-npx @playwright/cli press Control+a
-npx @playwright/cli press Backspace
+npx @playwright/cli -s=$PW_SESSION press Control+a
+npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
 If the keyboard shortcut cannot focus chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
@@ -189,7 +256,7 @@ If the keyboard shortcut cannot focus chat because the surface is not available 
 ```bash
 SHOTS="$PWD/screenshots/$(date +%Y-%m-%dT%H-%M-%S)"
 mkdir -p "$SHOTS"
-npx @playwright/cli screenshot --filename="$SHOTS/after-launch.png"
+npx @playwright/cli -s=$PW_SESSION screenshot --filename="$SHOTS/after-launch.png"
 ```
 
 > Keep screenshots inside the workspace, not `/tmp`, so they survive for review.
@@ -197,8 +264,8 @@ npx @playwright/cli screenshot --filename="$SHOTS/after-launch.png"
 For wide windows, `--full-page` can make layout easier to inspect, and element screenshots are useful when a snapshot gives a stable ref for the panel you care about:
 
 ```bash
-npx @playwright/cli screenshot --full-page --filename="$SHOTS/full-window.png"
-npx @playwright/cli screenshot e42 --filename="$SHOTS/panel.png"
+npx @playwright/cli -s=$PW_SESSION screenshot --full-page --filename="$SHOTS/full-window.png"
+npx @playwright/cli -s=$PW_SESSION screenshot e42 --filename="$SHOTS/panel.png"
 ```
 
 On macOS, a screenshot "Permission denied" failure usually means the terminal lacks Screen Recording permission. Use text/state verification while resolving that permission issue.
@@ -231,9 +298,9 @@ kill "$PID" 2>/dev/null || true
 INFO=$("$LAUNCH" | tail -n1)
 CDP=$(jq -r .cdpPort <<<"$INFO")
 PID=$(jq -r .pid <<<"$INFO")
-npx @playwright/cli attach --cdp=http://127.0.0.1:$CDP
-npx @playwright/cli tab-list
-npx @playwright/cli snapshot
+npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
+npx @playwright/cli -s=$PW_SESSION tab-list
+npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
 If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output.
@@ -243,8 +310,11 @@ If you are iterating frequently, keep the repo build/watch task running separate
 The launcher writes everything under a temp `runDir` (printed in the JSON). When you're done:
 
 ```bash
-# Disconnect playwright
-npx @playwright/cli close
+# Disconnect this session's playwright daemon (leaves other sessions' daemons alone)
+npx @playwright/cli -s=$PW_SESSION close
+
+# Or nuke any stale daemons left behind by crashed callers across all sessions:
+# npx @playwright/cli kill-all
 
 # Kill the Code OSS instance
 kill "$PID" 2>/dev/null || true
@@ -261,7 +331,7 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
-- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds the Copilot extension) or `npm run watch` (incremental).
+- **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - focus chat with the platform shortcut, use `press` or clipboard paste rather than `fill` / `type`, then verify the input state before sending.
