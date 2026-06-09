@@ -549,7 +549,6 @@ export class AgentService extends Disposable implements IAgentService {
 				: localize('agentHost.forkedSessionFallback', "Forked Session");
 			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
 			const state = this._stateManager.createSession(summary);
-			this._stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalogue(session.toString()));
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
 			state.activeClient = config.activeClient;
@@ -565,7 +564,6 @@ export class AgentService extends Disposable implements IAgentService {
 			// the agent will pick up at materialization time.
 			const summary = this._buildInitialSummary(provider, session, config, created, '');
 			const state = this._stateManager.createSession(summary, { emitNotification: !created.provisional });
-			this._stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalogue(session.toString()));
 			state.config = sessionConfig;
 			state.activeClient = config?.activeClient;
 			if (initialCustomizations && initialCustomizations.length > 0) {
@@ -667,7 +665,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+
+		// Attach git state for the working directory (if present)
 		this._attachGitState(e.session, e.workingDirectory);
+
+		// Initialize the session's changesets from the catalogue
+		const changesets = buildDefaultChangesetCatalogue(sessionKey);
+		this._stateManager.setSessionChangesets(sessionKey, changesets);
+
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
 		// the deferred refresh now that the working directory is set.
