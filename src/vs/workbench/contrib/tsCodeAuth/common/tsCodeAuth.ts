@@ -9,8 +9,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 // --- Constants ---
 
-export const TSCODE_BASE_URL = 'https://testhub.paas.cmbchina.cn';
-export const TSCODE_GATEWAY_BASE_URL = 'https://testhub-gateway.paas.cmbchina.cn'; // test-workbench_change
+import product from '../../../../platform/product/common/product.js';
+
+export const TSCODE_BASE_URL = product.tsCodeBaseUrl!;
+export const TSCODE_GATEWAY_BASE_URL = product.tsCodeGatewayBaseUrl!;
 export const TSCODE_SECRET_STORAGE_KEY = 'tscode-oauth.accessToken';
 export const TSCODE_EMPLOYEE_ID_STORAGE_KEY = 'tscode-oauth.employeeId'; // test-workbench_change
 

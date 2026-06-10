@@ -153,9 +153,6 @@
 		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
-	"linkProtectionTrustedDomains": [
-		"https://testhub.paas.cmbchina.cn"
-	],
 	"trustedExtensionAuthAccess": {
 		"github": [
 			"GitHub.copilot-chat"

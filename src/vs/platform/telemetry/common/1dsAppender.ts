@@ -19,8 +19,9 @@ export interface IAppInsightsCore {
 	unload(isAsync: boolean, unloadComplete: (unloadState: ITelemetryUnloadState) => void): void;
 }
 // test-workbench_change start
-const endpointUrl = 'https://tscode-telemetry-collector.paasuat.cmbchina.cn';
-const endpointHealthUrl = 'https://tscode-telemetry-health.paasuat.cmbchina.cn';
+import product from '../../product/common/product.js';
+const endpointUrl = product.extensionTelemetry!.endpointUrl;
+const endpointHealthUrl = product.extensionTelemetry!.endpointHealthUrl;
 // test-workbench_change end
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
 	// eslint-disable-next-line local/code-amd-node-module

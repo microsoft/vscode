@@ -41,7 +41,7 @@
 	"nodejsRepository": "https://nodejs.org",
 	"urlProtocol": "tscode",
 	"enableTelemetry": true,
-	"updateUrl": "http://tscode-update-service.paasuat.cmbchina.cn",
+	"updateUrl": "aHR0cDovL3RzY29kZS11cGRhdGUtc2VydmljZS5wYWFzdWF0LmNtYmNoaW5hLmNu",
 	"quality": "stable",
 	"version": "1.116.0",
 	"aiConfig": {
@@ -49,7 +49,8 @@
 	},
 	"extensionTelemetry": {
 		"connectionString": "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=",
-		"endpointUrl": "https://tscode-telemetry-collector.paasuat.cmbchina.cn"
+		"endpointUrl": "aHR0cHM6Ly90c2NvZGUtdGVsZW1ldHJ5LWNvbGxlY3Rvci5wYWFzdWF0LmNtYmNoaW5hLmNu",
+		"endpointHealthUrl": "aHR0cHM6Ly90c2NvZGUtdGVsZW1ldHJ5LWhlYWx0aC5wYWFzdWF0LmNtYmNoaW5hLmNu"
 	},
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
@@ -168,7 +169,7 @@
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
 	"linkProtectionTrustedDomains": [
-		"https://testhub.paas.cmbchina.cn"
+		"aHR0cHM6Ly90ZXN0aHViLnBhYXMuY21iY2hpbmEuY24="
 	],
 	"trustedExtensionAuthAccess": {
 		"github": [
@@ -304,21 +305,24 @@
 		"test-tech.beeeyes"
 	],
 	"tsCodeAuthMockEnabled": false,
+	"tsCodeBaseUrl": "aHR0cHM6Ly90ZXN0aHViLnBhYXMuY21iY2hpbmEuY24=",
+	"tsCodeGatewayBaseUrl": "aHR0cHM6Ly90ZXN0aHViLWdhdGV3YXkucGFhcy5jbWJjaGluYS5jbg==",
 	"defaultColorTheme": "Light 2026",
 	"defaultIconTheme": "office-material-icon-theme",
 	"gitVersion": "1.0.0",
 	"commit": "12934b91e86ec2d0537879d544ee923f6a8e1b75",
 	"date": "2026-05-08T15:23:12+08:00",
 	"extensionsGallery": {
-		"serviceUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/gallery",
-		"itemUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/item",
-		"resourceUrlTemplate": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/unpkg/{publisher}/{name}/{version}/{path}",
+		"serviceUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL2dhbGxlcnk=",
+		"itemUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL2l0ZW0=",
+		"resourceUrlTemplate": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL3VucGtnL3twdWJsaXNoZXJ9L3tuYW1lfS97dmVyc2lvbn0ve3BhdGh9",
 		"controlUrl": "",
 		"nlsBaseUrl": "",
-		"publisherUrl": "https://tscode-vsx-registry.paasuat.cmbchina.cn/vscode/publisher"
+		"publisherUrl": "aHR0cHM6Ly90c2NvZGUtdnN4LXJlZ2lzdHJ5LnBhYXN1YXQuY21iY2hpbmEuY24vdnNjb2RlL3B1Ymxpc2hlcg=="
 	},
-	"releaseNotesUrl": "https://tscode-gateway.paasuat.cmbchina.cn/release-notes",
-	"extensionsAutoInstallUrl": "https://tscode-gateway.paasuat.cmbchina.cn/auto-install-extensions",
+	"releaseNotesUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL3JlbGVhc2Utbm90ZXM=",
+	"releaseNotesApiUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL3JlbGVhc2U=",
+	"extensionsAutoInstallUrl": "aHR0cHM6Ly90c2NvZGUtZ2F0ZXdheS5wYWFzdWF0LmNtYmNoaW5hLmNuL2F1dG8taW5zdGFsbC1leHRlbnNpb25z",
 	"extensionsAutoInstall": [
 		"test-tech.test-task-manager",
 		"test-tech.testcase-select"

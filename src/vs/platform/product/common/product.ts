@@ -6,6 +6,7 @@
 import { env } from '../../../base/common/process.js';
 import { IProductConfiguration } from '../../../base/common/product.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
+import { decodeProductUrl } from '../../../base/common/productEncoding.js';
 
 /**
  * @deprecated It is preferred that you use `IProductService` if you can. This
@@ -89,5 +90,63 @@ else {
 		});
 	}
 }
+
+// test-workbench_change start - decode obfuscated URLs from product.json
+if (product) {
+	const decode = (v: string | undefined | null): string | undefined =>
+		v ? decodeProductUrl(v) : undefined;
+
+	const updates: Record<string, unknown> = {};
+
+	if (product.updateUrl) {
+		updates.updateUrl = decodeProductUrl(product.updateUrl);
+	}
+
+	if (product.extensionTelemetry) {
+		updates.extensionTelemetry = {
+			...product.extensionTelemetry,
+			endpointUrl: decode(product.extensionTelemetry.endpointUrl),
+			endpointHealthUrl: decode(product.extensionTelemetry.endpointHealthUrl),
+		};
+	}
+
+	if (product.tsCodeBaseUrl) {
+		updates.tsCodeBaseUrl = decode(product.tsCodeBaseUrl);
+	}
+
+	if (product.tsCodeGatewayBaseUrl) {
+		updates.tsCodeGatewayBaseUrl = decode(product.tsCodeGatewayBaseUrl);
+	}
+
+	if (product.extensionsGallery) {
+		const gallery = product.extensionsGallery as unknown as Record<string, string>;
+		const decodedGallery: Record<string, string> = {};
+		for (const key of ['serviceUrl', 'itemUrl', 'resourceUrlTemplate', 'publisherUrl']) {
+			if (gallery[key]) {
+				decodedGallery[key] = decodeProductUrl(gallery[key]);
+			}
+		}
+		Object.assign(gallery, decodedGallery);
+	}
+
+	if (product.releaseNotesUrl) {
+		updates.releaseNotesUrl = decode(product.releaseNotesUrl);
+	}
+
+	if (product.releaseNotesApiUrl) {
+		updates.releaseNotesApiUrl = decode(product.releaseNotesApiUrl);
+	}
+
+	if (product.extensionsAutoInstallUrl) {
+		updates.extensionsAutoInstallUrl = decode(product.extensionsAutoInstallUrl);
+	}
+
+	if (product.linkProtectionTrustedDomains) {
+		updates.linkProtectionTrustedDomains = product.linkProtectionTrustedDomains.map(d => decode(d));
+	}
+
+	Object.assign(product, updates);
+}
+// test-workbench_change end
 
 export default product;
