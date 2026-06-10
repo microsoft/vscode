@@ -2007,26 +2007,6 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 /*
- * Force the session-target chip ("Local | Copilot CLI | Cloud") to use
- * the same neutral foreground as the other secondary-toolbar chips.
- * Without this, the chip renders in the browser's default `<a>` link
- * color (blue) on first paint and only flips to gray after the user
- * triggers `_run()` (which re-renders the label).
- *
- * The shared chat.css rule
- * `.interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label`
- * already sets `color: var(--vscode-icon-foreground)`, but something in
- * our scoped context — likely the `<a>`'s default link styling beating
- * the class rule at first paint — causes the inherited color to win
- * until the next render. Re-asserting the color with dialog-scoped
- * specificity keeps the chip neutral from the moment it appears.
- */
-.automation-form-prompt-host .chat-secondary-toolbar .chat-input-picker-item .action-label,
-.automation-form-prompt-host .chat-secondary-toolbar .chat-input-picker-item .action-label .codicon {
-	color: var(--vscode-icon-foreground);
-}
-
-/*
  * Hide chips from the embedded chat input that don't fit the automation
  * dialog's reduced surface:
  *  - "Configure Tools" (`workbench.action.chat.configureTools`,
@@ -2088,20 +2068,6 @@ body:has(.automation-dialog) .monaco-menu-container {
 .automation-form-schedule-select {
 	width: 160px;
 	min-width: 0;
-}
-
-/*
- * Row that hosts the pragmatic folder chip immediately above the
- * embedded chat input box. Right-aligned and gapped so the chip floats
- * next to where the chat input's chip row appears, suggesting a
- * continuation of that row.
- */
-.automation-toolbar-chip-row {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 6px;
-	padding: 0 0 4px;
 }
 
 .automation-form-label {
