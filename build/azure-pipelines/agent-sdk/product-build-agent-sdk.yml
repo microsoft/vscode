@@ -1,0 +1,86 @@
+# AgentSDK stage entry point. Fans out one job per (sdk, target) for the 8
+# Claude + 6 Codex targets (14 jobs in parallel), then collects each job's
+# artifacts and prints the product.json fragment for paste-into-vscode-distro.
+#
+# The target lists below hand-mirror each SDK's own optionalDependencies
+# (Azure Pipelines can't fan out matrix from a script, so we declare them
+# here too). aggregate.ts reads the SDK's optionalDependencies live and
+# fails loud if the declared matrix here doesn't cover everything the SDK
+# expects — so a drift will be caught at the end of the run.
+
+parameters:
+  - name: VSCODE_PUBLISH
+    type: boolean
+  - name: claudeTargets
+    type: object
+    default:
+      - darwin-x64
+      - darwin-arm64
+      - linux-x64
+      - linux-arm64
+      - linux-x64-musl
+      - linux-arm64-musl
+      - win32-x64
+      - win32-arm64
+  - name: codexTargets
+    type: object
+    default:
+      - darwin-x64
+      - darwin-arm64
+      - linux-x64
+      - linux-arm64
+      - win32-x64
+      - win32-arm64
+
+jobs:
+  - ${{ each target in parameters.claudeTargets }}:
+      - template: product-build-agent-sdk-target.yml
+        parameters:
+          SDK: claude
+          TARGET: ${{ target }}
+          VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+
+  - ${{ each target in parameters.codexTargets }}:
+      - template: product-build-agent-sdk-target.yml
+        parameters:
+          SDK: codex
+          TARGET: ${{ target }}
+          VSCODE_PUBLISH: ${{ parameters.VSCODE_PUBLISH }}
+
+  # After all per-target jobs publish their artifact, collect them and print
+  # the product.agentSdks fragment for a human to paste into vscode-distro's
+  # product.json.
+  #
+  # `condition: succeededOrFailed()` is intentional: when one or more per-target
+  # jobs fail, the operator still wants the aggregate step to run so it can
+  # FAIL LOUD listing the missing targets (aggregate.ts validates completeness
+  # against the TARGETS constant in common.ts). Without this condition, Azure's
+  # default `succeeded()` silently skips aggregate on any failure — leaving the
+  # operator to click through 14 sibling jobs to figure out what's missing.
+  - job: AgentSDK_aggregate
+    displayName: Aggregate (print fragment)
+    condition: succeededOrFailed()
+    dependsOn:
+      - ${{ each target in parameters.claudeTargets }}:
+          - AgentSDK_claude_${{ replace(target, '-', '_') }}
+      - ${{ each target in parameters.codexTargets }}:
+          - AgentSDK_codex_${{ replace(target, '-', '_') }}
+    timeoutInMinutes: 15
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - task: DownloadPipelineArtifact@2
+        displayName: Download per-target artifacts
+        inputs:
+          patterns: agent-sdk-*/**
+          path: $(Build.ArtifactStagingDirectory)/all-artifacts
+
+      - script: |
+          node build/agent-sdk/aggregate.ts \
+            --artifacts=$(Build.ArtifactStagingDirectory)/all-artifacts
+        displayName: Print product.agentSdks fragment

@@ -227,6 +227,16 @@ extends:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
+      - stage: AgentSDK
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/agent-sdk/product-build-agent-sdk.yml@self
+            parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           dependsOn: []

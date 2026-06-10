@@ -1321,8 +1321,10 @@ the download.
 - Dev override keeps working for SDK development.
 
 **Build pipeline** — see `build/agent-sdk/` for the tarball production
-and CDN upload tooling, including the deterministic-tar setup that
-makes `verify-determinism.ts` enforceable in CI.
+and CDN upload tooling. Determinism drift is caught at upload time:
+`upload.ts` HEAD-then-fails if today's sha doesn't match the existing
+blob's `metadata.sha256`, so a non-deterministic build can't silently
+overwrite content-addressed history.
 
 ### Phase 16 — Eager session materialization at create time
 
