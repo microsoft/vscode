@@ -440,6 +440,7 @@ function renderForm(
 	}));
 	nameInput.value = state.name;
 	const nameError = DOM.append(nameRow, $('.automation-form-error'));
+	nameError.textContent = validation.nameError ?? '';
 	disposables.add(nameInput.onDidChange(value => {
 		state.name = value;
 		revalidate();
@@ -533,28 +534,30 @@ function renderForm(
 		applyIntervalVisibility();
 	}));
 
-	// --- Folder (required) ---
-	// Rendered as the shared `WorkspacePicker` from the sessions layer so
-	// the chip and dropdown look + behave like the "New Session" view's
-	// workspace picker. We subclass to disable the categorical tab bar
-	// (`Local` / `GitHub` / `Remote`) — the dialog is local-only — but
-	// otherwise inherit the recents list, the per-tab browse actions
-	// (including `Select...`), the keyboard handling, and the trigger
-	// chip styling.
+	// --- Folder selection (no form row) ---
+	// The folder is selected via the workspace picker chip in the chat
+	// input's primary toolbar (between Mode and Model), so there's no
+	// dedicated form row above the prompt. Hosting the picker instance
+	// here is still required: `chatInputOptions` (built below) needs a
+	// reference to pass through `workspacePickerInput`, and the
+	// isolation+branch group below subscribes to `onDidSelectWorkspace`.
 	//
-	// `sessionTypeBinder` is created here (above the prompt section)
-	// because the folder picker's `onDidSelectWorkspace` listener calls
-	// `sessionTypeBinder.setFolder` and because the binder must exist
-	// before `chatInputOptions` reads it.
+	// The picker is not `render()`-ed into any container — only
+	// `WorkspacePickerInputActionItem` calls `renderTrigger()` on it
+	// (additive multi-trigger API on the shared {@link WorkspacePicker}).
+	//
+	// Subclassing {@link WorkspacePicker} (as `AutomationsWorkspacePicker`)
+	// disables the categorical tab bar (`Local` / `GitHub` / `Remote`)
+	// since the dialog is local-only; the picker otherwise inherits the
+	// recents list, per-tab browse actions (including `Select...`),
+	// keyboard handling, and trigger label updates.
+	//
+	// `sessionTypeBinder` is created here because the picker's
+	// `onDidSelectWorkspace` listener calls `sessionTypeBinder.setFolder`
+	// and because `chatInputOptions` (built below) reads it.
 	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
 
-	const folderRow = DOM.append(form, $('.automation-form-row.automation-form-folder-row'));
-	DOM.append(folderRow, $('label.automation-form-label', undefined, localize('automation.form.folder', "Workspace folder")));
-	const folderPickerHost = DOM.append(folderRow, $('.automation-form-folder-picker-host'));
-	const folderError = DOM.append(folderRow, $('.automation-form-error'));
-
 	const workspacePicker = disposables.add(instantiationService.createInstance(AutomationsWorkspacePicker));
-	workspacePicker.render(folderPickerHost);
 
 	// Push the dialog's initial folder into the picker without firing
 	// `onDidSelectWorkspace` (we don't want our listener to revalidate
@@ -564,6 +567,20 @@ function renderForm(
 		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false });
 	}
 
+	// `promptError` is created later when the prompt section is built,
+	// but the workspace picker's onDidSelectWorkspace handler (which
+	// surfaces folder validation errors) needs a stable reference. Hoist
+	// it via a `let` and an updater closure so the prompt section can
+	// assign the DOM element when it builds it. The updater shows folder
+	// validation first (it's the more blocking error: save stays disabled
+	// without a folder); prompt error only shows once the folder is set.
+	let promptError: HTMLElement | undefined = undefined;
+	const refreshPromptError = () => {
+		if (promptError) {
+			promptError.textContent = validation.folderError ?? validation.promptError ?? '';
+		}
+	};
+
 	// React to user picks. The picker emits `undefined` on clear; treat
 	// that as "no folder selected" so validation re-fires the required
 	// error.
@@ -571,7 +588,7 @@ function renderForm(
 		state.folderUri = uri;
 		sessionTypeBinder.setFolder(uri);
 		revalidate();
-		folderError.textContent = validation.folderError ?? '';
+		refreshPromptError();
 	}));
 
 	// If the dialog opened with no folder yet but the picker resolved one
@@ -668,7 +685,8 @@ function renderForm(
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
-	const promptError = DOM.append(promptRow, $('.automation-form-error'));
+	promptError = DOM.append(promptRow, $('.automation-form-error'));
+	refreshPromptError();
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -701,6 +719,12 @@ function renderForm(
 		// mode" (see {@link ChatInputPart}), which calls our setter
 		// instead of executing the new-session command.
 		sessionTypePickerDelegate: sessionTypeBinder,
+		// Mirror the form-row folder picker into the primary chat input
+		// toolbar (between Mode and Model) as a chip. Same underlying
+		// {@link WorkspacePicker} instance; the chip's trigger is a second
+		// render via {@link WorkspacePicker.renderTrigger}, so selection
+		// state, recents, and label updates stay single-sourced.
+		workspacePickerInput: workspacePicker,
 	};
 
 	// {@link ChatInputPart.render} requires an {@link IChatWidget}. The modal
@@ -745,6 +769,10 @@ function renderForm(
 	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptHost));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
+	// Gate the toolbar workspace picker chip's menu contribution: the
+	// `OpenAutomationsWorkspacePickerAction`'s `when` clause checks this
+	// key so the chip only renders inside this dialog.
+	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const scopedInstantiationService = disposables.add(
 		instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
 	);
@@ -832,7 +860,7 @@ function renderForm(
 	// via {@link IRenderFormHandle.getPrompt}.
 	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {
 		revalidate();
-		promptError.textContent = validation.promptError ?? '';
+		refreshPromptError();
 	}));
 
 	// Two layout passes mirror the fixture: the first one establishes the

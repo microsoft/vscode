@@ -2176,6 +2176,63 @@ body:has(.automation-dialog) .monaco-menu-container {
 	margin-left: 0;
 }
 
+/*
+ * Sessions-layer workspace picker visual override.
+ *
+ * Two cascading sources need to be defeated to match Mode/Model:
+ *
+ * 1. `.sessions-chat-picker-slot.sessions-chat-workspace-picker
+ *    .action-label` (sessions-layer `chatWidget.css:244-269`) sets a
+ *    welcome-flow visual: label 18px, inner span 18px, icons 16px,
+ *    chevron, generous padding, `color: var(--vscode-foreground)`.
+ *
+ * 2. `.monaco-action-bar .action-label` (actionbar.css:48) sets the
+ *    base toolbar font-size to **11px**. This is what Mode/Model
+ *    inherit — they don't set font-size themselves, the action bar
+ *    base rule wins for their `.action-label`. The workspace picker's
+ *    own sessions-layer rule (source 1) overrides that base, so we
+ *    need to put the 11px back explicitly. `font-size: inherit`
+ *    does NOT work because none of `.sessions-chat-picker-slot`'s
+ *    ancestors carry an 11px font-size — the 11px lives on sibling
+ *    `.action-label` elements via `.monaco-action-bar .action-label`,
+ *    not on an ancestor we can inherit from.
+ *
+ * Result: match the 11px base, neutralize the welcome-flow oversizing,
+ * keep the Mode/Model color (`var(--vscode-icon-foreground)`), match
+ * the chip metrics from `.chat-input-toolbar .chat-input-picker-item
+ * .action-label` (chat.css:1822), and hide the chevron (Mode/Model
+ * don't render one).
+ *
+ * Scoped to `.automation-form-prompt-host` so the welcome view's
+ * standalone workspace picker keeps its larger sizing.
+ */
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
+	height: 16px;
+	padding: 3px 6px;
+	font-size: 11px;
+	line-height: normal;
+	color: var(--vscode-icon-foreground);
+}
+
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
+	font-size: inherit;
+	line-height: inherit;
+}
+
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 12px;
+}
+
+/*
+ * Mode and Model pickers in this toolbar don't render a dropdown
+ * chevron — they're recognized as chips by their padding + hover. Hide
+ * the chevron that `_renderTriggerLabel` always appends so the
+ * workspace chip reads the same way.
+ */
+.automation-form-prompt-host .chat-input-toolbar .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
+	display: none;
+}
+
 .automation-form-row {
 	display: flex;
 	flex-direction: column;
@@ -2246,15 +2303,15 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 /*
- * Form-row labels read as section titles (\"Name\", \"Schedule\",
- * \"Workspace folder\", \"Prompt\"). Mirror the established agents
- * design-system section-label pattern (see \.overview-section
- * .section-label\ at line ~734: label1 / fontWeight-medium /
+ * Form-row labels read as section titles ("Name", "Schedule",
+ * "Workspace folder", "Prompt"). Mirror the established agents
+ * design-system section-label pattern (see `.overview-section
+ * .section-label` at line ~734: label1 / fontWeight-medium /
  * foreground) but at regular weight per Hawk's call — the larger
  * size + foreground colour does the heavy lifting, so the labels
  * don't need extra weight to register as headings.
  *
- * \margin-bottom\ adds breathing room between the title text and
+ * `margin-bottom` adds breathing room between the title text and
  * its control so each form row reads as a discrete section.
  */
 .automation-form-label {
@@ -2357,77 +2414,6 @@ body:has(.automation-dialog) .monaco-menu-container {
  * The dropdown content itself renders through `IActionWidgetService`,
  * which has its own global CSS — no overrides needed here.
  */
-.automation-form-folder-picker-host {
-	align-self: flex-start;
-	max-width: 100%;
-	display: flex;
-	min-width: 0;
-}
-
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker {
-	display: inline-flex;
-	min-width: 0;
-	max-width: 100%;
-}
-
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
-	min-width: 0;
-	max-width: 100%;
-	height: 22px;
-	padding: 0 8px;
-	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
-	line-height: 1.25;
-	color: var(--vscode-foreground);
-	background: var(--vscode-toolbar-hoverBackground, transparent);
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: 4px;
-	cursor: pointer;
-	touch-action: manipulation;
-}
-
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
-	background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
-}
-
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:focus,
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label[aria-expanded="true"] {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.automation-form-folder-picker-host .sessions-chat-dropdown-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.automation-form-folder-picker-host .sessions-chat-dropdown-chevron {
-	font-size: 10px;
-	opacity: 0.75;
-	flex-shrink: 0;
-}
-
-/* chatWidget.css sets the workspace chip's label font-size to 18px and
- * inner codicons to 16px for the new-session "hero" UI. Match its
- * selector specificity here to win the cascade and render at the
- * dialog's 13px body scale. */
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
-}
-
-.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
-	font-size: 14px;
-}
-
-.automation-form-folder-picker-host .codicon {
-	color: var(--vscode-icon-foreground);
-}
-
 /*
  * Isolation + branch group: parented into the chat input's
  * `.chat-secondary-toolbar` so it sits at the bottom-right of the chat
