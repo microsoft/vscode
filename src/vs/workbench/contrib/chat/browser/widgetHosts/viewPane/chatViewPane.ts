@@ -333,12 +333,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
 		this.createControls(controlsWrapper);
 
-		// Bottom area at viewpane level — always visible
+		// Bottom area for voice panel — always present, populated when enabled
 		const bottomArea = append(parent, $('.voice-bottom-area'));
 		this._voiceBottomArea = bottomArea;
+		this._updateVoiceBar(bottomArea);
 
-		// Voice panel (above tab bar)
-		this.createVoiceAgentBar(bottomArea);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('agents.voice.enabled')) {
+				this._updateVoiceBar(bottomArea);
+				if (this.lastDimensions) {
+					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+				}
+			}
+		}));
 
 		this.setupContextMenu(parent);
 
@@ -361,31 +368,43 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update sessions control visibility when all controls are created
 		this.updateSessionsControlVisibility();
-
-		// --- Voice command bridge ---
-		// These commands let the VoiceSessionController reach into the chat widget
-		// without holding a direct reference to this ViewPane.
-		this._register(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
-			if (text && this._widget?.viewModel) {
-				this._widget.acceptInput(text, { preserveFocus: true });
-			}
-		}));
-		this._register(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
-			if (resourceStr) {
-				this.viewState.sessionResource = URI.parse(resourceStr);
-				this.applyModel();
-				return true;
-			}
-			return false;
-		}));
-		this._register(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
-			return this._widget?.viewModel?.sessionResource?.toString();
-		}));
 	}
 
 	//#region Voice Agent Bar
 
 	private _voiceBottomArea: HTMLElement | undefined;
+	private readonly _voiceBarDisposables = this._register(new DisposableStore());
+
+	private _updateVoiceBar(container: HTMLElement): void {
+		this._voiceBarDisposables.clear();
+		container.replaceChildren();
+
+		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
+			container.style.display = '';
+
+			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
+				if (text && this._widget?.viewModel) {
+					this._widget.acceptInput(text, { preserveFocus: true });
+				}
+			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
+				if (resourceStr) {
+					this.viewState.sessionResource = URI.parse(resourceStr);
+					this.applyModel();
+					return true;
+				}
+				return false;
+			}));
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
+				return this._widget?.viewModel?.sessionResource?.toString();
+			}));
+
+			this.createVoiceAgentBar(container);
+		} else {
+			container.style.display = 'none';
+		}
+	}
 
 	private createVoiceAgentBar(parent: HTMLElement): void {
 		const bar = append(parent, $('.voice-agent-bar'));
@@ -450,25 +469,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			showOnboarding: true,
 			reshowOnboardingOnDisconnect: true,
 		});
-		this._register(widget);
+		this._voiceBarDisposables.add(widget);
 
 		// Hide the popout button when the floating window is already open.
 		widget.setPopoutAvailable(!this.agentsVoiceWindowService.isOpen);
-		this._register(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
+		this._voiceBarDisposables.add(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
 			widget.setPopoutAvailable(!isOpen);
 		}));
 
 		// PTT key label from settings
 		const pttKey = this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18';
 		widget.setPttKeyLabel(pttKey);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
+		this._voiceBarDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.voice.pushToTalkKey')) {
 				widget.setPttKeyLabel(this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18');
 			}
 		}));
 
 		// Shared controller→widget binding (also used by the floating window)
-		this._register(bindWidgetToController(widget, {
+		this._voiceBarDisposables.add(bindWidgetToController(widget, {
 			voiceSessionController: this.voiceSessionController,
 			agentSessionsService: this.agentSessionsService,
 			agentTitleBarStatusService: this.agentTitleBarStatusService,
@@ -477,7 +496,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			chatService: this.chatService,
 		}));
 
-		this._register({ dispose: () => { this.voiceSessionController.disconnect(); } });
+		this._voiceBarDisposables.add({ dispose: () => { this.voiceSessionController.disconnect(); } });
 	}
 
 	//#endregion

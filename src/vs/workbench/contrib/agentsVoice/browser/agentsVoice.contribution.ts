@@ -24,7 +24,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as nls from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -69,7 +69,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.MenubarViewMenu,
 				group: '5_copilot',
 				order: 1,
-				// Always visible — no feature gate
+				when: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			},
 			toggled: AGENTS_VOICE_WINDOW_VISIBLE.isEqualTo(true),
 		});
@@ -104,6 +104,12 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('agentsVoiceConfigurationTitle', "Agents Voice"),
 	type: 'object',
 	properties: {
+		'agents.voice.enabled': {
+			type: 'boolean',
+			description: nls.localize('agents.voice.enabled', "Enable the Agents Voice panel in the chat view for voice-driven coding conversations."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+		},
 		'agents.voice.alwaysOnTop': {
 			type: 'boolean',
 			description: nls.localize('agents.voice.alwaysOnTop', "Keep the Agents Voice window always on top of other windows."),
