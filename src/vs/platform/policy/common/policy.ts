@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { IManagedSettingsData } from '../../../base/common/copilotPolicy.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
@@ -24,6 +25,7 @@ export type PolicyDefinition = {
 	 * from any enterprise source must stick.
 	 */
 	denyValue?: PolicyValue;
+	managedSettingsValue?: (data: IManagedSettingsData) => string | number | boolean | undefined;
 };
 
 /**

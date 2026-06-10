@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY } from '../../../../base/common/copilotPolicy.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -13,6 +12,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { ManagedSettingsFilePolicyService } from '../../common/managedSettingsFilePolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { PolicyDefinition } from '../../common/policy.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 
 suite('ManagedSettingsFilePolicyService', () => {
 
@@ -21,6 +22,13 @@ suite('ManagedSettingsFilePolicyService', () => {
 	let fileService: IFileService;
 	let service: ManagedSettingsFilePolicyService;
 	const policyFile = URI.file('managedSettings').with({ scheme: 'vscode-tests' });
+
+	const policyDefs: IStringDictionary<PolicyDefinition> = {
+		ChatToolsAutoApprove: {
+			type: 'boolean',
+			managedSettingsValue: (data) => data.permissions?.disableBypassPermissionsMode === 'disable' ? false : undefined,
+		}
+	};
 
 	setup(() => {
 		fileService = disposables.add(new FileService(new NullLogService()));
@@ -33,107 +41,50 @@ suite('ManagedSettingsFilePolicyService', () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify(content)));
 	}
 
-	test('transforms permissions.disableBypassPermissionsMode to ChatToolsAutoApprove=false', async () => {
-		await writeFile({
-			permissions: {
-				disableBypassPermissionsMode: 'disable'
-			}
-		});
-
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			false
-		);
+	test('evaluates managedSettingsValue callback to produce policy value', async () => {
+		await writeFile({ permissions: { disableBypassPermissionsMode: 'disable' } });
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), false);
 	});
 
-	test('returns undefined for unset keys', async () => {
+	test('returns undefined when managed settings key is absent', async () => {
 		await writeFile({});
-
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			undefined
-		);
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), undefined);
 	});
 
 	test('ignores unknown top-level keys for forward compatibility', async () => {
-		await writeFile({
-			permissions: {
-				disableBypassPermissionsMode: 'disable'
-			},
-			futureSection: {
-				futureKey: 'futureValue'
-			}
-		});
-
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			false
-		);
+		await writeFile({ permissions: { disableBypassPermissionsMode: 'disable' }, futureSection: { futureKey: 'v' } });
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), false);
 	});
 
 	test('gracefully handles missing file', async () => {
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			undefined
-		);
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), undefined);
 	});
 
 	test('gracefully handles invalid JSON', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString('not json'));
-
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			undefined
-		);
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), undefined);
 	});
 
 	test('gracefully handles non-object top-level', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString('"just a string"'));
-
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			undefined
-		);
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), undefined);
 	});
 
-	test('does not emit policy for non-disable values', async () => {
-		await writeFile({
-			permissions: {
-				disableBypassPermissionsMode: 'enable'
-			}
-		});
+	test('callback returning undefined does not emit policy', async () => {
+		await writeFile({ permissions: { disableBypassPermissionsMode: 'enable' } });
+		await service.updatePolicyDefinitions(policyDefs);
+		assert.strictEqual(service.getPolicyValue('ChatToolsAutoApprove'), undefined);
+	});
 
-		await service.updatePolicyDefinitions({
-			[COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY]: { type: 'string' }
-		});
-
-		assert.strictEqual(
-			service.getPolicyValue(COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY),
-			undefined
-		);
+	test('skips policies without managedSettingsValue callback', async () => {
+		await writeFile({ permissions: { disableBypassPermissionsMode: 'disable' } });
+		await service.updatePolicyDefinitions({ SomeOtherPolicy: { type: 'string' } });
+		assert.strictEqual(service.getPolicyValue('SomeOtherPolicy'), undefined);
 	});
 });

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
+import { IManagedSettingsData } from './copilotPolicy.js';
 import { IPolicyData } from './defaultAccount.js';
 
 /**
@@ -118,4 +119,14 @@ export interface IPolicy {
 	 * from any enterprise source must stick.
 	 */
 	readonly denyValue?: string | number | boolean;
+
+	/**
+	 * Maps from the GitHubCopilot managed-settings data (MDM or file-based)
+	 * to the value for this policy. Same pattern as {@link value} for account
+	 * policy data.
+	 *
+	 * - Return a concrete value to **override** the user's setting.
+	 * - Return `undefined` to **not apply** any managed-settings override.
+	 */
+	readonly managedSettingsValue?: (data: IManagedSettingsData) => string | number | boolean | undefined;
 }

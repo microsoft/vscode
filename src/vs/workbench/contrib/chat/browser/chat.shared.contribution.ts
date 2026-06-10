@@ -488,6 +488,7 @@ configurationRegistry.registerConfiguration({
 				minimumVersion: '1.99',
 				denyValue: false,
 				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				managedSettingsValue: (data) => data.permissions?.disableBypassPermissionsMode === 'disable' ? false : undefined,
 				localization: {
 					description: {
 						key: 'autoApprove3.description',

@@ -32,10 +32,18 @@ export const GITHUB_COPILOT_MACOS_POLICY_FILE = '/Library/Application Support/Gi
 // --- Policy key names -----------------------------------------------------------
 
 /**
- * Flat policy key used in the `IPolicyService` key-value store.
- * This is the same key as the existing `ChatToolsAutoApprove` policy
- * on `chat.tools.global.autoApprove`. The managed-settings schema
- * `permissions.disableBypassPermissionsMode: "disable"` maps to
- * `ChatToolsAutoApprove: false`.
+ * The managed-settings JSON schema for V0.
+ * All keys are optional — an empty document or subset is valid.
+ * This interface is extended as new managed setting keys are added.
+ *
+ * The same shape is used for file-based delivery (`managed-settings.json`)
+ * and serves as the contract for the `managedSettingsValue` callback on
+ * policy definitions.
  */
-export const COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY = 'ChatToolsAutoApprove';
+export interface IManagedSettingsData {
+	readonly permissions?: {
+		readonly disableBypassPermissionsMode?: string;
+	};
+	readonly enabledPlugins?: Readonly<Record<string, boolean>>;
+	readonly extraKnownMarketplaces?: Readonly<Record<string, { source: string; repo: string }>>;
+}

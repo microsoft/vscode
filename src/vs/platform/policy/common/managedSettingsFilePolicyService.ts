@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY } from '../../../base/common/copilotPolicy.js';
+import { IManagedSettingsData } from '../../../base/common/copilotPolicy.js';
 import { PolicyName } from '../../../base/common/policy.js';
-import { isObject, isString } from '../../../base/common/types.js';
+import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -13,66 +13,17 @@ import { IPolicyService, PolicyValue } from './policy.js';
 import { FilePolicyService } from './filePolicyService.js';
 
 /**
- * Mapping from nested managed-settings.json schema paths to flat policy keys.
- * The V0 schema shape is:
- *
- * ```json
- * {
- *   "permissions": {
- *     "disableBypassPermissionsMode": "disable"
- *   }
- * }
- * ```
- *
- * This map converts the nested structure to flat `IPolicyService` keys.
- */
-interface ISchemaMapping {
-	readonly section: string;
-	readonly key: string;
-	readonly policyName: string;
-	/** Transforms the raw JSON value to the policy value. If undefined is returned, the key is not emitted. */
-	readonly transform?: (value: string | number | boolean) => PolicyValue | undefined;
-}
-
-const SCHEMA_MAPPINGS: readonly ISchemaMapping[] = [
-	{
-		section: 'permissions',
-		key: 'disableBypassPermissionsMode',
-		policyName: COPILOT_MANAGED_SETTINGS_AUTO_APPROVE_POLICY,
-		transform: value => value === 'disable' ? false : undefined,
-	},
-];
-
-/**
- * Flattens the nested managed-settings.json schema into flat policy key-value pairs.
- * Unknown keys are silently ignored for forward-compatibility.
- */
-function flattenManagedSettingsSchema(raw: Record<string, unknown>): Map<PolicyName, PolicyValue> {
-	const result = new Map<PolicyName, PolicyValue>();
-
-	for (const mapping of SCHEMA_MAPPINGS) {
-		const section = raw[mapping.section];
-		if (isObject(section)) {
-			const value = (section as Record<string, unknown>)[mapping.key];
-			if (isString(value) || typeof value === 'number' || typeof value === 'boolean') {
-				const transformed = mapping.transform ? mapping.transform(value) : value;
-				if (transformed !== undefined) {
-					result.set(mapping.policyName, transformed);
-				}
-			}
-		}
-	}
-
-	return result;
-}
-
-/**
- * Reads the GitHubCopilot managed-settings.json file and flattens its nested
- * schema into the flat policy key-value store that `IPolicyService` expects.
+ * Reads the GitHubCopilot managed-settings.json file and evaluates each
+ * policy definition's {@link PolicyDefinition.managedSettingsValue} callback
+ * against the parsed data.
  *
  * Extends {@link FilePolicyService} for file watching, throttling, and diff logic.
- * Overrides {@link read} to parse the nested schema (instead of flat key-value)
- * and optionally validate file security properties before reading.
+ * Overrides {@link read} to parse the managed-settings schema and apply
+ * per-policy value callbacks — the same pattern as {@link AccountPolicyService}
+ * uses {@link PolicyDefinition.value} for account policy data.
+ *
+ * An optional `validateFile` callback can be provided to enforce security
+ * checks (root-owned, no symlinks, not world-writable) before reading.
  */
 export class ManagedSettingsFilePolicyService extends FilePolicyService implements IPolicyService {
 
@@ -102,7 +53,20 @@ export class ManagedSettingsFilePolicyService extends FilePolicyService implemen
 				throw new Error('Managed settings file is not a JSON object');
 			}
 
-			return flattenManagedSettingsSchema(raw as Record<string, unknown>);
+			const data = raw as IManagedSettingsData;
+			const result = new Map<PolicyName, PolicyValue>();
+
+			for (const name in this.policyDefinitions) {
+				const definition = this.policyDefinitions[name];
+				if (definition.managedSettingsValue) {
+					const value = definition.managedSettingsValue(data);
+					if (value !== undefined) {
+						result.set(name, value);
+					}
+				}
+			}
+
+			return result;
 		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				this._logService.error(`[ManagedSettingsFilePolicyService] Failed to read managed settings`, error);
