@@ -109,18 +109,21 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('agents.voice.enabled', "Enable the Agents Voice panel in the chat view for voice-driven coding conversations."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			included: false,
 		},
 		'agents.voice.alwaysOnTop': {
 			type: 'boolean',
 			description: nls.localize('agents.voice.alwaysOnTop', "Keep the Agents Voice window always on top of other windows."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			included: false,
 		},
 		'agents.voice.backendUrl': {
 			type: 'string',
 			description: nls.localize('agents.voice.backendUrl', "Voice backend WebSocket URL. Leave empty to use the default hosted backend. Set to e.g. `ws://localhost:8000/api/v1/realtime/voice` to point at a backend running on your machine."),
 			default: '',
 			scope: ConfigurationScope.APPLICATION,
+			included: false,
 		},
 	}
 });
