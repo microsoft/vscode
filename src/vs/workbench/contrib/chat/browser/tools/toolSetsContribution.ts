@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType, isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { Codicon, getAllCodicons } from '../../../../../base/common/codicons.js';
@@ -146,7 +146,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			lifecycleService.when(LifecyclePhase.Restored)
 		]).then(() => this._initToolSets());
 
-		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getTools()));
+		const toolsObs = observableFromEvent(this, _languageModelToolsService.onDidChangeTools, () => Array.from(_languageModelToolsService.getAllToolsIncludingDisabled()));
 		const store = this._store.add(new DisposableStore());
 
 		this._store.add(autorun(r => {
@@ -165,7 +165,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			for (const tool of tools) {
 				if (tool.canBeReferencedInPrompt) {
 					data.push({
-						name: tool.toolReferenceName ?? tool.displayName,
+						name: this._languageModelToolsService.getFullReferenceName(tool),
 						sourceLabel: ToolDataSource.classify(tool.source).label,
 						sourceOrdinal: ToolDataSource.classify(tool.source).ordinal,
 						description: tool.userDescription ?? tool.modelDescription
@@ -174,7 +174,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 			for (const toolSet of toolSets) {
 				data.push({
-					name: toolSet.referenceName,
+					name: this._languageModelToolsService.getFullReferenceName(toolSet),
 					sourceLabel: ToolDataSource.classify(toolSet.source).label,
 					sourceOrdinal: ToolDataSource.classify(toolSet.source).ordinal,
 					description: toolSet.description
@@ -268,8 +268,20 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				for (const [name, value] of data.entries) {
 
 					const tools: IToolData[] = [];
-					const toolSets: ToolSet[] = [];
+					const toolSets: IToolSet[] = [];
 					value.tools.forEach(name => {
+						// Resolve by full reference name first. This handles qualified names
+						// (e.g. `vscode/memory`, `github/*`) as well as unqualified names
+						// (e.g. `memory`) via their aliases.
+						const toolOrToolSet = this._languageModelToolsService.getToolByFullReferenceName(name);
+						if (isToolSet(toolOrToolSet)) {
+							toolSets.push(toolOrToolSet);
+							return;
+						} else if (toolOrToolSet) {
+							tools.push(toolOrToolSet);
+							return;
+						}
+						// Fall back to legacy lookup by unqualified reference name.
 						const tool = this._languageModelToolsService.getToolByName(name);
 						if (tool) {
 							tools.push(tool);
@@ -323,12 +335,18 @@ export class ConfigureToolSets extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),
-			menu: {
+			menu: [{
 				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 11,
 				group: '2_level'
 			},
+			{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				order: 11,
+				group: '2_level'
+			}],
 		});
 	}
 
@@ -341,7 +359,7 @@ export class ConfigureToolSets extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 
-		const picks: ((IQuickPickItem & { toolset?: ToolSet }) | IQuickPickSeparator)[] = [];
+		const picks: ((IQuickPickItem & { toolset?: IToolSet }) | IQuickPickSeparator)[] = [];
 
 		picks.push({
 			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),

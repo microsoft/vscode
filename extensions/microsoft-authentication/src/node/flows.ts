@@ -22,6 +22,7 @@ interface IMsalFlowOptions {
 	supportsRemoteExtensionHost: boolean;
 	supportsUnsupportedClient: boolean;
 	supportsBroker: boolean;
+	supportsPortableMode: boolean;
 }
 
 interface IMsalFlowTriggerOptions {
@@ -34,6 +35,12 @@ interface IMsalFlowTriggerOptions {
 	logger: LogOutputChannel;
 	uriHandler: UriEventHandler;
 	claims?: string;
+	/**
+	 * Resource indicator (RFC 8707) for MCP-style flows. When provided, MSAL forwards
+	 * this as the `resource` parameter to the authorization & token endpoints so the
+	 * issued token is bound to the requested resource.
+	 */
+	resource?: string;
 }
 
 interface IMsalFlow {
@@ -47,10 +54,11 @@ class DefaultLoopbackFlow implements IMsalFlow {
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: false,
 		supportsUnsupportedClient: true,
-		supportsBroker: true
+		supportsBroker: true,
+		supportsPortableMode: true
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, resource, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying default msal flow...');
 		let redirectUri: string | undefined;
 		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
@@ -66,6 +74,7 @@ class DefaultLoopbackFlow implements IMsalFlow {
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
 			claims,
+			resource,
 			redirectUri
 		});
 	}
@@ -76,10 +85,11 @@ class UrlHandlerFlow implements IMsalFlow {
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
 		supportsUnsupportedClient: false,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: false
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, resource, loginHint, windowHandle, logger, uriHandler, callbackUri }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
 		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, DEFAULT_REDIRECT_URI, callbackUri, logger);
 		let redirectUri: string | undefined;
@@ -95,6 +105,7 @@ class UrlHandlerFlow implements IMsalFlow {
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
 			claims,
+			resource,
 			redirectUri
 		});
 	}
@@ -105,12 +116,13 @@ class DeviceCodeFlow implements IMsalFlow {
 	options: IMsalFlowOptions = {
 		supportsRemoteExtensionHost: true,
 		supportsUnsupportedClient: true,
-		supportsBroker: false
+		supportsBroker: false,
+		supportsPortableMode: true
 	};
 
-	async trigger({ cachedPca, authority, scopes, claims, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
+	async trigger({ cachedPca, authority, scopes, claims, resource, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying device code flow...');
-		const result = await cachedPca.acquireTokenByDeviceCode({ scopes, authority, claims });
+		const result = await cachedPca.acquireTokenByDeviceCode({ scopes, authority, claims, resource });
 		if (!result) {
 			throw new Error('Device code flow did not return a result');
 		}
@@ -118,7 +130,7 @@ class DeviceCodeFlow implements IMsalFlow {
 	}
 }
 
-const allFlows: IMsalFlow[] = [
+export const allFlows: IMsalFlow[] = [
 	new DefaultLoopbackFlow(),
 	new UrlHandlerFlow(),
 	new DeviceCodeFlow()
@@ -128,6 +140,7 @@ export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
 	supportedClient: boolean;
 	isBrokerSupported: boolean;
+	isPortableMode: boolean;
 }
 
 export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
@@ -139,6 +152,7 @@ export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
 		}
 		useFlow &&= flow.options.supportsBroker || !query.isBrokerSupported;
 		useFlow &&= flow.options.supportsUnsupportedClient || query.supportedClient;
+		useFlow &&= flow.options.supportsPortableMode || !query.isPortableMode;
 		if (useFlow) {
 			flows.push(flow);
 		}

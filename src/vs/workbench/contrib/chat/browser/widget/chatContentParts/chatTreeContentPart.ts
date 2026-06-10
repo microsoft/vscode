@@ -9,7 +9,7 @@ import { ITreeCompressionDelegate } from '../../../../../../base/browser/ui/tree
 import { ICompressedTreeNode } from '../../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../../../base/browser/ui/tree/objectTree.js';
 import { IAsyncDataSource, ITreeNode } from '../../../../../../base/browser/ui/tree/tree.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -19,21 +19,17 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../../../platform/l
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { ChatTreeItem } from '../../chat.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart } from './chatContentParts.js';
-import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
-import { IChatResponseProgressFileTreeData } from '../../../common/chatService/chatService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { IFilesConfiguration } from '../../../../files/common/files.js';
+import { IChatResponseProgressFileTreeData } from '../../../common/chatService/chatService.js';
+import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
 
 export class ChatTreeContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public readonly onDidFocus: Event<void>;
 
@@ -41,9 +37,7 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 
 	constructor(
 		data: IChatResponseProgressFileTreeData,
-		element: ChatTreeItem,
 		treePool: TreePool,
-		treeDataIndex: number,
 		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super();
@@ -57,9 +51,6 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 				this.openerService.open(e.element.uri);
 			}
 		}));
-		this._register(this.tree.onDidChangeCollapseState(() => {
-			this._onDidChangeHeight.fire();
-		}));
 		this._register(this.tree.onContextMenu((e) => {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
@@ -68,7 +59,6 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 		this.tree.setInput(data).then(() => {
 			if (!ref.isStale()) {
 				this.tree.layout();
-				this._onDidChangeHeight.fire();
 			}
 		});
 
@@ -89,10 +79,14 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 	}
 }
 
-export class TreePool extends Disposable {
-	private _pool: ResourcePool<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>>;
+interface ITreePoolWrapper extends IDisposable {
+	tree: WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>;
+}
 
-	public get inUse(): ReadonlySet<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
+export class TreePool extends Disposable {
+	private _pool: ResourcePool<ITreePoolWrapper>;
+
+	public get inUse(): ReadonlySet<ITreePoolWrapper> {
 		return this._pool.inUse;
 	}
 
@@ -106,11 +100,12 @@ export class TreePool extends Disposable {
 		this._pool = this._register(new ResourcePool(() => this.treeFactory()));
 	}
 
-	private treeFactory(): WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void> {
-		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
+	private treeFactory(): ITreePoolWrapper {
+		const store = new DisposableStore();
+		const resourceLabels = store.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
 
 		const container = $('.interactive-response-progress-tree');
-		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
+		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>,
@@ -133,20 +128,27 @@ export class TreePool extends Disposable {
 				alwaysConsumeMouseWheel: false
 			});
 
-		return tree;
+		return {
+			tree,
+			dispose: () => store.dispose()
+		};
 	}
 
 	get(): IDisposableReference<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
-		const object = this._pool.get();
+		const wrapper = this._pool.get();
 		let stale = false;
 		return {
-			object,
+			object: wrapper.tree,
 			isStale: () => stale,
 			dispose: () => {
 				stale = true;
-				this._pool.release(object);
+				this._pool.release(wrapper);
 			}
 		};
+	}
+
+	clear(): void {
+		this._pool.clear();
 	}
 }
 

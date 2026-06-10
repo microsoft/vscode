@@ -74,7 +74,7 @@ export class NotebookVariablesView extends ViewPane {
 		this.handleActiveEditorChange(false);
 
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
-		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
+		this.updateScheduler = this._register(new RunOnceScheduler(() => this.tree?.updateChildren(), 100));
 	}
 
 	protected override renderBody(container: HTMLElement): void {

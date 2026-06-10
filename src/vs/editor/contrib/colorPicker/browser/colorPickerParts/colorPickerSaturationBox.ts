@@ -21,10 +21,10 @@ export class SaturationBox extends Disposable {
 	private height!: number;
 
 	private monitor: GlobalPointerMoveMonitor | null;
-	private readonly _onDidChange = new Emitter<{ s: number; v: number }>();
+	private readonly _onDidChange = this._register(new Emitter<{ s: number; v: number }>());
 	readonly onDidChange: Event<{ s: number; v: number }> = this._onDidChange.event;
 
-	private readonly _onColorFlushed = new Emitter<void>();
+	private readonly _onColorFlushed = this._register(new Emitter<void>());
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {

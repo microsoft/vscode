@@ -9,6 +9,7 @@
 export const enum McpCommandIds {
 	AddConfiguration = 'workbench.mcp.addConfiguration',
 	Browse = 'workbench.mcp.browseServers',
+	InstallFromManifest = 'workbench.mcp.installFromManifest',
 	BrowsePage = 'workbench.mcp.browseServersPage',
 	BrowseResources = 'workbench.mcp.browseResources',
 	ConfigureSamplingModels = 'workbench.mcp.configureSamplingModels',
@@ -25,6 +26,7 @@ export const enum McpCommandIds {
 	RestartServer = 'workbench.mcp.restartServer',
 	ServerOptions = 'workbench.mcp.serverOptions',
 	ServerOptionsInConfirmation = 'workbench.mcp.serverOptionsInConfirmation',
+	SetOAuthClientSecret = 'workbench.mcp.setOAuthClientSecret',
 	ShowConfiguration = 'workbench.mcp.showConfiguration',
 	ShowInstalled = 'workbench.mcp.showInstalledServers',
 	ShowOutput = 'workbench.mcp.showOutput',

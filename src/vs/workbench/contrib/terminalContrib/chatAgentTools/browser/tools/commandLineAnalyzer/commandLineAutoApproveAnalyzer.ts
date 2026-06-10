@@ -51,9 +51,10 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (options.chatSessionId && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionId)) {
+		const isAutoApproveEnabledInSettings = this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
+		if (isAutoApproveEnabledInSettings && options.chatSessionResource && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionResource)) {
 			this._log('Session has auto approval enabled, auto approving command');
-			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionId);
+			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionResource);
 			const mdTrustSettings = {
 				isTrusted: {
 					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
@@ -82,15 +83,25 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 		let autoApproveInfo: IMarkdownString | undefined;
 		let customActions: ToolConfirmationAction[] | undefined;
 
-		if (!subCommands) {
+		if (!subCommands?.length) {
+			if (trimmedCommandLine.length === 0) {
+				this._log('Command line is empty, auto approving');
+				return {
+					isAutoApproved: true,
+					isAutoApproveAllowed: true,
+					disclaimers: [],
+				};
+			}
+
+			this._log('No sub-commands were parsed, auto approval is not allowed');
 			return {
 				isAutoApproveAllowed: false,
 				disclaimers: [],
 			};
 		}
 
-		const subCommandResults = await Promise.all(subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.cwd, options.chatSessionId)));
-		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine, options.chatSessionId);
+		const subCommandResults = await Promise.all(subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, options.shell, options.os, options.cwd, options.chatSessionResource)));
+		const commandLineResult = this._commandLineAutoApprover.isCommandLineAutoApproved(trimmedCommandLine, options.chatSessionResource);
 		const autoApproveReasons: string[] = [
 			...subCommandResults.map(e => e.reason),
 			commandLineResult.reason,

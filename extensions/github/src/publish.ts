@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { API as GitAPI, Repository } from './typings/git.js';
+import type { API as GitAPI, Repository } from './typings/git.d.ts';
 import { getOctokit } from './auth.js';
 import { TextEncoder } from 'util';
 import { basename } from 'path';

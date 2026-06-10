@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
@@ -33,6 +34,15 @@ export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostM
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
 	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
+
+	/** Event that fires when the set of MCP server definitions changes. */
+	readonly onDidChangeMcpServerDefinitions: Event<void>;
+
+	/** Returns all MCP server definitions known to the editor. */
+	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
+
+	/** Starts an MCP gateway that exposes MCP servers via HTTP endpoints. */
+	startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined>;
 }
 
 const serverDataValidation = vObj({
@@ -65,6 +75,17 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		servers: vscode.McpServerDefinition[];
 	}>();
 
+	// MCP server definitions synced from main thread
+	private readonly _onDidChangeMcpServerDefinitions = this._register(new Emitter<void>());
+	readonly onDidChangeMcpServerDefinitions: Event<void> = this._onDidChangeMcpServerDefinitions.event;
+	private _mcpServerDefinitions: readonly vscode.McpServerDefinition[] = [];
+
+	// Active gateways with their server emitters for dynamic updates
+	private readonly _activeGateways = new Map<string, {
+		servers: vscode.McpGatewayServer[];
+		onDidChangeServers: Emitter<readonly vscode.McpGatewayServer[]>;
+	}>();
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService protected readonly _logService: ILogService,
@@ -74,6 +95,17 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
+	}
+
+	/** Returns all MCP server definitions known to the editor. */
+	get mcpServerDefinitions(): readonly vscode.McpServerDefinition[] {
+		return this._mcpServerDefinitions;
+	}
+
+	/** Called by main thread to notify that MCP server definitions have changed. */
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void {
+		this._mcpServerDefinitions = servers.map(dto => Convert.McpServerDefinition.to(dto));
+		this._onDidChangeMcpServerDefinitions.fire();
 	}
 
 	$startMcp(id: number, opts: IStartMcpOptions): void {
@@ -230,6 +262,62 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 		return store;
 	}
+
+	/** {@link vscode.lm.startMcpGateway} */
+	public async startMcpGateway(chatSessionResource?: URI): Promise<vscode.McpGateway | undefined> {
+		const result = await this._proxy.$startMcpGateway(chatSessionResource?.toJSON());
+		if (!result) {
+			return undefined;
+		}
+
+		const gatewayId = result.gatewayId;
+		const servers: vscode.McpGatewayServer[] = result.servers.map(s => ({
+			label: s.label,
+			address: URI.revive(s.address),
+		}));
+		const onDidChangeServers = new Emitter<readonly vscode.McpGatewayServer[]>();
+
+		this._activeGateways.set(gatewayId, { servers, onDidChangeServers });
+
+		return {
+			get servers() { return servers; },
+			onDidChangeServers: onDidChangeServers.event,
+			dispose: () => {
+				this._activeGateways.delete(gatewayId);
+				onDidChangeServers.dispose();
+				this._proxy.$disposeMcpGateway(gatewayId);
+			}
+		};
+	}
+
+	/** Called by main thread to notify that a gateway's server set has changed. */
+	$onDidChangeGatewayServers(gatewayId: string, newServers: { label: string; address: UriComponents }[]): void {
+		const gateway = this._activeGateways.get(gatewayId);
+		if (!gateway) {
+			return;
+		}
+
+		const servers: vscode.McpGatewayServer[] = newServers.map(s => ({
+			label: s.label,
+			address: URI.revive(s.address),
+		}));
+		gateway.servers.length = 0;
+		gateway.servers.push(...servers);
+		gateway.onDidChangeServers.fire(servers);
+	}
+}
+
+function stringifyError(err: unknown): string {
+	if (!(err instanceof Error)) {
+		return String(err);
+	}
+	let msg = String(err);
+	let cause: unknown = err.cause;
+	for (let depth = 0; cause !== undefined && depth < 5; depth++) {
+		msg += `: ${cause instanceof Error ? (cause.message || String(cause)) : String(cause)}`;
+		cause = cause instanceof Error ? cause.cause : undefined;
+	}
+	return msg;
 }
 
 const enum HttpMode {
@@ -286,7 +374,7 @@ export class McpHTTPHandle extends Disposable {
 				await this._send(message);
 			}
 		} catch (err) {
-			const msg = `Error sending message to ${this._launch.uri}: ${String(err)}`;
+			const msg = `Error sending message to ${this._launch.uri}: ${stringifyError(err)}`;
 			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
 		}
 	}
@@ -347,7 +435,6 @@ export class McpHTTPHandle extends Disposable {
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
-			'Content-Length': String(asBytes.length),
 			Accept: 'text/event-stream, application/json',
 		};
 		if (sessionId) {
@@ -437,7 +524,7 @@ export class McpHTTPHandle extends Disposable {
 			try {
 				await this._doSSE(parser, res);
 			} catch (err) {
-				this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
+				this._log(LogLevel.Warning, `Error reading SSE stream: ${stringifyError(err)}`);
 			}
 		} else if (contentType.startsWith('application/json')) {
 			this._proxy.$onDidReceiveMessage(this._id, await res.text());
@@ -567,7 +654,7 @@ export class McpHTTPHandle extends Disposable {
 
 		this._register(toDisposable(() => postEndpoint.cancel()));
 		this._doSSE(parser, res).catch(err => {
-			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error reading SSE stream: ${String(err)}` });
+			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `Error reading SSE stream: ${stringifyError(err)}` });
 		});
 
 		return postEndpoint.p;
@@ -582,7 +669,6 @@ export class McpHTTPHandle extends Disposable {
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
-			'Content-Length': String(asBytes.length),
 		};
 		await this._addAuthHeader(headers);
 		const res = await this._fetch(url, {
@@ -630,7 +716,9 @@ export class McpHTTPHandle extends Disposable {
 					authorizationServer: this._authMetadata.authorizationServer.toJSON(),
 					authorizationServerMetadata: this._authMetadata.serverMetadata,
 					resourceMetadata: this._authMetadata.resourceMetadata,
-					scopes: this._authMetadata.scopes
+					scopes: this._authMetadata.scopes,
+					clientId: this._launch.oauth?.clientId,
+					enterpriseManaged: this._launch.oauth?.enterpriseManaged,
 				};
 				const token = await this._proxy.$getTokenFromServerMetadata(
 					this._id,
@@ -659,7 +747,8 @@ export class McpHTTPHandle extends Disposable {
 					this._launch.authentication.scopes,
 					{
 						errorOnUserInteraction,
-						forceNewRegistration: options?.forceNewRegistration
+						forceNewRegistration: options?.forceNewRegistration,
+						clientId: this._launch.oauth?.clientId,
 					}
 				);
 				if (token) {

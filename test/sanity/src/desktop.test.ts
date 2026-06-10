@@ -3,234 +3,284 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
-import fs from 'fs';
 import path from 'path';
 import { _electron } from 'playwright';
-import { TestContext } from './context';
+import { TestContext } from './context.js';
+import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
-	describe('Desktop', () => {
-		if (context.platform === 'darwin-x64') {
-			it('darwin', async () => {
-				const dir = await context.downloadAndUnpack('darwin');
-				const entryPoint = context.installMacApp(dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'darwin-arm64') {
-			it('darwin-arm64', async () => {
-				const dir = await context.downloadAndUnpack('darwin-arm64');
-				const entryPoint = context.installMacApp(dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform.startsWith('darwin-')) {
-			it('darwin-universal', async () => {
-				const dir = await context.downloadAndUnpack('darwin-universal');
-				const entryPoint = context.installMacApp(dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-arm64') {
-			it('linux-arm64', async () => {
-				const dir = await context.downloadAndUnpack('linux-arm64');
-				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-arm') {
-			it('linux-armhf', async () => {
-				const dir = await context.downloadAndUnpack('linux-armhf');
-				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-arm64') {
-			it('linux-deb-arm64', async () => {
-				const packagePath = await context.downloadTarget('linux-deb-arm64');
-				const entryPoint = context.installDeb(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-arm') {
-			it('linux-deb-armhf', async () => {
-				const packagePath = await context.downloadTarget('linux-deb-armhf');
-				const entryPoint = context.installDeb(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-x64') {
-			it('linux-deb-x64', async () => {
-				const packagePath = await context.downloadTarget('linux-deb-x64');
-				const entryPoint = context.installDeb(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-arm64') {
-			it('linux-rpm-arm64', async () => {
-				const packagePath = await context.downloadTarget('linux-rpm-arm64');
-				const entryPoint = context.installRpm(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-arm') {
-			it('linux-rpm-armhf', async () => {
-				const packagePath = await context.downloadTarget('linux-rpm-armhf');
-				const entryPoint = context.installRpm(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-x64') {
-			it('linux-rpm-x64', async () => {
-				const packagePath = await context.downloadTarget('linux-rpm-x64');
-				const entryPoint = context.installRpm(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-x64') {
-			it('linux-snap-x64', async () => {
-				const packagePath = await context.downloadTarget('linux-snap-x64');
-				const entryPoint = context.installSnap(packagePath);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'linux-x64') {
-			it('linux-x64', async () => {
-				const dir = await context.downloadAndUnpack('linux-x64');
-				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'win32-arm64') {
-			it('win32-arm64', async () => {
-				const packagePath = await context.downloadTarget('win32-arm64');
-				context.validateSignature(packagePath);
-				const entryPoint = context.installWindowsApp('system', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'win32-arm64') {
-			it('win32-arm64-archive', async () => {
-				const dir = await context.downloadAndUnpack('win32-arm64-archive');
-				context.validateAllSignatures(dir);
-				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'win32-arm64') {
-			it('win32-arm64-user', async () => {
-				const packagePath = await context.downloadTarget('win32-arm64-user');
-				context.validateSignature(packagePath);
-				const entryPoint = context.installWindowsApp('user', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'win32-x64') {
-			it('win32-x64', async () => {
-				const packagePath = await context.downloadTarget('win32-x64');
-				context.validateSignature(packagePath);
-				const entryPoint = context.installWindowsApp('system', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'win32-x64') {
-			it('win32-x64-archive', async () => {
-				const dir = await context.downloadAndUnpack('win32-x64-archive');
-				context.validateAllSignatures(dir);
-				const entryPoint = context.getEntryPoint('desktop', dir);
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		if (context.platform === 'win32-x64') {
-			it('win32-x64-user', async () => {
-				const packagePath = await context.downloadTarget('win32-x64-user');
-				context.validateSignature(packagePath);
-				const entryPoint = context.installWindowsApp('user', packagePath);
-				context.validateAllSignatures(path.dirname(entryPoint));
-				await testDesktopApp(entryPoint);
-			});
-		}
-
-		async function testDesktopApp(executablePath: string) {
-			const extensionsDir = context.createTempDir();
-			const dataDir = context.createTempDir();
-			const workspaceDir = context.createTempDir();
-			const args = ['--extensions-dir', extensionsDir, '--user-data-dir', dataDir, workspaceDir];
-
-			context.log(`Start VS Code: ${executablePath} with args: ${args.join(' ')}`);
-			const app = await _electron.launch({ executablePath, args });
-			const window = await app.firstWindow();
-
-			context.log('Dismiss workspace trust dialog');
-			await window.getByText('Yes, I trust the authors').click();
-
-			context.log('Focus Explorer view');
-			await window.keyboard.press('Control+Shift+E');
-
-			context.log('Click New File button');
-			await window.getByLabel('New File...').click();
-
-			context.log('Type file name');
-			await window.locator('input').fill('helloWorld.txt');
-			await window.keyboard.press('Enter');
-
-			context.log('Focus the code editor');
-			await window.getByText(/Start typing/).focus();
-
-			context.log('Type some content into the file');
-			await window.keyboard.type('Hello, World!');
-
-			context.log('Save the file');
-			await window.keyboard.press('Control+S');
-
-			context.log('Open Extensions view');
-			await window.keyboard.press('Control+Shift+X');
-			await window.waitForSelector('.extension-list-item');
-
-			context.log('Type extension name to search for');
-			await window.keyboard.type('GitHub Pull Requests');
-			await new Promise(resolve => setTimeout(resolve, 2000));
-
-			context.log('Click Install on the first extension in the list');
-			await window.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
-
-			context.log('Wait for extension to be installed');
-			await window.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor();
-
-			context.log('Close the application');
-			await app.close();
-
-			context.log('Verify file contents');
-			const filePath = `${workspaceDir}/helloWorld.txt`;
-			const fileContents = fs.readFileSync(filePath, 'utf-8');
-			assert.strictEqual(fileContents, 'Hello, World!');
-
-			context.log('Verify extension is installed');
-			const extensions = fs.readdirSync(extensionsDir);
-			const hasExtension = extensions.some(ext => ext.startsWith('github.vscode-pull-request-github'));
-			assert.strictEqual(hasExtension, true);
+	context.test('desktop-darwin-x64', ['darwin', 'x64', 'desktop'], async () => {
+		const dir = await context.downloadAndUnpack('darwin');
+		context.validateAllCodesignSignatures(dir);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
 		}
 	});
+
+	context.test('desktop-darwin-arm64', ['darwin', 'arm64', 'desktop'], async () => {
+		const dir = await context.downloadAndUnpack('darwin-arm64');
+		context.validateAllCodesignSignatures(dir);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+		}
+	});
+
+	context.test('desktop-darwin-universal', ['darwin', 'desktop'], async () => {
+		const dir = await context.downloadAndUnpack('darwin-universal');
+		context.validateAllCodesignSignatures(dir);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+		}
+	});
+
+	context.test('desktop-darwin-x64-dmg', ['darwin', 'x64', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('darwin-x64-dmg');
+		context.validateCodesignSignature(packagePath);
+		if (!context.options.downloadOnly) {
+			const dir = context.mountDmg(packagePath);
+			context.validateAllCodesignSignatures(dir);
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+			context.unmountDmg(dir);
+		}
+	});
+
+	context.test('desktop-darwin-arm64-dmg', ['darwin', 'arm64', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('darwin-arm64-dmg');
+		context.validateCodesignSignature(packagePath);
+		if (!context.options.downloadOnly) {
+			const dir = context.mountDmg(packagePath);
+			context.validateAllCodesignSignatures(dir);
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+			context.unmountDmg(dir);
+		}
+	});
+
+	context.test('desktop-darwin-universal-dmg', ['darwin', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('darwin-universal-dmg');
+		context.validateCodesignSignature(packagePath);
+		if (!context.options.downloadOnly) {
+			const dir = context.mountDmg(packagePath);
+			context.validateAllCodesignSignatures(dir);
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			await testDesktopApp(entryPoint);
+			context.unmountDmg(dir);
+		}
+	});
+
+	context.test('desktop-linux-arm64', ['linux', 'arm64', 'desktop'], async () => {
+		let dir = await context.downloadAndUnpack('linux-arm64');
+		if (!context.options.downloadOnly) {
+			dir = context.getFirstSubdirectory(dir);
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
+	});
+
+	context.test('desktop-linux-armhf', ['linux', 'arm32', 'desktop'], async () => {
+		let dir = await context.downloadAndUnpack('linux-armhf');
+		if (!context.options.downloadOnly) {
+			dir = context.getFirstSubdirectory(dir);
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
+	});
+
+	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-deb-arm64');
+		if (!context.options.downloadOnly) {
+			const entryPoint = await context.installDeb(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallDeb();
+			}
+		}
+	});
+
+	context.test('desktop-linux-deb-armhf', ['linux', 'arm32', 'deb', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-deb-armhf');
+		if (!context.options.downloadOnly) {
+			const entryPoint = await context.installDeb(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallDeb();
+			}
+		}
+	});
+
+	context.test('desktop-linux-deb-x64', ['linux', 'x64', 'deb', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-deb-x64');
+		if (!context.options.downloadOnly) {
+			const entryPoint = await context.installDeb(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallDeb();
+			}
+		}
+	});
+
+	context.test('desktop-linux-rpm-arm64', ['linux', 'arm64', 'rpm', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-rpm-arm64');
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installRpm(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallRpm();
+			}
+		}
+	});
+
+	context.test('desktop-linux-rpm-armhf', ['linux', 'arm32', 'rpm', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-rpm-armhf');
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installRpm(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallRpm();
+			}
+		}
+	});
+
+	context.test('desktop-linux-rpm-x64', ['linux', 'x64', 'rpm', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-rpm-x64');
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installRpm(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallRpm();
+			}
+		}
+	});
+
+	context.test('desktop-linux-snap-x64', ['linux', 'x64', 'snap', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('linux-snap-x64');
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installSnap(packagePath);
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallSnap();
+			}
+		}
+	});
+
+	context.test('desktop-linux-x64', ['linux', 'x64', 'desktop'], async () => {
+		let dir = await context.downloadAndUnpack('linux-x64');
+		if (!context.options.downloadOnly) {
+			dir = context.getFirstSubdirectory(dir);
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
+	});
+
+	context.test('desktop-win32-arm64', ['windows', 'arm64', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('win32-arm64');
+		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installWindowsApp('system', packagePath);
+			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			await testDesktopApp(entryPoint);
+			await context.uninstallWindowsApp('system');
+		}
+	});
+
+	context.test('desktop-win32-arm64-archive', ['windows', 'arm64', 'desktop'], async () => {
+		const dir = await context.downloadAndUnpack('win32-arm64-archive');
+		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
+	});
+
+	context.test('desktop-win32-arm64-user', ['windows', 'arm64', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('win32-arm64-user');
+		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installWindowsApp('user', packagePath);
+			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			await testDesktopApp(entryPoint);
+			await context.uninstallWindowsApp('user');
+		}
+	});
+
+	context.test('desktop-win32-x64', ['windows', 'x64', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('win32-x64');
+		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installWindowsApp('system', packagePath);
+			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			await testDesktopApp(entryPoint);
+			await context.uninstallWindowsApp('system');
+		}
+	});
+
+	context.test('desktop-win32-x64-archive', ['windows', 'x64', 'desktop'], async () => {
+		const dir = await context.downloadAndUnpack('win32-x64-archive');
+		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.getDesktopEntryPoint(dir);
+			const dataDir = context.createPortableDataDir(dir);
+			await testDesktopApp(entryPoint, dataDir);
+		}
+	});
+
+	context.test('desktop-win32-x64-user', ['windows', 'x64', 'desktop'], async () => {
+		const packagePath = await context.downloadTarget('win32-x64-user');
+		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
+		if (!context.options.downloadOnly) {
+			const entryPoint = context.installWindowsApp('user', packagePath);
+			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			await testDesktopApp(entryPoint);
+			await context.uninstallWindowsApp('user');
+		}
+	});
+
+	async function testDesktopApp(entryPoint: string, dataDir?: string) {
+		const test = new UITest(context, dataDir);
+		const args = dataDir ? [] : [
+			'--extensions-dir', test.extensionsDir,
+			'--user-data-dir', test.userDataDir,
+		];
+		const crashDumpsDir = context.getCrashDumpsDir();
+		if (crashDumpsDir) {
+			args.push('--crash-reporter-directory', crashDumpsDir);
+		}
+		args.push(test.workspaceDir);
+
+		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
+		const app = await _electron.launch({ executablePath: entryPoint, args });
+		try {
+			const window = await context.getPage(app.firstWindow());
+			await test.run(window);
+		} finally {
+			await context.closeElectronApp(app);
+		}
+
+		test.validate();
+	}
 }

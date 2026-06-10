@@ -66,6 +66,25 @@ export interface MarkdownSanitizerConfig {
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
+/**
+ * Returns a human-readable tooltip string for a link href.
+ * For file:// URIs, converts to a decoded OS file system path to avoid
+ * showing raw URL-encoded paths (e.g. "C:\Users\..." instead of "file:///c%3A/Users/...").
+ */
+function getLinkTitle(href: string): string {
+	try {
+		const parsed = URI.parse(href);
+		if (parsed.scheme === Schemas.file) {
+			const path = parsed.fsPath;
+			const fragment = parsed.fragment;
+			return escapeDoubleQuotes(fragment ? `${path}#${fragment}` : path);
+		}
+	} catch {
+		// fall through
+	}
+	return '';
+}
+
 const defaultMarkedRenderers = Object.freeze({
 	image: ({ href, title, text }: marked.Tokens.Image): string => {
 		let dimensions: string[] = [];
@@ -103,6 +122,12 @@ const defaultMarkedRenderers = Object.freeze({
 
 		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
 		href = removeMarkdownEscapes(href);
+
+		// For file:// URIs without an explicit title, show the decoded OS path instead of
+		// the raw URL-encoded URI (e.g. display "C:\Users\..." instead of "file:///c%3A/Users/...")
+		if (!title && href.startsWith(`${Schemas.file}:`)) {
+			title = getLinkTitle(href);
+		}
 
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')
@@ -731,7 +756,7 @@ function createPlainTextRenderer(): marked.Renderer {
 		return text;
 	};
 	renderer.codespan = ({ text }: marked.Tokens.Codespan): string => {
-		return escape(text);
+		return text;
 	};
 	renderer.br = (_: marked.Tokens.Br): string => {
 		return '\n';
@@ -962,21 +987,32 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		}
 	}
 
-	const lastToken = tokens.at(-1);
-	if (!newTokens && lastToken?.type === 'list') {
-		const newListToken = completeListItemPattern(lastToken as marked.Tokens.List);
+	// Find the last "interesting" token, skipping trailing `space` and `html`
+	// tokens. Callers like the chat content renderer wrap markdown in
+	// `<body>...</body>` (so dompurify keeps leading comments), which leaves
+	// `</body>` as the literal last token — without this skip, the
+	// paragraph / list fixups never fire for that content.
+	let lastInterestingIdx = tokens.length - 1;
+	while (lastInterestingIdx >= 0 && (tokens[lastInterestingIdx].type === 'space' || tokens[lastInterestingIdx].type === 'html')) {
+		lastInterestingIdx--;
+	}
+	const lastInterestingToken = lastInterestingIdx >= 0 ? tokens[lastInterestingIdx] : undefined;
+	const trailingTokens = tokens.slice(lastInterestingIdx + 1);
+
+	if (!newTokens && lastInterestingToken?.type === 'list') {
+		const newListToken = completeListItemPattern(lastInterestingToken as marked.Tokens.List);
 		if (newListToken) {
-			newTokens = [newListToken];
-			i = tokens.length - 1;
+			newTokens = [newListToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
-	if (!newTokens && lastToken?.type === 'paragraph') {
+	if (!newTokens && lastInterestingToken?.type === 'paragraph') {
 		// Only operates on a single token, because any newline that follows this should break these patterns
-		const newToken = completeSingleLinePattern(lastToken as marked.Tokens.Paragraph);
+		const newToken = completeSingleLinePattern(lastInterestingToken as marked.Tokens.Paragraph);
 		if (newToken) {
-			newTokens = [newToken];
-			i = tokens.length - 1;
+			newTokens = [newToken, ...trailingTokens];
+			i = lastInterestingIdx;
 		}
 	}
 
@@ -989,6 +1025,7 @@ function fillInIncompleteTokensOnce(tokens: marked.TokensList): marked.TokensLis
 		return newTokensList as marked.TokensList;
 	}
 
+	const lastToken = tokens.at(-1);
 	if (lastToken?.type === 'heading') {
 		const completeTokens = completeHeading(lastToken as marked.Tokens.Heading, mergeRawTokenText(tokens));
 		if (completeTokens) {

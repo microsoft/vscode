@@ -26,20 +26,20 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 /**
  * Action ID for the `Attach Instruction` action.
  */
-const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
+export const ATTACH_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.attach.instructions';
 
 /**
  * Action ID for the `Configure Instruction` action.
  */
-const CONFIGURE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.configure.instructions';
+export const CONFIGURE_INSTRUCTIONS_ACTION_ID = 'workbench.action.chat.configure.instructions';
 
 
 class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
-			title: localize2('configure-instructions', "Configure Instructions..."),
-			shortTitle: localize2('configure-instructions.short', "Chat Instructions"),
+			title: localize2('configure-instructions', "Configure Instructions & Rules..."),
+			shortTitle: localize2('configure-instructions.short', "Instructions & Rules"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ChatContextKeys.enabled,

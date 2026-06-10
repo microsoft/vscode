@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { homedir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
@@ -537,13 +536,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	public async openTsServerLogFile(): Promise<boolean> {
 		if (this._configuration.tsServerLogLevel === TsServerLogLevel.Off) {
 			vscode.window.showErrorMessage<vscode.MessageItem>(
-				vscode.l10n.t("TS Server logging is off. Please set 'typescript.tsserver.log' and restart the TS server to enable logging"),
+				vscode.l10n.t("TS Server logging is off. Please set 'js/ts.tsserver.log' and restart the TS server to enable logging"),
 				{
 					title: vscode.l10n.t("Enable logging and restart TS server"),
 				})
 				.then(selection => {
 					if (selection) {
-						return vscode.workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
+						return vscode.workspace.getConfiguration().update('js/ts.tsserver.log', 'verbose', true).then(() => {
 							this.restartTsServer();
 						});
 					}
@@ -1043,11 +1042,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (fpath.startsWith(inMemoryResourcePrefix)) {
 					return;
 				}
-				if (process.platform === 'darwin' && fpath === path.join(homedir(), 'Library')) {
-					// ignore directory watch requests on ~/Library
-					// until microsoft/TypeScript#59831 is resolved
-					return;
-				}
 
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
@@ -1223,9 +1217,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		/* __GDPR__
 			"typingsInstalled" : {
 				"owner": "mjbvz",
-				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"installSuccess": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"installedPackages": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+				"installSuccess": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"typingsInstallerVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { Sash, SashState } from '../../../../browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../browser/ui/splitview/splitview.js';

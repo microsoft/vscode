@@ -21,20 +21,17 @@ import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings
 import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
 import { PromptTypeDetectionCapability } from '../capabilities/promptTypeDetectionCapability.js';
 
-
-/**
- * Shell integration is a feature that enhances the terminal's understanding of what's happening
- * in the shell by injecting special sequences into the shell's prompt using the "Set Text
- * Parameters" sequence (`OSC Ps ; Pt ST`).
- *
- * Definitions:
- * - OSC: `\x1b]`
- * - Ps:  A single (usually optional) numeric parameter, composed of one or more digits.
- * - Pt:  A text parameter composed of printable characters.
- * - ST: `\x7`
- *
- * This is inspired by a feature of the same name in the FinalTerm, iTerm2 and kitty terminals.
- */
+// Shell integration is a feature that enhances the terminal's understanding of what's happening
+// in the shell by injecting special sequences into the shell's prompt using the "Set Text
+// Parameters" sequence (`OSC Ps ; Pt ST`).
+//
+// Definitions:
+// - OSC: `\x1b]`
+// - Ps:  A single (usually optional) numeric parameter, composed of one or more digits.
+// - Pt:  A text parameter composed of printable characters.
+// - ST: `\x7`
+//
+// This is inspired by a feature of the same name in the FinalTerm, iTerm2 and kitty terminals.
 
 /**
  * The identifier for the first numeric parameter (`Ps`) for OSC commands used by shell integration.
@@ -174,12 +171,16 @@ const enum VSCodeOscPt {
 	/**
 	 * Similar to prompt start but for line continuations.
 	 *
+	 * Format: `OSC 633 ; F ST`
+	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	ContinuationStart = 'F',
 
 	/**
 	 * Similar to command start but for line continuations.
+	 *
+	 * Format: `OSC 633 ; G ST`
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -188,12 +189,16 @@ const enum VSCodeOscPt {
 	/**
 	 * The start of the right prompt.
 	 *
+	 * Format: `OSC 633 ; H ST`
+	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	RightPromptStart = 'H',
 
 	/**
 	 * The end of the right prompt.
+	 *
+	 * Format: `OSC 633 ; I ST`
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -207,7 +212,7 @@ const enum VSCodeOscPt {
 	 * Known properties:
 	 *
 	 * - `Cwd` - Reports the current working directory to the terminal.
-	 * - `IsWindows` - Reports whether the shell is using a Windows backend like winpty or conpty.
+	 * - `IsWindows` - Reports whether the shell is using a Windows backend (conpty).
 	 *   This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
 	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
@@ -224,7 +229,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer.
 	 *
-	 * Format: `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * Format: `OSC 633 ; SetMark [; Id=<string>] [; Hidden] ST`
 	 *
 	 * `Id` - The identifier of the mark that can be used to reference it
 	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
@@ -236,7 +241,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Sends the shell's complete environment in JSON format.
 	 *
-	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce> ST`
 	 *
 	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
 	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
@@ -250,7 +255,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Delete a single environment variable from cached environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>] ST`
 	 *
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
 	 *   to enable some features. This helps ensure no malicious command injection has occurred.
@@ -262,7 +267,7 @@ const enum VSCodeOscPt {
 	/**
 	 * The start of the collecting user's environment variables individually.
 	 *
-	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>] ST`
 	 *
 	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
@@ -275,7 +280,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets an entry of single environment variable to transactional pending map of environment variables.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>] ST`
 	 *
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
 	 *   to enable some features. This helps ensure no malicious command injection has occurred.
@@ -288,7 +293,7 @@ const enum VSCodeOscPt {
 	 * The end of the collecting user's environment variables individually.
 	 * Clears any pending environment variables and fires an event that contains user's environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>] ST`
 	 *
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
 	 *   to enable some features. This helps ensure no malicious command injection has occurred.
@@ -305,7 +310,7 @@ const enum ITermOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer.
 	 *
-	 * Format: `OSC 1337 ; SetMark`
+	 * Format: `OSC 1337 ; SetMark ST`
 	 */
 	SetMark = 'SetMark',
 
@@ -335,9 +340,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 	get status(): ShellIntegrationStatus { return this._status; }
 
-	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
+	private readonly _onDidChangeStatus = this._register(new Emitter<ShellIntegrationStatus>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
-	private readonly _onDidChangeSeenSequences = new Emitter<ReadonlySet<string>>();
+	private readonly _onDidChangeSeenSequences = this._register(new Emitter<ReadonlySet<string>>());
 	readonly onDidChangeSeenSequences = this._onDidChangeSeenSequences.event;
 
 	constructor(
@@ -409,6 +414,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// when instant prompt is enabled though. If this does end up being a problem we could pass
 		// a type flag through the capability calls
 		const [command, ...args] = data.split(';');
+		this._logService.trace(`ShellIntegrationAddon#_doHandleFinalTermSequence: received sequence ${command}`);
 		this._markSequenceSeen(command);
 		switch (command) {
 			case FinalTermOscPt.PromptStart:
@@ -472,6 +478,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// Pass the sequence along to the capability
 		const argsIndex = data.indexOf(';');
 		const command = argsIndex === -1 ? data : data.substring(0, argsIndex);
+		this._logService.trace(`ShellIntegrationAddon#_doHandleVSCodeSequence: received sequence ${command}`);
 		this._markSequenceSeen(command);
 		// Cast to strict checked index access
 		const args: (string | undefined)[] = argsIndex === -1 ? [] : data.substring(argsIndex + 1).split(';');
@@ -574,7 +581,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 						return true;
 					}
 					case 'Cwd': {
-						this._updateCwd(value);
+						// OSC 633 ; P ; Cwd=<value> ; <nonce> ST — the nonce is optional and only
+						// present when emitted by a trusted shell integration script. CWD updates
+						// without a matching nonce are treated as untrusted to mitigate spoofing
+						// via OSC sequences injected through arbitrary terminal output.
+						const nonce = args[1];
+						this._updateCwd(value, nonce !== undefined && nonce === this._nonce);
 						return true;
 					}
 					case 'IsWindows': {
@@ -637,9 +649,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 	}
 
-	private _updateCwd(value: string) {
+	private _updateCwd(value: string, isTrusted: boolean = true) {
 		value = sanitizeCwd(value);
-		this._createOrGetCwdDetection().updateCwd(value);
+		this._createOrGetCwdDetection().updateCwd(value, isTrusted);
 		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		commandDetection?.setCwd(value);
 	}
@@ -668,8 +680,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 				switch (key) {
 					case ITermOscPt.CurrentDir:
-						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`
-						this._updateCwd(value);
+						// Encountered: `OSC 1337 ; CurrentDir=<Cwd> ST`. The iTerm2 protocol has no
+						// nonce, so cwd updates received this way are always considered untrusted.
+						this._updateCwd(value, false);
 						return true;
 				}
 			}
@@ -688,9 +701,10 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._markSequenceSeen(`${ShellIntegrationOscPs.SetWindowsFriendlyCwd};${command}`);
 		switch (command) {
 			case '9':
-				// Encountered `OSC 9 ; 9 ; <cwd> ST`
+				// Encountered `OSC 9 ; 9 ; <cwd> ST`. The ConEmu/Windows-friendly cwd protocol
+				// has no nonce, so cwd updates received this way are always considered untrusted.
 				if (args.length) {
-					this._updateCwd(args[0]);
+					this._updateCwd(args[0], false);
 				}
 				return true;
 		}
@@ -713,7 +727,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (command.match(/^file:\/\/.*\//)) {
 			const uri = URI.parse(command);
 			if (uri.path && uri.path.length > 0) {
-				this._updateCwd(uri.path);
+				// The `OSC 7 ; scheme://cwd ST` protocol has no nonce, so cwd updates received
+				// this way are always considered untrusted.
+				this._updateCwd(uri.path, false);
 				return true;
 			}
 		}
@@ -743,7 +759,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		commandDetection.deserialize(serialized);
 		if (commandDetection.cwd) {
 			// Cwd gets set when the command is deserialized, so we need to update it here
-			this._updateCwd(commandDetection.cwd);
+			this._updateCwd(commandDetection.cwd, false);
 		}
 	}
 

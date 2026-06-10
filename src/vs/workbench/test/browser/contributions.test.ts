@@ -17,7 +17,7 @@ import { EditorService } from '../../services/editor/browser/editorService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService, SIDE_GROUP } from '../../services/editor/common/editorService.js';
 import { LifecyclePhase } from '../../services/lifecycle/common/lifecycle.js';
-import { ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, TestSingletonFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from './workbenchTestServices.js';
+import { ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, TestForceRevealFileEditorInput, createEditorPart, registerTestEditor, workbenchInstantiationService } from './workbenchTestServices.js';
 
 suite('Contributions', () => {
 	const disposables = new DisposableStore();
@@ -48,7 +48,7 @@ suite('Contributions', () => {
 		bCreated = false;
 		bCreatedPromise = new DeferredPromise<void>();
 
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(TestSingletonFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(TestForceRevealFileEditorInput)], TEST_EDITOR_INPUT_ID));
 	});
 
 	teardown(async () => {

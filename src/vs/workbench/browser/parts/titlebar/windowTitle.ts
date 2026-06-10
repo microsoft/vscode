@@ -6,7 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
-import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
@@ -62,7 +64,7 @@ export class WindowTitle extends Disposable {
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
 	get value() { return this.title ?? ''; }
@@ -412,6 +414,13 @@ export class WindowTitle extends Disposable {
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 
-		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
+		if (isConfigured(title) || isConfigured(titleSeparator)) {
+			return true;
+		}
+
+		// Check if the default value is overridden from the configuration registry
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		return title.defaultValue !== configurationProperties[WindowSettingNames.title]?.defaultDefaultValue;
 	}
 }

@@ -21,7 +21,7 @@ import npxCompletionSpec from './completions/npx';
 import pnpmCompletionSpec from './completions/pnpm';
 import setLocationSpec from './completions/set-location';
 import yarnCompletionSpec from './completions/yarn';
-import { upstreamSpecs } from './constants';
+import * as upstreamSpecs from './upstreamSpecs';
 import { ITerminalEnvironment, PathExecutableCache } from './env/pathExecutableCache';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 import { getFigSuggestions } from './fig/figInterface';
@@ -35,14 +35,7 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
 import { defaultShellTypeResetChars, getTokenType, shellTypeResetChars, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
-export const enum TerminalShellType {
-	Bash = 'bash',
-	Fish = 'fish',
-	Zsh = 'zsh',
-	PowerShell = 'pwsh',
-	WindowsPowerShell = 'powershell',
-	GitBash = 'gitbash',
-}
+import { TerminalShellType } from './constants';
 
 const isWindows = osIsWindows();
 type ShellGlobalsCacheEntry = {
@@ -77,10 +70,8 @@ export const availableSpecs: Fig.Spec[] = [
 	pnpmCompletionSpec,
 	setLocationSpec,
 	yarnCompletionSpec,
+	...Object.values(upstreamSpecs)
 ];
-for (const spec of upstreamSpecs) {
-	availableSpecs.push(require(`./completions/upstream/${spec}`).default);
-}
 
 const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithStringEncoding, existingCommands?: Set<string>) => Promise<(string | ICompletionResource)[]>> = new Map([
 	[TerminalShellType.Bash, getBashGlobals],
@@ -268,7 +259,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
+			const shellType: string | undefined = Object.hasOwn(terminal.state, 'shell') ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
 				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);
@@ -412,6 +403,13 @@ export async function resolveCwdFromCurrentCommandString(currentCommandString: s
 			lastSlashIndex = prefix.lastIndexOf('/');
 		}
 		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
+
+		// Don't pre-resolve paths with .. segments - let the completion service handle those
+		// to avoid double-navigation (e.g., typing ../ would resolve cwd to parent here,
+		// then completion service would navigate up again from the already-parent cwd)
+		if (relativeFolder.includes('..')) {
+			return undefined;
+		}
 
 		// Use vscode.Uri.joinPath for path resolution
 		const resolvedUri = vscode.Uri.joinPath(currentCwd, relativeFolder);

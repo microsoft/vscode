@@ -237,11 +237,11 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			this.container.classList.add('icon');
 		}
 
+		// Use 'tab' inside tablist, 'button' for popup items outside tablist
+		const role = this.options.isTabList || !this.options.hasPopup ? 'tab' : 'button';
+		this.container.setAttribute('role', role);
 		if (this.options.hasPopup) {
-			this.container.setAttribute('role', 'button');
 			this.container.setAttribute('aria-haspopup', 'true');
-		} else {
-			this.container.setAttribute('role', 'tab');
 		}
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
@@ -479,7 +479,7 @@ export class CompositeOverflowActivityActionViewItem extends CompositeBarActionV
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, () => true, themeService, hoverService, configurationService, keybindingService);
+		super(action, { icon: true, colors, hasPopup: true, hoverOptions, isTabList: true }, () => true, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	showMenu(): void {

@@ -196,6 +196,40 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
+	test('rcut', () => {
+		assert.strictEqual(strings.rcut('foo bar', 0), '');
+		assert.strictEqual(strings.rcut('foo bar', 1), '');
+		assert.strictEqual(strings.rcut('foo bar', 3), 'foo');
+		assert.strictEqual(strings.rcut('foo bar', 4), 'foo'); // Trailing whitespace trimmed
+		assert.strictEqual(strings.rcut('foo bar', 5), 'foo');
+		assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
+		assert.strictEqual(strings.rcut('foo bar', 10), 'foo bar');
+		assert.strictEqual(strings.rcut('test string 0.1.2.3', 6), 'test');
+
+		assert.strictEqual(strings.rcut('foo bar', 0, '…'), '…');
+		assert.strictEqual(strings.rcut('foo bar', 1, '…'), '…');
+		assert.strictEqual(strings.rcut('foo bar', 3, '…'), 'foo…');
+		assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…'); // Trailing whitespace trimmed
+		assert.strictEqual(strings.rcut('foo bar', 5, '…'), 'foo…');
+		assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
+		assert.strictEqual(strings.rcut('foo bar', 10, '…'), 'foo bar');
+		assert.strictEqual(strings.rcut('test string 0.1.2.3', 6, '…'), 'test…');
+
+		assert.strictEqual(strings.rcut('', 10), '');
+		assert.strictEqual(strings.rcut('a', 10), 'a');
+		assert.strictEqual(strings.rcut('a ', 10), 'a');
+		assert.strictEqual(strings.rcut('a            ', 10), 'a');
+		assert.strictEqual(strings.rcut('a       bbbb ', 10), 'a       bbbb');
+		assert.strictEqual(strings.rcut('a............', 10), 'a............');
+
+		assert.strictEqual(strings.rcut('', 10, '…'), '');
+		assert.strictEqual(strings.rcut('a', 10, '…'), 'a');
+		assert.strictEqual(strings.rcut('a ', 10, '…'), 'a');
+		assert.strictEqual(strings.rcut('a            ', 10, '…'), 'a');
+		assert.strictEqual(strings.rcut('a       bbbb ', 10, '…'), 'a       bbbb');
+		assert.strictEqual(strings.rcut('a............', 10, '…'), 'a............');
+	});
+
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');
