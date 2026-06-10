@@ -17,6 +17,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import type { IChatWidget } from '../../chat.js';
 import { AgentHostChatInputPicker, isClaimedByDedicatedPicker } from './agentHostChatInputPicker.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
@@ -57,6 +58,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
@@ -100,7 +102,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 
 		this._initialResolved = undefined;
 		this._cancelInitialResolve();
-		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, backendSession, 'AgentHostGenericConfigChips');
 		const sub = ref.object;
 		const listener = sub.onDidChange(() => this._sync());
 		this._subRef.value = {
@@ -142,7 +144,8 @@ export class AgentHostGenericConfigChips extends Disposable {
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		return (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
+			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 

@@ -96,6 +96,7 @@ function renderWelcomePage(ctx: ComponentFixtureContext): void {
 		createMockCommandService(),
 		workspaceService,
 		NullHoverService,
+		'Local',
 	));
 	page.rebuildCards(visibleSections);
 }

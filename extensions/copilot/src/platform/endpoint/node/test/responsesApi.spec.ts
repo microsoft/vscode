@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
+import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
@@ -19,6 +20,7 @@ import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
+import type { ThinkingData } from '../../../thinking/common/thinking';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
 
@@ -96,6 +98,17 @@ const createCompactionAssistantMessage = (compaction: OpenAIContextManagementRes
 			compaction,
 		}
 	}]
+});
+
+const createThinkingAssistantMessage = (thinking: ThinkingData): Raw.ChatMessage => ({
+	role: Raw.ChatRole.Assistant,
+	content: [
+		{
+			type: Raw.ChatCompletionContentPartKind.Opaque,
+			value: { type: CustomDataPartMimeTypes.ThinkingData, thinking },
+		},
+		{ type: Raw.ChatCompletionContentPartKind.Text, text: 'answer' },
+	],
 });
 
 type ResponseFunctionCallInputItem = OpenAI.Responses.ResponseInputItem & {
@@ -356,6 +369,59 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 });
 
 describe('createResponsesRequestBody', () => {
+	it('enables persistent CoT on initial requests for hidden model M when the experiment is enabled', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
+		const endpoint = { ...testEndpoint, family: 'ember-alpha', supportsReasoningEffort: ['low', 'medium', 'high'] };
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), endpoint.model, endpoint));
+
+		expect(body.reasoning).toEqual({ effort: 'medium', summary: 'detailed', context: 'all_turns' });
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('does not enable persistent CoT when the experiment is disabled or the family is unsupported', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const emberEndpoint = { ...testEndpoint, family: 'ember-alpha' };
+		const unsupportedEndpoint = { ...testEndpoint, model: 'ember-alpha', family: 'other-family' };
+
+		const disabledBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), emberEndpoint.model, emberEndpoint));
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
+		const unsupportedBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([], false), unsupportedEndpoint.model, unsupportedEndpoint));
+
+		expect(disabledBody.reasoning?.context).toBeUndefined();
+		expect(unsupportedBody.reasoning?.context).toBeUndefined();
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('keeps persistent CoT enabled when continuing from a previous response', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, true);
+		const endpoint = { ...testEndpoint, family: 'ember-alpha' };
+		const messages: Raw.ChatMessage[] = [
+			createStatefulMarkerMessage(endpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'continue' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), endpoint.model, endpoint));
+
+		expect(body.previous_response_id).toBe('resp-prev');
+		expect(body.reasoning?.context).toBe('all_turns');
+
+		accessor.dispose();
+		services.dispose();
+	});
+
 	it('extracts compaction threshold from request body context management', () => {
 		expect(getResponsesApiCompactionThresholdFromBody({
 			context_management: [{
@@ -363,6 +429,38 @@ describe('createResponsesRequestBody', () => {
 				compact_threshold: 1234,
 			}]
 		})).toBe(1234);
+	});
+
+	it('round-trips a genuine Responses reasoning item (id begins with "rs")', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'rs_abc123', text: 'reasoning', encrypted: 'enc_blob' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toContainEqual({ type: 'reasoning', id: 'rs_abc123', summary: [], encrypted_content: 'enc_blob' });
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('drops foreign thinking (Messages API "thinking_N" id) so it cannot 400 the Responses request', () => {
+		// Reproduces "400 invalid_request_body: Invalid 'input[N].id': 'thinking_0'. Expected an
+		// ID that begins with 'rs'." Anthropic Messages-API thinking leaks into a Responses
+		// request (e.g. via the vscode.lm path); its id and encrypted payload are foreign and
+		// must not be round-tripped.
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages = [createThinkingAssistantMessage({ id: 'thinking_0', text: '', encrypted: 'sig_from_anthropic' })];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.some(item => item.type === 'reasoning')).toBe(false);
+
+		accessor.dispose();
+		services.dispose();
 	});
 
 	it('converts PDF document content parts to Responses input_file', () => {

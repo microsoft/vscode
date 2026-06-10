@@ -156,6 +156,10 @@ function convertIndentation(content: string): string {
  * `import { B, type A }` to satisfy the no-duplicate-imports lint rule.
  */
 function mergeDuplicateImports(content: string): string {
+	// Normalize line endings so the `$`-anchored import regexes below match
+	// regardless of whether the source was checked out with CRLF or LF.
+	content = content.replace(/\r\n/g, '\n');
+
 	// Collapse multi-line imports into single lines first
 	content = content.replace(/import\s+(type\s+)?\{([^}]+)\}\s+from\s+'([^']+)';/g, (_match, typeKeyword, names, mod) => {
 		const collapsed = names.replace(/\s+/g, ' ').trim();

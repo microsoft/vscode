@@ -5,12 +5,26 @@
 
 import type { AnyZodRawShape, GetSessionMessagesOptions, GetSubagentMessagesOptions, InferShape, ListSessionsOptions, ListSubagentsOptions, McpSdkServerConfigWithInstance, Options, SDKSessionInfo, SdkMcpToolDefinition, SessionMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import * as fs from 'fs';
 import { pathToFileURL } from 'url';
-import { join, resolve } from '../../../../base/common/path.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { join } from '../../../../base/common/path.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentHostClaudeSdkPathEnvVar } from '../../common/agentService.js';
+import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
+import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
+
+/**
+ * `@anthropic-ai/claude-agent-sdk` distribution descriptor. Lives in this
+ * file because it encodes Claude-specific knowledge — the env-var name and
+ * the fact that Claude ships separate `linux-*-musl` packages alongside
+ * the regular `linux-*` ones. The downloader consumes this through
+ * `IAgentSdkPackage` and never names Claude directly.
+ */
+export const ClaudeSdkPackage: IAgentSdkPackage = {
+	id: 'claude',
+	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
+	hasSeparateMuslLinuxPackage: true,
+};
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 
@@ -56,9 +70,11 @@ export interface IClaudeAgentSdkService {
  * Narrowed structural slice of `@anthropic-ai/claude-agent-sdk` covering
  * exactly the bindings the agent host pulls from the SDK. Production
  * `import()` returns the full module which is structurally assignable to
- * this interface; tests subclass {@link ClaudeAgentSdkService} and
- * override {@link ClaudeAgentSdkService._loadSdk} to fault or stub these
- * bindings without having to name every export of the SDK module.
+ * this interface. Tests usually stub {@link IClaudeAgentSdkService} via
+ * the DI container, but a few existing suites subclass
+ * {@link ClaudeAgentSdkService} and override {@link ClaudeAgentSdkService._loadSdk}
+ * to fault or stub these bindings without having to name every export of
+ * the SDK module — `_loadSdk` is `protected` for that reason.
  */
 export interface IClaudeSdkBindings {
 	listSessions(options?: ListSessionsOptions): Promise<SDKSessionInfo[]>;
@@ -99,6 +115,7 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IAgentSdkDownloader private readonly _downloader: IAgentSdkDownloader,
 	) { }
 
 	async listSessions(): Promise<readonly SDKSessionInfo[]> {
@@ -168,27 +185,12 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	protected async _loadSdk(): Promise<IClaudeSdkBindings> {
-		// The SDK is intentionally not bundled with VS Code. The user supplies an
-		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk`
-		// package via the `chat.agentHost.claudeAgent.path` setting, which is
-		// forwarded to this process as `AgentHostClaudeSdkPathEnvVar`. Convert
-		// to a `file://` URL so dynamic `import()` accepts paths with spaces and
-		// works on Windows.
-		const sdkPath = process.env[AgentHostClaudeSdkPathEnvVar];
-		if (!sdkPath) {
-			throw new Error(`Cannot load @anthropic-ai/claude-agent-sdk: ${AgentHostClaudeSdkPathEnvVar} is not set. Set the 'chat.agentHost.claudeAgent.path' setting to a locally-installed SDK package.`);
-		}
-		// Node ESM rejects directory imports, so if the user pointed at the
-		// package directory, resolve its `exports['.']` / `main` entry first.
-		let entry = sdkPath;
-		if (fs.statSync(sdkPath).isDirectory()) {
-			const pkgJson = JSON.parse(fs.readFileSync(join(sdkPath, 'package.json'), 'utf8'));
-			const mainEntry = pkgJson.exports?.['.']?.default
-				?? pkgJson.exports?.['.']?.import
-				?? pkgJson.main
-				?? 'index.js';
-			entry = resolve(sdkPath, mainEntry);
-		}
+		// Resolve the SDK root via the downloader: dev override → cache →
+		// download from `product.agentSdks.claude`. The known internal
+		// `sdk.mjs` entrypoint is hard-coded here because this file is the
+		// one place that owns knowledge of the Claude SDK's import surface.
+		const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
+		const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
 		return import(pathToFileURL(entry).href);
 	}
 }

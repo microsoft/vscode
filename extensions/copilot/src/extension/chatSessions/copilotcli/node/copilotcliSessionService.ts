@@ -365,6 +365,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ICopilotCLIModels private readonly _copilotCLIModels: ICopilotCLIModels,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@IVSCodeExtensionContext private readonly _vscodeExtensionContext?: IVSCodeExtensionContext,
 	) {
 		super();
 		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
@@ -383,37 +384,28 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
 				const sdkPackage = await this.getSDKPackage();
-				const { internal, createLocalFeatureFlagService } = sdkPackage;
-				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
-				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
-				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
-				if (!process.env['COPILOT_OTEL_ENABLED']) {
-					process.env['COPILOT_OTEL_ENABLED'] = 'true';
-				}
-				// Default content capture to 'true' for the debug panel. When user OTel
-				// is enabled, their captureContent setting overrides this default below.
-				// When user OTel is disabled, the default gives debug panel content.
-				// If the user explicitly set the env var, respect their choice.
-				if (!process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT']) {
-					process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] = 'true';
-				}
-				if (this._otelService.config.enabled) {
+				const { internal, createLocalFeatureFlagServiceCreator } = sdkPackage;
+				// The SDK reads OTel config from process.env at startup. Snapshot
+				// the originals so disposal restores them and subprocesses don't
+				// inherit our mutations.
+				this._registerOTelEnvSnapshot();
+				if (this._otelService.config.enabledExplicitly) {
 					const otelEnv = deriveCopilotCliOTelEnv(this._otelService.config);
 					for (const [key, value] of Object.entries(otelEnv)) {
 						process.env[key] = value;
 					}
-					// When user OTel is enabled, their captureContent config takes
-					// precedence over the debug-panel default set above.
 					process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] = String(this._otelService.config.captureContent);
 				} else {
-					// User OTel disabled: ensure SDK doesn't export to any external collector.
-					// Use file exporter to /dev/null so the SDK creates OtelSessionTracker
-					// (for debug panel) but writes spans nowhere.
-					process.env['COPILOT_OTEL_EXPORTER_TYPE'] = 'file';
+					// User opted out. Keep the SDK's OtelSessionTracker alive for the
+					// debug panel by setting only the file exporter path (the SDK
+					// auto-derives exporterType='file' from it), pointed at /dev/null.
+					// Clear any inherited OTLP endpoint so the SDK can't fall back to it.
 					process.env['COPILOT_OTEL_FILE_EXPORTER_PATH'] = devNull;
+					delete process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
+					delete process.env['COPILOT_OTEL_ENDPOINT'];
 				}
 				return new internal.LocalSessionManager({
-					featureFlagService: createLocalFeatureFlagService(),
+					createFeatureFlagService: createLocalFeatureFlagServiceCreator(),
 					telemetryService: new internal.NoopTelemetryService(),
 					autoModeManager: this.createAutoModeManager(sdkPackage),
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
@@ -428,6 +420,39 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private async getSDKPackage(): Promise<SDKPackage> {
 		return this.copilotCLISDK.getPackage();
+	}
+
+	/**
+	 * Snapshot OTel env vars before SDK mutation and restore them on disposal,
+	 * so subprocesses spawned later don't inherit our mutations.
+	 */
+	private _otelEnvSnapshotted = false;
+	private _registerOTelEnvSnapshot(): void {
+		if (this._otelEnvSnapshotted) {
+			return;
+		}
+		this._otelEnvSnapshotted = true;
+		const keys = [
+			'COPILOT_OTEL_ENABLED',
+			'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+			'OTEL_EXPORTER_OTLP_ENDPOINT',
+			'COPILOT_OTEL_ENDPOINT',
+			'COPILOT_OTEL_EXPORTER_TYPE',
+			'COPILOT_OTEL_FILE_EXPORTER_PATH',
+		];
+		const originals = new Map<string, string | undefined>();
+		for (const key of keys) {
+			originals.set(key, process.env[key]);
+		}
+		this._register(toDisposable(() => {
+			for (const [key, value] of originals) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}));
 	}
 
 	private createAutoModeManager(sdkPackage: SDKPackage): SDKAutoModeSessionManager {
@@ -643,6 +668,35 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private _sessionLabels: Map<string, string> = new Map();
 
+	/**
+	 * The agent host's `<userDataPath>/agentSessionData/` directory, derived from `globalStorageUri`
+	 * (`<userDataPath>/User/globalStorage/<extId>`). The Extension API doesn't expose `userDataPath` directly.
+	 * `undefined` when no extension context (e.g. tests).
+	 */
+	private _getAgentHostSessionDataDir(): URI | undefined {
+		const globalStorageUri = this._vscodeExtensionContext?.globalStorageUri;
+		if (!globalStorageUri) {
+			return undefined;
+		}
+		const userDataPath = dirname(dirname(dirname(globalStorageUri)));
+		return joinPath(userDataPath, 'agentSessionData');
+	}
+
+	/**
+	 * Whether the agent host owns this session — it writes a per-session SQLite DB at
+	 * `<userDataPath>/agentSessionData/<sessionId>/session.db` and we skip those to avoid double-listing sessions both
+	 * surfaces read from the shared `~/.copilot/session-state/` directory.
+	 */
+	private async _isOwnedByAgentHost(sessionId: string, dataDir: URI | undefined): Promise<boolean> {
+		if (!dataDir) {
+			return false;
+		}
+		// Must mirror `SessionDataService._sanitizedSessionKey`.
+		const sanitized = sessionId.replace(/[^a-zA-Z0-9_.-]/g, '-');
+		const dbPath = joinPath(dataDir, sanitized, 'session.db');
+		return this.fileSystem.stat(dbPath).then(() => true, () => false);
+	}
+
 	async _getAllSessions(token: CancellationToken): Promise<readonly ICopilotCLISessionItem[]> {
 		this._isGettingSessions++;
 		try {
@@ -651,9 +705,15 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			await this._sessionTracker.initialize();
 
+			// Skip sessions the agent host already lists (both surfaces share `~/.copilot/session-state/`).
+			const agentHostDataDir = this._getAgentHostSessionDataDir();
+
 			// Convert SessionMetadata to ICopilotCLISession
 			const diskSessions: ICopilotCLISessionItem[] = coalesce(await Promise.all(
 				sessionMetadataList.map(async (metadata): Promise<ICopilotCLISessionItem | undefined> => {
+					if (await this._isOwnedByAgentHost(metadata.sessionId, agentHostDataDir)) {
+						return;
+					}
 					const workingDirectory = metadata.context?.cwd ? URI.file(metadata.context.cwd) : undefined;
 					this._sessionWorkingDirectories.set(metadata.sessionId, workingDirectory);
 					if (!await this.shouldShowSession(metadata.sessionId, metadata.context)) {
@@ -783,18 +843,16 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			await Promise.all(promises);
 
 			if (sessionOptions.copilotUrl) {
-				sdkSession.updateOptions({
-					authInfo: {
-						type: 'hmac',
-						hmac: 'empty',
-						host: 'https://github.com',
-						copilotUser: {
-							endpoints: {
-								api: sessionOptions.copilotUrl
-							}
-						}
-					}
-				});
+				// Only respect this from user (global) settings — a malicious workspace
+				// setting could downgrade auth from HMAC to token.
+				const authTypeInspect = this.configurationService.inspectConfig(ConfigKey.Shared.DebugOverrideAuthType);
+				const authType = authTypeInspect?.globalValue ?? 'hmac';
+				const copilotUser = { endpoints: { api: sessionOptions.copilotUrl } };
+				const host = 'https://github.com' as const;
+				const authInfo = authType === 'token'
+					? { type: 'token' as const, token: 'mock-token', host, copilotUser }
+					: { type: 'hmac' as const, hmac: 'empty', host, copilotUser };
+				sdkSession.updateOptions({ authInfo });
 			}
 			this.logService.trace(`[CopilotCLISession] Created new CopilotCLI session ${sdkSession.sessionId}.`);
 

@@ -6,13 +6,15 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
@@ -22,6 +24,7 @@ import { NewChatInputWidget } from './newChatInput.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 
 // #region --- New Chat Widget ---
 
@@ -31,8 +34,8 @@ export class NewChatWidget extends Disposable {
 	private readonly _newChatInput: NewChatInputWidget;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
-	/** Tracks an in-flight wait for a provider's session types to become available. */
-	private readonly _pendingSessionTypeWait = new MutableDisposable<IDisposable>();
+	/** Recreates the draft once a better/late-registering provider can serve the folder (see {@link _createNewSession}). */
+	private readonly _pendingPreferredUpgrade = new MutableDisposable<IDisposable>();
 
 	/**
 	 * The currently mounted no-agent-host empty state, if any. Set by
@@ -42,25 +45,47 @@ export class NewChatWidget extends Disposable {
 	 */
 	private _activeEmptyState: NoAgentHostEmptyState | undefined;
 
+	/**
+	 * Whether to render the session type ("harness") picker below the input
+	 * (in the controls) instead of next to the workspace picker. Read once from
+	 * the view options at construction time; the widget does not react to later
+	 * changes of the source observable.
+	 */
+	private readonly _renderHarnessPickerInControls: boolean;
+
+	private readonly _session: IObservable<IActiveSession | undefined>;
+
 	constructor(
+		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
+		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
 		// {@link WorkspacePicker} is fine — phones never run there.
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
-		this._register(this._pendingSessionTypeWait);
+		this._register(this._pendingPreferredUpgrade);
+
+		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsManagementService.activeSession read in the widget.
+		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
+			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			if (activeSession && activeSession.isCreated.read(reader)) {
+				return prev;
+			}
+			return activeSession;
+		});
 
 		const canSendRequest = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			if (!session) {
 				return false;
 			}
@@ -68,35 +93,23 @@ export class NewChatWidget extends Disposable {
 		});
 
 		const loading = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			return session?.loading.read(reader) ?? false;
 		});
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
-			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
-			renderSessionTypePickerInControls: false,
+			historyKey: constObservable(undefined), // no persisted history for the new-session view
+			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 		}));
 
 		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
-			if (folderUri) {
-				// Carry over the user's preferred session type if some
-				// provider can still serve it for this folder; otherwise
-				// fall back to the provider's natural default by passing
-				// only the folder URI.
-				const picked = this._newChatInput.sessionTypePicker.selectedPick;
-				const folderTypes = picked ? this.sessionsManagementService.getSessionTypesForFolder(folderUri) : undefined;
-				const validForFolder = picked && folderTypes!.some(t =>
-					(picked.providerId === undefined || t.providerId === picked.providerId)
-					&& t.sessionType.id === picked.sessionTypeId);
-				await this._onWorkspaceSelected(folderUri, validForFolder ? picked : undefined);
-			} else {
-				await this._onWorkspaceSelected(undefined, undefined);
-			}
+			await this._onWorkspaceSelected(folderUri, folderUri ? this._newChatInput.sessionTypePicker.selectedPick : undefined);
 			this._newChatInput.focus();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
@@ -130,8 +143,8 @@ export class NewChatWidget extends Disposable {
 		// Create initial session for any workspace already selected at construct time.
 		// If the selection arrives later (provider registers asynchronously), the
 		// picker fires onDidSelectWorkspace and our listener handles it.
-		// Skip if an active session already exists (restored by openNewSessionView
-		// from a pending new session when navigating back from another session).
+		// Skip if an active session already exists (restored by openNewSession
+		// from a new-session draft when navigating back from another session).
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (!this._syncWorkspacePickerFromActiveSession() && restoredFolderUri) {
 			this._createNewSession(restoredFolderUri, this._newChatInput.sessionTypePicker.selectedPick);
@@ -141,7 +154,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	/**
-	 * If a pending session was restored by {@link openNewSessionView}, sync
+	 * If a new-session draft was restored by {@link openNewSession}, sync
 	 * the workspace picker to match the session's workspace. The picker may
 	 * have restored a workspace from a different provider (e.g. remote vs
 	 * local), so overwrite it with the session's actual workspace without
@@ -151,7 +164,7 @@ export class NewChatWidget extends Disposable {
 	 * @returns `true` if an active session was found and the picker was synced.
 	 */
 	private _syncWorkspacePickerFromActiveSession(): boolean {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;
 		}
@@ -165,57 +178,57 @@ export class NewChatWidget extends Disposable {
 		return true;
 	}
 
+	private _isPreferredServable(folderUri: URI, pick: IPreferredSessionType): boolean {
+		return this.sessionsManagementService.getSessionTypesForFolder(folderUri).some(t =>
+			(pick.providerId === undefined || t.providerId === pick.providerId)
+			&& t.sessionType.id === pick.sessionTypeId);
+	}
+
 	private _createNewSession(folderUri: URI, pick: IPreferredSessionType | undefined): void {
-		// If the carried-over pick can no longer be served for this folder
-		// (the picker upgraded to a different provider after restore), drop
-		// it so the management service picks the natural default. When the
-		// pick has no providerId yet (legacy stored preference), we accept
-		// any provider that offers the same sessionTypeId.
-		let effectivePick = pick;
-		if (effectivePick) {
-			const available = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
-			const matches = available.some(t =>
-				(effectivePick!.providerId === undefined || t.providerId === effectivePick!.providerId)
-				&& t.sessionType.id === effectivePick!.sessionTypeId);
-			if (!matches) {
-				effectivePick = undefined;
-			}
+		this._pendingPreferredUpgrade.clear();
+		const created = this._createSessionNow(folderUri, pick);
+		// Watch for late-registering providers when the draft could not be
+		// created yet (no provider serves the folder), or was created with a
+		// non-preferred fallback. Agent hosts connect lazily, so there is no
+		// timeout — the listener lives until the draft is sent or replaced.
+		if (!created || (pick && !this._isPreferredServable(folderUri, pick))) {
+			this._scheduleRecreateOnProviderChange(folderUri, pick, created);
 		}
+	}
 
-		// Session types may not be available yet (e.g., agent host still connecting).
-		// If so, wait for them before creating the session — otherwise createNewSession
-		// throws and the new chat view is left without an active session, which hides
-		// agent-host-specific UI (model picker etc.) until the user re-picks the workspace.
-		// If the connection fails, the picker fires onDidSelectWorkspace(undefined) which
-		// clears the pending wait via _onWorkspaceSelected.
-		const availableNow = this.sessionsManagementService.getSessionTypesForFolder(folderUri);
-		if (availableNow.length === 0) {
-			const pendingStore = new DisposableStore();
-			this._pendingSessionTypeWait.value = pendingStore;
-			pendingStore.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-				if (this.sessionsManagementService.getSessionTypesForFolder(folderUri).length > 0) {
-					this._pendingSessionTypeWait.clear();
-					this._createNewSession(folderUri, pick);
-				}
-			}));
-			return;
-		}
-
-		// Fall back to the provider associated with the recently-picked
-		// workspace (e.g. Local Agent Host) when the session type picker has
-		// no explicit pick yet. This preserves the user's historical provider
-		// association across iteration-order changes in the providers list.
+	private _createSessionNow(folderUri: URI, pick: IPreferredSessionType | undefined): ISession | undefined {
+		const effectivePick = pick && this._isPreferredServable(folderUri, pick) ? pick : undefined;
 		const fallbackProviderId = this._workspacePicker.selectedResolved?.providerId;
-
 		try {
-			this.sessionsManagementService.createNewSession(folderUri, effectivePick
-				? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
-				: fallbackProviderId
-					? { providerId: fallbackProviderId }
-					: undefined);
+			return this.sessionsViewService.openNewSession({
+				folderUri,
+				...(effectivePick
+					? { providerId: effectivePick.providerId, sessionTypeId: effectivePick.sessionTypeId }
+					: fallbackProviderId
+						? { providerId: fallbackProviderId }
+						: undefined),
+			});
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
+			return undefined;
 		}
+	}
+
+	private _scheduleRecreateOnProviderChange(folderUri: URI, pick: IPreferredSessionType | undefined, created: ISession | undefined): void {
+		const store = new DisposableStore();
+		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			if (created) {
+				const active = this._session.get();
+				if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
+					return; // the draft was sent or is no longer the active session
+				}
+				if (pick && !this._isPreferredServable(folderUri, pick)) {
+					return; // the preferred provider still cannot serve the folder
+				}
+			}
+			this._createNewSession(folderUri, pick);
+		}));
+		this._pendingPreferredUpgrade.value = store;
 	}
 
 	/**
@@ -233,9 +246,12 @@ export class NewChatWidget extends Disposable {
 			: localize('newSessionChooseWorkspace', "Start by picking a");
 
 		this._workspacePicker.render(pickersRow);
-		const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
-		withLabel.textContent = localize('newSessionWith', "with");
-		this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
+
+		if (!this._renderHarnessPickerInControls) {
+			const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
+			withLabel.textContent = localize('newSessionWith', "with");
+			this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
+		}
 		return this._workspacePicker.onDidSelectWorkspace(() => {
 			const folderUri = this._workspacePicker.selectedFolderUri;
 			pickersLabel.textContent = folderUri
@@ -332,7 +348,7 @@ export class NewChatWidget extends Disposable {
 	// --- Send ---
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return;
@@ -398,11 +414,11 @@ export class NewChatWidget extends Disposable {
 	 * Requests folder trust if needed and creates a new session.
 	 */
 	private async _onWorkspaceSelected(folderUri: URI | undefined, pick: IPreferredSessionType | undefined): Promise<void> {
-		// Cancel any in-flight wait for a previous selection.
-		this._pendingSessionTypeWait.clear();
+		// Cancel any in-flight upgrade for a previous selection.
+		this._pendingPreferredUpgrade.clear();
 
 		if (!folderUri) {
-			this.sessionsManagementService.unsetNewSession();
+			this.sessionsViewService.unsetNewSession();
 			return;
 		}
 

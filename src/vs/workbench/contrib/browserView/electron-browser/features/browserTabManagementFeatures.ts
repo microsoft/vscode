@@ -393,12 +393,14 @@ class NewTabAction extends Action2 {
 			id: BrowserViewCommandId.NewTab,
 			title: localize2('browser.newTabAction', "New Tab"),
 			category: BrowserActionCategory,
+			icon: Codicon.add,
 			f1: true,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: BrowserActionGroup.Tabs,
 				order: 1,
+				isHiddenByDefault: true,
 			},
 			// When already in a browser, Ctrl/Cmd + T opens a new tab
 			keybinding: {
@@ -568,16 +570,22 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
+		}
+
+		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
+		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
+			href = ctx.sourceUri.toString();
 		}
 
 		try {

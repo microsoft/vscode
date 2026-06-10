@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -97,7 +97,10 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidDeleteSession = Event.None;
 	readonly onDidDeleteChat = Event.None;
 	readonly onDidRenameChat = Event.None;
+	readonly onDidReplaceSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
+
+	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -121,6 +124,10 @@ class MockSessionStore implements ISessionsManagementService {
 		} else {
 			this.activeSession.set(undefined, undefined);
 		}
+	}
+
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		this.setActiveSession(to);
 	}
 
 	setActiveChat(chat: IChat): void {
@@ -156,11 +163,12 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 
-	openNewSessionView(): void {
+	openNewSession(): ISession | undefined {
 		this._openedNewSession = true;
 		this._openedResource = undefined;
 		this._openedChatResource = undefined;
 		this.setActiveSession(undefined);
+		return undefined;
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
@@ -174,6 +182,8 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	createNewChatInSession(_session: ISession): Promise<IChat | undefined> { throw new Error('not implemented'); }
+	discardNewSession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
 	createAndSendNewChatRequest(_folderUri: URI, _options: ISendRequestOptions, _createOptions?: ICreateNewSessionOptions): Promise<void> { throw new Error('not implemented'); }
@@ -210,6 +220,7 @@ suite('SessionsNavigation', () => {
 		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
 
 		nav = disposables.add(new SessionsNavigation(
+			store,
 			store,
 			recency,
 			contextKeyService,
