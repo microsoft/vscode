@@ -439,12 +439,9 @@ function renderForm(
 		ariaLabel: localize('automation.form.name', "Name"),
 	}));
 	nameInput.value = state.name;
-	const nameError = DOM.append(nameRow, $('.automation-form-error'));
-	nameError.textContent = validation.nameError ?? '';
 	disposables.add(nameInput.onDidChange(value => {
 		state.name = value;
 		revalidate();
-		nameError.textContent = validation.nameError ?? '';
 	}));
 
 	// --- Schedule (interval + inline time + inline day) ---
@@ -571,13 +568,19 @@ function renderForm(
 	// but the workspace picker's onDidSelectWorkspace handler (which
 	// surfaces folder validation errors) needs a stable reference. Hoist
 	// it via a `let` and an updater closure so the prompt section can
-	// assign the DOM element when it builds it. The updater shows folder
-	// validation first (it's the more blocking error: save stays disabled
-	// without a folder); prompt error only shows once the folder is set.
+	// assign the DOM element when it builds it.
+	//
+	// We only surface `folderError` here. Name and prompt "required"
+	// errors are deliberately suppressed — the Save button is disabled
+	// whenever those fields are empty, so the inline red text is
+	// redundant and flashes annoyingly while the user types and deletes.
+	// Folder error stays because the workspace chip in the toolbar is
+	// subtle ("workspace" placeholder) — users may not notice it's
+	// unset without an explicit message.
 	let promptError: HTMLElement | undefined = undefined;
 	const refreshPromptError = () => {
 		if (promptError) {
-			promptError.textContent = validation.folderError ?? validation.promptError ?? '';
+			promptError.textContent = validation.folderError ?? '';
 		}
 	};
 
