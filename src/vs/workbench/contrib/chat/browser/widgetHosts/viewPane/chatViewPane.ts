@@ -488,11 +488,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.telemetryService.publicLog2<VoiceOnboardingCompletedEvent, VoiceOnboardingCompletedClassification>('voiceOnboardingCompleted', {});
 				// Force relayout after onboarding is dismissed so the voice
 				// bar shrinks and the chat widget reclaims the freed space.
-				setTimeout(() => {
-					if (this.lastDimensions) {
-						this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-					}
-				}, 0);
+				// Multiple delays because the render effect + rAF pipeline
+				// means the DOM isn't updated until a frame or two later.
+				for (const delay of [0, 16, 100, 300]) {
+					setTimeout(() => {
+						if (this.lastDimensions) {
+							this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+						}
+					}, delay);
+				}
 			},
 		}, {
 			width: 'auto',
