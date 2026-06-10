@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -295,7 +296,7 @@ suite('extractImagesFromChatResponse', () => {
 		assert.strictEqual(result.images[0].uri.toString(), imageUri.toString());
 		assert.strictEqual(result.images[0].name, 'result.png');
 		assert.strictEqual(result.images[0].mimeType, 'image/png');
-		assert.strictEqual(result.images[0].caption, 'Took a screenshot');
+		assert.strictEqual((result.images[0].caption as IMarkdownString).value, 'Took a screenshot');
 	});
 
 	test('combines output details images and message URI images', async () => {
@@ -377,7 +378,7 @@ suite('extractImagesFromToolInvocationMessages', () => {
 		assert.strictEqual(result[0].uri.toString(), imageUri.toString());
 		assert.strictEqual(result[0].name, 'capture.png');
 		assert.strictEqual(result[0].mimeType, 'image/png');
-		assert.strictEqual(result[0].caption, 'Captured screenshot');
+		assert.strictEqual((result[0].caption as IMarkdownString).value, 'Captured screenshot');
 		assert.ok(result[0].source.includes('screenshot-tool'));
 	});
 
@@ -432,7 +433,7 @@ suite('extractImagesFromToolInvocationMessages', () => {
 		const result = await extractImagesFromToolInvocationMessages(toolInvocation, fakeReadFile);
 
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].caption, 'Running tool');
+		assert.strictEqual((result[0].caption as IMarkdownString).value, 'Running tool');
 	});
 });
 
