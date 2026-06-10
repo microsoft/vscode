@@ -289,7 +289,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	async runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
 		let command: string;
 		switch (remediation) {
-			case TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace:
+			case TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction:
 				command = 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0';
 				break;
 			default:

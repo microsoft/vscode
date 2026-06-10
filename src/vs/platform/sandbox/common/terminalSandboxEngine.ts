@@ -417,7 +417,7 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _getBubblewrapRemediations(): readonly TerminalSandboxPreCheckRemediation[] | undefined {
-		return [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace];
+		return [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction];
 	}
 
 	private _quoteShellArgument(value: string): string {

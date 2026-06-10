@@ -538,7 +538,7 @@ suite('RunInTerminalTool', () => {
 				enabled: true,
 				sandboxConfigPath: '/tmp/sandbox.json',
 				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
-				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace],
+				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
 			};
 
 			const result = await executeToolTest({ command: 'echo hello' });
@@ -559,7 +559,7 @@ suite('RunInTerminalTool', () => {
 						enabled: true,
 						sandboxConfigPath: '/tmp/sandbox.json',
 						failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
-						remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace],
+						remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
 					};
 				}
 				return {

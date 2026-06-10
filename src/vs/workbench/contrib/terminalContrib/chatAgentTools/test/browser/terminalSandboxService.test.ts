@@ -330,7 +330,7 @@ suite('TerminalSandboxService - network domains', () => {
 		const result = await sandboxService.checkForSandboxingPrereqs();
 
 		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
-		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace]);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
 		strictEqual(result.detail, 'No permissions to create namespace');
 	});
 
@@ -361,7 +361,7 @@ suite('TerminalSandboxService - network domains', () => {
 		};
 
 		strictEqual(
-			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace),
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction),
 			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
 		);
 	});

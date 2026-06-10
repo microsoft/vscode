@@ -987,13 +987,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		} else if (sandboxRemediations) {
 			const customOptions = [];
-			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace)) {
-				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespace, label: localize('runInTerminal.bubblewrap.applyFix', "Apply Fix and Retry"), kind: ConfirmationOptionKind.Approve });
+			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction)) {
+				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction, label: localize('runInTerminal.bubblewrap.applyFix', "Apply Fix and Retry"), kind: ConfirmationOptionKind.Approve });
 			}
 			customOptions.push({ id: 'cancel', label: localize('runInTerminal.bubblewrap.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny });
 			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.bubblewrap.title', "Repair Bubblewrap Sandbox"),
-				message: new MarkdownString(localize('runInTerminal.bubblewrap.message', "Bubblewrap is installed but cannot create the required sandbox namespace. Apply the system configuration fix and retry?")),
+				message: new MarkdownString(localize('runInTerminal.bubblewrap.message', "Bubblewrap cannot create the sandbox environment.")),
 				customOptions,
 			};
 		}

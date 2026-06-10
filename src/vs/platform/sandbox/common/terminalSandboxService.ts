@@ -24,7 +24,7 @@ export const enum TerminalSandboxPrerequisiteCheck {
 }
 
 export const enum TerminalSandboxPreCheckRemediation {
-	DisableUnprivilagedusernamespace = 'disableUserNamespaceRestriction',
+	DisableUnprivilagedusernamespaceRestriction = 'disableUserNamespaceRestriction',
 }
 
 export interface ITerminalSandboxPrerequisiteCheckResult {
