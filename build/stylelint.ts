@@ -18,9 +18,12 @@ interface FileWithLines {
 type Reporter = (message: string, isError: boolean) => void;
 
 /**
- * Stylelint gulpfile task
+ * Stylelint gulpfile task. When `designTokensEverywhere` is `true` the
+ * design-token suggestions run on every linted file rather than only the
+ * design-system area (`src/vs/sessions`); used when the caller explicitly
+ * targets a path so the checks follow the requested scope.
  */
-export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStream {
+export default function gulpstylelint(reporter: Reporter, designTokensEverywhere = false): NodeJS.ReadWriteStream {
 	const variableValidator = getVariableNameValidator();
 	let errorCount = 0;
 	const monacoWorkbenchPattern = /\.monaco-workbench/;
@@ -60,7 +63,7 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 		// header as compact `path(line,col): [category] value -> var` rows so the
 		// terminal both groups them visually and linkifies each row.
 		const contents = file.contents.toString('utf8');
-		if (designSystemPattern.test(file.relative)) {
+		if (designTokensEverywhere || designSystemPattern.test(file.relative)) {
 			const findings: { line: number; category: string; message: string }[] = [];
 			for (const v of validateCodiconFontSizes(contents)) { findings.push({ line: v.line, category: 'codicon', message: v.message }); }
 			for (const v of validateFontSizeTokens(contents)) { findings.push({ line: v.line, category: 'font-size', message: v.message }); }
@@ -104,21 +107,54 @@ export default function gulpstylelint(reporter: Reporter): NodeJS.ReadWriteStrea
 	});
 }
 
-function stylelint(): NodeJS.ReadWriteStream {
+function stylelint(sources: string[] = Array.from(stylelintFilter), designTokensEverywhere = false): NodeJS.ReadWriteStream {
 	return vfs
-		.src(Array.from(stylelintFilter), { base: '.', follow: true, allowEmpty: true })
+		.src(sources, { base: '.', follow: true, allowEmpty: true })
 		.pipe(gulpstylelint((message, isError) => {
 			if (isError) {
 				console.error(message);
 			} else {
 				console.info(message);
 			}
-		}))
+		}, designTokensEverywhere))
 		.pipe(es.through(function () { /* noop, important for the stream to end */ }));
 }
 
+/**
+ * Resolves the source globs to lint from the CLI argument, if any. Accepts a
+ * single file, a folder, or a glob (passed via `npm run stylelint -- <path>` or
+ * `--path=<path>`). A `.css` file or an explicit glob is used as-is; a folder is
+ * expanded to `<folder>/**\/*.css`. With no argument the default
+ * `src/**\/*.css` set is linted. Returns the resolved globs plus whether an
+ * explicit path was given (used to widen the design-token checks beyond the
+ * default `src/vs/sessions` scope to follow the requested path).
+ */
+function resolveSources(argv: string[]): { sources: string[]; explicit: boolean } {
+	const args = argv.slice(2);
+	let target: string | undefined;
+	for (const arg of args) {
+		if (arg.startsWith('--path=')) {
+			target = arg.slice('--path='.length);
+		} else if (arg === '--path' || arg === '-p') {
+			continue; // value is the next positional arg
+		} else if (!arg.startsWith('-')) {
+			target = arg;
+		}
+	}
+	if (!target) {
+		return { sources: Array.from(stylelintFilter), explicit: false };
+	}
+	// Normalise separators and trim any trailing slash.
+	const normalized = target.replace(/\\/g, '/').replace(/\/+$/, '');
+	if (/[*?[\]{}]/.test(normalized) || /\.css$/i.test(normalized)) {
+		return { sources: [normalized], explicit: true };
+	}
+	return { sources: [normalized + '/**/*.css'], explicit: true };
+}
+
 if (import.meta.main) {
-	stylelint().on('error', (err: Error) => {
+	const { sources, explicit } = resolveSources(process.argv);
+	stylelint(sources, explicit).on('error', (err: Error) => {
 		console.error();
 		console.error(err);
 		process.exit(1);
