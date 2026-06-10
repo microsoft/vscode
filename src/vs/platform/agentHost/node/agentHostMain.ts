@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryPathEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -23,10 +23,11 @@ import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
-import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+import { ClaudeAgentSdkService, ClaudeSdkPackage, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
 import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
-import { CodexAgent } from './codex/codexAgent.js';
+import { CodexAgent, CodexSdkPackage } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
+import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
@@ -50,6 +51,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+import { registerAgentHostNetworkServices } from './agentHostBootstrap.js';
 import { SessionDataService } from './sessionDataService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IWindowsMxcTerminalSandboxRuntime, WindowsMxcTerminalSandboxRuntime } from '../../sandbox/common/terminalSandboxMxcRuntime.js';
@@ -136,6 +138,10 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IProductService, productService);
 		diServices.set(ITelemetryService, telemetryService);
+		// Wire `IPolicyService` + `IConfigurationService` + `IRequestService`
+		// — the trio that `IAgentSdkDownloader` depends on for proxy-aware
+		// downloads. Must run before any downstream service that injects them.
+		await registerAgentHostNetworkServices(diServices, fileService, environmentService, logService, disposables);
 		instantiationService = new InstantiationService(diServices);
 		const fileMonitorService = disposables.add(instantiationService.createInstance(AgentHostFileMonitorService));
 		diServices.set(IAgentHostFileMonitorService, fileMonitorService);
@@ -149,6 +155,11 @@ async function startAgentHost(): Promise<void> {
 		// pipeline / end-of-turn capture).
 		const checkpointService = disposables.add(instantiationService.createInstance(AgentHostCheckpointService));
 		diServices.set(IAgentHostCheckpointService, checkpointService);
+		// Register the agent SDK downloader BEFORE any service that injects it
+		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
+		// dev-override env var → on-disk cache → product.agentSdks download.
+		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader);
+		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
@@ -170,21 +181,15 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
-		// The Claude agent provider is opt-in. Gated on the
-		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,
-		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CLAUDE_SDK_PATH`.
-		// The SDK is intentionally not bundled with VS Code; the env var holds the
-		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
-		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
+		// Claude and Codex providers are gated on the SDK being reachable —
+		// either via the dev-override env var (`VSCODE_AGENT_HOST_*_PATH`) or
+		// via a `product.agentSdks.<pkg>` entry that ships with this build.
+		// If neither is present, the provider is not registered and never
+		// appears in the agent picker (matches the pre-CDN UX exactly).
+		if (agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
-		// The Codex agent provider is opt-in. Gated on the
-		// `chat.agentHost.codexAgent.path` workbench setting being non-empty,
-		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CODEX_APP_SERVER_PATH`.
-		// The codex binary is intentionally not bundled; users install it
-		// themselves (`npm install -g @openai/codex` or equivalent) and
-		// point this setting at the absolute path.
-		if (process.env[AgentHostCodexAgentBinaryPathEnvVar]) {
+		if (agentSdkDownloader.isAvailable(CodexSdkPackage)) {
 			agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 		}
 	} catch (err) {

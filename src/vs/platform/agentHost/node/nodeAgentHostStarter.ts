@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentBinaryPathSettingId, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkRootSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -74,34 +74,16 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			VSCODE_VERBOSE_LOGGING: 'true',
 		};
 
-		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when the user points the SDK path
-		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
-		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
-		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
-			|| process.env[AgentHostClaudeSdkPathEnvVar]
-			|| '';
-		if (claudeSdkPath) {
-			env[AgentHostClaudeSdkPathEnvVar] = claudeSdkPath;
-		}
-
-		// Codex agent is opt-in via `chat.agentHost.codexAgent.path`. Mirrors the
-		// Claude opt-in pattern above.
-		const codexBinaryPath = this._configurationService.getValue<string>(AgentHostCodexAgentBinaryPathSettingId)
-			|| process.env[AgentHostCodexAgentBinaryPathEnvVar]
-			|| '';
-		if (codexBinaryPath) {
-			env[AgentHostCodexAgentBinaryPathEnvVar] = codexBinaryPath;
-		}
-		const codexHome = this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId) || '';
-		if (codexHome) {
-			env[AgentHostCodexAgentCodexHomeEnvVar] = codexHome;
-		}
-		const codexArgs = this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId);
-		if (Array.isArray(codexArgs) && codexArgs.length > 0) {
-			env[AgentHostCodexAgentBinaryArgsEnvVar] = JSON.stringify(codexArgs);
-		}
+		// Forward the Claude/Codex SDK overrides + codex home/args from
+		// workbench settings to the agent host process. Parent env wins on
+		// collision — see `buildAgentSdkEnv` for the precedence rule.
+		const sdkEnv = buildAgentSdkEnv({
+			claudeSdkRoot: this._configurationService.getValue<string>(AgentHostClaudeAgentSdkRootSettingId),
+			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
+			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
+			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+		}, env);
+		Object.assign(env, sdkEnv);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
