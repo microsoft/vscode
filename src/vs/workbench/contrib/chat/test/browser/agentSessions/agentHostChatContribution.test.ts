@@ -64,6 +64,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
+import { AgentHostCompletionReferenceKind, agentHostCompletionVariableValue } from '../../../common/attachments/chatVariableEntries.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -737,6 +738,78 @@ suite('AgentHostChatContribution', () => {
 			const { chatAgentService } = createContribution(disposables);
 
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
+		});
+	});
+
+	// ---- Request attachments --------------------------------------------
+
+	suite('request attachments', () => {
+
+		test('sends accepted agent-host skill and command completions as ranged simple attachments', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const message = 'use /author-contributions\n/rename Title';
+			const skillStart = message.indexOf('/author-contributions');
+			const commandStart = message.indexOf('/rename');
+			const skillMeta = {
+				providerPayload: 'skill-metadata',
+				displayName: 'author-contributions',
+				description: 'Summarize author contributions',
+			};
+			const commandMeta = {
+				providerPayload: 'command-metadata',
+				description: 'Rename this chat',
+			};
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message,
+				variables: {
+					variables: [
+						{
+							kind: 'generic',
+							id: 'file:///skills/author-contributions/SKILL.md',
+							name: '/author-contributions',
+							value: agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Skill),
+							range: { start: skillStart, endExclusive: skillStart + '/author-contributions'.length },
+							_meta: skillMeta,
+						},
+						{
+							kind: 'generic',
+							id: 'agent-host-command:rename',
+							name: '/rename',
+							value: agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Command),
+							range: { start: commandStart, endExclusive: commandStart + '/rename'.length },
+							_meta: commandMeta,
+						},
+					],
+				},
+			});
+
+			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
+			assert.deepStrictEqual(turnStarted.message.attachments, [
+				{
+					type: MessageAttachmentKind.Simple,
+					label: '/author-contributions',
+					displayKind: 'skill',
+					range: {
+						start: { line: 0, character: skillStart },
+						end: { line: 0, character: skillStart + '/author-contributions'.length },
+					},
+					_meta: skillMeta,
+				},
+				{
+					type: MessageAttachmentKind.Simple,
+					label: '/rename',
+					displayKind: 'command',
+					range: {
+						start: { line: 1, character: 0 },
+						end: { line: 1, character: '/rename'.length },
+					},
+					_meta: commandMeta,
+				},
+			]);
+
+			fire({ type: 'session/turnComplete', session: session!, turnId: turnId! } as SessionAction);
+			await turnPromise;
 		});
 	});
 

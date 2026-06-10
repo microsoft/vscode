@@ -146,6 +146,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Slash commands
 	private _slashCommandHandler: SlashCommandHandler | undefined;
+	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
 
 	// Input state
@@ -459,7 +460,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
 		));
 
-		this._register(this.instantiationService.createInstance(
+		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
 
@@ -588,7 +589,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 
 	private async _send(background = false): Promise<void> {
-		const query = this._editor.getModel()?.getValue().trim() ?? '';
+		const rawQuery = this._editor.getModel()?.getValue() ?? '';
+		const query = rawQuery.trim();
+		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
 		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
 		if ((!query && !hasSendableAttachment) || this._sending) {
 			return;
@@ -600,8 +603,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
-		const attachedContext = this._contextAttachments.attachments.length > 0
-			? [...this._contextAttachments.attachments]
+		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
+		const attachedContext = attachments.length > 0
+			? attachments
 			: undefined;
 		const request = query;
 
