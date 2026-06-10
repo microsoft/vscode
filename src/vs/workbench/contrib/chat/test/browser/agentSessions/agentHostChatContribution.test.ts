@@ -69,7 +69,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import type { IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
-import { AgentHostCompletionReferenceKind, agentHostCompletionVariableValue } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -773,20 +773,12 @@ suite('AgentHostChatContribution', () => {
 				variables: {
 					variables: [
 						{
-							kind: 'generic',
-							id: 'file:///skills/author-contributions/SKILL.md',
-							name: '/author-contributions',
-							value: agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Skill),
+							...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/author-contributions', 'file:///skills/author-contributions/SKILL.md', skillMeta),
 							range: { start: skillStart, endExclusive: skillStart + '/author-contributions'.length },
-							_meta: skillMeta,
 						},
 						{
-							kind: 'generic',
-							id: 'agent-host-command:rename',
-							name: '/rename',
-							value: agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Command),
+							...toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/rename', 'rename', commandMeta),
 							range: { start: commandStart, endExclusive: commandStart + '/rename'.length },
-							_meta: commandMeta,
 						},
 					],
 				},
@@ -2549,6 +2541,68 @@ suite('AgentHostChatContribution', () => {
 						},
 					},
 				});
+			}
+		});
+
+		test('restores agent host completion attachments as hidden request variables', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/completion-history' });
+			const sessionUri = AgentSession.uri('copilot', 'completion-history');
+			const skillMeta = {
+				uri: 'file:///skills/agent-host-docs/SKILL.md',
+				displayName: 'agent-host-docs',
+				description: 'Use this skill when working on Agent Host code',
+			};
+			const commandMeta = {
+				command: 'rename',
+				description: 'Rename this chat',
+			};
+
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({ resource: sessionUri.toString(), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: Date.now(), modifiedAt: Date.now() }),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [{
+					id: 'turn-1',
+					message: {
+						text: '/agent-host-docs please check this\n/rename Title',
+						origin: { kind: MessageKind.User },
+						attachments: [
+							{
+								type: MessageAttachmentKind.Simple,
+								label: '/agent-host-docs',
+								displayKind: 'skill',
+								_meta: skillMeta,
+							},
+							{
+								type: MessageAttachmentKind.Simple,
+								label: '/rename',
+								displayKind: 'command',
+								_meta: commandMeta,
+							},
+						],
+					},
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			} as SessionState);
+
+			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			const request = session.history[0];
+			assert.strictEqual(request.type, 'request');
+			if (request.type === 'request') {
+				assert.deepStrictEqual(request.variableData?.variables.map(variable => ({
+					kind: variable.kind,
+					id: variable.id,
+					name: variable.name,
+					value: variable.value,
+					_meta: variable._meta,
+				})), [
+					toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/agent-host-docs', skillMeta.uri, skillMeta),
+					toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/rename', 'rename', commandMeta),
+				]);
 			}
 		});
 
