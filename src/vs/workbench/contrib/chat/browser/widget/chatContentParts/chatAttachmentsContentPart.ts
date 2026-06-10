@@ -77,7 +77,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 		const renderableAttachments = this.getRenderableAttachments();
 		const visibleAttachments = this.getVisibleAttachments(renderableAttachments);
-		const hasMoreAttachments = this.limit && renderableAttachments.length > this.limit && !this._showingAll;
+		const remainingCount = renderableAttachments.length - visibleAttachments.length;
+		const hasMoreAttachments = remainingCount > 0 && !this._showingAll;
 
 		this.markImageLimitExceeded(this._variables);
 
@@ -86,7 +87,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		}
 
 		if (hasMoreAttachments) {
-			this.renderShowMoreButton(container);
+			this.renderShowMoreButton(container, remainingCount);
 		}
 	}
 
@@ -150,9 +151,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		return getImageAttachmentLimit(this.languageModelsService.lookupLanguageModel(this.modelId));
 	}
 
-	private renderShowMoreButton(container: HTMLElement) {
-		const remainingCount = this._variables.length - (this.limit ?? 0);
-
+	private renderShowMoreButton(container: HTMLElement, remainingCount: number) {
 		// Create a button that looks like the attachment pills
 		const showMoreButton = dom.$('div.chat-attached-context-attachment.chat-attachments-show-more-button');
 		showMoreButton.setAttribute('role', 'button');
