@@ -15,7 +15,7 @@ import type { AnnotationsState } from '../channels-annotations/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
-/** A URI string (e.g. `ahp-root://` or `ahp-session:/<uuid>`). */
+/** A URI string (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`). */
 export type URI = string;
 
 /**
@@ -321,7 +321,7 @@ export interface ErrorInfo {
  * @category Common Types
  */
 export interface Snapshot {
-	/** The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`) */
+	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
 	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState;

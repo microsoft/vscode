@@ -9,6 +9,7 @@
 import type { InitializeParams, InitializeResult, PingParams, ReconnectParams, ReconnectResult, SubscribeParams, SubscribeResult, ResourceReadParams, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, ResourceListParams, ResourceListResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceMoveParams, ResourceMoveResult, ResourceResolveParams, ResourceResolveResult, ResourceMkdirParams, ResourceMkdirResult, ResourceRequestParams, ResourceRequestResult, UnsubscribeParams, DispatchActionParams, AuthenticateParams, AuthenticateResult } from './commands.js';
 import type { ListSessionsParams, ListSessionsResult, ResolveSessionConfigParams, ResolveSessionConfigResult, SessionConfigCompletionsParams, SessionConfigCompletionsResult } from '../channels-root/commands.js';
 import type { CreateSessionParams, DisposeSessionParams, FetchTurnsParams, FetchTurnsResult, CompletionsParams, CompletionsResult } from '../channels-session/commands.js';
+import type { CreateChatParams, DisposeChatParams } from '../channels-chat/commands.js';
 import type { CreateTerminalParams, DisposeTerminalParams } from '../channels-terminal/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../channels-resource-watch/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
@@ -86,6 +87,8 @@ export interface CommandMap {
 	'subscribe': { params: SubscribeParams; result: SubscribeResult };
 	'createSession': { params: CreateSessionParams; result: null };
 	'disposeSession': { params: DisposeSessionParams; result: null };
+	'createChat': { params: CreateChatParams; result: null };
+	'disposeChat': { params: DisposeChatParams; result: null };
 	'createTerminal': { params: CreateTerminalParams; result: null };
 	'disposeTerminal': { params: DisposeTerminalParams; result: null };
 	'createResourceWatch': { params: CreateResourceWatchParams; result: CreateResourceWatchResult };
