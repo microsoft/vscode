@@ -13,7 +13,7 @@ import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -41,6 +41,7 @@ import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../comm
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeChoice, IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { ChatAgentLocation, isChatPermissionLevel } from '../../common/constants.js';
 import { AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { IChatWidget, ISessionTypePickerDelegate } from '../chat.js';
@@ -800,12 +801,33 @@ function renderForm(
 	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
-	// Pre-seed the language model. switchModelByIdentifier returns false
-	// when the previously-saved model is no longer registered (e.g. the
-	// extension was uninstalled); in that case we leave the picker on its
-	// default and the runner will fall back at execution time.
+	// Pre-seed the language model. {@link ChatInputPart.switchModelByIdentifier}
+	// is synchronous: it looks the id up in the currently-registered models
+	// and no-ops (returns false) if it isn't found yet. Two cases:
+	//
+	// 1. Model is gone (extension uninstalled). switchModelByIdentifier
+	//    stays false forever; the picker keeps its default and the runner
+	//    falls back at execution time.
+	//
+	// 2. Model registry hasn't populated yet (extension cold start). The
+	//    ChatInputPart constructor already armed
+	//    `_waitForPersistedLanguageModel`, which fires on the first
+	//    `onDidChangeLanguageModels` and stomps the picker with the
+	//    workbench-global last-used model — NOT the one the automation
+	//    was saved with. To win that race we listen to the same event
+	//    and retry our switch each time the registry changes; the first
+	//    successful apply disposes the listener so we never fight a
+	//    subsequent user-initiated change.
 	if (initialModelId) {
-		chatInput.switchModelByIdentifier(initialModelId);
+		if (!chatInput.switchModelByIdentifier(initialModelId)) {
+			const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
+			const retry = disposables.add(new MutableDisposable<IDisposable>());
+			retry.value = languageModelsService.onDidChangeLanguageModels(() => {
+				if (chatInput.switchModelByIdentifier(initialModelId)) {
+					retry.clear();
+				}
+			});
+		}
 	}
 
 	// Model edits use a deliberately different strategy from mode and
