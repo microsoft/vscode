@@ -84,7 +84,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						category: this._getSessionCategory(sessionTypeItem),
 						description: lockedForEntitlement ? this._getUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: lockedForEntitlement ? this._getUpgradeHover() : sessionTypeItem.hoverDescription },
+						hover: { content: lockedForEntitlement ? this._getUpgradeHover(sessionTypeItem.type) : sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -238,12 +238,14 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	/**
 	 * Whether the given session type is locked behind a plan upgrade for the
-	 * current user's entitlement. The cloud agent is not available to Copilot
-	 * Free or Copilot Student (EDU) users, so it is shown greyed out with an
-	 * Upgrade prompt instead of being selectable.
+	 * current user's entitlement. The cloud agent and the Claude harness are not
+	 * available to Copilot Free or Copilot Student (EDU) users, so they are shown
+	 * greyed out with an Upgrade prompt instead of being selectable. The Claude
+	 * harness has no Auto fallback and can only run Claude models, which require
+	 * a paid plan.
 	 */
 	protected _isLockedForEntitlement(type: AgentSessionTarget): boolean {
-		if (type !== AgentSessionProviders.Cloud) {
+		if (type !== AgentSessionProviders.Cloud && type !== AgentSessionProviders.Claude) {
 			return false;
 		}
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -257,9 +259,13 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		);
 	}
 
-	private _getUpgradeHover(): MarkdownString {
+	private _getUpgradeHover(type: AgentSessionTarget): MarkdownString {
 		const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
-		hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to delegate work to the cloud agent."));
+		if (type === AgentSessionProviders.Claude) {
+			hover.appendMarkdown(localize('chat.sessionTarget.upgradeHoverClaude', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to use the Claude agent."));
+		} else {
+			hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to delegate work to the cloud agent."));
+		}
 		return hover;
 	}
 
