@@ -657,6 +657,21 @@ export namespace AgentSession {
 // ---- Agent provider interface -----------------------------------------------
 
 /**
+ * A notification originating from an MCP server, routed back to the AHP
+ * client through the `mcp://` side channel. `channel` is the channel
+ * URI advertised on the owning
+ * {@link McpServerCustomization.channel | McpServerCustomization}; the
+ * client uses it to fan the notification out to the appropriate App.
+ * `method` and `params` follow the underlying MCP notification spec
+ * (e.g. `notifications/tools/list_changed`).
+ */
+export interface IMcpNotification {
+	readonly channel: string;
+	readonly method: string;
+	readonly params?: Record<string, unknown>;
+}
+
+/**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
@@ -834,6 +849,34 @@ export interface IAgent {
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
 
+	/**
+	 * Routes a request received on an `mcp://` side channel to the agent's
+	 * MCP server implementation. The channel carries raw MCP JSON-RPC
+	 * methods (e.g. `tools/list`, `tools/call`, `resources/read`) tagged
+	 * with the routing envelope; the protocol server decodes the envelope
+	 * and forwards `(session, serverName, method, params)` here.
+	 *
+	 * The agent MUST reject unknown methods with an error whose message
+	 * begins with `Method not found` so the protocol server can map it to
+	 * a JSON-RPC `-32601`.
+	 *
+	 * Optional — agents that don't surface any MCP servers (or don't
+	 * advertise `mcpApp` capabilities) can omit this.
+	 */
+	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/**
+	 * Fires when an MCP server owned by this agent emits a notification
+	 * that should be forwarded to AHP clients over the `mcp://` side
+	 * channel. Today this is exclusively
+	 * `notifications/tools/list_changed` and
+	 * `notifications/resources/list_changed`. The protocol server
+	 * fans the notification out to every connected client.
+	 *
+	 * Optional — agents that don't expose MCP servers can omit this.
+	 */
+	readonly onMcpNotification?: Event<IMcpNotification>;
+
 	/** Dispose this provider and all its resources. */
 	dispose(): void;
 }
@@ -908,6 +951,34 @@ export interface IAgentService {
 
 	/** Invoke a server-defined changeset operation. */
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
+
+	/**
+	 * Routes a request received on an `mcp://` AHP side channel to the
+	 * MCP server implementation owned by the appropriate agent. The
+	 * channel URI shape is `mcp://<providerId>/<sessionId>/<serverName>`
+	 * (the latter two segments URL-encoded), matching the
+	 * {@link McpServerCustomization.channel | channel} the agent host
+	 * advertises while the server is in
+	 * {@link McpServerStatus.Ready | `Ready`}.
+	 *
+	 * `method` is the raw MCP JSON-RPC method (e.g. `tools/list`,
+	 * `tools/call`, `resources/read`); `params` are the JSON-RPC params
+	 * (still carrying the routing envelope's `channel` field, which the
+	 * agent may ignore). Rejects with an `Error` whose message begins
+	 * with `Method not found` when the channel is unknown or the agent
+	 * doesn't recognise the method — the protocol server translates that
+	 * into a JSON-RPC `-32601`.
+	 */
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/**
+	 * Aggregated stream of MCP notifications across every agent. The
+	 * protocol server subscribes once and broadcasts each notification as
+	 * a JSON-RPC notification to all connected clients (the routing
+	 * envelope's `channel` field is sufficient for client-side dispatch,
+	 * so no per-subscription fanout is required).
+	 */
+	readonly onMcpNotification: Event<IMcpNotification>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
@@ -1081,6 +1152,13 @@ export interface IAgentConnection {
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
 	readonly onDidAction: Event<ActionEnvelope>;
+	/**
+	 * Fires when the host forwards an MCP server notification (e.g.
+	 * `notifications/tools/list_changed`) over the `mcp://` side channel.
+	 * The `channel` field on the notification routes the payload to the
+	 * matching {@link McpServerCustomization}.
+	 */
+	readonly onMcpNotification: Event<IMcpNotification>;
 
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
