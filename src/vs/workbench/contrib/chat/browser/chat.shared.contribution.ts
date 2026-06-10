@@ -919,9 +919,13 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.PluginLocations]: {
 			type: 'object',
 			additionalProperties: { type: 'boolean' },
+			propertyNames: {
+				pattern: VALID_PROMPT_FOLDER_PATTERN,
+				patternErrorMessage: nls.localize('chat.pluginLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported."),
+			},
 			restricted: true,
-			markdownDescription: nls.localize('chat.pluginLocations', "Plugin directories to discover. Each key is a path that points directly to a plugin folder, and the value enables (`true`) or disables (`false`) it. Paths can be absolute, relative to the workspace root, or start with `~/` for the user's home directory."),
-			scope: ConfigurationScope.MACHINE,
+			markdownDescription: nls.localize('chat.pluginLocations', "Plugin directories to discover. Each key is a path that points directly to a plugin folder, and the value enables (`true`) or disables (`false`) it. Relative paths are resolved from the root folder(s) of your workspace."),
+			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.EnabledPlugins]: {
