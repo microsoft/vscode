@@ -471,13 +471,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			onResize: () => {
 				if (this.lastDimensions) {
 					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-					// Schedule a second relayout — the first may read stale
-					// offsetHeight if the browser hasn't fully reflowed yet.
-					setTimeout(() => {
-						if (this.lastDimensions) {
-							this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-						}
-					}, 50);
 				}
 			},
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
@@ -486,17 +479,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			onOnboardingCompleted: () => {
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.telemetryService.publicLog2<VoiceOnboardingCompletedEvent, VoiceOnboardingCompletedClassification>('voiceOnboardingCompleted', {});
-				// Force relayout after onboarding is dismissed so the voice
-				// bar shrinks and the chat widget reclaims the freed space.
-				// Multiple delays because the render effect + rAF pipeline
-				// means the DOM isn't updated until a frame or two later.
-				for (const delay of [0, 16, 100, 300]) {
-					setTimeout(() => {
-						if (this.lastDimensions) {
-							this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-						}
-					}, delay);
-				}
 			},
 		}, {
 			width: 'auto',
@@ -1181,16 +1163,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — measure intrinsic content height.
-		// We temporarily clear any explicit height, read scrollHeight,
-		// then set the explicit pixel value so layoutBody has a stable number.
-		let voiceBarHeight = 0;
-		if (this._voiceBottomArea) {
-			this._voiceBottomArea.style.height = 'auto';
-			voiceBarHeight = this._voiceBottomArea.scrollHeight;
-			this._voiceBottomArea.style.height = `${voiceBarHeight}px`;
-		}
-		remainingHeight -= voiceBarHeight;
+		// Voice bottom area — read current height (ResizeObserver triggers
+		// relayout whenever the content changes size).
+		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
