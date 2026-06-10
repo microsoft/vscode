@@ -375,6 +375,7 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly branchRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
@@ -385,6 +386,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
+	refreshBranchChangeset(session: string): void {
+		this.branchRefreshes.push(session);
+	}
 	refreshUncommittedChangeset(session: string): void {
 		this.uncommittedRefreshes.push(session);
 	}
@@ -399,6 +403,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
 
 	clearRefreshes(): void {
+		this.branchRefreshes.length = 0;
 		this.uncommittedRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
 	}
