@@ -1146,6 +1146,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	private static readonly VOICE_BAR_MAX_HEIGHT = 160;
+
 	private doLayoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
@@ -1154,8 +1156,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — use actual rendered height (capped by CSS max-height)
-		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
+		// Voice bottom area — measure content and set explicit pixel height.
+		// We temporarily clear any existing height so scrollHeight returns
+		// the true intrinsic content height, then clamp and apply.
+		if (this._voiceBottomArea) {
+			this._voiceBottomArea.style.height = 'auto';
+			const contentHeight = Math.min(this._voiceBottomArea.scrollHeight, ChatViewPane.VOICE_BAR_MAX_HEIGHT);
+			this._voiceBottomArea.style.height = `${contentHeight}px`;
+			remainingHeight -= contentHeight;
+		}
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;

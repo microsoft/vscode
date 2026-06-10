@@ -46,14 +46,12 @@
 	}
 }
 
-/* Bottom area: tab bar + voice panel, always at bottom of viewpane */
+/* Bottom area: tab bar + voice panel, pinned to bottom of viewpane */
 .chat-viewpane > .voice-bottom-area {
 	display: flex;
 	flex-direction: column;
-	flex-shrink: 0;
-	flex-grow: 0;
-	max-height: 160px;
 	overflow: hidden;
+	/* Height is set explicitly by layoutBody — do not use flex sizing */
 }
 
 /* Sessions control: either sidebar or stacked */
