@@ -208,6 +208,19 @@ export interface IChatInputPartOptions {
 	 */
 	hideCustomChatModes?: boolean;
 	/**
+	 * When true, suppress the autorun that switches the current language
+	 * model to a mode's declared preferred model (`IChatMode.model`).
+	 * Used by the automations dialog so opening "New Automation" always
+	 * defaults to the picker's default (auto) regardless of which mode
+	 * the dialog opens with, and so the dialog never overwrites the
+	 * regular chat input's persisted model selection via the shared
+	 * APPLICATION-scope storage key.
+	 *
+	 * User-initiated model picks (clicking the model picker, cycle
+	 * keybindings, etc.) are unaffected.
+	 */
+	suppressModePreferredModel?: boolean;
+	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
@@ -898,6 +911,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
 			this.chatModeNameKey.set(mode.name.read(r));
+			if (this.options.suppressModePreferredModel) {
+				return;
+			}
 			const models = mode.model?.read(r);
 			if (models) {
 				this.switchModelByQualifiedName(models);
