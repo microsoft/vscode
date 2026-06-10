@@ -26,6 +26,17 @@ import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import {
+	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
+	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
+	VoiceSessionEndedClassification, VoiceSessionEndedEvent,
+	VoicePttClassification, VoicePttEvent,
+	VoiceTtsListenThroughClassification, VoiceTtsListenThroughEvent,
+	VoiceToolApprovalClassification, VoiceToolApprovalEvent,
+	VoiceReconnectClassification, VoiceReconnectEvent,
+	VoiceLatencyClassification, VoiceLatencyEvent,
+} from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
 
@@ -182,6 +193,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/** Model refs eagerly loaded for sessions awaiting input (no UI focus needed). */
 	private readonly _eagerModelRefs = new Map<string, IChatModelReference>();
 
+	// --- Telemetry tracking ---
+	private _telemetrySessionIndex = 0;
+	private _telemetrySessionStart: number | undefined;
+	private _telemetryTurnCount = 0;
+	private _telemetryReconnectCount = 0;
+	private _telemetryFirstConnect = true;
+	private _telemetryConnectStartMs: number | undefined;
+	private _telemetryLastConnectMs: number | undefined;
+	private _telemetryPttDownMs: number | undefined;
+	private _telemetryPttUpMs: number | undefined;
+	private _telemetryFirstTranscriptionMs: number | undefined;
+	private _telemetryTtsInterrupted = false;
+
 	// --- Transcript persistence (local-only) ---
 	/** Cached GitHub login resolved on connect; used as transcript partition key. */
 	private _userLogin: string | undefined;
@@ -219,6 +243,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@IVoiceTranscriptStore private readonly voiceTranscriptStore: IVoiceTranscriptStore,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -369,6 +394,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._isConnecting.set(true, undefined);
 		this._statusText.set('Connecting...', undefined);
 		this._voiceState.set('idle', undefined);
+		this._telemetryConnectStartMs = Date.now();
 
 		// Resolve the GitHub login used as the transcript partition key.
 		// Voice Code is tightly coupled to GitHub auth via Copilot — one session
@@ -454,6 +480,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// TTS playback stopped → cache audio, process next in queue or restore status
 		this._voiceEventDisposables.add(this.ttsPlaybackService.onPlaybackStopped(() => {
+			// Telemetry: TTS listen-through rate
+			const listenedToEnd = !this._telemetryTtsInterrupted;
+			this.telemetryService.publicLog2<VoiceTtsListenThroughEvent, VoiceTtsListenThroughClassification>('voiceTtsListenThrough', {
+				listenedToEnd,
+				listenedPct: listenedToEnd ? 100 : 50, // approximation; exact % requires tracking audio position
+			});
+			this._telemetryTtsInterrupted = false;
 			// Cache the played audio for replay
 			const finishedSessionId = this._currentPlaybackSessionId;
 			const samples = this.ttsPlaybackService.getLastPlayedSamples();
@@ -489,6 +522,26 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				pbCtx.resume();
 
 				const isResuming = this.voiceClientService.isResuming;
+
+				// --- Telemetry: session/connect ---
+				const now = Date.now();
+				const connectMs = this._telemetryConnectStartMs ? now - this._telemetryConnectStartMs : 0;
+				if (this._telemetryFirstConnect) {
+					this._telemetryFirstConnect = false;
+					this.telemetryService.publicLog2<VoiceFirstConnectEvent, VoiceFirstConnectClassification>('voiceFirstConnect', { timeToConnectMs: connectMs });
+				}
+				if (isResuming) {
+					this._telemetryReconnectCount++;
+					const secSinceLast = this._telemetryLastConnectMs ? Math.round((now - this._telemetryLastConnectMs) / 1000) : 0;
+					this.telemetryService.publicLog2<VoiceReconnectEvent, VoiceReconnectClassification>('voiceReconnect', { timeSinceLastConnectSec: secSinceLast });
+				} else {
+					this._telemetrySessionIndex++;
+					this._telemetrySessionStart = now;
+					this._telemetryTurnCount = 0;
+					this._telemetryReconnectCount = 0;
+					this.telemetryService.publicLog2<VoiceSessionStartedEvent, VoiceSessionStartedClassification>('voiceSessionStarted', { sessionIndex: this._telemetrySessionIndex });
+				}
+				this._telemetryLastConnectMs = now;
 				if (isResuming) {
 					this.voiceClientService.sendResumeSession(this._buildSessionContext(), this._getMachineId());
 				} else {
@@ -719,6 +772,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// transcription would bypass that routing decision and leak chit-chat
 		// utterances into the active chat session.
 		this._voiceEventDisposables.add(this.voiceClientService.onTranscription(e => {
+			// Track time-to-first-transcription for latency telemetry
+			if (!this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs) {
+				this._telemetryFirstTranscriptionMs = Date.now();
+			}
 			this._updateUserTurn(e.text, e.committed ?? '', e.status === 'partial');
 			if (e.status !== 'partial') {
 				if (!this._pttHeld) {
@@ -732,6 +789,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		// Audio response → fade transcript, queue for sequential playback
 		this._voiceEventDisposables.add(this.voiceClientService.onAudioResponse(e => {
+			// Latency telemetry: first audio chunk marks end of turn
+			if (e.isFirstChunk && this._telemetryPttUpMs) {
+				const ttft = this._telemetryFirstTranscriptionMs && this._telemetryPttDownMs
+					? this._telemetryFirstTranscriptionMs - this._telemetryPttDownMs : 0;
+				const e2e = Date.now() - this._telemetryPttUpMs;
+				this.telemetryService.publicLog2<VoiceLatencyEvent, VoiceLatencyClassification>('voiceLatency', {
+					timeToFirstTranscriptionMs: ttft,
+					endToEndTurnMs: e2e,
+				});
+				this._telemetryPttUpMs = undefined;
+			}
 			this._enqueueAudio(e.codingSessionId, e.audio, e.isFirstChunk, e.isFinal, e.transcript);
 			// On the final chunk we have the complete assistant transcript to persist.
 			if (e.isFinal && e.transcript) {
@@ -778,6 +846,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					toolName: e.name,
 					toolArgs: e.args,
 				});
+				// Telemetry: tool approval/rejection via voice
+				if (e.name === 'approve_confirmation' || e.name === 'reject_confirmation') {
+					this.telemetryService.publicLog2<VoiceToolApprovalEvent, VoiceToolApprovalClassification>('voiceToolApproval', {
+						toolName: e.name,
+						approved: e.name === 'approve_confirmation',
+					});
+				}
 				this.voiceToolDispatchService.dispatchToolCall(e).then(result => {
 					this.voiceClientService.sendToolResult(e.callId, result);
 					this._voiceState.set('idle', undefined);
@@ -811,7 +886,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	disconnect(): void {
-		console.warn('[voice] VoiceSessionController.disconnect() called', new Error('controller disconnect trace').stack);
+		// Telemetry: session ended
+		if (this._telemetrySessionStart) {
+			const durationSec = Math.round((Date.now() - this._telemetrySessionStart) / 1000);
+			this.telemetryService.publicLog2<VoiceSessionEndedEvent, VoiceSessionEndedClassification>('voiceSessionEnded', {
+				turnCount: this._telemetryTurnCount,
+				durationSec,
+				reconnectCount: this._telemetryReconnectCount,
+			});
+			this._telemetrySessionStart = undefined;
+		}
+
 		this._isConnecting.set(false, undefined);
 		this._isReconnecting.set(false, undefined);
 		this._voiceAutorunDisposable?.dispose();
@@ -863,6 +948,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pttHeld = true;
 		this._pttCurrentTurnId = generateUuid();
 		this._pttWaitingForPlayback = false;
+		this._telemetryPttDownMs = Date.now();
+		this._telemetryFirstTranscriptionMs = undefined;
+		this._telemetryTurnCount++;
+		this._telemetryTtsInterrupted = this.ttsPlaybackService.isPlaying;
 		if (this._delayedMicStopTimer) {
 			clearTimeout(this._delayedMicStopTimer);
 			this._delayedMicStopTimer = undefined;
@@ -909,6 +998,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	pttUp(): void {
 		if (!this._pttHeld) { return; }
 		this._pttHeld = false;
+		this._telemetryPttUpMs = Date.now();
+		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : 0;
+		this.telemetryService.publicLog2<VoicePttEvent, VoicePttClassification>('voicePtt', { holdDurationMs: holdMs });
 		if (this._pttMaxDurationTimer) {
 			clearTimeout(this._pttMaxDurationTimer);
 			this._pttMaxDurationTimer = undefined;
@@ -1585,9 +1677,34 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const lastRequest = model.getRequests().at(-1);
 		const pendingConfirmation = lastRequest?.response?.isPendingConfirmation.get();
 		if (pendingConfirmation) {
+			// Scan ALL response parts to find the most recent pending item.
+			// We iterate the full list and keep overwriting `confirmDetail` so
+			// the LAST match wins — response parts are ordered chronologically,
+			// so earlier tools (already confirmed) will have left
+			// WaitingForConfirmation while the newest pending item is last.
 			let confirmDetail = '';
 			for (const part of lastRequest?.response?.response.value ?? []) {
-				if (part.kind === 'toolInvocation') {
+				if (part.kind === 'questionCarousel' && !(part as { isUsed?: boolean }).isUsed) {
+					const carousel = part as { questions?: { title?: string }[]; message?: string | { value: string } };
+					const titles = (carousel.questions ?? []).map(q => q.title).filter(Boolean);
+					if (titles.length > 0) {
+						confirmDetail = `questions: ${titles.join(', ')}`;
+					} else {
+						const msg = carousel.message;
+						confirmDetail = msg ? (typeof msg === 'string' ? msg : msg.value) : 'asking clarifying questions';
+					}
+				} else if (part.kind === 'planReview' && !(part as { isUsed?: boolean }).isUsed) {
+					confirmDetail = 'review the plan to continue';
+				} else if (part.kind === 'elicitation2') {
+					const elicitation = part as { state: IObservable<string>; title?: string | { value: string } };
+					if (elicitation.state.get() === 'pending') {
+						const title = elicitation.title;
+						confirmDetail = title ? (typeof title === 'string' ? title : title.value) : 'needs input';
+					}
+				} else if (part.kind === 'confirmation' && !(part as { isUsed?: boolean }).isUsed) {
+					const conf = part as { title?: string };
+					confirmDetail = conf.title ?? 'needs approval';
+				} else if (part.kind === 'toolInvocation') {
 					const state = part.state.get();
 					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 						const params = state.parameters as Record<string, unknown> | undefined;
@@ -1601,7 +1718,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						} else {
 							confirmDetail = pendingConfirmation.detail ?? '';
 						}
-						break;
 					}
 				}
 			}
@@ -1616,6 +1732,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// without setting confirmationMessages, so isPendingConfirmation is
 		// undefined. Scan response parts directly to catch these.
 		if (lastRequest?.response) {
+			let fallbackDetail: string | undefined;
 			for (const part of lastRequest.response.response.value) {
 				if (part.kind === 'toolInvocation') {
 					const state = part.state.get();
@@ -1634,12 +1751,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							const invMsg = (part as { invocationMessage?: string | { value: string } }).invocationMessage;
 							detail = invMsg ? (typeof invMsg === 'string' ? invMsg : invMsg.value) : 'needs input';
 						}
-						return {
-							state: 'waiting_for_confirmation',
-							detail,
-						};
+						fallbackDetail = detail;
 					}
 				}
+			}
+			if (fallbackDetail !== undefined) {
+				return {
+					state: 'waiting_for_confirmation',
+					detail: fallbackDetail,
+				};
 			}
 		}
 
@@ -1653,32 +1773,36 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _classifyPendingType(response: { response: { value: readonly { kind: string }[] } }): 'approval' | 'input' {
+		// Return the type of the LAST pending part (most recently added)
+		let result: 'approval' | 'input' = 'input';
 		for (const part of response.response.value) {
 			if (part.kind === 'toolInvocation') {
 				const invocation = part as IChatToolInvocation;
 				const state = invocation.state.get();
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
 					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					return 'approval';
+					result = 'approval';
 				}
 			}
 			if (part.kind === 'confirmation' && !(part as { isUsed?: boolean }).isUsed) {
-				return 'approval';
+				result = 'approval';
 			}
 			if (part.kind === 'questionCarousel' && !(part as { isUsed?: boolean }).isUsed) {
-				return 'input';
+				result = 'input';
 			}
 			if (part.kind === 'planReview' && !(part as { isUsed?: boolean }).isUsed) {
-				return 'input';
+				result = 'input';
 			}
 			if (part.kind === 'elicitation2') {
-				return 'input';
+				result = 'input';
 			}
 		}
-		return 'input';
+		return result;
 	}
 
 	private _getConfirmationDescription(response: { response: { value: readonly { kind: string }[] } }): string {
+		// Return the description of the LAST pending part (most recently added)
+		let desc = '';
 		for (const part of response.response.value) {
 			if (part.kind === 'toolInvocation') {
 				const invocation = part as IChatToolInvocation;
@@ -1688,12 +1812,31 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					const command = params?.['command'] ?? params?.['input'];
 					const explanation = params?.['explanation'] ?? params?.['goal'];
 					if (typeof command === 'string' && command) {
-						return typeof explanation === 'string' ? `${command} — ${explanation}` : command;
+						desc = typeof explanation === 'string' ? `${command} — ${explanation}` : command;
 					}
 				}
+			} else if (part.kind === 'questionCarousel' && !(part as { isUsed?: boolean }).isUsed) {
+				const carousel = part as { questions?: { title?: string }[]; message?: string | { value: string } };
+				const titles = (carousel.questions ?? []).map(q => q.title).filter(Boolean);
+				if (titles.length > 0) {
+					desc = titles.join(', ');
+				} else {
+					const msg = carousel.message;
+					desc = msg ? (typeof msg === 'string' ? msg : msg.value) : 'asking clarifying questions';
+				}
+			} else if (part.kind === 'elicitation2') {
+				const elicitation = part as unknown as { state: IObservable<string>; title?: string | { value: string } };
+				if (elicitation.state.get() === 'pending') {
+					const title = elicitation.title;
+					desc = title ? (typeof title === 'string' ? title : title.value) : 'needs input';
+				}
+			} else if (part.kind === 'planReview' && !(part as { isUsed?: boolean }).isUsed) {
+				desc = 'review the plan to continue';
+			} else if (part.kind === 'confirmation' && !(part as { isUsed?: boolean }).isUsed) {
+				desc = (part as { title?: string }).title ?? 'needs approval';
 			}
 		}
-		return '';
+		return desc;
 	}
 
 	private _autoApproveCheck(): void {

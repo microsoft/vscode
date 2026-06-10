@@ -19,7 +19,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -68,7 +68,6 @@ import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { FileAccess } from '../../../../../../base/common/network.js';
 import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
@@ -78,6 +77,7 @@ import { AgentsVoiceWidget } from '../../../../agentsVoice/browser/agentsVoiceWi
 import { bindWidgetToController } from '../../../../agentsVoice/browser/agentsVoiceWidgetBinding.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { VoiceOnboardingCompletedClassification, VoiceOnboardingCompletedEvent } from '../../voiceClient/voiceTelemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -448,12 +448,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
-			onResize: () => { /* parent layout drives sizing */ },
+			onResize: () => {
+				if (this.lastDimensions) {
+					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+				}
+			},
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 			onOnboardingCompleted: () => {
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
+				this.telemetryService.publicLog2<VoiceOnboardingCompletedEvent, VoiceOnboardingCompletedClassification>('voiceOnboardingCompleted', {});
 			},
 		}, {
 			width: 'auto',

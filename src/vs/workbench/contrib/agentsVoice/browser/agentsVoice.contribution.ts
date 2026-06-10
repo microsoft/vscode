@@ -28,8 +28,14 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../p
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../common/agentsVoice.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import {
+	VoiceEnabledClassification, VoiceEnabledEvent,
+	VoiceDisabledClassification, VoiceDisabledEvent,
+} from '../../chat/browser/voiceClient/voiceTelemetry.js';
 
 // --- Context Key ---
 
@@ -57,6 +63,39 @@ class AgentsVoiceContextKeyContribution extends Disposable implements IWorkbench
 }
 
 registerWorkbenchContribution2(AgentsVoiceContextKeyContribution.ID, AgentsVoiceContextKeyContribution, WorkbenchPhase.AfterRestored);
+
+// --- Telemetry: track enable/disable ---
+
+class AgentsVoiceTelemetryContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentsVoiceTelemetry';
+	private static readonly _ENABLED_AT_KEY = 'agents.voice.enabledAtMs';
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
+	) {
+		super();
+
+		// Track when the setting is toggled
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('agents.voice.enabled')) {
+				const enabled = configurationService.getValue<boolean>('agents.voice.enabled');
+				if (enabled) {
+					storageService.store(AgentsVoiceTelemetryContribution._ENABLED_AT_KEY, Date.now(), StorageScope.PROFILE, StorageTarget.MACHINE);
+					telemetryService.publicLog2<VoiceEnabledEvent, VoiceEnabledClassification>('voiceEnabled', { source: 'setting' });
+				} else {
+					const enabledAt = storageService.getNumber(AgentsVoiceTelemetryContribution._ENABLED_AT_KEY, StorageScope.PROFILE, 0);
+					const daysActive = enabledAt ? Math.round((Date.now() - enabledAt) / (1000 * 60 * 60 * 24)) : 0;
+					telemetryService.publicLog2<VoiceDisabledEvent, VoiceDisabledClassification>('voiceDisabled', { daysActive });
+					storageService.remove(AgentsVoiceTelemetryContribution._ENABLED_AT_KEY, StorageScope.PROFILE);
+				}
+			}
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AgentsVoiceTelemetryContribution.ID, AgentsVoiceTelemetryContribution, WorkbenchPhase.AfterRestored);
 
 // --- Toggle Command + Menu Item ---
 
@@ -109,6 +148,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('agents.voice.enabled', "Enable the Agents Voice panel in the chat view for voice-driven coding conversations."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
 			included: false,
 		},
 		'agents.voice.alwaysOnTop': {
