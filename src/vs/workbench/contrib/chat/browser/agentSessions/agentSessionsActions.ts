@@ -75,6 +75,17 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
+MenuRegistry.appendMenuItem(MenuId.AgentSessionItemToolbar, {
+	command: {
+		id: AGENT_SESSION_DELETE_ACTION_ID,
+		title: localize2('deleteChat.delete', "Delete"),
+		icon: Codicon.trash
+	},
+	group: 'navigation',
+	order: 3,
+	when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+});
+
 export class SetAgentSessionsOrientationStackedAction extends Action2 {
 
 	constructor() {
