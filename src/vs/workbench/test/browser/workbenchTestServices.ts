@@ -1856,6 +1856,9 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined { throw new Error('Method not implemented.'); }
 	moveGroup(source: ITerminalInstance | ITerminalInstance[], target: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	moveGroupToEnd(source: ITerminalInstance | ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
+	moveGroupUp(_group: ITerminalGroup): void { throw new Error('Method not implemented.'); }
+	moveGroupDown(_group: ITerminalGroup): void { throw new Error('Method not implemented.'); }
+	getGroupsBelow(_group: ITerminalGroup): ITerminalGroup[] { throw new Error('Method not implemented.'); }
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void { throw new Error('Method not implemented.'); }
 	unsplitInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	joinInstances(instances: ITerminalInstance[]): void { throw new Error('Method not implemented.'); }
