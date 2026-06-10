@@ -878,6 +878,11 @@ export namespace ConfigKey {
 		 * For experiments, this setting selects the routing method only when router usage is enabled;
 		 * it does not by itself determine whether the router is called. */
 		export const AutoModeRoutingMethod = defineTeamInternalSetting<string>('chat.advanced.autoModeRoutingMethod', ConfigType.ExperimentBased, '', undefined, undefined, { experimentName: 'copilotchat.autoModeRoutingMethod' });
+		/** When enabled, a periodic auth/token refresh refreshes each Auto conversation's
+		 * CAPI session token in place instead of clearing the model cache, so the
+		 * conversation stays pinned to the model Auto already selected and keeps its
+		 * provider prompt cache warm. Gated for experimentation. */
+		export const AutoModePreserveModelOnTokenRefresh = defineTeamInternalSetting<boolean>('chat.advanced.autoModePreserveModelOnTokenRefresh', ConfigType.ExperimentBased, false, undefined, undefined, { experimentName: 'copilotchat.autoModePreserveModelOnTokenRefresh' });
 
 		/** Inline Completions */
 		export const InlineCompletionsDefaultDiagnosticsOptions = defineTeamInternalSetting<string | undefined>('chat.advanced.inlineCompletions.defaultDiagnosticsOptionsString', ConfigType.ExperimentBased, undefined);

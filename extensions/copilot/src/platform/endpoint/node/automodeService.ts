@@ -137,10 +137,21 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 	) {
 		super();
 		this._register(this._authService.onDidAuthenticationChange(() => {
-			for (const entry of this._autoModelCache.values()) {
-				entry.tokenBank.dispose();
+			// EXPERIMENT (AutoModePreserveModelOnTokenRefresh): onDidAuthenticationChange
+			// fires on the routine Copilot token refresh (~every 20+ min, same identity).
+			// Clearing the per-conversation model cache here makes the next turn of an
+			// in-flight conversation silently re-resolve its model — often to a different
+			// model or provider — which throws away the provider prompt cache. When the
+			// experiment is enabled we keep the cache so each conversation stays pinned to
+			// the model Auto already selected; its token bank refreshes itself with the new
+			// token on its own expiry.
+			const preserveModelPin = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModePreserveModelOnTokenRefresh, this._expService);
+			if (!preserveModelPin) {
+				for (const entry of this._autoModelCache.values()) {
+					entry.tokenBank.dispose();
+				}
+				this._autoModelCache.clear();
 			}
-			this._autoModelCache.clear();
 			const keys = Array.from(this._reserveTokens.keys());
 			this._reserveTokens.clearAndDisposeAll();
 			for (const location of keys) {
