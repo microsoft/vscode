@@ -78,7 +78,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 MenuRegistry.appendMenuItem(MenuId.AgentSessionItemToolbar, {
 	command: {
 		id: AGENT_SESSION_DELETE_ACTION_ID,
-		title: localize2('deleteChat.delete', "Delete"),
+		title: localize2('deleteSession.delete', "Delete"),
 		icon: Codicon.trash
 	},
 	group: 'navigation',
