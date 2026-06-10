@@ -61,6 +61,22 @@ const COPILOT_HOME_DIRECTORY = '.copilot';
 const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
 const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 
+function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image' | 'resource' }[] | undefined): string {
+	if (!binaryResults?.length) {
+		return EMPTY_TOOL_RESULT_TEXT;
+	}
+
+	const hasImage = binaryResults.some(result => result.type === 'image');
+	const hasFile = binaryResults.some(result => result.type === 'resource');
+	if (hasImage && hasFile) {
+		return 'Tool produced the attached image and file';
+	}
+	if (hasImage) {
+		return 'Tool produced the attached image';
+	}
+	return 'Tool produced the attached file';
+}
+
 /**
  * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
  * Keys not present here fall back to the raw action id.
@@ -737,7 +753,7 @@ export class CopilotAgentSession extends Disposable {
 		const binaryResults = result.content
 			?.filter(c => c.type === ToolResultContentType.EmbeddedResource)
 			.map(c => ({ data: c.data, mimeType: c.contentType, type: (/^image(\/|$)/.test(c.contentType) ? 'image' : 'resource') as 'image' | 'resource' }));
-		const textResultForLlm = textContent.trim() ? textContent : EMPTY_TOOL_RESULT_TEXT;
+		const textResultForLlm = textContent.trim() ? textContent : getEmptyToolResultText(binaryResults);
 
 		if (result.success) {
 			this._pendingClientToolCalls.respondOrBuffer(toolCallId, {

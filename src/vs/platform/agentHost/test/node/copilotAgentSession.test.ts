@@ -24,7 +24,7 @@ import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToo
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -2806,6 +2806,63 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.textResultForLlm, 'text part');
 		});
 
+		test('handleClientToolCallComplete describes embedded-resource-only content', async () => {
+			const testCases = [
+				{
+					toolCallId: 'tc-image-only',
+					contentType: 'image/png',
+					expectedText: 'Tool produced the attached image',
+					expectedType: 'image',
+				},
+				{
+					toolCallId: 'tc-file-only',
+					contentType: 'application/pdf',
+					expectedText: 'Tool produced the attached file',
+					expectedType: 'resource',
+				},
+				{
+					toolCallId: 'tc-image-and-file',
+					contentType: 'image/png',
+					additionalContentType: 'application/pdf',
+					expectedText: 'Tool produced the attached image and file',
+					expectedType: 'image',
+				},
+			] satisfies ReadonlyArray<{
+				readonly toolCallId: string;
+				readonly contentType: string;
+				readonly additionalContentType?: string;
+				readonly expectedText: string;
+				readonly expectedType: 'image' | 'resource';
+			}>;
+			const embeddedResource = (data: string, contentType: string): ToolResultContent => ({ type: ToolResultContentType.EmbeddedResource, data, contentType });
+
+			for (const testCase of testCases) {
+				const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+				const tools = runtime.createClientSdkTools();
+				const handlerPromise = invokeClientToolHandler(tools[0], testCase.toolCallId);
+				const content: ToolResultContent[] = [
+					embeddedResource('base64data', testCase.contentType),
+					...(testCase.additionalContentType ? [embeddedResource('base64data2', testCase.additionalContentType)] : []),
+				];
+
+				session.handleClientToolCallComplete(testCase.toolCallId, {
+					success: true,
+					pastTenseMessage: 'done',
+					content,
+				});
+
+				assert.deepStrictEqual(await handlerPromise, {
+					textResultForLlm: testCase.expectedText,
+					resultType: 'success',
+					binaryResultsForLlm: [
+						{ data: 'base64data', mimeType: testCase.contentType, type: testCase.expectedType },
+						...(testCase.additionalContentType ? [{ data: 'base64data2', mimeType: testCase.additionalContentType, type: 'resource' }] : []),
+					],
+				});
+				disposables.clear();
+			}
+		});
+
 		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
 			const activeClientState = new ActiveClientState();
 			activeClientState.update('client-A', snapshot.tools);
@@ -2846,27 +2903,6 @@ suite('CopilotAgentSession', () => {
 			const result = await invokeClientToolHandler(tools[0], 'tc-early');
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'buffered result');
-		});
-
-		test('handleClientToolCallComplete with embedded-resource-only content uses empty placeholder text', async () => {
-			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
-
-			const tools = runtime.createClientSdkTools();
-			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded-only');
-
-			session.handleClientToolCallComplete('tc-embedded-only', {
-				success: true,
-				pastTenseMessage: 'done',
-				content: [
-					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
-				],
-			});
-
-			assert.deepStrictEqual(await handlerPromise, {
-				textResultForLlm: '<empty />',
-				resultType: 'success',
-				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
-			});
 		});
 	});
 
