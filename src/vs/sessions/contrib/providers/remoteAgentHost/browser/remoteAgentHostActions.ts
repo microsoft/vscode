@@ -1166,7 +1166,10 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: Menus.SessionWorkspaceManage,
 				order: 15,
-				when: SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('isWindows', true),
+					SessionWorkspacePickerGroupContext.isEqualTo(SESSION_WORKSPACE_GROUP_REMOTE),
+				),
 			},
 		});
 	}

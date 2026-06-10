@@ -23,9 +23,10 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { ActiveClientState } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
@@ -44,6 +45,8 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	readonly compactCalls: unknown[] = [];
+	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -91,6 +94,12 @@ class MockCopilotSession {
 			read: async () => this.planReadResult,
 			update: async (_params: { content: string }) => { /* no-op */ },
 			delete: async () => { /* no-op */ },
+		},
+		history: {
+			compact: async (params?: unknown) => {
+				this.compactCalls.push(params ?? null);
+				return this.compactResult;
+			},
 		},
 	};
 }
@@ -161,9 +170,8 @@ type ISessionInternalsForTest = {
 		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
-		get(toolCallId: string): DeferredPromise<ToolResultObject> | undefined;
-		set(toolCallId: string, value: DeferredPromise<ToolResultObject>): Map<string, DeferredPromise<ToolResultObject>>;
-		delete(toolCallId: string): boolean;
+		register(toolCallId: string): Promise<ToolResultObject>;
+		respondOrBuffer(toolCallId: string, value: ToolResultObject): void;
 	};
 };
 
@@ -186,6 +194,7 @@ function getInputRequest(signal: AgentSignal): SessionInputRequestedAction['requ
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
+	activeClientState?: ActiveClientState;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
@@ -237,10 +246,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
+		activeClientState: new ActiveClientState(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
 		resolvedAgentName: undefined,
-		snapshot: options?.clientSnapshot ?? { clientId: '', tools: [], plugins: [] },
+		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [] },
 		shellManager: undefined,
 		githubToken: undefined,
 		model: undefined,
@@ -308,6 +318,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
+			activeClientState: options?.activeClientState,
 			workingDirectory: options?.workingDirectory,
 		},
 	));
@@ -422,6 +433,37 @@ suite('CopilotAgentSession', () => {
 			usage: undefined,
 			state: 'cancelled',
 		}]);
+	});
+
+	test('`/compact` runs the history compact RPC and completes the turn without emitting output', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		// The compact command is handled inline via the history RPC and must
+		// not fall through to a normal SDK `send()` turn.
+		assert.strictEqual(mockSession.compactCalls.length, 1);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+
+		// The turn opened by the server is closed inline (the SDK never fires
+		// `onIdle` for the compact path) without emitting any response content.
+		const actions = getActions(signals);
+		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.SessionResponsePart), []);
+		const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+		assert.ok(turnComplete, 'expected the turn to complete');
+		assert.strictEqual((turnComplete as SessionTurnCompleteAction).turnId, 'turn-compact');
+	});
+
+	test('`/compact` completes the turn even when compaction reports failure', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: false, tokensRemoved: 0, messagesRemoved: 0 };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		assert.strictEqual(mockSession.compactCalls.length, 1);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+		const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
@@ -1323,13 +1365,16 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
 			const telemetryService = new RecordingTelemetryService();
+			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }] as const;
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('test-client', tools);
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: {
-					clientId: 'test-client',
-					tools: [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }],
+					tools,
 					plugins: [],
 				},
+				activeClientState,
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -2426,7 +2471,6 @@ suite('CopilotAgentSession', () => {
 	suite('client tool calls', () => {
 
 		const snapshot: IActiveClientSnapshot = {
-			clientId: 'test-client',
 			tools: [{
 				name: 'my_tool',
 				description: 'A test tool',
@@ -2435,8 +2479,46 @@ suite('CopilotAgentSession', () => {
 			plugins: [],
 		};
 
+		/** Builds a live ActiveClientState seeded with the given owning clientId and the snapshot's tools. */
+		const activeClientStateWith = (clientId: string): ActiveClientState => {
+			const state = new ActiveClientState();
+			state.update(clientId, snapshot.tools);
+			return state;
+		};
+
+		test('client tool started with no connected client fails immediately', async () => {
+			// No activeClientState is provided, so the session seeds one with
+			// an undefined clientId — i.e. no client is connected to run the tool.
+			const { runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-no-client',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// tool_start is stamped as a client contributor with no owner...
+			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
+			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, undefined);
+
+			// ...and is failed immediately (ready + complete) rather than left
+			// pending for the server-side disconnect timeout.
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallReady)).length, 1);
+			const completeSignal = signals.find(s => isAction(s, ActionType.SessionToolCallComplete));
+			assert.ok(completeSignal && isAction(completeSignal, ActionType.SessionToolCallComplete));
+			assert.strictEqual((completeSignal.action as SessionToolCallCompleteAction).result.success, false);
+
+			// When the SDK invokes the handler it resolves immediately with the
+			// buffered failure result.
+			const tools = runtime.createClientSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-no-client');
+			assert.strictEqual(result.resultType, 'failure');
+		});
+
 		test('client tool handler waits for completion without emitting tool_ready', async () => {
-			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2474,7 +2556,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('client-perm', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2516,7 +2600,11 @@ suite('CopilotAgentSession', () => {
 				success: true,
 				pastTenseMessage: 'did it',
 			});
-			await handlerPromise;
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: undefined,
+			});
 		});
 
 		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
@@ -2527,7 +2615,7 @@ suite('CopilotAgentSession', () => {
 			// SessionToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
 			// SessionToolCallStart).
-			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			mockSession.fire('subagent.started', {
 				toolCallId: 'tc-parent-subagent',
@@ -2652,7 +2740,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot, logService });
 			const tools = runtime.createClientSdkTools();
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
-			sessionInternals._pendingClientToolCalls.get = () => {
+			sessionInternals._pendingClientToolCalls.register = () => {
 				throw new Error('client tool boom');
 			};
 
@@ -2716,6 +2804,69 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.resultType, 'success');
 			// Text content should be extracted
 			assert.strictEqual(result.textResultForLlm, 'text part');
+		});
+
+		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('client-A', snapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-live-1',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// A window reload re-pushes the same tools under a new clientId.
+			activeClientState.update('client-B', snapshot.tools);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-live-2',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const starts = signals.filter((s): s is IAgentActionSignal => isAction(s, ActionType.SessionToolCallStart));
+			assert.deepStrictEqual(starts.map(s => (s.action as SessionToolCallStartAction).contributor), [
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-A' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-B' },
+			]);
+		});
+
+		test('completion arriving before the SDK handler registers still resolves', async () => {
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const tools = runtime.createClientSdkTools();
+
+			// Completion races ahead of the handler.
+			session.handleClientToolCallComplete('tc-early', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [{ type: ToolResultContentType.Text, text: 'buffered result' }],
+			});
+
+			const result = await invokeClientToolHandler(tools[0], 'tc-early');
+			assert.strictEqual(result.resultType, 'success');
+			assert.strictEqual(result.textResultForLlm, 'buffered result');
+		});
+
+		test('handleClientToolCallComplete with embedded-resource-only content uses empty placeholder text', async () => {
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = runtime.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded-only');
+
+			session.handleClientToolCallComplete('tc-embedded-only', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
+				],
+			});
+
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: [{ data: 'base64data', mimeType: 'image/png', type: 'image' }],
+			});
 		});
 	});
 

@@ -35,7 +35,15 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
-import { isAgentFeedbackVariableEntry, isImageVariableEntry, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import {
+	AgentHostCompletionReferenceKind,
+	getAgentHostCompletionReferenceKind,
+	isAgentFeedbackVariableEntry,
+	isImageVariableEntry,
+	type IAgentFeedbackVariableEntry,
+	type IChatRequestVariableEntry,
+	type IImageVariableEntry
+} from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
@@ -118,12 +126,12 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	const copilotUsage = usage?._meta?.copilotUsage;
 	if (copilotUsage && typeof copilotUsage === 'object' && hasKey(copilotUsage, { totalNanoAiu: true })) {
 		const totalNanoAiu = Object.getOwnPropertyDescriptor(copilotUsage, 'totalNanoAiu')?.value;
-		if (typeof totalNanoAiu === 'number' && totalNanoAiu > 0) {
+		if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
 			return totalNanoAiu / 1_000_000_000;
 		}
 	}
 	const cost = usage?._meta?.cost;
-	return typeof cost === 'number' && cost > 0
+	return typeof cost === 'number' && cost >= 0
 		? cost
 		: undefined;
 }
@@ -906,7 +914,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentQueued: IPendingSnapshot[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
-			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource);
+			const messageAttachments = this._variableEntriesToAttachments(variables, sessionResource, p.request.message.text);
 			const attachments = messageAttachments.length > 0 ? messageAttachments : undefined;
 			const snapshot: IPendingSnapshot = { id: p.request.id, text: p.request.message.text, attachments };
 			if (p.kind === ChatRequestQueueKind.Steering) {
@@ -2767,13 +2775,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): MessageAttachment[] {
-		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource);
+		return this._variableEntriesToAttachments(request.variables.variables, request.sessionResource, request.message);
 	}
 
-	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI): MessageAttachment[] {
+	private _variableEntriesToAttachments(variables: readonly IChatRequestVariableEntry[], sessionResource: URI, messageText?: string): MessageAttachment[] {
 		const attachments: MessageAttachment[] = [];
 		for (const v of variables) {
-			const attachment = this._convertVariableToAttachment(v, sessionResource);
+			const attachment = this._convertVariableToAttachment(v, sessionResource, messageText);
 			if (attachment) {
 				attachments.push(attachment);
 			}
@@ -2784,32 +2792,33 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return attachments;
 	}
 
-	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText?: string): MessageAttachment | undefined {
+		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
 		// File / implicit attachments: a Location → selection, a URI → resource.
 		// Only the selection variant of an implicit attachment becomes a
 		// `selection`; the bare visible-document case stays a plain file
 		// reference (or, when there's no value at all, gets dropped).
 		if ((v.kind === 'file' || (v.kind === 'implicit' && v.isSelection)) && isLocation(v.value)) {
-			return this._toSelectionAttachment(v.value, v.name, 'selection', sessionResource, v._meta);
+			return this._toSelectionAttachment(v.value, v.name, 'selection', sessionResource, v._meta, referenceRange);
 		}
 		if ((v.kind === 'file' || v.kind === 'implicit') && v.value instanceof URI) {
-			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta);
+			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta, referenceRange);
 		}
 		if (v.kind === 'directory' && v.value instanceof URI) {
-			return this._toResourceAttachment(v.value, v.name, 'directory', sessionResource, v._meta);
+			return this._toResourceAttachment(v.value, v.name, 'directory', sessionResource, v._meta, referenceRange);
 		}
 		// Symbol: a Location with a 'symbol' display hint.
 		if (v.kind === 'symbol' && isLocation(v.value)) {
-			return this._toSelectionAttachment(v.value, v.name, 'symbol', sessionResource, v._meta);
+			return this._toSelectionAttachment(v.value, v.name, 'symbol', sessionResource, v._meta, referenceRange);
 		}
 		// Prompt files (.prompt.md) — treated as a referenced document.
 		if (v.kind === 'promptFile' && v.value instanceof URI) {
-			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta);
+			return this._toResourceAttachment(v.value, v.name, 'document', sessionResource, v._meta, referenceRange);
 		}
 		// Image: send inline as base64 when we have the bytes; otherwise fall
 		// back to a file resource reference.
 		if (isImageVariableEntry(v)) {
-			return this._toImageAttachment(v, sessionResource);
+			return this._toImageAttachment(v, sessionResource, referenceRange);
 		}
 		if (isAgentFeedbackVariableEntry(v)) {
 			return this._toAgentFeedbackAttachment(v, sessionResource);
@@ -2817,27 +2826,37 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Pasted code, prompt text, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
-			return this._toSimpleAttachment(v.name, v.code, v._meta);
+			return this._toSimpleAttachment(v.name, v.code, v._meta, undefined, referenceRange);
 		}
 		if (v.kind === 'promptText') {
-			return this._toSimpleAttachment(v.name, v.value, v._meta);
+			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
 		}
 		if (v.kind === 'string' && typeof v.value === 'string') {
-			return this._toSimpleAttachment(v.name, v.value, v._meta);
+			return this._toSimpleAttachment(v.name, v.value, v._meta, undefined, referenceRange);
+		}
+		const agentHostCompletionKind = getAgentHostCompletionReferenceKind(v);
+		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Command) {
+			return this._toSimpleAttachment(v.name, undefined, v._meta, 'command', referenceRange);
+		}
+		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
+			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
 		}
 		return undefined;
 	}
 
-	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
+	private _toResourceAttachment(uri: URI, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
 		const attachmentUri = this._rebaseAttachmentUri(uri, sessionResource);
 		const attachment: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: attachmentUri.toString(), label, displayKind };
+		if (range) {
+			attachment.range = range;
+		}
 		if (_meta) {
 			attachment._meta = _meta;
 		}
 		return attachment;
 	}
 
-	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined): MessageAttachment | undefined {
+	private _toSelectionAttachment(location: Location, label: string, displayKind: string, sessionResource: URI, _meta: Record<string, unknown> | undefined, range?: MessageAttachment['range']): MessageAttachment | undefined {
 		const attachmentUri = this._rebaseAttachmentUri(location.uri, sessionResource);
 		const attachment: MessageAttachment = {
 			type: MessageAttachmentKind.Resource,
@@ -2846,13 +2865,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			displayKind,
 			selection: { range: this._toTextRange(location.range) },
 		};
+		if (range) {
+			attachment.range = range;
+		}
 		if (_meta) {
 			attachment._meta = _meta;
 		}
 		return attachment;
 	}
 
-	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI): MessageAttachment | undefined {
+	private _toImageAttachment(v: IImageVariableEntry, sessionResource: URI, range?: MessageAttachment['range']): MessageAttachment | undefined {
 		const buffer = coerceImageBuffer(v.value);
 		const contentType = v.mimeType ?? 'image/png';
 		if (buffer) {
@@ -2863,6 +2885,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				data: encodeBase64(VSBuffer.wrap(buffer)),
 				contentType,
 			};
+			if (range) {
+				attachment.range = range;
+			}
 			if (v._meta) {
 				attachment._meta = v._meta;
 			}
@@ -2871,7 +2896,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// No inline bytes — fall back to a file reference if one is available.
 		const refUri = v.references?.find(r => URI.isUri(r.reference))?.reference;
 		if (URI.isUri(refUri)) {
-			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta);
+			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta, range);
 		}
 		return undefined;
 	}
@@ -2898,8 +2923,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 	}
 
-	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined, displayKind?: string): MessageAttachment {
-		const attachment: MessageAttachment = { type: MessageAttachmentKind.Simple, label, modelRepresentation };
+	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined, displayKind?: string, range?: MessageAttachment['range']): MessageAttachment {
+		const attachment: MessageAttachment = { type: MessageAttachmentKind.Simple, label };
+		if (modelRepresentation !== undefined) {
+			attachment.modelRepresentation = modelRepresentation;
+		}
+		if (range) {
+			attachment.range = range;
+		}
 		if (displayKind) {
 			attachment.displayKind = displayKind;
 		}
@@ -2907,6 +2938,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			attachment._meta = _meta;
 		}
 		return attachment;
+	}
+
+	private _toAttachmentReferenceRange(messageText: string | undefined, range: IChatRequestVariableEntry['range']): MessageAttachment['range'] | undefined {
+		if (!messageText || !range || range.start < 0 || range.endExclusive > messageText.length || range.start > range.endExclusive) {
+			return undefined;
+		}
+		const start = offsetToPosition(messageText, range.start);
+		const end = offsetToPosition(messageText, range.endExclusive);
+		return {
+			start: { line: start.lineNumber - 1, character: start.column - 1 },
+			end: { line: end.lineNumber - 1, character: end.column - 1 },
+		};
 	}
 
 	private _toTextRange(range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }) {

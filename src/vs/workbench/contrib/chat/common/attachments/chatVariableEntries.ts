@@ -53,6 +53,43 @@ export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariab
 	tooltip?: IMarkdownString;
 }
 
+export const enum AgentHostCompletionReferenceKind {
+	Skill = 'skill',
+	Command = 'command',
+}
+
+export interface IAgentHostCompletionVariableValue {
+	readonly $mid: 'agentHostCompletion';
+	readonly kind: AgentHostCompletionReferenceKind;
+}
+
+export function agentHostCompletionVariableValue(kind: AgentHostCompletionReferenceKind): IAgentHostCompletionVariableValue {
+	return { $mid: 'agentHostCompletion', kind };
+}
+
+export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {
+	if (entry.kind !== 'generic' || typeof entry.value !== 'object' || entry.value === null) {
+		return undefined;
+	}
+
+	const value = entry.value as Record<string, unknown>;
+	if (value.$mid !== 'agentHostCompletion') {
+		return undefined;
+	}
+
+	switch (value.kind) {
+		case AgentHostCompletionReferenceKind.Skill:
+		case AgentHostCompletionReferenceKind.Command:
+			return value.kind;
+	}
+	return undefined;
+}
+
+export function isAgentHostCompletionVariableEntry(entry: IChatRequestVariableEntry): entry is IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
+	return getAgentHostCompletionReferenceKind(entry) !== undefined;
+}
+
+
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
 	kind: 'directory';
 	imageCount?: number;
