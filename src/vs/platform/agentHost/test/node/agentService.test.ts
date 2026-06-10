@@ -138,11 +138,16 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('applies and persists root config changes from clients', async () => {
 			const tempDir = URI.file(mkdtempSync(`${tmpdir()}/agent-host-config-`));
+			// Use a local DisposableStore so that svc can be explicitly disposed
+			// before cleaning up the temp directory. On Windows, rmSync fails with
+			// EPERM if the AgentService (and its child AgentConfigurationService)
+			// still holds references while the directory is being deleted.
+			const localDisposables = new DisposableStore();
 			try {
 				const rootConfigResource = joinPath(tempDir, 'agent-host-config.json');
-				const svc = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), NULL_CHECKPOINT_SERVICE, rootConfigResource));
+				const svc = localDisposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(), NULL_CHECKPOINT_SERVICE, rootConfigResource));
 				const agent = new MockAgent('copilot');
-				disposables.add(toDisposable(() => agent.dispose()));
+				localDisposables.add(toDisposable(() => agent.dispose()));
 				svc.registerProvider(agent);
 
 				const customization = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
@@ -172,6 +177,7 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.ok(persisted, 'should persist the root config change');
 			} finally {
+				localDisposables.dispose();
 				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
 			}
 		});
