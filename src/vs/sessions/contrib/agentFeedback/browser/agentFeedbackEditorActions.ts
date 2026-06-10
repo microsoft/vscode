@@ -13,7 +13,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { GroupsOrder, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
@@ -60,7 +60,6 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 			const comments = getSessionEditorComments(
 				sessionResource,
 				agentFeedbackService.getFeedback(sessionResource),
-				codeReviewService.getComments(sessionResource).get(),
 				codeReviewService.getPRReviewState(sessionResource).get(),
 			);
 			if (comments.length > 0) {
@@ -122,7 +121,6 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 		const comments = getSessionEditorComments(
 			sessionResource,
 			agentFeedbackService.getFeedback(sessionResource),
-			codeReviewService.getComments(sessionResource).get(),
 			codeReviewService.getPRReviewState(sessionResource).get(),
 		);
 
@@ -184,8 +182,8 @@ class SubmitActiveSessionFeedbackAction extends Action2 {
 		}
 
 		const sessionResource = activeSession.resource;
-		const feedbackItems = agentFeedbackService.getFeedback(sessionResource);
-		if (feedbackItems.length === 0) {
+		const hasAcceptedFeedback = agentFeedbackService.getFeedback(sessionResource).some(item => item.state === AgentFeedbackState.Accepted);
+		if (!hasAcceptedFeedback) {
 			return;
 		}
 

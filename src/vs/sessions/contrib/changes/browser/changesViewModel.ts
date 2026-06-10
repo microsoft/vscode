@@ -232,11 +232,6 @@ export class ChangesViewModel extends Disposable {
 				}
 			}
 
-			for (const comment of this.codeReviewService.getComments(sessionResource).read(reader)) {
-				const uriKey = comment.uri.fsPath;
-				result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
-			}
-
 			return result;
 		});
 	}

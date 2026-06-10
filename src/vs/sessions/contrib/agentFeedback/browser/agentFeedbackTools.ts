@@ -9,8 +9,7 @@ import type { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ToolDataSource, type ILanguageModelToolsService, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import type { IAgentFeedback, IAgentFeedbackService } from './agentFeedbackService.js';
-import type { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { AgentFeedbackState, type IAgentFeedback, type IAgentFeedbackService } from './agentFeedbackService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const addCommentToolName = 'addComment';
@@ -207,6 +206,15 @@ function getResolvedFlag(value: unknown): boolean {
 	return value;
 }
 
+/**
+ * Returns the feedback items that are visible to the agent: everything except
+ * items still in the {@link AgentFeedbackState.Created} state, which the user
+ * has not accepted yet.
+ */
+function getListableFeedback(agentFeedbackService: IAgentFeedbackService, sessionResource: URI): readonly IAgentFeedback[] {
+	return agentFeedbackService.getFeedback(sessionResource).filter(item => item.state !== AgentFeedbackState.Created);
+}
+
 function toSerializedFeedback(feedback: readonly IAgentFeedback[]) {
 	return feedback.map(item => ({
 		id: item.id,
@@ -214,7 +222,7 @@ function toSerializedFeedback(feedback: readonly IAgentFeedback[]) {
 		range: item.range,
 		text: item.text,
 		kind: item.kind,
-		resolved: !!item.resolved,
+		resolved: item.state === AgentFeedbackState.Resolved,
 		...(item.replies ? { replies: item.replies } : {}),
 	}));
 }
@@ -223,7 +231,7 @@ function serializeFeedback(feedback: readonly IAgentFeedback[]): string {
 	return JSON.stringify({ comments: toSerializedFeedback(feedback) }, undefined, 2);
 }
 
-function createAddCommentTool(codeReviewService: ICodeReviewService, sessionsManagementService: ISessionsManagementService): IToolImpl {
+function createAddCommentTool(agentFeedbackService: IAgentFeedbackService, sessionsManagementService: ISessionsManagementService): IToolImpl {
 	return {
 		async invoke(invocation: IToolInvocation): Promise<IToolResult> {
 			const chatResource = invocation.context?.sessionResource;
@@ -235,7 +243,9 @@ function createAddCommentTool(codeReviewService: ICodeReviewService, sessionsMan
 				throw new Error(`Invalid ${addCommentToolName} invocation: session not found for chat resource ${chatResource.toString()}.`);
 			}
 			const { resourceUri, range, text } = getAddCommentToolArgs(invocation);
-			codeReviewService.addComment(session.session.resource, resourceUri, range, text);
+			// The agent adds comments in the Created state; the user accepts them
+			// before they are acted upon.
+			agentFeedbackService.addFeedback(session.session.resource, resourceUri, range, text, undefined, undefined, undefined, 'codeReview', AgentFeedbackState.Created);
 			return { content: [{ kind: 'text', value: localize('agentFeedback.addCommentTool.result', "Comment added.") }] };
 		},
 		async prepareToolInvocation(): Promise<IPreparedToolInvocation> {
@@ -259,7 +269,7 @@ function createListCommentsTool(agentFeedbackService: IAgentFeedbackService, ses
 				throw new Error(`Invalid ${listCommentsToolName} invocation: session not found for chat resource ${chatResource.toString()}.`);
 			}
 
-			return { content: [{ kind: 'text', value: serializeFeedback(agentFeedbackService.getFeedback(session.session.resource)) }] };
+			return { content: [{ kind: 'text', value: serializeFeedback(getListableFeedback(agentFeedbackService, session.session.resource)) }] };
 		},
 		async prepareToolInvocation(): Promise<IPreparedToolInvocation> {
 			return {
@@ -284,7 +294,7 @@ function createDeleteCommentsTool(agentFeedbackService: IAgentFeedbackService, s
 
 			const parameters = invocation.parameters as IDeleteCommentsToolParameters;
 			const ids = getCommentIds(parameters.commentIds);
-			const existingIds = new Set(agentFeedbackService.getFeedback(session.session.resource).map(item => item.id));
+			const existingIds = new Set(getListableFeedback(agentFeedbackService, session.session.resource).map(item => item.id));
 			const deleted: string[] = [];
 			const notFound: string[] = [];
 			for (const id of ids) {
@@ -302,7 +312,7 @@ function createDeleteCommentsTool(agentFeedbackService: IAgentFeedbackService, s
 					value: JSON.stringify({
 						deletedCommentIds: deleted,
 						notFoundCommentIds: notFound,
-						remainingComments: toSerializedFeedback(agentFeedbackService.getFeedback(session.session.resource)),
+						remainingComments: toSerializedFeedback(getListableFeedback(agentFeedbackService, session.session.resource)),
 					}, undefined, 2),
 				}],
 			};
@@ -331,7 +341,7 @@ function createResolveCommentsTool(agentFeedbackService: IAgentFeedbackService, 
 			const parameters = invocation.parameters as IResolveCommentsToolParameters;
 			const ids = getResolveCommentIds(parameters.commentIds);
 			const resolved = getResolvedFlag(parameters.resolved);
-			const existingIds = new Set(agentFeedbackService.getFeedback(session.session.resource).map(item => item.id));
+			const existingIds = new Set(getListableFeedback(agentFeedbackService, session.session.resource).map(item => item.id));
 			const updated: string[] = [];
 			const notFound: string[] = [];
 			for (const id of ids) {
@@ -350,7 +360,7 @@ function createResolveCommentsTool(agentFeedbackService: IAgentFeedbackService, 
 						resolved,
 						updatedCommentIds: updated,
 						notFoundCommentIds: notFound,
-						comments: toSerializedFeedback(agentFeedbackService.getFeedback(session.session.resource)),
+						comments: toSerializedFeedback(getListableFeedback(agentFeedbackService, session.session.resource)),
 					}, undefined, 2),
 				}],
 			};
@@ -370,9 +380,9 @@ function createResolveCommentsTool(agentFeedbackService: IAgentFeedbackService, 
 	};
 }
 
-export function registerAgentFeedbackTools(toolsService: ILanguageModelToolsService, agentFeedbackService: IAgentFeedbackService, codeReviewService: ICodeReviewService, sessionsManagementService: ISessionsManagementService): IDisposable {
+export function registerAgentFeedbackTools(toolsService: ILanguageModelToolsService, agentFeedbackService: IAgentFeedbackService, sessionsManagementService: ISessionsManagementService): IDisposable {
 	const store = new DisposableStore();
-	store.add(toolsService.registerTool(addCommentToolData, createAddCommentTool(codeReviewService, sessionsManagementService)));
+	store.add(toolsService.registerTool(addCommentToolData, createAddCommentTool(agentFeedbackService, sessionsManagementService)));
 	store.add(toolsService.registerTool(listCommentsToolData, createListCommentsTool(agentFeedbackService, sessionsManagementService)));
 	store.add(toolsService.registerTool(deleteCommentsToolData, createDeleteCommentsTool(agentFeedbackService, sessionsManagementService)));
 	store.add(toolsService.registerTool(resolveCommentsToolData, createResolveCommentsTool(agentFeedbackService, sessionsManagementService)));

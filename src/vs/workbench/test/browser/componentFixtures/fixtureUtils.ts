@@ -631,6 +631,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
 		getSessionForFile: () => undefined,
@@ -642,6 +643,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		setNavigationAnchor: () => { },
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
+		markFeedbackSubmitted: () => { },
 		submitFeedback: async () => { },
 		addFeedbackAndSubmit: async () => { },
 		setFeedbackResolved: async () => { },
@@ -663,9 +665,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
-		getComments: () => constObservable([]),
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
-		removeComment: () => { },
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
 	});

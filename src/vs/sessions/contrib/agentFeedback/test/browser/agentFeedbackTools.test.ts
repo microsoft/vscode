@@ -8,13 +8,12 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { Range, IRange } from '../../../../../editor/common/core/range.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { addCommentToolName, deleteCommentsToolName, listCommentsToolName, registerAgentFeedbackTools, resolveCommentsToolName } from '../../browser/agentFeedbackTools.js';
-import { IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ICodeReviewComment, ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
@@ -30,9 +29,15 @@ suite('AgentFeedbackTools', () => {
 
 	class TestAgentFeedbackService extends mock<IAgentFeedbackService>() {
 		items: IAgentFeedback[] = [
-			{ id: 'comment-a', text: 'Fix this', resourceUri: fileA, range: new Range(3, 1, 3, 12), sessionResource, kind: 'codeReview' },
-			{ id: 'comment-b', text: 'Consider rename', resourceUri: fileB, range: new Range(8, 2, 8, 20), sessionResource, kind: 'user' },
+			{ id: 'comment-a', text: 'Fix this', resourceUri: fileA, range: new Range(3, 1, 3, 12), sessionResource, kind: 'codeReview', state: AgentFeedbackState.Accepted },
+			{ id: 'comment-b', text: 'Consider rename', resourceUri: fileB, range: new Range(8, 2, 8, 20), sessionResource, kind: 'user', state: AgentFeedbackState.Accepted },
 		];
+
+		override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: unknown, _context?: unknown, _sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = 'user', state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
+			const feedback: IAgentFeedback = { id: `comment-${this.items.length + 1}`, text, resourceUri, range, sessionResource, kind, state };
+			this.items.push(feedback);
+			return feedback;
+		}
 
 		override getFeedback(resource: URI): readonly IAgentFeedback[] {
 			return this.items.filter(item => item.sessionResource.toString() === resource.toString());
@@ -43,22 +48,11 @@ suite('AgentFeedbackTools', () => {
 		}
 
 		override setFeedbackResolved(resource: URI, feedbackId: string, resolved: boolean): void {
+			const nextState = resolved ? AgentFeedbackState.Resolved : AgentFeedbackState.Submitted;
 			this.items = this.items.map(item =>
 				item.sessionResource.toString() === resource.toString() && item.id === feedbackId
-					? { ...item, resolved }
+					? { ...item, state: nextState }
 					: item);
-		}
-	}
-
-	class TestCodeReviewService extends mock<ICodeReviewService>() {
-		comments: ICodeReviewComment[] = [];
-		addedComments: Array<{ resource: URI; uri: URI; range: Range; body: string }> = [];
-
-		override addComment(resource: URI, uri: URI, range: Range, body: string): ICodeReviewComment {
-			const comment: ICodeReviewComment = { id: `comment-${this.comments.length + 1}`, uri, range, body, kind: 'comment', severity: 'info' };
-			this.comments.push(comment);
-			this.addedComments.push({ resource, uri, range, body });
-			return comment;
 		}
 	}
 
@@ -90,7 +84,7 @@ suite('AgentFeedbackTools', () => {
 		});
 	}
 
-	function createCommentTools(feedbackService = new TestAgentFeedbackService(), codeReviewService = new TestCodeReviewService(), sessionsManagementService = new TestSessionsManagementService()): { addTool: IToolImpl; listTool: IToolImpl; deleteTool: IToolImpl; resolveTool: IToolImpl; feedbackService: TestAgentFeedbackService; codeReviewService: TestCodeReviewService } {
+	function createCommentTools(feedbackService = new TestAgentFeedbackService(), sessionsManagementService = new TestSessionsManagementService()): { addTool: IToolImpl; listTool: IToolImpl; deleteTool: IToolImpl; resolveTool: IToolImpl; feedbackService: TestAgentFeedbackService } {
 		let addTool: IToolImpl | undefined;
 		let listTool: IToolImpl | undefined;
 		let deleteTool: IToolImpl | undefined;
@@ -109,12 +103,12 @@ suite('AgentFeedbackTools', () => {
 				return toDisposable(() => { });
 			}
 		};
-		disposables.add(registerAgentFeedbackTools(toolsService, feedbackService, codeReviewService, sessionsManagementService));
+		disposables.add(registerAgentFeedbackTools(toolsService, feedbackService, sessionsManagementService));
 		assert.ok(addTool, 'addComment tool should be registered');
 		assert.ok(listTool, 'listComments tool should be registered');
 		assert.ok(deleteTool, 'deleteComments tool should be registered');
 		assert.ok(resolveTool, 'resolveComments tool should be registered');
-		return { addTool, listTool, deleteTool, resolveTool, feedbackService, codeReviewService };
+		return { addTool, listTool, deleteTool, resolveTool, feedbackService };
 	}
 
 	async function invoke(tool: IToolImpl, toolId: string, parameters: Record<string, unknown>, chatResource = sessionResource): Promise<IToolResult> {
@@ -134,21 +128,21 @@ suite('AgentFeedbackTools', () => {
 		return part.value;
 	}
 
-	test('adds code review comments through the code review service', async () => {
-		const { addTool, codeReviewService, feedbackService } = createCommentTools();
+	test('adds comments as created agent feedback', async () => {
+		const { addTool, feedbackService } = createCommentTools();
 
 		await invoke(addTool, addCommentToolName, {
 			resourceUri: fileA.toString(),
 			range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 12 },
-			text: 'Fix this',
+			text: 'Needs a guard',
 		});
 
-		assert.deepStrictEqual(codeReviewService.comments.map(comment => ({ uri: comment.uri.toString(), range: { ...comment.range }, body: comment.body })), [{
-			uri: fileA.toString(),
-			range: { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 12 },
-			body: 'Fix this',
-		}]);
-		assert.deepStrictEqual(feedbackService.items.map(item => item.id), ['comment-a', 'comment-b']);
+		const created = feedbackService.items.find(item => item.text === 'Needs a guard');
+		assert.deepStrictEqual(created && { kind: created.kind, state: created.state, resourceUri: created.resourceUri.toString() }, {
+			kind: 'codeReview',
+			state: AgentFeedbackState.Created,
+			resourceUri: fileA.toString(),
+		});
 	});
 
 	test('lists feedback comments for the current session', async () => {
@@ -161,6 +155,27 @@ suite('AgentFeedbackTools', () => {
 			{ id: 'comment-a', resourceUri: fileA.toString(), text: 'Fix this', kind: 'codeReview' },
 			{ id: 'comment-b', resourceUri: fileB.toString(), text: 'Consider rename', kind: 'user' },
 		]);
+	});
+
+	test('omits created comments from the list', async () => {
+		const { addTool, listTool, feedbackService } = createCommentTools();
+
+		await invoke(addTool, addCommentToolName, {
+			resourceUri: fileA.toString(),
+			range: { startLineNumber: 5, startColumn: 1, endLineNumber: 5, endColumn: 2 },
+			text: 'Pending suggestion',
+		});
+
+		const result = await invoke(listTool, listCommentsToolName, {});
+		const parsed = JSON.parse(textResult(result)) as { comments: Array<{ id: string }> };
+
+		assert.deepStrictEqual({
+			created: feedbackService.items.some(item => item.text === 'Pending suggestion' && item.state === AgentFeedbackState.Created),
+			listed: parsed.comments.map(comment => comment.id),
+		}, {
+			created: true,
+			listed: ['comment-a', 'comment-b'],
+		});
 	});
 
 	test('deletes requested feedback comments', async () => {
@@ -203,7 +218,7 @@ suite('AgentFeedbackTools', () => {
 			resolved: false,
 			comments: [{ id: 'comment-a', resolved: false }, { id: 'comment-b', resolved: false }],
 		});
-		assert.strictEqual(feedbackService.items.find(item => item.id === 'comment-a')?.resolved, false);
+		assert.strictEqual(feedbackService.items.find(item => item.id === 'comment-a')?.state, AgentFeedbackState.Submitted);
 	});
 
 	test('routes tool calls from a chat to the session that owns that chat', async () => {
@@ -214,14 +229,14 @@ suite('AgentFeedbackTools', () => {
 		const sessionBChat2 = createChat(URI.parse('agent-chat:/session-b/chat-2'));
 		const feedbackService = new TestAgentFeedbackService();
 		feedbackService.items = [
-			{ id: 'session-a-comment', text: 'Wrong session', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: sessionAResource, kind: 'user' },
-			{ id: 'session-b-comment', text: 'Right session', resourceUri: fileB, range: new Range(2, 1, 2, 1), sessionResource: sessionBResource, kind: 'codeReview' },
+			{ id: 'session-a-comment', text: 'Wrong session', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: sessionAResource, kind: 'user', state: AgentFeedbackState.Accepted },
+			{ id: 'session-b-comment', text: 'Right session', resourceUri: fileB, range: new Range(2, 1, 2, 1), sessionResource: sessionBResource, kind: 'codeReview', state: AgentFeedbackState.Accepted },
 		];
 		const sessionsManagementService = new TestSessionsManagementService([
 			createSession(sessionAResource, [sessionAChat]),
 			createSession(sessionBResource, [sessionBChat1, sessionBChat2]),
 		]);
-		const { addTool, listTool, deleteTool, codeReviewService } = createCommentTools(feedbackService, new TestCodeReviewService(), sessionsManagementService);
+		const { addTool, listTool, deleteTool } = createCommentTools(feedbackService, sessionsManagementService);
 
 		const listResult = await invoke(listTool, listCommentsToolName, {}, sessionBChat2.resource);
 		const parsedList = JSON.parse(textResult(listResult)) as { comments: Array<{ id: string }> };
@@ -233,18 +248,21 @@ suite('AgentFeedbackTools', () => {
 		const deleteResult = await invoke(deleteTool, deleteCommentsToolName, { commentIds: ['session-b-comment'] }, sessionBChat2.resource);
 		const parsedDelete = JSON.parse(textResult(deleteResult)) as { deletedCommentIds: string[]; remainingComments: Array<{ id: string }> };
 
+		const createdComment = feedbackService.items.find(comment => comment.text === 'From second chat');
 		assert.deepStrictEqual({
 			listed: parsedList.comments.map(comment => comment.id),
-			addedSessionResource: codeReviewService.addedComments.map(comment => comment.resource.toString()),
+			addedSessionResource: createdComment?.sessionResource.toString(),
+			createdState: createdComment?.state,
 			deleted: parsedDelete.deletedCommentIds,
 			remaining: parsedDelete.remainingComments.map(comment => comment.id),
 			allFeedback: feedbackService.items.map(comment => comment.id),
 		}, {
 			listed: ['session-b-comment'],
-			addedSessionResource: [sessionBResource.toString()],
+			addedSessionResource: sessionBResource.toString(),
+			createdState: AgentFeedbackState.Created,
 			deleted: ['session-b-comment'],
 			remaining: [],
-			allFeedback: ['session-a-comment'],
+			allFeedback: ['session-a-comment', 'comment-3'],
 		});
 	});
 });

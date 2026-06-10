@@ -24,7 +24,7 @@ import { localize } from '../../../../nls.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
 import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
-import { getSessionEditorComments, hasUnsubmittedAgentFeedbackComments, SessionEditorCommentSource } from './sessionEditorComments.js';
+import { getSessionEditorComments, hasAcceptedAgentFeedbackComments } from './sessionEditorComments.js';
 
 class AgentFeedbackActionViewItem extends ActionViewItem {
 
@@ -193,13 +193,11 @@ class AgentFeedbackOverlayController {
 				const comments = getSessionEditorComments(
 					sessionResource,
 					agentFeedbackService.getFeedback(sessionResource),
-					codeReviewService.getComments(sessionResource).read(r),
 					codeReviewService.getPRReviewState(sessionResource).read(r),
 				);
-				const unresolvedComments = comments.filter(c => !c.resolved);
-				if (unresolvedComments.length > 0) {
-					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, unresolvedComments);
-					hasAgentFeedback = hasUnsubmittedAgentFeedbackComments(unresolvedComments);
+				if (comments.length > 0) {
+					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);
+					hasAgentFeedback = hasAcceptedAgentFeedbackComments(comments);
 					break;
 				}
 			}

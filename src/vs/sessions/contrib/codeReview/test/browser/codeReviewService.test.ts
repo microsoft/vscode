@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Range } from '../../../../../editor/common/core/range.js';
 import { IObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -14,14 +13,13 @@ import { DisposableStore, ImmortalReference, IReference } from '../../../../../b
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ICodeReviewService, ICodeReviewSuggestion, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
+import { ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 suite('CodeReviewService', () => {
@@ -30,12 +28,9 @@ suite('CodeReviewService', () => {
 	let instantiationService: TestInstantiationService;
 	let service: ICodeReviewService;
 	let gitHubService: MockGitHubService;
-	let storageService: InMemoryStorageService;
 	let sessionsManagement: MockSessionsManagementService;
 
 	let session: URI;
-	let fileA: URI;
-	let fileB: URI;
 
 	class MockSessionsManagementService extends mock<ISessionsManagementService>() {
 		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
@@ -219,13 +214,8 @@ suite('CodeReviewService', () => {
 		gitHubService = new MockGitHubService(sessionsManagement);
 		instantiationService.stub(IGitHubService, gitHubService);
 
-		storageService = store.add(new InMemoryStorageService());
-		instantiationService.stub(IStorageService, storageService);
-
 		service = store.add(instantiationService.createInstance(CodeReviewService));
 		session = URI.parse('test://session/1');
-		fileA = URI.parse('file:///a.ts');
-		fileB = URI.parse('file:///b.ts');
 	});
 
 	teardown(() => {
@@ -233,44 +223,6 @@ suite('CodeReviewService', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function createServiceWithStoredComments(
-		sessionResource: URI,
-		comments: readonly { readonly id?: string; readonly uri: URI; readonly range: Range; readonly body: string; readonly kind?: string; readonly severity?: string; readonly suggestion?: ICodeReviewSuggestion }[],
-	): ICodeReviewService {
-		storageService.store('codeReview.reviews', JSON.stringify({
-			[sessionResource.toString()]: comments.map((comment, index) => ({
-				id: comment.id ?? `comment-${index}`,
-				uri: comment.uri.toJSON(),
-				range: comment.range,
-				body: comment.body,
-				kind: comment.kind ?? 'comment',
-				severity: comment.severity ?? 'info',
-				suggestion: comment.suggestion,
-			})),
-		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-
-		return store.add(instantiationService.createInstance(CodeReviewService));
-	}
-
-	// --- getComments ---
-
-	test('initial comments list is empty', () => {
-		assert.deepStrictEqual(service.getComments(session).get(), []);
-	});
-
-	test('getComments returns the same observable for the same session', () => {
-		const obs1 = service.getComments(session);
-		const obs2 = service.getComments(session);
-		assert.strictEqual(obs1, obs2);
-	});
-
-	test('getComments returns different observables for different sessions', () => {
-		const session2 = URI.parse('test://session/2');
-		const obs1 = service.getComments(session);
-		const obs2 = service.getComments(session2);
-		assert.notStrictEqual(obs1, obs2);
-	});
 
 	test('PR review state uses dedicated review threads model', async () => {
 		sessionsManagement.addSession(session);
@@ -321,176 +273,6 @@ suite('CodeReviewService', () => {
 			legacyResolveThreadCalls: [],
 			reviewResolveThreadCalls: [{ threadId: 'thread-100' }],
 		});
-	});
-
-	// --- addComment ---
-
-	test('addComment appends a comment to the session list', () => {
-		const comment = service.addComment(session, fileA, new Range(7, 1, 7, 10), 'Needs a guard');
-
-		assert.deepStrictEqual({
-			uri: comment.uri.toString(),
-			range: comment.range,
-			body: comment.body,
-			kind: comment.kind,
-			severity: comment.severity,
-			comments: service.getComments(session).get(),
-		}, {
-			uri: fileA.toString(),
-			range: new Range(7, 1, 7, 10),
-			body: 'Needs a guard',
-			kind: 'comment',
-			severity: 'info',
-			comments: [comment],
-		});
-	});
-
-	// --- removeComment ---
-
-	test('removeComment removes a specific comment', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'comment1');
-		service.addComment(session, fileA, new Range(5, 1, 5, 1), 'comment2');
-		service.addComment(session, fileB, new Range(10, 1, 10, 1), 'comment3');
-
-		const commentToRemove = service.getComments(session).get()[1];
-		service.removeComment(session, commentToRemove.id);
-
-		assert.deepStrictEqual(service.getComments(session).get().map(c => c.body), ['comment1', 'comment3']);
-	});
-
-	test('removeComment is a no-op for unknown comment id', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'comment1');
-
-		service.removeComment(session, 'nonexistent-id');
-
-		assert.strictEqual(service.getComments(session).get().length, 1);
-	});
-
-	test('removeComment is a no-op when no comments exist', () => {
-		service.removeComment(session, 'some-id');
-		assert.deepStrictEqual(service.getComments(session).get(), []);
-	});
-
-	// --- Isolation between sessions ---
-
-	test('different sessions are independent', () => {
-		const session2 = URI.parse('test://session/2');
-
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'session1 comment');
-		service.addComment(session2, fileB, new Range(2, 1, 2, 1), 'session2 comment');
-
-		assert.deepStrictEqual({
-			session1: service.getComments(session).get().map(c => c.body),
-			session2: service.getComments(session2).get().map(c => c.body),
-		}, {
-			session1: ['session1 comment'],
-			session2: ['session2 comment'],
-		});
-	});
-
-	test('each added comment gets a unique id', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'a');
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'b');
-
-		const comments = service.getComments(session).get();
-		assert.notStrictEqual(comments[0].id, comments[1].id);
-	});
-
-	// --- Storage persistence ---
-
-	test('comments are persisted to storage', () => {
-		service.addComment(session, fileA, new Range(1, 1, 5, 1), 'Persisted comment');
-
-		const raw = storageService.get('codeReview.reviews', StorageScope.WORKSPACE);
-		assert.ok(raw, 'Storage should contain review data');
-		const stored = JSON.parse(raw!);
-		const sessionComments = stored[session.toString()];
-		assert.strictEqual(sessionComments.length, 1);
-		assert.strictEqual(sessionComments[0].body, 'Persisted comment');
-	});
-
-	test('comments are restored from storage on service creation', () => {
-		const service2 = createServiceWithStoredComments(session, [
-			{ uri: fileA, range: new Range(1, 1, 5, 1), body: 'Restored comment', kind: 'bug', severity: 'high' },
-		]);
-		const comments = service2.getComments(session).get();
-		assert.strictEqual(comments.length, 1);
-		assert.strictEqual(comments[0].body, 'Restored comment');
-		assert.strictEqual(comments[0].uri.toString(), fileA.toString());
-		assert.deepStrictEqual(comments[0].range, { startLineNumber: 1, startColumn: 1, endLineNumber: 5, endColumn: 1 });
-	});
-
-	test('suggestions are restored correctly', () => {
-		const service2 = createServiceWithStoredComments(session, [{
-			uri: fileA,
-			range: new Range(1, 1, 5, 1),
-			body: 'suggestion comment',
-			suggestion: {
-				edits: [{
-					range: new Range(2, 1, 3, 10),
-					oldText: 'let x = 1;',
-					newText: 'const x = 1;',
-				}],
-			},
-		}]);
-		const comments = service2.getComments(session).get();
-		assert.strictEqual(comments[0].suggestion?.edits.length, 1);
-		assert.strictEqual(comments[0].suggestion?.edits[0].oldText, 'let x = 1;');
-		assert.strictEqual(comments[0].suggestion?.edits[0].newText, 'const x = 1;');
-	});
-
-	test('removeComment updates storage', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'comment1');
-		service.addComment(session, fileA, new Range(5, 1, 5, 1), 'comment2');
-
-		const firstId = service.getComments(session).get()[0].id;
-		service.removeComment(session, firstId);
-
-		const stored = JSON.parse(storageService.get('codeReview.reviews', StorageScope.WORKSPACE)!);
-		assert.strictEqual(stored[session.toString()].length, 1);
-		assert.strictEqual(stored[session.toString()][0].body, 'comment2');
-	});
-
-	test('corrupted storage is handled gracefully', () => {
-		storageService.store('codeReview.reviews', 'not-valid-json{{{', StorageScope.WORKSPACE, StorageTarget.MACHINE);
-
-		const service2 = store.add(instantiationService.createInstance(CodeReviewService));
-		assert.deepStrictEqual(service2.getComments(session).get(), []);
-	});
-
-	// --- Session lifecycle cleanup ---
-
-	test('archived session comments are cleaned up', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'comment');
-
-		const mockSession = sessionsManagement.addSession(session, undefined, true);
-		sessionsManagement.fireSessionsChanged({ changed: [mockSession] });
-
-		assert.deepStrictEqual(service.getComments(session).get(), []);
-		assert.strictEqual(storageService.get('codeReview.reviews', StorageScope.WORKSPACE), undefined);
-	});
-
-	test('non-archived session change preserves comments', () => {
-		const changes: IChatSessionFileChange2[] = [
-			{ uri: fileA, modifiedUri: fileA, insertions: 1, deletions: 0 },
-		];
-
-		const serviceWithReview = createServiceWithStoredComments(session, [
-			{ uri: fileA, range: new Range(1, 1, 1, 1), body: 'comment' },
-		]);
-
-		const mockSession = sessionsManagement.addSession(session, changes, false);
-		sessionsManagement.fireSessionsChanged({ changed: [mockSession] });
-
-		assert.strictEqual(serviceWithReview.getComments(session).get().length, 1);
-	});
-
-	test('session that no longer exists has comments cleaned up', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'orphaned comment');
-
-		sessionsManagement.fireSessionsChanged();
-
-		assert.deepStrictEqual(service.getComments(session).get(), []);
 	});
 });
 

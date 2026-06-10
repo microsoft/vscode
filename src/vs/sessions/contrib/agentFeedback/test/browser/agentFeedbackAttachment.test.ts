@@ -16,7 +16,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
-import { IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 
 suite('AgentFeedbackAttachmentContribution', () => {
 	const store = new DisposableStore();
@@ -33,6 +33,7 @@ suite('AgentFeedbackAttachmentContribution', () => {
 			range: new Range(1, 1, 1, 5),
 			sessionResource,
 			kind: 'user',
+			state: AgentFeedbackState.Accepted,
 		};
 		let getWidgetCallCount = 0;
 		let listener: ((event: IAgentFeedbackChangeEvent) => void) | undefined;

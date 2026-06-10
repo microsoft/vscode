@@ -15,7 +15,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AgentFeedbackService, IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
 import { AgentFeedbackAttachmentWidget } from './agentFeedbackAttachmentWidget.js';
 import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
@@ -26,7 +26,6 @@ import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/c
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { registerAgentFeedbackTools } from './agentFeedbackTools.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
@@ -61,7 +60,7 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 				return;
 			}
 			const feedback = agentFeedbackService.getFeedback(activeSession.resource);
-			const count = feedback.length;
+			const count = feedback.filter(item => item.state === AgentFeedbackState.Accepted).length;
 			contextKey.set(count > 0);
 
 			if (count > 0) {
@@ -90,11 +89,10 @@ class AgentFeedbackToolsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
-		@ICodeReviewService codeReviewService: ICodeReviewService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
-		this._register(registerAgentFeedbackTools(toolsService, agentFeedbackService, codeReviewService, sessionsManagementService));
+		this._register(registerAgentFeedbackTools(toolsService, agentFeedbackService, sessionsManagementService));
 	}
 }
 registerWorkbenchContribution2(AgentFeedbackToolsContribution.ID, AgentFeedbackToolsContribution, WorkbenchPhase.AfterRestored);
