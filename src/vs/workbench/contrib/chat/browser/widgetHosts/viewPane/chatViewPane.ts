@@ -373,7 +373,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Voice Agent Bar
 
 	private _voiceBottomArea: HTMLElement | undefined;
-	private _voiceResizeTimer: ReturnType<typeof setTimeout> | undefined;
+	private _voiceResizeRaf: number | undefined;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
 	private _updateVoiceBar(container: HTMLElement): void {
@@ -450,13 +450,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					?? null;
 			},
 			onResize: () => {
-				if (this._voiceResizeTimer) { return; }
-				this._voiceResizeTimer = setTimeout(() => {
-					this._voiceResizeTimer = undefined;
+				// The widget calls this from rAF (same frame as render).
+				// Defer to the next frame so the browser has reflowed and
+				// offsetHeight returns the updated content height.
+				if (this._voiceResizeRaf) { return; }
+				const win = this._voiceBottomArea ? getWindow(this._voiceBottomArea) : undefined;
+				if (!win) { return; }
+				this._voiceResizeRaf = win.requestAnimationFrame(() => {
+					this._voiceResizeRaf = undefined;
 					if (this.lastDimensions) {
 						this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 					}
-				}, 50);
+				});
 			},
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),

@@ -32,6 +32,7 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 	}
 
 	const submitDisabled = state.isSubmitting;
+	let textareaEl: HTMLTextAreaElement | null = null;
 
 	return html`
 		<div style="display:flex;flex-direction:column;gap:8px;padding:4px 0;">
@@ -40,7 +41,6 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 				<span style="font-size:${FONT_SIZE.body};font-weight:600;color:var(--vscode-foreground);">Send Feedback</span>
 			</div>
 			<textarea
-				id="voice-feedback-text"
 				rows="3"
 				placeholder="What could we improve?"
 				style="
@@ -53,8 +53,9 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 					resize:vertical;min-height:48px;max-height:120px;
 					outline:none;-webkit-app-region:no-drag;
 				"
-				@focus=${(e: FocusEvent) => { (e.target as HTMLElement).style.borderColor = 'var(--vscode-focusBorder)'; }}
+				@focus=${(e: FocusEvent) => { textareaEl = e.target as HTMLTextAreaElement; (e.target as HTMLElement).style.borderColor = 'var(--vscode-focusBorder)'; }}
 				@blur=${(e: FocusEvent) => { (e.target as HTMLElement).style.borderColor = 'var(--vscode-input-border, var(--vscode-editorWidget-border))'; }}
+				@input=${(e: InputEvent) => { textareaEl = e.target as HTMLTextAreaElement; }}
 				?disabled=${submitDisabled}></textarea>
 			<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);line-height:1.3;">
 				By submitting, you agree that your session logs and transcript history will be included with your feedback.
@@ -69,10 +70,8 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 					style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;font-weight:500;"
 					@mouseenter=${(e: MouseEvent) => { if (!submitDisabled) { (e.target as HTMLElement).style.background = 'var(--vscode-button-hoverBackground)'; } }}
 					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.background = 'var(--vscode-button-background)'; }}
-					@click=${(e: MouseEvent) => {
-			const btn = e.currentTarget as HTMLElement;
-			const textarea = btn.closest('div')?.parentElement?.querySelector('#voice-feedback-text') as HTMLTextAreaElement | null;
-			const text = textarea?.value.trim() ?? '';
+					@click=${() => {
+			const text = textareaEl?.value.trim() ?? '';
 			if (text) { props.onSubmit(text); }
 		}}
 					?disabled=${submitDisabled}>${state.isSubmitting ? 'Submitting...' : 'Submit'}</button>
