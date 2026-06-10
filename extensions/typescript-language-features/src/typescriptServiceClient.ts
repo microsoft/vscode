@@ -99,6 +99,13 @@ export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
 
+/**
+ * Prefix used to encode notebook cell URIs as file paths that preserve directory locality.
+ * This ensures that relative path resolution (e.g. './a.ts') in notebook cells works correctly
+ * by keeping the encoded path in the same directory as the notebook file.
+ */
+const notebookCellFilePrefix = '~vscode-notebook-cell~';
+
 interface WatchEvent {
 	updated?: Set<string>;
 	created?: Set<string>;
@@ -765,6 +772,19 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return resource.fsPath;
 		}
 
+		// For notebook cell URIs on desktop, encode the cell identity into the filename
+		// while keeping the path in the same directory as the notebook file.
+		// This ensures relative path resolution (e.g. ./a.ts) works correctly
+		// because the TS server resolves relative paths based on the file directory.
+		if (resource.scheme === fileSchemes.vscodeNotebookCell && !isWeb()) {
+			const dir = path.dirname(resource.fsPath);
+			const basename = path.basename(resource.fsPath);
+			return dir + path.sep
+				+ notebookCellFilePrefix + basename
+				+ '?' + encodeURIComponent(resource.authority || emptyAuthority)
+				+ (resource.fragment ? '#' + resource.fragment : '');
+		}
+
 		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : inMemoryResourcePrefix)
 			+ '/' + resource.scheme
 			+ '/' + (resource.authority || emptyAuthority)
@@ -811,6 +831,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			const parts = filepath.match(/^\/([^\/]+)\/([^\/]*)\/(.+)$/);
 			if (parts) {
 				const resource = vscode.Uri.parse(parts[1] + '://' + (parts[2] === emptyAuthority ? '' : parts[2]) + '/' + parts[3]);
+				return this.bufferSyncSupport.toVsCodeResource(resource);
+			}
+		}
+
+		// Detect notebook cell paths encoded by toTsFilePath on desktop.
+		// Format: {dir}/{notebookCellFilePrefix}{basename}?{encodedAuthority}#{fragment}
+		const notebookBasename = path.basename(filepath);
+		if (notebookBasename.startsWith(notebookCellFilePrefix)) {
+			const dir = path.dirname(filepath);
+			const rest = notebookBasename.slice(notebookCellFilePrefix.length);
+			const queryIndex = rest.indexOf('?');
+			if (queryIndex !== -1) {
+				const base = rest.slice(0, queryIndex);
+				const authorityAndFragment = rest.slice(queryIndex + 1);
+				const hashIndex = authorityAndFragment.indexOf('#');
+				const encodedAuthority = hashIndex !== -1 ? authorityAndFragment.slice(0, hashIndex) : authorityAndFragment;
+				const fragment = hashIndex !== -1 ? authorityAndFragment.slice(hashIndex + 1) : '';
+				const authority = decodeURIComponent(encodedAuthority);
+				const fullPath = dir + path.sep + base;
+				const uriPath = fullPath.replace(/\\/g, '/');
+				const resource = vscode.Uri.from({
+					scheme: fileSchemes.vscodeNotebookCell,
+					authority: authority === emptyAuthority ? '' : authority,
+					path: uriPath.startsWith('/') ? uriPath : '/' + uriPath,
+					fragment: fragment,
+				});
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}
