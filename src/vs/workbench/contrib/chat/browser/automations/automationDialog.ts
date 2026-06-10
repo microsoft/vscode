@@ -7,7 +7,9 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISelectOptionItem, SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -22,7 +24,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { defaultDialogStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../../platform/window/common/window.js';
 // eslint-disable-next-line local/code-import-patterns
 import { WorkspacePicker } from '../../../../../sessions/contrib/chat/browser/sessionWorkspacePicker.js';
@@ -179,7 +181,28 @@ export async function showAutomationDialog(
 			],
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
-				const form = DOM.append(container, $('.automation-form'));
+
+				// Mirror the QuickInput chrome (see `Add Task` →
+				// `Create New Task`): a solid-stripe titlebar at the top,
+				// a small description paragraph below it, then the form
+				// pane. The visual "line" between titlebar and body is
+				// the background contrast between
+				// `quickInputTitle.background` and `quickInput.background`
+				// — no `border-bottom`. Aria-hidden because Dialog's own
+				// title (in `.dialog-message-text`) is what
+				// `aria-labelledby="monaco-dialog-message-text"` points
+				// at; this element is decorative.
+				const titlebar = DOM.append(container, $('.automation-titlebar'));
+				titlebar.setAttribute('aria-hidden', 'true');
+				titlebar.textContent = title;
+
+				const description = DOM.append(container, $('.automation-description'));
+				description.textContent = isEdit
+					? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
+					: localize('automation.dialog.createDescription', "Define a prompt that Copilot will run on a schedule against the selected folder.");
+
+				const formPane = DOM.append(container, $('.automation-form-pane'));
+				const form = DOM.append(formPane, $('.automation-form'));
 				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, contextKeyService, contextViewService, configurationService, layoutService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 				getPrompt = handle.getPrompt;
 				getMode = handle.getMode;
@@ -408,11 +431,17 @@ function renderForm(
 ): IRenderFormHandle {
 	// --- Name ---
 	const nameRow = DOM.append(form, $('.automation-form-row'));
-	DOM.append(nameRow, $('label.automation-form-label', { for: 'automation-name' }, localize('automation.form.name', "Name")));
-	const nameInput = DOM.append(nameRow, $('input.automation-form-input', { id: 'automation-name', type: 'text', value: state.name })) as HTMLInputElement;
+	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
+	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
+	const nameInput = disposables.add(new InputBox(nameInputContainer, contextViewService, {
+		inputBoxStyles: defaultInputBoxStyles,
+		placeholder: localize('automation.form.namePlaceholder', "e.g. Morning standup notes"),
+		ariaLabel: localize('automation.form.name', "Name"),
+	}));
+	nameInput.value = state.name;
 	const nameError = DOM.append(nameRow, $('.automation-form-error'));
-	disposables.add(DOM.addStandardDisposableListener(nameInput, 'input', () => {
-		state.name = nameInput.value;
+	disposables.add(nameInput.onDidChange(value => {
+		state.name = value;
 		revalidate();
 		nameError.textContent = validation.nameError ?? '';
 	}));
@@ -832,11 +861,24 @@ function renderForm(
 
 	// --- Enabled checkbox ---
 	const enabledRow = DOM.append(form, $('.automation-form-row.automation-form-checkbox-row'));
-	const enabledCheckbox = DOM.append(enabledRow, $('input.automation-form-checkbox', { id: 'automation-enabled', type: 'checkbox' })) as HTMLInputElement;
-	enabledCheckbox.checked = state.enabled;
-	DOM.append(enabledRow, $('label.automation-form-checkbox-label', { for: 'automation-enabled' }, localize('automation.form.enabled', "Enabled (the scheduler runs this automation when due)")));
-	disposables.add(DOM.addStandardDisposableListener(enabledCheckbox, 'change', () => {
+	const enabledLabelText = localize('automation.form.enabled', "Enabled (the scheduler runs this automation when due)");
+	const enabledCheckbox = disposables.add(new Checkbox(enabledLabelText, state.enabled, defaultCheckboxStyles));
+	DOM.append(enabledRow, enabledCheckbox.domNode);
+	const enabledLabel = DOM.append(enabledRow, $('span.automation-form-checkbox-label', undefined, enabledLabelText));
+	// `Checkbox.checked = ...` does NOT fire `onChange`; centralise state
+	// writes through this helper so the click handler on the sibling
+	// label stays in sync with both the checkbox and `state.enabled`.
+	const setEnabled = (value: boolean) => {
+		if (enabledCheckbox.checked !== value) {
+			enabledCheckbox.checked = value;
+		}
+		state.enabled = value;
+	};
+	disposables.add(enabledCheckbox.onChange(() => {
 		state.enabled = enabledCheckbox.checked;
+	}));
+	disposables.add(DOM.addStandardDisposableListener(enabledLabel, 'click', () => {
+		setEnabled(!enabledCheckbox.checked);
 	}));
 
 	return {
