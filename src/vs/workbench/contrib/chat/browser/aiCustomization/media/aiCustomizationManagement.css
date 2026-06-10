@@ -1857,28 +1857,45 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /*
- * Show the dialog's built-in title (set via the `message` arg to `new Dialog(...)`).
- * Keeping the original `.dialog-message-text` element preserves the dialog's
- * aria-labelledby wiring to `#monaco-dialog-message-text`.
+ * The dialog's built-in title (rendered into `.dialog-message-text`)
+ * stays in the DOM so `aria-labelledby="monaco-dialog-message-text"`
+ * still binds for screen readers, but is visually hidden — our own
+ * `.automation-titlebar` provides the visible chrome. Visually-hidden
+ * pattern (not `display: none`) because some AT/screen-reader combos
+ * skip aria-labelledby targets when `display: none` is in effect.
+ * Same treatment for the unused dialog icon slot.
  */
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message {
-	margin: 0 0 12px 0;
+	margin: 0;
 	padding: 0;
 }
 
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
-	font-size: 16px;
-	font-weight: 600;
-	line-height: 1.3;
-	color: var(--vscode-foreground);
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-row > .dialog-icon.codicon {
+	display: none;
 }
 
 /*
  * Lock the dialog box to a stable width. Without this rule the dialog
  * inherits `width: min-content` from `dialog.css` and re-flows as the
  * embedded chat input's chips change size (e.g. when the model picker
- * resolves a shorter label). Use min(920px, 92vw) so the dialog still
+ * resolves a shorter label). Use min(640px, 92vw) so the dialog still
  * shrinks gracefully on narrow viewports.
+ *
+ * Padding is stripped (vs. the base 8px) so our `.automation-titlebar`
+ * stripe can paint edge-to-edge inside the dialog body. The form pane
+ * re-adds its own padding.
  *
  * Note: `extraClasses` on Dialog adds the class to `.monaco-dialog-box`
  * itself (not an ancestor), so we attach the rule directly here.
@@ -1887,20 +1904,32 @@ pane is first mounted. View switches inside the modal are not animated. */
 	width: min(640px, 92vw);
 	min-width: min(520px, 92vw);
 	max-width: 92vw;
+	padding: 0;
+	background-color: var(--vscode-quickInput-background);
+	color: var(--vscode-quickInput-foreground);
+}
+
+.automation-dialog-body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 }
 
 /*
- * Push the form into the .dialog-message-row's column so the scrollbar
- * (when it has to appear) tracks the row's right edge instead of
- * overlapping inputs. Inputs get padding-right so a visible scrollbar
- * doesn't cover their right border.
+ * Strip the base dialog padding on the message row and container so
+ * our titlebar can full-bleed. The form pane below re-adds horizontal
+ * padding so the form fields don't crash into the dialog edge.
+ *
+ * Container still owns the scrolling (per base/.../dialog.css), so
+ * the titlebar uses `position: sticky; top: 0` to stay visible as the
+ * form scrolls underneath it.
  */
-.automation-dialog-body {
+.monaco-dialog-box.automation-dialog .dialog-message-row {
 	padding: 0;
 }
 
 .monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
-	padding-right: 6px;
+	padding: 0;
 	/*
 	 * The base dialog leaves the message container at content size
 	 * (`align-self: stretch` only stretches height in a horizontal flex
@@ -1916,6 +1945,39 @@ pane is first mounted. View switches inside the modal are not animated. */
 	 */
 	flex: 1 1 auto;
 	min-width: 0;
+}
+
+/*
+ * QuickInput-style titlebar. The visual "line" beneath it is purely
+ * the background contrast between `quickInputTitle.background` (a
+ * translucent stripe) and `quickInput.background` (the form area).
+ * No `border-bottom`. Sticky so the title stays in view as the form
+ * scrolls (the dialog's message-container is the scroll host).
+ */
+.automation-titlebar {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	padding: 8px 12px;
+	text-align: center;
+	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	color: var(--vscode-quickInput-foreground);
+	background-color: var(--vscode-quickInputTitle-background);
+}
+
+.automation-description {
+	padding: 8px 14px;
+	font-size: var(--vscode-agents-fontSize-body2, 12px);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+.automation-form-pane {
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 0;
+	padding: 4px 14px 6px;
 }
 
 /*
@@ -2170,8 +2232,8 @@ body:has(.automation-dialog) .monaco-menu-container {
 
 .automation-form-label {
 	font-size: var(--vscode-agents-fontSize-body1, 13px);
-	font-weight: 600;
-	color: var(--vscode-foreground);
+	font-weight: 400;
+	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;
 }
 
@@ -2186,6 +2248,21 @@ body:has(.automation-dialog) .monaco-menu-container {
 	font-size: var(--vscode-agents-fontSize-body1, 13px);
 	color: var(--vscode-foreground);
 	cursor: pointer;
+}
+
+/*
+ * Host for the native `InputBox` widget. The widget owns its own
+ * `<input>` and styling (border, padding, focus ring); the host just
+ * lets it grow to the row width.
+ */
+.automation-form-input-host {
+	display: flex;
+	width: 100%;
+}
+
+.automation-form-input-host > .monaco-inputbox {
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .automation-form-input,
