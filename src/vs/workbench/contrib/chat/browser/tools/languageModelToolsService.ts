@@ -610,7 +610,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocationWithHookResult(tool, dto, preToolUseHookResult, token);
 				prepareTimeWatch.stop();
 
-				const decisionProcessTimeWatch = StopWatch.create(true);
+				const totalDecisionTimeWatch = StopWatch.create(true);
 				const { autoConfirmed: resolvedAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
 				preparedInvocation = updatedPreparedInvocation;
 
@@ -661,17 +661,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					if (!IChatToolInvocation.executionConfirmedOrDenied(toolInvocation) && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation], dto.context?.sessionResource);
 					}
-					const confirmationShownTimeWatch = StopWatch.create(true);
+					const userThinkTimeWatch = StopWatch.create(true);
 					const userConfirmed = await IChatToolInvocation.awaitConfirmation(toolInvocation, token);
-					confirmationShownTimeWatch.stop();
-					decisionProcessTimeWatch.stop();
+					userThinkTimeWatch.stop();
+					totalDecisionTimeWatch.stop();
 					const shouldLogDecisionTiming = userConfirmed.type === ToolConfirmKind.UserAction || userConfirmed.type === ToolConfirmKind.Denied;
 					this._logToolApprovalTelemetry(
 						tool,
 						dto,
 						userConfirmed,
-						shouldLogDecisionTiming ? confirmationShownTimeWatch.elapsed() : undefined,
-						shouldLogDecisionTiming ? decisionProcessTimeWatch.elapsed() : undefined,
+						shouldLogDecisionTiming ? userThinkTimeWatch.elapsed() : undefined,
+						shouldLogDecisionTiming ? totalDecisionTimeWatch.elapsed() : undefined,
 					);
 					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
@@ -807,14 +807,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	/**
-	 * @param confirmationShownTimeMs Time from when the confirmation dialog was shown to when the user decided.
-	 * Includes only user interaction time with the shown confirmation and excludes preparation and risk assessment.
+	 * @param userThinkDurationMs Time from when the confirmation dialog was shown to when the user decided.
+	 * Measures only user think time with the visible confirmation; excludes preparation, risk assessment, and rendering.
 	 * Populated only when `confirmKind` is `userAction` or `denied`.
-	 * @param decisionProcessTimeMs Time from immediately before hook-based auto-confirm resolution through risk assessment and confirmation rendering to user decision.
-	 * Includes risk assessment and confirmation rendering time, and excludes initial invocation preparation before this point.
+	 * @param totalDecisionDurationMs Time from immediately before hook-based auto-confirm resolution through risk assessment and confirmation rendering to user decision.
+	 * Includes risk assessment and confirmation rendering time on top of user think time; excludes initial invocation preparation before this point.
 	 * Populated only when `confirmKind` is `userAction` or `denied`.
 	 */
-	private _logToolApprovalTelemetry(tool: IToolEntry, dto: IToolInvocation, reason: ConfirmedReason, confirmationShownTimeMs: number | undefined, decisionProcessTimeMs: number | undefined): void {
+	private _logToolApprovalTelemetry(tool: IToolEntry, dto: IToolInvocation, reason: ConfirmedReason, userThinkDurationMs: number | undefined, totalDecisionDurationMs: number | undefined): void {
 		const confirmKindNames: Record<ToolConfirmKind, string> = {
 			[ToolConfirmKind.Denied]: 'denied',
 			[ToolConfirmKind.ConfirmationNotNeeded]: 'confirmationNotNeeded',
@@ -841,8 +841,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				confirmationNotNeededReason,
 				sandboxWrapped: terminalData?.commandLine.isSandboxWrapped,
 				requestUnsandboxedExecution: terminalData?.requestUnsandboxedExecution,
-				confirmationShownTimeMs,
-				decisionProcessTimeMs,
+				userThinkDurationMs,
+				totalDecisionDurationMs,
 				chatSessionId: dto.context?.sessionResource ? chatSessionResourceToId(dto.context.sessionResource) : undefined,
 				toolId: tool.data.id,
 				toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
@@ -1909,10 +1909,10 @@ type ToolApprovalEvent = LanguageModelToolTelemetryData & {
 	confirmationNotNeededReason: string | undefined;
 	sandboxWrapped: boolean | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
-	/** Time in milliseconds from showing the confirmation dialog to user decision. */
-	confirmationShownTimeMs: number | undefined;
-	/** Time in milliseconds from pre-decision processing start (before hook auto-confirm resolution) to user decision. */
-	decisionProcessTimeMs: number | undefined;
+	/** Time in milliseconds the user spent thinking, from showing the confirmation dialog to the user's decision. */
+	userThinkDurationMs: number | undefined;
+	/** Time in milliseconds from pre-decision processing start (before hook auto-confirm resolution) through risk assessment and rendering to user decision. */
+	totalDecisionDurationMs: number | undefined;
 };
 
 type ToolApprovalClassification = LanguageModelToolTelemetryClassification & {
@@ -1924,8 +1924,8 @@ type ToolApprovalClassification = LanguageModelToolTelemetryClassification & {
 	confirmationNotNeededReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When confirmKind is confirmationNotNeeded, a stable identifier for why the tool did not require confirmation. Limited to a known allowlist (e.g. auto-approve-all, inlineChat); set to "other" for any other reason; undefined when no reason was supplied.' };
 	sandboxWrapped: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether this specific invocation runs inside the agent terminal sandbox. Undefined for non-terminal tools.' };
 	requestUnsandboxedExecution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'For terminal tool calls, whether the model requested to bypass the sandbox for this invocation. Undefined for non-terminal tools.' };
-	confirmationShownTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Time in milliseconds from confirmation dialog display to user decision. Includes only time while the confirmation was visible and excludes risk assessment and earlier preparation. Populated only when confirmKind is userAction or denied.' };
-	decisionProcessTimeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Time in milliseconds from immediately before hook-based auto-confirm resolution through risk assessment and confirmation rendering to user decision. Excludes invocation preparation before this point. Populated only when confirmKind is userAction or denied.' };
+	userThinkDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the user spent thinking, from showing the confirmation dialog to the user decision. Excludes risk assessment and earlier preparation. Populated only when confirmKind is userAction or denied.' };
+	totalDecisionDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from immediately before hook-based auto-confirm resolution through risk assessment and confirmation rendering to user decision. Includes both system processing and user think time; excludes invocation preparation before this point. Populated only when confirmKind is userAction or denied.' };
 	owner: 'chrmarti';
 	comment: 'Provides insight into how tool confirmations are resolved (user action vs. auto-approval).';
 };

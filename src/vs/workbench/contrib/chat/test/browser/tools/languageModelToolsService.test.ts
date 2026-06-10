@@ -2398,9 +2398,9 @@ suite('LanguageModelToolsService', () => {
 		const approvalEvents = testTelemetryService.events.filter(e => e.eventName === 'chat.toolApproval');
 		assert.strictEqual(approvalEvents.length, 1, 'should have tool approval telemetry event');
 		assert.strictEqual(approvalEvents[0].data.confirmKind, 'userAction');
-		assert.ok(typeof approvalEvents[0].data.confirmationShownTimeMs === 'number', 'confirmation timing should be recorded');
-		assert.ok(typeof approvalEvents[0].data.decisionProcessTimeMs === 'number', 'decision process timing should be recorded');
-		assert.ok(approvalEvents[0].data.decisionProcessTimeMs >= approvalEvents[0].data.confirmationShownTimeMs, 'decision process timing should include confirmation timing');
+		assert.ok(typeof approvalEvents[0].data.userThinkDurationMs === 'number', 'user think duration should be recorded');
+		assert.ok(typeof approvalEvents[0].data.totalDecisionDurationMs === 'number', 'total decision duration should be recorded');
+		assert.ok(approvalEvents[0].data.totalDecisionDurationMs >= approvalEvents[0].data.userThinkDurationMs, 'total decision duration should include user think duration');
 	});
 
 	test('tool approval telemetry leaves timing undefined when confirmation is not needed', async () => {
@@ -2426,8 +2426,8 @@ suite('LanguageModelToolsService', () => {
 		const approvalEvents = testTelemetryService.events.filter(e => e.eventName === 'chat.toolApproval');
 		assert.strictEqual(approvalEvents.length, 1, 'should have tool approval telemetry event');
 		assert.strictEqual(approvalEvents[0].data.confirmKind, 'confirmationNotNeeded');
-		assert.strictEqual(approvalEvents[0].data.confirmationShownTimeMs, undefined);
-		assert.strictEqual(approvalEvents[0].data.decisionProcessTimeMs, undefined);
+		assert.strictEqual(approvalEvents[0].data.userThinkDurationMs, undefined);
+		assert.strictEqual(approvalEvents[0].data.totalDecisionDurationMs, undefined);
 	});
 
 	test('call tracking and cleanup', async () => {
