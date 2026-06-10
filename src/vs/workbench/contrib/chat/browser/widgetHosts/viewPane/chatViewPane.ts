@@ -373,7 +373,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Voice Agent Bar
 
 	private _voiceBottomArea: HTMLElement | undefined;
-	private _voiceResizeRaf: number | undefined;
+	private _lastVoiceBarHeight = 0;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
 	private _updateVoiceBar(container: HTMLElement): void {
@@ -450,18 +450,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					?? null;
 			},
 			onResize: () => {
-				// The widget calls this from rAF (same frame as render).
-				// Defer to the next frame so the browser has reflowed and
-				// offsetHeight returns the updated content height.
-				if (this._voiceResizeRaf) { return; }
-				const win = this._voiceBottomArea ? getWindow(this._voiceBottomArea) : undefined;
-				if (!win) { return; }
-				this._voiceResizeRaf = win.requestAnimationFrame(() => {
-					this._voiceResizeRaf = undefined;
-					if (this.lastDimensions) {
-						this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-					}
-				});
+				// Called from the widget's rAF after each render. Measure
+				// the voice bar's intrinsic height; if it changed, relayout
+				// so the chat widget fills the freed/reduced space.
+				if (!this._voiceBottomArea || !this.lastDimensions) { return; }
+				this._voiceBottomArea.style.height = 'auto';
+				const contentHeight = Math.min(this._voiceBottomArea.scrollHeight, ChatViewPane.VOICE_BAR_MAX_HEIGHT);
+				this._voiceBottomArea.style.height = `${contentHeight}px`;
+				if (contentHeight !== this._lastVoiceBarHeight) {
+					this._lastVoiceBarHeight = contentHeight;
+					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+				}
 			},
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
@@ -518,6 +517,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Sessions Control
 
+	private static readonly VOICE_BAR_MAX_HEIGHT = 160;
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_SNAP_THRESHOLD = this.SESSIONS_SIDEBAR_MIN_WIDTH / 2; // snap to hide when dragged below half of minimum width
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
@@ -1146,8 +1146,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private static readonly VOICE_BAR_MAX_HEIGHT = 160;
-
 	private doLayoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
@@ -1156,14 +1154,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — measure content and set explicit pixel height.
-		// We temporarily clear any existing height so scrollHeight returns
-		// the true intrinsic content height, then clamp and apply.
+		// Voice bottom area — height is set explicitly by onResize callback.
+		// Read offsetHeight (which equals the explicit pixel height we set).
 		if (this._voiceBottomArea) {
-			this._voiceBottomArea.style.height = 'auto';
-			const contentHeight = Math.min(this._voiceBottomArea.scrollHeight, ChatViewPane.VOICE_BAR_MAX_HEIGHT);
-			this._voiceBottomArea.style.height = `${contentHeight}px`;
-			remainingHeight -= contentHeight;
+			remainingHeight -= this._voiceBottomArea.offsetHeight;
 		}
 
 		// Title Control
