@@ -160,10 +160,16 @@ export interface IProductConfiguration {
 	readonly aiConfig?: {
 		readonly ariaKey: string;
 	};
+	readonly extensionTelemetry?: {
+		readonly connectionString?: string;
+		readonly endpointUrl?: string;
+		readonly endpointHealthUrl?: string;
+	};
 
 	readonly documentationUrl?: string;
 	readonly serverDocumentationUrl?: string;
 	readonly releaseNotesUrl?: string;
+	readonly releaseNotesApiUrl?: string; // test-workbench_change
 	readonly keyboardShortcutsUrlMac?: string;
 	readonly keyboardShortcutsUrlLinux?: string;
 	readonly keyboardShortcutsUrlWin?: string;
@@ -245,6 +251,8 @@ export interface IProductConfiguration {
 	readonly extensionsAutoInstallUrl?: string; // test-workbench_change
 
 	readonly tsCodeAuthMockEnabled?: boolean; // test-workbench_change
+	readonly tsCodeBaseUrl?: string; // test-workbench_change
+	readonly tsCodeGatewayBaseUrl?: string; // test-workbench_change
 	readonly defaultColorTheme?: string; // test-workbench_change
 	readonly defaultIconTheme?: string; // test-workbench_change
 
