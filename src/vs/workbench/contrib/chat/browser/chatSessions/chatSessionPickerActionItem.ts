@@ -70,7 +70,9 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			actionProvider: {
 				getActions: () => this.getDropdownActions()
 			},
-			actionBarActionProvider: undefined,
+			actionBarActionProvider: {
+				getActions: () => this.getDropdownActionBarActions(),
+			},
 			reporter: { id: group.id, name: `ChatSession:${group.name}`, includeOptions: false },
 			getAnchor: () => this._getAnchorElement(),
 		};
@@ -130,30 +132,44 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			} satisfies IActionWidgetDropdownAction;
 		});
 
+		return actions;
+	}
+
+	/**
+	 * Returns the actions to show in the dropdown. Can be overridden by subclasses.
+	 */
+	protected getDropdownActionBarActions(): IAction[] {
+		// if locked, show the current option only
+		const currentOption = this.delegate.getCurrentOption();
+		if (currentOption?.locked) {
+			return [];
+		}
+
+		const group = this.delegate.getOptionGroup();
+		if (!group) {
+			return [];
+		}
+
+		const actions: IAction[] = [];
+
 		// Add commands at the end in a separate section (only if there are options)
-		if (group.commands?.length) {
-			const addSeparator = actions.length > 0;
-			for (const command of group.commands) {
-				const args = command.arguments ? [...command.arguments] : [];
-				const sessionResource = this.delegate.getSessionResource();
-				if (sessionResource) {
-					args.unshift(sessionResource);
-				}
-				actions.push({
-					id: command.command,
-					enabled: true,
-					checked: false,
-					class: undefined,
-					description: undefined,
-					tooltip: command.tooltip ?? command.title,
-					label: command.title,
-					// Use category to create a separator before commands (only if there are options)
-					category: addSeparator ? { label: '', order: Number.MAX_SAFE_INTEGER } : undefined,
-					run: () => {
-						this.commandService.executeCommand(command.command, ...args);
-					}
-				} satisfies IActionWidgetDropdownAction);
+		for (const command of (group.commands ?? [])) {
+			const args = command.arguments ? [...command.arguments] : [];
+			const sessionResource = this.delegate.getSessionResource();
+			if (sessionResource) {
+				args.unshift(sessionResource);
 			}
+			actions.push({
+				id: command.command,
+				enabled: true,
+				checked: false,
+				class: undefined,
+				tooltip: command.tooltip ?? command.title,
+				label: command.title,
+				run: () => {
+					this.commandService.executeCommand(command.command, ...args);
+				}
+			});
 		}
 
 		return actions;
