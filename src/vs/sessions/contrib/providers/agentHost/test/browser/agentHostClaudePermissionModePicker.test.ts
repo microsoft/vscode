@@ -81,8 +81,9 @@ suite('AgentHostClaudePermissionModePicker', () => {
 				onSelect = delegate.onSelect as (item: IAgentHostSessionEnumPickerItem) => void;
 			},
 		});
+		const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
 		instantiationService.set(ISessionsManagementService, new (class extends mock<ISessionsManagementService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
+			override readonly activeSession = sessionObs;
 		})());
 		instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 			override readonly onDidChangeProviders = Event.None;
@@ -102,7 +103,7 @@ suite('AgentHostClaudePermissionModePicker', () => {
 			setupDelayedHover: () => ({ dispose: () => { } }),
 		} as Partial<IHoverService> as IHoverService);
 
-		const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker));
+		const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 		container.querySelector<HTMLElement>('a.action-label')?.click();

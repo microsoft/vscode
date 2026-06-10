@@ -156,7 +156,9 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 	 * `copilot-utility`) to a concrete `CopilotChatEndpoint`. The model
 	 * selection for each family lives in the corresponding resolver
 	 * class so callers don't need to know which CAPI family backs each
-	 * purpose.
+	 * purpose. For any other string, falls through to a direct CAPI
+	 * family lookup so callers can resolve arbitrary CAPI-registered
+	 * model families (e.g. `trajectory-compaction`) by name.
 	 */
 	private async _resolveUtilityFamily(family: ChatEndpointFamily): Promise<IChatEndpoint> {
 		const override = await this._resolveUtilityOverride(family);
@@ -167,9 +169,9 @@ export class ProductionEndpointProvider extends Disposable implements IEndpointP
 			return CopilotUtilitySmallChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
 		} else if (family === 'copilot-utility') {
 			return CopilotUtilityChatEndpoint.resolve(this._modelFetcher, this._instantiationService);
-		} else {
-			throw new Error(`Unrecognized chat endpoint family ${family}`);
 		}
+		const modelMetadata = await this._modelFetcher.getChatModelFromCapiFamily(family);
+		return this.getOrCreateChatEndpointInstance(modelMetadata);
 	}
 
 	/**

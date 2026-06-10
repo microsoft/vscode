@@ -25,7 +25,7 @@ import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionTestingServices } from '../../../test/vscode-node/services';
 import { buildUtilityAliasModelInfo, CopilotLanguageModelWrapper, LanguageModelAccess } from '../languageModelAccess';
-import { buildReasoningEffortSchemaProperty, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
+import { buildReasoningEffortSchemaProperty, formatPricingLabel, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../common/languageModelAccess';
 
 
 suite('CopilotLanguageModelWrapper', () => {
@@ -470,3 +470,22 @@ suite('normalizeTokenPrices', () => {
 		assert.strictEqual(result.default.outputPrice, 15);
 	});
 });
+
+suite('formatPricingLabel', () => {
+	function tier(inputPrice: number, outputPrice: number) {
+		return { default: { inputPrice, outputPrice, cacheReadTokenPrice: 0 } };
+	}
+
+	test('renders zero prices as 0 instead of exponential notation', () => {
+		assert.strictEqual(formatPricingLabel(tier(0, 0)), 'In: 0 · Out: 0 AICs/1M tokens');
+	});
+
+	test('renders small prices in exponential notation', () => {
+		assert.strictEqual(formatPricingLabel(tier(0.001, 0.005)), 'In: 1.00e-3 · Out: 5.00e-3 AICs/1M tokens');
+	});
+
+	test('renders regular prices trimming trailing zeros', () => {
+		assert.strictEqual(formatPricingLabel(tier(3, 15)), 'In: 3 · Out: 15 AICs/1M tokens');
+	});
+});
+
