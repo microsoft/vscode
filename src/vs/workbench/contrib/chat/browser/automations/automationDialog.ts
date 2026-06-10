@@ -4,29 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { ISelectOptionItem, SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultDialogStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../../platform/window/common/window.js';
+// eslint-disable-next-line local/code-import-patterns
+import { WorkspacePicker } from '../../../../../sessions/contrib/chat/browser/sessionWorkspacePicker.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../sessions/services/sessions/common/session.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
@@ -57,11 +56,6 @@ const DAYS_OF_WEEK: readonly string[] = [
 	localize('automation.day.sat', "Saturday"),
 ];
 
-export interface IFolderChoice {
-	readonly uri: URI;
-	readonly label: string;
-}
-
 /**
  * Recognizes the popup container roots used by chat input pickers and
  * other VS Code overlays. Used as the dialog's `isExternalFocusAllowed`
@@ -81,8 +75,6 @@ function isAutomationDialogPopupTarget(relatedTarget: HTMLElement): boolean {
 }
 
 export interface IShowAutomationDialogOptions {
-	/** Folders the user may pick from for the new session's workspace. */
-	readonly folders: readonly IFolderChoice[];
 	/** Existing automation to edit; omit for create. */
 	readonly existing?: IAutomation;
 }
@@ -112,8 +104,6 @@ export async function showAutomationDialog(
 	keybindingService: IKeybindingService,
 	layoutService: ILayoutService,
 	hostService: IHostService,
-	fileDialogService: IFileDialogService,
-	quickInputService: IQuickInputService,
 	sessionTypeProvider: IAutomationSessionTypeProvider,
 	options: IShowAutomationDialogOptions,
 ): Promise<IAutomationDialogResult | undefined> {
@@ -122,17 +112,13 @@ export async function showAutomationDialog(
 	const initial = options.existing;
 	const isEdit = !!initial;
 
-	const initialFolder = initial?.folderUri
-		?? options.folders.find(f => f.uri.toString() === initial?.folderUri?.toString())?.uri
-		?? options.folders[0]?.uri;
-
 	const state: IFormState = {
 		name: initial?.name ?? '',
 		interval: initial?.schedule.interval ?? 'daily',
 		hour: initial?.schedule.scheduleHour ?? 9,
 		minute: initial?.schedule.scheduleMinute ?? 0,
 		day: initial?.schedule.scheduleDay ?? 1,
-		folderUri: initialFolder,
+		folderUri: initial?.folderUri,
 		providerId: initial?.providerId,
 		sessionTypeId: initial?.sessionTypeId,
 		enabled: initial?.enabled ?? true,
@@ -191,7 +177,7 @@ export async function showAutomationDialog(
 			renderBody: container => {
 				container.classList.add('automation-dialog-body');
 				const form = DOM.append(container, $('.automation-form'));
-				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, contextKeyService, contextViewService, configurationService, layoutService, fileDialogService, quickInputService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
+				const handle = renderForm(form, state, options, disposables, validation, () => revalidate(), instantiationService, contextKeyService, contextViewService, configurationService, layoutService, sessionTypeProvider, initial?.prompt ?? '', initial?.mode, initial?.permissionLevel, initial?.modelId);
 				getPrompt = handle.getPrompt;
 				getMode = handle.getMode;
 				getPermissionLevel = handle.getPermissionLevel;
@@ -383,8 +369,6 @@ function renderForm(
 	contextViewService: IContextViewService,
 	configurationService: IConfigurationService,
 	layoutService: ILayoutService,
-	fileDialogService: IFileDialogService,
-	quickInputService: IQuickInputService,
 	sessionTypeProvider: IAutomationSessionTypeProvider,
 	initialPrompt: string,
 	initialMode: string | undefined,
@@ -490,155 +474,51 @@ function renderForm(
 	}));
 
 	// --- Folder (required) ---
-	// Rendered as a chat-input style chip and placed above the prompt so
-	// changing the folder updates the session-type / mode pickers in the
-	// chat input below before the user composes their request. Clicking
-	// opens a quick pick listing currently-open workspace folders, any
-	// folders the user has browsed to during this session, plus a
-	// `Browse for folder…` action that opens the OS folder picker.
+	// Rendered as the shared `WorkspacePicker` from the sessions layer so
+	// the chip and dropdown look + behave like the "New Session" view's
+	// workspace picker. We subclass to disable the categorical tab bar
+	// (`Local` / `GitHub` / `Remote`) — the dialog is local-only — but
+	// otherwise inherit the recents list, the local `Select...` browse
+	// action, the keyboard handling, and the trigger chip styling.
 	//
 	// `sessionTypeBinder` is created here (above the prompt section)
-	// because the folder picker calls `sessionTypeBinder.setFolder` and
-	// because the binder must exist before `chatInputOptions` reads it.
+	// because the folder picker's `onDidSelectWorkspace` listener calls
+	// `sessionTypeBinder.setFolder` and because the binder must exist
+	// before `chatInputOptions` reads it.
 	const sessionTypeBinder = createSessionTypeBinder(state, sessionTypeProvider, disposables);
 
-	const folderRow = DOM.append(form, $('.automation-form-row'));
+	const folderRow = DOM.append(form, $('.automation-form-row.automation-form-folder-row'));
 	DOM.append(folderRow, $('label.automation-form-label', undefined, localize('automation.form.folder', "Workspace folder")));
-	const folderChip = DOM.append(folderRow, $('button.automation-folder-chip.chat-input-picker-item', { type: 'button' })) as HTMLButtonElement;
-	folderChip.setAttribute('aria-haspopup', 'listbox');
+	const folderPickerHost = DOM.append(folderRow, $('.automation-form-folder-picker-host'));
 	const folderError = DOM.append(folderRow, $('.automation-form-error'));
 
-	// Folders added at runtime via Browse so they stay available across
-	// re-renders of the chip and the quick pick.
-	const browsedFolders: URI[] = [];
+	const workspacePicker = disposables.add(instantiationService.createInstance(AutomationsWorkspacePicker));
+	workspacePicker.render(folderPickerHost);
 
-	// All folder-chip elements re-render through this list whenever the
-	// selected folder changes. Today this holds only the form-row chip's
-	// renderer; the array is preserved so additional chip surfaces can be
-	// registered without rewiring the folder-change path.
-	const folderChipRefreshers: Array<() => void> = [];
+	// Push the dialog's initial folder into the picker without firing
+	// `onDidSelectWorkspace` (we don't want our listener to revalidate
+	// before the form is even mounted, and we don't want to overwrite
+	// `state.folderUri` with itself).
+	if (state.folderUri) {
+		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false });
+	}
 
-	const renderChipLabel = () => {
-		DOM.clearNode(folderChip);
-		const labelText = state.folderUri
-			? basenameOrUri(state.folderUri)
-			: localize('automation.form.folderPlaceholder', "Select folder…");
-		folderChip.append(
-			...renderLabelWithIcons(`$(${Codicon.folder.id})`),
-			$('span.chat-input-picker-label', undefined, labelText),
-			...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`),
-		);
-		folderChip.title = state.folderUri
-			? localize('automation.form.folderTitle', "Workspace folder: {0}", state.folderUri.fsPath ?? state.folderUri.toString())
-			: localize('automation.form.folderTitleEmpty', "Select a workspace folder for this automation.");
-		folderChip.setAttribute('aria-label', folderChip.title);
-	};
-	folderChipRefreshers.push(renderChipLabel);
-	renderChipLabel();
-
-	const setFolder = (uri: URI | undefined) => {
+	// React to user picks. The picker emits `undefined` on clear; treat
+	// that as "no folder selected" so validation re-fires the required
+	// error.
+	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
 		state.folderUri = uri;
-		// Re-validate the chip's session-type selection against the new
-		// folder's available list. Fires the binder's emitter so the
-		// chat input refreshes its option-group pickers.
 		sessionTypeBinder.setFolder(uri);
-		for (const refresh of folderChipRefreshers) {
-			refresh();
-		}
 		revalidate();
 		folderError.textContent = validation.folderError ?? '';
-	};
-
-	const browseAction: IQuickPickItem & { kind: 'browse' } = {
-		kind: 'browse',
-		label: localize('automation.form.browse', "Browse for folder…"),
-		iconClass: ThemeIcon.asClassName(Codicon.folderOpened),
-	};
-
-	const openFolderPicker = async () => {
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		const seen = new Set<string>();
-		const addFolderItem = (uri: URI, label: string, description?: string) => {
-			const key = uri.toString();
-			if (seen.has(key)) {
-				return;
-			}
-			seen.add(key);
-			items.push({
-				label,
-				description,
-				iconClass: ThemeIcon.asClassName(Codicon.folder),
-				id: key,
-			});
-		};
-		for (const f of options.folders) {
-			addFolderItem(f.uri, f.label);
-		}
-		for (const uri of browsedFolders) {
-			addFolderItem(uri, basenameOrUri(uri));
-		}
-		// Editing an automation whose folder is not currently open and was
-		// never browsed: surface it so the user knows what is stored.
-		if (state.folderUri && !seen.has(state.folderUri.toString())) {
-			addFolderItem(
-				state.folderUri,
-				basenameOrUri(state.folderUri),
-				localize('automation.form.folderNotOpen', "(folder not currently open)"),
-			);
-		}
-		if (items.length > 0) {
-			items.push({ type: 'separator' });
-		}
-		items.push(browseAction);
-
-		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('automation.form.folderPickerPlaceholder', "Select workspace folder"),
-			activeItem: state.folderUri
-				? (items.find((i): i is IQuickPickItem => i.type !== 'separator' && (i as IQuickPickItem).id === state.folderUri!.toString()))
-				: undefined,
-		});
-		if (!picked) {
-			return;
-		}
-		if ((picked as typeof browseAction).kind === 'browse') {
-			const result = await fileDialogService.showOpenDialog({
-				canSelectFolders: true,
-				canSelectFiles: false,
-				canSelectMany: false,
-				title: localize('automation.form.browseTitle', "Select Workspace Folder"),
-				defaultUri: state.folderUri,
-			});
-			if (!result || result.length === 0) {
-				return;
-			}
-			const pickedUri = result[0];
-			if (!browsedFolders.some(u => u.toString() === pickedUri.toString())) {
-				browsedFolders.push(pickedUri);
-			}
-			setFolder(pickedUri);
-			return;
-		}
-		const id = (picked as IQuickPickItem).id;
-		if (id) {
-			setFolder(URI.parse(id));
-		}
-	};
-
-	disposables.add(DOM.addStandardDisposableListener(folderChip, 'click', () => {
-		openFolderPicker();
 	}));
 
-	// If the dialog opened with no folder yet but folders are available,
-	// default to the first one so the user can save without an extra
-	// click — matches the previous bespoke control's behavior. Re-validate
-	// the session-type selection against the freshly-defaulted folder so
-	// the chip's label resolves to a real (providerId, sessionTypeId)
-	// pair rather than the empty fallback set by
-	// {@link createSessionTypeBinder} when no folder was present.
-	if (!state.folderUri && options.folders.length > 0) {
-		state.folderUri = options.folders[0].uri;
+	// If the dialog opened with no folder yet but the picker resolved one
+	// (e.g. the last folder the user picked in a chat session), adopt it
+	// so the user can save without an extra click.
+	if (!state.folderUri && workspacePicker.selectedFolderUri) {
+		state.folderUri = workspacePicker.selectedFolderUri;
 		sessionTypeBinder.setFolder(state.folderUri);
-		renderChipLabel();
 	}
 
 	// --- Prompt ---
@@ -917,7 +797,27 @@ function updateSaveButtonState(
 	form.classList.toggle('automation-form-invalid', !valid);
 }
 
-function basenameOrUri(uri: URI): string {
-	const segments = uri.path.split('/').filter(s => s.length > 0);
-	return segments[segments.length - 1] ?? uri.toString();
+/**
+ * Workspace picker for the automation dialog. Subclasses
+ * {@link WorkspacePicker} to:
+ *
+ * - Disable the categorical tab bar (`Local` / `GitHub` / `Remote`) — the
+ *   dialog is local-only.
+ * - Filter the browse-action list to only the local `Select...` entry.
+ *   Without this override, providers contribute their own browse actions
+ *   (`Select GitHub repo...`, remote agent-host picks, etc.) and they
+ *   all appear in the flat dropdown — leading to a second, confusing
+ *   `Select...` row.
+ *
+ * All other behavior (recents storage, keyboard handling, chip styling
+ * hook) is inherited verbatim from the base picker.
+ */
+class AutomationsWorkspacePicker extends WorkspacePicker {
+	protected override _showTabs(): boolean {
+		return false;
+	}
+
+	protected override _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
+		return super._getAllBrowseActions().filter(a => a.group === SESSION_WORKSPACE_GROUP_LOCAL);
+	}
 }
