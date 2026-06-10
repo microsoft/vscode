@@ -8,10 +8,9 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
-import { IAgentHostMcpServer } from '../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
@@ -19,6 +18,19 @@ import { IAgentHostMcpServer } from '../../workbench/contrib/chat/browser/agentS
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * A rich view of a single MCP server exposed by an agent host session.
+ * Encapsulates the dispatch plumbing so consumers can present and toggle
+ * servers without depending on the low-level protocol action surface.
+ */
+export interface IAgentHostMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly status: McpServerStatus;
+	setEnabled(enabled: boolean): void;
 }
 
 /**

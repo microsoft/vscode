@@ -10,13 +10,14 @@ import { AgentSession, IAgentHostService } from '../../../../../../platform/agen
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationType, McpServerCustomization, type Customization, type McpServerStatus, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerCustomization, type Customization, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
 
@@ -41,19 +42,6 @@ export interface IAgentHostCustomizationService {
 	 * host, or that don't expose any MCP servers.
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
-}
-
-/**
- * A rich view of a single MCP server exposed by an agent host session.
- * Encapsulates the dispatch plumbing so consumers can present and toggle
- * servers without depending on the low-level protocol action surface.
- */
-export interface IAgentHostMcpServer {
-	readonly id: string;
-	readonly name: string;
-	readonly enabled: boolean;
-	readonly status: McpServerStatus;
-	setEnabled(enabled: boolean): void;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
