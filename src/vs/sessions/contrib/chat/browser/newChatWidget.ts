@@ -6,13 +6,13 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
@@ -53,6 +53,8 @@ export class NewChatWidget extends Disposable {
 	 */
 	private readonly _renderHarnessPickerInControls: boolean;
 
+	private readonly _session: IObservable<IActiveSession | undefined>;
+
 	constructor(
 		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -73,8 +75,17 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
 		this._register(this._pendingPreferredUpgrade);
 
+		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsManagementService.activeSession read in the widget.
+		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
+			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			if (activeSession && activeSession.isCreated.read(reader)) {
+				return prev;
+			}
+			return activeSession;
+		});
+
 		const canSendRequest = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			if (!session) {
 				return false;
 			}
@@ -82,16 +93,17 @@ export class NewChatWidget extends Disposable {
 		});
 
 		const loading = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			return session?.loading.read(reader) ?? false;
 		});
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
-			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
+			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 		}));
@@ -152,7 +164,7 @@ export class NewChatWidget extends Disposable {
 	 * @returns `true` if an active session was found and the picker was synced.
 	 */
 	private _syncWorkspacePickerFromActiveSession(): boolean {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;
 		}
@@ -206,7 +218,7 @@ export class NewChatWidget extends Disposable {
 		const store = new DisposableStore();
 		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			if (created) {
-				const active = this.sessionsManagementService.activeSession.get();
+				const active = this._session.get();
 				if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
 					return; // the draft was sent or is no longer the active session
 				}
@@ -336,7 +348,7 @@ export class NewChatWidget extends Disposable {
 	// --- Send ---
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return;

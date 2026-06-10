@@ -126,7 +126,7 @@ export function createApp(options: ApplicationOptions, optionsTransform?: (opts:
 }
 
 export function getMockLlmServerPath(): string {
-	return join(__dirname, '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.js');
+	return join(__dirname, '..', '..', '..', 'scripts', 'chat-simulation', 'common', 'mock-llm-server.ts');
 }
 
 export function buildCopilotChatToken(mockUrl: string): string {

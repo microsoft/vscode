@@ -34,13 +34,14 @@ import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
 const FILTER_THRESHOLD = 10;
 
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
-const PERMISSION_MODE_LEARN_MORE_URL = 'https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels';
+const PERMISSION_MODE_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
 
 interface IConfigPickerItem {
 	readonly value: string;
@@ -83,7 +84,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
-		description: item.description,
+		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && property === SessionConfigKey.AutoApprove && (item.value === 'autoApprove' || item.value === 'autopilot'),
 		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
@@ -203,6 +204,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 
@@ -446,11 +448,16 @@ export class AgentHostChatInputPicker extends Disposable {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
 		const actionItems = toActionItems(this._property, items, currentValue, policyRestricted);
 		if (this._property === ClaudeSessionConfigKey.PermissionMode || this._property === SessionConfigKey.AutoApprove) {
+			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
+			actionItems.push({
+				kind: ActionListItemKind.Separator,
+				label: '',
+			});
 			actionItems.push({
 				kind: ActionListItemKind.Action,
-				label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions"),
+				label: learnMoreLabel,
 				group: { title: '', icon: Codicon.blank },
-				item: { value: LEARN_MORE_VALUE, label: localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions") },
+				item: { value: LEARN_MORE_VALUE, label: learnMoreLabel },
 			});
 		}
 
@@ -535,7 +542,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		return (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
+			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 

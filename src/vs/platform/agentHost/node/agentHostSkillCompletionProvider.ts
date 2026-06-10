@@ -11,7 +11,7 @@ import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { CustomizationType, SkillCustomization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
-import { extractLeadingSlashToken } from './agentHostSlashCompletion.js';
+import { extractWhitespaceDelimitedSlashToken } from './agentHostSlashCompletion.js';
 
 /**
  * Generic completion provider that contributes slash completions for skills
@@ -29,7 +29,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 	}
 
 	async provideCompletionItems(params: CompletionsParams, token: CancellationToken): Promise<readonly CompletionItem[]> {
-		const leading = extractLeadingSlashToken(params.text, params.offset);
+		const leading = extractWhitespaceDelimitedSlashToken(params.text, params.offset);
 		if (!leading) {
 			return [];
 		}

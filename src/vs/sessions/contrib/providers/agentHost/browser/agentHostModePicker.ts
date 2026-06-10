@@ -8,7 +8,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
@@ -19,7 +19,7 @@ import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { isWellKnownModeSchema } from './agentHostPermissionPickerDelegate.js';
@@ -57,8 +57,8 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected abstract readonly _telemetryId: string;
 
 	constructor(
+		protected readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -66,7 +66,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			this._sessionsManagementService.activeSession.read(reader);
+			this._session.read(reader);
 			this._updateTrigger();
 		}));
 
@@ -135,7 +135,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	 * rendered visually disabled in {@link _updateTrigger}.
 	 */
 	protected _isCurrentlyResolvingConfig(): boolean {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return false;
 		}
@@ -147,7 +147,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	}
 
 	private _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return undefined;
 		}
@@ -233,7 +233,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		const actionItems: IActionListItem<IAgentHostSessionEnumPickerItem>[] = ctx.items.map(item => ({
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			description: item.description,
+			detail: item.description,
 			group: { title: '', icon: this._getActionItemIcon(item, ctx.currentValue) },
 			item,
 		}));
@@ -297,8 +297,8 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		return getModeIcon(value);
 	}
 
-	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem, currentValue: string): ThemeIcon {
-		return item.value === currentValue ? Codicon.check : Codicon.blank;
+	protected _getActionItemIcon(item: IAgentHostSessionEnumPickerItem): ThemeIcon | undefined {
+		return getModeIcon(item.value);
 	}
 
 	protected _getTriggerAriaLabel(label: string): string {
