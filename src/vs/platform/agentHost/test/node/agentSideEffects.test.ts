@@ -21,7 +21,7 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import { buildDefaultChangesetCatalogue } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { ChangesSummary, CustomizationType } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -55,7 +55,9 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { /* no-op */ }
 	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	persistChangesSummary(session: string, changesSummary: ChangesSummary): void { /* no-op */ }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	refreshBranchChangeset(): void { /* no-op */ }
 	refreshUncommittedChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
 	setTurnSubscriberProbe(): void { /* no-op */ }
@@ -147,8 +149,8 @@ suite('AgentSideEffects', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(sessionUri.toString()),
 		});
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalogue(sessionUri.toString()));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 

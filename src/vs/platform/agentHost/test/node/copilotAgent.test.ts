@@ -32,7 +32,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { CustomizationType } from '../../common/state/protocol/state.js';
+import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -44,10 +44,11 @@ import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHos
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotBranchNameHintFromMessage, getCopilotWorktreeBranchName, getCopilotWorktreeName, getCopilotWorktreesRoot } from '../../node/copilot/copilotAgent.js';
 import { NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
-import type { CopilotSessionLaunchPlan } from '../../node/copilot/copilotSessionLauncher.js';
+import type { CopilotSessionLaunchPlan, IActiveClientSnapshot } from '../../node/copilot/copilotSessionLauncher.js';
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { ActiveClientState } from '../../node/activeClientState.js';
 
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
@@ -401,10 +402,11 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 			},
 			resumeSession: async () => new MockCopilotSession() as unknown as CopilotSession,
 		},
+		activeClientState: new ActiveClientState(),
 		sessionId: 'test-session-1',
 		workingDirectory: undefined,
 		resolvedAgentName: undefined,
-		snapshot: { clientId: '', tools: [], plugins: [] },
+		snapshot: { tools: [], plugins: [] },
 		shellManager,
 		githubToken: 'token',
 		model: undefined,
@@ -855,13 +857,30 @@ suite('CopilotAgent', () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
+			const agentContent = [
+				'---',
+				'name: helper',
+				'description: helps out',
+				'---',
+				'agent body',
+			];
+			const instructionContent = [
+				'---',
+				'name: nested',
+				'description: nested instructions',
+				'applyTo: *.ts, *.js',
+				'---',
+				'instruction body',
+			];
+
+
 			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 			await fileService.createFolder(URI.joinPath(workspace, '.github', 'agents'));
 			await fileService.createFolder(URI.joinPath(workspace, '.github', 'instructions', 'team'));
 			const agentFile = URI.joinPath(workspace, '.github', 'agents', 'helper.agent.md');
 			const instructionFile = URI.joinPath(workspace, '.github', 'instructions', 'team', 'nested.instructions.md');
-			await fileService.writeFile(agentFile, VSBuffer.fromString('agent body'));
-			await fileService.writeFile(instructionFile, VSBuffer.fromString('instruction body'));
+			await fileService.writeFile(agentFile, VSBuffer.fromString(agentContent.join('\n')));
+			await fileService.writeFile(instructionFile, VSBuffer.fromString(instructionContent.join('\n')));
 			const agentsMdFile = URI.joinPath(workspace, 'AGENTS.md');
 			await fileService.writeFile(agentsMdFile, VSBuffer.fromString('agents md body'));
 
@@ -896,6 +915,7 @@ suite('CopilotAgent', () => {
 					id: customizationId(agentFile.toString()),
 					uri: agentFile.toString(),
 					name: 'helper',
+					description: 'helps out',
 				}]);
 
 				const instructionDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(workspace, '.github', 'instructions').toString());
@@ -905,7 +925,10 @@ suite('CopilotAgent', () => {
 					type: CustomizationType.Rule,
 					id: customizationId(instructionFile.toString()),
 					uri: instructionFile.toString(),
-					name: 'nested.instructions.md',
+					name: 'nested',
+					description: 'nested instructions',
+					globs: ['*.ts', '*.js'],
+					alwaysApply: undefined,
 				}]);
 
 				const agentInstructionsDirectory = discoveredDirectories.find(customization => customization.uri === workspace.toString());
@@ -1259,6 +1282,76 @@ suite('CopilotAgent', () => {
 				const sessionUri = AgentSession.uri('copilotcli', 'session-missing');
 				// No stub installed — the call should be silently ignored.
 				agent.onClientToolCallComplete(sessionUri, 'tc-x', { success: true, pastTenseMessage: 'noop' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	});
+
+	// Regression for the #319516 incident: a window reload reconnects with a
+	// NEW clientId but an identical tool list. The cached SDK session's
+	// staleness check (`ActiveClient.requiresRestart`) must NOT treat a
+	// clientId-only change as a config change — otherwise either the session
+	// is needlessly restarted, or (the actual bug) the cached session is
+	// reused while the live clientId is never updated, so subsequent client
+	// tool calls are stamped with the dead window's id and hang forever.
+	suite('client tool refresh on reload (#319516)', () => {
+		/** Minimal structural view of the agent's private per-session ActiveClient. */
+		type TestActiveClient = {
+			readonly state: { readonly clientId: string | undefined };
+			snapshot(): Promise<IActiveClientSnapshot>;
+			requiresRestart(snap: IActiveClientSnapshot): Promise<boolean>;
+		};
+
+		function getActiveClient(agent: CopilotAgent, session: URI): TestActiveClient {
+			const activeClients = (agent as unknown as { _activeClients: { get(s: URI): TestActiveClient | undefined } })._activeClients;
+			const activeClient = activeClients.get(session);
+			assert.ok(activeClient, 'expected an ActiveClient to exist after setClientTools');
+			return activeClient;
+		}
+
+		const tools: ToolDefinition[] = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }];
+
+		test('clientId-only change (reload) does NOT require a restart and updates the live clientId', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'reload-session');
+
+				// Window A registers its tools; this is the snapshot the SDK
+				// session would be created with.
+				agent.setClientTools(session, 'client-A', tools);
+				const activeClient = getActiveClient(agent, session);
+				const appliedSnapshot = await activeClient.snapshot();
+				assert.strictEqual(activeClient.state.clientId, 'client-A');
+
+				// Window A reloads: window B reconnects with a new clientId but
+				// the identical tool list.
+				agent.setClientTools(session, 'client-B', [...tools]);
+
+				// Root-cause assertions: the cached SDK session must be reused
+				// (no restart) AND the live clientId must now be window B's, so
+				// the next client tool call is stamped with a live owner.
+				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), false);
+				assert.strictEqual(activeClient.state.clientId, 'client-B');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('a structural tool change still requires a restart', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'tools-change-session');
+
+				agent.setClientTools(session, 'client-A', tools);
+				const activeClient = getActiveClient(agent, session);
+				const appliedSnapshot = await activeClient.snapshot();
+
+				// A genuinely different tool set (added tool) must restart so the
+				// SDK session is rebuilt with the new tools.
+				agent.setClientTools(session, 'client-A', [...tools, { name: 'second_tool', description: 'another', inputSchema: { type: 'object', properties: {} } }]);
+
+				assert.strictEqual(await activeClient.requiresRestart(appliedSnapshot), true);
 			} finally {
 				await disposeAgent(agent);
 			}

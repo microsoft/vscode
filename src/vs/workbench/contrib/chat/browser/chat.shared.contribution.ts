@@ -1133,7 +1133,7 @@ configurationRegistry.registerConfiguration({
 			items: { type: 'string' },
 			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
 			default: [
-				'runTask', 'getTaskOutput', 'problems', 'runTests',
+				'runTask', 'getTaskOutput', 'problems', 'runTests', 'addComment', 'listComments', 'deleteComments', 'resolveComments',
 				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
 				// out of these, only the tools that are actually registered/enabled are seen by the agent.
 				...browserChatToolReferenceNames,

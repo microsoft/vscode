@@ -24,12 +24,12 @@ import { defineSharedRealSdkTests, type IRealSdkProviderConfig } from './realSdk
 
 const REAL_CODEX_ENABLED = process.env['AGENT_HOST_REAL_CODEX'] === '1';
 
-function resolveCodexBinaryPath(): string | undefined {
-	const candidate = join(process.cwd(), 'node_modules', '@openai', 'codex', 'bin', 'codex.js');
-	return existsSync(candidate) ? candidate : undefined;
+function resolveCodexSdkRoot(): string | undefined {
+	const sdkPackageDir = join(process.cwd(), 'node_modules', '@openai', 'codex');
+	return existsSync(sdkPackageDir) ? process.cwd() : undefined;
 }
 
-const CODEX_BINARY_PATH = REAL_CODEX_ENABLED ? resolveCodexBinaryPath() : undefined;
+const CODEX_SDK_ROOT = REAL_CODEX_ENABLED ? resolveCodexSdkRoot() : undefined;
 
 const CODEX_CONFIG: IRealSdkProviderConfig = {
 	suiteTitle: 'Protocol WebSocket - Real Codex App Server',
@@ -38,8 +38,8 @@ const CODEX_CONFIG: IRealSdkProviderConfig = {
 	shellToolName: 'shell',
 	subagentToolNames: [],
 	exitPlanModeToolName: 'exit_plan_mode',
-	enabled: REAL_CODEX_ENABLED && !!CODEX_BINARY_PATH,
-	codexBinaryPath: CODEX_BINARY_PATH,
+	enabled: REAL_CODEX_ENABLED && !!CODEX_SDK_ROOT,
+	codexSdkRoot: CODEX_SDK_ROOT,
 	supportsWorktreeIsolation: false,
 	supportsSubagents: false,
 	supportsPlanMode: false,

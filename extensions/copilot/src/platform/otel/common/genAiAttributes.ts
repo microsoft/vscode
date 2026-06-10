@@ -54,11 +54,15 @@ export const GenAiAttr = {
 	REQUEST_PRESENCE_PENALTY: 'gen_ai.request.presence_penalty',
 	REQUEST_SEED: 'gen_ai.request.seed',
 	REQUEST_STOP_SEQUENCES: 'gen_ai.request.stop_sequences',
+	/** Whether the request used streaming mode (recommended on streaming chat spans). */
+	REQUEST_STREAM: 'gen_ai.request.stream',
 
 	// Response
 	RESPONSE_MODEL: 'gen_ai.response.model',
 	RESPONSE_ID: 'gen_ai.response.id',
 	RESPONSE_FINISH_REASONS: 'gen_ai.response.finish_reasons',
+	/** Time to first streaming chunk, in seconds (recommended on streaming chat spans). */
+	RESPONSE_TIME_TO_FIRST_CHUNK: 'gen_ai.response.time_to_first_chunk',
 
 	// Usage
 	USAGE_INPUT_TOKENS: 'gen_ai.usage.input_tokens',
