@@ -2168,86 +2168,88 @@ body:has(.automation-dialog) .monaco-menu-container {
 	padding: 6px 0;
 }
 
-.automation-form-folder-controls {
+/*
+ * Folder picker — uses the shared `WorkspacePicker` from the sessions
+ * layer (see `sessionWorkspacePicker.ts`). The picker renders an
+ * `<a.action-label>` chip trigger inside
+ * `.sessions-chat-picker-slot.sessions-chat-workspace-picker`. We restyle
+ * it to fit the dialog's compact, 13px form scale — the upstream styling
+ * lives in `sessions/contrib/chat/browser/media/chatWidget.css` and is
+ * sized for the new-session "hero" UI (18px font, larger chip) which is
+ * too large for our modal.
+ *
+ * The dropdown content itself renders through `IActionWidgetService`,
+ * which has its own global CSS — no overrides needed here.
+ */
+.automation-form-folder-picker-host {
+	align-self: flex-start;
+	max-width: 100%;
 	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.automation-form-folder-controls .automation-form-select {
-	flex: 1 1 auto;
 	min-width: 0;
 }
 
-/*
- * Folder picker rendered as a chip styled after the chat input pickers
- * (see chat.css `.chat-input-picker-item .action-label`). A self-contained
- * button — clicking opens a quick pick listing known folders + a `Browse…`
- * action — so the modal stays visually consistent with the embedded chat
- * composer's chips.
- */
-.automation-folder-chip {
-	align-self: flex-start;
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker {
+	display: inline-flex;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
+	min-width: 0;
+	max-width: 100%;
 	height: 22px;
 	padding: 0 8px;
-	max-width: 100%;
 	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body2, 11px);
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	line-height: 1.25;
 	color: var(--vscode-foreground);
 	background: var(--vscode-toolbar-hoverBackground, transparent);
 	border: 1px solid var(--vscode-widget-border, transparent);
 	border-radius: 4px;
 	cursor: pointer;
+	touch-action: manipulation;
 }
 
-.automation-folder-chip:hover {
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
 	background: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
 }
 
-.automation-folder-chip:focus,
-.automation-folder-chip[aria-expanded="true"] {
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:focus,
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label[aria-expanded="true"] {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.automation-folder-chip .chat-input-picker-label {
+.automation-form-folder-picker-host .sessions-chat-dropdown-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.automation-folder-chip .codicon-chevron-down {
+.automation-form-folder-picker-host .sessions-chat-dropdown-chevron {
 	font-size: 10px;
 	opacity: 0.75;
+	flex-shrink: 0;
 }
 
-.automation-folder-chip .codicon {
+/* chatWidget.css sets the workspace chip's label font-size to 18px and
+ * inner codicons to 16px for the new-session "hero" UI. Match its
+ * selector specificity here to win the cascade and render at the
+ * dialog's 13px body scale. */
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
+	font-size: var(--vscode-agents-fontSize-body1, 13px);
+}
+
+.automation-form-folder-picker-host .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 14px;
+}
+
+.automation-form-folder-picker-host .codicon {
 	color: var(--vscode-icon-foreground);
-}
-
-.automation-form-folder-browse {
-	flex: 0 0 auto;
-	padding: 4px 10px;
-	font-family: inherit;
-	font-size: var(--vscode-agents-fontSize-body2);
-	color: var(--vscode-button-secondaryForeground);
-	background: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-border, transparent);
-	border-radius: 2px;
-	cursor: pointer;
-}
-
-.automation-form-folder-browse:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-
-.automation-form-folder-browse:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .automations-list-widget .automations-row-folder {
