@@ -14,6 +14,7 @@ import { IChatToolInvocation, type IChatTerminalToolInvocationData } from '../..
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '../../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 
@@ -30,8 +31,9 @@ export class ChatMissingSandboxDepsConfirmationSubPart extends AbstractToolConfi
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
-		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
+		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
 
 		this.render({
 			allowActionId: AcceptToolConfirmationActionId,

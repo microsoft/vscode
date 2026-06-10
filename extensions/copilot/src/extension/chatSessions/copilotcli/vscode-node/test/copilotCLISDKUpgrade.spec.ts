@@ -125,6 +125,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 			// foundry-local-sdk vendored native bindings.
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'darwin-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-x64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-x64', 'foundry_local_napi.node'),
 			// pvrecorder vendored native bindings.
