@@ -68,6 +68,17 @@ import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
+import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
+import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
+import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../../../../agentsVoice/common/agentsVoice.js';
+import { AgentsVoiceWidget } from '../../../../agentsVoice/browser/agentsVoiceWidget.js';
+import { bindWidgetToController } from '../../../../agentsVoice/browser/agentsVoiceWidgetBinding.js';
+import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
+import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	/**
@@ -129,6 +140,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IHostService private readonly hostService: IHostService,
+		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
+		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
+		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
+		@IAgentsVoiceWindowService private readonly agentsVoiceWindowService: IAgentsVoiceWindowService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
+		@IVoicePlaybackService private readonly voicePlaybackService: IVoicePlaybackService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -311,7 +329,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.viewPaneContainer.classList.add('chat-viewpane');
 		this.updateViewPaneClasses(false);
 
-		this.createControls(parent);
+		// Controls wrapper — sessions + chat live inside here
+		const controlsWrapper = append(parent, $('.voice-agent-controls-wrapper'));
+		this.createControls(controlsWrapper);
+
+		// Bottom area at viewpane level — always visible
+		const bottomArea = append(parent, $('.voice-bottom-area'));
+		this._voiceBottomArea = bottomArea;
+
+		// Voice panel (above tab bar)
+		this.createVoiceAgentBar(bottomArea);
 
 		this.setupContextMenu(parent);
 
@@ -334,7 +361,126 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update sessions control visibility when all controls are created
 		this.updateSessionsControlVisibility();
+
+		// --- Voice command bridge ---
+		// These commands let the VoiceSessionController reach into the chat widget
+		// without holding a direct reference to this ViewPane.
+		this._register(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string) => {
+			if (text && this._widget?.viewModel) {
+				this._widget.acceptInput(text, { preserveFocus: true });
+			}
+		}));
+		this._register(CommandsRegistry.registerCommand('_chat.voice.switchToSession', (_accessor, resourceStr: string): boolean => {
+			if (resourceStr) {
+				this.viewState.sessionResource = URI.parse(resourceStr);
+				this.applyModel();
+				return true;
+			}
+			return false;
+		}));
+		this._register(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
+			return this._widget?.viewModel?.sessionResource?.toString();
+		}));
 	}
+
+	//#region Voice Agent Bar
+
+	private _voiceBottomArea: HTMLElement | undefined;
+
+	private createVoiceAgentBar(parent: HTMLElement): void {
+		const bar = append(parent, $('.voice-agent-bar'));
+		const win = getWindow(bar) as Window & typeof globalThis;
+
+		const widget = new AgentsVoiceWidget(bar, {
+			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
+			connect: () => this.voiceSessionController.connect(win),
+			disconnect: () => this.voiceSessionController.disconnect(),
+			pttDown: () => this.voiceSessionController.pttDown(),
+			pttUp: () => this.voiceSessionController.pttUp(),
+			closeWindow: () => { /* no-op: chat pane has no close button */ },
+			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),
+			openSession: (resource) => {
+				this.viewState.sessionResource = resource;
+				this.applyModel();
+			},
+			stopSession: (resource) => {
+				const model = this.chatService.getSession(resource);
+				if (model) {
+					const lastReq = model.getRequests().at(-1);
+					if (lastReq) {
+						this.voiceSessionController.markUserCancelled(resource.toString());
+						this.chatService.cancelCurrentRequestForSession(resource);
+					}
+				}
+			},
+			cancelSession: (resource) => {
+				this.voiceSessionController.markUserCancelled(resource.toString());
+				this.chatService.cancelCurrentRequestForSession(resource);
+			},
+			selectTargetSession: (resource) => {
+				this.voiceSessionController.setTargetSession(resource);
+			},
+			newSessionAsTarget: () => {
+				this.voiceSessionController.newSessionAsTarget();
+			},
+			getAnalyserNode: () => {
+				const state = this.voiceSessionController.voiceState.get();
+				return this.ttsPlaybackService.analyserNode
+					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? null;
+			},
+			onResize: () => { /* parent layout drives sizing */ },
+			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
+			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
+			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
+			onOnboardingCompleted: () => {
+				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
+			},
+		}, {
+			width: 'auto',
+			draggable: false,
+			showClose: false,
+			showExpandChevron: false,
+			showStatusText: false,
+			showStatusCounters: false,
+			showCopilotIcon: false,
+			centerConnectButton: false,
+			title: 'VOICE CHAT',
+			focusable: true,
+			showOnboarding: true,
+			reshowOnboardingOnDisconnect: true,
+		});
+		this._register(widget);
+
+		// Hide the popout button when the floating window is already open.
+		widget.setPopoutAvailable(!this.agentsVoiceWindowService.isOpen);
+		this._register(this.agentsVoiceWindowService.onDidChangeOpen(isOpen => {
+			widget.setPopoutAvailable(!isOpen);
+		}));
+
+		// PTT key label from settings
+		const pttKey = this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18';
+		widget.setPttKeyLabel(pttKey);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.voice.pushToTalkKey')) {
+				widget.setPttKeyLabel(this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18');
+			}
+		}));
+
+		// Shared controller→widget binding (also used by the floating window)
+		this._register(bindWidgetToController(widget, {
+			voiceSessionController: this.voiceSessionController,
+			agentSessionsService: this.agentSessionsService,
+			agentTitleBarStatusService: this.agentTitleBarStatusService,
+			voicePlaybackService: this.voicePlaybackService,
+			environmentService: this.workbenchEnvironmentService,
+			chatService: this.chatService,
+		}));
+
+		this._register({ dispose: () => { this.voiceSessionController.disconnect(); } });
+	}
+
+	//#endregion
 
 	//#region Sessions Control
 
@@ -973,6 +1119,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let remainingHeight = height;
 		const remainingWidth = width;
+
+		// Voice bottom area (tabs + voice panel)
+		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;

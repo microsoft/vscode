@@ -124,6 +124,11 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
 	alwaysOnTop?: boolean;
+	frameless?: boolean;
+	transparent?: boolean;
+	notResizable?: boolean;
+	noBackgroundThrottling?: boolean;
+	backgroundColor?: string;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -232,6 +237,35 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (overrides?.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.frameless) {
+		options.frame = false;
+		options.titleBarStyle = undefined;
+		options.titleBarOverlay = undefined;
+		options.minWidth = undefined;
+		options.minHeight = undefined;
+		delete (options as unknown as Record<string, unknown>).titleBarStyle;
+	}
+
+	if (overrides?.backgroundColor) {
+		options.backgroundColor = overrides.backgroundColor;
+	}
+
+	if (overrides?.transparent) {
+		options.transparent = true;
+		options.backgroundColor = undefined!; // transparent requires no background color
+	}
+
+	if (overrides?.notResizable) {
+		options.resizable = false;
+	}
+
+	if (overrides?.noBackgroundThrottling) {
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false,
+		};
 	}
 
 	return options;
