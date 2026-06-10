@@ -17,11 +17,11 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
-import { basename as resourceBasename, dirname as resourceDirname } from '../../../../base/common/resources.js';
+import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parseAgentFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parseRuleFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -35,7 +35,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, SessionInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -2065,31 +2065,41 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 	const id = customizationId(uri);
 	if (type === DiscoveredType.Agent) {
 		const agentInfo = await parseAgentFile(file, fileService);
-		return {
+		const agentCustomization: AgentCustomization = {
 			type: CustomizationType.Agent,
 			id,
 			uri,
 			name: agentInfo.name,
-			...(agentInfo.description ? { description: agentInfo.description } : {}),
-		};
+			description: agentInfo.description,
+		} satisfies AgentCustomization;
+		if (agentInfo.userInvocable !== undefined) {
+			agentCustomization._meta = { userInvocable: agentInfo.userInvocable };
+		}
+		return agentCustomization;
 	}
 	if (type === DiscoveredType.Skill) {
 		const skillInfo = await parseSkillFile(file, fileService);
-		return {
+		const skillCustomization: SkillCustomization = {
 			type: CustomizationType.Skill,
 			id,
 			uri,
-			name: resourceBasename(resourceDirname(file)),
-			...(skillInfo.description ? { description: skillInfo.description } : {}),
+			name: skillInfo.name,
+			description: skillInfo.description,
 		};
+		return skillCustomization;
 	}
 	if (type === DiscoveredType.Instruction) {
-		return {
+		const ruleInfo = await parseRuleFile(file, fileService);
+		const ruleCustomization: RuleCustomization = {
 			type: CustomizationType.Rule,
 			id,
 			uri,
-			name: resourceBasename(file),
+			name: ruleInfo.name,
+			description: ruleInfo.description,
+			globs: ruleInfo.globs,
+			alwaysApply: ruleInfo.alwaysApply,
 		};
+		return ruleCustomization;
 	}
 	// agent instruction
 	return {
