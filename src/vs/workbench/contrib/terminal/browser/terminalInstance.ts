@@ -1553,6 +1553,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._handleShellTypeChange(value as IProcessPropertyMap[ProcessPropertyType.ShellType]);
 					break;
 				case ProcessPropertyType.HasChildProcesses:
+					// The live process manager is now authoritative for child process state.
+					// Clear the persisted snapshot captured before reload so `hasChildProcesses`
+					// doesn't stay `true` forever when the reattached child has since exited.
+					if (this._shellLaunchConfig.attachPersistentProcess) {
+						this._shellLaunchConfig.attachPersistentProcess.hasChildProcesses = value as IProcessPropertyMap[ProcessPropertyType.HasChildProcesses];
+					}
 					this._onDidChangeHasChildProcesses.fire(value as IProcessPropertyMap[ProcessPropertyType.HasChildProcesses]);
 					break;
 				case ProcessPropertyType.UsedShellIntegrationInjection:
