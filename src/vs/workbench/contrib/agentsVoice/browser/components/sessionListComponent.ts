@@ -41,10 +41,10 @@ function renderSessionRow(session: SessionRowData, props: SessionListProps): Tem
 	const dotColor = session.needsInput ? 'var(--vscode-editorWarning-foreground)'
 		: session.isActive ? 'var(--vscode-charts-green)'
 			: 'var(--vscode-editorWhitespace-foreground)';
-	const effectiveDotColor = session.isSpeaking ? 'var(--vscode-voiceCode-speakingForeground)' : dotColor;
+	const effectiveDotColor = session.isSpeaking ? 'var(--vscode-agentsVoice-speakingForeground)' : dotColor;
 	const shouldPulse = session.isActive || session.isSpeaking;
 
-	const labelColor = session.isSpeaking ? 'var(--vscode-voiceCode-speakingForeground)'
+	const labelColor = session.isSpeaking ? 'var(--vscode-agentsVoice-speakingForeground)'
 		: session.isIdle ? 'var(--vscode-descriptionForeground)'
 			: 'var(--vscode-foreground)';
 	const labelWeight = session.isSpeaking ? '500' : 'normal';
@@ -113,14 +113,14 @@ function renderSessionRow(session: SessionRowData, props: SessionListProps): Tem
 				<div style="display:flex;gap:6px;">
 					${session.toolConfirmation.type === 'approval' ? html`
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-charts-green);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => session.toolConfirmation!.approve()}>Approve</button>
+							@click=${() => session.toolConfirmation!.approve()}>Approve</button>
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-secondaryBackground);border:none;color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => session.toolConfirmation!.deny()}>Deny</button>
+							@click=${() => session.toolConfirmation!.deny()}>Deny</button>
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-secondaryBackground);border:none;color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => props.onCancelSession(session.resource)}>Stop</button>
+							@click=${() => props.onCancelSession(session.resource)}>Stop</button>
 					` : html`
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => props.onOpenSession(session.resource)}>Open in VS Code</button>
+							@click=${() => props.onOpenSession(session.resource)}>Open in VS Code</button>
 					`}
 				</div>
 			</div>

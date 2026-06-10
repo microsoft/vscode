@@ -324,6 +324,12 @@ export class VoiceTranscriptStore extends Disposable implements IVoiceTranscript
 		const line = JSON.stringify(turn) + '\n';
 
 		try {
+			// Ensure the voiceTranscripts directory exists
+			try {
+				await this.fileService.createFolder(this.storageRoot);
+			} catch {
+				// Folder may already exist — ignore
+			}
 			await this.fileService.writeFile(file, VSBuffer.fromString(line), { append: true });
 		} catch (e) {
 			this.logService.error(`VoiceTranscriptStore: failed to append turn for ${userId}`, e);

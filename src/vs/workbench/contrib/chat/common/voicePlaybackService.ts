@@ -138,7 +138,7 @@ export class VoicePlaybackService extends Disposable implements IVoicePlaybackSe
 	stop(sessionResource?: URI): void {
 		this._activeReplay?.dispose(true);
 		this._activeReplay = undefined;
-		this.commandService.executeCommand('_chat.voicePlayback.stop', {
+		void this.commandService.executeCommand('_chat.voicePlayback.stop', {
 			sessionId: sessionResource?.toString(),
 		});
 		const current = this._speakingSession.get();

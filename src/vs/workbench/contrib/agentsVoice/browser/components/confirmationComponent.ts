@@ -24,9 +24,9 @@ export function renderToolConfirmations(props: ToolConfirmationsProps): Template
 					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tc.description}</span>
 					<div style="display:flex;gap:6px;">
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-charts-green);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => tc.approve()}>Approve</button>
+							@click=${() => tc.approve()}>Approve</button>
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-editorError-foreground);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => tc.deny()}>Deny</button>
+							@click=${() => tc.deny()}>Deny</button>
 					</div>
 				</div>
 			` : html`
@@ -35,7 +35,7 @@ export function renderToolConfirmations(props: ToolConfirmationsProps): Template
 					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tc.description}</span>
 					<div style="display:flex;gap:6px;">
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@mousedown=${() => props.onOpenSession(tc.sessionResource)}>Open in VS Code</button>
+							@click=${() => props.onOpenSession(tc.sessionResource)}>Open in VS Code</button>
 					</div>
 				</div>
 			`)}

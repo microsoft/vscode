@@ -291,6 +291,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 			this._window = undefined;
 			this._windowDisposables.clear();
 			this._auxiliaryWindowRef.value = undefined;
+			this.storageService.store(AgentsVoiceStorageKeys.WindowOpen, false, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			this._onDidChangeOpen.fire(false);
 		});
 

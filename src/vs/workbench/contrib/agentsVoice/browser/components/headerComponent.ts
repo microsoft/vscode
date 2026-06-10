@@ -33,7 +33,7 @@ export interface HeaderProps {
 
 export function renderHeader(props: HeaderProps): TemplateResult {
 	const micColor = props.voiceState === 'listening' ? 'var(--vscode-editorInfo-foreground)'
-		: props.voiceState === 'speaking' ? 'var(--vscode-voiceCode-speakingForeground)'
+		: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
 			: 'var(--vscode-descriptionForeground)';
 
 	const connBtnTemplate = props.isConnected

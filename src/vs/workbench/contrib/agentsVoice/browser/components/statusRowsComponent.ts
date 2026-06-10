@@ -41,8 +41,8 @@ export function renderStatusRows(props: StatusRowsProps): TemplateResult {
 			<div style="display:flex;flex-direction:column;">
 				${props.speakingSessionLabel ? html`
 					<div style="display:flex;align-items:center;gap:6px;height:20px;flex-shrink:0;padding-left:2px;">
-						<span style="width:7px;height:7px;border-radius:50%;background:var(--vscode-voiceCode-speakingForeground);flex-shrink:0;animation:agents-voice-pulse 1.4s ease-in-out infinite;"></span>
-						<span style="font-size:${FONT_SIZE.body};color:var(--vscode-voiceCode-speakingForeground);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${props.speakingSessionLabel}</span>
+						<span style="width:7px;height:7px;border-radius:50%;background:var(--vscode-agentsVoice-speakingForeground);flex-shrink:0;animation:agents-voice-pulse 1.4s ease-in-out infinite;"></span>
+						<span style="font-size:${FONT_SIZE.body};color:var(--vscode-agentsVoice-speakingForeground);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${props.speakingSessionLabel}</span>
 					</div>
 				` : nothing}
 				${showCounters ? renderStatusRow('var(--vscode-charts-green)', props.workingCount, 'working') : nothing}
