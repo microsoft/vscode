@@ -1913,7 +1913,16 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		this.updateActions();
 		this._repositoryOutdated.set(false, undefined);
-		this._tree.scrollTop = 0;
+
+		// Attempt to reveal the current history item to restore selection and focus.
+		// Fall back to scrolling to the top if there is no current item to reveal.
+		const historyProvider = this._treeViewModel.repository.get()?.provider.historyProvider.get();
+		const historyItemRef = historyProvider?.historyItemRef.get();
+		if (historyItemRef?.id && this._isCurrentHistoryItemInFilter(historyItemRef.id)) {
+			await this.revealCurrentHistoryItem();
+		} else {
+			this._tree.scrollTop = 0;
+		}
 	}
 
 	async pickRepository(): Promise<void> {
