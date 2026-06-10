@@ -568,34 +568,20 @@ function renderForm(
 		workspacePicker.setSelectedWorkspace(state.folderUri, { fireEvent: false });
 	}
 
-	// `promptError` is created later when the prompt section is built,
-	// but the workspace picker's onDidSelectWorkspace handler (which
-	// surfaces folder validation errors) needs a stable reference. Hoist
-	// it via a `let` and an updater closure so the prompt section can
-	// assign the DOM element when it builds it.
-	//
-	// We only surface `folderError` here. Name and prompt "required"
-	// errors are deliberately suppressed — the Save button is disabled
-	// whenever those fields are empty, so the inline red text is
-	// redundant and flashes annoyingly while the user types and deletes.
-	// Folder error stays because the workspace chip in the toolbar is
-	// subtle ("workspace" placeholder) — users may not notice it's
-	// unset without an explicit message.
-	let promptError: HTMLElement | undefined = undefined;
-	const refreshPromptError = () => {
-		if (promptError) {
-			promptError.textContent = validation.folderError ?? '';
-		}
-	};
+	// No inline "required" errors are surfaced in the form. The Save
+	// button being disabled is the signal for every required field —
+	// name, prompt, and workspace. Inline messages flashed annoyingly
+	// as the user typed and deleted, and the reserved spacer they
+	// occupied (always-on `min-height` to avoid a layout shift on
+	// validity flip) ate ~15px of vertical space below the chat input
+	// even when no error was visible.
 
 	// React to user picks. The picker emits `undefined` on clear; treat
-	// that as "no folder selected" so validation re-fires the required
-	// error.
+	// that as "no folder selected" so validation re-fires.
 	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
 		state.folderUri = uri;
 		sessionTypeBinder.setFolder(uri);
 		revalidate();
-		refreshPromptError();
 	}));
 
 	// If the dialog opened with no folder yet but the picker resolved one
@@ -692,8 +678,6 @@ function renderForm(
 	const promptRow = DOM.append(form, $('.automation-form-row'));
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
-	promptError = DOM.append(promptRow, $('.automation-form-error'));
-	refreshPromptError();
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -862,12 +846,11 @@ function renderForm(
 	}));
 
 	// The editor itself is the source of truth for the prompt value; we
-	// only listen here to re-run validation and surface the inline error
-	// label as the user types. The final value is read once at Save time
-	// via {@link IRenderFormHandle.getPrompt}.
+	// only listen here to re-run validation so the Save button enables
+	// the moment the prompt becomes non-empty. The final value is read
+	// once at Save time via {@link IRenderFormHandle.getPrompt}.
 	disposables.add(chatInput.inputEditor.onDidChangeModelContent(() => {
 		revalidate();
-		refreshPromptError();
 	}));
 
 	// Two layout passes mirror the fixture: the first one establishes the

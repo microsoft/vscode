@@ -2384,28 +2384,6 @@ body:has(.automation-dialog) .monaco-menu-container {
 	border-color: var(--vscode-focusBorder);
 }
 
-/*
- * Inline form-error row. Always reserves a fixed line of vertical
- * space so the dialog doesn't shift when the validity-driven empty
- * state swaps in or out. Mirrors the Issue Reporter Wizard pattern
- * (`issueReporterOverlay.css:554-564`) — the most idiomatic recent
- * precedent in the workbench: unconditional `min-height` paired with
- * `visibility: hidden` on `:empty`. `visibility` (not `display: none`)
- * keeps the row occupying space; explicit `line-height` matches
- * `min-height` so a one-line message and an empty row are the same
- * height.
- */
-.automation-form-error {
-	font-size: 11px;
-	line-height: 1.4;
-	color: var(--vscode-errorForeground);
-	min-height: 1.4em;
-}
-
-.automation-form-error:empty {
-	visibility: hidden;
-}
-
 .automation-form-empty {
 	font-size: 12px;
 	color: var(--vscode-errorForeground);
