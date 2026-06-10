@@ -21,7 +21,7 @@ import { basename as resourceBasename } from '../../../../base/common/resources.
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parseAgentFile, parseRuleFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parseRuleFile, parsePlugin, parseSkillFile, IParsedAgent, IParsedSkill, IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -48,7 +48,6 @@ import { ShellManager } from './copilotShellTools.js';
 import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ActiveClientState } from '../activeClientState.js';
 import { areDiscoveredDirectoriesEqual, DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
-import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
 
@@ -1907,8 +1906,8 @@ interface IResolvedCustomization {
  * discovered itself from disk (workspace + user-home conventions).
  *
  * Owns a {@link SessionCustomizationDiscovery} (filesystem scan +
- * watchers) and a {@link SessionPluginBundler} (in-memory synthetic
- * Open Plugin under the `vscode-synced-customization:` scheme).
+ * watchers) and maps discovered files into an in-memory
+ * {@link IParsedPlugin} while preserving original file URIs.
  *
  * Refreshes itself when the discovery fires `onDidChange`. The owning
  * {@link PluginController} is notified via the supplied `onDidRefresh`
@@ -1919,7 +1918,6 @@ interface IResolvedCustomization {
 class SessionDiscoveredEntry extends Disposable {
 
 	private readonly _discovery: SessionCustomizationDiscovery;
-	private readonly _bundler: SessionPluginBundler;
 	private readonly _refreshThrottler = this._register(new Throttler());
 	private _refreshCancellationSource: CancellationTokenSource | undefined;
 
@@ -1932,14 +1930,12 @@ class SessionDiscoveredEntry extends Disposable {
 	constructor(
 		workingDirectory: URI,
 		userHome: URI,
-		private readonly _resolvePlugin: (uri: URI) => Promise<IParsedPlugin | undefined>,
 		private readonly _onDidRefresh: () => void,
 		private readonly _logService: ILogService,
 		instantiationService: IInstantiationService,
 	) {
 		super();
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
-		this._bundler = this._register(instantiationService.createInstance(SessionPluginBundler, workingDirectory));
 		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		this._settled = this._queueRefresh(false);
 		this._register(this._discovery.onDidChange(() => {
@@ -2000,22 +1996,15 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
-			const bundleResult = await this._bundler.bundle(directories, token);
+			const plugin = mapToParsedPlugin(customizations);
 			if (token.isCancellationRequested) {
 				return false;
 			}
 
-			// Don't update `_customizations` / `_plugin` when cancelled.
+			// Don't update `_customizations` / `_plugin` / `_directories` when cancelled.
 			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
-			if (!bundleResult) {
-				this._customizations = customizations;
-				this._plugin = undefined;
-			} else {
-				const pluginDir = URI.parse(bundleResult.ref.uri);
-				const plugin = await this._resolvePlugin(pluginDir);
-				this._customizations = customizations;
-				this._plugin = plugin;
-			}
+			this._customizations = customizations;
+			this._plugin = plugin;
 			this._directories = directories;
 			return true;
 		} catch (err) {
@@ -2034,7 +2023,7 @@ class SessionDiscoveredEntry extends Disposable {
 	}
 }
 
-function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
+export function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
 	return Promise.all(directories.map(async directory => {
 		const protocolUri = directory.uri.toString();
 		return {
@@ -2111,6 +2100,69 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 		id,
 		uri,
 		name: resourceBasename(file),
+	};
+}
+
+
+/**
+ * Projects already-parsed discovered customizations into an in-memory
+ * {@link IParsedPlugin} while preserving original source URIs.
+ */
+export function mapToParsedPlugin(customizations: readonly DirectoryCustomization[]): IParsedPlugin | undefined {
+	if (customizations.length === 0) {
+		return undefined;
+	}
+
+	const agents: IParsedAgent[] = [];
+	const skills: IParsedSkill[] = [];
+	const instructions: IParsedRule[] = [];
+
+	for (const directory of customizations) {
+		for (const child of directory.children ?? []) {
+			if (child.type === CustomizationType.Agent) {
+				agents.push({
+					uri: URI.parse(child.uri),
+					name: child.name,
+					description: child.description,
+					customization: child,
+				});
+				continue;
+			}
+
+			if (child.type === CustomizationType.Skill) {
+				skills.push({
+					uri: URI.parse(child.uri),
+					name: child.name,
+					description: child.description,
+					customization: child,
+				});
+				continue;
+			}
+
+			if (child.type === CustomizationType.Rule) {
+				if (child.alwaysApply && child.name.match(/\.md$/i)) {
+					continue; // agent instruction
+				}
+				instructions.push({
+					uri: URI.parse(child.uri),
+					name: child.name,
+					description: child.description,
+					customization: child,
+				});
+			}
+		}
+	}
+
+	if (agents.length === 0 && skills.length === 0 && instructions.length === 0) {
+		return undefined;
+	}
+
+	return {
+		hooks: [],
+		mcpServers: [],
+		skills: skills,
+		agents: agents,
+		instructions: instructions,
 	};
 }
 
@@ -2516,7 +2568,6 @@ class SessionPluginController extends Disposable {
 			this._sessionDiscovered.value = new SessionDiscoveredEntry(
 				this._directory,
 				URI.file(this._parent.getUserHome()),
-				uri => this._parent.tryParsePlugin(uri),
 				() => this._onDidPublish.fire({
 					type: ActionType.SessionCustomizationsChanged,
 					customizations: [...this.getCustomizations()],
