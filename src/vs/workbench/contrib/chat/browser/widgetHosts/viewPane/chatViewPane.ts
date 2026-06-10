@@ -346,6 +346,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		});
 		resizeObserver.observe(bottomArea);
+		this._voiceBarResizeObserver = resizeObserver;
 		this._register({ dispose: () => resizeObserver.disconnect() });
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -383,6 +384,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Voice Agent Bar
 
 	private _voiceBottomArea: HTMLElement | undefined;
+	private _voiceBarResizeObserver: ResizeObserver | undefined;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
 	private _updateVoiceBar(container: HTMLElement): void {
@@ -419,6 +421,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createVoiceAgentBar(parent: HTMLElement): void {
 		const bar = append(parent, $('.voice-agent-bar'));
 		const win = getWindow(bar) as Window & typeof globalThis;
+
+		// Also observe the inner bar — its content changes (onboarding →
+		// connected) before the outer wrapper resizes.
+		this._voiceBarResizeObserver?.observe(bar);
 
 		const widget = new AgentsVoiceWidget(bar, {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
@@ -458,7 +464,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
-			onResize: () => { /* handled by ResizeObserver on voice-bottom-area */ },
+			onResize: () => {
+				if (this.lastDimensions) {
+					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+					// Schedule a second relayout — the first may read stale
+					// offsetHeight if the browser hasn't fully reflowed yet.
+					setTimeout(() => {
+						if (this.lastDimensions) {
+							this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+						}
+					}, 50);
+				}
+			},
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
@@ -1151,7 +1168,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const remainingWidth = width;
 
 		// Voice bottom area — sized by CSS flex (flex-shrink:0, flex-grow:0).
-		// ResizeObserver triggers relayout when its size changes.
+		// onResize callback + ResizeObserver trigger relayout when content changes.
 		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
 
 		// Title Control
