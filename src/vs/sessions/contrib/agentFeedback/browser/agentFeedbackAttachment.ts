@@ -11,6 +11,8 @@ import { localize } from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 export const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
 
@@ -29,13 +31,22 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 	constructor(
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(e => {
+			if (this._isAgentHostSession(e.sessionResource)) {
+				return;
+			}
 			this._updateAttachment(e.sessionResource);
 			this._ensureAcceptListener(e.sessionResource);
 		}));
+	}
+
+	private _isAgentHostSession(sessionResource: URI): boolean {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
 	private async _updateAttachment(sessionResource: URI): Promise<void> {

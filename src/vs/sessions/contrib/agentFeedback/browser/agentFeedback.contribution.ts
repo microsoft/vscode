@@ -22,8 +22,11 @@ import { AgentFeedbackEditorOverlay } from './agentFeedbackEditorOverlay.js';
 import { hasActiveSessionAgentFeedback, registerAgentFeedbackEditorActions, submitActiveSessionFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { registerAgentFeedbackTools } from './agentFeedbackTools.js';
+import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
 
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
@@ -80,6 +83,21 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, ActiveSessionFeedbackContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
+
+class AgentFeedbackToolsContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentFeedbackTools';
+
+	constructor(
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
+		@ICodeReviewService codeReviewService: ICodeReviewService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+	) {
+		super();
+		this._register(registerAgentFeedbackTools(toolsService, agentFeedbackService, codeReviewService, sessionsManagementService));
+	}
+}
+registerWorkbenchContribution2(AgentFeedbackToolsContribution.ID, AgentFeedbackToolsContribution, WorkbenchPhase.AfterRestored);
 
 registerAgentFeedbackEditorActions();
 

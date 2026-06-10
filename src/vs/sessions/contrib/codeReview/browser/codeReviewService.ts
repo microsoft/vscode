@@ -4,21 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { hash } from '../../../../base/common/hash.js';
-import { hasKey } from '../../../../base/common/types.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types -------------------------------------------------------------------
 
@@ -41,50 +36,6 @@ export interface ICodeReviewSuggestionChange {
 	readonly newText: string;
 	readonly oldText: string;
 }
-
-export interface ICodeReviewFile {
-	readonly currentUri: URI;
-	readonly baseUri?: URI;
-}
-
-export function getCodeReviewFilesFromSessionChanges(changes: readonly ISessionFileChange[]): readonly ICodeReviewFile[] {
-	return changes.map(change => {
-		if (isIChatSessionFileChange2(change)) {
-			return {
-				currentUri: change.modifiedUri ?? change.uri,
-				baseUri: change.originalUri,
-			};
-		}
-
-		return {
-			currentUri: change.modifiedUri,
-			baseUri: change.originalUri,
-		};
-	});
-}
-
-export function getCodeReviewVersion(files: readonly ICodeReviewFile[]): string {
-	const stableFileList = files
-		.map(file => `${file.currentUri.toString()}|${file.baseUri?.toString() ?? ''}`)
-		.sort();
-
-	return `v1:${stableFileList.length}:${hash(stableFileList)}`;
-}
-
-export const MAX_CODE_REVIEWS_PER_SESSION_VERSION = 5;
-
-export const enum CodeReviewStateKind {
-	Idle = 'idle',
-	Loading = 'loading',
-	Result = 'result',
-	Error = 'error',
-}
-
-export type ICodeReviewState =
-	| { readonly kind: CodeReviewStateKind.Idle }
-	| { readonly kind: CodeReviewStateKind.Loading; readonly version: string; readonly reviewCount: number }
-	| { readonly kind: CodeReviewStateKind.Result; readonly version: string; readonly reviewCount: number; readonly comments: readonly ICodeReviewComment[]; readonly didProduceComments: boolean }
-	| { readonly kind: CodeReviewStateKind.Error; readonly version: string; readonly reviewCount: number; readonly reason: string };
 
 // --- PR Review Types ---------------------------------------------------------
 
@@ -109,49 +60,6 @@ export interface IPRReviewComment {
 	readonly author: string;
 }
 
-/** Shape of a single comment as returned by the code review command. */
-interface IRawCodeReviewComment {
-	readonly uri: IRawCodeReviewUri;
-	readonly range: IRawCodeReviewRange;
-	readonly body?: string;
-	readonly kind?: string;
-	readonly severity?: string;
-	readonly suggestion?: IRawCodeReviewSuggestion;
-}
-
-type IRawCodeReviewUri = URI | UriComponents | string;
-
-interface IRawCodeReviewPosition {
-	readonly line?: number;
-	readonly character?: number;
-}
-
-interface IRawCodeReviewRangeWithPositions {
-	readonly start?: IRawCodeReviewPosition;
-	readonly end?: IRawCodeReviewPosition;
-}
-
-interface IRawCodeReviewRangeWithLines {
-	readonly startLine?: number;
-	readonly startColumn?: number;
-	readonly endLine?: number;
-	readonly endColumn?: number;
-}
-
-type IRawCodeReviewRangeTuple = readonly [IRawCodeReviewPosition, IRawCodeReviewPosition];
-
-type IRawCodeReviewRange = IRange | IRawCodeReviewRangeWithPositions | IRawCodeReviewRangeWithLines | IRawCodeReviewRangeTuple;
-
-interface IRawCodeReviewSuggestion {
-	readonly edits: readonly IRawCodeReviewSuggestionChange[];
-}
-
-interface IRawCodeReviewSuggestionChange {
-	readonly range: IRawCodeReviewRange;
-	readonly newText: string;
-	readonly oldText: string;
-}
-
 // --- Service Interface -------------------------------------------------------
 
 export const ICodeReviewService = createDecorator<ICodeReviewService>('codeReviewService');
@@ -160,25 +68,18 @@ export interface ICodeReviewService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Get the observable review state for a session.
+	 * Get the observable list of code review comments for a session. Comments
+	 * are added and removed by the agent via tool calls.
 	 */
-	getReviewState(sessionResource: URI): IObservable<ICodeReviewState>;
+	getComments(sessionResource: URI): IObservable<readonly ICodeReviewComment[]>;
 
 	/**
-	 * Synchronously check if a completed review exists for the given session+version.
+	 * Add a single code review comment to the session.
 	 */
-	hasReview(sessionResource: URI, version: string): boolean;
+	addComment(sessionResource: URI, uri: URI, range: IRange, body: string): ICodeReviewComment;
 
 	/**
-	 * Request a code review for the given session. The review is associated with
-	 * a version string (fingerprint of changed files). If a review is already in
-	 * progress or there are still unresolved review comments for this version,
-	 * this is a no-op.
-	 */
-	requestReview(sessionResource: URI, version: string, files: readonly { readonly currentUri: URI; readonly baseUri?: URI }[]): void;
-
-	/**
-	 * Remove a single comment from the review results.
+	 * Remove a single comment from the session.
 	 */
 	removeComment(sessionResource: URI, commentId: string): void;
 
@@ -186,11 +87,6 @@ export interface ICodeReviewService {
 	 * Update the body text of a single code review comment.
 	 */
 	updateComment(sessionResource: URI, commentId: string, newBody: string): void;
-
-	/**
-	 * Dismiss/clear the review for a session entirely.
-	 */
-	dismissReview(sessionResource: URI): void;
 
 	/**
 	 * Get the observable PR review state for a session.
@@ -213,13 +109,6 @@ export interface ICodeReviewService {
 
 // --- Storage Types -----------------------------------------------------------
 
-interface IStoredCodeReview {
-	readonly version: string;
-	readonly reviewCount?: number;
-	readonly didProduceComments?: boolean;
-	readonly comments: readonly IStoredCodeReviewComment[];
-}
-
 interface IStoredCodeReviewComment {
 	readonly id: string;
 	readonly uri: UriComponents;
@@ -233,70 +122,11 @@ interface IStoredCodeReviewComment {
 // --- Implementation ----------------------------------------------------------
 
 interface ISessionReviewData {
-	readonly state: ISettableObservable<ICodeReviewState>;
+	readonly comments: ISettableObservable<readonly ICodeReviewComment[]>;
 }
 
 interface IPRSessionReviewData {
 	readonly state: ISettableObservable<IPRReviewState>;
-}
-
-function isRawCodeReviewRangeWithPositions(range: IRawCodeReviewRange): range is IRawCodeReviewRangeWithPositions {
-	return typeof range === 'object' && range !== null && hasKey(range, { start: true, end: true });
-}
-
-function isRawCodeReviewRangeTuple(range: IRawCodeReviewRange): range is IRawCodeReviewRangeTuple {
-	return Array.isArray(range) && range.length >= 2;
-}
-
-function normalizeCodeReviewUri(uri: IRawCodeReviewUri): URI {
-	return typeof uri === 'string' ? URI.parse(uri) : URI.revive(uri);
-}
-
-function normalizeCodeReviewRange(range: IRawCodeReviewRange): IRange {
-	if (Range.isIRange(range)) {
-		return Range.lift(range);
-	}
-
-	if (isRawCodeReviewRangeTuple(range)) {
-		const [start, end] = range;
-		return new Range(
-			(start.line ?? 0) + 1,
-			(start.character ?? 0) + 1,
-			(end.line ?? start.line ?? 0) + 1,
-			(end.character ?? start.character ?? 0) + 1,
-		);
-	}
-
-	if (isRawCodeReviewRangeWithPositions(range) && range.start && range.end) {
-		return new Range(
-			(range.start.line ?? 0) + 1,
-			(range.start.character ?? 0) + 1,
-			(range.end.line ?? range.start.line ?? 0) + 1,
-			(range.end.character ?? range.start.character ?? 0) + 1,
-		);
-	}
-
-	const lineRange = range as IRawCodeReviewRangeWithLines;
-	return new Range(
-		(lineRange.startLine ?? 0) + 1,
-		(lineRange.startColumn ?? 0) + 1,
-		(lineRange.endLine ?? lineRange.startLine ?? 0) + 1,
-		(lineRange.endColumn ?? lineRange.startColumn ?? 0) + 1,
-	);
-}
-
-function normalizeCodeReviewSuggestion(suggestion: IRawCodeReviewSuggestion | undefined): ICodeReviewSuggestion | undefined {
-	if (!suggestion) {
-		return undefined;
-	}
-
-	return {
-		edits: suggestion.edits.map(edit => ({
-			range: normalizeCodeReviewRange(edit.range),
-			newText: edit.newText,
-			oldText: edit.oldText,
-		})),
-	};
 }
 
 export class CodeReviewService extends Disposable implements ICodeReviewService {
@@ -311,7 +141,6 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	private readonly _convertedPRCommentsBySession = new Map<string, Set<string>>();
 
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -383,38 +212,23 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}));
 	}
 
-	getReviewState(sessionResource: URI): IObservable<ICodeReviewState> {
-		return this._getOrCreateData(sessionResource).state;
+	getComments(sessionResource: URI): IObservable<readonly ICodeReviewComment[]> {
+		return this._getOrCreateData(sessionResource).comments;
 	}
 
-	hasReview(sessionResource: URI, version: string): boolean {
-		const data = this._reviewsBySession.get(sessionResource.toString());
-		if (!data) {
-			return false;
-		}
-		const state = data.state.get();
-		return state.kind === CodeReviewStateKind.Result && state.version === version;
-	}
-
-	requestReview(sessionResource: URI, version: string, files: readonly { readonly currentUri: URI; readonly baseUri?: URI }[]): void {
+	addComment(sessionResource: URI, uri: URI, range: IRange, body: string): ICodeReviewComment {
 		const data = this._getOrCreateData(sessionResource);
-		const currentState = data.state.get();
-		const currentReviewCount = currentState.kind !== CodeReviewStateKind.Idle && currentState.version === version ? currentState.reviewCount : 0;
-
-		// Don't re-request if already loading or unresolved comments remain for this version.
-		if (currentState.kind === CodeReviewStateKind.Loading && currentState.version === version) {
-			return;
-		}
-		if (currentReviewCount >= MAX_CODE_REVIEWS_PER_SESSION_VERSION) {
-			return;
-		}
-		if (currentState.kind === CodeReviewStateKind.Result && currentState.version === version && currentState.comments.length > 0) {
-			return;
-		}
-
-		data.state.set({ kind: CodeReviewStateKind.Loading, version, reviewCount: currentReviewCount + 1 }, undefined);
-
-		this._executeReview(sessionResource, version, files, data);
+		const comment: ICodeReviewComment = {
+			id: generateUuid(),
+			uri,
+			range,
+			body,
+			kind: 'comment',
+			severity: 'info',
+		};
+		data.comments.set([...data.comments.get(), comment], undefined);
+		this._saveToStorage();
+		return comment;
 	}
 
 	removeComment(sessionResource: URI, commentId: string): void {
@@ -423,13 +237,12 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			return;
 		}
 
-		const state = data.state.get();
-		if (state.kind !== CodeReviewStateKind.Result) {
+		const filtered = data.comments.get().filter(c => c.id !== commentId);
+		if (filtered.length === data.comments.get().length) {
 			return;
 		}
 
-		const filtered = state.comments.filter(c => c.id !== commentId);
-		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, reviewCount: state.reviewCount, comments: filtered, didProduceComments: state.didProduceComments }, undefined);
+		data.comments.set(filtered, undefined);
 		this._saveToStorage();
 	}
 
@@ -439,22 +252,14 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			return;
 		}
 
-		const state = data.state.get();
-		if (state.kind !== CodeReviewStateKind.Result) {
+		const current = data.comments.get();
+		if (!current.some(c => c.id === commentId)) {
 			return;
 		}
 
-		const updated = state.comments.map(c => c.id === commentId ? { ...c, body: newBody } : c);
-		data.state.set({ kind: CodeReviewStateKind.Result, version: state.version, reviewCount: state.reviewCount, comments: updated, didProduceComments: state.didProduceComments }, undefined);
+		const updated = current.map(c => c.id === commentId ? { ...c, body: newBody } : c);
+		data.comments.set(updated, undefined);
 		this._saveToStorage();
-	}
-
-	dismissReview(sessionResource: URI): void {
-		const data = this._reviewsBySession.get(sessionResource.toString());
-		if (data) {
-			data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
-			this._saveToStorage();
-		}
 	}
 
 	private _getOrCreateData(sessionResource: URI): ISessionReviewData {
@@ -462,66 +267,11 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		let data = this._reviewsBySession.get(key);
 		if (!data) {
 			data = {
-				state: observableValue<ICodeReviewState>(`codeReview.state.${key}`, { kind: CodeReviewStateKind.Idle }),
+				comments: observableValue<readonly ICodeReviewComment[]>(`codeReview.comments.${key}`, []),
 			};
 			this._reviewsBySession.set(key, data);
 		}
 		return data;
-	}
-
-	private async _executeReview(
-		sessionResource: URI,
-		version: string,
-		files: readonly { readonly currentUri: URI; readonly baseUri?: URI }[],
-		data: ISessionReviewData,
-	): Promise<void> {
-		try {
-			const result: { type: string; comments?: IRawCodeReviewComment[]; reason?: string } | undefined =
-				await this._commandService.executeCommand('chat.internal.codeReview.run', {
-					files: files.map(f => ({
-						currentUri: f.currentUri,
-						baseUri: f.baseUri,
-					})),
-				});
-
-			// Check if version is still current (hasn't been dismissed or replaced)
-			const currentState = data.state.get();
-			if (currentState.kind !== CodeReviewStateKind.Loading || currentState.version !== version) {
-				return;
-			}
-
-			if (!result || result.type === 'cancelled') {
-				data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
-				return;
-			}
-
-			if (result.type === 'error') {
-				data.state.set({ kind: CodeReviewStateKind.Error, version, reviewCount: currentState.reviewCount, reason: result.reason ?? 'Unknown error' }, undefined);
-				return;
-			}
-
-			if (result.type === 'success') {
-				const comments: ICodeReviewComment[] = (result.comments ?? []).map((raw) => ({
-					id: generateUuid(),
-					uri: normalizeCodeReviewUri(raw.uri),
-					range: normalizeCodeReviewRange(raw.range),
-					body: raw.body ?? '',
-					kind: raw.kind ?? '',
-					severity: raw.severity ?? '',
-					suggestion: normalizeCodeReviewSuggestion(raw.suggestion),
-				}));
-
-				transaction(tx => {
-					data.state.set({ kind: CodeReviewStateKind.Result, version, reviewCount: currentState.reviewCount, comments, didProduceComments: comments.length > 0 }, tx);
-				});
-				this._saveToStorage();
-			}
-		} catch (err) {
-			const currentState = data.state.get();
-			if (currentState.kind === CodeReviewStateKind.Loading && currentState.version === version) {
-				data.state.set({ kind: CodeReviewStateKind.Error, version, reviewCount: currentState.reviewCount, reason: String(err) }, undefined);
-			}
-		}
 	}
 
 	private _loadFromStorage(): void {
@@ -531,9 +281,12 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}
 
 		try {
-			const stored: Record<string, IStoredCodeReview> = JSON.parse(raw);
-			for (const [key, review] of Object.entries(stored)) {
-				const comments: ICodeReviewComment[] = review.comments.map(c => ({
+			const stored: Record<string, readonly IStoredCodeReviewComment[]> = JSON.parse(raw);
+			for (const [key, storedComments] of Object.entries(stored)) {
+				if (!Array.isArray(storedComments)) {
+					continue;
+				}
+				const comments: ICodeReviewComment[] = storedComments.map(c => ({
 					id: c.id,
 					uri: URI.revive(c.uri),
 					range: c.range,
@@ -543,7 +296,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					suggestion: c.suggestion,
 				}));
 				const data = this._getOrCreateData(URI.parse(key));
-				data.state.set({ kind: CodeReviewStateKind.Result, version: review.version, reviewCount: review.reviewCount ?? 1, comments, didProduceComments: review.didProduceComments ?? comments.length > 0 }, undefined);
+				data.comments.set(comments, undefined);
 			}
 		} catch {
 			// Corrupted storage data - ignore
@@ -551,24 +304,19 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	private _saveToStorage(): void {
-		const stored: Record<string, IStoredCodeReview> = {};
+		const stored: Record<string, readonly IStoredCodeReviewComment[]> = {};
 		for (const [key, data] of this._reviewsBySession) {
-			const state = data.state.get();
-			if (state.kind === CodeReviewStateKind.Result) {
-				stored[key] = {
-					version: state.version,
-					reviewCount: state.reviewCount,
-					didProduceComments: state.didProduceComments,
-					comments: state.comments.map(c => ({
-						id: c.id,
-						uri: c.uri.toJSON(),
-						range: c.range,
-						body: c.body,
-						kind: c.kind,
-						severity: c.severity,
-						suggestion: c.suggestion,
-					})),
-				};
+			const comments = data.comments.get();
+			if (comments.length > 0) {
+				stored[key] = comments.map(c => ({
+					id: c.id,
+					uri: c.uri.toJSON(),
+					range: c.range,
+					body: c.body,
+					kind: c.kind,
+					severity: c.severity,
+					suggestion: c.suggestion,
+				}));
 			}
 		}
 
@@ -589,40 +337,20 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 				const key = session.resource.toString();
 				const data = this._reviewsBySession.get(key);
-				if (data) {
-					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+				if (data && data.comments.get().length > 0) {
+					data.comments.set([], undefined);
 					changed = true;
 				}
 			}
 
-			// Check for stale review versions when sessions change
+			// Clean up reviews whose sessions no longer exist
 			for (const [key, data] of this._reviewsBySession) {
-				const state = data.state.get();
-				if (state.kind !== CodeReviewStateKind.Result) {
+				if (data.comments.get().length === 0) {
 					continue;
 				}
 
-				const session = this._sessionsManagementService.getSession(URI.parse(key));
-				if (!session) {
-					// Session no longer exists - clean up
-					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
-					changed = true;
-					continue;
-				}
-
-				const changes = session.changes.get();
-				if (changes.length === 0) {
-					// Session has no file-level changes - clean up
-					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
-					changed = true;
-					continue;
-				}
-
-				const files = getCodeReviewFilesFromSessionChanges(changes);
-				const currentVersion = getCodeReviewVersion(files);
-				if (state.version !== currentVersion) {
-					// Version mismatch - review is stale
-					data.state.set({ kind: CodeReviewStateKind.Idle }, undefined);
+				if (!this._sessionsManagementService.getSession(URI.parse(key))) {
+					data.comments.set([], undefined);
 					changed = true;
 				}
 			}

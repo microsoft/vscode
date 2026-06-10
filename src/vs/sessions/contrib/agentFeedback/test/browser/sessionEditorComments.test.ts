@@ -7,10 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
-import { ICodeReviewState, CodeReviewStateKind, IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
-
-type ICodeReviewResultState = Extract<ICodeReviewState, { kind: CodeReviewStateKind.Result }>;
+import { getResourceEditorComments, getSessionEditorComments, groupNearbySessionEditorComments, hasUnsubmittedAgentFeedbackComments, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { IPRReviewState, PRReviewStateKind } from '../../../codeReview/browser/codeReviewService.js';
 
 suite('SessionEditorComments', () => {
 	const session = URI.parse('test://session/1');
@@ -19,24 +17,14 @@ suite('SessionEditorComments', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function reviewState(comments: ICodeReviewResultState['comments']): ICodeReviewState {
-		return {
-			kind: CodeReviewStateKind.Result,
-			version: 'v1',
-			reviewCount: 1,
-			comments,
-			didProduceComments: comments.length > 0,
-		};
-	}
-
 	test('merges and sorts feedback and review comments by resource and range', () => {
 		const comments = getSessionEditorComments(session, [
 			{ id: 'feedback-b', text: 'feedback b', resourceUri: fileB, range: new Range(8, 1, 8, 1), sessionResource: session, kind: 'user' },
 			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(12, 1, 12, 1), sessionResource: session, kind: 'user' },
-		], reviewState([
+		], [
 			{ id: 'review-a', uri: fileA, range: new Range(3, 1, 3, 1), body: 'review a', kind: 'issue', severity: 'warning' },
 			{ id: 'review-b', uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', kind: 'issue', severity: 'warning' },
-		]));
+		]);
 
 		assert.deepStrictEqual(comments.map(comment => `${comment.resourceUri.path}:${comment.range.startLineNumber}:${comment.source}`), [
 			'/a.ts:3:codeReview',
@@ -49,10 +37,10 @@ suite('SessionEditorComments', () => {
 	test('groups nearby comments only within the same resource', () => {
 		const comments = getSessionEditorComments(session, [
 			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(10, 1, 10, 1), sessionResource: session, kind: 'user' },
-		], reviewState([
+		], [
 			{ id: 'review-a', uri: fileA, range: new Range(13, 1, 13, 1), body: 'review a', kind: 'issue', severity: 'warning' },
 			{ id: 'review-b', uri: fileB, range: new Range(11, 1, 11, 1), body: 'review b', kind: 'issue', severity: 'warning' },
-		]));
+		]);
 
 		const groups = groupNearbySessionEditorComments(comments, 5);
 		assert.strictEqual(groups.length, 2);
@@ -66,7 +54,7 @@ suite('SessionEditorComments', () => {
 	});
 
 	test('preserves review suggestion metadata and capability flags', () => {
-		const comments = getSessionEditorComments(session, [], reviewState([
+		const comments = getSessionEditorComments(session, [], [
 			{
 				id: 'review-suggestion',
 				uri: fileA,
@@ -78,7 +66,7 @@ suite('SessionEditorComments', () => {
 					edits: [{ range: new Range(7, 1, 7, 10), oldText: 'let value', newText: 'const value' }],
 				},
 			},
-		]));
+		]);
 
 		assert.strictEqual(comments.length, 1);
 		assert.strictEqual(comments[0].source, SessionEditorCommentSource.CodeReview);
@@ -89,11 +77,11 @@ suite('SessionEditorComments', () => {
 	test('filters resource comments and detects authored feedback presence', () => {
 		const comments = getSessionEditorComments(session, [
 			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: session, kind: 'user' },
-		], reviewState([
+		], [
 			{ id: 'review-b', uri: fileB, range: new Range(2, 1, 2, 1), body: 'review b', kind: 'issue', severity: 'warning' },
-		]));
+		]);
 
-		assert.strictEqual(hasAgentFeedbackComments(comments), true);
+		assert.strictEqual(hasUnsubmittedAgentFeedbackComments(comments), true);
 		assert.deepStrictEqual(getResourceEditorComments(fileA, comments).map(comment => comment.source), [SessionEditorCommentSource.AgentFeedback]);
 		assert.deepStrictEqual(getResourceEditorComments(fileB, comments).map(comment => comment.source), [SessionEditorCommentSource.CodeReview]);
 	});
@@ -107,7 +95,7 @@ suite('SessionEditorComments', () => {
 			],
 		};
 
-		const comments = getSessionEditorComments(session, [], reviewState([]), prState);
+		const comments = getSessionEditorComments(session, [], [], prState);
 		assert.strictEqual(comments.length, 2);
 		assert.deepStrictEqual(comments.map(c => `${c.resourceUri.path}:${c.range.startLineNumber}:${c.source}`), [
 			'/a.ts:5:prReview',
@@ -126,9 +114,9 @@ suite('SessionEditorComments', () => {
 
 		const comments = getSessionEditorComments(session, [
 			{ id: 'feedback-a', text: 'feedback a', resourceUri: fileA, range: new Range(3, 1, 3, 1), sessionResource: session, kind: 'user' },
-		], reviewState([
+		], [
 			{ id: 'review-a', uri: fileA, range: new Range(10, 1, 10, 1), body: 'review', kind: 'issue', severity: 'warning' },
-		]), prState);
+		], prState);
 
 		assert.strictEqual(comments.length, 3);
 		assert.deepStrictEqual(comments.map(c => `${c.range.startLineNumber}:${c.source}`), [
@@ -140,7 +128,7 @@ suite('SessionEditorComments', () => {
 
 	test('omits PR review comments when prReviewState is not loaded', () => {
 		const prState: IPRReviewState = { kind: PRReviewStateKind.None };
-		const comments = getSessionEditorComments(session, [], reviewState([]), prState);
+		const comments = getSessionEditorComments(session, [], [], prState);
 		assert.strictEqual(comments.length, 0);
 	});
 });

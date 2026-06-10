@@ -21,6 +21,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { ISession, ISessionFileChange, SessionStatus } from '../../../services/sessions/common/session.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -50,6 +51,10 @@ export interface IAgentFeedback {
 	 * comment; replies are subsequent messages added to it.
 	 */
 	readonly replies?: readonly string[];
+	/** Whether this feedback item has already been submitted to the agent. */
+	readonly submitted?: boolean;
+	/** Whether this feedback item has been marked as resolved. */
+	readonly resolved?: boolean;
 }
 
 export interface INavigableSessionComment {
@@ -133,6 +138,11 @@ export interface IAgentFeedbackService {
 	 * Update the text of an existing feedback item.
 	 */
 	updateFeedback(sessionResource: URI, feedbackId: string, newText: string): void;
+
+	/**
+	 * Mark an existing feedback item as resolved or unresolved.
+	 */
+	setFeedbackResolved(sessionResource: URI, feedbackId: string, resolved: boolean): void;
 
 	/**
 	 * Append a reply to an existing feedback item, making it part of the same
@@ -287,6 +297,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			diffHunks: context?.diffHunks,
 			kind: effectiveKind,
 			sourcePRReviewCommentId,
+			submitted: false,
+			resolved: false,
 		};
 
 		// Insert at the correct sorted position.
@@ -371,6 +383,26 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			};
 			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+		}
+	}
+
+	setFeedbackResolved(sessionResource: URI, feedbackId: string, resolved: boolean): void {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		if (!feedbackItems) {
+			return;
+		}
+
+		const idx = feedbackItems.findIndex(f => f.id === feedbackId);
+		if (idx >= 0 && !!feedbackItems[idx].resolved !== resolved) {
+			const existing = feedbackItems[idx];
+			feedbackItems[idx] = {
+				...existing,
+				resolved,
+			};
+			this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
+			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+			this._onDidChangeNavigation.fire(sessionResource);
 		}
 	}
 
@@ -586,23 +618,30 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind?: AgentFeedbackKind): Promise<void> {
 		this.addFeedback(sessionResource, resourceUri, range, text, suggestion, context, sourcePRReviewCommentId, kind);
 
-		// Wait for the attachment contribution to update the chat widget's attachment model
-		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
-		if (widget) {
-			const attachmentId = 'agentFeedback:' + sessionResource.toString();
-			const hasAttachment = () => widget.attachmentModel.attachments.some(a => a.id === attachmentId);
+		if (!this._isAgentHostSession(sessionResource)) {
+			// Wait for the attachment contribution to update the chat widget's attachment model
+			const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+			if (widget) {
+				const attachmentId = 'agentFeedback:' + sessionResource.toString();
+				const hasAttachment = () => widget.attachmentModel.attachments.some(a => a.id === attachmentId);
 
-			if (!hasAttachment()) {
-				await Event.toPromise(
-					Event.filter(widget.attachmentModel.onDidChange, () => hasAttachment())
-				);
+				if (!hasAttachment()) {
+					await Event.toPromise(
+						Event.filter(widget.attachmentModel.onDidChange, () => hasAttachment())
+					);
+				}
+			} else {
+				this._logService.error('[AgentFeedback] addFeedbackAndSubmit: no chat widget found for session, feedback may not be submitted correctly', sessionResource.toString());
+				await new Promise(resolve => setTimeout(resolve, 100));
 			}
-		} else {
-			this._logService.error('[AgentFeedback] addFeedbackAndSubmit: no chat widget found for session, feedback may not be submitted correctly', sessionResource.toString());
-			await new Promise(resolve => setTimeout(resolve, 100));
 		}
 
 		await this.submitFeedback(sessionResource);
+	}
+
+	private _isAgentHostSession(sessionResource: URI): boolean {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
 	async submitFeedback(sessionResource: URI): Promise<void> {
@@ -634,6 +673,18 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			prReviewCount,
 			replyCount,
 		});
+
+		let markedSubmitted = false;
+		for (let i = 0; i < feedbackItems.length; i++) {
+			if (!feedbackItems[i].submitted) {
+				feedbackItems[i] = { ...feedbackItems[i], submitted: true };
+				markedSubmitted = true;
+			}
+		}
+		if (markedSubmitted) {
+			this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
+			this._onDidChangeNavigation.fire(sessionResource);
+		}
 
 		try {
 			await widget.acceptInput('/act-on-feedback');

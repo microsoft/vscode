@@ -28,7 +28,7 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
-import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, ICodeReviewComment, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -945,7 +945,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			}
 
 			this._rebuildWidgets(
-				this._codeReviewService.getReviewState(this._sessionResource).read(reader),
+				this._codeReviewService.getComments(this._sessionResource).read(reader),
 				this._codeReviewService.getPRReviewState(this._sessionResource).read(reader),
 			);
 			this._handleNavigation();
@@ -962,12 +962,12 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	}
 
 	private _rebuildWidgets(
-		reviewState = this._sessionResource ? this._codeReviewService.getReviewState(this._sessionResource).get() : undefined,
+		reviewComments: readonly ICodeReviewComment[] = this._sessionResource ? this._codeReviewService.getComments(this._sessionResource).get() : [],
 		prReviewState: IPRReviewState | undefined = this._sessionResource ? this._codeReviewService.getPRReviewState(this._sessionResource).get() : undefined,
 	): void {
 		this._clearWidgets();
 
-		if (!this._sessionResource || !reviewState) {
+		if (!this._sessionResource) {
 			return;
 		}
 
@@ -979,7 +979,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		const comments = getSessionEditorComments(
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
-			reviewState,
+			reviewComments,
 			prReviewState,
 		);
 		const fileComments = this._getCommentsForModel(model.uri, comments);
@@ -1095,7 +1095,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		const comments = getSessionEditorComments(
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
-			this._codeReviewService.getReviewState(this._sessionResource).get(),
+			this._codeReviewService.getComments(this._sessionResource).get(),
 			this._codeReviewService.getPRReviewState(this._sessionResource).get(),
 		);
 		const bearing = this._agentFeedbackService.getNavigationBearing(this._sessionResource, comments);

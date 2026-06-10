@@ -6,7 +6,7 @@
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentFeedback } from './agentFeedbackService.js';
-import { CodeReviewStateKind, ICodeReviewComment, ICodeReviewState, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewComment, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
@@ -31,10 +31,16 @@ export interface ISessionEditorComment {
 	 * feedback comments today.
 	 */
 	readonly replies?: readonly string[];
-}
-
-export function getCodeReviewComments(reviewState: ICodeReviewState): readonly ICodeReviewComment[] {
-	return reviewState.kind === CodeReviewStateKind.Result ? reviewState.comments : [];
+	/**
+	 * Whether this comment has already been submitted to the agent. Only
+	 * meaningful for agent feedback comments.
+	 */
+	readonly submitted?: boolean;
+	/**
+	 * Whether this comment has been marked as resolved. Only meaningful for
+	 * agent feedback comments.
+	 */
+	readonly resolved?: boolean;
 }
 
 export function getPRReviewComments(prReviewState: IPRReviewState | undefined): readonly IPRReviewComment[] {
@@ -44,7 +50,7 @@ export function getPRReviewComments(prReviewState: IPRReviewState | undefined): 
 export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
-	reviewState: ICodeReviewState,
+	reviewComments: readonly ICodeReviewComment[],
 	prReviewState?: IPRReviewState,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
@@ -61,10 +67,12 @@ export function getSessionEditorComments(
 			suggestion: item.suggestion,
 			canConvertToAgentFeedback: false,
 			replies: item.replies,
+			submitted: item.submitted,
+			resolved: item.resolved,
 		});
 	}
 
-	for (const item of getCodeReviewComments(reviewState)) {
+	for (const item of reviewComments) {
 		comments.push({
 			id: toSessionEditorCommentId(SessionEditorCommentSource.CodeReview, item.id),
 			sourceId: item.id,
@@ -173,6 +181,6 @@ export function toSessionEditorCommentId(source: SessionEditorCommentSource, sou
 	return `${source}:${sourceId}`;
 }
 
-export function hasAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
-	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback);
+export function hasUnsubmittedAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
+	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback && !comment.submitted);
 }

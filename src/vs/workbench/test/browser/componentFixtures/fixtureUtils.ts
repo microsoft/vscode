@@ -101,7 +101,7 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
@@ -644,6 +644,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		clearFeedback: () => { },
 		submitFeedback: async () => { },
 		addFeedbackAndSubmit: async () => { },
+		setFeedbackResolved: async () => { },
 	});
 
 	definePartialInstance(IChatEditingService, {
@@ -662,13 +663,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
-		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
+		getComments: () => constObservable([]),
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
-		hasReview: () => false,
-		requestReview: () => { },
 		removeComment: () => { },
 		updateComment: () => { },
-		dismissReview: () => { },
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
 	});
