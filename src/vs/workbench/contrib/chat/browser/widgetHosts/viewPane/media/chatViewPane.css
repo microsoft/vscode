@@ -10,8 +10,7 @@
 	flex-shrink: 0;
 	border-top: 1px solid var(--vscode-panel-border);
 	position: relative;
-	max-height: 150px;
-	overflow-y: auto;
+	overflow: hidden;
 }
 
 /* Overall styles */
