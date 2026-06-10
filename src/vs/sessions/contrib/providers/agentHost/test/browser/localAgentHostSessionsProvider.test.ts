@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type ChangesetSummary, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -203,6 +203,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	setAgents(agents: AgentInfo[]): void {
 		this._rootStateValue = { agents };
+		this._onDidRootStateChange.fire(this._rootStateValue);
+	}
+
+	/**
+	 * Fires a root state change that preserves the current `agents` reference,
+	 * simulating non-agent root deltas (e.g. `RootActiveSessionsChanged` on
+	 * every turn start/complete) that the real reducer emits without
+	 * replacing the `agents` slice.
+	 */
+	fireNonAgentRootStateChange(): void {
+		if (!this._rootStateValue || this._rootStateValue instanceof Error) {
+			throw new Error('rootState not initialized; call setAgents first');
+		}
+		this._rootStateValue = { ...this._rootStateValue };
 		this._onDidRootStateChange.fire(this._rootStateValue);
 	}
 
@@ -945,12 +959,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let fired = 0;
 		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
 
-		// Root state change should fire the event.
+		// A root state change that replaces the agents reference should
+		// fire the event. This is the only path that mutates agents in the
+		// real reducer (`RootAgentsChanged`).
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 		]);
 		const afterRoot = fired;
-		assert.ok(afterRoot > 0, 'expected event to fire on root state change');
+		assert.ok(afterRoot > 0, 'expected event to fire when the agents reference is replaced');
+
+		// A subsequent root state change that preserves the agents reference
+		// (e.g. `activeSessionsChanged` on every turn start/complete) must
+		// NOT fire — firing on those caused chat session bubbles to be
+		// re-hydrated mid-turn, dropping streamed responses.
+		agentHost.fireNonAgentRootStateChange();
+		assert.strictEqual(fired, afterRoot, 'expected event NOT to fire on non-agent root deltas (preserved agents reference)');
 
 		// Session-state update with new customizations should fire it again.
 		provider.getSessionConfig(session!.sessionId);
@@ -2213,10 +2236,6 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
 	}
 
-	function catalogueFor(rawId: string, additions: number, deletions: number, sessionType: string = 'copilotcli'): ChangesetSummary[] {
-		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), additions, deletions, files: 1 }];
-	}
-
 	// The adapter subscribes to its branch changeset lazily — only while the
 	// session is active AND its `changes` / `changesSummary` observable is being
 	// observed. Keep an autorun alive so that the subscription is established.
@@ -2336,7 +2355,7 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			};
 		}), [{
 			uri: 'file:///repo/file.ts',
-			originalUri: 'vscode-agent-host://local/session-db/-/before/file.ts',
+			originalUri: 'vscode-agent-host://local/before/file.ts?_ah%3DeyJzY2hlbWUiOiJzZXNzaW9uLWRiIn0',
 			modifiedUri: 'file:///repo/file.ts',
 			insertions: 2,
 			deletions: 1,
@@ -2366,7 +2385,7 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		// Once another session becomes active, the catalogue-seeded summary
 		// takes over again.
 		activeSession.set(makeActive('sess-B'), undefined);
-		fireSessionSummaryChanged(agentHost, 'sess-A', { changesets: catalogueFor('sess-A', 5, 3) });
+		fireSessionSummaryChanged(agentHost, 'sess-A', { changes: { additions: 5, deletions: 3, files: 1 } });
 
 		assert.deepStrictEqual(session.changesSummary?.get(), { additions: 5, deletions: 3, files: 1 });
 	});

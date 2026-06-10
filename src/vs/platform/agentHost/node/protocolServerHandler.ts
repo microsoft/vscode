@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -53,6 +54,13 @@ import {
 const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
+/** A client tool call in any of these statuses is still awaiting its result. */
+function isPendingToolCallStatus(status: ToolCallStatus): boolean {
+	return status === ToolCallStatus.Streaming
+		|| status === ToolCallStatus.Running
+		|| status === ToolCallStatus.PendingConfirmation;
+}
 
 /** Build a JSON-RPC success response suitable for transport.send(). */
 function jsonRpcSuccess(id: number, result: unknown): JsonRpcResponse {
@@ -173,6 +181,35 @@ interface IConnectedClient {
 }
 
 /**
+ * Per-client server-side record, keyed by clientId in
+ * {@link ProtocolServerHandler._clients}. Unlike {@link IConnectedClient}, the
+ * record OUTLIVES the connection: when a client disconnects, `connection` is
+ * cleared to `undefined` but the record is retained (until pruned) so the
+ * tool-call disconnect-grace machinery can still compute the remaining window
+ * and hold any armed timeouts.
+ */
+interface IClientRecord {
+	/** Live connection while connected; `undefined` after disconnect (record retained for the grace window). */
+	connection: IConnectedClient | undefined;
+	/**
+	 * Epoch ms the client was last seen connected (handshake or disconnect).
+	 * `undefined` when the client has never connected. Drives the
+	 * disconnect-timeout grace window: a pending client tool call fails
+	 * `CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT` ms after this point, never instantly
+	 * and never never.
+	 */
+	lastSeenAt: number | undefined;
+	/**
+	 * Pending tool-call disconnect timeouts owned by this client, keyed by
+	 * session URI. Armed when the client owns a pending client tool call but is
+	 * not connected; fires a failing completion if it does not (re)connect
+	 * within the grace window. Disposing an entry (or the whole map) clears the
+	 * underlying timer.
+	 */
+	readonly disconnectTimeouts: DisposableMap<string>;
+}
+
+/**
  * Classifies a raw channel URI string into its {@link ChannelKind} and
  * returns the canonical URI to key subscriptions by. Returns `undefined`
  * when the channel is OTLP-flavoured but the URI does not parse into a
@@ -229,9 +266,14 @@ export interface IProtocolServerConfig {
  */
 export class ProtocolServerHandler extends Disposable {
 
-	private readonly _clients = new Map<string, IConnectedClient>();
+	/**
+	 * Per-client records keyed by clientId. Holds both connected clients
+	 * (`connection` set) and recently-disconnected ones retained for the
+	 * tool-call disconnect-grace window (`connection === undefined`). See
+	 * {@link IClientRecord}.
+	 */
+	private readonly _clients = new Map<string, IClientRecord>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
-	private readonly _clientToolCallDisconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -258,6 +300,17 @@ export class ProtocolServerHandler extends Disposable {
 				this._replayBuffer.shift();
 			}
 			this._broadcastAction(envelope);
+			// A client tool call may be issued for a client that is no longer
+			// connected — e.g. a stale stamp from a window that reloaded. The
+			// live-disconnect path (`_handleClientDisconnected`) does not cover
+			// these because no disconnect event fires for an already-gone
+			// client. Detect the orphan at issuance time and arm the same
+			// grace-period timeout so the call cannot hang forever. Calls
+			// stamped while no client is connected are failed immediately by
+			// the provider, so they never reach this path.
+			if (envelope.action.type === ActionType.SessionToolCallStart || envelope.action.type === ActionType.SessionToolCallReady) {
+				this._checkOrphanedClientToolCalls(envelope.channel);
+			}
 		}));
 
 		this._register(this._stateManager.onDidEmitNotification(notification => {
@@ -370,7 +423,8 @@ export class ProtocolServerHandler extends Disposable {
 		}));
 
 		disposables.add(transport.onClose(() => {
-			if (client && this._clients.get(client.clientId) === client) {
+			const record = client ? this._clients.get(client.clientId) : undefined;
+			if (client && record && record.connection === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
 				// Treat disconnect as an implicit unsubscribe of every channel the
 				// client held, so the server-side refcount can drop to zero and any
@@ -385,10 +439,11 @@ export class ProtocolServerHandler extends Disposable {
 					}
 				}
 				client.subscriptions.clear();
-				this._clients.delete(client.clientId);
+				record.connection = undefined;
+				record.lastSeenAt = Date.now();
 				this._rejectPendingReverseRequests(client.clientId);
 				this._handleClientDisconnected(client.clientId);
-				this._onDidChangeConnectionCount.fire(this._clients.size);
+				this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 			}
 			disposables.dispose();
 		}));
@@ -433,8 +488,11 @@ export class ProtocolServerHandler extends Disposable {
 			subscriptions: new Map(),
 			disposables,
 		};
-		this._clients.set(params.clientId, client);
-		this._onDidChangeConnectionCount.fire(this._clients.size);
+		const record = this._ensureClientRecord(params.clientId);
+		record.connection = client;
+		record.lastSeenAt = Date.now();
+		this._pruneClientRecords();
+		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
 		this._registerClientFileSystemAuthority(params.clientId, disposables);
 
@@ -547,8 +605,11 @@ export class ProtocolServerHandler extends Disposable {
 			subscriptions: new Map(),
 			disposables,
 		};
-		this._clients.set(params.clientId, client);
-		this._onDidChangeConnectionCount.fire(this._clients.size);
+		const record = this._ensureClientRecord(params.clientId);
+		record.connection = client;
+		record.lastSeenAt = Date.now();
+		this._pruneClientRecords();
+		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
 		// Re-establish the reverse-RPC filesystem authority for this client.
 		// The prior transport's `onClose` disposed the previous registration,
@@ -671,48 +732,15 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
-	private _hasPendingClientToolCall(state: ReturnType<AgentHostStateManager['getSessionState']>, clientId: string): boolean {
-		const activeTurn = state?.activeTurn;
-		if (!activeTurn) {
-			return false;
-		}
-		return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
-			&& part.toolCall.contributor?.kind === ToolCallContributorKind.Client
-			&& part.toolCall.contributor.clientId === clientId
-			&& (part.toolCall.status === ToolCallStatus.Streaming || part.toolCall.status === ToolCallStatus.Running || part.toolCall.status === ToolCallStatus.PendingConfirmation));
-	}
-
-	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
-		const activeClient = state.activeClient;
-		return activeClient !== undefined
-			&& activeClient.clientId !== clientId
-			&& activeClient.tools.some(tool => tool.name === toolName);
-	}
-
-	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
-		this._clearClientToolCallDisconnectTimeout(clientId, session);
-		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
-		this._clientToolCallDisconnectTimeouts.set(key, setTimeout(() => {
-			this._clientToolCallDisconnectTimeouts.delete(key);
-			this._completeDisconnectedClientToolCalls(clientId, session);
-		}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
-	}
-
-	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
-		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
-		const timeout = this._clientToolCallDisconnectTimeouts.get(key);
-		if (timeout) {
-			clearTimeout(timeout);
-			this._clientToolCallDisconnectTimeouts.delete(key);
-		}
-	}
-
-	private _clientToolCallDisconnectTimeoutKey(clientId: string, session: string): string {
-		return `${clientId}\n${session}`;
-	}
-
-	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
-		const state = this._stateManager.getSessionState(session);
+	/**
+	 * Yields every still-pending client-contributed tool call in `state`'s
+	 * active turn, paired with its owning `clientId`. Single source of truth
+	 * for the disconnect-grace machinery: detect ownership
+	 * ({@link _hasPendingClientToolCall}), arm timeouts
+	 * ({@link _checkOrphanedClientToolCalls}), and fail orphaned calls
+	 * ({@link _completeDisconnectedClientToolCalls}).
+	 */
+	private *_pendingClientToolCalls(state: SessionState | undefined) {
 		const activeTurn = state?.activeTurn;
 		if (!activeTurn) {
 			return;
@@ -722,30 +750,155 @@ export class ProtocolServerHandler extends Disposable {
 				continue;
 			}
 			const toolCall = part.toolCall;
-			const toolContributor = toolCall.contributor;
-			if (toolContributor?.kind === ToolCallContributorKind.Client && toolContributor.clientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
-				const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
-				if (toolCall.status === ToolCallStatus.Streaming) {
-					this._stateManager.dispatchServerAction(session, {
-						type: ActionType.SessionToolCallReady,
-						turnId: activeTurn.id,
-						toolCallId: toolCall.toolCallId,
-						invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-					});
-				}
+			const contributor = toolCall.contributor;
+			if (contributor?.kind === ToolCallContributorKind.Client && isPendingToolCallStatus(toolCall.status)) {
+				yield { toolCall, clientId: contributor.clientId };
+			}
+		}
+	}
+
+	private _hasPendingClientToolCall(state: SessionState | undefined, clientId: string): boolean {
+		for (const pending of this._pendingClientToolCalls(state)) {
+			if (pending.clientId === clientId) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
+		const activeClient = state.activeClient;
+		return activeClient !== undefined
+			&& activeClient.clientId !== clientId
+			&& activeClient.tools.some(tool => tool.name === toolName);
+	}
+
+	/**
+	 * Arm (or re-arm) the per-(clientId, session) timeout that fails pending
+	 * client tool calls owned by `clientId` if it does not (re)connect. The
+	 * delay is the remaining grace measured from when the client was last
+	 * seen — so a client that disconnected a while before the call was issued
+	 * gets the residual window rather than a fresh one, and a stamp from a
+	 * long-dead client fails promptly. A client never seen at all has its
+	 * grace clock pinned to the first arm, so re-arms triggered by later
+	 * orphaned tool calls in the same session shrink the remaining window
+	 * instead of resetting it.
+	 */
+	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		this._clearClientToolCallDisconnectTimeout(clientId, session);
+		const record = this._ensureClientRecord(clientId);
+		if (record.lastSeenAt === undefined) {
+			record.lastSeenAt = Date.now();
+		}
+		const elapsed = Date.now() - record.lastSeenAt;
+		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
+		record.disconnectTimeouts.set(session, disposableTimeout(() => {
+			record.disconnectTimeouts.deleteAndDispose(session);
+			this._completeDisconnectedClientToolCalls(clientId, session);
+		}, delay));
+	}
+
+	/**
+	 * Scan a session for pending client tool calls whose owning client is not
+	 * currently connected, and arm the disconnect timeout for each such owner.
+	 * Called when a `SessionToolCallStart` / `SessionToolCallReady` envelope is
+	 * observed — covering calls issued for an already-gone client, which the
+	 * live disconnect path never sees. Ownerless client tool calls (no client
+	 * connected at stamp time) are failed immediately by the provider, so they
+	 * never reach a pending state here.
+	 */
+	private _checkOrphanedClientToolCalls(session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const orphanOwners = new Set<string>();
+		for (const { clientId } of this._pendingClientToolCalls(state)) {
+			const ownerRecord = this._clients.get(clientId);
+			if (!ownerRecord || ownerRecord.connection === undefined) {
+				orphanOwners.add(clientId);
+			}
+		}
+		for (const ownerId of orphanOwners) {
+			this._startClientToolCallDisconnectTimeout(ownerId, session);
+		}
+	}
+
+	/**
+	 * Get the existing per-client record or create an empty one. A freshly
+	 * created record has no connection and `lastSeenAt === undefined`.
+	 */
+	private _ensureClientRecord(clientId: string): IClientRecord {
+		let record = this._clients.get(clientId);
+		if (!record) {
+			record = { connection: undefined, lastSeenAt: undefined, disconnectTimeouts: new DisposableMap() };
+			this._clients.set(clientId, record);
+		}
+		return record;
+	}
+
+	/** Number of records that currently hold a live connection. */
+	private get _connectedClientCount(): number {
+		let count = 0;
+		for (const record of this._clients.values()) {
+			if (record.connection) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Drop disconnected, timer-less client records whose last-seen time is
+	 * stale beyond the retention window (10× the disconnect timeout), plus
+	 * never-connected placeholder records (e.g. a stamp from a long-dead
+	 * client) once their timeouts have fired. Bounds {@link _clients} without
+	 * tracking liveness precisely — a pruned-then-resurfacing stamp simply
+	 * falls back to the full grace window.
+	 */
+	private _pruneClientRecords(): void {
+		const cutoff = Date.now() - CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT * 10;
+		for (const [clientId, record] of this._clients) {
+			if (record.connection === undefined
+				&& record.disconnectTimeouts.size === 0
+				&& (record.lastSeenAt === undefined || record.lastSeenAt < cutoff)) {
+				this._clients.delete(clientId);
+			}
+		}
+	}
+
+	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		this._clients.get(clientId)?.disconnectTimeouts.deleteAndDispose(session);
+	}
+
+	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const activeTurn = state?.activeTurn;
+		if (!state || !activeTurn) {
+			return;
+		}
+		for (const { toolCall, clientId: ownerId } of this._pendingClientToolCalls(state)) {
+			if (ownerId !== clientId) {
+				continue;
+			}
+			const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
+			if (toolCall.status === ToolCallStatus.Streaming) {
 				this._stateManager.dispatchServerAction(session, {
-					type: ActionType.SessionToolCallComplete,
+					type: ActionType.SessionToolCallReady,
 					turnId: activeTurn.id,
 					toolCallId: toolCall.toolCallId,
-					result: {
-						success: false,
-						pastTenseMessage: `${toolCall.displayName} failed`,
-						...(mayRetryWithReplacementClient ? { content: [{ type: ToolResultContentType.Text, text: `The client that was running ${toolCall.displayName} disconnected, but another active client now provides ${toolCall.displayName}. You may try calling the tool again.` }] } : {}),
-						error: { message: `Client ${clientId} disconnected before completing ${toolCall.displayName}` },
-					},
+					invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
 				});
 			}
+			this._stateManager.dispatchServerAction(session, {
+				type: ActionType.SessionToolCallComplete,
+				turnId: activeTurn.id,
+				toolCallId: toolCall.toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: `${toolCall.displayName} failed`,
+					...(mayRetryWithReplacementClient ? { content: [{ type: ToolResultContentType.Text, text: `The client that was running ${toolCall.displayName} disconnected, but another active client now provides ${toolCall.displayName}. You may try calling the tool again.` }] } : {}),
+					error: { message: `Client ${clientId} disconnected before completing ${toolCall.displayName}` },
+				},
+			});
 		}
 	}
 
@@ -875,7 +1028,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
-					changesets: s.changesets ? [...s.changesets] : undefined,
+					changes: s.changes,
 				};
 			});
 			return { items };
@@ -983,7 +1136,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * Rejects if the client disconnects or the server is disposed.
 	 */
 	private _sendReverseRequest<T>(clientId: string, method: string, params: unknown): Promise<T> {
-		const client = this._clients.get(clientId);
+		const client = this._clients.get(clientId)?.connection;
 		if (!client) {
 			return Promise.reject(new Error(`Client ${clientId} is not connected`));
 		}
@@ -1075,8 +1228,9 @@ export class ProtocolServerHandler extends Disposable {
 	private _broadcastAction(envelope: ActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
 		const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
-		for (const client of this._clients.values()) {
-			if (this._isRelevantToClient(client, envelope)) {
+		for (const record of this._clients.values()) {
+			const client = record.connection;
+			if (client && this._isRelevantToClient(client, envelope)) {
 				client.transport.send(msg);
 			}
 		}
@@ -1089,8 +1243,8 @@ export class ProtocolServerHandler extends Disposable {
 		const { type, ...params } = notification;
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
-		for (const client of this._clients.values()) {
-			client.transport.send(msg);
+		for (const record of this._clients.values()) {
+			record.connection?.transport.send(msg);
 		}
 	}
 
@@ -1110,8 +1264,8 @@ export class ProtocolServerHandler extends Disposable {
 		// through `unknown` to satisfy the transport contract.
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0' as const, method: notification.method, params } as unknown as AhpServerNotification;
-		for (const client of this._clients.values()) {
-			client.transport.send(msg);
+		for (const record of this._clients.values()) {
+			record.connection?.transport.send(msg);
 		}
 	}
 
@@ -1149,7 +1303,11 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private _broadcastOtlpLog(record: IOtlpLogRecord): void {
 		const payload = toResourceLogsPayload(record);
-		for (const client of this._clients.values()) {
+		for (const clientRecord of this._clients.values()) {
+			const client = clientRecord.connection;
+			if (!client) {
+				continue;
+			}
 			for (const sub of client.subscriptions.values()) {
 				if (sub.kind !== ChannelKind.OtlpLogs) {
 					continue;
@@ -1186,18 +1344,15 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	override dispose(): void {
-		for (const client of this._clients.values()) {
-			client.disposables.dispose();
+		for (const record of this._clients.values()) {
+			record.connection?.disposables.dispose();
+			record.disconnectTimeouts.dispose();
 		}
 		this._clients.clear();
 		for (const [, pending] of this._pendingReverseRequests) {
 			pending.reject(new Error('ProtocolServerHandler disposed'));
 		}
 		this._pendingReverseRequests.clear();
-		for (const timeout of this._clientToolCallDisconnectTimeouts.values()) {
-			clearTimeout(timeout);
-		}
-		this._clientToolCallDisconnectTimeouts.clear();
 		this._replayBuffer.length = 0;
 		super.dispose();
 	}

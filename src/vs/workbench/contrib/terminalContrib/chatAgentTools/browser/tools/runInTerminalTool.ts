@@ -80,7 +80,7 @@ import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked, outputLooksSandboxNetworkBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
-import { ILanguageModelsService, LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -615,6 +615,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private static readonly _activeExecutions = new Map<string, IActiveTerminalExecution & { dispose(): void }>();
 
 	/**
+	 * Per-instance disposables that unregister `_activeExecutions` entries from the
+	 * `ITerminalChatService` execution-id map. Keyed by the same `termId` as `_activeExecutions`
+	 * so registrations and active executions share a lifecycle.
+	 */
+	private readonly _executionRegistrations = this._register(new DisposableMap<string, IDisposable>());
+
+	private _setActiveExecution(termId: string, execution: IActiveTerminalExecution & { dispose(): void }): void {
+		RunInTerminalTool._activeExecutions.set(termId, execution);
+		this._executionRegistrations.set(termId, this._terminalChatService.registerTerminalInstanceWithExecutionId(termId, execution.instance));
+	}
+
+	private _deleteActiveExecution(termId: string): boolean {
+		this._executionRegistrations.deleteAndDispose(termId);
+		return RunInTerminalTool._activeExecutions.delete(termId);
+	}
+
+	/**
 	 * Terminal IDs being programmatically disposed (by `kill_terminal` or
 	 * automatic background-terminal cleanup). Used to suppress the redundant
 	 * "terminal exited" steering message in `_registerCompletionNotification`'s
@@ -731,7 +748,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
@@ -1850,7 +1866,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			);
 			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
-			RunInTerminalTool._activeExecutions.set(termId, execution);
+			this._setActiveExecution(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
 			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
@@ -2152,7 +2168,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				// Clean up the execution on error
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				toolTerminal.instance.dispose();
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
@@ -2183,7 +2199,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} else {
 				// Foreground completed or error - clean up execution and output monitor
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				outputMonitor?.dispose();
 			}
 			store.dispose();
@@ -2386,15 +2402,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return lines.join('\n');
 	}
 
-	/**
-	 * Resolves the `copilot/copilot-utility-small` model identifier for
-	 * steering messages. Returns `undefined` if unavailable.
-	 */
-	private async _resolveUtilitySmallModelId(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-		return models[0];
-	}
-
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
 		for (const analyzer of this._outputAnalyzers) {
 			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
@@ -2567,7 +2574,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._addSessionTerminalAssociation(chatSessionResource, toolTerminal);
 						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);
 						if (association.id) {
-							RunInTerminalTool._activeExecutions.set(association.id, this._register(new RestoredTerminalExecution(instance)));
+							this._setActiveExecution(association.id, this._register(new RestoredTerminalExecution(instance)));
 						}
 
 						// Listen for terminal disposal to clean up storage
@@ -2666,7 +2673,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		for (const termId of terminalToRemove) {
-			RunInTerminalTool._activeExecutions.delete(termId);
+			this._deleteActiveExecution(termId);
 		}
 	}
 
@@ -2732,7 +2739,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		for (const termId of executionIdsToRemove) {
-			RunInTerminalTool._activeExecutions.delete(termId);
+			this._deleteActiveExecution(termId);
 		}
 	}
 
@@ -2772,36 +2779,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture mode/tools from the last request. The model is resolved
-		// separately via the utility-small alias (falling back to conversation model).
+		// Capture agent/model/mode/tools so the notification resumes the same
+		// agent context that started the background terminal command. The
+		// notification message starts a full agent turn, so it must run on a
+		// real conversation model — a weaker utility model cannot reliably
+		// assess the command output or continue the agentic tool loop, which
+		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
+		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
+			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
 		}
-
-		// Resolve the utility-small alias eagerly and cache it so steering
-		// dispatch stays synchronous. Falls back to the conversation model if
-		// an event fires before resolution completes (rare — events require
-		// the terminal to produce output first).
-		let cachedUtilitySmallId: string | undefined;
-		this._resolveUtilitySmallModelId().then(utilitySmallId => {
-			cachedUtilitySmallId = utilitySmallId;
-			if (utilitySmallId) {
-				this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
-			} else {
-				this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
-			}
-		}, err => {
-			this._logService.warn(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model`, err);
-		});
-		const buildSendOptions = (): typeof sendOptions => {
-			return cachedUtilitySmallId ? { ...sendOptions, userSelectedModelId: cachedUtilitySmallId } : sendOptions;
-		};
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
@@ -2919,7 +2912,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
 				this._chatService.sendRequest(chatSessionResource, message, {
-					...buildSendOptions(),
+					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
 					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
@@ -2973,7 +2966,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
 			this._chatService.sendRequest(chatSessionResource, message, {
-				...buildSendOptions(),
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalCommandCompleted', "{0} completed", commandDisplay),
@@ -3001,7 +2994,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// send a redundant "terminal exited" steering message.
 				RunInTerminalTool._killedByTool.add(termId);
 				execution.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				terminalInstance.dispose();
 			});
 		}));
@@ -3047,7 +3040,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
 			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
 			this._chatService.sendRequest(chatSessionResource, message, {
-				...buildSendOptions(),
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalProcessExited', "{0} terminal exited", commandDisplay),
@@ -3064,7 +3057,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (e.kind === 'removeRequest') {
 				this._logService.debug(`RunInTerminalTool: Request removed from session, cleaning up background terminal ${termId}`);
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				disposeNotification();
 				terminalInstance.dispose();
 			}

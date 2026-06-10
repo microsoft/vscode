@@ -20,9 +20,15 @@ export interface IExtractedCdPrefix {
  * line, returning the directory and remaining command. Does not check whether
  * the directory matches anything — callers do that comparison themselves.
  *
+ * The separator between the `cd` and the remaining command may be `&&` or a
+ * newline (bash treats a bare newline as a command separator like `;`).
+ * PowerShell additionally accepts `;`. The remaining command may span multiple
+ * lines (the model frequently emits `cd <dir>` on its own line followed by a
+ * multi-line script).
+ *
  * Recognized forms:
- * - bash:       `cd <dir> && <suffix>`
- * - powershell: `cd <dir> && <suffix>`, `cd <dir>; <suffix>`
+ * - bash:       `cd <dir> && <suffix>`, `cd <dir>\n<suffix>`
+ * - powershell: `cd <dir> && <suffix>`, `cd <dir>; <suffix>`, `cd <dir>\n<suffix>`
  *               `cd /d <dir> && <suffix>`, `cd /d <dir>; <suffix>`
  *               `Set-Location <dir> && <suffix>`, `Set-Location <dir>; <suffix>`
  *               `Set-Location -Path <dir> && <suffix>`, `Set-Location -Path <dir>; <suffix>`
@@ -32,8 +38,8 @@ export interface IExtractedCdPrefix {
 export function extractCdPrefix(commandLine: string, isPowerShell: boolean): IExtractedCdPrefix | undefined {
 	const cdPrefixMatch = commandLine.match(
 		isPowerShell
-			? /^(?:cd(?: \/d)?|Set-Location(?: -Path)?) (?<dir>"[^"]*"|[^\s]+) ?(?:&&|;)\s+(?<suffix>.+)$/i
-			: /^cd (?<dir>"[^"]*"|[^\s]+) &&\s+(?<suffix>.+)$/
+			? /^(?:cd(?: \/d)?|Set-Location(?: -Path)?) (?<dir>"[^"]*"|[^\s]+) *(?:&&|;|\r?\n)\s*(?<suffix>[\s\S]+)$/i
+			: /^cd (?<dir>"[^"]*"|[^\s]+) *(?:&&|\r?\n)\s*(?<suffix>[\s\S]+)$/
 	);
 	const cdDir = cdPrefixMatch?.groups?.dir;
 	const cdSuffix = cdPrefixMatch?.groups?.suffix;
@@ -118,4 +124,3 @@ function sameDirectory(extractedDir: string, workingDirectory: URI): boolean {
 	}
 	return extUriBiasedIgnorePathCase.isEqual(extractedUri, wdUri);
 }
-

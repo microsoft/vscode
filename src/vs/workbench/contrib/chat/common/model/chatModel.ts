@@ -3102,16 +3102,16 @@ export namespace ChatResponseResource {
 }
 
 function _logChangesToStateModel(newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService, sessionId: string) {
-	if (!canLog(logger.getLevel(), LogLevel.Info) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
+	if (!canLog(logger.getLevel(), LogLevel.Debug) || newState?.selectedModel?.identifier === oldState?.selectedModel?.identifier) {
 		return;
 	}
 	const stack = new Error().stack;
 	const message = `[ChatModelChanged] ChatModel Input State model changed: ${newState?.selectedModel?.identifier} (was: ${oldState?.selectedModel?.identifier}) in session ${sessionId} ${stack}`;
-	logger.info(message);
+	logger.debug(message);
 }
 
 export function logChangesToStateModel(model: IInputModel | undefined, message: string, newState: Partial<IChatModelInputState> | undefined, oldState: Partial<IChatModelInputState> | undefined, logger: ILogService) {
-	if (!canLog(logger.getLevel(), LogLevel.Info)) {
+	if (!canLog(logger.getLevel(), LogLevel.Debug)) {
 		return;
 	}
 	message = [message,
@@ -3121,5 +3121,5 @@ export function logChangesToStateModel(model: IInputModel | undefined, message: 
 		new Error().stack
 	].join(', ');
 
-	logger.info(`[ChatModelChanged] Chat Model Changed,${message}`);
+	logger.debug(`[ChatModelChanged] Chat Model Changed,${message}`);
 }

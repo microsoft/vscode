@@ -16,7 +16,7 @@ import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalA
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { AgentHostPty } from '../../browser/agentHostPty.js';
-import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IRemoteWatchHandle } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 // ---- Mock IAgentConnection --------------------------------------------------
@@ -111,6 +111,9 @@ class MockAgentConnection implements IAgentConnection {
 	}
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 		return undefined;
+	}
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return [];
 	}
 	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action });
