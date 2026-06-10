@@ -1043,12 +1043,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Switch to a model by its identifier. Returns true if a matching model
 	 * was found and applied.
+	 *
+	 * `storeSelection` mirrors the same opt-out on {@link setChatMode}: when
+	 * `false`, the choice is applied to the input only and is NOT persisted
+	 * to the workbench-global "last used model" key. Surfaces that pre-seed
+	 * a model on behalf of the user (e.g. the automations dialog opening an
+	 * existing automation) pass `false` so they don't pollute the regular
+	 * chat input's persisted selection.
 	 */
-	public switchModelByIdentifier(identifier: string): boolean {
+	public switchModelByIdentifier(identifier: string, storeSelection: boolean = true): boolean {
 		const models = this.getModels();
 		const model = models.find(m => m.identifier === identifier);
 		if (model) {
-			this.setCurrentLanguageModel(model);
+			this.setCurrentLanguageModel(model, false, storeSelection);
 			return true;
 		}
 		return false;
@@ -1631,7 +1638,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false) {
+	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier, isUserAction = false, storeSelection: boolean = true) {
 		if (isUserAction) {
 			// An explicit user pick must survive subsequent automatic re-evaluations
 			// (model-list changes, late configured-default arrival) so the configured
@@ -1641,7 +1648,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const modelDetails = this.getModels().map(m => `${m.identifier} (${m.metadata.id})`).join(', ');
 		const selectedModelStorageKey = this.getSelectedModelStorageKey();
 		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
-		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, modelDetials = ${modelDetails}`, undefined, undefined, this.logService);
+		logChangesToStateModel(this._inputModel, `setCurrentLanguageModel to ${model.identifier} in ${this._currentSessionKey}, storageKey=${selectedModelStorageKey}, isDefaultKey=${selectedModelIsDefaultStorageKey}, currentSessionType=${this._currentSessionType}, getCurrentSessionType=${this.getCurrentSessionType()}, boundInputModelSession=${this._inputModelSessionResource?.toString()}, modelDetials = ${modelDetails}, storeSelection=${storeSelection}`, undefined, undefined, this.logService);
 		this._currentLanguageModel.set(model, undefined);
 
 		if (this.cachedWidth) {
@@ -1649,9 +1656,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.layout(this.cachedWidth);
 		}
 
-		// Store as global user preference (session-specific state is in the model's inputModel)
-		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefaultForLocation[this.location], StorageScope.APPLICATION, StorageTarget.USER);
+		// Store as global user preference (session-specific state is in the model's inputModel).
+		// `storeSelection: false` lets transient surfaces (e.g. the automations dialog
+		// applying an automation's saved model on open) apply the model to the input only,
+		// without overwriting the regular chat input's persisted selection.
+		if (storeSelection) {
+			this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+			this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefaultForLocation[this.location], StorageScope.APPLICATION, StorageTarget.USER);
+		}
 
 		// Sync to model
 		this._syncInputStateToModel();
@@ -1939,7 +1951,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
-	private setCurrentLanguageModelToDefault(forSessionType?: string) {
+	private setCurrentLanguageModelToDefault(forSessionType?: string, storeSelection: boolean = true) {
 		// Defer when the session owns a pool but no targeted models have loaded yet; otherwise the general default would contaminate the session-targeted storage key. `resetCurrentLanguageModelIfUnavailable` retries on arrival.
 		const sessionType = forSessionType ?? this.getCurrentSessionType();
 		if (sessionType
@@ -1950,9 +1962,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const allModels = this.getModelsForSessionType(sessionType);
 		const configuredModel = this.getConfiguredDefaultModel(allModels);
 		const defaultModel = configuredModel ?? findDefaultModel(allModels, this.location);
-		logChangesToStateModel(this._inputModel, `[DEFAULT] setCurrentLanguageModelToDefault called (defaultModel=${defaultModel?.identifier}, configuredModel=${configuredModel?.identifier}, currentLm=${this._currentLanguageModel.get()?.identifier}) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
+		logChangesToStateModel(this._inputModel, `[DEFAULT] setCurrentLanguageModelToDefault called (defaultModel=${defaultModel?.identifier}, configuredModel=${configuredModel?.identifier}, currentLm=${this._currentLanguageModel.get()?.identifier}, storeSelection=${storeSelection}) in ${this._currentSessionKey}`, undefined, this._inputModel?.state.get(), this.logService);
 		if (defaultModel) {
-			this.setCurrentLanguageModel(defaultModel);
+			this.setCurrentLanguageModel(defaultModel, false, storeSelection);
 		}
 	}
 
@@ -2009,6 +2021,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setCurrentLanguageModel(configuredModel);
 		this.checkModelSupported();
 		return true;
+	}
+
+	/**
+	 * Reset the language model selection to the location's default (typically
+	 * "auto") and tear down any in-flight {@linkcode _waitForPersistedLanguageModel}
+	 * waiter armed by {@linkcode initSelectedModel}. Used by surfaces that have
+	 * their own opinion about the initial model (e.g. the automations dialog
+	 * opening a fresh form) so the workbench-global "last used" restore can't
+	 * land later and stomp the choice.
+	 *
+	 * `storeSelection` defaults to `true` for symmetry with the other model
+	 * setters; pass `false` when the reset is dialog-local and should not
+	 * persist into the regular chat input's selection.
+	 */
+	public resetLanguageModelToDefault(storeSelection: boolean = true): void {
+		this._waitForPersistedLanguageModel.clear();
+		this.setCurrentLanguageModelToDefault(undefined, storeSelection);
 	}
 
 	/**
