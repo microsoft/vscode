@@ -797,6 +797,34 @@ function renderForm(
 	// silently round-tripped to disk.
 	if (initialMode) {
 		chatInput.setChatMode(initialMode, /* storeSelection */ false);
+		// {@link ChatInputPart.setChatMode} silently falls back to the
+		// default Agent mode when `findModeById(initialMode)` and
+		// `findModeByName(initialMode)` both miss. That happens on
+		// extension cold-start for any mode contributed by an extension
+		// (e.g. 'plan' from copilot-chat, or any custom agent). Mirror
+		// the late-arriving model handling below: when the mode set
+		// updates, retry our pre-seed and dispose the listener on the
+		// first successful apply so we never fight a later user pick.
+		if (chatInput.currentModeObs.get().id !== initialMode) {
+			const retry = disposables.add(new MutableDisposable<IDisposable>());
+			const tryApply = () => {
+				const modes = chatInput.currentChatModesObs.get();
+				if (modes.findModeById(initialMode) || modes.findModeByName(initialMode)) {
+					chatInput.setChatMode(initialMode, /* storeSelection */ false);
+					if (chatInput.currentModeObs.get().id === initialMode) {
+						retry.clear();
+					}
+				}
+			};
+			retry.value = autorun(reader => {
+				const modes = chatInput.currentChatModesObs.read(reader);
+				// Track both the outer observable (full set swap) and
+				// each IChatModes instance's own onDidChange (individual
+				// mode contributions arriving on the same set).
+				reader.store.add(modes.onDidChange(tryApply));
+				tryApply();
+			});
+		}
 	}
 	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
 		chatInput.setPermissionLevel(initialPermissionLevel);
