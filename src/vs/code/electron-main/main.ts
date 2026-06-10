@@ -74,6 +74,10 @@ import { FileUserDataProvider } from '../../platform/userData/common/fileUserDat
 import { addUNCHostToAllowlist, getUNCHost } from '../../base/node/unc.js';
 import { ThemeMainService } from '../../platform/theme/electron-main/themeMainServiceImpl.js';
 import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
+import { GITHUB_COPILOT_WIN32_POLICY_NAME, GITHUB_COPILOT_WIN32_REGISTRY_PATH, GITHUB_COPILOT_MACOS_BUNDLE_ID, GITHUB_COPILOT_LINUX_POLICY_FILE, GITHUB_COPILOT_MACOS_POLICY_FILE } from '../../base/common/copilotPolicy.js';
+import { ManagedSettingsFilePolicyService } from '../../platform/policy/common/managedSettingsFilePolicyService.js';
+import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
+import { validatePolicyFile } from '../../base/node/policyFileValidation.js';
 
 /**
  * The main VS Code entry point.
@@ -215,14 +219,45 @@ class CodeMain {
 		const policyProductName = isWindows
 			? (productService.parentPolicyConfig?.win32RegValueName ?? productService.win32RegValueName)
 			: (productService.parentPolicyConfig?.darwinBundleIdentifier ?? productService.darwinBundleIdentifier);
+
+		// VS Code's own MDM policy service
+		let vscodePolicyService: IPolicyService | undefined;
 		if (isWindows && policyProductName) {
-			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
+			vscodePolicyService = disposables.add(new NativePolicyService(logService, policyProductName));
 		} else if (isMacintosh && policyProductName) {
-			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
+			vscodePolicyService = disposables.add(new NativePolicyService(logService, policyProductName));
 		} else if (isLinux) {
-			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
+			vscodePolicyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
-			policyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
+			vscodePolicyService = disposables.add(new FilePolicyService(environmentMainService.policyFile, fileService, logService));
+		}
+
+		// GitHubCopilot managed-settings policy services (MDM + file-based).
+		// These share a namespace with Copilot CLI and are read from
+		// platform-specific locations defined in the managed-settings ADR.
+		const copilotPolicySources: IPolicyService[] = [];
+		if (isWindows) {
+			copilotPolicySources.push(disposables.add(new NativePolicyService(logService, GITHUB_COPILOT_WIN32_POLICY_NAME, { registryPath: GITHUB_COPILOT_WIN32_REGISTRY_PATH })));
+		} else if (isMacintosh) {
+			copilotPolicySources.push(disposables.add(new NativePolicyService(logService, GITHUB_COPILOT_MACOS_BUNDLE_ID)));
+		}
+		if (isMacintosh) {
+			copilotPolicySources.push(disposables.add(new ManagedSettingsFilePolicyService(URI.file(GITHUB_COPILOT_MACOS_POLICY_FILE), fileService, logService, validatePolicyFile)));
+		} else if (isLinux) {
+			copilotPolicySources.push(disposables.add(new ManagedSettingsFilePolicyService(URI.file(GITHUB_COPILOT_LINUX_POLICY_FILE), fileService, logService, validatePolicyFile)));
+		}
+
+		// Merge all policy sources: VS Code MDM (highest), then GitHubCopilot MDM, then file-based
+		const allPolicySources: IPolicyService[] = [];
+		if (vscodePolicyService) {
+			allPolicySources.push(vscodePolicyService);
+		}
+		allPolicySources.push(...copilotPolicySources);
+
+		if (allPolicySources.length > 1) {
+			policyService = disposables.add(new MultiplexPolicyService(allPolicySources, logService));
+		} else if (allPolicySources.length === 1) {
+			policyService = allPolicySources[0];
 		} else {
 			policyService = new NullPolicyService();
 		}

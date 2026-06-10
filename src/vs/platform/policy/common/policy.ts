@@ -16,6 +16,14 @@ export type PolicyDefinition = {
 	type: 'string' | 'number' | 'boolean';
 	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
 	restrictedValue?: PolicyValue;
+	/**
+	 * When set, this value is treated as a security-critical "deny" signal.
+	 * If **any** policy source provides this value, it takes effect regardless
+	 * of source priority — no lower-priority source can override it.
+	 * Used for settings like `disableBypassPermissionsMode` where "disable"
+	 * from any enterprise source must stick.
+	 */
+	denyValue?: PolicyValue;
 };
 
 /**
