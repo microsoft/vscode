@@ -221,13 +221,20 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
+
+		// Apply the centered band's width first so the header and tabs wrap to
+		// their final layout before we measure their combined height. Measuring
+		// before the width is applied could read a stale (pre-cap) height and
+		// cause a transient overlap until a later layout pass corrects it.
+		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
+		this._centeredContentContainer.style.width = `${centeredWidth}px`;
+
 		const headerHeight = this._header.visible ? this._header.height : 0;
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const barHeight = headerHeight + tabsHeight;
 
-		// Center and width-cap only the header + tabs band. It is horizontally
-		// centered via CSS (`margin: 0 auto`), so we only need to set its size.
-		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
+		// Cap the band's height to the header + tabs (it is horizontally centered
+		// via CSS `margin: 0 auto`) so the full-width chat content sits below it.
 		size(this._centeredContentContainer, centeredWidth, barHeight);
 
 		// Lay out the chat content at full width so its scrollbar reaches the
