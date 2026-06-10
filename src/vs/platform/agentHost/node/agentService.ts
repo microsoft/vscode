@@ -27,9 +27,9 @@ import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedActio
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -38,7 +38,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { AgentHostChangesetService, IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { AgentHostChangesetService, IAgentHostChangesetService, META_CHANGES_SUMMARY } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
@@ -199,6 +199,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info('AgentService initialized');
 		this._authService = new AgentHostAuthenticationService(_logService);
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
+			hostBuildInfo: hostBuildInfoFromProduct(this._productService),
 			changesetStateRetention: {
 				// The cache calls this lazily after construction. If a future state-manager
 				// initialization path registers changesets before `_changesets` is assigned,
@@ -395,11 +396,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder. The default `session` changeset
-		// catalogue entry lives on `state.summary.changesets` (published
-		// at session-ready/restore time and refreshed after each compute
-		// pass) and must be surfaced here so a fresh `listSessions` call
-		// returns the same catalogue subscribers see via
+		// initial empty placeholder. The default changeset catalogue lives
+		// on `state.changesets` (seeded after `createSession` /
+		// `restoreSession` and refreshed after each compute pass) and the
+		// chip aggregate on `state.summary.changes`; both must be surfaced
+		// here so a fresh `listSessions` call returns the same values
+		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
@@ -411,14 +413,46 @@ export class AgentService extends Disposable implements IAgentService {
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
 					agent: liveState.summary.agent ?? s.agent,
-					changesets: liveState.summary.changesets ?? s.changesets,
+					changes: liveState.summary.changes ?? s.changes,
+					changesets: liveState.changesets ?? s.changesets,
 				};
 			}
 			return s;
 		});
 
-		this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
-		return withStatus;
+		// Overlay any session that has been announced via `sessionAdded`
+		// but is missing from the providers' `listSessions` snapshot.
+		// Providers can briefly drop a just-materialized session (e.g.
+		// between firing `sessionAdded` and the SDK's session DB becoming
+		// visible to the next `listSessions` call), and immediately after
+		// `session/turnComplete` we've observed `CopilotAgent.listSessions`
+		// return an empty array transiently. Without this overlay,
+		// renderer-side session caches evict the live session, which
+		// closes the chat view holding the in-flight response bubble.
+		const known = new Set(withStatus.map(s => s.session.toString()));
+		const additions: IAgentSessionMetadata[] = [];
+		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
+			if (known.has(summary.resource)) {
+				continue;
+			}
+			additions.push({
+				session: URI.parse(summary.resource),
+				startTime: summary.createdAt,
+				modifiedTime: summary.modifiedAt,
+				summary: summary.title,
+				status: summary.status,
+				activity: summary.activity,
+				model: summary.model,
+				agent: summary.agent,
+				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
+				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
+				changes: summary.changes,
+			});
+		}
+		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+
+		this._logService.trace(`[AgentService] listSessions returned ${combined.length} sessions (${additions.length} state-manager fallback)`);
+		return combined;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -546,19 +580,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Initial changeset state is established as part of session creation,
-		// never deferred to materialization. Two halves: (1) the summary
-		// catalogue is seeded by `buildDefaultChangesetCatalogue` inside
-		// `_buildInitialSummary`; (2) the backing per-changeset states are
+		// never deferred to materialization. Two halves: (1) the catalogue
+		// is seeded on `state.changesets` via `setSessionChangesets` right
+		// after `createSession`; (2) the backing per-changeset states are
 		// registered by `_changesetCoordinator.onSessionCreated` here. Both
 		// run before `SessionReady` is dispatched. Any future change must
 		// keep both halves at create time so client subscriptions resolve
-		// to a `status: computing` snapshot rather than a 404 even on
-		// provisional sessions, and so the catalogue chip renders the
-		// default entries (`Branch Changes`, `Uncommitted Changes`,
-		// `This Turn`) immediately. The first two are git-only: a later
 		// `_attachGitState` strips them once the git probe confirms the
 		// resolved working directory is not a git repo. Pinned by item-2
 		// regression tests in `agentService.test.ts`.
+		const changesets = buildDefaultChangesetCatalogue(session.toString());
+		this._stateManager.setSessionChangesets(session.toString(), changesets);
+
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -595,7 +628,6 @@ export class AgentService extends Disposable implements IAgentService {
 			model: config?.model,
 			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
-			changesets: buildDefaultChangesetCatalogue(session.toString()),
 		};
 	}
 
@@ -633,7 +665,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+
+		// Attach git state for the working directory (if present)
 		this._attachGitState(e.session, e.workingDirectory);
+
+		// Initialize the session's changesets from the catalogue
+		const changesets = buildDefaultChangesetCatalogue(sessionKey);
+		this._stateManager.setSessionChangesets(sessionKey, changesets);
+
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
 		// the deferred refresh now that the working directory is set.
@@ -665,6 +704,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!gitState) {
 					return;
 				}
+				this._changesetCoordinator.onSessionGitStateChanged(sessionKey);
 				this._changesetOperationContributionService.updateOperations(sessionKey, gitState);
 			},
 			e => {
@@ -1273,6 +1313,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let isRead: boolean | undefined;
 		let isArchived: boolean | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
+		let changes: ChangesSummary | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
@@ -1299,10 +1340,16 @@ export class AgentService extends Disposable implements IAgentService {
 						} else if (m.isDone !== undefined) {
 							isArchived = m.isDone === 'true';
 						}
-						// Capture the batched changeset blobs verbatim — the
-						// coordinator parses, validates, and applies them
-						// after `restoreSession` registers the static states.
+
 						changesetMetadata = m as Record<string, string | undefined>;
+						if (changesetMetadata[META_CHANGES_SUMMARY]) {
+							try {
+								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
 						if (m.configValues) {
 							try {
 								persistedConfigValues = JSON.parse(m.configValues);
@@ -1338,16 +1385,19 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
 			agent: meta.agent,
+			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
-			changesets: buildDefaultChangesetCatalogue(sessionStr),
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
 
+		const changesets = buildDefaultChangesetCatalogue(sessionStr);
+		this._stateManager.setSessionChangesets(sessionStr, changesets);
+
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
-		// summary is already on the summary above (seeded synchronously by
-		// `buildDefaultChangesetCatalogue`). The coordinator drains any
+		// itself is seeded on `state.changesets` synchronously by the
+		// `setSessionChangesets` call above. The coordinator drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
 		// `<session>/changeset/uncommitted` before this restore ran (e.g.

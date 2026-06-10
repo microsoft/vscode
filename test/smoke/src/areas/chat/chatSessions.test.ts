@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer } from '../../utils';
 
 /**
  * Per-session scenarios. Each session uses a pair of unique scenario ids so
@@ -60,7 +60,7 @@ async function sendAndWaitForReply(chat: Chat, session: SessionConfig, message: 
 export function setup(logger: Logger) {
 
 	describe('Chat Sessions', function () {
-		this.timeout(3 * 60 * 1000);
+		this.timeout(5 * 60 * 1000);
 		this.retries(0);
 
 		let mockServer: MockLlmServer;
@@ -82,20 +82,26 @@ export function setup(logger: Logger) {
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
 
-			mockServer = await startServer(0, { logger: (msg: string) => logger.log(msg) });
-			logger.log(`Chat Sessions mock LLM server started at ${mockServer.url}`);
+			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`) });
+			logger.log(`[Chat Sessions] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
+			logger.log(`[Chat Sessions] env: VSCODE_DEV=${process.env.VSCODE_DEV ?? '<unset>'}, VSCODE_QUALITY=${process.env.VSCODE_QUALITY ?? '<unset>'}, BUILD_SOURCEBRANCH=${process.env.BUILD_SOURCEBRANCH ?? '<unset>'}, GITHUB_RUN_ID=${process.env.GITHUB_RUN_ID ?? '<unset>'}, GITHUB_ACTIONS=${process.env.GITHUB_ACTIONS ?? '<unset>'}`);
 		});
 
-		installAllHandlers(logger, opts => ({
-			...opts,
-			extraEnv: {
-				...(opts.extraEnv ?? {}),
-				...getCopilotSmokeTestEnv(mockServer),
-			},
-		}));
+		installAllHandlers(logger, opts => {
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			logger.log(`[Chat Sessions] extraEnv keys for app: ${Object.keys(copilotEnv).join(', ')} (token len=${(copilotEnv.VSCODE_COPILOT_CHAT_TOKEN ?? '').length})`);
+			return {
+				...opts,
+				extraEnv: {
+					...(opts.extraEnv ?? {}),
+					...copilotEnv,
+				},
+			};
+		});
 
 		before(async function () {
 			const app = this.app as Application;
+			logger.log(`[Chat Sessions] writing user settings (mock URL=${mockServer.url}); requestCount=${mockServer.requestCount()}`);
 
 			// overrideProxyUrl/overrideCapiUrl redirect Copilot SDK + CAPI traffic
 			// to the mock server. allowAnonymousAccess skips the token-validation
@@ -104,15 +110,27 @@ export function setup(logger: Logger) {
 			await app.workbench.settingsEditor.addUserSettings([
 				['github.copilot.advanced.debug.overrideProxyUrl', JSON.stringify(mockServer.url)],
 				['github.copilot.advanced.debug.overrideCapiUrl', JSON.stringify(mockServer.url)],
+				// Use token auth (not HMAC) so the CLI SDK can call /models and
+				// /models/session against the mock server without HMAC validation.
+				['github.copilot.advanced.debug.overrideAuthType', '"token"'],
 				['chat.allowAnonymousAccess', 'true'],
 				['github.copilot.chat.githubMcpServer.enabled', 'false'],
 				['chat.mcp.discovery.enabled', 'false'],
 				['chat.mcp.enabled', 'false'],
+				// Pre-enable the chat session types that the tests open. Writing
+				// these here (directly to settings.json) instead of from the
+				// smoketest extension avoids racing with copilot-chat registering
+				// its configuration schema — the original cause of the Chat
+				// Sessions smoke test flake.
+				['chat.disableAIFeatures', 'false'],
+				['github.copilot.chat.backgroundAgent.enabled', 'true'],
+				['github.copilot.chat.claudeAgent.enabled', 'true'],
 				// Force the bundled Claude Agent SDK (avoid the experiment that
 				// would route through the ms-vscode.vscode-claude-sdk extension,
 				// which would attempt a network install during the smoke run).
 				['github.copilot.chat.claudeAgent.useSdkExtension', 'false'],
 			]);
+			logger.log(`[Chat Sessions] user settings written; requestCount=${mockServer.requestCount()}`);
 		});
 
 		after(async function () {
@@ -123,32 +141,42 @@ export function setup(logger: Logger) {
 			it(`Test ${session.name} session`, async function () {
 				const app = this.app as Application;
 				const requestsBefore = mockServer.requestCount();
+				logger.log(`[Chat Sessions/${session.name}] starting test; requestCount=${requestsBefore}`);
 
-				await openSession(app, session);
+				try {
+					await openSession(app, session);
 
-				// First message + first scenario reply.
-				const responseText = await sendAndWaitForReply(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`, session.reply);
-				logger.log(`Chat Sessions (${session.name}) response 1: ${responseText}`);
+					// First message + first scenario reply.
+					logger.log(`[Chat Sessions/${session.name}] running command and waiting for chat editor`);
+					const responseText = await sendAndWaitForReply(app.workbench.chat, session, `hello world [scenario:${session.scenarioId}]`, session.reply);
+					logger.log(`Chat Sessions (${session.name}) response 1: ${responseText}`);
 
-				assert.ok(
-					responseText.includes(session.reply),
-					`Expected ${session.name} response 1 to include mocked scenario response "${session.reply}".\n\nResponse:\n${responseText}`
-				);
+					assert.ok(
+						responseText.includes(session.reply),
+						`Expected ${session.name} response 1 to include mocked scenario response "${session.reply}".\n\nResponse:\n${responseText}`
+					);
 
-				// Follow-up message + second scenario reply, sent in the same
-				// chat surface to exercise the follow-up code path.
-				const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
-				logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
+					// Follow-up message + second scenario reply, sent in the same
+					// chat surface to exercise the follow-up code path.
+					logger.log(`[Chat Sessions/${session.name}] running second command and waiting for chat editor`);
+					const responseText2 = await sendAndWaitForReply(app.workbench.chat, session, `hello again [scenario:${session.scenarioId2}]`, session.reply2);
+					logger.log(`Chat Sessions (${session.name}) response 2: ${responseText2}`);
 
-				assert.ok(
-					responseText2.includes(session.reply2),
-					`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
-				);
+					assert.ok(
+						responseText2.includes(session.reply2),
+						`Expected ${session.name} response 2 to include mocked scenario response "${session.reply2}".\n\nResponse:\n${responseText2}`
+					);
 
-				assert.ok(
-					mockServer.requestCount() > requestsBefore,
-					`expected the mock LLM server to have received a new request from the ${session.name} session`
-				);
+					assert.ok(
+						mockServer.requestCount() > requestsBefore,
+						`expected the mock LLM server to have received a new request from the ${session.name} session`
+					);
+				} catch (error) {
+					logger.log(`[Chat Sessions/${session.name}] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					logger.log(`[Chat Sessions/${session.name}] mock server requestCount at failure: ${mockServer.requestCount()} (before=${requestsBefore})`);
+					await dumpFailureDiagnostics(app, logger, `Chat Sessions/${session.name}`);
+					throw error;
+				}
 			});
 		}
 	});

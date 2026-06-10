@@ -23,9 +23,11 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
-import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
+import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
+import { ActiveClientState } from '../../node/activeClientState.js';
+import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { buildCopilotSystemNotification } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -43,6 +45,8 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly sendRequests: unknown[] = [];
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
+	readonly compactCalls: unknown[] = [];
+	compactResult: { success: boolean; tokensRemoved: number; messagesRemoved: number } = { success: true, tokensRemoved: 0, messagesRemoved: 0 };
 	messages: SessionEvent[] = [];
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -90,6 +94,12 @@ class MockCopilotSession {
 			read: async () => this.planReadResult,
 			update: async (_params: { content: string }) => { /* no-op */ },
 			delete: async () => { /* no-op */ },
+		},
+		history: {
+			compact: async (params?: unknown) => {
+				this.compactCalls.push(params ?? null);
+				return this.compactResult;
+			},
 		},
 	};
 }
@@ -160,9 +170,8 @@ type ISessionInternalsForTest = {
 		takeCompletedEdit(turnId: string, toolCallId: string, path: string): Promise<ToolResultFileEditContent | undefined>;
 	};
 	_pendingClientToolCalls: {
-		get(toolCallId: string): DeferredPromise<ToolResultObject> | undefined;
-		set(toolCallId: string, value: DeferredPromise<ToolResultObject>): Map<string, DeferredPromise<ToolResultObject>>;
-		delete(toolCallId: string): boolean;
+		register(toolCallId: string): Promise<ToolResultObject>;
+		respondOrBuffer(toolCallId: string, value: ToolResultObject): void;
 	};
 };
 
@@ -185,10 +194,11 @@ function getInputRequest(signal: AgentSignal): SessionInputRequestedAction['requ
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	clientSnapshot?: IActiveClientSnapshot;
+	activeClientState?: ActiveClientState;
 	environmentServiceRegistration?: 'native' | 'none';
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
-	captureWrapperCallbacks?: { current?: Parameters<SessionWrapperFactory>[0] };
+	captureRuntime?: { current?: ICopilotSessionRuntime };
 	workingDirectory?: URI;
 	/** Per-key effective config values returned by the fake configuration service. */
 	configValues?: Record<string, unknown>;
@@ -196,6 +206,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileReadErrors?: readonly string[];
 }): Promise<{
 	session: CopilotAgentSession;
+	runtime: ICopilotSessionRuntime;
 	mockSession: MockCopilotSession;
 	signals: AgentSignal[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
@@ -229,11 +240,30 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
 	const mockSession = new MockCopilotSession();
 
-	const factory: SessionWrapperFactory = async callbacks => {
-		if (options?.captureWrapperCallbacks) {
-			options.captureWrapperCallbacks.current = callbacks;
+	const launchPlan: CopilotSessionLaunchPlan = {
+		kind: 'create',
+		client: {
+			createSession: async () => mockSession as unknown as CopilotSession,
+			resumeSession: async () => mockSession as unknown as CopilotSession,
+		},
+		activeClientState: new ActiveClientState(),
+		sessionId: 'test-session-1',
+		workingDirectory: options?.workingDirectory,
+		resolvedAgentName: undefined,
+		snapshot: options?.clientSnapshot ?? { tools: [], plugins: [] },
+		shellManager: undefined,
+		githubToken: undefined,
+		model: undefined,
+	};
+	let launchedRuntime: ICopilotSessionRuntime | undefined;
+	const sessionLauncher: ICopilotSessionLauncher = {
+		launch: async (_plan, runtime) => {
+			launchedRuntime = runtime;
+			if (options?.captureRuntime) {
+				options.captureRuntime.current = runtime;
+			}
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
 		}
-		return new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
 	};
 
 	const services = new ServiceCollection();
@@ -284,16 +314,19 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			sessionUri,
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
-			wrapperFactory: factory,
+			sessionLauncher,
+			launchPlan,
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
+			activeClientState: options?.activeClientState,
 			workingDirectory: options?.workingDirectory,
 		},
 	));
 
 	await session.initializeSession();
+	assert.ok(launchedRuntime);
 
-	return { session, mockSession, signals, waitForSignal, sessionConfigUpdates };
+	return { session, runtime: launchedRuntime, mockSession, signals, waitForSignal, sessionConfigUpdates };
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -400,6 +433,37 @@ suite('CopilotAgentSession', () => {
 			usage: undefined,
 			state: 'cancelled',
 		}]);
+	});
+
+	test('`/compact` runs the history compact RPC and completes the turn without emitting output', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		// The compact command is handled inline via the history RPC and must
+		// not fall through to a normal SDK `send()` turn.
+		assert.strictEqual(mockSession.compactCalls.length, 1);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+
+		// The turn opened by the server is closed inline (the SDK never fires
+		// `onIdle` for the compact path) without emitting any response content.
+		const actions = getActions(signals);
+		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.SessionResponsePart), []);
+		const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+		assert.ok(turnComplete, 'expected the turn to complete');
+		assert.strictEqual((turnComplete as SessionTurnCompleteAction).turnId, 'turn-compact');
+	});
+
+	test('`/compact` completes the turn even when compaction reports failure', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		mockSession.compactResult = { success: false, tokensRemoved: 0, messagesRemoved: 0 };
+
+		await session.send('/compact', undefined, 'turn-compact');
+
+		assert.strictEqual(mockSession.compactCalls.length, 1);
+		assert.deepStrictEqual(mockSession.sendRequests, []);
+		const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
 	});
 
 	test('emits accumulated Copilot usage metadata', async () => {
@@ -549,8 +613,8 @@ suite('CopilotAgentSession', () => {
 	suite('permission handling', () => {
 
 		test('read permission fires tool_ready (deferred to side effects)', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'read',
 				path: '/workspace/src/file.ts',
 				toolCallId: 'tc-1',
@@ -568,8 +632,8 @@ suite('CopilotAgentSession', () => {
 			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
 			process.env['XDG_STATE_HOME'] = '/mock-state-home';
 			try {
-				const { session, signals } = await createAgentSession(disposables);
-				const result = await session.handlePermissionRequest({
+				const { runtime, signals } = await createAgentSession(disposables);
+				const result = await runtime.handlePermissionRequest({
 					kind: 'read',
 					path: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
 					toolCallId: 'tc-read-plan',
@@ -590,8 +654,8 @@ suite('CopilotAgentSession', () => {
 			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
 			delete process.env['XDG_STATE_HOME'];
 			try {
-				const { session, signals } = await createAgentSession(disposables, { environmentServiceRegistration: 'native' });
-				const result = await session.handlePermissionRequest({
+				const { runtime, signals } = await createAgentSession(disposables, { environmentServiceRegistration: 'native' });
+				const result = await runtime.handlePermissionRequest({
 					kind: 'read',
 					path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
 					toolCallId: 'tc-read-plan-native-env',
@@ -613,13 +677,13 @@ suite('CopilotAgentSession', () => {
 			delete process.env['XDG_STATE_HOME'];
 			const logService = new CapturingLogService();
 			try {
-				const { session } = await createAgentSession(disposables, {
+				const { runtime } = await createAgentSession(disposables, {
 					environmentServiceRegistration: 'none',
 					logService,
 				});
 
 				await assert.rejects(
-					session.handlePermissionRequest({
+					runtime.handlePermissionRequest({
 						kind: 'read',
 						path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
 						toolCallId: 'tc-read-plan-missing-env',
@@ -640,8 +704,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('write permission fires tool_ready (deferred to side effects)', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'write',
 				fileName: '/workspace/src/file.ts',
 				toolCallId: 'tc-1',
@@ -659,8 +723,8 @@ suite('CopilotAgentSession', () => {
 			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
 			process.env['XDG_STATE_HOME'] = '/mock-state-home';
 			try {
-				const { session, signals } = await createAgentSession(disposables);
-				const result = await session.handlePermissionRequest({
+				const { runtime, signals } = await createAgentSession(disposables);
+				const result = await runtime.handlePermissionRequest({
 					kind: 'write',
 					fileName: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
 					toolCallId: 'tc-write-plan',
@@ -681,8 +745,8 @@ suite('CopilotAgentSession', () => {
 			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
 			process.env['XDG_STATE_HOME'] = '/mock-state-home';
 			try {
-				const { session, signals, waitForSignal } = await createAgentSession(disposables);
-				const resultPromise = session.handlePermissionRequest({
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+				const resultPromise = runtime.handlePermissionRequest({
 					kind: 'write',
 					fileName: join('/mock-state-home', '.copilot', 'session-state', 'different-session', 'plan.md'),
 					toolCallId: 'tc-write-other-plan',
@@ -707,9 +771,9 @@ suite('CopilotAgentSession', () => {
 			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
 			process.env['XDG_STATE_HOME'] = '/mock-state-home';
 			try {
-				const { session, signals, waitForSignal } = await createAgentSession(disposables);
+				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 				const sessionDir = join('/mock-state-home', '.copilot', 'session-state', 'test-session-1');
-				const resultPromise = session.handlePermissionRequest({
+				const resultPromise = runtime.handlePermissionRequest({
 					kind: 'write',
 					fileName: `${sessionDir}${sep}..${sep}outside.md`,
 					toolCallId: 'tc-write-traversal',
@@ -731,10 +795,10 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('auto-approves read of Copilot SDK large-tool-output temp files', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { runtime, signals } = await createAgentSession(disposables);
 
 			// Layout 1: <timestamp>-copilot-tool-output-<id>.txt
-			const result1 = await session.handlePermissionRequest({
+			const result1 = await runtime.handlePermissionRequest({
 				kind: 'read',
 				path: join('/mock-tmp', '1730000000000-copilot-tool-output-abc123.txt'),
 				toolCallId: 'tc-tool-output-1',
@@ -742,7 +806,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result1.kind, 'approve-once');
 
 			// Layout 2: copilot-tool-output-<timestamp>-<id>.txt
-			const result2 = await session.handlePermissionRequest({
+			const result2 = await runtime.handlePermissionRequest({
 				kind: 'read',
 				path: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
 				toolCallId: 'tc-tool-output-2',
@@ -753,8 +817,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('does not auto-approve tool-output-named files outside tmpdir', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'read',
 				path: join('/some/other/dir', 'copilot-tool-output-1730000000000-abc123.txt'),
 				toolCallId: 'tc-tool-output-outside',
@@ -769,8 +833,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('does not auto-approve unrelated files inside tmpdir', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'read',
 				path: join('/mock-tmp', 'something-else.txt'),
 				toolCallId: 'tc-tmp-other',
@@ -785,8 +849,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('does not auto-approve write to a tool-output temp path', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'write',
 				fileName: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
 				toolCallId: 'tc-tool-output-write',
@@ -801,9 +865,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('write permission outside working directory fires tool_ready', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 
-			const resultPromise = session.handlePermissionRequest({
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'write',
 				fileName: '/other/file.ts',
 				toolCallId: 'tc-write-outside',
@@ -818,10 +882,10 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('read permission outside working directory fires tool_ready', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 
 			// Kick off permission request but don't await — it will block
-			const resultPromise = session.handlePermissionRequest({
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'read',
 				path: '/other/file.ts',
 				toolCallId: 'tc-2',
@@ -838,14 +902,14 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('denies permission when no toolCallId', async () => {
-			const { session } = await createAgentSession(disposables);
-			const result = await session.handlePermissionRequest({ kind: 'write' });
+			const { runtime } = await createAgentSession(disposables);
+			const result = await runtime.handlePermissionRequest({ kind: 'write' });
 			assert.strictEqual(result.kind, 'reject');
 		});
 
 		test('denied-interactively when user denies', async () => {
-			const { session, signals, waitForSignal } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'shell',
 				toolCallId: 'tc-3',
 			});
@@ -858,8 +922,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending permissions are denied on dispose', async () => {
-			const { session } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'write',
 				toolCallId: 'tc-4',
 			});
@@ -870,8 +934,8 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending permissions are denied on abort', async () => {
-			const { session } = await createAgentSession(disposables);
-			const resultPromise = session.handlePermissionRequest({
+			const { session, runtime } = await createAgentSession(disposables);
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'write',
 				toolCallId: 'tc-5',
 			});
@@ -1301,13 +1365,16 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool telemetry does not use clientId as toolExtensionId', async () => {
 			const telemetryService = new RecordingTelemetryService();
+			const tools = [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }] as const;
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('test-client', tools);
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				clientSnapshot: {
-					clientId: 'test-client',
-					tools: [{ name: 'my_tool', description: 'A test tool', inputSchema: { type: 'object', properties: {} } }],
+					tools,
 					plugins: [],
 				},
+				activeClientState,
 			});
 
 			mockSession.fire('tool.execution_start', {
@@ -1375,10 +1442,10 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('edit hooks resolve relative apply_patch file paths against workingDirectory', async () => {
-			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const workingDirectory = URI.file('/repo/project');
 			const absolutePath = URI.file('/tmp/absolute.ts').fsPath;
-			const { session } = await createAgentSession(disposables, { workingDirectory, captureWrapperCallbacks: capturedCallbacks });
+			const { session } = await createAgentSession(disposables, { workingDirectory, captureRuntime: capturedRuntime });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const started: string[] = [];
 			const completed: string[] = [];
@@ -1398,14 +1465,14 @@ suite('CopilotAgentSession', () => {
 				'*** End Patch',
 			].join('\n');
 
-			await capturedCallbacks.current!.hooks.onPreToolUse({
+			await capturedRuntime.current!.handlePreToolUse({
 				sessionId: 'test-session-1',
 				timestamp: new Date(0),
 				workingDirectory: '/repo/project',
 				toolName: 'apply_patch',
 				toolArgs: patch,
 			});
-			await capturedCallbacks.current!.hooks.onPostToolUse({
+			await capturedRuntime.current!.handlePostToolUse({
 				sessionId: 'test-session-1',
 				timestamp: new Date(0),
 				workingDirectory: '/repo/project',
@@ -1975,10 +2042,10 @@ suite('CopilotAgentSession', () => {
 	suite('user input handling', () => {
 
 		test('handleUserInputRequest fires user_input_request progress event', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
 			// Start the request (don't await — it blocks waiting for response)
-			const resultPromise = session.handleUserInputRequest(
+			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'What is your name?' },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2005,9 +2072,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleUserInputRequest with choices generates SingleSelect question', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleUserInputRequest(
+			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2037,9 +2104,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleUserInputRequest returns empty answer on cancel', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleUserInputRequest(
+			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Cancel me' },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2058,9 +2125,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleUserInputRequest returns empty answer on skipped question', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleUserInputRequest(
+			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Skip me' },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2079,9 +2146,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending user inputs are cancelled on dispose', async () => {
-			const { session } = await createAgentSession(disposables);
+			const { session, runtime } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleUserInputRequest(
+			const resultPromise = runtime.handleUserInputRequest(
 				{ question: 'Will be cancelled' },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2093,11 +2160,11 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('autopilot auto-answers a free-form question without firing a progress event', async () => {
-			const { session, signals } = await createAgentSession(disposables, {
+			const { runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
 			});
 
-			const result = await session.handleUserInputRequest(
+			const result = await runtime.handleUserInputRequest(
 				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2113,11 +2180,11 @@ suite('CopilotAgentSession', () => {
 		test('autopilot does not auto-answer when autoApprove is not "autopilot"', async () => {
 			// Sanity check: with autoApprove=default the question must
 			// still be surfaced as a progress event (the existing behavior).
-			const { session, signals } = await createAgentSession(disposables, {
+			const { runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
 
-			session.handleUserInputRequest(
+			runtime.handleUserInputRequest(
 				{ question: 'Need user input' },
 				{ sessionId: 'test-session-1' }
 			);
@@ -2135,9 +2202,9 @@ suite('CopilotAgentSession', () => {
 	suite('elicitation handling', () => {
 
 		test('form-mode request projects schema fields to questions and accept round-trips content', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Configure deployment',
 				mode: 'form',
@@ -2195,9 +2262,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('skipped and missing answers are omitted from accept content', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Partial form',
 				mode: 'form',
@@ -2220,9 +2287,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('url-mode request surfaces url and accept returns no content', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Open this link',
 				mode: 'url',
@@ -2238,9 +2305,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('free-form request (no schema) returns submitted text as content.answer', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'What is your favorite color?',
 				mode: 'form',
@@ -2258,9 +2325,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('decline response maps to action=decline', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Please confirm',
 				mode: 'form',
@@ -2273,9 +2340,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('cancel response maps to action=cancel', async () => {
-			const { session, signals } = await createAgentSession(disposables);
+			const { session, runtime, signals } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Please confirm',
 				mode: 'form',
@@ -2288,11 +2355,11 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
-			const { session, signals } = await createAgentSession(disposables, {
+			const { runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
 			});
 
-			const result = await session.handleElicitationRequest({
+			const result = await runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Need input',
 				mode: 'form',
@@ -2304,9 +2371,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending elicitations are cancelled on dispose', async () => {
-			const { session } = await createAgentSession(disposables);
+			const { session, runtime } = await createAgentSession(disposables);
 
-			const resultPromise = session.handleElicitationRequest({
+			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Will be cancelled',
 				mode: 'form',
@@ -2322,14 +2389,14 @@ suite('CopilotAgentSession', () => {
 
 		test('logs and rethrows user input callback failures', async () => {
 			const logService = new CapturingLogService();
-			const { session } = await createAgentSession(disposables, { logService });
+			const { session, runtime } = await createAgentSession(disposables, { logService });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			sessionInternals._onDidSessionProgress.fire = () => {
 				throw new Error('user input boom');
 			};
 
 			await assert.rejects(
-				session.handleUserInputRequest(
+				runtime.handleUserInputRequest(
 					{ question: 'Need input' },
 					{ sessionId: 'test-session-1' },
 				),
@@ -2345,15 +2412,15 @@ suite('CopilotAgentSession', () => {
 
 		test('logs and rethrows onPreToolUse failures', async () => {
 			const logService = new CapturingLogService();
-			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
-			const { session } = await createAgentSession(disposables, { logService, captureWrapperCallbacks: capturedCallbacks });
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { logService, captureRuntime: capturedRuntime });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			sessionInternals._editTracker.trackEditStart = async () => {
 				throw new Error('pre tool boom');
 			};
 
 			await assert.rejects(
-				capturedCallbacks.current!.hooks.onPreToolUse({
+				capturedRuntime.current!.handlePreToolUse({
 					sessionId: 'test-session-1',
 					timestamp: new Date(0),
 					workingDirectory: '/tmp',
@@ -2372,15 +2439,15 @@ suite('CopilotAgentSession', () => {
 
 		test('logs and rethrows onPostToolUse failures', async () => {
 			const logService = new CapturingLogService();
-			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
-			const { session } = await createAgentSession(disposables, { logService, captureWrapperCallbacks: capturedCallbacks });
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { logService, captureRuntime: capturedRuntime });
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			sessionInternals._editTracker.completeEdit = async () => {
 				throw new Error('post tool boom');
 			};
 
 			await assert.rejects(
-				capturedCallbacks.current!.hooks.onPostToolUse({
+				capturedRuntime.current!.handlePostToolUse({
 					sessionId: 'test-session-1',
 					timestamp: new Date(0),
 					workingDirectory: '/tmp',
@@ -2404,7 +2471,6 @@ suite('CopilotAgentSession', () => {
 	suite('client tool calls', () => {
 
 		const snapshot: IActiveClientSnapshot = {
-			clientId: 'test-client',
 			tools: [{
 				name: 'my_tool',
 				description: 'A test tool',
@@ -2413,8 +2479,46 @@ suite('CopilotAgentSession', () => {
 			plugins: [],
 		};
 
+		/** Builds a live ActiveClientState seeded with the given owning clientId and the snapshot's tools. */
+		const activeClientStateWith = (clientId: string): ActiveClientState => {
+			const state = new ActiveClientState();
+			state.update(clientId, snapshot.tools);
+			return state;
+		};
+
+		test('client tool started with no connected client fails immediately', async () => {
+			// No activeClientState is provided, so the session seeds one with
+			// an undefined clientId — i.e. no client is connected to run the tool.
+			const { runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-no-client',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// tool_start is stamped as a client contributor with no owner...
+			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
+			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, undefined);
+
+			// ...and is failed immediately (ready + complete) rather than left
+			// pending for the server-side disconnect timeout.
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallReady)).length, 1);
+			const completeSignal = signals.find(s => isAction(s, ActionType.SessionToolCallComplete));
+			assert.ok(completeSignal && isAction(completeSignal, ActionType.SessionToolCallComplete));
+			assert.strictEqual((completeSignal.action as SessionToolCallCompleteAction).result.success, false);
+
+			// When the SDK invokes the handler it resolves immediately with the
+			// buffered failure result.
+			const tools = runtime.createClientSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-no-client');
+			assert.strictEqual(result.resultType, 'failure');
+		});
+
 		test('client tool handler waits for completion without emitting tool_ready', async () => {
-			const { session, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2433,7 +2537,7 @@ suite('CopilotAgentSession', () => {
 
 			// SDK invokes the handler — it creates a deferred and waits,
 			// but does NOT fire tool_ready (that comes from the permission flow).
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
 			// No pending_confirmation or tool_ready should have been emitted by the handler
@@ -2452,7 +2556,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('client tool handler does not emit tool_ready (permission flow owns it)', async () => {
-			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('client-perm', snapshot.tools);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -2466,7 +2572,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation').length, 0);
 
 			// Permission request fires — pending_confirmation from permission flow.
-			const resultPromise = session.handlePermissionRequest({
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-client-perm',
 				toolName: 'my_tool',
@@ -2479,7 +2585,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(permSignals[0].state.toolCallId, 'tc-client-perm');
 			assert.ok(permSignals[0].state.confirmationTitle);
 
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-perm');
 
 			// The handler should NOT emit its own pending_confirmation — only the
@@ -2494,7 +2600,11 @@ suite('CopilotAgentSession', () => {
 				success: true,
 				pastTenseMessage: 'did it',
 			});
-			await handlerPromise;
+			assert.deepStrictEqual(await handlerPromise, {
+				textResultForLlm: '<empty />',
+				resultType: 'success',
+				binaryResultsForLlm: undefined,
+			});
 		});
 
 		test('pending_confirmation forwards parentToolCallId for tools inside subagents', async () => {
@@ -2505,7 +2615,7 @@ suite('CopilotAgentSession', () => {
 			// SessionToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
 			// SessionToolCallStart).
-			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			mockSession.fire('subagent.started', {
 				toolCallId: 'tc-parent-subagent',
@@ -2520,7 +2630,7 @@ suite('CopilotAgentSession', () => {
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data'], { agentId: 'agent-client-tool' });
 
-			const resultPromise = session.handlePermissionRequest({
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-sub-client',
 				toolName: 'my_tool',
@@ -2536,7 +2646,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			// Completion arrives before handler — pre-creates deferred
 			session.handleClientToolCallComplete('tc-unknown', {
@@ -2545,15 +2655,15 @@ suite('CopilotAgentSession', () => {
 			});
 
 			// Handler picks up the pre-completed result
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const result = await invokeClientToolHandler(tools[0], 'tc-unknown');
 			assert.strictEqual(result.resultType, 'success');
 		});
 
 		test('handleClientToolCallComplete with failure result', async () => {
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-3');
 
 			session.handleClientToolCallComplete('tc-client-3', {
@@ -2568,9 +2678,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('pending client tool calls are cancelled on dispose', async () => {
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-4');
 
 			session.dispose();
@@ -2580,9 +2690,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('multiple concurrent client tool calls resolve independently', async () => {
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const promise1 = invokeClientToolHandler(tools[0], 'tc-multi-1');
 			const promise2 = invokeClientToolHandler(tools[0], 'tc-multi-2');
 
@@ -2604,9 +2714,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handler cleans up deferred after consuming result', async () => {
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-cleanup');
 
 			session.handleClientToolCallComplete('tc-cleanup', {
@@ -2627,10 +2737,10 @@ suite('CopilotAgentSession', () => {
 
 		test('client tool handler logs and rethrows failures', async () => {
 			const logService = new CapturingLogService();
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot, logService });
-			const tools = session.createClientSdkTools();
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot, logService });
+			const tools = runtime.createClientSdkTools();
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
-			sessionInternals._pendingClientToolCalls.get = () => {
+			sessionInternals._pendingClientToolCalls.register = () => {
 				throw new Error('client tool boom');
 			};
 
@@ -2647,7 +2757,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('permission request before client tool handler emits only confirmation ready', async () => {
-			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-ready-data',
@@ -2660,7 +2770,7 @@ suite('CopilotAgentSession', () => {
 
 			// Permission before the handler should produce only the confirmation
 			// pending_confirmation, not a synthetic auto-ready.
-			const resultPromise = session.handlePermissionRequest({
+			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'custom-tool',
 				toolCallId: 'tc-ready-data',
 				toolName: 'my_tool',
@@ -2676,9 +2786,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleClientToolCallComplete with content containing embedded resources', async () => {
-			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
-			const tools = session.createClientSdkTools();
+			const tools = runtime.createClientSdkTools();
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded');
 
 			session.handleClientToolCallComplete('tc-embedded', {
@@ -2694,6 +2804,105 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.resultType, 'success');
 			// Text content should be extracted
 			assert.strictEqual(result.textResultForLlm, 'text part');
+		});
+
+		test('handleClientToolCallComplete describes embedded-resource-only content', async () => {
+			const testCases = [
+				{
+					toolCallId: 'tc-image-only',
+					contentType: 'image/png',
+					expectedText: 'Tool produced the attached image',
+					expectedType: 'image',
+				},
+				{
+					toolCallId: 'tc-file-only',
+					contentType: 'application/pdf',
+					expectedText: 'Tool produced the attached file',
+					expectedType: 'resource',
+				},
+				{
+					toolCallId: 'tc-image-and-file',
+					contentType: 'image/png',
+					additionalContentType: 'application/pdf',
+					expectedText: 'Tool produced the attached image and file',
+					expectedType: 'image',
+				},
+			] satisfies ReadonlyArray<{
+				readonly toolCallId: string;
+				readonly contentType: string;
+				readonly additionalContentType?: string;
+				readonly expectedText: string;
+				readonly expectedType: 'image' | 'resource';
+			}>;
+			const embeddedResource = (data: string, contentType: string): ToolResultContent => ({ type: ToolResultContentType.EmbeddedResource, data, contentType });
+
+			for (const testCase of testCases) {
+				const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+				const tools = runtime.createClientSdkTools();
+				const handlerPromise = invokeClientToolHandler(tools[0], testCase.toolCallId);
+				const content: ToolResultContent[] = [
+					embeddedResource('base64data', testCase.contentType),
+					...(testCase.additionalContentType ? [embeddedResource('base64data2', testCase.additionalContentType)] : []),
+				];
+
+				session.handleClientToolCallComplete(testCase.toolCallId, {
+					success: true,
+					pastTenseMessage: 'done',
+					content,
+				});
+
+				assert.deepStrictEqual(await handlerPromise, {
+					textResultForLlm: testCase.expectedText,
+					resultType: 'success',
+					binaryResultsForLlm: [
+						{ data: 'base64data', mimeType: testCase.contentType, type: testCase.expectedType },
+						...(testCase.additionalContentType ? [{ data: 'base64data2', mimeType: testCase.additionalContentType, type: 'resource' }] : []),
+					],
+				});
+				disposables.clear();
+			}
+		});
+
+		test('client tool start stamps the LIVE clientId from the shared ActiveClientState', async () => {
+			const activeClientState = new ActiveClientState();
+			activeClientState.update('client-A', snapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-live-1',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// A window reload re-pushes the same tools under a new clientId.
+			activeClientState.update('client-B', snapshot.tools);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-live-2',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			const starts = signals.filter((s): s is IAgentActionSignal => isAction(s, ActionType.SessionToolCallStart));
+			assert.deepStrictEqual(starts.map(s => (s.action as SessionToolCallStartAction).contributor), [
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-A' },
+				{ kind: ToolCallContributorKind.Client, clientId: 'client-B' },
+			]);
+		});
+
+		test('completion arriving before the SDK handler registers still resolves', async () => {
+			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const tools = runtime.createClientSdkTools();
+
+			// Completion races ahead of the handler.
+			session.handleClientToolCallComplete('tc-early', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [{ type: ToolResultContentType.Text, text: 'buffered result' }],
+			});
+
+			const result = await invokeClientToolHandler(tools[0], 'tc-early');
+			assert.strictEqual(result.resultType, 'success');
+			assert.strictEqual(result.textResultForLlm, 'buffered result');
 		});
 	});
 
@@ -2734,11 +2943,11 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleExitPlanModeRequest produces a single-select input request with options and recommended', async () => {
-			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 
 			mockSession.planReadResult = { exists: true, content: '## Plan', path: '/sessions/abc/plan.md' };
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
@@ -2775,9 +2984,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('completing the input request with autopilot resolves with approved + autopilot + autoApproveEdits', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2794,9 +3003,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('completing the input request with interactive resolves with approved + interactive (no autoApprove)', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2813,9 +3022,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('declining the input request resolves with approved=false', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 
 			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
@@ -2824,9 +3033,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('exit_only resolves as approved + interactive without autoApproveEdits', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2843,9 +3052,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('freeform feedback alongside a selected action becomes a revision request', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2870,9 +3079,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('selectedAction not in offered actions falls back to recommendedAction', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2893,12 +3102,12 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('selectedAction not in offered actions and no fallback resolves to approved=false', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			// SDK offered `exit_only` only and recommended a value not in
 			// the offered set. The client picked something invalid. With
 			// no usable selectedAction and no feedback, decline.
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2915,9 +3124,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('text answer with feedback becomes a revision request without selectedAction', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -2942,9 +3151,9 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('whitespace-only freeform feedback is ignored', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables);
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
@@ -3008,11 +3217,11 @@ suite('CopilotAgentSession', () => {
 		// ---- autopilot fast-path -------------------------------------------
 
 		test('handleExitPlanModeRequest auto-accepts when autoApprove=autopilot (recommended action)', async () => {
-			const { session, signals } = await createAgentSession(disposables, {
+			const { runtime, signals } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
 			});
 
-			const response = await session.handleExitPlanModeRequest(planRequestParams({
+			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['autopilot', 'interactive', 'exit_only'],
 				recommendedAction: 'autopilot',
 			}), { sessionId: 'test-session-1' });
@@ -3023,14 +3232,14 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
-			const { session } = await createAgentSession(disposables, {
+			const { runtime } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autopilot' },
 			});
 
 			// SDK proposes a recommended action that's NOT in the offered set —
 			// fall back to the priority order (autopilot > autopilot_fleet >
 			// interactive > exit_only).
-			const response = await session.handleExitPlanModeRequest(planRequestParams({
+			const response = await runtime.handleExitPlanModeRequest(planRequestParams({
 				actions: ['interactive', 'exit_only'],
 				recommendedAction: 'autopilot_fleet',
 			}), { sessionId: 'test-session-1' });
@@ -3039,11 +3248,11 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('handleExitPlanModeRequest does NOT auto-accept when autoApprove=default', async () => {
-			const { session, waitForSignal } = await createAgentSession(disposables, {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
 			});
 
-			const responsePromise = session.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
+			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
 			// The user-input request fires — the user must respond.
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));

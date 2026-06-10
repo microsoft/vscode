@@ -37,6 +37,12 @@ export interface RootState {
 	terminals?: TerminalInfo[];
 	/** Agent host configuration schema and current values */
 	config?: RootConfigState;
+	/**
+	 * Additional implementation-defined metadata about the agent host itself.
+	 *
+	 * Clients MAY look for well-known keys here to provide enhanced UI.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
