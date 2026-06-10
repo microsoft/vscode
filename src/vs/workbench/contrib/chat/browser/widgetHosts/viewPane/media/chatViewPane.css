@@ -50,8 +50,9 @@
 .chat-viewpane > .voice-bottom-area {
 	display: flex;
 	flex-direction: column;
+	flex-shrink: 0;
+	flex-grow: 0;
 	overflow: hidden;
-	/* Height is set explicitly by layoutBody — do not use flex sizing */
 }
 
 /* Sessions control: either sidebar or stacked */

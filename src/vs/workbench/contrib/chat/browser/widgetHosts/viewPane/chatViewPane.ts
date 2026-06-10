@@ -338,6 +338,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._voiceBottomArea = bottomArea;
 		this._updateVoiceBar(bottomArea);
 
+		// Watch for size changes so we relayout when content changes
+		// (e.g. onboarding → connected, confirmations added/removed)
+		const resizeObserver = new ResizeObserver(() => {
+			if (this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
+		});
+		resizeObserver.observe(bottomArea);
+		this._register({ dispose: () => resizeObserver.disconnect() });
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('agents.voice.enabled')) {
 				this._updateVoiceBar(bottomArea);
@@ -373,7 +383,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Voice Agent Bar
 
 	private _voiceBottomArea: HTMLElement | undefined;
-	private _lastVoiceBarHeight = 0;
 	private readonly _voiceBarDisposables = this._register(new DisposableStore());
 
 	private _updateVoiceBar(container: HTMLElement): void {
@@ -449,19 +458,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
-			onResize: () => {
-				// Called from the widget's rAF after each render. Measure
-				// the voice bar's intrinsic height; if it changed, relayout
-				// so the chat widget fills the freed/reduced space.
-				if (!this._voiceBottomArea || !this.lastDimensions) { return; }
-				this._voiceBottomArea.style.height = 'auto';
-				const contentHeight = Math.min(this._voiceBottomArea.scrollHeight, ChatViewPane.VOICE_BAR_MAX_HEIGHT);
-				this._voiceBottomArea.style.height = `${contentHeight}px`;
-				if (contentHeight !== this._lastVoiceBarHeight) {
-					this._lastVoiceBarHeight = contentHeight;
-					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-				}
-			},
+			onResize: () => { /* handled by ResizeObserver on voice-bottom-area */ },
 			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
@@ -517,7 +514,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Sessions Control
 
-	private static readonly VOICE_BAR_MAX_HEIGHT = 160;
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_SNAP_THRESHOLD = this.SESSIONS_SIDEBAR_MIN_WIDTH / 2; // snap to hide when dragged below half of minimum width
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
@@ -1154,11 +1150,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — height is set explicitly by onResize callback.
-		// Read offsetHeight (which equals the explicit pixel height we set).
-		if (this._voiceBottomArea) {
-			remainingHeight -= this._voiceBottomArea.offsetHeight;
-		}
+		// Voice bottom area — sized by CSS flex (flex-shrink:0, flex-grow:0).
+		// ResizeObserver triggers relayout when its size changes.
+		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
