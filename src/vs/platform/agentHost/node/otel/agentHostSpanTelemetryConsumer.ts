@@ -27,12 +27,7 @@ const MAX_INFLIGHT_TRACES = 256;
 interface IChatSpanRecord {
 	startTimeMs: number;
 	endTimeMs: number;
-	/**
-	 * Value of `gen_ai.response.time_to_first_chunk` (seconds → ms). Kept on
-	 * the per-span record so the trace-level diagnostic log can show what the
-	 * SDK reported, even though we don't currently surface it in telemetry —
-	 * see the `_flush` comment below for why.
-	 */
+	/** Value of `gen_ai.response.time_to_first_chunk` (seconds → ms) on this chat span. */
 	ttftMs: number | undefined;
 	finishReason: string | undefined;
 }
@@ -126,11 +121,13 @@ function getTtftMs(span: ICompletedSpanData): number | undefined {
  * root + its descendants), so cardinality stays at one event per agent turn
  * rather than one event per span.
  */
-export interface IAgentHostInvokeAgentEvent {
+export interface IAgentHostInvokeAgentCompletedEvent {
 	provider: string | undefined;
 	agent: string | undefined;
 	model: string | undefined;
 	totalDurationMs: number;
+	/** Server-measured TTFT of the earliest chat span (by startTime), from `gen_ai.response.time_to_first_chunk`. */
+	ttftMs: number | undefined;
 	finishReason: string | undefined;
 	spanCount: number;
 	llmCallCount: number;
@@ -146,11 +143,12 @@ export interface IAgentHostInvokeAgentEvent {
 	distinctToolCount: number;
 }
 
-export type IAgentHostInvokeAgentClassification = {
+export type IAgentHostInvokeAgentCompletedClassification = {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'OTel gen_ai.provider.name attribute from the root invoke_agent span (e.g. github.copilot, anthropic).' };
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'OTel gen_ai.agent.name attribute from the root invoke_agent span (e.g. copilotcli, claude).' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'OTel gen_ai.request.model attribute from the root invoke_agent span, or the response model from a chat child span as fallback.' };
 	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock duration of the root invoke_agent span in milliseconds.' };
+	ttftMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time to first token in milliseconds, from gen_ai.response.time_to_first_chunk on the earliest chat span (picked by startTime). Server-measured, distinct from the workbench-side timeToFirstProgress on agentHost.turnCompleted.' };
 	finishReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Finish reason of the final chat span in the turn (e.g. stop, tool_calls, length).' };
 	spanCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of spans observed for this trace.' };
 	llmCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat child spans observed (LLM round-trips).' };
@@ -165,12 +163,12 @@ export type IAgentHostInvokeAgentClassification = {
 	reasoningTokensTotal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Sum of gen_ai.usage.reasoning_tokens across all chat spans in the trace.' };
 	distinctToolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Count of distinct gen_ai.tool.name values observed across execute_tool spans.' };
 	owner: 'roblourens';
-	comment: 'Per-turn summary derived from the OTel invoke_agent span the @github/copilot-sdk emits during an agent host session. One event per root invoke_agent span. Runs in parallel with agentHost.turnCompleted (which is measured from the VS Code side); this event is the SDK\'s server-measured source of truth for token counts and per-turn structure. Routed via AgentHostSpanTelemetryConsumer.';
+	comment: 'Per-turn summary derived from the OTel invoke_agent span the @github/copilot-sdk emits during an agent host session. Emitted once when the root invoke_agent span ends, so it captures the final outcome of an agent turn (including any subagent work folded into the counters). Runs in parallel with agentHost.turnCompleted (which is measured from the VS Code side); this event is the SDK\'s server-measured source of truth for token counts and per-turn structure. Routed via AgentHostSpanTelemetryConsumer.';
 };
 
 /**
  * Aggregates OTel spans the agent-host SDK emits into per-turn summaries and
- * sends a single `agentHost.invokeAgent` event to the standard VS Code
+ * sends a single `agentHost.invokeAgentCompleted` event to the standard VS Code
  * telemetry pipeline when each root `invoke_agent` span ends.
  *
  * Why aggregate?
@@ -185,10 +183,10 @@ export type IAgentHostInvokeAgentClassification = {
  * - `agentHost.turnCompleted` is emitted by `AgentHostTelemetryReporter` using
  *   stopwatches in the workbench. `timeToFirstProgress` there counts from turn
  *   dispatch to the first visible stream event.
- * - `agentHost.invokeAgent` (this file) uses the SDK's own server-side timing:
- *   `totalDurationMs` is the root span's true duration; token counts come from
- *   the model. We deliberately do NOT emit the SDK's per-chat
- *   `gen_ai.response.time_to_first_chunk` value — see `_flush` for context.
+ * - `agentHost.invokeAgentCompleted` (this file) uses the SDK's own server-side timing:
+ *   `totalDurationMs` is the root span's true duration; `ttftMs` is the SDK's
+ *   request-to-first-chunk measurement on the earliest chat span; token counts
+ *   come from the model.
  * - Both events run in parallel so we can compare workbench-perceived vs
  *   SDK-measured timings before deciding which to retire.
  *
@@ -336,21 +334,23 @@ export class AgentHostSpanTelemetryConsumer extends Disposable implements IAgent
 
 		const totalDurationMs = Math.max(0, agg.rootEndTimeMs - agg.rootStartTimeMs);
 
-		// We deliberately do NOT surface a TTFT field on the emitted event. The SDK's
-		// `gen_ai.response.time_to_first_chunk` attribute has been observed to report
-		// implausible sub-10ms values on real multi-second LLM calls (see the trace
-		// log below for evidence). Shipping that as a telemetry metric would be
-		// actively misleading. When the SDK fix lands we can re-introduce it here.
-		// We still pick a `lastChat` for the finish-reason field.
+		// Pick the causally-first chat span by startTime (not arrival order) and
+		// the final chat span by endTime. With many chat spans per turn this is
+		// the only stable way to identify "the first LLM call" (for TTFT) vs
+		// "the final reply" (for finishReason).
+		const firstChat = agg.chatSpans.reduce<IChatSpanRecord | undefined>(
+			(min, c) => (min === undefined || c.startTimeMs < min.startTimeMs ? c : min),
+			undefined,
+		);
 		const lastChat = agg.chatSpans.reduce<IChatSpanRecord | undefined>(
 			(max, c) => (max === undefined || c.endTimeMs > max.endTimeMs ? c : max),
 			undefined,
 		);
 
-		// Trace-level diagnostic: dump every chat span in start-time order. Lets us
-		// audit per-call TTFTs and durations without surfacing potentially-wrong
-		// values in telemetry. Only emitted at trace level so it's silent unless
-		// someone is explicitly investigating.
+		// Trace-level diagnostic: dump every chat span in start-time order so we
+		// can audit which span the consumer picked for TTFT, and whether the SDK
+		// is reporting plausible per-call TTFTs. Only emitted at trace level so
+		// it's silent unless someone is explicitly investigating.
 		if (this._logService.getLevel() <= LogLevel.Trace && agg.chatSpans.length > 0) {
 			const sorted = agg.chatSpans.slice().sort((a, b) => a.startTimeMs - b.startTimeMs);
 			const lines = sorted.map((c, i) => {
@@ -361,13 +361,14 @@ export class AgentHostSpanTelemetryConsumer extends Disposable implements IAgent
 			this._logService.trace(`[agentHost.otel] trace=${traceId} root=${totalDurationMs}ms chats=${agg.chatSpans.length}\n${lines}`);
 		}
 
-		this._telemetryService.publicLog2<IAgentHostInvokeAgentEvent, IAgentHostInvokeAgentClassification>(
-			'agentHost.invokeAgent',
+		this._telemetryService.publicLog2<IAgentHostInvokeAgentCompletedEvent, IAgentHostInvokeAgentCompletedClassification>(
+			'agentHost.invokeAgentCompleted',
 			{
 				provider: agg.provider,
 				agent: agg.agent,
 				model: agg.model,
 				totalDurationMs,
+				ttftMs: firstChat?.ttftMs,
 				finishReason: lastChat?.finishReason,
 				spanCount: agg.spanCount,
 				llmCallCount: agg.llmCallCount,

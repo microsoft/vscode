@@ -97,15 +97,16 @@ Metrics give you "200 chat calls happened today". Traces give you "this specific
 `AgentHostSpanTelemetryConsumer` ([node/otel/agentHostSpanTelemetryConsumer.ts](node/otel/agentHostSpanTelemetryConsumer.ts)) is registered unconditionally in `agentHostMain.ts` / `agentHostServerMain.ts`. It:
 
 1. Aggregates spans **per `traceId`** in memory using `gen_ai.operation.name` to classify them (`invoke_agent`, `chat`, `execute_tool`, `permission`).
-2. When the root `invoke_agent` span ends (no `parentSpanId`), emits a single `agentHost.invokeAgent` event via `ITelemetryService.publicLog2`, then drops the aggregator. The event name mirrors the root span name so the source is obvious in queries.
+2. When the root `invoke_agent` span ends (no `parentSpanId`), emits a single `agentHost.invokeAgentCompleted` event via `ITelemetryService.publicLog2`, then drops the aggregator. Event name mirrors `agentHost.turnCompleted` (also emitted on completion) so the naming convention is consistent.
 3. Caps in-flight trace aggregators at 256 to avoid memory growth from orphan traces (traces whose root never ends — typically from a crashed turn).
 
-### `agentHost.invokeAgent` event fields
+### `agentHost.invokeAgentCompleted` event fields
 
 | Field | Source |
 |---|---|
 | `provider` / `agent` / `model` | `gen_ai.provider.name` / `gen_ai.agent.name` / `gen_ai.request.model` on the root span |
 | `totalDurationMs` | Root span end − start (server-measured) |
+| `ttftMs` | `gen_ai.response.time_to_first_chunk` (seconds → ms) on the earliest `chat` span (picked by `startTime`, not arrival order) |
 | `finishReason` | First entry of `gen_ai.response.finish_reasons` on the latest-ending `chat` span (e.g. `stop`, `tool_calls`, `length`) |
 | `spanCount`, `llmCallCount`, `toolCallCount`, `subagentCallCount`, `permissionCount`, `errorCount` | Counters maintained as spans arrive |
 | `inputTokensTotal`, `outputTokensTotal` | Sum of `gen_ai.usage.input_tokens` / `output_tokens` across chat spans |
@@ -114,15 +115,17 @@ Metrics give you "200 chat calls happened today". Traces give you "this specific
 
 ### Relationship to `agentHost.turnCompleted`
 
-`AgentHostTelemetryReporter` emits `agentHost.turnCompleted` per turn with `timeToFirstProgress` and `totalTime` measured from **the VS Code side** (turn dispatch → first stream event; turn dispatch → completion). The `agentHost.invokeAgent` event uses the **SDK's** server-measured root span duration and adds token counts the workbench-side event doesn't have.
+`AgentHostTelemetryReporter` emits `agentHost.turnCompleted` per turn with `timeToFirstProgress` and `totalTime` measured from **the VS Code side** (turn dispatch → first stream event; turn dispatch → completion). The `agentHost.invokeAgentCompleted` event uses the **SDK's** server-measured timings — `totalDurationMs` (root span duration) and `ttftMs` (`gen_ai.response.time_to_first_chunk` on the earliest chat span) — and adds token counts the workbench-side event doesn't have.
 
-> **Note on TTFT.** The SDK's `gen_ai.response.time_to_first_chunk` attribute has been observed reporting implausibly small values (single-digit ms) on real multi-second chat spans. Until that's fixed upstream we deliberately do NOT emit a `ttftMs` field on `agentHost.invokeAgent` — `agentHost.turnCompleted.timeToFirstProgress` remains the trustworthy TTFT for now. The per-chat value is still visible at trace level via `[agentHost.otel]` log lines for debugging.
+Both events run in parallel intentionally so we can compare workbench-perceived vs SDK-measured timings in Kusto. If they agree closely we can consolidate on the OTel-derived numbers and drop the workbench-side stopwatches; if they diverge meaningfully the gap itself is informative (e.g. measures the cost of cross-process plumbing between the agent host and the workbench, or — historically — surfaces SDK bugs in `gen_ai.response.time_to_first_chunk`).
 
-Both events run in parallel intentionally so we can compare workbench-perceived vs SDK-measured timings in Kusto. If they agree closely we can consolidate on the OTel-derived numbers and drop the workbench-side stopwatches; if they diverge meaningfully the gap itself is informative (e.g. measures the cost of cross-process plumbing between the agent host and the workbench).
+The per-chat TTFT and finish reason for every chat span in a turn are also dumped at log level `trace` as `[agentHost.otel] trace=… root=…ms chats=…` lines, which is the easiest way to audit whether the SDK's TTFT values look plausible.
 
 **Privacy**: the consumer only reads attributes that are counters, IDs, or short enums — never prompt/response content. It is safe to run regardless of `chat.agentHost.otel.captureContent`.
 
-**Cost**: registering the consumer forces the loopback receiver to start, which means the SDK runs with its OTel exporter even when the user hasn't enabled `chat.agentHost.otel.enabled`. The wire format is OTLP/JSON over localhost — overhead is small but non-zero. If this becomes a concern, gate registration on a setting in `agentHostMain.ts`.
+**Cost**: registering the consumer forces the loopback receiver to start, which means the SDK runs with its OTel exporter even when the user hasn't enabled `chat.agentHost.otel.enabled`. The wire format is OTLP/JSON over localhost — overhead is small but non-zero.
+
+**Telemetry gating**: the consumer is only registered when `ITelemetryService.telemetryLevel >= USAGE`. With telemetry off, we skip both the consumer and the loopback receiver it would force on, since `publicLog2` would drop everything anyway. Toggling telemetry on/off requires a workbench reload (which restarts the agent host process), so we don't subscribe to telemetry-level change events.
 
 ### Adding a new span consumer
 

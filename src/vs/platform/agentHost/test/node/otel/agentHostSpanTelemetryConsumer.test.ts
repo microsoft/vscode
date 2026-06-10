@@ -137,12 +137,13 @@ suite('platform/agentHost - AgentHostSpanTelemetryConsumer', () => {
 		}));
 
 		strictEqual(events.length, 1);
-		strictEqual(events[0].eventName, 'agentHost.invokeAgent');
+		strictEqual(events[0].eventName, 'agentHost.invokeAgentCompleted');
 		deepStrictEqual(events[0].data, {
 			provider: 'github.copilot',
 			agent: 'copilotcli',
 			model: 'gpt-4o',
 			totalDurationMs: rootEnd - rootStart,
+			ttftMs: 412,                          // from earliest chat by startTime
 			finishReason: 'tool_calls',           // finish reason from latest-ending chat (c6 ends at 2_500)
 			spanCount: 7,
 			llmCallCount: 2,
