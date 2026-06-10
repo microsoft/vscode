@@ -117,7 +117,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Keep the shared-process tunnel proxy's address provider up to date
 		// so the proxy can connect whenever the main process starts it.
-		this._register(this._proxyAddressPump);
 		this._updateProxyAddressPump();
 
 		this.sendTheme();
