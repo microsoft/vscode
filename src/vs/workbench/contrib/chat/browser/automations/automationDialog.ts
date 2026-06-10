@@ -698,6 +698,11 @@ function renderForm(
 		// the scheduled folder. Hide them; built-in modes (Agent / Ask /
 		// Edit / Plan) are always shown.
 		hideCustomChatModes: true,
+		// Mode-declared preferred models (e.g. extension modes that pin
+		// a specific model) would re-fire after our reset and overwrite
+		// the default (auto) we set. Also gates the storage-write side
+		// effect on the shared chat.currentLanguageModel.{location} key.
+		suppressModePreferredModel: true,
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
 			telemetrySource: 'automations.dialog',
