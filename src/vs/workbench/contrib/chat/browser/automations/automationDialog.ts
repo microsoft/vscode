@@ -808,42 +808,17 @@ function renderForm(
 		chatInput.switchModelByIdentifier(initialModelId);
 	}
 
-	// Track whether the user actually interacted with each picker so that
-	// a no-op Save on an existing automation preserves the originally
-	// stored value (including the legacy `null` "use default" sentinel
-	// from records saved before Phase C). We snapshot the values after
-	// the pre-seed completes and only mark the picker as interacted-with
-	// when the observable diverges from that baseline.
-	//
-	// Mode and permission level are only ever mutated by user action or
-	// our explicit setters, so an observable-diverged signal is a safe
-	// proxy for interaction. The language-model observable is *not* safe
-	// the same way -- {@link ChatInputPart} can asynchronously rewrite
+	// Model edits use a deliberately different strategy from mode and
+	// permission. {@link ChatInputPart} can asynchronously rewrite
 	// `selectedLanguageModel` on its own (late-arriving persisted model
-	// in `_waitForPersistedLanguageModel`, model-visibility changes via
-	// `resetCurrentLanguageModelIfUnavailable`). Tracking interaction
-	// via autorun on that observable would silently flip the flag on
-	// background events and corrupt the saved `modelId`, so we
-	// deliberately do not capture model changes during an edit. For
-	// edit-mode the modal preserves `initialModelId`; only create-mode
-	// captures the picker's current value at Save. Tracked in
-	// `files/deferred-decisions.md` for a true model-edit follow-up.
-	let modeUserInteracted = false;
-	let permissionUserInteracted = false;
-	const baselineModeKind = chatInput.currentModeObs.get().kind;
-	const baselinePermissionLevel = chatInput.currentPermissionLevelObs.get();
-	disposables.add(autorun(reader => {
-		const kind = chatInput.currentModeObs.read(reader).kind;
-		if (kind !== baselineModeKind) {
-			modeUserInteracted = true;
-		}
-	}));
-	disposables.add(autorun(reader => {
-		const level = chatInput.currentPermissionLevelObs.read(reader);
-		if (level !== baselinePermissionLevel) {
-			permissionUserInteracted = true;
-		}
-	}));
+	// in `_waitForPersistedLanguageModel`, visibility changes via
+	// `resetCurrentLanguageModelIfUnavailable`). Reading the picker at
+	// Save time on edit-mode could silently overwrite a still-valid
+	// stored modelId with whatever the picker has settled on after a
+	// background event, so edit-mode preserves `initialModelId`
+	// verbatim. Only create-mode captures the picker's current value.
+	// Tracked in `files/deferred-decisions.md` for a true model-edit
+	// follow-up.
 
 	// The editor itself is the source of truth for the prompt value; we
 	// only listen here to re-run validation so the Save button enables
@@ -901,18 +876,23 @@ function renderForm(
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
-		// Capture the *raw* mode kind the user selected (e.g. 'agent' /
-		// 'ask' / 'edit'). We deliberately avoid `currentModeKind` which
-		// rewrites Agent → Edit whenever the tools agent isn't currently
-		// registered; that environmental concern is the runner's
-		// responsibility at execution time, not capture time.
+		// Capture the *raw* mode kind currently in the picker (e.g.
+		// 'agent' / 'ask' / 'edit'). We deliberately avoid
+		// `currentModeKind` which rewrites Agent -> Edit whenever the
+		// tools agent isn't currently registered; that environmental
+		// concern is the runner's responsibility at execution time, not
+		// capture time.
 		//
-		// If the user never touched a picker, fall through to the
-		// originally-stored value so a no-op Save preserves both
-		// concrete values and the legacy `undefined`/`null` "use default"
-		// sentinel.
-		getMode: () => modeUserInteracted ? chatInput.currentModeObs.get().kind : initialMode,
-		getPermissionLevel: () => permissionUserInteracted ? chatInput.currentPermissionLevelObs.get() : initialPermissionLevel,
+		// Always reading from the picker (rather than gating on whether
+		// the user "changed" it from a baseline) is what makes a
+		// create-mode save honour the picker's default — previously a
+		// same-as-default click was saved as `null` and the runner
+		// silently fell back to the provider's default at run time.
+		// Edit-mode round-trips still preserve the previously stored
+		// value because we pre-seed the picker with `initialMode`
+		// above, so an untouched picker still reads back that value.
+		getMode: () => chatInput.currentModeObs.get().kind,
+		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
 		// Edit-mode preserves the stored modelId verbatim (see the
 		// async-write hazard explained above). Create-mode captures
 		// whatever the picker resolves to at Save time.
