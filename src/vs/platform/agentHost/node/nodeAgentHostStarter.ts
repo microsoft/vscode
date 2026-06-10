@@ -72,8 +72,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
-			// Used by CAPI to identify our traffic
-			GITHUB_COPILOT_INTEGRATION_ID: 'vscode-agent-host',
 		};
 
 		// Gate optional providers via env vars consumed by `agentHostMain.ts`.

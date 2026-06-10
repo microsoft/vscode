@@ -516,6 +516,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
 
+			// Identify VS Code's agent host traffic in CAPI
+			env['GITHUB_COPILOT_INTEGRATION_ID'] = 'vscode-agent-host';
+
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
 			// gating this experimental feature
