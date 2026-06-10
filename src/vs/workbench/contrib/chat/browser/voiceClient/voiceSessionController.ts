@@ -308,6 +308,38 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								},
 							});
 						}
+
+						// Fallback: detect WaitingForConfirmation without confirmationMessages
+						// (e.g. askQuestions). Read tool states reactively so the autorun
+						// re-fires when a tool enters WaitingForConfirmation.
+						if (!pending && !this._autoApprovedSessions.has(s.resource.toString())) {
+							for (const part of lastReq.response.response.value) {
+								if (part.kind === 'toolInvocation') {
+									const toolState = (part as IChatToolInvocation).state.read(reader);
+									if (toolState.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+										const params = toolState.parameters as Record<string, unknown> | undefined;
+										const questions = params?.['questions'];
+										let desc = '';
+										if (Array.isArray(questions) && questions.length > 0) {
+											desc = questions.map((q: Record<string, unknown>) => q['header'] || q['question']).filter(Boolean).join(', ');
+										}
+										toolConfirmations.push({
+											type: 'input',
+											sessionLabel: s.label || 'Untitled session',
+											sessionResource: s.resource,
+											description: desc || 'Needs your input',
+											approve: () => {
+												IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
+											},
+											deny: () => {
+												IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+											},
+										});
+										break;
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -520,6 +552,17 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 											if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })) {
 												needsRecheck = true;
 											}
+										}
+									}
+								}
+
+								// Also read tool invocation states reactively to detect
+								// WaitingForConfirmation without confirmationMessages
+								// (e.g. askQuestions tool).
+								if (!pending) {
+									for (const part of lastReq.response.response.value) {
+										if (part.kind === 'toolInvocation') {
+											(part as IChatToolInvocation).state.read(reader);
 										}
 									}
 								}
@@ -1570,6 +1613,37 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				state: 'waiting_for_confirmation',
 				detail: confirmDetail || pendingConfirmation.detail || '',
 			};
+		}
+
+		// Fallback: some tools (e.g. askQuestions) enter WaitingForConfirmation
+		// without setting confirmationMessages, so isPendingConfirmation is
+		// undefined. Scan response parts directly to catch these.
+		if (lastRequest?.response) {
+			for (const part of lastRequest.response.response.value) {
+				if (part.kind === 'toolInvocation') {
+					const state = part.state.get();
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						const params = state.parameters as Record<string, unknown> | undefined;
+						const questions = params?.['questions'];
+						let detail = '';
+						if (Array.isArray(questions) && questions.length > 0) {
+							const headers = questions
+								.map((q: Record<string, unknown>) => q['header'] || q['question'])
+								.filter(Boolean)
+								.join(', ');
+							detail = headers ? `questions: ${headers}` : 'asking clarifying questions';
+						}
+						if (!detail) {
+							const invMsg = (part as { invocationMessage?: string | { value: string } }).invocationMessage;
+							detail = invMsg ? (typeof invMsg === 'string' ? invMsg : invMsg.value) : 'needs input';
+						}
+						return {
+							state: 'waiting_for_confirmation',
+							detail,
+						};
+					}
+				}
+			}
 		}
 
 		const incomplete = lastRequest?.response?.isIncomplete.get() ?? false;
