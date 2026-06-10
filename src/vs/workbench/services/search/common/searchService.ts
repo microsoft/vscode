@@ -286,9 +286,16 @@ export class SearchService extends Disposable implements ISearchService {
 			let provider = this.getSearchProvider(query.type).get(scheme);
 
 			if (!provider) {
-				if (someSchemeHasProvider) {
+				// If a file system provider is already registered for the scheme, we know the
+				// extension that owns it has finished registering (extensions are awaited above
+				// via `whenInstalledExtensionsRegistered`). In that case, no dedicated search
+				// provider is ever going to be registered for this scheme, so waiting for one
+				// would hang the search indefinitely (see issue #260035 for in-memory / virtual
+				// file systems such as `memfs:/`). Skip the scheme instead.
+				const fsProviderRegistered = this.fileService.hasProvider(URI.from({ scheme }));
+				if (someSchemeHasProvider || fsProviderRegistered) {
 					if (!this.loggedSchemesMissingProviders.has(scheme)) {
-						this.logService.warn(`No search provider registered for scheme: ${scheme}. Another scheme has a provider, not waiting for ${scheme}`);
+						this.logService.warn(`No search provider registered for scheme: ${scheme}. ${someSchemeHasProvider ? 'Another scheme has a provider' : 'A file system provider is registered but no search provider'}, not waiting for ${scheme}`);
 						this.loggedSchemesMissingProviders.add(scheme);
 					}
 					return;
