@@ -95,7 +95,7 @@ class TestCopilotApiService implements ICopilotApiService {
 		return this.response;
 	}
 }
-
+	
 class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
@@ -107,6 +107,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
+	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshUncommittedChangeset(session: string): void { this.calls.push(`refreshUncommitted:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }

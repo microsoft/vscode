@@ -13,6 +13,14 @@ import { ISessionChangeset, ISessionFileChange, sessionFileChangesEqual } from '
 import { changesetFilesToChanges } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
+const enum ChangesetKind {
+	Branch = 'branch',
+	Uncommitted = 'uncommitted',
+	Session = 'session',
+	Turn = 'turn',
+	Compare = 'compare-turns',
+}
+
 export function createChangesets(
 	sessionUri: URI,
 	options: IAgentHostAdapterOptions,
@@ -23,23 +31,32 @@ export function createChangesets(
 		return [];
 	}
 
-	// First changeset with a non-template URI is the default, if any;
-	// otherwise just the first one. This should be the "Branch Changes"
-	// changeset.
-	const defaultChangeset = changesets.find(c => !c.uriTemplate.includes('{')) ?? changesets[0];
-	const builtChangesets: ISessionChangeset[] = changesets.map(changeset => {
+	const sessionChangesets: ISessionChangeset[] = [];
+
+	// Select the "Branch Changes" changeset as the default, if it exists; otherwise just the first one.
+	const defaultChangeset = changesets.find(c => c.changeKind === ChangesetKind.Branch) ?? changesets[0];
+
+	for (const changeset of changesets) {
 		const isDefault = changeset === defaultChangeset;
-		return options.instantiationService.createInstance(AgentHostCatalogChangeset, options, isActiveSessionObs, {
-			...changeset, isDefault
-		});
-	});
 
-	builtChangesets.push(
-		options.instantiationService.createInstance(AgentHostAllChangesChangeset, sessionUri, options, isActiveSessionObs),
-		options.instantiationService.createInstance(AgentHostLastTurnChangesChangeset, sessionUri, options, isActiveSessionObs),
-	);
+		if (
+			changeset.changeKind === ChangesetKind.Branch ||
+			changeset.changeKind === ChangesetKind.Uncommitted
+		) {
+			// Branch Changes & Uncommitted Changes
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostCatalogChangeset, options, isActiveSessionObs, {
+				...changeset, isDefault
+			}));
+		} else if (changeset.changeKind === ChangesetKind.Session) {
+			// Session Changes
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostAllChangesChangeset, sessionUri, options, isActiveSessionObs));
+		} else if (changeset.changeKind === ChangesetKind.Turn) {
+			// Last Turn Changes
+			sessionChangesets.push(options.instantiationService.createInstance(AgentHostLastTurnChangesChangeset, sessionUri, options, isActiveSessionObs));
+		}
+	}
 
-	return builtChangesets;
+	return sessionChangesets;
 }
 
 function createActiveSessionSubscriptionObs<TValue>(
