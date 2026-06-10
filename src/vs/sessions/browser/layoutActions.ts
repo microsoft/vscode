@@ -52,12 +52,6 @@ class ToggleSidebarVisibilityAction extends Action2 {
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				},
-				{
-					id: Menus.TitleBarContext,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 				}
 			]
 		});
@@ -90,14 +84,7 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 				description: localize('openAndCloseSecondarySidebar', 'Open/Show and Close/Hide Secondary Side Bar'),
 			},
 			category: Categories.View,
-			f1: true,
-			menu: [
-				{
-					id: Menus.TitleBarContext,
-					order: 1,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				}
-			]
+			f1: true
 		});
 	}
 

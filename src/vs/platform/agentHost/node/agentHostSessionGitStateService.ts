@@ -8,7 +8,7 @@ import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
-import { readSessionGitState, withSessionGitState, type ISessionGitState } from '../common/state/sessionState.js';
+import { readSessionGitState, withSessionGitState, type Changeset, type ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -71,13 +71,13 @@ export class AgentHostSessionGitStateService extends Disposable {
 
 	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
 		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
+		const current = state?.changesets;
 		if (!current || current.length === 0) {
 			return;
 		}
 		const branchUri = buildSessionChangesetUri(sessionKey);
 		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
-		const filtered = current.filter(c => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
+		const filtered = current.filter((c: Changeset) => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
 		if (filtered.length === current.length) {
 			return;
 		}
@@ -87,13 +87,13 @@ export class AgentHostSessionGitStateService extends Disposable {
 	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
 		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
 		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
+		const current = state?.changesets;
 		if (!current || current.length === 0) {
 			return;
 		}
 		const branchUri = buildSessionChangesetUri(sessionKey);
 		let changed = false;
-		const next = current.map(c => {
+		const next = current.map((c: Changeset) => {
 			if (c.uriTemplate !== branchUri) {
 				return c;
 			}
