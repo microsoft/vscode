@@ -17,7 +17,7 @@ import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspa
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ChatMode, isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { IChatModeService, isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { localize } from '../../../../../nls.js';
@@ -427,6 +427,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 
@@ -730,18 +731,35 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 	}
 
 	/**
-	 * Applies a builtin chat mode (Agent/Ask/Edit) to the given new session.
-	 * Unknown modeIds are dropped silently so callers (notably the
-	 * Automations runner) can be tolerant of stored values from a
-	 * different/older provider.
+	 * Applies a chat mode (builtin Agent/Ask/Edit, or any extension-
+	 * contributed or custom prompt-file mode such as 'plan' or a user's
+	 * custom agent) to the given new session. Unknown modeIds are
+	 * dropped silently so callers (notably the Automations runner) can
+	 * be tolerant of stored values from a different/older provider.
+	 *
+	 * Mode lookup uses {@link IChatModeService.createModes} keyed on the
+	 * session's own resource so it honours the session type's mode set
+	 * (e.g. local vs CLI). The modes instance is disposed immediately
+	 * after the lookup. Custom prompt-file modes are loaded synchronously
+	 * from workspace storage at `createModes` time, so steady-state runs
+	 * resolve correctly; the first run after a workspace gains a brand-
+	 * new custom mode (before the async refresh completes and is cached)
+	 * may miss and fall back to the picker default.
 	 */
 	setMode(sessionId: string, modeId: string): void {
-		const mode = builtinChatModeById(modeId);
-		if (!mode) {
+		const newSession = this._newSessions.get(sessionId);
+		if (!newSession) {
 			return;
 		}
-		const newSession = this._newSessions.get(sessionId);
-		newSession?.setMode(mode);
+		const modes = this.chatModeService.createModes(newSession.resource);
+		try {
+			const mode = modes.findModeById(modeId) ?? modes.findModeByName(modeId);
+			if (mode) {
+				newSession.setMode(mode);
+			}
+		} finally {
+			modes.dispose();
+		}
 	}
 
 	/**
@@ -1222,14 +1240,5 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 			}
 		}
 		return chats[0].status.read(reader);
-	}
-}
-
-function builtinChatModeById(id: string): IChatMode | undefined {
-	switch (id) {
-		case ChatModeKind.Ask: return ChatMode.Ask;
-		case ChatModeKind.Edit: return ChatMode.Edit;
-		case ChatModeKind.Agent: return ChatMode.Agent;
-		default: return undefined;
 	}
 }

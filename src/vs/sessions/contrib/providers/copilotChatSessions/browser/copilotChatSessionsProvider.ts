@@ -30,7 +30,7 @@ import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ChatMode, isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
+import { IChatModeService, isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -1436,6 +1436,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IGitHubService private readonly gitHubService: IGitHubService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 
@@ -1610,11 +1611,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
-	 * Applies a builtin chat mode (Agent/Ask/Edit) to the given new
-	 * session. Unknown modeIds are dropped silently so callers (notably
-	 * the Automations runner) can be tolerant of stored values from a
-	 * different/older provider. Custom (user-defined) modes are not yet
-	 * supported by callers and so are not resolved here.
+	 * Applies a chat mode (builtin Agent/Ask/Edit, or any extension-
+	 * contributed or custom prompt-file mode such as 'plan' or a user's
+	 * custom agent) to the given new session. Unknown modeIds are
+	 * dropped silently so callers (notably the Automations runner) can
+	 * be tolerant of stored values from a different/older provider.
+	 *
+	 * Mode lookup uses {@link IChatModeService.createModes} keyed on the
+	 * session's own resource so it honours the session type's mode set
+	 * (e.g. CLI vs Cloud). Custom prompt-file modes are loaded
+	 * synchronously from workspace storage at `createModes` time, so
+	 * steady-state runs resolve correctly; the first run after a
+	 * workspace gains a brand-new custom mode (before the async refresh
+	 * completes and is cached) may miss and fall back to the picker
+	 * default.
 	 *
 	 * Only applies to in-flight new sessions: committed agent sessions
 	 * do not support mid-flight mode mutation today (the underlying
@@ -1622,13 +1632,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * warning instead of attempting the mutation.
 	 */
 	setMode(sessionId: string, modeId: string): void {
-		const mode = builtinChatModeById(modeId);
-		if (!mode) {
-			return;
-		}
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
-			newSession.setMode(mode);
+			const modes = this.chatModeService.createModes(newSession.resource);
+			try {
+				const mode = modes.findModeById(modeId) ?? modes.findModeByName(modeId);
+				if (mode) {
+					newSession.setMode(mode);
+				}
+			} finally {
+				modes.dispose();
+			}
 			return;
 		}
 		this.logService.warn(`[CopilotChatSessionsProvider] setMode: session '${sessionId}' is not a new session; mode '${modeId}' will not be applied`);
@@ -2905,14 +2919,5 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private _isMultiChatEnabled(): boolean {
 		return this._multiChatEnabled;
-	}
-}
-
-function builtinChatModeById(id: string): IChatMode | undefined {
-	switch (id) {
-		case ChatModeKind.Ask: return ChatMode.Ask;
-		case ChatModeKind.Edit: return ChatMode.Edit;
-		case ChatModeKind.Agent: return ChatMode.Agent;
-		default: return undefined;
 	}
 }

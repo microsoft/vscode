@@ -32,6 +32,7 @@ import { IGitService } from '../../../../../../workbench/contrib/git/common/gitS
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, ClaudeCodeSessionType, ICopilotChatSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -109,6 +110,30 @@ class MockAgentSessionsModel {
 }
 
 // ---- Provider factory -------------------------------------------------------
+
+/**
+ * Minimal IChatModeService stub backed by the static {@link ChatMode}
+ * builtins. Resolves 'ask' / 'edit' / 'agent' (and their display names);
+ * everything else returns undefined so the existing "silently drops unknown
+ * modeIds" expectations still hold.
+ */
+function createMockChatModeService(): IChatModeService {
+	const builtins: readonly IChatMode[] = [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent];
+	const modes: IChatModes & IDisposable = {
+		onDidChange: Event.None,
+		builtin: builtins,
+		custom: [],
+		findModeById: (id: string) => builtins.find(m => m.id === id),
+		findModeByName: (name: string) => builtins.find(m => m.name.get() === name),
+		waitForPendingUpdates: async () => { /* no-op for tests */ },
+		dispose: () => { /* no-op */ },
+	};
+	return {
+		_serviceBrand: undefined,
+		createModes: () => modes,
+		getLocalModes: async () => modes,
+	};
+}
 
 function createProvider(
 	disposables: DisposableStore,
@@ -189,6 +214,7 @@ function createProviderWithConfig(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IChatModeService, createMockChatModeService());
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService };
@@ -262,6 +288,7 @@ function createProviderForSendTests(
 		getUriLabel: (uri: URI) => uri.path,
 	});
 	instantiationService.stub(IUriIdentityService, { extUri });
+	instantiationService.stub(IChatModeService, createMockChatModeService());
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
