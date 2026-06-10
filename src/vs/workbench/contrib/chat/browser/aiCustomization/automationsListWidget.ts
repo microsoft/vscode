@@ -16,13 +16,12 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -34,7 +33,7 @@ import { IAutomationRunner } from '../../common/automations/automationRunner.js'
 import { IAutomationService } from '../../common/automations/automationService.js';
 import { IAutomationSessionTypeProvider } from '../../common/automations/automationSessionTypes.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../common/automations/automationsEnabled.js';
-import { IFolderChoice, showAutomationDialog } from '../automations/automationDialog.js';
+import { showAutomationDialog } from '../automations/automationDialog.js';
 
 const $ = DOM.$;
 
@@ -82,7 +81,6 @@ export class AutomationsListWidget extends Disposable {
 		@IAutomationService private readonly automationService: IAutomationService,
 		@IAutomationRunner private readonly automationRunner: IAutomationRunner,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IAutomationSessionTypeProvider private readonly sessionTypeProvider: IAutomationSessionTypeProvider,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -93,7 +91,6 @@ export class AutomationsListWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
@@ -437,9 +434,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.quickInputService, this.sessionTypeProvider, {
-			folders: this.collectFolderChoices(),
-		});
+		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.sessionTypeProvider, {});
 		if (!result || result.kind !== 'create') {
 			return;
 		}
@@ -467,8 +462,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.quickInputService, this.sessionTypeProvider, {
-			folders: this.collectFolderChoices(),
+		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.sessionTypeProvider, {
 			existing: automation,
 		});
 		if (!result || result.kind !== 'update') {
@@ -488,13 +482,6 @@ export class AutomationsListWidget extends Disposable {
 				err instanceof Error ? err.message : String(err),
 			);
 		}
-	}
-
-	private collectFolderChoices(): IFolderChoice[] {
-		return this.workspaceContextService.getWorkspace().folders.map(f => ({
-			uri: f.uri,
-			label: f.name || URI.from(f.uri).toString(),
-		}));
 	}
 
 	private formatFolderLabel(folderUri: URI): string {
