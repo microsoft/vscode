@@ -66,17 +66,19 @@ export function getSdkVersion(sdk: Sdk): string {
 }
 
 /**
- * The `(sdk, sdkTarget)` matrix this pipeline supports — queried live from
- * the npm registry via `npm view <pkg>@<version> optionalDependencies`. The
- * SDK is what declares which platforms it ships, so we ask it directly
- * instead of keeping a parallel list here that would silently drift.
+ * Queries the npm registry for an SDK's `optionalDependencies` keys (its
+ * declared platform targets). Used by `aggregate.ts` for warn-only drift
+ * detection: "did the SDK add a platform we don't ship yet?"
+ *
+ * The pipeline's hardcoded `claudeTargets`/`codexTargets` matrix in
+ * `product-build-agent-sdk.yml` is the source of truth for what we ACTUALLY
+ * build — this function just lets us shout when upstream diverges.
  *
  * Uses the registry (not `node_modules/`) so the call works in pipeline
- * jobs that haven't run the full repo `npm install`. The cost is one
- * network round-trip per call — sub-second on the private npm proxy the
- * pipeline already uses.
+ * jobs that haven't run the full repo `npm install`. Sub-second on the
+ * private npm proxy the pipeline already uses.
  */
-export function getTargets(sdk: Sdk): readonly string[] {
+export function getRegistryTargets(sdk: Sdk): readonly string[] {
 	const version = getSdkVersion(sdk);
 	const spec = `${PACKAGE_NAME[sdk]}@${version}`;
 	const result = spawnSync('npm', ['view', spec, 'optionalDependencies', '--json'], { encoding: 'utf8' });

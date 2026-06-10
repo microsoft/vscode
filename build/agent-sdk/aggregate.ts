@@ -5,37 +5,71 @@
 
 /**
  * Scans an artifact directory for `<sdk>-<version>-<target>.tgz.json` sidecars
- * produced by `package.ts`, asserts every expected (sdk, target) pair the
- * SDK declares in its `optionalDependencies` is accounted for, and prints
- * a markdown report with a JSON `product.agentSdks` fragment that a human
- * pastes into vscode-distro's `product.json`.
+ * produced by `package.ts`, asserts every expected (sdk, target) pair is
+ * accounted for, and prints a markdown report with a JSON
+ * `product.agentSdks` fragment that a human pastes into vscode-distro's
+ * `product.json`.
+ *
+ * Expected targets are passed in via `--claude-targets=a,b,c --codex-targets=x,y`.
+ * The pipeline passes the same arrays that drive its matrix fan-out, so the
+ * YAML's `claudeTargets`/`codexTargets` are the single source of truth for
+ * "what we build."
+ *
+ * After completeness validation, queries each SDK's registry
+ * `optionalDependencies` and WARNS (does not fail) if upstream has added
+ * platforms we don't yet build — early signal to update the YAML matrix.
  *
  * Designed to be invoked from the pipeline aggregate job with
  * `condition: succeededOrFailed()` so the operator sees what's missing even
  * when one or more per-target jobs failed.
  *
  * Usage:
- *   node build/agent-sdk/aggregate.ts --artifacts=<dir>
+ *   node build/agent-sdk/aggregate.ts --artifacts=<dir> \
+ *     --claude-targets=darwin-x64,darwin-arm64,... \
+ *     --codex-targets=darwin-x64,darwin-arm64,...
  */
 
-import { fail, getTargets, listSidecars, parseFlags, type Sdk } from './common.ts';
+import { fail, getRegistryTargets, listSidecars, parseFlags, type Sdk } from './common.ts';
 
 const SCRIPT = 'aggregate.ts';
 const SDKS: readonly Sdk[] = ['claude', 'codex'];
 
-function parseArgs(): { artifactsDir: string } {
+interface ICliArgs {
+	artifactsDir: string;
+	expectedTargets: { readonly [K in Sdk]: readonly string[] };
+}
+
+function parseArgs(): ICliArgs {
 	const flags = parseFlags(process.argv.slice(2));
 	const artifactsDir = flags.get('artifacts');
 	if (!artifactsDir) {
 		fail(SCRIPT, 'Missing --artifacts=<dir>');
 	}
-	return { artifactsDir };
+	const parseCsv = (key: string): readonly string[] => {
+		const raw = flags.get(key);
+		if (!raw) {
+			fail(SCRIPT, `Missing --${key}=<comma,separated,list>`);
+		}
+		return raw.split(',').map(s => s.trim()).filter(Boolean);
+	};
+	return {
+		artifactsDir,
+		expectedTargets: {
+			claude: parseCsv('claude-targets'),
+			codex: parseCsv('codex-targets'),
+		},
+	};
 }
 
 interface ISdkFragment {
 	readonly version: string;
 	readonly urlTemplate: string;
 	readonly sha256: { readonly [sdkTarget: string]: string };
+}
+
+/** Logs an Azure-Pipelines-flavored warning that surfaces in the build UI. */
+function warn(msg: string): void {
+	console.log(`##vso[task.logissue type=warning]${msg}`);
 }
 
 function main(): void {
@@ -56,14 +90,13 @@ function main(): void {
 		bySdkTarget.set(key, s);
 	}
 
-	// Completeness: every (sdk, target) the SDK declares in its
-	// `optionalDependencies` MUST have a sidecar. The runtime treats missing
+	// Completeness: every (sdk, target) the pipeline matrix was supposed to
+	// produce MUST have a sidecar. The runtime treats missing
 	// `sha256[target]` as unsupported, so a partial fragment pasted into
 	// vscode-distro would silently disable platforms.
-	const expected = new Map<Sdk, readonly string[]>(SDKS.map(sdk => [sdk, getTargets(sdk)]));
 	const missing: string[] = [];
-	for (const [sdk, targets] of expected) {
-		for (const target of targets) {
+	for (const sdk of SDKS) {
+		for (const target of args.expectedTargets[sdk]) {
 			if (!bySdkTarget.has(`${sdk}/${target}`)) {
 				missing.push(`${sdk}/${target}`);
 			}
@@ -75,9 +108,40 @@ function main(): void {
 			`Investigate those job logs before pasting the fragment into vscode-distro.`);
 	}
 
+	// Drift detection (warn-only): does upstream declare any platforms we
+	// aren't building? Failing here would block routine pipeline runs every
+	// time an SDK publishes a new platform overnight, so just shout.
+	for (const sdk of SDKS) {
+		let upstream: readonly string[];
+		try {
+			upstream = getRegistryTargets(sdk);
+		} catch (err) {
+			warn(`aggregate: could not query registry targets for ${sdk}: ${(err as Error).message}`);
+			continue;
+		}
+		const ours = new Set(args.expectedTargets[sdk]);
+		const newUpstream = upstream.filter(t => !ours.has(t));
+		if (newUpstream.length > 0) {
+			warn(
+				`${sdk}: upstream optionalDependencies declares ${newUpstream.length} platform(s) ` +
+				`we don't build yet: [${newUpstream.join(', ')}]. ` +
+				`Add to the ${sdk}Targets array in build/azure-pipelines/agent-sdk/product-build-agent-sdk.yml.`,
+			);
+		}
+		const droppedUpstream = [...ours].filter(t => !upstream.includes(t));
+		if (droppedUpstream.length > 0) {
+			warn(
+				`${sdk}: pipeline matrix includes ${droppedUpstream.length} platform(s) ` +
+				`upstream no longer ships: [${droppedUpstream.join(', ')}]. ` +
+				`Remove from the ${sdk}Targets array.`,
+			);
+		}
+	}
+
 	// Build the fragment. Group by SDK, sort targets for stable output.
 	const fragment: { [sdk: string]: ISdkFragment } = {};
-	for (const [sdk, targets] of expected) {
+	for (const sdk of SDKS) {
+		const targets = args.expectedTargets[sdk];
 		const versions = new Set(targets.map(t => bySdkTarget.get(`${sdk}/${t}`)!.sdkVersion));
 		if (versions.size !== 1) {
 			fail(SCRIPT, `Inconsistent versions for ${sdk}: [${[...versions].join(', ')}]`);

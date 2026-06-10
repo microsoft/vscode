@@ -8,12 +8,13 @@ for a human to paste into `vscode-distro`'s `product.json` (see
 ## Scripts
 
 - `package.ts` — builds one tarball for one `(sdk, target)` pair. **Linux only.**
-  Stages a minimal `package.json` pinning `SDK_VERSIONS[sdk]` (from
-  `common.ts`), runs `npm install --no-package-lock --ignore-scripts` with
+  Stages a minimal `package.json` pinning the SDK version (from
+  `getSdkVersion(sdk)` — read live from the repo-root `package.json` devDeps),
+  runs `npm install --no-package-lock --ignore-scripts` with
   `npm_config_libc/os/cpu` set to the target's triple to fetch the foreign
   platform binary, normalizes mtimes (including symlinks via `lutimes`), and
   tars with reproducible flags. Emits `<sdk>-<version>-<target>.tgz` + a
-  `.tgz.json` sidecar carrying the sha256 and size.
+  `.tgz.json` sidecar carrying the sha256.
 - `upload.ts` — uploads one tarball to the `main.vscode-cdn.net` storage
   account (path `agent-sdk/<sdk>/<sdkVersion>/<sdkTarget>.tgz`). HEAD-first:
   absent → upload; present with matching sha256 → skip (idempotent re-run);
@@ -25,13 +26,15 @@ for a human to paste into `vscode-distro`'s `product.json` (see
 - `aggregate.ts` — scans a directory of `<sdk>-<version>-<target>.tgz.json`
   sidecars (one per per-target job's artifact) and prints a markdown table
   with the JSON fragment a human pastes into `vscode-distro`'s `product.json`.
-  Validates that every expected `(sdk, target)` pair — read live from each
-  SDK's own `optionalDependencies` — is accounted for, failing loud on
-  missing entries.
+  Takes `--claude-targets` / `--codex-targets` flags from the pipeline; fails
+  loud if any expected sidecar is missing. As a separate non-blocking check,
+  queries each SDK's registry `optionalDependencies` and WARNS (does not
+  fail) if upstream declares a platform we don't build yet — an early signal
+  to update the YAML matrix.
 - `common.ts` — shared types and helpers. `getSdkVersion(sdk)` reads the
-  pinned version from the repo-root `package.json` devDeps; `getTargets(sdk)`
-  reads the platform list from the SDK's own `optionalDependencies` so the
-  matrix stays in sync with what upstream actually ships.
+  pinned version from the repo-root `package.json` devDeps;
+  `getRegistryTargets(sdk)` queries the SDK's `optionalDependencies` via
+  `npm view` for drift detection.
 
 ## Bumping an SDK version
 
@@ -51,18 +54,20 @@ existing blob," which is exactly when we want a human to look.
 
 ## Targets
 
-The build pipeline ships one tarball per `(sdk, target)` pair, where the
-target set is whatever the SDK declares in its own `optionalDependencies`
-(read live by `getTargets()` in `common.ts`).
+The pipeline builds one tarball per `(sdk, target)` pair. The target set
+is declared exactly once: as the `claudeTargets` / `codexTargets` parameter
+arrays in `build/azure-pipelines/agent-sdk/product-build-agent-sdk.yml`.
+Those arrays drive both the matrix fan-out (one job per target) AND the
+completeness check (`aggregate.ts --claude-targets=…`).
 
 As of writing:
 - **Claude**: 8 targets — `darwin-{x64,arm64}`, `linux-{x64,arm64}`, `linux-{x64,arm64}-musl`, `win32-{x64,arm64}`.
 - **Codex**: 6 targets — `darwin-{x64,arm64}`, `linux-{x64,arm64}`, `win32-{x64,arm64}` (Codex's Linux binaries are statically linked against musl, no glibc variant).
 
-The pipeline YAML hand-lists these targets to drive its matrix fan-out
-(Azure Pipelines can't fan out dynamically from a script). If the SDK
-adds or drops a platform, edit the YAML defaults to match — `aggregate.ts`
-will fail loud if the YAML matrix and the SDK's declared targets disagree.
+Adding/removing a platform is a one-line edit in the YAML. `aggregate.ts`
+queries each SDK's registry `optionalDependencies` and warns (does not
+fail) when upstream declares a platform we don't build yet, so we hear
+about new platforms within one pipeline run.
 
 ## Determinism contract
 

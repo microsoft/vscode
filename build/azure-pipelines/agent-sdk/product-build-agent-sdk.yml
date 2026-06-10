@@ -2,11 +2,15 @@
 # Claude + 6 Codex targets (14 jobs in parallel), then collects each job's
 # artifacts and prints the product.json fragment for paste-into-vscode-distro.
 #
-# The target lists below hand-mirror each SDK's own optionalDependencies
-# (Azure Pipelines can't fan out matrix from a script, so we declare them
-# here too). aggregate.ts reads the SDK's optionalDependencies live and
-# fails loud if the declared matrix here doesn't cover everything the SDK
-# expects — so a drift will be caught at the end of the run.
+# The `claudeTargets` and `codexTargets` arrays below are the single source
+# of truth for which platforms we build — they drive both the per-target
+# matrix fan-out AND the completeness check in aggregate.ts (passed in as
+# --claude-targets / --codex-targets). Adding/removing a platform is a
+# one-line edit here.
+#
+# aggregate.ts queries each SDK's registry optionalDependencies and WARNS
+# (does not fail) if upstream declares a platform we don't build yet —
+# so we hear about new platforms without breaking routine pipeline runs.
 
 parameters:
   - name: VSCODE_PUBLISH
@@ -53,10 +57,9 @@ jobs:
   #
   # `condition: succeededOrFailed()` is intentional: when one or more per-target
   # jobs fail, the operator still wants the aggregate step to run so it can
-  # FAIL LOUD listing the missing targets (aggregate.ts validates completeness
-  # against the TARGETS constant in common.ts). Without this condition, Azure's
-  # default `succeeded()` silently skips aggregate on any failure — leaving the
-  # operator to click through 14 sibling jobs to figure out what's missing.
+  # FAIL LOUD listing the missing targets. Without this condition, Azure's
+  # default `succeeded()` silently skips aggregate on any failure — leaving
+  # the operator to click through 14 sibling jobs to figure out what's missing.
   - job: AgentSDK_aggregate
     displayName: Aggregate (print fragment)
     condition: succeededOrFailed()
@@ -82,5 +85,7 @@ jobs:
 
       - script: |
           node build/agent-sdk/aggregate.ts \
-            --artifacts=$(Build.ArtifactStagingDirectory)/all-artifacts
+            --artifacts=$(Build.ArtifactStagingDirectory)/all-artifacts \
+            --claude-targets=${{ join(',', parameters.claudeTargets) }} \
+            --codex-targets=${{ join(',', parameters.codexTargets) }}
         displayName: Print product.agentSdks fragment
