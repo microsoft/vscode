@@ -2230,11 +2230,24 @@ body:has(.automation-dialog) .monaco-menu-container {
 	padding: 2px 20px 2px 8px;
 }
 
+/*
+ * Form-row labels read as section titles (\"Name\", \"Schedule\",
+ * \"Workspace folder\", \"Prompt\"). Mirror the established agents
+ * design-system section-label pattern (see \.overview-section
+ * .section-label\ at line ~734: label1 / fontWeight-medium /
+ * foreground) but at regular weight per Hawk's call — the larger
+ * size + foreground colour does the heavy lifting, so the labels
+ * don't need extra weight to register as headings.
+ *
+ * \margin-bottom\ adds breathing room between the title text and
+ * its control so each form row reads as a discrete section.
+ */
 .automation-form-label {
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
-	font-weight: 400;
-	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	color: var(--vscode-foreground);
 	line-height: 1.4;
+	margin-bottom: 2px;
 }
 
 .automation-form-hint {
