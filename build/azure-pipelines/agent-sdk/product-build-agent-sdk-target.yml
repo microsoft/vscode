@@ -1,7 +1,6 @@
 # Single (sdk, target) build + upload job. Invoked per matrix entry from
-# product-build-agent-sdk.yml. Builds twice (determinism check), keeps the
-# second build's tarball+sidecar as the publishable artifact, then uploads
-# (gated on VSCODE_PUBLISH).
+# product-build-agent-sdk.yml. Builds the tarball and (when VSCODE_PUBLISH
+# is true) uploads it to main.vscode-cdn.net under the agent-sdk/ prefix.
 
 parameters:
   - name: SDK

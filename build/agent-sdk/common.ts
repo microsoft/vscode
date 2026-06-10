@@ -8,6 +8,7 @@
  * — every entry exists to remove duplication between two or more scripts.
  */
 
+import { spawnSync } from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -65,30 +66,33 @@ export function getSdkVersion(sdk: Sdk): string {
 }
 
 /**
- * The `(sdk, sdkTarget)` matrix this pipeline supports — read live from each
- * SDK's own `optionalDependencies` in `node_modules`. The SDK is what
- * declares which platforms it ships, so we ask it directly instead of
- * keeping a parallel list here that would silently drift.
+ * The `(sdk, sdkTarget)` matrix this pipeline supports — queried live from
+ * the npm registry via `npm view <pkg>@<version> optionalDependencies`. The
+ * SDK is what declares which platforms it ships, so we ask it directly
+ * instead of keeping a parallel list here that would silently drift.
  *
- * Requires the repo-root `npm install` to have run (the SDKs are devDeps
- * in `package.json`). All pipeline jobs run after the standard install
- * step so `node_modules/<sdk-package>/` exists for them to read.
+ * Uses the registry (not `node_modules/`) so the call works in pipeline
+ * jobs that haven't run the full repo `npm install`. The cost is one
+ * network round-trip per call — sub-second on the private npm proxy the
+ * pipeline already uses.
  */
 export function getTargets(sdk: Sdk): readonly string[] {
-	const thisDir = path.dirname(fileURLToPath(import.meta.url));
-	const sdkPackageJson = path.resolve(thisDir, '..', '..', 'node_modules', PACKAGE_NAME[sdk], 'package.json');
-	const json = JSON.parse(fs.readFileSync(sdkPackageJson, 'utf8')) as {
-		optionalDependencies?: Record<string, string>;
-	};
+	const version = getSdkVersion(sdk);
+	const spec = `${PACKAGE_NAME[sdk]}@${version}`;
+	const result = spawnSync('npm', ['view', spec, 'optionalDependencies', '--json'], { encoding: 'utf8' });
+	if (result.status !== 0) {
+		throw new Error(`npm view ${spec} failed (exit ${result.status}): ${result.stderr}`);
+	}
+	const optionalDeps = JSON.parse(result.stdout || '{}') as Record<string, string>;
 	const prefix = `${PACKAGE_NAME[sdk]}-`;
 	const targets: string[] = [];
-	for (const name of Object.keys(json.optionalDependencies ?? {})) {
+	for (const name of Object.keys(optionalDeps)) {
 		if (name.startsWith(prefix)) {
 			targets.push(name.slice(prefix.length));
 		}
 	}
 	if (targets.length === 0) {
-		throw new Error(`No platform packages found in ${sdkPackageJson}'s optionalDependencies (expected entries starting with '${prefix}')`);
+		throw new Error(`No platform packages found in ${spec}'s optionalDependencies (expected entries starting with '${prefix}')`);
 	}
 	return targets.sort();
 }
@@ -120,13 +124,17 @@ export function parseSdk(value: string | undefined, script: string): Sdk {
 	return value;
 }
 
-export function parseTarget(sdk: Sdk, value: string | undefined, script: string): string {
+export function parseTarget(value: string | undefined, script: string): string {
 	if (!value) {
 		fail(script, `--target is required`);
 	}
-	const targets = getTargets(sdk);
-	if (!targets.includes(value)) {
-		fail(script, `--target='${value}' is not a supported ${sdk} target. Expected one of: ${targets.join(', ')}`);
+	// Shape-only validation. The pipeline matrix controls which targets get
+	// invoked in production; for local runs, an unsupported target surfaces
+	// downstream when `npm install` can't resolve the platform package.
+	// Avoiding a `getTargets()` call here keeps `package.ts` from doing a
+	// network round-trip just to parse its CLI args.
+	if (!/^[a-z0-9]+-[a-z0-9]+(?:-[a-z0-9]+)?$/.test(value)) {
+		fail(script, `--target='${value}' does not look like a platform-arch[-libc] triple`);
 	}
 	return value;
 }

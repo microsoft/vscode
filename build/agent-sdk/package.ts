@@ -47,7 +47,7 @@ interface ICliArgs {
 function parseArgs(): ICliArgs {
 	const flags = parseFlags(process.argv.slice(2));
 	const sdk = parseSdk(flags.get('sdk'), SCRIPT);
-	const sdkTarget = parseTarget(sdk, flags.get('target'), SCRIPT);
+	const sdkTarget = parseTarget(flags.get('target'), SCRIPT);
 	const outDir = flags.get('out') ?? path.resolve(process.cwd(), 'out');
 	return { sdk, sdkTarget, outDir };
 }
