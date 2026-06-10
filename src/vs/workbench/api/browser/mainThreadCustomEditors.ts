@@ -181,6 +181,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			isTextEditor: modelType === CustomEditorModelType.Text,
 			supportsInlineDiff: capabilities.supportsInlineDiff,
 			supportsSideBySideDiff: capabilities.supportsSideBySideDiff,
+			readonly: capabilities.readonly,
 		}));
 
 		disposables.add(this._webviewWorkbenchService.registerResolver({

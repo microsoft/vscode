@@ -28,6 +28,7 @@ export interface CustomEditorCapabilities {
 	readonly isTextEditor?: boolean;
 	readonly supportsInlineDiff?: boolean;
 	readonly supportsSideBySideDiff?: boolean;
+	readonly readonly?: boolean;
 }
 
 export interface ICustomEditorService {
