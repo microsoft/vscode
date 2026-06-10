@@ -770,11 +770,6 @@ registerAction2(class RenameSessionAction extends Action2 {
 				group: '1_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}, {
-				id: Menus.SessionHeaderContext,
-				group: '2_edit',
-				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]
 		});
 	}

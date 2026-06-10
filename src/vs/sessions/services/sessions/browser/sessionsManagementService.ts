@@ -300,9 +300,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidChangeSessionTypes.fire();
 	}
 
-	setActiveSession(session: IActiveSession | undefined): void {
+	setActiveSession(session: IActiveSession | undefined, force = false): void {
 		const previousSession = this._activeSession.get();
-		if (previousSession?.sessionId === session?.sessionId) {
+		if (!force && previousSession?.sessionId === session?.sessionId) {
 			return;
 		}
 
@@ -313,6 +313,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		this._activeSession.set(session, undefined);
+	}
+
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		if (this._activeSession.get()?.sessionId === from.sessionId) {
+			this.setActiveSession(to, true);
+		}
 	}
 
 	discardNewSession(session?: ISession): void {
