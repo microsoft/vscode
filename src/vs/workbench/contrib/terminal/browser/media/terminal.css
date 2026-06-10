@@ -483,7 +483,15 @@
 	margin-right: 4px;
 }
 
-.monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(2) {
+.monaco-action-bar .action-item .single-terminal-tab .single-terminal-tab-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+	flex: 1;
+}
+
+.monaco-action-bar .action-item .single-terminal-tab .codicon:nth-child(3) {
 	margin-left: 4px;
 	color: inherit;
 }
