@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
@@ -79,6 +79,8 @@ import { IMeteredConnectionService } from '../../../../platform/meteredConnectio
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
 }
+
+const DELAYED_AUTO_UPDATE_PERIOD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 interface InstalledExtensionsEvent {
 	readonly extensionIds: TelemetryTrustedValue<string>;
@@ -998,6 +1000,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
+	private readonly delayedAutoUpdateCheckTimer = this._register(new MutableDisposable());
 
 	readonly whenInitialized: Promise<void>;
 
@@ -1119,9 +1122,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				if (this.isAutoUpdateEnabled()) {
+				if (!this.isAutoUpdateEnabled()) {
+					// Auto update disabled — cancel any pending delayed re-check
+					this.delayedAutoUpdateCheckTimer.value = undefined;
+				} else {
 					this.eventuallyAutoUpdateExtensions();
 				}
+				// The auto update value affects whether an extension is shown as delayed
+				this._onChange.fire(undefined);
 			}
 			if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
 				if (this.isAutoCheckUpdatesEnabled()) {
@@ -1192,12 +1200,51 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	getAutoUpdateValue(): AutoUpdateConfigurationValue {
-		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
-		// eslint-disable-next-line local/code-no-any-casts
-		if (<any>autoUpdate === 'onlySelectedExtensions') {
+		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue | 'on' | 'off' | 'delayed'>(AutoUpdateConfigurationKey);
+		if (autoUpdate === 'onlySelectedExtensions' || autoUpdate === 'off') {
 			return false;
 		}
+		if (autoUpdate === 'on' || autoUpdate === 'delayed') {
+			return true;
+		}
 		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+	}
+
+	isAutoUpdateDelayed(extension: IExtension): boolean {
+		if (!extension.outdated) {
+			return false;
+		}
+		if (!this.shouldAutoUpdateExtension(extension)) {
+			return false;
+		}
+		return this.getAutoUpdateDelayRemaining(extension) > 0;
+	}
+
+	getAutoUpdateDelayRemaining(extension: IExtension): number {
+		// Extensions from publishers trusted by the product are auto updated without delay.
+		if (this.isFromTrustedPublisher(extension)) {
+			return 0;
+		}
+		const lastUpdated = extension.gallery?.lastUpdated;
+		if (!Number.isFinite(lastUpdated) || !lastUpdated) {
+			return 0;
+		}
+		const elapsed = Date.now() - lastUpdated;
+		if (elapsed < 0) {
+			// Future timestamp (clock skew) — treat as not delayed
+			return 0;
+		}
+		return Math.max(0, DELAYED_AUTO_UPDATE_PERIOD - elapsed);
+	}
+
+	private isFromTrustedPublisher(extension: IExtension): boolean {
+		const trustedPublishers = this.productService.trustedExtensionPublishers;
+		if (!trustedPublishers?.length) {
+			return false;
+		}
+		const publisher = extension.publisher.toLowerCase();
+		return trustedPublishers.includes(publisher)
+			|| trustedPublishers.includes(extension.publisherDisplayName.toLowerCase());
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
@@ -1509,8 +1556,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const needsReload = restartRequiredExtensions.some(e => e.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow);
 				computedNotificiations.push({
 					message: needsReload
-						? nls.localize('extensions need reload', "Extensions require a window reload to take effect.")
-						: nls.localize('extensions need restart', "Extensions require a restart to take effect."),
+						? nls.localize('extensions need reload', "Extensions require a window reload to apply updates.")
+						: nls.localize('extensions need restart', "All extensions require a restart to apply updates."),
 					severity: Severity.Info,
 					extensions: restartRequiredExtensions,
 					query: '@restartrequired',
@@ -1783,7 +1830,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					}
 					return undefined;
 				} else {
-					if (isSameExtensionRunning) {
+					if (isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
 						return { action: reloadAction, reason: nls.localize('postDisableTooltip', "Please {0} to disable this extension.", reloadActionLabel) };
 					}
 				}
@@ -2183,16 +2230,32 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
+		let soonestDelayRemaining = Number.MAX_SAFE_INTEGER;
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
 				disabledAutoUpdate.push(extension.identifier.id);
 				continue;
+			}
+			// New versions are auto updated only after the delay window has passed since they were published.
+			if (!extension.local?.forceAutoUpdate) {
+				const delayRemaining = this.getAutoUpdateDelayRemaining(extension);
+				if (delayRemaining > 0) {
+					this.logService.trace('Auto update delayed for extension', extension.identifier.id);
+					soonestDelayRemaining = Math.min(soonestDelayRemaining, delayRemaining);
+					continue;
+				}
 			}
 			if (await this.shouldRequireConsentToUpdate(extension)) {
 				consentRequired.push(extension.identifier.id);
 				continue;
 			}
 			toUpdate.push(extension);
+		}
+
+		if (soonestDelayRemaining < Number.MAX_SAFE_INTEGER) {
+			this.delayedAutoUpdateCheckTimer.value = disposableTimeout(() => this.eventuallyCheckForUpdates(true), soonestDelayRemaining);
+		} else {
+			this.delayedAutoUpdateCheckTimer.value = undefined;
 		}
 
 		if (disabledAutoUpdate.length) {

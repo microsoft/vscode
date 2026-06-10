@@ -187,6 +187,9 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	private _onChangeSearchInEditorsBoxEmitter = this._register(new Emitter<void>());
 	onChangeSearchInEditorsBox = this._onChangeSearchInEditorsBoxEmitter.event;
 
+	private _onChangeSearchInChangedFilesBoxEmitter = this._register(new Emitter<void>());
+	onChangeSearchInChangedFilesBox = this._onChangeSearchInChangedFilesBoxEmitter.event;
+
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -196,10 +199,12 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	}
 
 	private useSearchInEditorsBox!: Toggle;
+	private useSearchInChangedFilesBox!: Toggle;
 
 	override dispose(): void {
 		super.dispose();
 		this.useSearchInEditorsBox.dispose();
+		this.useSearchInChangedFilesBox.dispose();
 	}
 
 	onlySearchInOpenEditors(): boolean {
@@ -211,11 +216,46 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		this._onChangeSearchInEditorsBoxEmitter.fire();
 	}
 
+	onlySearchInChangedFiles(): boolean {
+		return this.useSearchInChangedFilesBox.checked;
+	}
+
+	setOnlySearchInChangedFiles(value: boolean) {
+		this.useSearchInChangedFilesBox.checked = value;
+		this._onChangeSearchInChangedFilesBoxEmitter.fire();
+	}
+
+	setOnlySearchInChangedFilesEnabled(enabled: boolean) {
+		if (enabled) {
+			this.useSearchInChangedFilesBox.enable();
+		} else {
+			this.useSearchInChangedFilesBox.checked = false;
+			this.useSearchInChangedFilesBox.disable();
+		}
+	}
+
 	protected override getSubcontrolsWidth(): number {
-		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
+		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width() + this.useSearchInChangedFilesBox.width();
 	}
 
 	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
+		this.useSearchInChangedFilesBox = this._register(new Toggle({
+			icon: Codicon.editCode,
+			title: nls.localize('onlySearchInChangedFiles', "Search only in Changed Files (Source Control)"),
+			isChecked: false,
+			...defaultToggleStyles
+		}));
+		this.useSearchInChangedFilesBox.disable();
+		this._register(this.useSearchInChangedFilesBox.onChange(viaKeyboard => {
+			if (this.useSearchInChangedFilesBox.checked) {
+				this.useSearchInEditorsBox.checked = false;
+			}
+			this._onChangeSearchInChangedFilesBoxEmitter.fire();
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+		}));
+
 		this.useSearchInEditorsBox = this._register(new Toggle({
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
@@ -223,12 +263,16 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			...defaultToggleStyles
 		}));
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
+			if (this.useSearchInEditorsBox.checked) {
+				this.useSearchInChangedFilesBox.checked = false;
+			}
 			this._onChangeSearchInEditorsBoxEmitter.fire();
 			if (!viaKeyboard) {
 				this.inputBox.focus();
 			}
 		}));
 
+		controlsDiv.appendChild(this.useSearchInChangedFilesBox.domNode);
 		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
 		super.renderSubcontrols(controlsDiv);
 	}

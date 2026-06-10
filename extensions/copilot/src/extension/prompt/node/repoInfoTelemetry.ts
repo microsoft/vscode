@@ -6,6 +6,7 @@
 import { ICopilotTokenStore } from '../../../platform/authentication/common/copilotTokenStore';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
+import { RelativePattern } from '../../../platform/filesystem/common/fileTypes';
 import { IGitDiffService } from '../../../platform/git/common/gitDiffService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { getOrderedRepoInfosFromContext, IGitService, normalizeFetchUrl, RepoContext, ResolvedRepoRemoteInfo } from '../../../platform/git/common/gitService';
@@ -52,6 +53,11 @@ const MAX_MERGE_BASE_AGE_DAYS = 30;
 // Max number of commits between merge base and HEAD before we skip the diff
 const MAX_DIFF_COMMITS = 30;
 
+// Cap on the number of repositories we collect/send telemetry for per request.
+// Covers >p90 of real-world multi-repo workspaces in long-tail cases (e.g. git.autoRepositoryDetection: 'subFolders' with many submodules).
+// The active repository is always included; remaining slots are filled from the workspace repo list.
+const MAX_REPOS_FOR_TELEMETRY = 5;
+
 // EVENT: repoInfo
 type RepoInfoTelemetryResult = 'success' | 'filesChanged' | 'diffTooLarge' | 'noChanges' | 'tooManyChanges' | 'mergeBaseTooOld' | 'virtualFileSystem' | 'tooManyCommits';
 
@@ -64,12 +70,15 @@ type RepoInfoTelemetryProperties = {
 	fileRelativePaths: string | undefined;
 	diffsJSON: string | undefined;
 	result: RepoInfoTelemetryResult;
+	isActiveRepository: 'true' | 'false';
 };
 
 type RepoInfoTelemetryMeasurements = {
 	workspaceFileCount: number;
 	changedFileCount: number;
 	diffSizeBytes: number;
+	repoIndex: number;
+	repoCount: number;
 };
 
 type RepoInfoTelemetryData = {
@@ -94,8 +103,8 @@ function shouldSendEndTelemetry(result: RepoInfoTelemetryResult | undefined): bo
 */
 export class RepoInfoTelemetry {
 	private _beginTelemetrySent = false;
-	private _beginTelemetryPromise: Promise<RepoInfoTelemetryData | undefined> | undefined;
-	private _beginTelemetryResult: RepoInfoTelemetryResult | undefined;
+	private _beginTelemetryPromise: Promise<Map<string, RepoInfoTelemetryData | undefined>> | undefined;
+	private readonly _beginTelemetryResults = new Map<string, RepoInfoTelemetryResult | undefined>();
 
 	constructor(
 		private readonly _telemetryMessageId: string,
@@ -124,8 +133,7 @@ export class RepoInfoTelemetry {
 		try {
 			this._beginTelemetrySent = true;
 			this._beginTelemetryPromise = this._sendRepoInfoTelemetry('begin');
-			const gitInfo = await this._beginTelemetryPromise;
-			this._beginTelemetryResult = gitInfo?.properties.result;
+			await this._beginTelemetryPromise;
 		} catch (error) {
 			this._logService.warn(`Failed to send begin repo info telemetry ${error}`);
 		}
@@ -137,8 +145,9 @@ export class RepoInfoTelemetry {
 	public async sendEndTelemetry(): Promise<void> {
 		await this._beginTelemetryPromise;
 
-		// Skip end telemetry if begin wasn't successful
-		if (!shouldSendEndTelemetry(this._beginTelemetryResult)) {
+		// Skip end telemetry if no repos had a result that warrants an end event
+		const hasAnyEndCandidate = Array.from(this._beginTelemetryResults.values()).some(shouldSendEndTelemetry);
+		if (!hasAnyEndCandidate) {
 			return;
 		}
 
@@ -149,38 +158,93 @@ export class RepoInfoTelemetry {
 		}
 	}
 
-	private async _sendRepoInfoTelemetry(location: 'begin' | 'end'): Promise<RepoInfoTelemetryData | undefined> {
+	private async _sendRepoInfoTelemetry(location: 'begin' | 'end'): Promise<Map<string, RepoInfoTelemetryData | undefined>> {
+		const results = new Map<string, RepoInfoTelemetryData | undefined>();
 		if (this._configurationService.getConfig(ConfigKey.TeamInternal.DisableRepoInfoTelemetry)) {
-			return undefined;
+			return results;
 		}
 
-		const repoInfo = await this._getRepoInfoTelemetry();
-		if (!repoInfo) {
-			return undefined;
+		const allRepositories = this._gitService.repositories ?? [];
+		const totalRepoCount = allRepositories.length;
+		if (totalRepoCount === 0) {
+			return results;
 		}
 
-		const internalProperties: RepoInfoInternalTelemetryProperties = {
-			...repoInfo.properties,
-			location,
-			telemetryMessageId: this._telemetryMessageId
-		};
-
+		const activeRepoUri = this._gitService.activeRepository?.get()?.rootUri;
 		const isInternal = !!this._copilotTokenStore.copilotToken?.isInternal;
-		if (isInternal) {
-			const { headBranchName: _, fileRelativePaths: _2, ...msftProperties } = internalProperties;
-			this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', msftProperties, repoInfo.measurements);
-		}
-		this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', internalProperties, repoInfo.measurements);
 
-		return repoInfo;
+		// Cap the number of repos we process per request. Always include the active repo, then fill
+		// remaining slots from the workspace order. `repoCount` in measurements reports the TRUE total
+		// so dashboards can detect sampling.
+		const repositories: RepoContext[] = [];
+		if (activeRepoUri) {
+			const active = allRepositories.find(r => extUriBiasedIgnorePathCase.isEqual(r.rootUri, activeRepoUri));
+			if (active) {
+				repositories.push(active);
+			}
+		}
+		for (const r of allRepositories) {
+			if (repositories.length >= MAX_REPOS_FOR_TELEMETRY) {
+				break;
+			}
+			if (!repositories.includes(r)) {
+				repositories.push(r);
+			}
+		}
+
+		// Use allSettled so a failure on one repo does not drop telemetry for siblings.
+		const settled = await Promise.allSettled(repositories.map(async (repoContext, repoIndex) => {
+			const rootUriKey = repoContext.rootUri.toString();
+			const isActiveRepository = !!activeRepoUri && extUriBiasedIgnorePathCase.isEqual(repoContext.rootUri, activeRepoUri);
+
+			// For end events, only emit for repos whose begin result warranted an end event.
+			if (location === 'end' && !shouldSendEndTelemetry(this._beginTelemetryResults.get(rootUriKey))) {
+				return { rootUriKey, data: undefined };
+			}
+
+			const data = await this._getRepoInfoTelemetryForRepo(repoContext, repoIndex, totalRepoCount, isActiveRepository);
+			return { rootUriKey, data };
+		}));
+
+		const perRepo: { rootUriKey: string; data: RepoInfoTelemetryData | undefined }[] = [];
+		for (let i = 0; i < settled.length; i++) {
+			const outcome = settled[i];
+			if (outcome.status === 'fulfilled') {
+				perRepo.push(outcome.value);
+			} else {
+				this._logService.warn(`Failed to compute repo info telemetry for repo ${repositories[i].rootUri.toString()}: ${outcome.reason}`);
+				perRepo.push({ rootUriKey: repositories[i].rootUri.toString(), data: undefined });
+			}
+		}
+
+		for (const { rootUriKey, data } of perRepo) {
+			results.set(rootUriKey, data);
+			if (location === 'begin') {
+				// Populate begin-results within the same promise so any awaiter of `_beginTelemetryPromise`
+				// is guaranteed to see populated results without relying on continuation ordering.
+				this._beginTelemetryResults.set(rootUriKey, data?.properties.result);
+			}
+			if (!data) {
+				continue;
+			}
+
+			const internalProperties: RepoInfoInternalTelemetryProperties = {
+				...data.properties,
+				location,
+				telemetryMessageId: this._telemetryMessageId
+			};
+
+			if (isInternal) {
+				const { headBranchName: _, fileRelativePaths: _2, ...msftProperties } = internalProperties;
+				this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', msftProperties, data.measurements);
+			}
+			this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', internalProperties, data.measurements);
+		}
+
+		return results;
 	}
 
-	private async _resolveRepoContext(): Promise<{ repoContext: RepoContext; repoInfo: ResolvedRepoRemoteInfo; repository: Repository; upstreamCommit: string; headBranchName: string | undefined } | undefined> {
-		const repoContext = this._gitService.activeRepository?.get();
-		if (!repoContext) {
-			return;
-		}
-
+	private async _resolveRepoContext(repoContext: RepoContext): Promise<{ repoInfo: ResolvedRepoRemoteInfo; repository: Repository; upstreamCommit: string; headBranchName: string | undefined } | undefined> {
 		const repoInfo = Array.from(getOrderedRepoInfosFromContext(repoContext))[0];
 		if (!repoInfo || !repoInfo.fetchUrl) {
 			return;
@@ -206,16 +270,16 @@ export class RepoInfoTelemetry {
 		}
 
 		const headBranchName = repository.state.HEAD?.name;
-		return { repoContext, repoInfo, repository, upstreamCommit, headBranchName };
+		return { repoInfo, repository, upstreamCommit, headBranchName };
 	}
 
-	private async _getRepoInfoTelemetry(): Promise<RepoInfoTelemetryData | undefined> {
-		const ctx = await this._resolveRepoContext();
+	private async _getRepoInfoTelemetryForRepo(repoContext: RepoContext, repoIndex: number, repoCount: number, isActiveRepository: boolean): Promise<RepoInfoTelemetryData | undefined> {
+		const ctx = await this._resolveRepoContext(repoContext);
 		if (!ctx) {
 			return;
 		}
 
-		const { repoContext, repoInfo, repository, upstreamCommit, headBranchName } = ctx;
+		const { repoInfo, repository, upstreamCommit, headBranchName } = ctx;
 		const normalizedFetchUrl = normalizeFetchUrl(repoInfo.fetchUrl!);
 
 		const skipDiffResult = (result: RepoInfoTelemetryResult): RepoInfoTelemetryData => ({
@@ -228,11 +292,14 @@ export class RepoInfoTelemetry {
 				fileRelativePaths: undefined,
 				diffsJSON: undefined,
 				result,
+				isActiveRepository: isActiveRepository ? 'true' : 'false',
 			},
 			measurements: {
 				workspaceFileCount: 0,
 				changedFileCount: 0,
 				diffSizeBytes: 0,
+				repoIndex,
+				repoCount,
 			}
 		});
 
@@ -280,10 +347,9 @@ export class RepoInfoTelemetry {
 			return skipDiffResult('tooManyCommits');
 		}
 
-		// Before we calculate our async diffs, sign up for file system change events
-		// Any changes during the async operations will invalidate our diff data and we send it
-		// as a failure without a diffs
-		const watcher = this._fileSystemService.createFileSystemWatcher('**/*');
+		// Before we calculate our async diffs, sign up for file system change events scoped to this repo.
+		// A change in another repo should not invalidate this repo's diff.
+		const watcher = this._fileSystemService.createFileSystemWatcher(new RelativePattern(repoContext.rootUri, '**/*'));
 		let filesChanged = false;
 		const createDisposable = watcher.onDidCreate(() => filesChanged = true);
 		const changeDisposable = watcher.onDidChange(() => filesChanged = true);
@@ -296,6 +362,7 @@ export class RepoInfoTelemetry {
 				repoType: repoInfo.repoId.type,
 				headCommitHash: upstreamCommit,
 				headBranchName,
+				isActiveRepository: isActiveRepository ? 'true' : 'false',
 			};
 
 			// Workspace file index will be used to get a rough count of files in the repository
@@ -306,6 +373,8 @@ export class RepoInfoTelemetry {
 				workspaceFileCount: this._workspaceFileIndex.fileCount,
 				changedFileCount: 0, // Will be updated
 				diffSizeBytes: 0, // Will be updated
+				repoIndex,
+				repoCount,
 			};
 
 			// Combine our diff against the upstream commit with untracked changes, and working tree changes

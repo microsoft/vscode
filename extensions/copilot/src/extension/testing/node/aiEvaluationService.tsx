@@ -39,7 +39,7 @@ export class AIEvaluationService implements IAIEvaluationService {
 	}
 
 	async evaluate(response: string, criteria: string, token: CancellationToken): Promise<EvaluationResult> {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
+		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 		const promptRenderer = PromptRenderer.create(this.instantiationService, endpoint, EvaluationPrompt, {
 			response, criteria
 		});

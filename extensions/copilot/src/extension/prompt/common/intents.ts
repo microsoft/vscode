@@ -44,8 +44,8 @@ export interface IToolCallRound {
 	hookContext?: string;
 	/** The phase of the agent loop during which this tool call round occurred. */
 	phase?: string;
-	/** The model ID that produced the phase value. */
-	phaseModelId?: string;
+	/** The model ID. */
+	modelId?: string;
 }
 
 export interface InternalToolReference extends vscode.ChatLanguageModelToolReference {

@@ -47,6 +47,7 @@ export type OTelMessagePart =
 	| { type: 'text'; content: string }
 	| { type: 'tool_call'; id: string; name: string; arguments: unknown }
 	| { type: 'tool_call_response'; id: string; response: unknown }
+	| { type: 'tool_search_output'; id: string; tools?: unknown; status?: string }
 	| { type: 'reasoning'; content: string };
 
 export type OTelSystemInstruction = Array<{ type: 'text'; content: string }>;
@@ -130,26 +131,112 @@ export function toOutputMessages(choices: ReadonlyArray<{
 }
 
 /**
- * Convert system message to OTel system instruction format.
+ * Convert system message text to OTel system instruction format.
+ * Accepts a single string or an array (one block per entry). Returns
+ * `undefined` when no non-empty text is available.
  */
-export function toSystemInstructions(systemMessage: string | undefined): OTelSystemInstruction | undefined {
-	if (!systemMessage) {
+export function toSystemInstructions(systemMessage: string | ReadonlyArray<string> | undefined): OTelSystemInstruction | undefined {
+	if (systemMessage === undefined) {
 		return undefined;
 	}
-	return [{ type: 'text', content: systemMessage }];
+	const inputs = Array.isArray(systemMessage) ? systemMessage : [systemMessage as string];
+	const blocks = inputs
+		.filter(s => typeof s === 'string' && s.length > 0)
+		.map(content => ({ type: 'text' as const, content }));
+	return blocks.length > 0 ? blocks : undefined;
 }
 
 /**
- * Normalize provider-specific messages (Anthropic content blocks, OpenAI tool messages)
- * to OTel GenAI semantic convention format.
+ * Extract plain text from a message-content value (string or array of
+ * content blocks). Returns an empty string when no text can be extracted.
+ */
+export function extractTextFromContent(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (Array.isArray(content)) {
+		return content
+			.map(block => {
+				if (typeof block === 'string') { return block; }
+				if (block && typeof block === 'object') {
+					const b = block as { text?: unknown; content?: unknown };
+					if (typeof b.text === 'string') { return b.text; }
+					if (typeof b.content === 'string') { return b.content; }
+				}
+				return '';
+			})
+			.filter(s => s.length > 0)
+			.join('\n');
+	}
+	return '';
+}
+
+/**
+ * Collect system-instruction text from a provider request body. Uses
+ * messages-level `system` entries when present, otherwise falls back to
+ * top-level `system` or `instructions`.
+ */
+export function collectSystemTextsFromRequestBody(requestBody: {
+	readonly messages?: ReadonlyArray<{ role?: unknown; content?: unknown }>;
+	readonly input?: ReadonlyArray<{ role?: unknown; content?: unknown }>;
+	readonly system?: unknown;
+	readonly instructions?: unknown;
+}): string[] {
+	const systemTexts: string[] = [];
+	const capiMessages = requestBody.messages ?? requestBody.input;
+	if (capiMessages) {
+		for (const m of capiMessages) {
+			if (m.role === 'system') {
+				const t = extractTextFromContent(m.content);
+				if (t) { systemTexts.push(t); }
+			}
+		}
+	}
+	if (systemTexts.length === 0) {
+		const topLevelSystem = extractTextFromContent(requestBody.system ?? requestBody.instructions);
+		if (topLevelSystem) { systemTexts.push(topLevelSystem); }
+	}
+	return systemTexts;
+}
+
+/**
+ * Normalize provider-specific messages (Anthropic content blocks, OpenAI
+ * Chat Completions, OpenAI Responses API) to OTel GenAI semantic
+ * convention format.
  *
  * Handles:
- * - Anthropic content block arrays: tool_use → tool_call, tool_result → tool_call_response
- * - OpenAI format: tool_calls, role=tool with tool_call_id
+ * - Anthropic content block arrays: tool_use → tool_call, tool_result → tool_call_response, thinking → reasoning
+ * - OpenAI Chat Completions: tool_calls, role=tool with tool_call_id
+ * - OpenAI Responses API items: `type: 'message'` with `input_text` /
+ *   `output_text` content blocks; `type: 'function_call'` →
+ *   role=assistant + tool_call; `type: 'function_call_output'` →
+ *   role=tool + tool_call_response; `type: 'tool_search_output'` →
+ *   role=tool_search + tool_search_output; `type: 'reasoning'` →
+ *   role=assistant + reasoning part
  * - Plain string content
  */
 export function normalizeProviderMessages(messages: ReadonlyArray<Record<string, unknown>>): OTelChatMessage[] {
 	return messages.map(msg => {
+		// OpenAI Responses API items use `type` rather than (or in addition
+		// to) `role` to distinguish item kinds. Handle them up front so we
+		// always emit a populated `role` and `parts` array — otherwise the
+		// downstream cache-explorer diff sees `{role: undefined, parts: []}`
+		// for every item and reports the prompt as empty/unknown.
+		const itemType = msg.type as string | undefined;
+		switch (itemType) {
+			case 'function_call':
+				return normalizeResponsesFunctionCall(msg);
+			case 'function_call_output':
+				return normalizeResponsesFunctionCallOutput(msg);
+			case 'tool_search_output':
+				return normalizeResponsesToolSearchOutput(msg);
+			case 'reasoning':
+				return normalizeResponsesReasoning(msg);
+			// `type: 'message'` falls through — its `role` and `content` are
+			// handled by the regular branch below, with the addition that
+			// content blocks may be `input_text` / `output_text`.
+		}
+
 		const role = msg.role as string | undefined;
 		const parts: OTelMessagePart[] = [];
 		const content = msg.content;
@@ -163,12 +250,16 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 		if (typeof content === 'string' && content.length > 0) {
 			parts.push({ type: 'text', content });
 		} else if (Array.isArray(content)) {
-			// Anthropic content block array
+			// Anthropic content block array — and also OpenAI Responses API
+			// `message` content arrays, which use `input_text` / `output_text`
+			// instead of `text` for the block type.
 			for (const block of content) {
 				if (!block || typeof block !== 'object') { continue; }
 				const b = block as Record<string, unknown>;
 				switch (b.type) {
 					case 'text':
+					case 'input_text':
+					case 'output_text':
 						if (typeof b.text === 'string') {
 							parts.push({ type: 'text', content: b.text });
 						}
@@ -226,6 +317,106 @@ export function normalizeProviderMessages(messages: ReadonlyArray<Record<string,
 }
 
 /**
+ * Normalize an OpenAI Responses API `function_call` item into a synthetic
+ * assistant message carrying a single `tool_call` part. The Responses API
+ * separates these from the conversation message stream; we re-attach them
+ * to a synthetic role so downstream consumers (cache explorer, telemetry
+ * viewers) can treat them uniformly with Chat Completions tool calls.
+ */
+function normalizeResponsesFunctionCall(msg: Record<string, unknown>): OTelChatMessage {
+	let args: unknown = msg.arguments;
+	if (typeof args === 'string') {
+		try { args = JSON.parse(args); } catch { /* keep raw string */ }
+	}
+	return {
+		role: 'assistant',
+		parts: [{
+			type: 'tool_call',
+			id: String(msg.call_id ?? msg.id ?? ''),
+			name: String(msg.name ?? ''),
+			arguments: args,
+		}],
+	};
+}
+
+/**
+ * Normalize an OpenAI Responses API `function_call_output` item into a
+ * synthetic tool message carrying a `tool_call_response` part. Mirrors how
+ * Chat Completions surfaces tool results via `role: 'tool'` messages.
+ */
+function normalizeResponsesFunctionCallOutput(msg: Record<string, unknown>): OTelChatMessage {
+	const output = msg.output;
+	let response: unknown;
+	if (typeof output === 'string') {
+		response = output;
+	} else if (Array.isArray(output)) {
+		// Output may be an array of `{ type: 'output_text', text }` blocks.
+		response = output
+			.map(b => (b && typeof b === 'object' && typeof (b as Record<string, unknown>).text === 'string') ? (b as Record<string, unknown>).text as string : JSON.stringify(b))
+			.join('');
+	} else {
+		response = output ?? '';
+	}
+	return {
+		role: 'tool',
+		parts: [{
+			type: 'tool_call_response',
+			id: String(msg.call_id ?? msg.id ?? ''),
+			response,
+		}],
+	};
+}
+
+/**
+ * Normalize an OpenAI Responses API `tool_search_output` item. This is a
+ * client-executed deferred-tool continuation: the request body only carries
+ * the newly resolved tool definitions, while the provider reconstructs the
+ * prior conversation from `previous_response_id`. Keep it distinct from a
+ * normal tool result so the Cache Explorer can label this request shape.
+ */
+function normalizeResponsesToolSearchOutput(msg: Record<string, unknown>): OTelChatMessage {
+	// Preserve the absent-vs-empty distinction: a request that omits `tools`
+	// is byte-different from one that sends `tools: []`, and that distinction
+	// can affect cache-key matching downstream. Build the part conditionally
+	// so the `tools` key is fully absent when the source request omits it.
+	const hasTools = Object.prototype.hasOwnProperty.call(msg, 'tools') && msg.tools !== undefined;
+	const part: { type: 'tool_search_output'; id: string; tools?: unknown; status?: string } = {
+		type: 'tool_search_output',
+		id: String(msg.call_id ?? msg.id ?? ''),
+		status: typeof msg.status === 'string' ? msg.status : undefined,
+	};
+	if (hasTools) {
+		part.tools = msg.tools;
+	}
+	return { role: 'tool_search', parts: [part] };
+}
+
+/**
+ * Normalize an OpenAI Responses API `reasoning` item. The Responses API
+ * doesn't expose plaintext reasoning unless `reasoning.summary` is enabled;
+ * when only `encrypted_content` is present, we still emit a non-empty part
+ * carrying the encrypted blob so the cache-explorer prefix diff includes
+ * its byte length (which IS part of the cache key).
+ */
+function normalizeResponsesReasoning(msg: Record<string, unknown>): OTelChatMessage {
+	const parts: OTelMessagePart[] = [];
+	const summary = msg.summary;
+	if (Array.isArray(summary)) {
+		for (const s of summary) {
+			if (s && typeof s === 'object' && typeof (s as Record<string, unknown>).text === 'string') {
+				parts.push({ type: 'reasoning', content: (s as Record<string, unknown>).text as string });
+			}
+		}
+	} else if (typeof summary === 'string') {
+		parts.push({ type: 'reasoning', content: summary });
+	}
+	if (typeof msg.encrypted_content === 'string') {
+		parts.push({ type: 'reasoning', content: msg.encrypted_content });
+	}
+	return { role: 'assistant', parts };
+}
+
+/**
  * Convert tool definitions to OTel `gen_ai.tool.definitions` format.
  *
  * Accepts the variants emitted by the different request bodies/providers:
@@ -267,4 +458,74 @@ export function toToolDefinitions(tools: ReadonlyArray<{
 		});
 	}
 	return out.length > 0 ? out : undefined;
+}
+
+// Tool-definition JSON is multi-MB and reused across many telemetry/OTel sites
+// per LLM round, often byte-identical across consecutive agent-loop rounds.
+// Intern by array reference (WeakMap) plus a single-slot last-string cache so
+// content-equal serializations from distinct refs collapse to one instance.
+
+const toolDefsJsonByRef = new WeakMap<object, string>();
+const toolsRawJsonByRef = new WeakMap<object, string>();
+let lastToolDefsJson: string | undefined;
+let lastToolsRawJson: string | undefined;
+
+function internToolDefsString(s: string): string {
+	if (lastToolDefsJson !== undefined && lastToolDefsJson === s) {
+		return lastToolDefsJson;
+	}
+	lastToolDefsJson = s;
+	return s;
+}
+
+function internToolsRawString(s: string): string {
+	if (lastToolsRawJson !== undefined && lastToolsRawJson === s) {
+		return lastToolsRawJson;
+	}
+	lastToolsRawJson = s;
+	return s;
+}
+
+/**
+ * Return the OTel-normalized JSON string for a tools array, memoized so all
+ * telemetry/span sites within (and across consecutive identical rounds of) an
+ * LLM call share a single string instance. Returns `undefined` if no
+ * normalized tools would be emitted.
+ */
+export function stringifyToolDefinitionsForOTel(tools: Parameters<typeof toToolDefinitions>[0]): string | undefined {
+	if (!tools || tools.length === 0) {
+		return undefined;
+	}
+	const cached = toolDefsJsonByRef.get(tools);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const defs = toToolDefinitions(tools);
+	if (!defs) {
+		return undefined;
+	}
+	const s = internToolDefsString(JSON.stringify(defs));
+	toolDefsJsonByRef.set(tools, s);
+	return s;
+}
+
+/**
+ * Return `JSON.stringify(tools)` memoized by array reference, with a
+ * single-slot content intern so consecutive rounds producing identical content
+ * share one string instance. Used for telemetry sinks that consume the raw
+ * tools shape rather than the OTel-normalized one. Mirrors `JSON.stringify`
+ * exactly: returns `'[]'` for an empty array and `undefined` only when
+ * `tools` itself is `undefined`.
+ */
+export function stringifyToolsRawForTelemetry(tools: ReadonlyArray<unknown> | undefined): string | undefined {
+	if (!tools) {
+		return undefined;
+	}
+	const cached = toolsRawJsonByRef.get(tools);
+	if (cached !== undefined) {
+		return cached;
+	}
+	const s = internToolsRawString(JSON.stringify(tools));
+	toolsRawJsonByRef.set(tools, s);
+	return s;
 }

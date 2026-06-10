@@ -149,7 +149,7 @@ jobs:
         run: |
           node -e "
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
-            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server.ts');
             const userInput = process.env.SCENARIOS_INPUT || '';
             const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
             const allScens = parsed.length > 0 ? parsed : getScenarioIds();
@@ -215,7 +215,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 
@@ -243,7 +243,7 @@ jobs:
           node -e "
             const fs = require('fs');
             require('./scripts/chat-simulation/common/perf-scenarios').registerPerfScenarios();
-            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server');
+            const { getScenarioIds } = require('./scripts/chat-simulation/common/mock-llm-server.ts');
             const userInput = process.env.SCENARIOS_INPUT || '';
             const parsed = userInput.split(',').map(s => s.trim()).filter(Boolean);
             const allScens = parsed.length > 0 ? parsed : getScenarioIds();
@@ -388,7 +388,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download build output
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: build-output
 
@@ -468,14 +468,14 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Download perf summary data
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: perf-summary-*
           path: perf-results
 
       - name: Download leak results
         if: inputs.skip_leak_check != true && needs.leak-check.result != 'skipped'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: leak-results
           path: leak-results

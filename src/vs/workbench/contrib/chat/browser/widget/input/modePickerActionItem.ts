@@ -290,15 +290,12 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
-		const collapsed = this.pickerOptions.hideChevrons.get();
+		const collapsed = this.pickerOptions.compact.get();
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
 		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
-		}
-		if (!collapsed) {
-			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 		}
 
 		dom.reset(element, ...labelElements);

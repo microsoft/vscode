@@ -9,10 +9,10 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionTurnStartedAction, type SessionDeltaAction, type SessionResponsePartAction, type SessionToolCallStartAction, type SessionToolCallDeltaAction, type SessionToolCallReadyAction, type SessionToolCallConfirmedAction, type SessionToolCallCompleteAction, type SessionToolCallResultConfirmedAction, type SessionToolCallContentChangedAction, type SessionTurnCompleteAction, type SessionTurnCancelledAction, type SessionErrorAction, type SessionTitleChangedAction, type SessionUsageAction, type SessionReasoningAction, type SessionModelChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientChangedAction, type SessionActiveClientToolsChangedAction, type SessionPendingMessageSetAction, type SessionPendingMessageRemovedAction, type SessionQueuedMessagesReorderedAction, type SessionInputRequestedAction, type SessionInputAnswerChangedAction, type SessionInputCompletedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionTruncatedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionDiffsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction } from './actions.js';
+import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionTurnStartedAction, type SessionDeltaAction, type SessionResponsePartAction, type SessionToolCallStartAction, type SessionToolCallDeltaAction, type SessionToolCallReadyAction, type SessionToolCallConfirmedAction, type SessionToolCallCompleteAction, type SessionToolCallResultConfirmedAction, type SessionToolCallContentChangedAction, type SessionTurnCompleteAction, type SessionTurnCancelledAction, type SessionErrorAction, type SessionTitleChangedAction, type SessionUsageAction, type SessionReasoningAction, type SessionModelChangedAction, type SessionAgentChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientChangedAction, type SessionActiveClientToolsChangedAction, type SessionPendingMessageSetAction, type SessionPendingMessageRemovedAction, type SessionQueuedMessagesReorderedAction, type SessionInputRequestedAction, type SessionInputAnswerChangedAction, type SessionInputCompletedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionCustomizationRemovedAction, type SessionMcpServerStateChangedAction, type SessionTruncatedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetOperationsChangedAction, type ChangesetOperationStatusChangedAction, type ChangesetClearedAction, type AnnotationsSetAction, type AnnotationsUpdatedAction, type AnnotationsRemovedAction, type AnnotationsEntrySetAction, type AnnotationsEntryRemovedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type ResourceWatchChangedAction } from './actions.js';
 
 
-// ─── Root vs Session vs Terminal Action Unions ───────────────────────────────
+// ─── Root vs Session vs Terminal vs Changeset Action Unions ─────────────────
 
 /** Union of all root-scoped actions. */
 export type RootAction =
@@ -55,6 +55,7 @@ export type SessionAction =
 	| SessionUsageAction
 	| SessionReasoningAction
 	| SessionModelChangedAction
+	| SessionAgentChangedAction
 	| SessionServerToolsChangedAction
 	| SessionActiveClientChangedAction
 	| SessionActiveClientToolsChangedAction
@@ -66,11 +67,14 @@ export type SessionAction =
 	| SessionInputCompletedAction
 	| SessionCustomizationsChangedAction
 	| SessionCustomizationToggledAction
+	| SessionCustomizationUpdatedAction
+	| SessionCustomizationRemovedAction
+	| SessionMcpServerStateChangedAction
 	| SessionTruncatedAction
 	| SessionIsReadChangedAction
 	| SessionIsArchivedChangedAction
 	| SessionActivityChangedAction
-	| SessionDiffsChangedAction
+	| SessionChangesetsChangedAction
 	| SessionConfigChangedAction
 	| SessionMetaChangedAction
 	;
@@ -85,6 +89,7 @@ export type ClientSessionAction =
 	| SessionTurnCancelledAction
 	| SessionTitleChangedAction
 	| SessionModelChangedAction
+	| SessionAgentChangedAction
 	| SessionActiveClientChangedAction
 	| SessionActiveClientToolsChangedAction
 	| SessionPendingMessageSetAction
@@ -115,8 +120,11 @@ export type ServerSessionAction =
 	| SessionServerToolsChangedAction
 	| SessionInputRequestedAction
 	| SessionCustomizationsChangedAction
+	| SessionCustomizationUpdatedAction
+	| SessionCustomizationRemovedAction
+	| SessionMcpServerStateChangedAction
 	| SessionActivityChangedAction
-	| SessionDiffsChangedAction
+	| SessionChangesetsChangedAction
 	| SessionMetaChangedAction
 	;
 
@@ -154,6 +162,69 @@ export type ServerTerminalAction =
 	| TerminalCommandFinishedAction
 	;
 
+/** Union of all changeset-scoped actions. */
+export type ChangesetAction =
+	| ChangesetStatusChangedAction
+	| ChangesetFileSetAction
+	| ChangesetFileRemovedAction
+	| ChangesetOperationsChangedAction
+	| ChangesetOperationStatusChangedAction
+	| ChangesetClearedAction
+	;
+
+/** Union of changeset actions that clients may dispatch. */
+export type ClientChangesetAction =
+	never
+	;
+
+/** Union of changeset actions that only the server may produce. */
+export type ServerChangesetAction =
+	| ChangesetStatusChangedAction
+	| ChangesetFileSetAction
+	| ChangesetFileRemovedAction
+	| ChangesetOperationsChangedAction
+	| ChangesetOperationStatusChangedAction
+	| ChangesetClearedAction
+	;
+
+/** Union of all annotations-scoped actions. */
+export type AnnotationsAction =
+	| AnnotationsSetAction
+	| AnnotationsUpdatedAction
+	| AnnotationsRemovedAction
+	| AnnotationsEntrySetAction
+	| AnnotationsEntryRemovedAction
+	;
+
+/** Union of annotations actions that clients may dispatch. */
+export type ClientAnnotationsAction =
+	| AnnotationsSetAction
+	| AnnotationsUpdatedAction
+	| AnnotationsRemovedAction
+	| AnnotationsEntrySetAction
+	| AnnotationsEntryRemovedAction
+	;
+
+/** Union of annotations actions that only the server may produce. */
+export type ServerAnnotationsAction =
+	never
+	;
+
+/** Union of all resource-watch-scoped actions. */
+export type ResourceWatchAction =
+	| ResourceWatchChangedAction
+	;
+
+/** Union of resource-watch actions that clients may dispatch. */
+export type ClientResourceWatchAction =
+	never
+	;
+
+/** Union of resource-watch actions that only the server may produce. */
+export type ServerResourceWatchAction =
+	| ResourceWatchChangedAction
+	;
+
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
 
 /**
@@ -184,6 +255,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.SessionUsage]: false,
 	[ActionType.SessionReasoning]: false,
 	[ActionType.SessionModelChanged]: true,
+	[ActionType.SessionAgentChanged]: true,
 	[ActionType.SessionServerToolsChanged]: false,
 	[ActionType.SessionActiveClientChanged]: true,
 	[ActionType.SessionActiveClientToolsChanged]: true,
@@ -195,13 +267,27 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.SessionInputCompleted]: true,
 	[ActionType.SessionCustomizationsChanged]: false,
 	[ActionType.SessionCustomizationToggled]: true,
+	[ActionType.SessionCustomizationUpdated]: false,
+	[ActionType.SessionCustomizationRemoved]: false,
+	[ActionType.SessionMcpServerStateChanged]: false,
 	[ActionType.SessionTruncated]: true,
 	[ActionType.SessionIsReadChanged]: true,
 	[ActionType.SessionIsArchivedChanged]: true,
 	[ActionType.SessionActivityChanged]: false,
-	[ActionType.SessionDiffsChanged]: false,
+	[ActionType.SessionChangesetsChanged]: false,
 	[ActionType.SessionConfigChanged]: true,
 	[ActionType.SessionMetaChanged]: false,
+	[ActionType.ChangesetStatusChanged]: false,
+	[ActionType.ChangesetFileSet]: false,
+	[ActionType.ChangesetFileRemoved]: false,
+	[ActionType.ChangesetOperationsChanged]: false,
+	[ActionType.ChangesetOperationStatusChanged]: false,
+	[ActionType.ChangesetCleared]: false,
+	[ActionType.AnnotationsSet]: true,
+	[ActionType.AnnotationsUpdated]: true,
+	[ActionType.AnnotationsRemoved]: true,
+	[ActionType.AnnotationsEntrySet]: true,
+	[ActionType.AnnotationsEntryRemoved]: true,
 	[ActionType.TerminalData]: false,
 	[ActionType.TerminalInput]: true,
 	[ActionType.TerminalResized]: true,
@@ -213,4 +299,5 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.TerminalCommandDetectionAvailable]: false,
 	[ActionType.TerminalCommandExecuted]: false,
 	[ActionType.TerminalCommandFinished]: false,
+	[ActionType.ResourceWatchChanged]: false,
 };

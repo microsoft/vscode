@@ -31,6 +31,32 @@ declare module 'vscode' {
 		 * Displayed in the model management UI as the cost per million cached tokens.
 		 */
 		readonly cacheCost?: number;
+
+		/**
+		 * Optional long-context input cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 * Displayed in the model picker hover as the cost per million input tokens
+		 * when the prompt exceeds the default context window.
+		 */
+		readonly longContextInputCost?: number;
+
+		/**
+		 * Optional long-context output cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextOutputCost?: number;
+
+		/**
+		 * Optional long-context cache cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextCacheCost?: number;
+
+		/**
+		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
+		 * Displayed in the model picker as a visual indicator of relative cost.
+		 */
+		readonly priceCategory?: string;
 	}
 
 	export interface LanguageModelChat {
@@ -54,5 +80,29 @@ declare module 'vscode' {
 		 * Optional cache cost in AI credits for this model.
 		 */
 		readonly cacheCost?: number;
+
+		/**
+		 * Optional long-context input cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextInputCost?: number;
+
+		/**
+		 * Optional long-context output cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextOutputCost?: number;
+
+		/**
+		 * Optional long-context cache cost in AI credits for this model.
+		 * Present only when long-context pricing differs from default pricing.
+		 */
+		readonly longContextCacheCost?: number;
+
+		/**
+		 * Optional relative pricing category for this model (e.g. "low", "medium", "high", "very_high").
+		 * Displayed in the model picker as a visual indicator of relative cost.
+		 */
+		readonly priceCategory?: string;
 	}
 }

@@ -34,7 +34,7 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
 import { getEndPositionsAfterApplying, removeTextReplacementCommonSuffixPrefix } from '../utils.js';
-import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from './animation.js';
+import { AnimatedValue, easeOutCubic, ObservableAnimatedValue } from '../../../../../base/browser/animatedValue.js';
 import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
@@ -78,7 +78,7 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
-		return isSuggestionInViewport(this._editor, state.inlineSuggestion);
+		return isSuggestionInViewport(this._editor, state.inlineSuggestion, reader);
 	});
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
@@ -1203,7 +1203,8 @@ export class InlineCompletionsModel extends Disposable {
 	 * Used for cross-file inline edits.
 	 */
 	public transplantCompletion(item: InlineSuggestionItem): void {
-		item.addRef();
+		// No explicit addRef needed: `seedWithCompletion` creates a new `InlineCompletionsState`
+		// which calls `addRef` on every item it holds and pairs it with `removeRef` in dispose.
 		transaction(tx => {
 			this._source.seedWithCompletion(item, tx);
 			this._isActive.set(true, tx);
@@ -1282,13 +1283,12 @@ class FadeoutDecoration extends Disposable {
 			}
 		})))));
 
-		const animation = new AnimatedValue(1, 0, 1000, easeOutCubic);
-		const val = new ObservableAnimatedValue(animation);
+		const val = new ObservableAnimatedValue(AnimatedValue.startNow(1, 0, 1000, easeOutCubic));
 
 		this._register(autorun(reader => {
 			const opacity = val.getValue(reader);
 			editor.getContainerDomNode().style.setProperty('--animation-opacity', opacity.toString());
-			if (animation.isFinished()) {
+			if (val.isFinished(reader)) {
 				this.dispose();
 			}
 		}));

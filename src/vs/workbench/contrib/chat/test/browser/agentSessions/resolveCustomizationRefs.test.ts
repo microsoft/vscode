@@ -16,6 +16,7 @@ import { type ICustomizationSyncProvider } from '../../../common/customizationHa
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage): IPromptPath {
 	return { uri, type, storage } as IPromptPath;
@@ -49,13 +50,13 @@ type LocalSyncableFile = { readonly uri: URI; readonly type: PromptsType };
 
 class FakeBundler {
 	readonly received: LocalSyncableFile[][] = [];
-	constructor(private readonly _result: { uri: string; displayName: string } | undefined = { uri: 'open-plugin://bundle', displayName: 'Open Plugin' }) { }
+	constructor(private readonly _result: { uri: string; name: string } | undefined = { uri: 'open-plugin://bundle', name: 'Open Plugin' }) { }
 	async bundle(files: readonly LocalSyncableFile[]) {
 		this.received.push([...files]);
 		if (!this._result) {
 			return undefined;
 		}
-		return { ref: { uri: this._result.uri as never, displayName: this._result.displayName }, paths: [] };
+		return { ref: { type: 'plugin' as const, id: this._result.uri, uri: this._result.uri as never, name: this._result.name, enabled: true }, paths: [] };
 	}
 }
 
@@ -75,6 +76,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -82,7 +84,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			{ uri: builtin.toString(), type: PromptsType.skill },
 		]);
 		assert.strictEqual(refs.length, 1);
-		assert.strictEqual(refs[0].displayName, 'Open Plugin');
+		assert.strictEqual(refs[0].name, 'Open Plugin');
 	});
 
 	test('omits disabled built-in skills from the bundle', async () => {
@@ -101,6 +103,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(new Set([disabled.toString()])),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.deepStrictEqual(bundler.received[0].map(f => f.uri.toString()), [enabled.toString()]);
@@ -110,7 +113,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const userAgent = URI.file('/user/agents/foo.agent.md');
 		const builtin = URI.file('/builtin/merge/SKILL.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.user}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.user)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(userAgent, PromptsType.agent, PromptsStorage.extension)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtin, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 		const bundler = new FakeBundler();
@@ -120,6 +123,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.strictEqual(bundler.received.length, 1);
@@ -144,6 +148,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(new Set([builtin.toString()])),
 			makeAgentPluginService(),
 			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 
 		assert.strictEqual(bundler.received.length, 0);
@@ -159,6 +164,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
 			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
 		);
 		assert.deepStrictEqual(refs, []);
 		// Use CancellationToken so the import isn't dead in the bundle.

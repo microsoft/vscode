@@ -3640,6 +3640,7 @@ export class ChatDebugModelTurnEvent {
 	cachedTokens?: number;
 	totalTokens?: number;
 	cost?: number;
+	copilotUsageNanoAiu?: number;
 	durationInMillis?: number;
 
 	constructor(created: Date) {
@@ -3840,10 +3841,14 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 	mimeType: string;
 	data: () => Thenable<Uint8Array>;
 	reference?: vscode.Uri;
-	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri) {
+	isPasted?: boolean;
+	isURL?: boolean;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>, reference?: vscode.Uri, isPasted?: boolean, isURL?: boolean) {
 		this.mimeType = mimeType;
 		this.data = data;
 		this.reference = reference;
+		this.isPasted = isPasted;
+		this.isURL = isURL;
 	}
 }
 

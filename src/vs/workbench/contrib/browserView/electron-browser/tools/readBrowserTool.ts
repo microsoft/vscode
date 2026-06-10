@@ -9,7 +9,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { createBrowserPageLink, errorResult } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getSessionId } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../common/browserChatToolReferenceNames.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
@@ -52,12 +52,13 @@ export class ReadBrowserTool implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
 		const params = invocation.parameters as IReadBrowserToolParams;
+		const sessionId = getSessionId(invocation);
 
 		if (!params.pageId) {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
-		const summary = await this.playwrightService.getSummary(params.pageId);
+		const summary = await this.playwrightService.getSummary(sessionId, params.pageId);
 		if (!summary) {
 			return errorResult('No page summary available.');
 		}

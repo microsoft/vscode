@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
-import { CustomizationStatus, type CustomizationRef, type SessionCustomization } from '../common/state/sessionState.js';
+import { CustomizationLoadStatus, type ClientPluginCustomization, type PluginCustomization } from '../common/state/sessionState.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 
 const DEFAULT_MAX_PLUGINS = 20;
@@ -61,35 +61,31 @@ export class AgentPluginManager implements IAgentPluginManager {
 		this._maxPlugins = maxPlugins;
 	}
 
+	get basePath(): URI {
+		return this._basePath;
+	}
+
 	async syncCustomizations(
 		clientId: string,
-		customizations: CustomizationRef[],
-		progress?: (status: SessionCustomization[]) => void,
+		customizations: ClientPluginCustomization[],
+		progress?: (status: PluginCustomization) => void,
 	): Promise<ISyncedCustomization[]> {
 		await this._ensureCacheLoaded();
 
-		// Build initial loading status and fire it immediately via progress
-		const statuses: SessionCustomization[] = customizations.map(c => ({
-			customization: c,
-			enabled: true,
-			status: CustomizationStatus.Loading,
-		}));
-		progress?.([...statuses]);
-
 		// Sync each customization in parallel, serialized per URI
-		const results = await Promise.all(customizations.map((ref, i) =>
+		const results = await Promise.all(customizations.map(ref =>
 			this._sequencer.queue(ref.uri, async (): Promise<ISyncedCustomization> => {
 				try {
 					const pluginDir = await this._syncPlugin(clientId, ref);
-					statuses[i] = { customization: ref, enabled: true, status: CustomizationStatus.Loaded };
-					progress?.([...statuses]);
-					return { customization: statuses[i], pluginDir };
+					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Loaded } };
+					progress?.(customization);
+					return { customization, pluginDir };
 				} catch (err) {
 					const message = err instanceof Error ? err.message : String(err);
 					this._logService.error(`[AgentPluginManager] Failed to sync plugin ${ref.uri}: ${message}`);
-					statuses[i] = { customization: ref, enabled: true, status: CustomizationStatus.Error, statusMessage: message };
-					progress?.([...statuses]);
-					return { customization: statuses[i] };
+					const customization: PluginCustomization = { ...ref, load: { kind: CustomizationLoadStatus.Error, message } };
+					progress?.(customization);
+					return { customization };
 				}
 			})
 		));
@@ -103,7 +99,7 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Syncs a single plugin to local storage. Skips the copy when the
 	 * nonce matches the cached value. Returns the local directory URI.
 	 */
-	private async _syncPlugin(clientId: string, ref: CustomizationRef): Promise<URI> {
+	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
 		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
 		const key = this._keyForUri(ref.uri);
 		const destDir = URI.joinPath(this._basePath, key);

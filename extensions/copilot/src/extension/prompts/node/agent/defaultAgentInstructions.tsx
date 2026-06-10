@@ -17,7 +17,7 @@ import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
 import { CodeBlockFormattingRules, EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
-import { MathIntegrationRules } from '../panel/editorIntegrationRules';
+import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
 
 // Types and interfaces for reusable components
 export interface ToolCapabilities extends Partial<Record<ToolName, boolean>> {
@@ -204,7 +204,7 @@ export class DefaultAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 					The function `calculateTotal` is defined in `lib/utils/math.ts`.<br />
 					You can find the configuration in `config/app.config.json`.
 				</Tag>
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;
@@ -219,6 +219,7 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 	async render(state: void, sizing: PromptSizing) {
 		const tools = detectToolCapabilities(this.props.availableTools);
 		const isGpt5 = this.props.modelFamily?.startsWith('gpt-5') === true;
+		const hasTodoTool = !!tools[ToolName.CoreManageTodoList];
 
 		return <InstructionMessage>
 			<Tag name='gptAgentInstructions'>
@@ -234,15 +235,17 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				# Workflow<br />
 				1. Understand the problem deeply. Carefully read the issue and think critically about what is required.<br />
 				2. Investigate the codebase. Explore relevant files, search for key functions, and gather context.<br />
-				3. Develop a clear, step-by-step plan. Break down the fix into manageable, incremental steps. Display those steps in a todo list ({tools[ToolName.CoreManageTodoList] ? `using the ${ToolName.CoreManageTodoList} tool` : 'using standard checkbox markdown syntax'}).<br />
+				3. Develop a clear, step-by-step plan. Break down the fix into manageable, incremental steps.{hasTodoTool && <> Display those steps in a todo list using the {ToolName.CoreManageTodoList} tool.</>}<br />
 				4. Implement the fix incrementally. Make small, testable code changes.<br />
 				5. Debug as needed. Use debugging techniques to isolate and resolve issues.<br />
 				6. Test frequently. Run tests after each change to verify correctness.<br />
 				7. Iterate until the root cause is fixed and all tests pass.<br />
 				8. Reflect and validate comprehensively. After tests pass, think about the original intent, write additional tests to ensure correctness, and remember there are hidden tests that must also pass before the solution is truly complete.<br />
+				{hasTodoTool && <>
 				**CRITICAL - Before ending your turn:**<br />
 				- Review and update the todo list, marking completed, skipped (with explanations), or blocked items.<br />
 				- Display the updated todo list. Never leave items unchecked, unmarked, or ambiguous.<br />
+				</>}
 				<br />
 				## 1. Deeply Understand the Problem<br />
 				- Carefully read the issue and think hard about a plan to solve it before coding.<br />
@@ -262,8 +265,10 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<br />
 				## 3. Develop a Detailed Plan<br />
 				- Outline a specific, simple, and verifiable sequence of steps to fix the problem.<br />
+				{hasTodoTool && <>
 				- Create a todo list to track your progress.<br />
 				- Each time you check off a step, update the todo list.<br />
+				</>}
 				- Make sure that you ACTUALLY continue on to the next step after checking off a step instead of ending your turn and asking the user what they want to do next.<br />
 				<br />
 				## 4. Making Code Changes<br />
@@ -369,7 +374,7 @@ export class AlternateGPTPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<Tag name='example'>
 					The class `Person` is in `src/models/person.ts`.
 				</Tag>
-				<MathIntegrationRules />
+				<ResponseRenderingRules />
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;

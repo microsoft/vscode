@@ -14,7 +14,7 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
-import { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
 
 export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 
@@ -97,10 +97,14 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 				maxInputTokens: endpoint.modelMaxPromptTokens,
 				maxOutputTokens: endpoint.maxOutputTokens,
 				pricing: multiplier ?? (endpoint.tokenPricing ? formatPricingLabel(endpoint.tokenPricing) : undefined),
-				inputCost: endpoint.tokenPricing?.inputPrice,
-				outputCost: endpoint.tokenPricing?.outputPrice,
-				cacheCost: endpoint.tokenPricing?.cacheReadTokenPrice,
+				inputCost: endpoint.tokenPricing?.default.inputPrice,
+				outputCost: endpoint.tokenPricing?.default.outputPrice,
+				cacheCost: endpoint.tokenPricing?.default.cacheReadTokenPrice,
+				longContextInputCost: endpoint.tokenPricing?.longContext?.inputPrice,
+				longContextOutputCost: endpoint.tokenPricing?.longContext?.outputPrice,
+				longContextCacheCost: endpoint.tokenPricing?.longContext?.cacheReadTokenPrice,
 				multiplierNumeric: endpoint.multiplier,
+				priceCategory: endpoint.priceCategory,
 				tooltip,
 				isUserSelectable: true,
 				configurationSchema: buildConfigurationSchema(endpoint),
@@ -191,14 +195,6 @@ const SUPPORTED_EFFORT_LEVELS: EffortLevel[] = ['low', 'medium', 'high'];
 
 export function isEffortLevel(value: string): value is EffortLevel {
 	return SUPPORTED_EFFORT_LEVELS.includes(value as EffortLevel);
-}
-
-/**
- * Formats a Claude endpoint for display in the chat response footer.
- * Mirrors the Codex CLI's `formatModelDetails` for visual parity across providers.
- */
-export function formatClaudeModelDetails(endpoint: IChatEndpoint): string {
-	return `${endpoint.name}${endpoint.multiplier ? ` • ${endpoint.multiplier}x` : ''}`;
 }
 
 /**

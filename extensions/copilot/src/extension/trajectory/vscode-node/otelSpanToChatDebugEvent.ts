@@ -360,6 +360,7 @@ function spanToModelTurnEvent(span: ICompletedSpanData): vscode.ChatDebugModelTu
 	evt.requestName = asString(span.attributes[CopilotChatAttr.DEBUG_NAME])
 		?? asString(span.attributes[GenAiAttr.AGENT_NAME]);
 	evt.status = spanStatusToString(span.status.code as SpanStatusCode);
+	evt.copilotUsageNanoAiu = asNumber(span.attributes[CopilotChatAttr.COPILOT_USAGE_NANO_AIU]);
 	return evt;
 }
 
@@ -497,6 +498,14 @@ function resolveModelTurnContent(span: ICompletedSpanData): vscode.ChatDebugEven
 	const inputMessages = asString(span.attributes[GenAiAttr.INPUT_MESSAGES]);
 	if (inputMessages) {
 		sections.push(new vscode.ChatDebugMessageSection('Input Messages', inputMessages));
+	}
+	const requestShape = asString(span.attributes[CopilotChatAttr.REQUEST_SHAPE]);
+	if (requestShape) {
+		sections.push(new vscode.ChatDebugMessageSection('Request Shape', requestShape));
+	}
+	const toolDefinitions = asString(span.attributes[GenAiAttr.TOOL_DEFINITIONS]);
+	if (toolDefinitions) {
+		sections.push(new vscode.ChatDebugMessageSection('Tools', toolDefinitions));
 	}
 	const outputMessages = asString(span.attributes[GenAiAttr.OUTPUT_MESSAGES]);
 	if (outputMessages) {
@@ -680,6 +689,7 @@ function entryToModelTurnEvent(entry: IDebugLogEntry): vscode.ChatDebugModelTurn
 	evt.maxOutputTokens = entry.attrs.maxTokens as number | undefined;
 	evt.requestName = (entry.attrs.debugName as string | undefined) ?? entry.name;
 	evt.status = entry.status === 'error' ? 'error' : 'success';
+	evt.copilotUsageNanoAiu = entry.attrs.copilotUsageNanoAiu as number | undefined;
 	return evt;
 }
 
@@ -832,6 +842,10 @@ async function resolveModelTurnEntry(
 	const inputMessages = entry.attrs.inputMessages as string | undefined;
 	if (inputMessages) {
 		sections.push(new vscode.ChatDebugMessageSection('Input Messages', inputMessages));
+	}
+	const requestShape = entry.attrs.requestShape as string | undefined;
+	if (requestShape) {
+		sections.push(new vscode.ChatDebugMessageSection('Request Shape', requestShape));
 	}
 
 	// Read tools from companion file

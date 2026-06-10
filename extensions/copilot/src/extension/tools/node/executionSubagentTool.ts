@@ -9,6 +9,7 @@ import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -70,6 +71,7 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 			parentToolCallId: options.chatStreamToolCallId,
 			parentHeaderRequestId: this._inputContext?.parentHeaderRequestId,
 			parentModelCallId: this._inputContext?.parentModelCallId,
+			topLevelTurnId: this._inputContext?.requestId,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(
@@ -80,11 +82,21 @@ class ExecutionSubagentTool implements ICopilotTool<IExecutionSubagentParams> {
 		// Create a new capturing token to group this execution subagent and all its nested tool calls
 		// Similar to how DefaultIntentRequestHandler does it
 		// Pass the subAgentInvocationId so the trajectory uses this ID for explicit linking
+		// Fall back to request.sessionId (matches the parent's CapturingToken.chatSessionId set in
+		// DefaultIntentRequestHandler), then conversation.sessionId, when the AsyncLocalStorage
+		// CapturingToken context isn't propagated across the chat-tool-invocation boundary (otherwise
+		// PARENT_CHAT_SESSION_ID would be missing and the subagent would upload as a standalone cloud session).
+		const parentChatSessionId = getCurrentCapturingToken()?.chatSessionId ?? request.sessionId ?? parentSessionId;
 		const executionSubagentToken = new CapturingToken(
 			`Execution: ${options.input.query.substring(0, 50)}${options.input.query.length > 50 ? '...' : ''}`,
 			'execution',
 			subAgentInvocationId,
-			'execution'  // subAgentName for trajectory tracking
+			'execution',  // subAgentName for trajectory tracking
+			// Use invocation ID as chatSessionId so spans get their own log file
+			subAgentInvocationId,
+			// Link back to the parent session for debug log grouping and cloud session folding
+			parentChatSessionId,
+			'executionSubagent',
 		);
 
 		// Wrap the loop execution in captureInvocation with the new token
@@ -152,6 +164,9 @@ function appendBackgroundCommandNotesToFinalAnswer(
 		if (c.reason === 'timeout') {
 			const timeoutText = c.timeoutMs !== undefined ? ` after ${c.timeoutMs} ms` : '';
 			return `Note: The command \`${c.command}\` timed out${timeoutText}. It may still be running in terminal ID ${c.termId}.`;
+		}
+		if (c.reason === 'inputNeeded') {
+			return `Note: The command \`${c.command}\` may be waiting for input in terminal ID ${c.termId}. Use send_to_terminal or get_terminal_output to check.`;
 		}
 		return `Note: The command \`${c.command}\` was started in the background. It may still be running in terminal ID ${c.termId}.`;
 	}).join('\n');

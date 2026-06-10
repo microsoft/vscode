@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage, SdkPluginConfig } from '@anthropic-ai/claude-agent-sdk';
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { IOTelService, type ISpanHandle, SpanStatusCode, type TraceContext } from '../../../../platform/otel/common/index';
 import { deriveClaudeOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
+import { extractToolParameters } from '../../../../platform/otel/node/extractToolParameters';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
@@ -20,14 +23,17 @@ import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifec
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { getErrorDetailsFromChatFetchError } from '../../../../platform/chat/common/commonTypes';
+import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { IClaudePluginService } from './claudeSkills';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
-import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
+import { dispatchMessage, ClaudeProxyError, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
+import { IClaudePlanFileTracker } from '../common/claudePlanFileTracker';
 import { IClaudeCodeSdkService } from './claudeCodeSdkService';
 import { ClaudeLanguageModelServer } from './claudeLanguageModelServer';
 import { resolvePromptToContentBlocks } from './claudePromptResolver';
@@ -53,6 +59,8 @@ export class ClaudeAgentManager extends Disposable {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IOctoKitService private readonly octoKitService: IOctoKitService,
 	) {
 		super();
 	}
@@ -97,6 +105,24 @@ export class ClaudeAgentManager extends Disposable {
 			if (isAbortError) {
 				this.logService.trace('[ClaudeAgentManager] Request was aborted/cancelled');
 				return {};
+			}
+
+			if (invokeError instanceof ClaudeProxyError) {
+				this.logService.info(`[ClaudeAgentManager] Request failed due to proxy error: ${invokeError.fetchError.type}`);
+				try {
+					const copilotToken = await this.authenticationService.getCopilotToken();
+					const outageStatus = await this.octoKitService.getGitHubOutageStatus();
+					const errorDetails = getErrorDetailsFromChatFetchError(
+						invokeError.fetchError,
+						copilotToken.copilotPlan,
+						outageStatus,
+						copilotToken.tokenBasedBilling,
+						copilotToken.quotaInfo.quota_reset_date,
+					);
+					return { errorDetails };
+				} catch {
+					return { errorDetails: { message: invokeError.message } };
+				}
 			}
 
 			this.logService.error(invokeError as Error);
@@ -182,6 +208,21 @@ export class ClaudeCodeSession extends Disposable {
 		}
 	}
 
+	/**
+	 * Sets the reasoning effort on the active SDK session, or stores it for the next session start.
+	 */
+	private async _setEffort(effort: EffortLevel | undefined): Promise<void> {
+		if (effort === this._currentEffort) {
+			return;
+		}
+		this._currentEffort = effort;
+		if (this._queryGenerator) {
+			this.logService.trace(`[ClaudeCodeSession] Setting effort to ${effort} on active session`);
+			// Settings.effortLevel does not include 'max'; the SDK treats it as a 'high' fallback.
+			await this._queryGenerator.applyFlagSettings({ effortLevel: effort as 'low' | 'medium' | 'high' | 'xhigh' | undefined });
+		}
+	}
+
 	constructor(
 		private readonly langModelServer: ClaudeLanguageModelServer,
 		public readonly sessionId: string,
@@ -192,16 +233,18 @@ export class ClaudeCodeSession extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IClaudeCodeSdkService private readonly claudeCodeService: IClaudeCodeSdkService,
 		@IClaudeToolPermissionService private readonly toolPermissionService: IClaudeToolPermissionService,
+		@IClaudePlanFileTracker private readonly planFileTracker: IClaudePlanFileTracker,
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IClaudePluginService private readonly claudePluginService: IClaudePluginService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this._isResumed = !isNewSession;
-		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService);
+		this._otelTracker = new ClaudeOTelTracker(this.sessionId, this._otelService, this.sessionStateService, this._gitService);
 		this._debugFileLogger.startSession(this.sessionId).catch(err => {
 			this.logService.error('[ClaudeCodeSession] Failed to start debug log session', err);
 		});
@@ -272,6 +315,7 @@ export class ClaudeCodeSession extends Disposable {
 		this._cancelGatewayIdleTimer();
 		this._disposeGateway();
 		this._abortController.abort();
+		this.planFileTracker.clear(this.sessionId);
 		this._inFlightRequests.forEach(req => {
 			if (!req.deferred.isSettled) {
 				req.deferred.error(new Error('Session disposed'));
@@ -455,7 +499,7 @@ export class ClaudeCodeSession extends Disposable {
 					ANTHROPIC_AUTH_TOKEN: `${serverConfig.nonce}.${this.sessionId}`,
 					CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
 					USE_BUILTIN_RIPGREP: '0',
-					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep/bin${pathSep}${process.env.PATH}`,
+					PATH: `${this.envService.appRoot}/node_modules/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}${pathSep}${process.env.PATH}`,
 					// Forward OTel configuration to the Claude SDK subprocess
 					...deriveClaudeOTelEnv(this._otelService.config),
 				},
@@ -472,7 +516,8 @@ export class ClaudeCodeSession extends Disposable {
 				return this.toolPermissionService.canUseTool(name, input, {
 					toolInvocationToken: this._currentRequest.request.toolInvocationToken,
 					permissionMode: this._currentPermissionMode,
-					stream: this._currentRequest.stream
+					stream: this._currentRequest.stream,
+					sessionId: this.sessionId,
 				});
 			},
 			systemPrompt: {
@@ -520,16 +565,17 @@ export class ClaudeCodeSession extends Disposable {
 			}
 
 			// Check non-hot-swappable changes that require a session restart
-			if (request.effort !== this._currentEffort || !this._toolsMatch(request.toolsSnapshot)) {
+			if (!this._toolsMatch(request.toolsSnapshot)) {
 				this._queuedRequests.unshift(request);
 				this._pendingRestart = true;
 				this._isResumed = true;
 				return;
 			}
 
-			// Hot-swap model and permission mode on the active session
+			// Hot-swap model, permission mode, and effort on the active session
 			await this._setModel(request.modelId);
 			await this._setPermissionMode(request.permissionMode);
+			await this._setEffort(request.effort);
 
 			// Mark this request as yielded to the SDK; it becomes the current request.
 			this._inFlightRequests.push(request);
@@ -578,9 +624,11 @@ export class ClaudeCodeSession extends Disposable {
 	private async _processMessages(): Promise<void> {
 		const otelToolSpans = new Map<string, ISpanHandle>();
 		const otelHookSpans = new Map<string, ISpanHandle>();
+		const hookStartTimes = new Map<string, number>();
 		const subagentTraceContexts = new Map<string, TraceContext>();
 		try {
 			const unprocessedToolCalls = new Map<string, Anthropic.Beta.Messages.BetaToolUseBlock>();
+			const toolStartTimes = new Map<string, number>();
 			for await (const message of this._queryGenerator!) {
 				// Mark session as resumed after first SDK message confirms session exists on disk.
 				// This ensures future restarts (yield, settings change) use `resume` instead of `sessionId`.
@@ -615,12 +663,18 @@ export class ClaudeCodeSession extends Disposable {
 						token: currentRequest.token,
 					}, {
 						unprocessedToolCalls,
+						toolStartTimes,
 						otelToolSpans,
 						otelHookSpans,
+						hookStartTimes,
 						parentTraceContext: this._otelTracker.traceContext,
 						subagentTraceContexts,
+						extractToolParameters,
 					});
 				} catch (dispatchError) {
+					if (dispatchError instanceof ClaudeProxyError || dispatchError instanceof KnownClaudeError) {
+						throw dispatchError;
+					}
 					this.logService.warn(`[ClaudeCodeSession] Failed to dispatch message (stream may be disposed after yield): ${dispatchError}`);
 				}
 
@@ -652,7 +706,7 @@ export class ClaudeCodeSession extends Disposable {
 			throw new Error('Session ended unexpectedly');
 		} catch (error) {
 			// Graceful restart: the prompt iterable detected a non-hot-swappable change
-			// (effort or tools). Preserve queued requests and start a fresh session.
+			// (tools). Preserve queued requests and start a fresh session.
 			if (this._pendingRestart) {
 				this._pendingRestart = false;
 				this._restartSession();

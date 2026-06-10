@@ -474,7 +474,9 @@ function collapsePreToolUseHookResults(results: ChatHookResult[]): IPreToolUseHo
 	}
 
 	let mostRestrictiveDecision: 'allow' | 'deny' | 'ask' | undefined;
-	let winningReason: string | undefined;
+	const denyReasons: string[] = [];
+	let askReason: string | undefined;
+	let allowReason: string | undefined;
 	let lastUpdatedInput: object | undefined;
 	const allAdditionalContext: string[] = [];
 
@@ -482,9 +484,11 @@ function collapsePreToolUseHookResults(results: ChatHookResult[]): IPreToolUseHo
 		// Exit code 2 (error) means deny the tool
 		if (result.resultKind === 'error') {
 			const reason = typeof result.output === 'string' ? result.output : undefined;
+			if (reason) {
+				denyReasons.push(reason);
+			}
 			mostRestrictiveDecision = 'deny';
-			winningReason = reason ?? winningReason;
-			break;
+			continue;
 		}
 
 		if (result.resultKind !== 'success' || typeof result.output !== 'object' || result.output === null) {
@@ -510,10 +514,34 @@ function collapsePreToolUseHookResults(results: ChatHookResult[]): IPreToolUseHo
 		}
 
 		const decision = hookSpecificOutput.permissionDecision;
-		if (decision && (mostRestrictiveDecision === undefined || (permissionPriority[decision] ?? 0) > (permissionPriority[mostRestrictiveDecision] ?? 0))) {
-			mostRestrictiveDecision = decision;
-			winningReason = hookSpecificOutput.permissionDecisionReason;
+		if (!decision) {
+			continue;
 		}
+
+		if (decision === 'deny') {
+			if (hookSpecificOutput.permissionDecisionReason) {
+				denyReasons.push(hookSpecificOutput.permissionDecisionReason);
+			}
+			if (mostRestrictiveDecision !== 'deny') {
+				mostRestrictiveDecision = 'deny';
+			}
+		} else if (mostRestrictiveDecision === undefined || (permissionPriority[decision] ?? 0) > (permissionPriority[mostRestrictiveDecision] ?? 0)) {
+			mostRestrictiveDecision = decision;
+			if (decision === 'ask') {
+				askReason = hookSpecificOutput.permissionDecisionReason;
+			} else {
+				allowReason = hookSpecificOutput.permissionDecisionReason;
+			}
+		}
+	}
+
+	let winningReason: string | undefined;
+	if (mostRestrictiveDecision === 'deny') {
+		winningReason = denyReasons.length > 0 ? denyReasons.join('\n') : undefined;
+	} else if (mostRestrictiveDecision === 'ask') {
+		winningReason = askReason;
+	} else if (mostRestrictiveDecision === 'allow') {
+		winningReason = allowReason;
 	}
 
 	if (!mostRestrictiveDecision && !lastUpdatedInput && allAdditionalContext.length === 0) {
@@ -550,9 +578,28 @@ class TestableChatHookService {
 		toolCallId: string,
 		toolInvocationToken: unknown,
 		sessionId?: string,
+		outputStream?: { hookProgress: (hookType: string, error?: string, warning?: string) => void },
 	): Promise<IPreToolUseHookResult | undefined> {
 		const results = await this.executeHook();
 		const collapsed = collapsePreToolUseHookResults(results);
+
+		// Render a visible block in chat for any deny — mirrors ChatHookService.executePreToolUseHook.
+		if (collapsed?.permissionDecision === 'deny') {
+			const reasonLines = collapsed.permissionDecisionReason
+				? collapsed.permissionDecisionReason.split('\n')
+				: [];
+			let renderedReason: string;
+			if (reasonLines.length === 0) {
+				renderedReason = `Tried to use ${toolName} - denied by hook`;
+			} else if (reasonLines.length === 1) {
+				renderedReason = `Tried to use ${toolName} - ${reasonLines[0]}`;
+			} else {
+				const numbered = reasonLines.map((r, i) => `${i + 1}. ${r}`).join('\n');
+				renderedReason = `Tried to use ${toolName} - \n${numbered}`;
+			}
+			outputStream?.hookProgress('PreToolUse', `A hook prevented chat from continuing. ${renderedReason}`);
+		}
+
 		if (!collapsed) {
 			return undefined;
 		}
@@ -824,6 +871,164 @@ describe('ChatHookService.executePreToolUseHook', () => {
 
 		const result = await service.executePreToolUseHook('tool', {}, 'call-1', undefined);
 		expect(result).toBeUndefined();
+	});
+
+	describe('outputStream rendering', () => {
+		interface CapturedHookProgress {
+			hookType: string;
+			error?: string;
+			warning?: string;
+		}
+
+		function captureOutputStream() {
+			const calls: CapturedHookProgress[] = [];
+			const stream = {
+				hookProgress: (hookType: string, error?: string, warning?: string) => {
+					calls.push({ hookType, error, warning });
+				},
+			};
+			return { stream, calls };
+		}
+
+		it('renders a hook progress block when a successful hook denies', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'Blocked by policy' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0].hookType).toBe('PreToolUse');
+			expect(calls[0].error).toContain('tool');
+			expect(calls[0].error).toContain('Blocked by policy');
+		});
+
+		it('renders a hook progress block when an error denies (exit code 2)', async () => {
+			service.hookResults = [
+				hookResult('exited with status 2', 'error'),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0].hookType).toBe('PreToolUse');
+			expect(calls[0].error).toContain('tool');
+			expect(calls[0].error).toContain('exited with status 2');
+		});
+
+		it('does not render a hook progress block for allow', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'allow' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(0);
+		});
+
+		it('does not render a hook progress block for ask', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'ask', permissionDecisionReason: 'Confirm please' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(0);
+		});
+
+		it('renders a single hook progress block when multiple hooks contribute to a deny', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'allow' } }),
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'nope' } }),
+				hookResult({ hookSpecificOutput: { permissionDecision: 'ask' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0].error).toContain('nope');
+		});
+
+		it('renders a default deny message when no reason is provided', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0].error).toContain('denied by hook');
+		});
+
+		it('joins multiple deny reasons as a numbered list in the rendered block', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'first reason' } }),
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'second reason' } }),
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'third reason' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			const result = await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(result?.permissionDecision).toBe('deny');
+			expect(result?.permissionDecisionReason).toBe('first reason\nsecond reason\nthird reason');
+			expect(calls).toHaveLength(1);
+			expect(calls[0].error).toContain('1. first reason');
+			expect(calls[0].error).toContain('2. second reason');
+			expect(calls[0].error).toContain('3. third reason');
+		});
+
+		it('joins deny reasons from a mix of success-deny and exit-2 errors', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'policy violation' } }),
+				hookResult('exited with status 2', 'error'),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			const result = await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(result?.permissionDecision).toBe('deny');
+			expect(result?.permissionDecisionReason).toBe('policy violation\nexited with status 2');
+			expect(calls).toHaveLength(1);
+			expect(calls[0].error).toContain('1. policy violation');
+			expect(calls[0].error).toContain('2. exited with status 2');
+		});
+
+		it('renders a single deny reason without numbering', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'allow' } }),
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'lone reason' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(calls).toHaveLength(1);
+			expect(calls[0].error).toContain('lone reason');
+			expect(calls[0].error).not.toContain('1. lone reason');
+		});
+
+		it('skips deny entries without a reason when joining', async () => {
+			service.hookResults = [
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny' } }),
+				hookResult({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'has reason' } }),
+			];
+			const { stream, calls } = captureOutputStream();
+
+			const result = await service.executePreToolUseHook('tool', {}, 'call-1', undefined, undefined, stream);
+
+			expect(result?.permissionDecision).toBe('deny');
+			expect(result?.permissionDecisionReason).toBe('has reason');
+			expect(calls).toHaveLength(1);
+			expect(calls[0].error).toContain('has reason');
+			expect(calls[0].error).not.toContain('1. has reason');
+		});
 	});
 });
 

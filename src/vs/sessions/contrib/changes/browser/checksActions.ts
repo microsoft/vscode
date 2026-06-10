@@ -13,7 +13,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -124,13 +124,13 @@ class FixCIChecksAction extends Action2 {
 	constructor() {
 		super({
 			id: FixCIChecksAction.ID,
-			title: localize2('fixCIChecks', 'Fix CI Checks'),
+			title: localize2('fixChecks', 'Fix Checks'),
 			icon: Codicon.lightbulbAutofix,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasActiveSessionFailedCIChecks),
 			menu: [{
-				id: MenuId.ChatEditingSessionApplySubmenu,
-				group: 'navigation',
+				id: MenuId.AgentsChangesPrimaryActionSubMenu,
+				group: '5_checks',
 				order: 4,
 				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks),
 			}],
@@ -166,8 +166,7 @@ class FixCIChecksAction extends Action2 {
 
 		const prompt = buildFixChecksPrompt(failedCheckDetails);
 		const sessionResource = activeSession.resource;
-		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource)
-			?? await chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		const chatWidget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 		if (!chatWidget) {
 			logService.error('[FixCIChecks] Cannot fix CI checks: no chat widget found for session', sessionResource.toString());
 			return;

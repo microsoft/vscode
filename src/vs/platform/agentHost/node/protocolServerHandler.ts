@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -13,7 +14,10 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
-import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
+import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
+import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
 	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
@@ -31,14 +35,32 @@ import {
 	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import {
+	buildOtlpLogsChannelUri,
+	extractLevelFromOtlpLogsUri,
+	levelToSeverityNumber,
+	OTLP_CHANNEL_SCHEME,
+	OTLP_LOGS_CHANNEL_TEMPLATE,
+	OtlpLogEmitter,
+	toResourceLogsPayload,
+	type IOtlpLogRecord,
+	type OtlpLogLevelName,
+} from '../common/otlp/otlpLogEmitter.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
+/** A client tool call in any of these statuses is still awaiting its result. */
+function isPendingToolCallStatus(status: ToolCallStatus): boolean {
+	return status === ToolCallStatus.Streaming
+		|| status === ToolCallStatus.Running
+		|| status === ToolCallStatus.PendingConfirmation;
+}
 
 /** Build a JSON-RPC success response suitable for transport.send(). */
 function jsonRpcSuccess(id: number, result: unknown): JsonRpcResponse {
@@ -60,10 +82,11 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 }
 
 /**
- * Methods handled by the request dispatcher. Excludes `initialize` and
- * `reconnect` which are handled during the handshake phase.
+ * Methods handled by the request dispatcher. Excludes `initialize`,
+ * `reconnect`, and `ping`, which are handled directly during message
+ * dispatch without requiring an established client context.
  */
-type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect' | 'ping'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -75,14 +98,118 @@ type RequestHandlerMap = {
 };
 
 /**
+ * Discriminant for {@link ChannelSubscription}. Distinguishes a regular
+ * state-bearing channel (root, session, terminal, changeset) from the
+ * stateless OTLP signal channels so each subscribe/unsubscribe path can
+ * dispatch through a single typed lookup.
+ */
+const enum ChannelKind {
+	/**
+	 * Subscribed via {@link IAgentService.subscribe} and tracked by the
+	 * server-side refcount. Carries replayable state, participates in
+	 * action broadcasts ({@link _broadcastAction}) and reconnect
+	 * snapshot/replay.
+	 */
+	State = 'state',
+	/**
+	 * Resource-watch channels (`ahp-resource-watch:/<id>`). Tracked
+	 * separately so subscribe/unsubscribe routes through the agent
+	 * service's per-watch refcount + grace timer rather than the
+	 * session-shaped {@link IAgentService.subscribe} path.
+	 */
+	ResourceWatch = 'resource-watch',
+	/**
+	 * Subscribed against the OTLP logs channel template advertised in
+	 * {@link InitializeResult.telemetry}. Stateless — no snapshot, no
+	 * agent-service refcount. The `level` field records the minimum
+	 * severity the client asked to receive.
+	 */
+	OtlpLogs = 'otlp-logs',
+}
+
+/**
+ * Per-channel server-side subscription record. Stored on every
+ * {@link IConnectedClient} so each subscribed channel can be routed by
+ * its `kind` without re-deriving it from the URI on every dispatch.
+ *
+ * `uri` is the canonical channel URI string used everywhere a subscription
+ * is referenced — the same string is broadcast on outbound notifications
+ * and persists across reconnects.
+ */
+type ChannelSubscription =
+	| { readonly kind: ChannelKind.State; readonly uri: string }
+	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string }
+	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
+
+/**
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
 	readonly clientId: string;
-	readonly protocolVersion: number;
+	readonly protocolVersion: string;
 	readonly transport: IProtocolTransport;
-	readonly subscriptions: Set<string>;
+	/**
+	 * Every channel the client is currently subscribed to, keyed by the
+	 * canonical channel URI. OTLP channel URIs are canonicalised to
+	 * `buildOtlpLogsChannelUri(level)` so URI variants that resolve to
+	 * the same logical channel collapse to one entry.
+	 */
+	readonly subscriptions: Map<string, ChannelSubscription>;
 	readonly disposables: DisposableStore;
+}
+
+/**
+ * Per-client server-side record, keyed by clientId in
+ * {@link ProtocolServerHandler._clients}. Unlike {@link IConnectedClient}, the
+ * record OUTLIVES the connection: when a client disconnects, `connection` is
+ * cleared to `undefined` but the record is retained (until pruned) so the
+ * tool-call disconnect-grace machinery can still compute the remaining window
+ * and hold any armed timeouts.
+ */
+interface IClientRecord {
+	/** Live connection while connected; `undefined` after disconnect (record retained for the grace window). */
+	connection: IConnectedClient | undefined;
+	/**
+	 * Epoch ms the client was last seen connected (handshake or disconnect).
+	 * `undefined` when the client has never connected. Drives the
+	 * disconnect-timeout grace window: a pending client tool call fails
+	 * `CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT` ms after this point, never instantly
+	 * and never never.
+	 */
+	lastSeenAt: number | undefined;
+	/**
+	 * Pending tool-call disconnect timeouts owned by this client, keyed by
+	 * session URI. Armed when the client owns a pending client tool call but is
+	 * not connected; fires a failing completion if it does not (re)connect
+	 * within the grace window. Disposing an entry (or the whole map) clears the
+	 * underlying timer.
+	 */
+	readonly disconnectTimeouts: DisposableMap<string>;
+}
+
+/**
+ * Classifies a raw channel URI string into its {@link ChannelKind} and
+ * returns the canonical URI to key subscriptions by. Returns `undefined`
+ * when the channel is OTLP-flavoured but the URI does not parse into a
+ * supported shape (unknown level, missing path) so the caller can
+ * silently drop the subscribe rather than installing a broken entry.
+ *
+ * For state channels the canonical URI is just the input verbatim — the
+ * agent service is the authoritative deduplication point and tolerates
+ * whatever URI form the client sent.
+ */
+function classifyChannel(channel: string): ChannelSubscription | undefined {
+	if (channel.toLowerCase().startsWith(`${OTLP_CHANNEL_SCHEME}:`)) {
+		const level = extractLevelFromOtlpLogsUri(channel);
+		if (!level) {
+			return undefined;
+		}
+		return { kind: ChannelKind.OtlpLogs, uri: buildOtlpLogsChannelUri(level), level };
+	}
+	if (isAhpResourceWatchChannel(channel)) {
+		return { kind: ChannelKind.ResourceWatch, uri: channel };
+	}
+	return { kind: ChannelKind.State, uri: channel };
 }
 
 /**
@@ -91,6 +218,23 @@ interface IConnectedClient {
 export interface IProtocolServerConfig {
 	/** Default directory returned to clients during the initialize handshake. */
 	readonly defaultDirectory?: string;
+	/**
+	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
+	 * cause the client to issue a `completions` request. Announced to
+	 * clients in the `initialize` response.
+	 */
+	readonly completionTriggerCharacters?: readonly string[];
+	/**
+	 * Optional emitter to use as the source for the OTLP logs channel
+	 * advertised via `InitializeResult.telemetry.logs`. When present, this
+	 * handler will route `subscribe`/`unsubscribe` requests on
+	 * `ahp-otlp:` channels to its internal OTLP subscription registry and
+	 * broadcast every record fed into the emitter as an
+	 * `otlp/exportLogs` notification. When absent, the OTLP channel is
+	 * not advertised and any inbound `ahp-otlp:` subscribe request is
+	 * rejected.
+	 */
+	readonly otlpLogEmitter?: OtlpLogEmitter;
 }
 
 /**
@@ -100,9 +244,14 @@ export interface IProtocolServerConfig {
  */
 export class ProtocolServerHandler extends Disposable {
 
-	private readonly _clients = new Map<string, IConnectedClient>();
+	/**
+	 * Per-client records keyed by clientId. Holds both connected clients
+	 * (`connection` set) and recently-disconnected ones retained for the
+	 * tool-call disconnect-grace window (`connection === undefined`). See
+	 * {@link IClientRecord}.
+	 */
+	private readonly _clients = new Map<string, IClientRecord>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
-	private readonly _clientToolCallDisconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -129,11 +278,26 @@ export class ProtocolServerHandler extends Disposable {
 				this._replayBuffer.shift();
 			}
 			this._broadcastAction(envelope);
+			// A client tool call may be issued for a client that is no longer
+			// connected — e.g. a stale stamp from a window that reloaded. The
+			// live-disconnect path (`_handleClientDisconnected`) does not cover
+			// these because no disconnect event fires for an already-gone
+			// client. Detect the orphan at issuance time and arm the same
+			// grace-period timeout so the call cannot hang forever. Calls
+			// stamped while no client is connected are failed immediately by
+			// the provider, so they never reach this path.
+			if (envelope.action.type === ActionType.SessionToolCallStart || envelope.action.type === ActionType.SessionToolCallReady) {
+				this._checkOrphanedClientToolCalls(envelope.channel);
+			}
 		}));
 
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
 		}));
+
+		if (this._config.otlpLogEmitter) {
+			this._register(this._config.otlpLogEmitter.onDidLog(record => this._broadcastOtlpLog(record)));
+		}
 	}
 
 	// ---- Connection handling -------------------------------------------------
@@ -145,6 +309,14 @@ export class ProtocolServerHandler extends Disposable {
 		disposables.add(transport.onMessage(msg => {
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
+
+				// Ping is stateless and MUST be answerable regardless of whether
+				// the connection has been initialized. Carries no payload — the
+				// round-trip itself is the liveness signal.
+				if (msg.method === 'ping') {
+					transport.send(jsonRpcSuccess(msg.id, null));
+					return;
+				}
 
 				// Handle initialize/reconnect as requests that set up the client
 				if (!client && msg.method === 'initialize') {
@@ -174,6 +346,15 @@ export class ProtocolServerHandler extends Disposable {
 					return;
 				}
 
+				// The VS Code upgrade request rides on the same transport but
+				// is callable pre-`initialize`: by definition we get here when
+				// the client's protocol version was rejected, so the client
+				// never managed to complete the handshake.
+				if ((msg.method as string) === VSCODE_UPGRADE_METHOD) {
+					this._handleVscodeUpgrade(msg.id, transport);
+					return;
+				}
+
 				if (!client) {
 					return;
 				}
@@ -184,18 +365,16 @@ export class ProtocolServerHandler extends Disposable {
 				switch (msg.method) {
 					case 'unsubscribe':
 						if (client) {
-							const resource = msg.params.resource;
-							if (client.subscriptions.delete(resource)) {
-								this._agentService.unsubscribe(URI.parse(resource), client.clientId);
-							}
+							this._removeSubscription(client, msg.params.channel);
 						}
 						break;
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
 							const action = msg.params.action as SessionAction | TerminalAction | IRootConfigChangedAction;
+							const channel = msg.params.channel;
 							if (isSessionAction(action) || isTerminalAction(action) || action.type === ActionType.RootConfigChanged) {
-								this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
+								this._agentService.dispatchAction(channel, action, client.clientId, msg.params.clientSeq);
 							}
 						}
 						break;
@@ -205,7 +384,11 @@ export class ProtocolServerHandler extends Disposable {
 				if (pending) {
 					this._pendingReverseRequests.delete(msg.id);
 					if (hasKey(msg, { error: true })) {
-						pending.reject(new Error(msg.error?.message ?? 'Reverse RPC error'));
+						pending.reject(new ProtocolError(
+							msg.error?.code ?? -32000,
+							msg.error?.message ?? 'Reverse RPC error',
+							msg.error?.data,
+						));
 					} else {
 						pending.resolve(msg.result);
 					}
@@ -214,19 +397,27 @@ export class ProtocolServerHandler extends Disposable {
 		}));
 
 		disposables.add(transport.onClose(() => {
-			if (client && this._clients.get(client.clientId) === client) {
+			const record = client ? this._clients.get(client.clientId) : undefined;
+			if (client && record && record.connection === client) {
 				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
-				// Treat disconnect as an implicit unsubscribe of every resource the
+				// Treat disconnect as an implicit unsubscribe of every channel the
 				// client held, so the server-side refcount can drop to zero and any
-				// idle restored session state can be evicted.
-				for (const resource of client.subscriptions) {
-					this._agentService.unsubscribe(URI.parse(resource), client.clientId);
+				// idle restored session state can be evicted. OTLP subscriptions
+				// have no server-side state to release, so the per-client map is
+				// simply discarded.
+				for (const sub of client.subscriptions.values()) {
+					if (sub.kind === ChannelKind.State) {
+						this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+					} else if (sub.kind === ChannelKind.ResourceWatch) {
+						this._agentService.onResourceWatchUnsubscribed(sub.uri);
+					}
 				}
 				client.subscriptions.clear();
-				this._clients.delete(client.clientId);
+				record.connection = undefined;
+				record.lastSeenAt = Date.now();
 				this._rejectPendingReverseRequests(client.clientId);
 				this._handleClientDisconnected(client.clientId);
-				this._onDidChangeConnectionCount.fire(this._clients.size);
+				this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 			}
 			disposables.dispose();
 		}));
@@ -241,44 +432,51 @@ export class ProtocolServerHandler extends Disposable {
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
-		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, version=${params.protocolVersion}`);
+		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
+		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
-		if (params.protocolVersion < MIN_PROTOCOL_VERSION) {
+		const negotiated = negotiateProtocolVersion(offered, PROTOCOL_VERSION);
+		if (!negotiated) {
+			const data: UnsupportedProtocolVersionErrorDataEx = {
+				supportedVersions: [`^${PROTOCOL_VERSION}`],
+				// Only advertise the in-band upgrade method when the agent
+				// host was spawned by a VS Code CLI that is listening for
+				// management requests (presence of the env var). Otherwise
+				// there is no supervisor to actually act on it, so don't
+				// lie to the client.
+				_meta: getAgentHostManagementSocketPath()
+					? { vscodeUpgradeMethod: VSCODE_UPGRADE_METHOD }
+					: undefined,
+			};
 			throw new ProtocolError(
 				AHP_UNSUPPORTED_PROTOCOL_VERSION,
-				`Client protocol version ${params.protocolVersion} is below minimum ${MIN_PROTOCOL_VERSION}`,
+				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ^${PROTOCOL_VERSION}).`,
+				data,
 			);
 		}
 
 		const client: IConnectedClient = {
 			clientId: params.clientId,
-			protocolVersion: params.protocolVersion,
+			protocolVersion: negotiated,
 			transport,
-			subscriptions: new Set(),
+			subscriptions: new Map(),
 			disposables,
 		};
-		this._clients.set(params.clientId, client);
-		this._onDidChangeConnectionCount.fire(this._clients.size);
+		const record = this._ensureClientRecord(params.clientId);
+		record.connection = client;
+		record.lastSeenAt = Date.now();
+		this._pruneClientRecords();
+		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 
-		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
-			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
-			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
-			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
-			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
-			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
-		}));
+		this._registerClientFileSystemAuthority(params.clientId, disposables);
 
 
 		const snapshots: IStateSnapshot[] = [];
 		if (params.initialSubscriptions) {
 			for (const uri of params.initialSubscriptions) {
-				const snapshot = this._stateManager.getSnapshot(uri);
+				const snapshot = this._addInitialSubscription(client, uri.toString());
 				if (snapshot) {
 					snapshots.push(snapshot);
-					const key = uri.toString();
-					client.subscriptions.add(key);
-					this._agentService.addSubscriber(URI.parse(key), client.clientId);
-					this._clearClientToolCallDisconnectTimeout(params.clientId, key);
 				}
 			}
 		}
@@ -286,12 +484,82 @@ export class ProtocolServerHandler extends Disposable {
 		return {
 			client,
 			response: {
-				protocolVersion: PROTOCOL_VERSION,
+				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
+				completionTriggerCharacters: this._config.completionTriggerCharacters,
+				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 			},
 		};
+	}
+
+	/**
+	 * Helper for `initialize` and `reconnect` initial-subscription
+	 * processing: classify `channel`, install the matching subscription
+	 * on the client, and return the snapshot to include in the handshake
+	 * response (or `undefined` for stateless channels and missing state).
+	 *
+	 * Side effects:
+	 * - State channels: register with the agent service and clear any
+	 *   pending tool-call disconnect timeout.
+	 * - OTLP channels: install the canonical entry on the client's
+	 *   {@link IConnectedClient.subscriptions} map.
+	 *
+	 * Channels with unsupported shapes (e.g. `ahp-otlp://logs/verbose`
+	 * with no recognised level, or a state channel the state manager
+	 * does not know about) are silently dropped.
+	 */
+	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined {
+		const sub = classifyChannel(channel);
+		if (!sub) {
+			return undefined;
+		}
+		if (sub.kind === ChannelKind.OtlpLogs) {
+			if (!this._config.otlpLogEmitter) {
+				this._logService.warn(`[ProtocolServer] Ignoring OTLP initialSubscription ${channel}: no OTLP emitter configured.`);
+				return undefined;
+			}
+			client.subscriptions.set(sub.uri, sub);
+			return undefined;
+		}
+		const snapshot = this._stateManager.getSnapshot(channel);
+		if (!snapshot) {
+			return undefined;
+		}
+		client.subscriptions.set(sub.uri, sub);
+		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
+		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
+		return snapshot;
+	}
+
+	/**
+	 * Forwards a client's upgrade request to the hosting VS Code CLI's
+	 * HTTP management API (advertised via the {@link VSCODE_AGENT_HOST_MANAGEMENT_SOCKET_ENV}).
+	 * Returns the CLI's parsed response verbatim so the client can render
+	 * a meaningful status (already up-to-date, restart scheduled, etc.).
+	 *
+	 * When the server was not spawned by a managing CLI, responds with
+	 * `MethodNotFound` — the upgrade method is only meaningfully callable
+	 * on CLI-hosted servers.
+	 */
+	private _handleVscodeUpgrade(id: number, transport: IProtocolTransport): void {
+		const socketPath = getAgentHostManagementSocketPath();
+		if (!socketPath) {
+			transport.send(jsonRpcError(
+				id,
+				JsonRpcErrorCodes.MethodNotFound,
+				`No upgrade supervisor is available for this agent host.`,
+			));
+			return;
+		}
+		requestAgentHostUpgrade(socketPath).then(
+			(result) => transport.send(jsonRpcSuccess(id, result)),
+			(err: unknown) => {
+				this._logService.warn(`[ProtocolServer] vscodeUpgrade signal failed: ${err instanceof Error ? err.message : String(err)}`);
+				transport.send(jsonRpcErrorFrom(id, err));
+			},
+		);
 	}
 
 	private _handleReconnect(
@@ -308,17 +576,49 @@ export class ProtocolServerHandler extends Disposable {
 			clientId: params.clientId,
 			protocolVersion: PROTOCOL_VERSION,
 			transport,
-			subscriptions: new Set(),
+			subscriptions: new Map(),
 			disposables,
 		};
-		this._clients.set(params.clientId, client);
-		this._onDidChangeConnectionCount.fire(this._clients.size);
+		const record = this._ensureClientRecord(params.clientId);
+		record.connection = client;
+		record.lastSeenAt = Date.now();
+		this._pruneClientRecords();
+		this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+
+		// Re-establish the reverse-RPC filesystem authority for this client.
+		// The prior transport's `onClose` disposed the previous registration,
+		// so without this step any subsequent `resourceRead` / `resourceWrite`
+		// / etc. from the agent host would fail with "no connection registered
+		// for authority" until the client disconnected and re-initialized.
+		this._registerClientFileSystemAuthority(params.clientId, disposables);
 
 		const oldestBuffered = this._replayBuffer.length > 0 ? this._replayBuffer[0].serverSeq : this._stateManager.serverSeq;
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay);
 		return { client, responsePromise };
+	}
+
+	/**
+	 * Wires the reverse-RPC filesystem callbacks for `clientId` and binds
+	 * the unregister to `disposables` (the transport's per-connection
+	 * store). The callbacks dispatch through {@link _sendReverseRequest},
+	 * which looks up the *current* connected client by id — so re-binding
+	 * after a reconnect picks up the new transport without rebuilding the
+	 * closures.
+	 */
+	private _registerClientFileSystemAuthority(clientId: string, disposables: DisposableStore): void {
+		disposables.add(this._clientFileSystemProvider.registerAuthority(clientId, {
+			resourceList: (uri) => this._sendReverseRequest(clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(clientId, 'resourceWrite', params_),
+			resourceCopy: (params_) => this._sendReverseRequest(clientId, 'resourceCopy', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(clientId, 'resourceMove', params_),
+			resourceRequest: (params_) => this._sendReverseRequest(clientId, 'resourceRequest', params_),
+			resourceResolve: (params_) => this._sendReverseRequest(clientId, 'resourceResolve', params_),
+			resourceMkdir: (params_) => this._sendReverseRequest(clientId, 'resourceMkdir', params_),
+		}));
 	}
 
 	/**
@@ -337,10 +637,37 @@ export class ProtocolServerHandler extends Disposable {
 		const missing: string[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
+			const classified = classifyChannel(key);
+			if (!classified) {
+				return undefined;
+			}
+			if (classified.kind === ChannelKind.OtlpLogs) {
+				if (!this._config.otlpLogEmitter) {
+					this._logService.warn(`[ProtocolServer] Reconnect: dropping OTLP subscription ${key}: no OTLP emitter configured.`);
+					return undefined;
+				}
+				// Stateless: re-install without going through the agent service.
+				client.subscriptions.set(classified.uri, classified);
+				return undefined;
+			}
+			if (classified.kind === ChannelKind.ResourceWatch) {
+				const descriptor = this._agentService.onResourceWatchSubscribed(classified.uri);
+				if (!descriptor) {
+					this._logService.info(`[ProtocolServer] Reconnect: resource watch ${key} no longer parses`);
+					missing.push(sub);
+					return undefined;
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {
+					resource: classified.uri,
+					state: descriptor,
+					fromSeq: this._stateManager.serverSeq,
+				};
+			}
 			try {
 				const snapshot = await this._agentService.subscribe(URI.parse(key), client.clientId);
-				client.subscriptions.add(key);
-				this._clearClientToolCallDisconnectTimeout(client.clientId, key);
+				client.subscriptions.set(classified.uri, classified);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return snapshot;
 			} catch (err) {
 				this._logService.info(`[ProtocolServer] Reconnect: failed to restore subscription ${key}: ${err instanceof Error ? err.message : String(err)}`);
@@ -368,9 +695,8 @@ export class ProtocolServerHandler extends Disposable {
 			const state = this._stateManager.getSessionState(session);
 			const ownsPendingToolCall = state ? this._hasPendingClientToolCall(state, clientId) : false;
 			if (state?.activeClient?.clientId === clientId) {
-				this._stateManager.dispatchServerAction({
+				this._stateManager.dispatchServerAction(session, {
 					type: ActionType.SessionActiveClientChanged,
-					session,
 					activeClient: null,
 				});
 			}
@@ -380,47 +706,15 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
-	private _hasPendingClientToolCall(state: ReturnType<AgentHostStateManager['getSessionState']>, clientId: string): boolean {
-		const activeTurn = state?.activeTurn;
-		if (!activeTurn) {
-			return false;
-		}
-		return activeTurn.responseParts.some(part => part.kind === ResponsePartKind.ToolCall
-			&& part.toolCall.toolClientId === clientId
-			&& (part.toolCall.status === ToolCallStatus.Streaming || part.toolCall.status === ToolCallStatus.Running || part.toolCall.status === ToolCallStatus.PendingConfirmation));
-	}
-
-	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
-		const activeClient = state.activeClient;
-		return activeClient !== undefined
-			&& activeClient.clientId !== clientId
-			&& activeClient.tools.some(tool => tool.name === toolName);
-	}
-
-	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
-		this._clearClientToolCallDisconnectTimeout(clientId, session);
-		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
-		this._clientToolCallDisconnectTimeouts.set(key, setTimeout(() => {
-			this._clientToolCallDisconnectTimeouts.delete(key);
-			this._completeDisconnectedClientToolCalls(clientId, session);
-		}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
-	}
-
-	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
-		const key = this._clientToolCallDisconnectTimeoutKey(clientId, session);
-		const timeout = this._clientToolCallDisconnectTimeouts.get(key);
-		if (timeout) {
-			clearTimeout(timeout);
-			this._clientToolCallDisconnectTimeouts.delete(key);
-		}
-	}
-
-	private _clientToolCallDisconnectTimeoutKey(clientId: string, session: string): string {
-		return `${clientId}\n${session}`;
-	}
-
-	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
-		const state = this._stateManager.getSessionState(session);
+	/**
+	 * Yields every still-pending client-contributed tool call in `state`'s
+	 * active turn, paired with its owning `clientId`. Single source of truth
+	 * for the disconnect-grace machinery: detect ownership
+	 * ({@link _hasPendingClientToolCall}), arm timeouts
+	 * ({@link _checkOrphanedClientToolCalls}), and fail orphaned calls
+	 * ({@link _completeDisconnectedClientToolCalls}).
+	 */
+	private *_pendingClientToolCalls(state: SessionState | undefined) {
 		const activeTurn = state?.activeTurn;
 		if (!activeTurn) {
 			return;
@@ -430,31 +724,155 @@ export class ProtocolServerHandler extends Disposable {
 				continue;
 			}
 			const toolCall = part.toolCall;
-			if (toolCall.toolClientId === clientId && (toolCall.status === ToolCallStatus.Streaming || toolCall.status === ToolCallStatus.Running || toolCall.status === ToolCallStatus.PendingConfirmation)) {
-				const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
-				if (toolCall.status === ToolCallStatus.Streaming) {
-					this._stateManager.dispatchServerAction({
-						type: ActionType.SessionToolCallReady,
-						session,
-						turnId: activeTurn.id,
-						toolCallId: toolCall.toolCallId,
-						invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
-						confirmed: ToolCallConfirmationReason.NotNeeded,
-					});
-				}
-				this._stateManager.dispatchServerAction({
-					type: ActionType.SessionToolCallComplete,
-					session,
+			const contributor = toolCall.contributor;
+			if (contributor?.kind === ToolCallContributorKind.Client && isPendingToolCallStatus(toolCall.status)) {
+				yield { toolCall, clientId: contributor.clientId };
+			}
+		}
+	}
+
+	private _hasPendingClientToolCall(state: SessionState | undefined, clientId: string): boolean {
+		for (const pending of this._pendingClientToolCalls(state)) {
+			if (pending.clientId === clientId) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _hasReplacementActiveClientTool(state: SessionState, clientId: string, toolName: string): boolean {
+		const activeClient = state.activeClient;
+		return activeClient !== undefined
+			&& activeClient.clientId !== clientId
+			&& activeClient.tools.some(tool => tool.name === toolName);
+	}
+
+	/**
+	 * Arm (or re-arm) the per-(clientId, session) timeout that fails pending
+	 * client tool calls owned by `clientId` if it does not (re)connect. The
+	 * delay is the remaining grace measured from when the client was last
+	 * seen — so a client that disconnected a while before the call was issued
+	 * gets the residual window rather than a fresh one, and a stamp from a
+	 * long-dead client fails promptly. A client never seen at all has its
+	 * grace clock pinned to the first arm, so re-arms triggered by later
+	 * orphaned tool calls in the same session shrink the remaining window
+	 * instead of resetting it.
+	 */
+	private _startClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		this._clearClientToolCallDisconnectTimeout(clientId, session);
+		const record = this._ensureClientRecord(clientId);
+		if (record.lastSeenAt === undefined) {
+			record.lastSeenAt = Date.now();
+		}
+		const elapsed = Date.now() - record.lastSeenAt;
+		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
+		record.disconnectTimeouts.set(session, disposableTimeout(() => {
+			record.disconnectTimeouts.deleteAndDispose(session);
+			this._completeDisconnectedClientToolCalls(clientId, session);
+		}, delay));
+	}
+
+	/**
+	 * Scan a session for pending client tool calls whose owning client is not
+	 * currently connected, and arm the disconnect timeout for each such owner.
+	 * Called when a `SessionToolCallStart` / `SessionToolCallReady` envelope is
+	 * observed — covering calls issued for an already-gone client, which the
+	 * live disconnect path never sees. Ownerless client tool calls (no client
+	 * connected at stamp time) are failed immediately by the provider, so they
+	 * never reach a pending state here.
+	 */
+	private _checkOrphanedClientToolCalls(session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const orphanOwners = new Set<string>();
+		for (const { clientId } of this._pendingClientToolCalls(state)) {
+			const ownerRecord = this._clients.get(clientId);
+			if (!ownerRecord || ownerRecord.connection === undefined) {
+				orphanOwners.add(clientId);
+			}
+		}
+		for (const ownerId of orphanOwners) {
+			this._startClientToolCallDisconnectTimeout(ownerId, session);
+		}
+	}
+
+	/**
+	 * Get the existing per-client record or create an empty one. A freshly
+	 * created record has no connection and `lastSeenAt === undefined`.
+	 */
+	private _ensureClientRecord(clientId: string): IClientRecord {
+		let record = this._clients.get(clientId);
+		if (!record) {
+			record = { connection: undefined, lastSeenAt: undefined, disconnectTimeouts: new DisposableMap() };
+			this._clients.set(clientId, record);
+		}
+		return record;
+	}
+
+	/** Number of records that currently hold a live connection. */
+	private get _connectedClientCount(): number {
+		let count = 0;
+		for (const record of this._clients.values()) {
+			if (record.connection) {
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
+	 * Drop disconnected, timer-less client records whose last-seen time is
+	 * stale beyond the retention window (10× the disconnect timeout), plus
+	 * never-connected placeholder records (e.g. a stamp from a long-dead
+	 * client) once their timeouts have fired. Bounds {@link _clients} without
+	 * tracking liveness precisely — a pruned-then-resurfacing stamp simply
+	 * falls back to the full grace window.
+	 */
+	private _pruneClientRecords(): void {
+		const cutoff = Date.now() - CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT * 10;
+		for (const [clientId, record] of this._clients) {
+			if (record.connection === undefined
+				&& record.disconnectTimeouts.size === 0
+				&& (record.lastSeenAt === undefined || record.lastSeenAt < cutoff)) {
+				this._clients.delete(clientId);
+			}
+		}
+	}
+
+	private _clearClientToolCallDisconnectTimeout(clientId: string, session: string): void {
+		this._clients.get(clientId)?.disconnectTimeouts.deleteAndDispose(session);
+	}
+
+	private _completeDisconnectedClientToolCalls(clientId: string, session: string): void {
+		const state = this._stateManager.getSessionState(session);
+		const activeTurn = state?.activeTurn;
+		if (!state || !activeTurn) {
+			return;
+		}
+		for (const { toolCall, clientId: ownerId } of this._pendingClientToolCalls(state)) {
+			if (ownerId !== clientId) {
+				continue;
+			}
+			const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
+			if (toolCall.status === ToolCallStatus.Streaming) {
+				this._stateManager.dispatchServerAction(session, {
+					type: ActionType.SessionToolCallReady,
 					turnId: activeTurn.id,
 					toolCallId: toolCall.toolCallId,
-					result: {
-						success: false,
-						pastTenseMessage: `${toolCall.displayName} failed`,
-						...(mayRetryWithReplacementClient ? { content: [{ type: ToolResultContentType.Text, text: `The client that was running ${toolCall.displayName} disconnected, but another active client now provides ${toolCall.displayName}. You may try calling the tool again.` }] } : {}),
-						error: { message: `Client ${clientId} disconnected before completing ${toolCall.displayName}` },
-					},
+					invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
 				});
 			}
+			this._stateManager.dispatchServerAction(session, {
+				type: ActionType.SessionToolCallComplete,
+				turnId: activeTurn.id,
+				toolCallId: toolCall.toolCallId,
+				result: {
+					success: false,
+					pastTenseMessage: `${toolCall.displayName} failed`,
+					...(mayRetryWithReplacementClient ? { content: [{ type: ToolResultContentType.Text, text: `The client that was running ${toolCall.displayName} disconnected, but another active client now provides ${toolCall.displayName}. You may try calling the tool again.` }] } : {}),
+					error: { message: `Client ${clientId} disconnected before completing ${toolCall.displayName}` },
+				},
+			});
 		}
 	}
 
@@ -466,16 +884,45 @@ export class ProtocolServerHandler extends Disposable {
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
 		subscribe: async (client, params) => {
+			const classified = classifyChannel(params.channel);
+			if (!classified) {
+				// OTLP-flavoured URI we don't understand (e.g. unknown
+				// level). Acknowledge as stateless so the client doesn't
+				// hang, but install nothing.
+				return {};
+			}
+			if (classified.kind === ChannelKind.OtlpLogs) {
+				if (!this._config.otlpLogEmitter) {
+					this._logService.warn(`[ProtocolServer] Ignoring OTLP subscribe for ${params.channel}: no OTLP emitter configured.`);
+					return {};
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {};
+			}
+			if (classified.kind === ChannelKind.ResourceWatch) {
+				const descriptor = this._agentService.onResourceWatchSubscribed(classified.uri);
+				if (!descriptor) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource watch not found: ${params.channel}`);
+				}
+				client.subscriptions.set(classified.uri, classified);
+				return {
+					snapshot: {
+						resource: classified.uri,
+						state: descriptor,
+						fromSeq: this._stateManager.serverSeq,
+					},
+				};
+			}
 			try {
-				const snapshot = await this._agentService.subscribe(URI.parse(params.resource), client.clientId);
-				client.subscriptions.add(params.resource);
-				this._clearClientToolCallDisconnectTimeout(client.clientId, params.resource);
+				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
+				client.subscriptions.set(classified.uri, classified);
+				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				return { snapshot };
 			} catch (err) {
 				if (err instanceof ProtocolError) {
 					throw err;
 				}
-				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${params.resource}`);
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not found: ${params.channel}`);
 			}
 		},
 		createSession: async (_client, params) => {
@@ -503,8 +950,9 @@ export class ProtocolServerHandler extends Disposable {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
 					model: params.model,
+					agent: params.agent,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
-					session: URI.parse(params.session),
+					session: URI.parse(params.channel),
 					fork,
 					config: params.config,
 					activeClient: params.activeClient,
@@ -516,13 +964,13 @@ export class ProtocolServerHandler extends Disposable {
 				throw new ProtocolError(AHP_PROVIDER_NOT_FOUND, err instanceof Error ? err.message : String(err));
 			}
 			// Verify the provider honored the client-chosen session URI per the protocol contract
-			if (createdSession.toString() !== URI.parse(params.session).toString()) {
-				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.session}`);
+			if (createdSession.toString() !== URI.parse(params.channel).toString()) {
+				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.channel}`);
 			}
 			return null;
 		},
 		disposeSession: async (_client, params) => {
-			await this._agentService.disposeSession(URI.parse(params.session));
+			await this._agentService.disposeSession(URI.parse(params.channel));
 			return null;
 		},
 		resourceWrite: async (_client, params) => {
@@ -554,7 +1002,7 @@ export class ProtocolServerHandler extends Disposable {
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
-					diffs: s.diffs ? [...s.diffs] : undefined,
+					changes: s.changes,
 				};
 			});
 			return { items };
@@ -575,10 +1023,13 @@ export class ProtocolServerHandler extends Disposable {
 				query: params.query,
 			});
 		},
+		completions: async (_client, params) => {
+			return this._agentService.completions(params);
+		},
 		fetchTurns: async (_client, params) => {
-			const state = this._stateManager.getSessionState(params.session);
+			const state = this._stateManager.getSessionState(params.channel);
 			if (!state) {
-				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.session}`);
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
 			const turns = state.turns;
 			const limit = Math.min(params.limit ?? 50, 100);
@@ -612,10 +1063,25 @@ export class ProtocolServerHandler extends Disposable {
 		resourceMove: async (_client, params) => {
 			return this._agentService.resourceMove(params);
 		},
+		resourceResolve: async (_client, params) => {
+			return this._agentService.resourceResolve(params);
+		},
+		resourceMkdir: async (_client, params) => {
+			return this._agentService.resourceMkdir(params);
+		},
+		createResourceWatch: async (_client, params) => {
+			return this._agentService.createResourceWatch(params);
+		},
+		resourceRequest: async (_client, _params) => {
+			// The local agent host does not yet enforce per-resource grants
+			// for client → server access. Always grant; receivers MAY rescind
+			// access by returning `PermissionDenied` on subsequent operations.
+			return {};
+		},
 		authenticate: async (_client, params) => {
 			const result = await this._agentService.authenticate(params);
 			if (!result.authenticated) {
-				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
+				throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
 			}
 			return {};
 		},
@@ -624,8 +1090,11 @@ export class ProtocolServerHandler extends Disposable {
 			return null;
 		},
 		disposeTerminal: async (_client, params) => {
-			await this._agentService.disposeTerminal(URI.parse(params.terminal));
+			await this._agentService.disposeTerminal(URI.parse(params.channel));
 			return null;
+		},
+		invokeChangesetOperation: async (_client, params) => {
+			return this._agentService.invokeChangesetOperation(params);
 		},
 	};
 
@@ -641,7 +1110,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * Rejects if the client disconnects or the server is disposed.
 	 */
 	private _sendReverseRequest<T>(clientId: string, method: string, params: unknown): Promise<T> {
-		const client = this._clients.get(clientId);
+		const client = this._clients.get(clientId)?.connection;
 		if (!client) {
 			return Promise.reject(new Error(`Client ${clientId} is not connected`));
 		}
@@ -712,47 +1181,110 @@ export class ProtocolServerHandler extends Disposable {
 	private _broadcastAction(envelope: ActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
 		const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
-		for (const client of this._clients.values()) {
-			if (this._isRelevantToClient(client, envelope)) {
+		for (const record of this._clients.values()) {
+			const client = record.connection;
+			if (client && this._isRelevantToClient(client, envelope)) {
 				client.transport.send(msg);
 			}
 		}
 	}
 
 	private _broadcastNotification(notification: INotification): void {
-		const msg: AhpServerNotification<'notification'> = { jsonrpc: '2.0', method: 'notification', params: { notification } };
-		for (const client of this._clients.values()) {
-			client.transport.send(msg);
+		// Each protocol notification now ships as its own top-level method. The
+		// `type` discriminant on our local {@link ProtocolNotification} union is
+		// the wire-level method name, so we can route it directly.
+		const { type, ...params } = notification;
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
+		for (const record of this._clients.values()) {
+			record.connection?.transport.send(msg);
+		}
+	}
+
+	/**
+	 * Drop a subscription identified by `channel` from `client`. Handles
+	 * canonicalisation for OTLP URIs (so an `unsubscribe` with a URI
+	 * variant collapses to the same entry as the original `subscribe`)
+	 * and tears down the agent-service refcount for state channels.
+	 */
+	private _removeSubscription(client: IConnectedClient, channel: string): void {
+		const classified = classifyChannel(channel);
+		if (!classified) {
+			// OTLP-flavoured URI with an unknown level — there can never
+			// have been a matching subscription. Silently ignore.
+			return;
+		}
+		const sub = client.subscriptions.get(classified.uri);
+		if (!sub) {
+			return;
+		}
+		client.subscriptions.delete(classified.uri);
+		if (sub.kind === ChannelKind.State) {
+			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
+		} else if (sub.kind === ChannelKind.ResourceWatch) {
+			this._agentService.onResourceWatchUnsubscribed(sub.uri);
+		}
+	}
+
+	/**
+	 * Fan out an OTLP log record to every connected client that has
+	 * subscribed to a logs channel whose `{level}` band includes the
+	 * record's `severityNumber`. The notification's `channel` field is
+	 * the canonical URI the client subscribed against — clients can
+	 * route by URI without re-deriving the level.
+	 */
+	private _broadcastOtlpLog(record: IOtlpLogRecord): void {
+		const payload = toResourceLogsPayload(record);
+		for (const clientRecord of this._clients.values()) {
+			const client = clientRecord.connection;
+			if (!client) {
+				continue;
+			}
+			for (const sub of client.subscriptions.values()) {
+				if (sub.kind !== ChannelKind.OtlpLogs) {
+					continue;
+				}
+				if (record.severityNumber < levelToSeverityNumber(sub.level)) {
+					continue;
+				}
+				const msg: AhpServerNotification<'otlp/exportLogs'> = {
+					jsonrpc: '2.0',
+					method: 'otlp/exportLogs',
+					params: { channel: sub.uri, payload },
+				};
+				client.transport.send(msg);
+			}
 		}
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
-		const action = envelope.action;
-		if (action.type.startsWith('root/')) {
-			return client.subscriptions.has(ROOT_STATE_URI);
+		// The root channel has two equivalent string forms (`ahp-root://` and
+		// the URI-roundtripped `ahp-root:`). Treat them interchangeably so a
+		// client that subscribed with either form receives root broadcasts
+		// regardless of which form the envelope carries. See
+		// {@link isAhpRootChannel}.
+		if (isAhpRootChannel(envelope.channel)) {
+			for (const sub of client.subscriptions.values()) {
+				if (sub.kind === ChannelKind.State && isAhpRootChannel(sub.uri)) {
+					return true;
+				}
+			}
+			return false;
 		}
-		if (isSessionAction(action)) {
-			return client.subscriptions.has(action.session);
-		}
-		if (isTerminalAction(action)) {
-			return client.subscriptions.has(action.terminal);
-		}
-		return false;
+		const sub = client.subscriptions.get(envelope.channel);
+		return sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch;
 	}
 
 	override dispose(): void {
-		for (const client of this._clients.values()) {
-			client.disposables.dispose();
+		for (const record of this._clients.values()) {
+			record.connection?.disposables.dispose();
+			record.disconnectTimeouts.dispose();
 		}
 		this._clients.clear();
 		for (const [, pending] of this._pendingReverseRequests) {
 			pending.reject(new Error('ProtocolServerHandler disposed'));
 		}
 		this._pendingReverseRequests.clear();
-		for (const timeout of this._clientToolCallDisconnectTimeouts.values()) {
-			clearTimeout(timeout);
-		}
-		this._clientToolCallDisconnectTimeouts.clear();
 		this._replayBuffer.length = 0;
 		super.dispose();
 	}

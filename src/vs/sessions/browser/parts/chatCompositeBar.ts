@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatCompositeBar.css';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, DisposableResizeObserver, EventType, getWindow, reset } from '../../../base/browser/dom.js';
+import { ScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
-import { agentsPanelBackground } from '../../common/theme.js';
 import { Action } from '../../../base/common/actions.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -20,7 +20,11 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../sessionsViewService.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { applySessionBarThemeColors } from './sessionBarStyles.js';
 
 interface IChatTab {
 	readonly chat: IChat;
@@ -28,20 +32,31 @@ interface IChatTab {
 }
 
 /**
- * A composite bar that displays chats within the active agent session as tabs.
+ * A composite bar that displays the chats within an agent session as tabs.
  * Selecting a tab loads that chat in the chat view pane instead of switching view containers.
  *
- * The bar auto-hides when there is only one chat in the active session and shows when there are multiple.
+ * The bar is shown only when the session has multiple chats; a single chat is already
+ * represented by the {@link SessionHeader} title.
+ *
+ * The hosting view tells the bar which session is relevant via {@link setSession}.
  */
 export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
+	private readonly _tabsRow: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
+	private readonly _tabsScrollbar: ScrollableElement;
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
+	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _session: IActiveSession | undefined;
+
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private _visible = false;
 
@@ -53,39 +68,95 @@ export class ChatCompositeBar extends Disposable {
 		return this._visible;
 	}
 
+	get height(): number {
+		return this._visible ? this._container.offsetHeight : 0;
+	}
+
 	constructor(
 		@IThemeService private readonly _themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
-		this._container = $('.chat-composite-bar');
+		this._container = $('.chat-composite-bar.session-chat-tabs-bar');
+
+		// Tabs row — only shown when the session has multiple chats.
+		this._tabsRow = $('.chat-composite-bar-tabs-row');
+		this._container.appendChild(this._tabsRow);
+
 		this._tabsContainer = $('.chat-composite-bar-tabs');
-		this._container.appendChild(this._tabsContainer);
+		this._tabsContainer.setAttribute('role', 'tablist');
+		this._tabsContainer.setAttribute('aria-label', localize('chatTabsAriaLabel', "Chats"));
+		this._tabsScrollbar = this._register(new ScrollableElement(this._tabsContainer, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Hidden,
+			scrollYToX: true,
+			useShadows: false,
+		}));
+		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 
-		// Track active session changes
-		this._register(autorun(reader => {
-			const activeSession = this._sessionsManagementService.activeSession.read(reader);
-			if (!activeSession) {
-				this._rebuildTabs([], '', undefined);
-				return;
-			}
-
-			const chats = activeSession.chats.read(reader);
-			const activeChatUri = activeSession.activeChat.read(reader)?.resource.toString() ?? '';
-			const mainChatUri = activeSession.mainChat.resource.toString();
-			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+		// Keep the visual scrollbar in sync with native scrolling inside the tabs container
+		this._register(addDisposableListener(this._tabsContainer, EventType.SCROLL, () => {
+			this._tabsScrollbar.setScrollPosition({ scrollLeft: this._tabsContainer.scrollLeft });
 		}));
 
-		// Scroll active tab into view on resize
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this._revealActiveTab()));
+		// Forward scrollbar changes (e.g. from mouse wheel) back to the native scroll position
+		this._register(this._tabsScrollbar.onScroll(e => {
+			if (e.scrollLeftChanged) {
+				this._tabsContainer.scrollLeft = e.scrollLeft;
+			}
+		}));
+
+		// Scroll active tab into view + update scroll dimensions on resize
+		const resizeObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.activeTabReveal', () => {
+			this._updateScrollDimensions();
+			this._revealActiveTab();
+		}));
 		this._register(resizeObserver.observe(this._tabsContainer));
 
+		// Report height changes so the host can re-layout
+		const heightObserver = this._register(new DisposableResizeObserver('ChatCompositeBar.height', () => {
+			this._onDidChangeHeight.fire();
+		}));
+		this._register(heightObserver.observe(this._container));
 
+		this._setVisible(false);
 		this._updateStyles();
 		this._register(this._themeService.onDidColorThemeChange(() => this._updateStyles()));
+	}
+
+	/**
+	 * Tells the bar which session is currently relevant. The bar will display the chats
+	 * of the given session and track its active chat. Pass `undefined` to clear.
+	 */
+	setSession(session: IActiveSession | undefined): void {
+		if (this._session === session) {
+			return;
+		}
+		this._session = session;
+
+		const store = new DisposableStore();
+		this._sessionDisposables.value = store;
+
+		if (!session) {
+			this._rebuildTabs([], '', undefined);
+			this._setVisible(false);
+			return;
+		}
+
+		store.add(autorun(reader => {
+			const chats = session.chats.read(reader);
+			const activeChatUri = session.activeChat.read(reader)?.resource.toString() ?? '';
+			const mainChatUri = session.mainChat.read(reader).resource.toString();
+			this._rebuildTabs(chats, activeChatUri, mainChatUri);
+
+			// Only show the tab strip once the session is created and has multiple chats.
+			this._setVisible(session.isCreated.read(reader) && chats.length > 1);
+		}));
 	}
 
 	private _rebuildTabs(chats: readonly IChat[], activeChatId: string, mainChatId?: string): void {
@@ -98,10 +169,20 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._updateActiveTab(activeChatId);
-		this._updateVisibility();
+		this._updateScrollDimensions();
+
+		this._onDidChangeHeight.fire();
+	}
+
+	private _updateScrollDimensions(): void {
+		this._tabsScrollbar.setScrollDimensions({
+			width: this._tabsContainer.clientWidth,
+			scrollWidth: this._tabsContainer.scrollWidth,
+		});
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
+		const session = this._session;
 		const tab = $('.chat-composite-bar-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
@@ -113,13 +194,53 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		tab.appendChild(labelEl);
 
+		// Delayed hover showing the full chat title (useful when the title is truncated)
+		this._tabDisposables.add(this._hoverService.setupManagedHover(
+			getDefaultHoverDelegate('element'),
+			tab,
+			() => chat.title.get(),
+		));
+
 		// Track untitled state for styling (dirty dot + close button)
 		this._tabDisposables.add(autorun(reader => {
 			const status = chat.status.read(reader);
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
-		// Remove action bar — only for non-main chats, visible on hover
+		// Track unread / needs-input / in-progress state for the indicator.
+		// Precedence: needs-input (unread) > in-progress (spinner) > unread when not active.
+		// At most one indicator is shown at a time.
+		const indicator = $('.chat-composite-bar-tab-indicator');
+		const indicatorIcon = $('.chat-composite-bar-tab-indicator-icon');
+		indicator.appendChild(indicatorIcon);
+		this._tabDisposables.add(autorun(reader => {
+			const activeChat = session?.activeChat.read(reader);
+			const isActive = activeChat?.resource.toString() === chat.resource.toString();
+			const status = chat.status.read(reader);
+			const isRead = chat.isRead.read(reader);
+
+			let mode: 'needs-input' | 'unread' | 'in-progress' | 'none' = 'none';
+			if (status === SessionStatus.NeedsInput) {
+				mode = 'needs-input';
+			} else if (status === SessionStatus.InProgress) {
+				mode = 'in-progress';
+			} else if (!isRead && !isActive) {
+				mode = 'unread';
+			}
+
+			tab.classList.toggle('needs-input', mode === 'needs-input');
+			tab.classList.toggle('unread', mode === 'unread');
+			tab.classList.toggle('in-progress', mode === 'in-progress');
+
+			indicatorIcon.className = 'chat-composite-bar-tab-indicator-icon';
+			if (mode === 'in-progress') {
+				indicatorIcon.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+			}
+		}));
+
+		tab.appendChild(indicator);
+
+		// Close action — only for non-main chats, always visible
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -127,9 +248,8 @@ export class ChatCompositeBar extends Disposable {
 				ThemeIcon.asClassName(Codicon.close),
 				true,
 				async () => {
-					const session = this._sessionsManagementService.activeSession.get();
-					if (session) {
-						await this._sessionsManagementService.deleteChat(session, chat.resource);
+					if (this._session) {
+						await this._sessionsManagementService.deleteChat(this._session, chat.resource);
 					}
 				},
 			));
@@ -137,9 +257,6 @@ export class ChatCompositeBar extends Disposable {
 			actionBar.push(closeAction, { icon: true, label: false });
 			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
 		}
-
-		const indicator = $('.chat-composite-bar-tab-indicator');
-		tab.appendChild(indicator);
 
 		this._tabsContainer.appendChild(tab);
 
@@ -159,11 +276,8 @@ export class ChatCompositeBar extends Disposable {
 				value: chat.title.get(),
 				prompt: localize('renameChat.prompt', "Rename Chat"),
 			});
-			if (newTitle) {
-				const session = this._sessionsManagementService.activeSession.get();
-				if (session) {
-					await this._sessionsManagementService.renameChat(session, chat.resource, newTitle);
-				}
+			if (newTitle && this._session) {
+				await this._sessionsManagementService.renameChat(this._session, chat.resource, newTitle);
 			}
 		}));
 
@@ -188,9 +302,8 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	private _onTabClicked(chat: IChat): void {
-		const session = this._sessionsManagementService.activeSession.get();
-		if (session) {
-			this._sessionsManagementService.openChat(session, chat.resource);
+		if (this._session) {
+			this._sessionsViewService.openChat(this._session, chat.resource);
 		}
 	}
 
@@ -210,10 +323,9 @@ export class ChatCompositeBar extends Disposable {
 		activeTab?.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 	}
 
-	private _updateVisibility(): void {
-		// Show when there are multiple sessions, hide when there is only one (or none)
+	private _setVisible(visible: boolean): void {
 		const wasVisible = this._visible;
-		this._visible = this._tabs.length > 1;
+		this._visible = visible;
 		this._container.style.display = this._visible ? '' : 'none';
 		if (wasVisible !== this._visible) {
 			this._onDidChangeVisibility.fire(this._visible);
@@ -221,16 +333,6 @@ export class ChatCompositeBar extends Disposable {
 	}
 
 	private _updateStyles(): void {
-		const theme = this._themeService.getColorTheme();
-
-		const bg = theme.getColor(agentsPanelBackground);
-		const activeFg = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-		const inactiveFg = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-		const activeBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-
-		this._container.style.setProperty('--chat-bar-background', bg?.toString() ?? '');
-		this._container.style.setProperty('--chat-tab-active-foreground', activeFg?.toString() ?? '');
-		this._container.style.setProperty('--chat-tab-inactive-foreground', inactiveFg?.toString() ?? '');
-		this._container.style.setProperty('--chat-tab-active-border', activeBorder?.toString() ?? '');
+		applySessionBarThemeColors(this._container, this._themeService.getColorTheme());
 	}
 }

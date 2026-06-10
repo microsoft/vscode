@@ -8,15 +8,16 @@ import { fileURLToPath } from 'url';
 import { WebSocket } from 'ws';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { ActionEnvelope, SessionAddedNotification } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
+import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
+import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
+import { MessageKind } from '../../../common/state/sessionState.js';
+import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	isJsonRpcNotification,
 	isJsonRpcResponse,
 	type AhpNotification,
 	type JsonRpcErrorResponse,
 	type JsonRpcSuccessResponse,
-	type INotificationBroadcastParams,
 	type ProtocolMessage,
 } from '../../../common/state/sessionProtocol.js';
 
@@ -225,10 +226,16 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the real Copilot SDK agent (no mock agent).
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkPath?: string; readonly codexBinaryPath?: string }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
+		if (options?.claudeSdkPath) {
+			args.push('--claude-sdk-path', options.claudeSdkPath);
+		}
+		if (options?.codexBinaryPath) {
+			args.push('--codex-binary-path', options.codexBinaryPath);
+		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
@@ -249,6 +256,9 @@ export async function startRealServer(): Promise<IServerHandle> {
 
 		child.stderr!.on('data', () => {
 			// Intentionally swallowed - the test runner fails if console.error is used.
+			// Server logs go to the agent host's logger (under
+			// `<userDataPath>/logs/<timestamp>/agenthost-server.log`); check
+			// there when investigating real-SDK test failures.
 		});
 
 		child.on('error', err => {
@@ -285,16 +295,16 @@ export function getActionEnvelope(n: AhpNotification): ActionEnvelope {
 
 /** Perform handshake, create a session, subscribe, and return its URI. */
 export async function createAndSubscribeSession(c: TestProtocolClient, clientId: string, workingDirectory?: string): Promise<string> {
-	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
+	await c.call('initialize', { channel: 'ahp-root://', protocolVersions: [PROTOCOL_VERSION], clientId });
 
-	await c.call('createSession', { session: nextSessionUri(), provider: 'mock', workingDirectory });
+	await c.call('createSession', { channel: nextSessionUri(), provider: 'mock', workingDirectory });
 
 	const notif = await c.waitForNotification(n =>
-		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		n.method === 'root/sessionAdded'
 	);
-	const realSessionUri = ((notif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary.resource;
+	const realSessionUri = (notif.params as SessionAddedParams).summary.resource;
 
-	await c.call<SubscribeResult>('subscribe', { resource: realSessionUri });
+	await c.call<SubscribeResult>('subscribe', { channel: realSessionUri });
 	c.clearReceived();
 
 	return realSessionUri;
@@ -302,12 +312,12 @@ export async function createAndSubscribeSession(c: TestProtocolClient, clientId:
 
 export function dispatchTurnStarted(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): void {
 	c.notify('dispatchAction', {
+		channel: session,
 		clientSeq,
 		action: {
 			type: 'session/turnStarted',
-			session,
 			turnId,
-			userMessage: { text },
+			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
 }
