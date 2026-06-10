@@ -23,7 +23,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/ag
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, customizationId, isSubagentSession, type ChangesetState, type MarkdownResponsePart, type ToolCallCompletedState, type ToolCallResponsePart } from '../../common/state/sessionState.js';
 import { type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -536,6 +536,46 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
+		});
+
+		test('listSessions never returns subagent sessions', async () => {
+			service.registerProvider(copilotAgent);
+			const parentSession = await service.createSession({ provider: 'copilot' });
+
+			// Simulate a live subagent being spawned: `_handleSubagentStarted`
+			// registers the child session via `restoreSession`, which records
+			// it in the announced-summary map that `listSessions` overlays
+			// onto provider results.
+			const childSessionUri = buildSubagentSessionUri(parentSession.toString(), 'tc-sub');
+			service.stateManager.restoreSession(
+				{
+					resource: childSessionUri,
+					provider: 'subagent',
+					title: 'Explore',
+					status: SessionStatus.Idle,
+					createdAt: Date.now(),
+					modifiedAt: Date.now(),
+				},
+				[],
+			);
+
+			// Sanity: the subagent child session is announced.
+			assert.ok(
+				service.stateManager.getAnnouncedSessionSummaries().some(s => s.resource === childSessionUri),
+				'subagent child session should be announced',
+			);
+
+			const listed = await service.listSessions();
+			assert.deepStrictEqual(
+				{
+					subagentSessions: listed.filter(s => isSubagentSession(s.session.toString())).map(s => s.session.toString()),
+					includesParent: listed.some(s => s.session.toString() === parentSession.toString()),
+				},
+				{
+					subagentSessions: [],
+					includesParent: true,
+				},
+			);
 		});
 
 		test.skip('listSessions synthesizes the session changeset catalogue from persisted diffs for unopened sessions', async () => {
