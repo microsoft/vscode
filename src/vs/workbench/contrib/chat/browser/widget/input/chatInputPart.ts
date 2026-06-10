@@ -4115,7 +4115,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		return {
 			editorBorder: 2,
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 24,
+			// The sessions window pads `.interactive-input-part` by 32px on each side
+			// (vs the default 12px margin) so the input box aligns with the chat
+			// content cards. The editor width is computed here, so it must account
+			// for the same 64px total horizontal gutter or the editor overflows its
+			// container and renders wider than the message content above it.
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24),
 			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
