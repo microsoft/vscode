@@ -2079,7 +2079,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		newSession.setStatus(SessionStatus.InProgress);
 		newSession.clearSelectedModelId();
-		newSession.clearSelectedAgent();
+
 		// Seed the title from the first line of the query so the new-session
 		// tab shows something meaningful immediately. This skeleton is replaced
 		// by the committed AgentHostSession once it arrives.

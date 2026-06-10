@@ -23,6 +23,7 @@ import {
 	computeChangesSummaryFromPersistedDiffs,
 	IAgentHostChangesetService,
 	META_CHANGES_SUMMARY,
+	META_CHANGESET_BRANCH,
 	META_CHANGESET_SESSION,
 	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
@@ -45,6 +46,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  * apply methods.
  */
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGESET_BRANCH]: true,
 	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
 	[META_CHANGES_SUMMARY]: true,
@@ -68,6 +70,13 @@ export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
  */
 export class ChangesetSessionCoordinator extends Disposable {
 
+	/**
+	 * Sessions that subscribed to their branch changeset before the
+	 * working directory was known (provisional / not-yet-materialized
+	 * sessions). Drained by {@link onSessionMaterialized} and
+	 * {@link onSessionRestored} once the working directory is set.
+	 */
+	private readonly _pendingBranchRefreshes = new Set<string>();
 	/**
 	 * Sessions that subscribed to their uncommitted changeset before the
 	 * working directory was known (provisional / not-yet-materialized
@@ -142,6 +151,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
+			branchRaw: metadata[META_CHANGESET_BRANCH],
 			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
@@ -180,6 +190,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * queued for that session.
 	 */
 	onSessionDisposed(sessionStr: string): void {
+		this._pendingBranchRefreshes.delete(sessionStr);
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._pendingSessionRefreshes.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
@@ -204,6 +215,11 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onFirstSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		if (parsed?.kind === ChangesetKind.Branch) {
+			this._triggerBranchRefresh(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			return;
+		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._triggerUncommittedRefresh(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
@@ -235,6 +251,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// no turn has run since process start, no one ever subscribed
 			// to the changeset URIs directly, and the user has been
 			// editing files manually in the working tree.
+			this._triggerBranchRefresh(resourceStr);
 			this._triggerUncommittedRefresh(resourceStr);
 			this._triggerSessionRefresh(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
@@ -249,6 +266,11 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onLastSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		if (parsed?.kind === ChangesetKind.Branch) {
+			this._pendingBranchRefreshes.delete(parsed.sessionUri);
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+			return;
+		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
@@ -441,6 +463,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 
 	// ---- Internal -----------------------------------------------------------
 
+	private _triggerBranchRefresh(sessionStr: string): void {
+		const wd = this._configurationService.getEffectiveWorkingDirectory(sessionStr);
+		if (!wd) {
+			this._pendingBranchRefreshes.add(sessionStr);
+			return;
+		}
+		this._changesets.refreshBranchChangeset(sessionStr);
+	}
+
 	/**
 	 * Triggers the first uncommitted refresh for `sessionStr`, deferring
 	 * it until materialization when the working directory is not yet
@@ -471,6 +502,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 	}
 
 	private _drainPendingRefresh(sessionStr: string): void {
+		if (this._pendingBranchRefreshes.delete(sessionStr)) {
+			this._triggerBranchRefresh(sessionStr);
+		}
 		if (this._pendingUncommittedRefreshes.delete(sessionStr)) {
 			this._triggerUncommittedRefresh(sessionStr);
 		}

@@ -1276,65 +1276,53 @@ fork end-to-end ships in Phase 6.5.
 
 Exit criteria: ready to enable for external preview.
 
-### Phase 15 — SDK distribution via marketplace extension
+### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net
 
-**Status as of 2026-05-13:** the agent host already runs against the latest
-`@anthropic-ai/claude-agent-sdk` rather than `0.2.112`, but the SDK is loaded
-from a path the user supplies (`chat.agentHost.claudeAgent.path` setting →
-`AgentHostClaudeSdkPathEnvVar`, see [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148)).
-That mechanism unblocked development but is **not shippable**: it requires
-every user to install the SDK locally and configure a path.
+**Status as of 2026-06-09:** Phase 15 has landed in the agent host. The Claude
+and Codex SDK distributions are now declared in `product.json` and downloaded
+on demand by [`agentSdkDownloader.ts`](../agentSdkDownloader.ts) into
+`<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/<sdkTarget>/`. The
+hand-supplied paths (`chat.agentHost.claudeAgent.path` →
+`AgentHostClaudeSdkRootEnvVar`, see
+[`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148), and the
+Codex equivalent) survive as a **dev override** only — set them to bypass
+the download.
 
-**Direction:** distribute the SDK as a versioned VS Code extension so users
-get it through the normal install flow.
+**Shape:**
 
-1. **Agent Host gains marketplace-install capability.** Today the agent
-   host is a closed utility process; it cannot fetch or install
-   extensions. Add the IPC + extension-management surface needed for the
-   agent host to install / update / load extensions from the VS Code
-   marketplace (or a registry it trusts).
-2. **Publish a Claude SDK packaging extension to the marketplace.** A
-   thin extension whose only job is to ship a vetted version of
-   `@anthropic-ai/claude-agent-sdk` (and any native deps) and expose its
-   load path to the agent host. Versioned on the marketplace so SDK
-   upgrades become extension updates, not VS Code releases.
-3. **Agent host loads the SDK from the installed extension** instead of
-   from `AgentHostClaudeSdkPathEnvVar`. The env-var path stays as a dev
-   override. The setting `chat.agentHost.claudeAgent.path` is repurposed
-   (or removed) for end users.
+- `product.agentSdks.{claude,codex}` ships a `version`, a `urlTemplate`
+  with `{sdkVersion}` / `{sdkTarget}` placeholders, and a per-target
+  `sha256` map. `{sdkTarget}` matches the npm `optionalDependencies`
+  suffix (`darwin-arm64`, `linux-x64-musl`, …). Codex's Linux entries
+  never carry the `-musl` suffix because the Codex shim always loads the
+  musl binary regardless of host libc.
+- `vscode-distro` is where `product.agentSdks` is populated; OSS
+  `product.json` does not have it.
+- Tarballs ship as the full `node_modules/` subtree extracted into the
+  cache directory above. `ClaudeAgentSdkService._loadSdk` and
+  `CodexAgent._startConnection` know the package-internal entrypoints
+  (`@anthropic-ai/claude-agent-sdk/sdk.mjs`, `@openai/codex/bin/codex.js`)
+  and resolve them off the returned root.
+- Trust: the sha256 in `product.json` (itself inside the signed
+  application bundle and covered by `product.checksums`) is the trust
+  anchor — CDN tampering fails verification. No separate signed
+  manifest.
+- Provider registration is gated on
+  `IAgentSdkDownloader.isAvailable(pkg)` — true iff the dev-override
+  env var is set, OR product config has a sha for the current target.
+  If neither, the provider is not registered and never appears in the
+  agent picker (matches the pre-CDN UX).
 
-**Why this shape:**
-- SDK upgrades ship out-of-band from VS Code (no need to bundle a
-  specific SDK version into every VS Code release).
-- The native-dependency packaging burden moves to the extension's
-  publishing pipeline, which is already a solved problem for VS Code
-  extensions across `win32-x64`, `darwin-x64`, `darwin-arm64`,
-  `linux-x64`.
-- Multiple SDK-packaging extensions could coexist (e.g. an `@stable`
-  extension and a `@preview` extension), letting the user opt into
-  newer SDKs without a VS Code update.
-- Other agent SDKs (future Anthropic / OpenAI / etc. providers) follow
-  the same model.
+**Exit criteria (met):**
+- Fresh insiders install can use Claude/Codex without manually
+  installing the SDK or setting any path.
+- SDK version bumps are now `vscode-distro` changes that re-pin
+  `product.agentSdks[pkg].version` and the per-target sha256 entries.
+- Dev override keeps working for SDK development.
 
-**Open design points** (to be detailed in a phase plan when scheduled):
-- IPC surface for agent-host-driven extension install (mirror or
-  delegate to the workbench's extension service?).
-- Discovery contract: how does the agent host know which installed
-  extension provides the Claude SDK? (e.g. an extension `contributes`
-  field, a well-known activation event, a manifest-declared capability).
-- Trust model: is the marketplace publisher the source of truth, or
-  does the agent host pin a specific publisher / extension id?
-- Dev override: keep `AgentHostClaudeSdkPathEnvVar` as the
-  non-marketplace fallback for SDK development.
-
-This phase replaces the previous "upgrade the bundled SDK to a newer
-0.2.x" plan, which assumed the SDK would always be a normal `npm`
-dependency. That assumption no longer holds now that the SDK ships
-native binaries.
-
-Exit criteria: a fresh VS Code install can use the Claude agent without
-manually installing the SDK or setting any path. SDK upgrades arrive as
-marketplace extension updates.
+**Build pipeline** — see `build/agent-sdk/` for the tarball production
+and CDN upload tooling, including the deterministic-tar setup that
+makes `verify-determinism.ts` enforceable in CI.
 
 ### Phase 16 — Eager session materialization at create time
 

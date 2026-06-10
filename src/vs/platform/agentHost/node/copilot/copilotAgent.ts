@@ -7,7 +7,6 @@ import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@gi
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey, Throttler } from '../../../../base/common/async.js';
 import { CancellationTokenSource, type CancellationToken } from '../../../../base/common/cancellation.js';
-import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
@@ -20,38 +19,38 @@ import { basename, delimiter, dirname } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parseAgentFile, parseRuleFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parseAgentFile, parsePlugin, parseRuleFile, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IMcpNotification } from '../../common/agentService.js';
+import { getEffectiveAgents } from '../../common/customAgents.js';
+import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, SessionInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { ActiveClientState } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../agentHostGitService.js';
-import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { ShellManager } from './copilotShellTools.js';
 import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
-import { ActiveClientState } from '../activeClientState.js';
-import { areDiscoveredDirectoriesEqual, DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
-import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
-import { findMcpChildId } from '../shared/mcpCustomizationController.js';
+import { ShellManager } from './copilotShellTools.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
-import { getEffectiveAgents } from '../../common/customAgents.js';
+import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -546,6 +545,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
+
+			// Identify VS Code's agent host traffic in CAPI
+			env['GITHUB_COPILOT_INTEGRATION_ID'] = 'vscode-agent-host';
 
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
@@ -1939,8 +1941,8 @@ interface IResolvedCustomization {
  * discovered itself from disk (workspace + user-home conventions).
  *
  * Owns a {@link SessionCustomizationDiscovery} (filesystem scan +
- * watchers) and a {@link SessionPluginBundler} (in-memory synthetic
- * Open Plugin under the `vscode-synced-customization:` scheme).
+ * watchers) and maps discovered files into an in-memory
+ * {@link IParsedPlugin} while preserving original file URIs.
  *
  * Refreshes itself when the discovery fires `onDidChange`. The owning
  * {@link PluginController} is notified via the supplied `onDidRefresh`
@@ -1951,7 +1953,6 @@ interface IResolvedCustomization {
 class SessionDiscoveredEntry extends Disposable {
 
 	private readonly _discovery: SessionCustomizationDiscovery;
-	private readonly _bundler: SessionPluginBundler;
 	private readonly _refreshThrottler = this._register(new Throttler());
 	private _refreshCancellationSource: CancellationTokenSource | undefined;
 
@@ -1964,14 +1965,12 @@ class SessionDiscoveredEntry extends Disposable {
 	constructor(
 		workingDirectory: URI,
 		userHome: URI,
-		private readonly _resolvePlugin: (uri: URI) => Promise<IParsedPlugin | undefined>,
 		private readonly _onDidRefresh: () => void,
 		private readonly _logService: ILogService,
 		instantiationService: IInstantiationService,
 	) {
 		super();
 		this._discovery = this._register(instantiationService.createInstance(SessionCustomizationDiscovery, workingDirectory, userHome));
-		this._bundler = this._register(instantiationService.createInstance(SessionPluginBundler, workingDirectory));
 		this._fileService = instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		this._settled = this._queueRefresh(false);
 		this._register(this._discovery.onDidChange(() => {
@@ -2032,22 +2031,15 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
-			const bundleResult = await this._bundler.bundle(directories, token);
+			const plugin = mapToParsedPlugin(customizations);
 			if (token.isCancellationRequested) {
 				return false;
 			}
 
-			// Don't update `_customizations` / `_plugin` when cancelled.
+			// Don't update `_customizations` / `_plugin` / `_directories` when cancelled.
 			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
-			if (!bundleResult) {
-				this._customizations = customizations;
-				this._plugin = undefined;
-			} else {
-				const pluginDir = URI.parse(bundleResult.ref.uri);
-				const plugin = await this._resolvePlugin(pluginDir);
-				this._customizations = customizations;
-				this._plugin = plugin;
-			}
+			this._customizations = customizations;
+			this._plugin = plugin;
 			this._directories = directories;
 			return true;
 		} catch (err) {
@@ -2066,7 +2058,7 @@ class SessionDiscoveredEntry extends Disposable {
 	}
 }
 
-function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
+export function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDirectory[], fileService: IFileService): Promise<DirectoryCustomization[]> {
 	return Promise.all(directories.map(async directory => {
 		const protocolUri = directory.uri.toString();
 		return {
@@ -2143,6 +2135,69 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 		id,
 		uri,
 		name: resourceBasename(file),
+	};
+}
+
+
+/**
+ * Projects already-parsed discovered customizations into an in-memory
+ * {@link IParsedPlugin} while preserving original source URIs.
+ */
+export function mapToParsedPlugin(customizations: readonly DirectoryCustomization[]): IParsedPlugin | undefined {
+	if (customizations.length === 0) {
+		return undefined;
+	}
+
+	const agents: IParsedAgent[] = [];
+	const skills: IParsedSkill[] = [];
+	const instructions: IParsedRule[] = [];
+
+	for (const directory of customizations) {
+		for (const child of directory.children ?? []) {
+			if (child.type === CustomizationType.Agent) {
+				agents.push({
+					uri: URI.parse(child.uri),
+					name: child.name,
+					description: child.description,
+					customization: child,
+				});
+				continue;
+			}
+
+			if (child.type === CustomizationType.Skill) {
+				skills.push({
+					uri: URI.parse(child.uri),
+					name: child.name,
+					description: child.description,
+					customization: child,
+				});
+				continue;
+			}
+
+			if (child.type === CustomizationType.Rule) {
+				if (child.alwaysApply && child.name.match(/\.md$/i)) {
+					continue; // agent instruction
+				}
+				instructions.push({
+					uri: URI.parse(child.uri),
+					name: child.name,
+					description: child.description,
+					customization: child,
+				});
+			}
+		}
+	}
+
+	if (agents.length === 0 && skills.length === 0 && instructions.length === 0) {
+		return undefined;
+	}
+
+	return {
+		hooks: [],
+		mcpServers: [],
+		skills: skills,
+		agents: agents,
+		instructions: instructions,
 	};
 }
 
@@ -2548,7 +2603,6 @@ class SessionPluginController extends Disposable {
 			this._sessionDiscovered.value = new SessionDiscoveredEntry(
 				this._directory,
 				URI.file(this._parent.getUserHome()),
-				uri => this._parent.tryParsePlugin(uri),
 				() => this._onDidPublish.fire({
 					type: ActionType.SessionCustomizationsChanged,
 					customizations: [...this.getCustomizations()],
