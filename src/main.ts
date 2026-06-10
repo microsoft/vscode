@@ -201,7 +201,8 @@ async function onReady() {
 
 		await startup(codeCachePath, nlsConfig);
 	} catch (error) {
-		console.error(error);
+		console.error('Fatal error during startup:', error);
+		app.exit(1);
 	}
 }
 
