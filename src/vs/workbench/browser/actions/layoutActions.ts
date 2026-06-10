@@ -104,7 +104,7 @@ const SecondarySideBarLeftContext = ContextKeyExpr.or(
 		ContextKeyExpr.equals(`config.${secondarySideBarPositionConfigurationKey}`, SecondarySideBarLocation.OPPOSITE),
 		ContextKeyExpr.equals(`config.${sidebarPositionConfigurationKey}`, 'right')
 	)
-)!;
+) ?? ContextKeyExpr.false();
 
 const SecondarySideBarRightContext = ContextKeyExpr.or(
 	ContextKeyExpr.equals(`config.${secondarySideBarPositionConfigurationKey}`, SecondarySideBarLocation.RIGHT),
@@ -112,7 +112,7 @@ const SecondarySideBarRightContext = ContextKeyExpr.or(
 		ContextKeyExpr.equals(`config.${secondarySideBarPositionConfigurationKey}`, SecondarySideBarLocation.OPPOSITE),
 		ContextKeyExpr.equals(`config.${sidebarPositionConfigurationKey}`, 'left')
 	)
-)!;
+) ?? ContextKeyExpr.false();
 
 class MoveSidebarPositionAction extends Action2 {
 	constructor(id: string, title: ICommandActionTitle, private readonly position: Position) {
@@ -163,16 +163,13 @@ class MoveSecondarySideBarPositionAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const position = auxiliaryBarPositionFromConfiguration(
-			layoutService.getSideBarPosition(),
-			configurationService.getValue<SecondarySideBarLocation>(secondarySideBarPositionConfigurationKey)
-		);
+		const configuredPosition = configurationService.getValue<SecondarySideBarLocation>(secondarySideBarPositionConfigurationKey);
+		const position = this.position === Position.LEFT ? SecondarySideBarLocation.LEFT : SecondarySideBarLocation.RIGHT;
 
-		if (position !== this.position) {
-			return configurationService.updateValue(secondarySideBarPositionConfigurationKey, positionToString(this.position));
+		if (configuredPosition !== position) {
+			return configurationService.updateValue(secondarySideBarPositionConfigurationKey, position);
 		}
 	}
 }

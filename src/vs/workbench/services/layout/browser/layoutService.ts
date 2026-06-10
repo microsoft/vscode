@@ -120,6 +120,8 @@ export function positionFromString(str: string): Position {
 
 export function auxiliaryBarPositionFromConfiguration(sideBarPosition: Position, secondarySideBarLocation: SecondarySideBarLocation | undefined): Position {
 	switch (secondarySideBarLocation) {
+		case SecondarySideBarLocation.OPPOSITE:
+			return sideBarPosition === Position.LEFT ? Position.RIGHT : Position.LEFT;
 		case SecondarySideBarLocation.LEFT:
 			return Position.LEFT;
 		case SecondarySideBarLocation.RIGHT:
