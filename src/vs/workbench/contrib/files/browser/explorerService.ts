@@ -306,7 +306,11 @@ export class ExplorerService implements IExplorerService {
 				this.remoteClipboardTempDir = tempDir;
 
 				for (const resource of remoteResources) {
-					const target = joinPath(tempDir, basename(resource));
+					// Place each file in its own unique subfolder to avoid
+					// name collisions (e.g. two different folders both have index.ts)
+					const uniqueDir = joinPath(tempDir, generateUuid());
+					await this.fileService.createFolder(uniqueDir);
+					const target = joinPath(uniqueDir, basename(resource));
 					await this.fileService.copy(resource, target, true);
 					result.push(target);
 				}

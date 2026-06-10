@@ -214,10 +214,13 @@ export class NativeClipboardService implements IClipboardService {
 		}
 
 		try {
-			// text/uri-list: lines starting with # are comments, entries separated by \r\n
+			// text/uri-list: lines starting with # are comments, entries separated by \r\n.
+			// Only include file:// URIs — non-file URIs are not meaningful for
+			// file paste flows and could cause confusing errors.
 			return content.split(/\r?\n/)
 				.filter(line => line.length > 0 && !line.startsWith('#'))
-				.map(line => URI.parse(line));
+				.map(line => URI.parse(line))
+				.filter(uri => uri.scheme === Schemas.file);
 		} catch (error) {
 			return []; // do not trust clipboard data
 		}

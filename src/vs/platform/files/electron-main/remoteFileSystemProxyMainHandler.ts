@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { REMOTE_FILE_SYSTEM_PROXY_CHANNEL_NAME } from '../common/remoteFileSystemProxy.js';
@@ -41,6 +42,12 @@ export class RemoteFileSystemProxyMainHandler extends Disposable implements ISer
 	async call(_: unknown, command: string, arg?: any): Promise<any> {
 		const args = arg as unknown[];
 		const uri = URI.revive(args[0] as UriComponents);
+
+		// Only handle vscode-remote:// URIs to avoid routing unrelated URIs
+		// that happen to have an authority (e.g. UNC paths on Windows).
+		if (uri.scheme !== Schemas.vscodeRemote) {
+			throw new Error(`Unsupported scheme: ${uri.scheme}. Only ${Schemas.vscodeRemote} URIs are supported.`);
+		}
 
 		// Find a window that has a remote connection matching this URI's authority
 		const targetWindow = this.findWindowForAuthority(uri.authority);

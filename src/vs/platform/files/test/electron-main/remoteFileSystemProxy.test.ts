@@ -49,6 +49,25 @@ suite('RemoteFileSystemProxyMainHandler', () => {
 		);
 	});
 
+	test('throws for non-vscode-remote URIs', async () => {
+		const windowsService: IRemoteFileSystemProxyWindowsService = {
+			getWindows: () => [
+				{ id: 1, remoteAuthority: 'ssh-remote+myhost' },
+			],
+		};
+
+		const mockServer: IRemoteFileSystemProxyIPCServer = {
+			getChannel: () => createMockChannel(),
+		};
+
+		const handler = disposables.add(new RemoteFileSystemProxyMainHandler(windowsService, mockServer));
+
+		await assert.rejects(
+			() => handler.call(undefined, 'stat', [URI.parse('file:///local/path')]),
+			/Unsupported scheme/
+		);
+	});
+
 	test('routes call to correct window based on URI authority', async () => {
 		let calledWindowCtx: string | undefined;
 
