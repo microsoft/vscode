@@ -6,7 +6,7 @@
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agentService.js';
 import type { MessageAttachment } from '../common/state/protocol/state.js';
-import { isSubagentSession, type SessionState } from '../common/state/sessionState.js';
+import { isSubagentSession, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -74,7 +74,7 @@ export class AgentHostTelemetryReporter {
 
 	constructor(private readonly _telemetryService: ITelemetryService) { }
 
-	userMessageSent(provider: string, session: string, sessionState: SessionState | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
+	userMessageSent(provider: string, session: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, attachments: readonly MessageAttachment[] | undefined): void {
 		const attachmentCount = attachments?.length ?? 0;
 		const activeClient = sessionState?.activeClient;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {

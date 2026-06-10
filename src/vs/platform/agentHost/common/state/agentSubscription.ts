@@ -9,11 +9,11 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, ChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isSessionAction } from './sessionActions.js';
-import { changesetReducer, rootReducer, sessionReducer } from './sessionReducers.js';
+import { ActionEnvelope, ActionType, ChangesetAction, ChatAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isSessionAction } from './sessionActions.js';
+import { changesetReducer, chatReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
-import type { RootAction, SessionAction as IProtocolSessionAction, TerminalAction } from './protocol/action-origin.generated.js';
-import type { ChangesetState, RootState, SessionState, TerminalState } from './protocol/state.js';
+import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
+import type { ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
 import { isAhpRootChannel, ROOT_STATE_URI, StateComponents } from './sessionState.js';
 
@@ -310,30 +310,9 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 				this._confirmedApply(envelope.action);
 			}
 		} else {
-			this._promotePendingTurnStartIfTerminal(envelope.action);
 			this._confirmedApply(envelope.action);
 		}
 		this._recomputeOptimistic();
-	}
-
-	private _promotePendingTurnStartIfTerminal(action: StateAction): void {
-		// A backend-originated terminal turn action may arrive without the clientSeq
-		// that would normally confirm our optimistic turn start. Promote that start
-		// first so the terminal action can close it instead of leaving it pending.
-		if (!isSessionAction(action)) {
-			return;
-		}
-		if (action.type !== ActionType.SessionTurnComplete && action.type !== ActionType.SessionTurnCancelled && action.type !== ActionType.SessionError) {
-			return;
-		}
-		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.SessionTurnStarted && p.action.turnId === action.turnId);
-		if (index === -1) {
-			return;
-		}
-		const [{ action: pendingAction }] = this._pendingActions.splice(index, 1);
-		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== action.turnId)) {
-			this._confirmedState = this._applyReducer(this._confirmedState, pendingAction);
-		}
 	}
 
 	private _confirmedApply(action: StateAction): void {
@@ -387,6 +366,154 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 	 * Used during reconnect to evict actions the server already echoed back
 	 * in the replay buffer so they're not resent.
 	 */
+	dropPendingByClientSeq(clientSeq: number): boolean {
+		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
+		if (idx === -1) {
+			return false;
+		}
+		this._pendingActions.splice(idx, 1);
+		return true;
+	}
+}
+
+// --- Chat State Subscription -------------------------------------------------
+
+interface IPendingChatAction {
+	readonly clientSeq: number;
+	readonly action: ChatAction;
+}
+
+/**
+ * Subscription to a chat channel (e.g. a session's default chat URI). Turns,
+ * tool calls and pending/input state moved off the session onto the chat
+ * channel in the multi-chat protocol, so this subscription carries the
+ * conversation contents. Supports write-ahead reconciliation for
+ * client-dispatchable chat actions (turn starts, confirmations, etc.).
+ */
+export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
+
+	private readonly _pendingActions: IPendingChatAction[] = [];
+	private _optimisticState: ChatState | undefined;
+	private readonly _chatUri: string;
+	private readonly _seqAllocator: () => number;
+
+	constructor(
+		chatUri: string,
+		clientId: string,
+		seqAllocator: () => number,
+		log: (msg: string) => void,
+	) {
+		super(clientId, log);
+		this._chatUri = chatUri;
+		this._seqAllocator = seqAllocator;
+	}
+
+	/**
+	 * Optimistically apply a chat action. Returns the clientSeq to send to
+	 * the server so it can echo back for reconciliation.
+	 */
+	applyOptimistic(action: ChatAction): number {
+		const clientSeq = this._seqAllocator();
+		this._pendingActions.push({ clientSeq, action });
+		const base = this._optimisticState ?? this.verifiedValue;
+		if (base) {
+			this._optimisticState = chatReducer(base, action as IProtocolChatAction, this._log);
+			this._onDidChange.fire(this._optimisticState);
+		}
+		return clientSeq;
+	}
+
+	protected override _getOptimisticState(): ChatState | undefined {
+		return this._optimisticState;
+	}
+
+	protected override _applyReducer(state: ChatState, action: StateAction): ChatState {
+		return chatReducer(state, action as IProtocolChatAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return isChatAction(envelope.action) && envelope.channel === this._chatUri;
+	}
+
+	protected override _onSnapshotApplied(fromSeq: number): void {
+		super._onSnapshotApplied(fromSeq);
+		this._recomputeOptimistic();
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (isOwnAction && envelope.origin) {
+			const idx = this._pendingActions.findIndex(p => p.clientSeq === envelope.origin!.clientSeq);
+			if (idx !== -1) {
+				if (envelope.rejectionReason) {
+					this._pendingActions.splice(idx, 1);
+				} else {
+					this._confirmedApply(envelope.action);
+					this._pendingActions.splice(idx, 1);
+				}
+			} else {
+				this._confirmedApply(envelope.action);
+			}
+		} else {
+			this._promotePendingTurnStartIfTerminal(envelope.action);
+			this._confirmedApply(envelope.action);
+		}
+		this._recomputeOptimistic();
+	}
+
+	private _promotePendingTurnStartIfTerminal(action: StateAction): void {
+		// A backend-originated terminal turn action may arrive without the clientSeq
+		// that would normally confirm our optimistic turn start. Promote that start
+		// first so the terminal action can close it instead of leaving it pending.
+		if (!isChatAction(action)) {
+			return;
+		}
+		if (action.type !== ActionType.ChatTurnComplete && action.type !== ActionType.ChatTurnCancelled && action.type !== ActionType.ChatError) {
+			return;
+		}
+		const index = this._pendingActions.findIndex(p => p.action.type === ActionType.ChatTurnStarted && p.action.turnId === action.turnId);
+		if (index === -1) {
+			return;
+		}
+		const [{ action: pendingAction }] = this._pendingActions.splice(index, 1);
+		if (this._confirmedState && (!this._confirmedState.activeTurn || this._confirmedState.activeTurn.id !== action.turnId)) {
+			this._confirmedState = this._applyReducer(this._confirmedState, pendingAction);
+		}
+	}
+
+	private _confirmedApply(action: StateAction): void {
+		if (this._confirmedState) {
+			this._confirmedState = this._applyReducer(this._confirmedState, action);
+		}
+	}
+
+	private _recomputeOptimistic(): void {
+		const confirmed = this._confirmedState;
+		if (!confirmed) {
+			this._optimisticState = undefined;
+			return;
+		}
+		if (this._pendingActions.length === 0) {
+			this._optimisticState = undefined;
+			this._onDidChange.fire(confirmed);
+			return;
+		}
+		let state = confirmed;
+		for (const pending of this._pendingActions) {
+			state = chatReducer(state, pending.action as IProtocolChatAction, this._log);
+		}
+		this._optimisticState = state;
+		this._onDidChange.fire(state);
+	}
+
+	clearPending(): void {
+		this._pendingActions.length = 0;
+		this._optimisticState = undefined;
+	}
+
+	getPendingActions(): IPendingSessionAction[] {
+		return this._pendingActions.map(p => ({ clientSeq: p.clientSeq, action: p.action as unknown as SessionAction, sessionUri: this._chatUri }));
+	}
+
 	dropPendingByClientSeq(clientSeq: number): boolean {
 		const idx = this._pendingActions.findIndex(p => p.clientSeq === clientSeq);
 		if (idx === -1) {
@@ -454,7 +581,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | TerminalStateSubscription | ChangesetStateSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription;
 
 type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
 
@@ -620,7 +747,7 @@ export class AgentSubscriptionManager extends Disposable {
 
 	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
 		this._tryUnsubscribe(resource);
-		if (entry.sub instanceof SessionStateSubscription) {
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
@@ -654,10 +781,15 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
+				return entry.sub.applyOptimistic(action);
+			}
+		} else if (isChatAction(action)) {
+			const entry = this._subscriptions.get(URI.parse(channel));
+			if (entry?.sub instanceof ChatStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		}
@@ -712,7 +844,7 @@ export class AgentSubscriptionManager extends Disposable {
 	getPendingSessionActions(): IPendingSessionAction[] {
 		const out: IPendingSessionAction[] = [];
 		for (const { sub } of this._subscriptions.values()) {
-			if (sub instanceof SessionStateSubscription) {
+			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription) {
 				out.push(...sub.getPendingActions());
 			}
 		}
@@ -726,7 +858,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	dropPendingSessionAction(sessionUri: string, clientSeq: number): void {
 		const entry = this._subscriptions.get(URI.parse(sessionUri));
-		if (entry?.sub instanceof SessionStateSubscription) {
+		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription) {
 			entry.sub.dropPendingByClientSeq(clientSeq);
 		}
 	}
@@ -750,7 +882,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
-		if (entry.sub instanceof SessionStateSubscription) {
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.handleSnapshot(state as never, fromSeq);
@@ -766,7 +898,7 @@ export class AgentSubscriptionManager extends Disposable {
 		for (const resource of missing) {
 			const entry = this._subscriptions.get(resource);
 			if (entry) {
-				if (entry.sub instanceof SessionStateSubscription) {
+				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription) {
 					entry.sub.clearPending();
 				}
 				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
@@ -778,6 +910,8 @@ export class AgentSubscriptionManager extends Disposable {
 		switch (kind) {
 			case StateComponents.Session:
 				return new SessionStateSubscription(key, this._clientId, this._seqAllocator, this._log);
+			case StateComponents.Chat:
+				return new ChatStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Terminal:
 				return new TerminalStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Changeset:

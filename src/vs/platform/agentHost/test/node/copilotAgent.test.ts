@@ -33,7 +33,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, type ClientPluginCustomization, type MarkdownResponsePart, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType, type ToolDefinition } from '../../common/state/protocol/state.js';
-import { ActionType, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ChatAction, type IDeltaAction, type SessionAction } from '../../common/state/sessionActions.js';
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -328,7 +328,7 @@ class TestableCopilotAgent extends CopilotAgent {
 					kind: 'action',
 					session: sessionUri,
 					action: {
-						type: ActionType.SessionResponsePart,
+						type: ActionType.ChatResponsePart,
 						turnId,
 						part: { kind: ResponsePartKind.Markdown, id: `synth-${Date.now()}`, content },
 					},
@@ -814,7 +814,7 @@ suite('CopilotAgent', () => {
 			const pluginManager = new PluginDirSpyManager();
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, pluginManager, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(s => {
 				if (s.kind === 'action') {
 					actions.push(s.action);
@@ -993,7 +993,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(progress => {
 				if (progress.kind === 'action') {
 					actions.push(progress.action);
@@ -1644,13 +1644,13 @@ suite('CopilotAgent', () => {
 
 				const markdownSignals = signals.filter((s): s is IAgentActionSignal =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.strictEqual(markdownSignals.length, 1, 'exactly one markdown announcement signal should be emitted for the worktree announcement');
 				const announcement = markdownSignals[0];
-				const announcementContent = announcement.action.type === ActionType.SessionResponsePart
+				const announcementContent = announcement.action.type === ActionType.ChatResponsePart
 					? (announcement.action.part as MarkdownResponsePart).content
 					: (announcement.action as IDeltaAction).content;
 				assert.ok(announcementContent.includes(expectedBranchName), `announcement should contain branch name '${expectedBranchName}', got '${announcementContent}'`);
@@ -1660,8 +1660,8 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(session, 'follow-up');
 				const reemittedMarkdown = signals.filter(s =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.strictEqual(reemittedMarkdown.length, 0, 'announcement must not be re-emitted on subsequent sends');
@@ -1718,8 +1718,8 @@ suite('CopilotAgent', () => {
 				await agent.sendMessage(session, 'hello');
 				const markdownSignals = signals.filter(s =>
 					s.kind === 'action' && (
-						(s.action.type === ActionType.SessionResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
-						s.action.type === ActionType.SessionDelta
+						(s.action.type === ActionType.ChatResponsePart && s.action.part.kind === ResponsePartKind.Markdown) ||
+						s.action.type === ActionType.ChatDelta
 					)
 				);
 				assert.deepStrictEqual(markdownSignals, [], 'no announcement should be emitted live');

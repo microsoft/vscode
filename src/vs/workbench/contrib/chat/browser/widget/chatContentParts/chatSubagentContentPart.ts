@@ -750,7 +750,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					this.updateTitle();
 				} else if (toolInvocation.toolSpecificData?.kind === 'subagent') {
 					// toolSpecificData was updated after initial render (e.g.
-					// subagent content arrived via SessionToolCallContentChanged
+					// subagent content arrived via ChatToolCallContentChanged
 					// after the part was first constructed in PendingConfirmation).
 					// Re-read metadata and update the title if real values are
 					// now available that we didn't have before.

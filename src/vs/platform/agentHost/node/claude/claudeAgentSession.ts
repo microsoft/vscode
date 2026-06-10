@@ -19,7 +19,7 @@ import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agentService
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { PendingMessage, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { PendingMessage, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ToolCallPendingConfirmationState, type AgentSelection, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { Customization, ToolCallResult } from '../../common/state/sessionState.js';
 import { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
 import { buildClientMcpServers, buildOptions } from './claudeSdkOptions.js';
@@ -64,7 +64,7 @@ function resolveCurrentPermissionMode(
  *   • Per-session identity (sessionId / sessionUri / workingDirectory).
  *   • The {@link ClaudeSdkPipeline} that drives the SDK Query lifecycle
  *     and emits every {@link AgentSignal} for this session (router-
- *     mapped per-message signals plus `SessionTurnComplete` and
+ *     mapped per-message signals plus `ChatTurnComplete` and
  *     `steering_consumed`).
  *   • Pending-permission and pending-user-input registries (Phase 7),
  *     surfaced via `requestPermission` / `requestUserInput`.
@@ -147,9 +147,9 @@ export class ClaudeAgentSession extends Disposable {
 
 	/**
 	 * Phase 7 / S3.2. User-input deferreds parked for interactive tools
-	 * (`AskUserQuestion`, `ExitPlanMode`). Keyed by `SessionInputRequest.id`.
+	 * (`AskUserQuestion`, `ExitPlanMode`). Keyed by `ChatInputRequest.id`.
 	 */
-	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }>();
+	private readonly _pendingUserInputs = new PendingRequestRegistry<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }>();
 
 	/**
 	 * Phase 10 — owns the workbench-registered client-tool snapshot
@@ -451,7 +451,7 @@ export class ClaudeAgentSession extends Disposable {
 	 */
 	abort(): void {
 		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._requirePipeline().abort();
 	}
 
@@ -614,20 +614,20 @@ export class ClaudeAgentSession extends Disposable {
 	}
 
 	/**
-	 * Fire a {@link ActionType.SessionInputRequested} action and park on
+	 * Fire a {@link ActionType.ChatInputRequested} action and park on
 	 * a deferred until {@link respondToUserInputRequest} resolves it.
 	 * Resolves with `{ response: Cancel }` if the pipeline is aborted.
 	 */
-	requestUserInput(request: SessionInputRequest, parentToolCallId?: string): Promise<{ response: SessionInputResponseKind; answers?: Record<string, SessionInputAnswer> }> {
+	requestUserInput(request: ChatInputRequest, parentToolCallId?: string): Promise<{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> }> {
 		if (!this._pipeline || this._pipeline.isAborted) {
-			return Promise.resolve({ response: SessionInputResponseKind.Cancel });
+			return Promise.resolve({ response: ChatInputResponseKind.Cancel });
 		}
 		return this._pendingUserInputs.registerAndFire(request.id, () => {
 			this._onDidSessionProgress.fire({
 				kind: 'action',
 				session: this.sessionUri,
 				action: {
-					type: ActionType.SessionInputRequested,
+					type: ActionType.ChatInputRequested,
 					request,
 				},
 				...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
@@ -637,8 +637,8 @@ export class ClaudeAgentSession extends Disposable {
 
 	respondToUserInputRequest(
 		requestId: string,
-		response: SessionInputResponseKind,
-		answers?: Record<string, SessionInputAnswer>,
+		response: ChatInputResponseKind,
+		answers?: Record<string, ChatInputAnswer>,
 	): boolean {
 		return this._pendingUserInputs.respond(requestId, { response, answers });
 	}
@@ -659,7 +659,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * Resolve a parked client-tool MCP handler with the workbench-supplied
 	 * result. Returns `true` if a matching deferred was found and settled.
 	 * Unknown ids are a benign no-op — `agentSideEffects.ts` forwards every
-	 * `SessionToolCallComplete` envelope, so SDK-owned tool completions land
+	 * `ChatToolCallComplete` envelope, so SDK-owned tool completions land
 	 * here too and must NOT throw.
 	 */
 	completeClientToolCall(toolCallId: string, result: ToolCallResult): boolean {
@@ -767,7 +767,7 @@ export class ClaudeAgentSession extends Disposable {
 		// Resolve parked deferreds before tearing the pipeline down so the
 		// SDK's canUseTool callback unwinds with a deny and the loop exits.
 		this._pendingPermissions.denyAll(false);
-		this._pendingUserInputs.denyAll({ response: SessionInputResponseKind.Cancel });
+		this._pendingUserInputs.denyAll({ response: ChatInputResponseKind.Cancel });
 		this._pendingClientToolCalls.rejectAll(new CancellationError());
 		super.dispose();
 	}

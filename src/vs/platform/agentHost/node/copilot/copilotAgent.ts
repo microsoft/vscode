@@ -35,7 +35,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, SessionInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, ChatInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type ChatInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -987,7 +987,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		// Capture the per-session baseline (turn/0) git checkpoint so
-		// per-turn diffs computed on `SessionTurnComplete` can reflect the
+		// per-turn diffs computed on `ChatTurnComplete` can reflect the
 		// full working-tree delta — including terminal-tool edits that are
 		// invisible to the FileEditTracker pipeline. Best-effort: a
 		// non-git folder or capture failure leaves the session running
@@ -1214,7 +1214,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		// Queued messages are consumed by the server (AgentSideEffects)
-		// which dispatches SessionTurnStarted and calls sendMessage directly.
+		// which dispatches ChatTurnStarted and calls sendMessage directly.
 		// No SDK-level enqueue is needed.
 	}
 
@@ -1460,7 +1460,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, SessionInputAnswer>): void {
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void {
 		for (const [, session] of this._sessions) {
 			if (session.respondToUserInputRequest(requestId, response, answers)) {
 				return;

@@ -15,7 +15,7 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionLifecycle, type AgentInfo, type ModelSelection, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -777,9 +777,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		// Trigger refresh via turnComplete action (simulates what happens on reload)
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'persist-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'persist-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -983,9 +983,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(provider.onDidChangeSessions((e: ISessionChangeEvent) => changes.push(e)));
 
 		connection.fireAction({
-			channel: AgentSession.uri('copilotcli', 'turn-sess').toString(),
+			channel: buildDefaultChatUri(AgentSession.uri('copilotcli', 'turn-sess').toString()),
 			action: {
-				type: 'session/turnComplete',
+				type: ActionType.ChatTurnComplete,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -1023,7 +1023,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const fakeState: SessionState = {
 			summary: { resource: AgentSession.uri('copilotcli', 'seed-1').toString(), provider: 'copilotcli', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
-			turns: [],
+			chats: [],
 			config,
 		};
 		connection.setSessionState('seed-1', 'copilotcli', fakeState);

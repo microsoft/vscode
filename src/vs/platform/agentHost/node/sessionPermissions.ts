@@ -172,7 +172,7 @@ export class SessionPermissionManager extends Disposable {
 	// ---- Action construction (analogous to getPreConfirmActions) -------------
 
 	/**
-	 * Constructs a `SessionToolCallReady` action from an agent
+	 * Constructs a `ChatToolCallReady` action from an agent
 	 * `pending_confirmation` signal. When the tool needs user confirmation
 	 * (the protocol state carries `confirmationTitle`), the standard
 	 * confirmation options are baked in so clients can render them directly.
@@ -181,7 +181,7 @@ export class SessionPermissionManager extends Disposable {
 		const state = e.state;
 		if (state.confirmationTitle) {
 			return {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId,
 				toolCallId: state.toolCallId,
 				invocationMessage: state.invocationMessage,
@@ -196,7 +196,7 @@ export class SessionPermissionManager extends Disposable {
 			};
 		}
 		return {
-			type: ActionType.SessionToolCallReady,
+			type: ActionType.ChatToolCallReady,
 			turnId,
 			toolCallId: state.toolCallId,
 			invocationMessage: state.invocationMessage,
@@ -208,7 +208,7 @@ export class SessionPermissionManager extends Disposable {
 	// ---- Post-confirmation side effects -------------------------------------
 
 	/**
-	 * Handles the side effect of a `SessionToolCallConfirmed` action when the
+	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
 	 * user selected "Allow in this Session". Adds the tool to the session's
 	 * permission allow list so future calls are auto-approved.
 	 */

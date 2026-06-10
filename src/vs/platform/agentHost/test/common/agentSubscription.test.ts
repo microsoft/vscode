@@ -9,8 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TurnState, type RootState, type SessionState, type TerminalState } from '../../common/state/protocol/state.js';
-import { ROOT_STATE_URI, StateComponents } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { buildDefaultChatUri, createChatState, createDefaultChatSummary, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, ChatStateSubscription, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
 // Helpers
 
@@ -35,7 +35,14 @@ function makeSessionState(sessionUri: string, overrides?: Partial<SessionState>)
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
-		turns: [],
+		chats: [],
+		...overrides,
+	};
+}
+
+function makeChatState(chatUri: string, sessionState: SessionState = makeSessionState(sessionUri), overrides?: Partial<ChatState>): ChatState {
+	return {
+		...createChatState(createDefaultChatSummary(sessionState.summary, chatUri)),
 		...overrides,
 	};
 }
@@ -52,9 +59,10 @@ function makeTerminalState(overrides?: Partial<TerminalState>): TerminalState {
 function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origin?: ActionEnvelope['origin'], rejectionReason?: string, channel?: string): ActionEnvelope {
 	const resolvedChannel = channel ?? (
 		action.type.startsWith('root/') ? ROOT_STATE_URI
-			: action.type.startsWith('terminal/') ? terminalUri
-				: action.type.startsWith('changeset/') ? changesetUri
-					: sessionUri
+			: action.type.startsWith('chat/') ? chatUri
+				: action.type.startsWith('terminal/') ? terminalUri
+					: action.type.startsWith('changeset/') ? changesetUri
+						: sessionUri
 	);
 	return { channel: resolvedChannel, action, serverSeq, origin, rejectionReason };
 }
@@ -62,6 +70,7 @@ function makeEnvelope(action: ActionEnvelope['action'], serverSeq: number, origi
 const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
+const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
 
 // RootStateSubscription
@@ -291,31 +300,18 @@ suite('SessionStateSubscription', () => {
 		assert.strictEqual((sub.value as SessionState).summary.title, 'Local');
 	});
 
-	test('server terminal turn action drops stale optimistic turn start', () => {
+	test('server terminal turn action remains ignored by session subscription', () => {
 		const sub = createSub();
-		sub.handleSnapshot(makeSessionState(sessionUri), 0);
-
-		sub.applyOptimistic({
-			type: ActionType.SessionTurnStarted,
-			turnId: 'turn-1',
-			message: { text: 'hello', origin: { kind: MessageKind.User } },
-		});
-
-		assert.strictEqual((sub.value as SessionState).activeTurn?.id, 'turn-1');
+		const state = makeSessionState(sessionUri);
+		sub.handleSnapshot(state, 0);
 
 		sub.receiveEnvelope(makeEnvelope(
-			{ type: ActionType.SessionTurnComplete, turnId: 'turn-1' },
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
 			1,
 			undefined,
 		));
 
-		assert.deepStrictEqual({
-			activeTurn: (sub.value as SessionState).activeTurn,
-			turns: (sub.value as SessionState).turns.map(turn => ({ id: turn.id, state: turn.state })),
-		}, {
-			activeTurn: undefined,
-			turns: [{ id: 'turn-1', state: TurnState.Complete }],
-		});
+		assert.deepStrictEqual(sub.value, state);
 	});
 
 	test('after all pending cleared, value falls through to verifiedValue', () => {
@@ -399,6 +395,56 @@ suite('SessionStateSubscription', () => {
 
 		assert.strictEqual(fired.length, 1);
 		assert.strictEqual(fired[0].summary.title, 'Changed');
+	});
+});
+
+// ChatStateSubscription
+
+suite('ChatStateSubscription', () => {
+
+	let disposables: DisposableStore;
+	let seq: number;
+
+	setup(() => {
+		disposables = new DisposableStore();
+		seq = 0;
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSub(uri: string = chatUri, clientId: string = 'c1'): ChatStateSubscription {
+		return disposables.add(new ChatStateSubscription(uri, clientId, () => ++seq, noop));
+	}
+
+	test('server terminal turn action drops stale optimistic turn start', () => {
+		const sub = createSub();
+		sub.handleSnapshot(makeChatState(chatUri), 0);
+
+		sub.applyOptimistic({
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		});
+
+		assert.strictEqual((sub.value as ChatState | undefined)?.activeTurn?.id, 'turn-1');
+
+		sub.receiveEnvelope(makeEnvelope(
+			{ type: ActionType.ChatTurnComplete, turnId: 'turn-1' },
+			1,
+			undefined,
+		));
+
+		assert.deepStrictEqual({
+			activeTurn: (sub.value as ChatState | undefined)?.activeTurn,
+			turns: (sub.value as ChatState | undefined)?.turns.map(turn => ({ id: turn.id, state: turn.state })),
+		}, {
+			activeTurn: undefined,
+			turns: [{ id: 'turn-1', state: TurnState.Complete }],
+		});
 	});
 });
 

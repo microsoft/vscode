@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, type SessionAction, type ChatAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolResultContentType, TurnState } from '../../common/state/sessionState.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
@@ -68,7 +68,7 @@ function reasoningKey(itemId: string, kind: 'summary' | 'text', index: number): 
 	return `${itemId}:${kind}:${index}`;
 }
 
-function ensureReasoningPart(state: ICodexSessionMapState, turnId: string, key: string): { readonly partId: string; readonly actions: SessionAction[] } {
+function ensureReasoningPart(state: ICodexSessionMapState, turnId: string, key: string): { readonly partId: string; readonly actions: (SessionAction | ChatAction)[] } {
 	const existing = state.itemToReasoningPartId.get(key);
 	if (existing) {
 		return { partId: existing, actions: [] };
@@ -78,7 +78,7 @@ function ensureReasoningPart(state: ICodexSessionMapState, turnId: string, key: 
 	return {
 		partId,
 		actions: [{
-			type: ActionType.SessionResponsePart,
+			type: ActionType.ChatResponsePart,
 			turnId,
 			part: { kind: ResponsePartKind.Reasoning, id: partId, content: '' },
 		}],
@@ -136,7 +136,7 @@ function mcpToolOutput(result: McpToolCallResult | null, errorMessage?: string):
 }
 
 /**
- * Translate `turn/started` into a `SessionTurnStarted` action.
+ * Translate `turn/started` into a `ChatTurnStarted` action.
  *
  * Codex's `turn/started.turn.items[0]` SHOULD be the userMessage that
  * kicked off the turn; we reconstruct the user message from it. If
@@ -149,7 +149,7 @@ export function mapTurnStarted(
 	state: ICodexSessionMapState,
 	params: TurnStartedNotification,
 	fallbackUserText: string,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	state.currentTurnId = params.turn.id;
 	state.itemToPartId.clear();
 	state.itemToToolCall.clear();
@@ -169,7 +169,7 @@ export function mapTurnStarted(
 	}
 	return [
 		{
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: params.turn.id,
 			message: { text: userText, origin: { kind: MessageKind.User } },
 		},
@@ -179,29 +179,29 @@ export function mapTurnStarted(
 export function mapReasoningSummaryPartAdded(
 	state: ICodexSessionMapState,
 	params: ReasoningSummaryPartAddedNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	return ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'summary', params.summaryIndex)).actions;
 }
 
 export function mapReasoningSummaryTextDelta(
 	state: ICodexSessionMapState,
 	params: ReasoningSummaryTextDeltaNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const ensured = ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'summary', params.summaryIndex));
 	return [
 		...ensured.actions,
-		{ type: ActionType.SessionReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
+		{ type: ActionType.ChatReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
 	];
 }
 
 export function mapReasoningTextDelta(
 	state: ICodexSessionMapState,
 	params: ReasoningTextDeltaNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const ensured = ensureReasoningPart(state, params.turnId, reasoningKey(params.itemId, 'text', params.contentIndex));
 	return [
 		...ensured.actions,
-		{ type: ActionType.SessionReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
+		{ type: ActionType.ChatReasoning, turnId: params.turnId, partId: ensured.partId, content: params.delta },
 	];
 }
 
@@ -213,10 +213,10 @@ export function clearReasoningForItem(state: ICodexSessionMapState, itemId: stri
 	}
 }
 
-export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): SessionAction[] {
+export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification): (SessionAction | ChatAction)[] {
 	const last = params.tokenUsage.last;
 	return [{
-		type: ActionType.SessionUsage,
+		type: ActionType.ChatUsage,
 		turnId: params.turnId,
 		usage: {
 			inputTokens: last.inputTokens,
@@ -231,7 +231,7 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 }
 
 /**
- * `item/started` for an `agentMessage` becomes a `SessionResponsePart`
+ * `item/started` for an `agentMessage` becomes a `ChatResponsePart`
  * action with an empty `MarkdownResponsePart` shell. Subsequent
  * `item/agentMessage/delta` notifications append to that part.
  *
@@ -241,13 +241,13 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 export function mapItemStarted(
 	state: ICodexSessionMapState,
 	params: ItemStartedNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	if (params.item.type === 'agentMessage') {
 		const partId = generateUuid();
 		state.itemToPartId.set(params.item.id, partId);
 		return [
 			{
-				type: ActionType.SessionResponsePart,
+				type: ActionType.ChatResponsePart,
 				turnId: params.turnId,
 				part: {
 					kind: ResponsePartKind.Markdown,
@@ -271,7 +271,7 @@ export function mapItemStarted(
 		const command = params.item.command ?? '';
 		return [
 			{
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: params.turnId,
 				toolCallId,
 				toolName: 'shell',
@@ -279,13 +279,13 @@ export function mapItemStarted(
 				_meta: { toolKind: 'terminal' },
 			},
 			{
-				type: ActionType.SessionToolCallDelta,
+				type: ActionType.ChatToolCallDelta,
 				turnId: params.turnId,
 				toolCallId,
 				content: command,
 			},
 			{
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: command,
@@ -306,7 +306,7 @@ export function mapItemStarted(
 		const query = describeWebSearch(params.item.query, params.item.action);
 		return [
 			{
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: params.turnId,
 				toolCallId,
 				toolName: 'web_search',
@@ -314,13 +314,13 @@ export function mapItemStarted(
 				_meta: { toolKind: 'search' },
 			},
 			{
-				type: ActionType.SessionToolCallDelta,
+				type: ActionType.ChatToolCallDelta,
 				turnId: params.turnId,
 				toolCallId,
 				content: query,
 			},
 			{
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: query,
@@ -342,20 +342,20 @@ export function mapItemStarted(
 		const summary = describeFileChange(params.item.changes) || 'Apply file changes';
 		return [
 			{
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: params.turnId,
 				toolCallId,
 				toolName: 'file_edit',
 				displayName: 'Apply file changes',
 			},
 			{
-				type: ActionType.SessionToolCallDelta,
+				type: ActionType.ChatToolCallDelta,
 				turnId: params.turnId,
 				toolCallId,
 				content: summary,
 			},
 			{
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: summary,
@@ -363,11 +363,11 @@ export function mapItemStarted(
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 			...(output ? [{
-				type: ActionType.SessionToolCallContentChanged,
+				type: ActionType.ChatToolCallContentChanged,
 				turnId: params.turnId,
 				toolCallId,
 				content: [{ type: ToolResultContentType.Text, text: output }],
-			} satisfies SessionAction] : []),
+			} satisfies SessionAction | ChatAction] : []),
 		];
 	}
 	if (params.item.type === 'mcpToolCall') {
@@ -382,20 +382,20 @@ export function mapItemStarted(
 		});
 		return [
 			{
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: params.turnId,
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
 			},
 			{
-				type: ActionType.SessionToolCallDelta,
+				type: ActionType.ChatToolCallDelta,
 				turnId: params.turnId,
 				toolCallId,
 				content: toolInput,
 			},
 			{
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: `Calling ${toolName}`,
@@ -417,20 +417,20 @@ export function mapItemStarted(
 		});
 		return [
 			{
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: params.turnId,
 				toolCallId,
 				toolName,
 				displayName: params.item.tool,
 			},
 			{
-				type: ActionType.SessionToolCallDelta,
+				type: ActionType.ChatToolCallDelta,
 				turnId: params.turnId,
 				toolCallId,
 				content: toolInput,
 			},
 			{
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: params.turnId,
 				toolCallId,
 				invocationMessage: `Calling ${toolName}`,
@@ -438,11 +438,11 @@ export function mapItemStarted(
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			},
 			...(output ? [{
-				type: ActionType.SessionToolCallContentChanged,
+				type: ActionType.ChatToolCallContentChanged,
 				turnId: params.turnId,
 				toolCallId,
 				content: [{ type: ToolResultContentType.Text, text: output }],
-			} satisfies SessionAction] : []),
+			} satisfies SessionAction | ChatAction] : []),
 		];
 	}
 	return [];
@@ -451,14 +451,14 @@ export function mapItemStarted(
 export function mapCommandExecutionOutputDelta(
 	state: ICodexSessionMapState,
 	params: CommandExecutionOutputDeltaNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const entry = state.itemToToolCall.get(params.itemId);
 	if (!entry) {
 		return [];
 	}
 	entry.output += params.delta;
 	return [{
-		type: ActionType.SessionToolCallContentChanged,
+		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
 		content: [{ type: ToolResultContentType.Text, text: entry.output }],
@@ -468,14 +468,14 @@ export function mapCommandExecutionOutputDelta(
 export function mapFileChangePatchUpdated(
 	state: ICodexSessionMapState,
 	params: FileChangePatchUpdatedNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const entry = state.itemToToolCall.get(params.itemId);
 	if (!entry) {
 		return [];
 	}
 	entry.output = fileChangeOutput(params.changes);
 	return [{
-		type: ActionType.SessionToolCallContentChanged,
+		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
 		content: entry.output ? [{ type: ToolResultContentType.Text, text: entry.output }] : [],
@@ -485,14 +485,14 @@ export function mapFileChangePatchUpdated(
 export function mapFileChangeOutputDelta(
 	state: ICodexSessionMapState,
 	params: FileChangeOutputDeltaNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const entry = state.itemToToolCall.get(params.itemId);
 	if (!entry) {
 		return [];
 	}
 	entry.output += params.delta;
 	return [{
-		type: ActionType.SessionToolCallContentChanged,
+		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
 		content: [{ type: ToolResultContentType.Text, text: entry.output }],
@@ -502,14 +502,14 @@ export function mapFileChangeOutputDelta(
 export function mapMcpToolCallProgress(
 	state: ICodexSessionMapState,
 	params: McpToolCallProgressNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const entry = state.itemToToolCall.get(params.itemId);
 	if (!entry) {
 		return [];
 	}
 	entry.output = [entry.output, params.message].filter(Boolean).join('\n');
 	return [{
-		type: ActionType.SessionToolCallContentChanged,
+		type: ActionType.ChatToolCallContentChanged,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
 		content: [{ type: ToolResultContentType.Text, text: entry.output }],
@@ -519,7 +519,7 @@ export function mapMcpToolCallProgress(
 export function mapAgentMessageDelta(
 	state: ICodexSessionMapState,
 	params: AgentMessageDeltaNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	const partId = state.itemToPartId.get(params.itemId);
 	if (!partId) {
 		// Got a delta before we saw the corresponding `item/started`.
@@ -529,7 +529,7 @@ export function mapAgentMessageDelta(
 	}
 	return [
 		{
-			type: ActionType.SessionDelta,
+			type: ActionType.ChatDelta,
 			turnId: params.turnId,
 			partId,
 			content: params.delta,
@@ -543,16 +543,16 @@ export function mapAgentMessageDelta(
  * already updated the part's content. We just drop the mapping so the
  * memory pressure stays bounded.
  *
- * For `commandExecution`, emit a synthetic `SessionToolCallReady`
+ * For `commandExecution`, emit a synthetic `ChatToolCallReady`
  * (auto-confirmed; the codex server already decided to run the command
  * — any host-side approval was settled via the `requestApproval`
  * server-request handler before we got here) followed by a
- * `SessionToolCallComplete` carrying the aggregated output.
+ * `ChatToolCallComplete` carrying the aggregated output.
  */
 export function mapItemCompleted(
 	state: ICodexSessionMapState,
 	params: ItemCompletedNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
 		return [];
@@ -578,7 +578,7 @@ export function mapItemCompleted(
 				: `Ran \`${command}\` (failed)`;
 		return [
 			{
-				type: ActionType.SessionToolCallComplete,
+				type: ActionType.ChatToolCallComplete,
 				turnId: entry.turnId,
 				toolCallId: entry.toolCallId,
 				result: {
@@ -602,7 +602,7 @@ export function mapItemCompleted(
 		state.itemToToolCall.delete(params.item.id);
 		const query = describeWebSearch(params.item.query, params.item.action);
 		return [{
-			type: ActionType.SessionToolCallComplete,
+			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
@@ -627,7 +627,7 @@ export function mapItemCompleted(
 			...(success ? {} : { error: { message: `Patch ${params.item.status}` } }),
 		};
 		return [{
-			type: ActionType.SessionToolCallComplete,
+			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result,
@@ -643,7 +643,7 @@ export function mapItemCompleted(
 		const output = mcpToolOutput(params.item.result, params.item.error?.message) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
 		return [{
-			type: ActionType.SessionToolCallComplete,
+			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
@@ -664,7 +664,7 @@ export function mapItemCompleted(
 		const output = dynamicToolOutput(params.item.contentItems) || entry.output;
 		const content = output ? [{ type: ToolResultContentType.Text as const, text: output }] : undefined;
 		return [{
-			type: ActionType.SessionToolCallComplete,
+			type: ActionType.ChatToolCallComplete,
 			turnId: entry.turnId,
 			toolCallId: entry.toolCallId,
 			result: {
@@ -686,7 +686,7 @@ export function mapItemCompleted(
 export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
-): SessionAction[] {
+): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
 	state.itemToReasoningPartId.clear();
@@ -694,8 +694,8 @@ export function mapTurnCompleted(
 	state.itemToToolCall.clear();
 	const turnId = params.turn.id;
 	const status = params.turn.status;
-	const orphanedToolCallActions: SessionAction[] = orphanedToolCalls.map(entry => ({
-		type: ActionType.SessionToolCallComplete,
+	const orphanedToolCallActions: (SessionAction | ChatAction)[] = orphanedToolCalls.map(entry => ({
+		type: ActionType.ChatToolCallComplete,
 		turnId: entry.turnId,
 		toolCallId: entry.toolCallId,
 		result: {
@@ -710,7 +710,7 @@ export function mapTurnCompleted(
 		return [
 			...orphanedToolCallActions,
 			{
-				type: ActionType.SessionError,
+				type: ActionType.ChatError,
 				turnId,
 				error: {
 					errorType: 'CodexError',
@@ -718,15 +718,15 @@ export function mapTurnCompleted(
 				},
 			},
 			{
-				type: ActionType.SessionTurnComplete,
+				type: ActionType.ChatTurnComplete,
 				turnId,
 			},
 		];
 	}
 	if (status === 'interrupted') {
-		return [...orphanedToolCallActions, { type: ActionType.SessionTurnCancelled, turnId }];
+		return [...orphanedToolCallActions, { type: ActionType.ChatTurnCancelled, turnId }];
 	}
-	return [...orphanedToolCallActions, { type: ActionType.SessionTurnComplete, turnId }];
+	return [...orphanedToolCallActions, { type: ActionType.ChatTurnComplete, turnId }];
 }
 
 /**

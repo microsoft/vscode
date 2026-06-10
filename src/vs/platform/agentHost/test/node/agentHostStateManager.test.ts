@@ -47,8 +47,9 @@ suite('AgentHostStateManager', () => {
 	test('createSession creates initial state with lifecycle Creating', () => {
 		const state = manager.createSession(makeSessionSummary());
 		assert.strictEqual(state.lifecycle, SessionLifecycle.Creating);
-		assert.strictEqual(state.turns.length, 0);
-		assert.strictEqual(state.activeTurn, undefined);
+		const chatState = manager.getDefaultChatState(sessionUri);
+		assert.strictEqual(chatState?.turns.length, 0);
+		assert.strictEqual(chatState?.activeTurn, undefined);
 		assert.strictEqual(state.summary.resource.toString(), sessionUri.toString());
 	});
 
@@ -225,7 +226,7 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getActiveTurnId(sessionUri), undefined);
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
@@ -249,7 +250,7 @@ suite('AgentHostStateManager', () => {
 		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
@@ -264,7 +265,7 @@ suite('AgentHostStateManager', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
@@ -273,7 +274,7 @@ suite('AgentHostStateManager', () => {
 		disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-1',
 		});
 
@@ -291,25 +292,25 @@ suite('AgentHostStateManager', () => {
 		manager.dispatchServerAction(session2Uri, { type: ActionType.SessionReady, });
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(session2Uri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
 			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 2);
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-1',
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
 		manager.dispatchServerAction(session2Uri, {
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-2',
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 0);
@@ -319,7 +320,7 @@ suite('AgentHostStateManager', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
@@ -352,7 +353,7 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(activeChanged.length, 0);
 	});
 
-	test('stale SessionTurnComplete (wrong turnId) does not decrement active sessions', () => {
+	test('stale ChatTurnComplete (wrong turnId) does not decrement active sessions', () => {
 		// The reducer's `endTurn` no-ops when the action's turnId doesn't match
 		// `state.activeTurn.id`. The active-session count must follow suit so
 		// the lifetime tracker doesn't release its hold while a turn is still
@@ -360,14 +361,14 @@ suite('AgentHostStateManager', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId: 'stale-turn',
 		});
 
@@ -375,19 +376,19 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.hasActiveSessions, true);
 	});
 
-	test('concurrent SessionTurnStarted on same session keeps active count at one', () => {
+	test('concurrent ChatTurnStarted on same session keeps active count at one', () => {
 		// The reducer unconditionally overwrites `activeTurn`, so two starts
 		// without an intervening complete still represent a single active turn
 		// from state's point of view. The count must mirror that.
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'a', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
 			message: { text: 'b', origin: { kind: MessageKind.User } },
 		});
@@ -395,7 +396,7 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.rootState.activeSessions, 1);
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId: 'turn-2',
 		});
 
@@ -410,16 +411,16 @@ suite('AgentHostStateManager', () => {
 		disposables.add(manager.onDidChangeSessionActiveTurn(e => events.push(e)));
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnComplete,
+			type: ActionType.ChatTurnComplete,
 			turnId: 'stale-turn',
 		});
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionError,
+			type: ActionType.ChatError,
 			turnId: 'turn-1',
 			error: { errorType: 'failed', message: 'boom' },
 		});
@@ -440,16 +441,16 @@ suite('AgentHostStateManager', () => {
 		disposables.add(manager.onDidChangeSessionActiveTurn(e => events.push(e)));
 
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-1',
 			message: { text: 'hello', origin: { kind: MessageKind.User } },
 		});
 		manager.dispatchServerAction(sessionUri, {
-			type: ActionType.SessionTurnCancelled,
+			type: ActionType.ChatTurnCancelled,
 			turnId: 'turn-1',
 		});
 		manager.dispatchServerAction(session2Uri, {
-			type: ActionType.SessionTurnStarted,
+			type: ActionType.ChatTurnStarted,
 			turnId: 'turn-2',
 			message: { text: 'hi', origin: { kind: MessageKind.User } },
 		});
@@ -476,9 +477,10 @@ suite('AgentHostStateManager', () => {
 
 		const state = manager.restoreSession(makeSessionSummary(), turns);
 		assert.strictEqual(state.lifecycle, SessionLifecycle.Ready);
-		assert.strictEqual(state.turns.length, 1);
-		assert.strictEqual(state.turns[0].message.text, 'hello');
-		assert.strictEqual((state.turns[0].responseParts[0] as MarkdownResponsePart).content, 'world');
+		const chatState = manager.getDefaultChatState(sessionUri);
+		assert.strictEqual(chatState?.turns.length, 1);
+		assert.strictEqual(chatState?.turns[0].message.text, 'hello');
+		assert.strictEqual((chatState?.turns[0].responseParts[0] as MarkdownResponsePart).content, 'world');
 	});
 
 	test('restoreSession returns existing state for duplicate session', () => {
@@ -592,7 +594,7 @@ suite('AgentHostStateManager', () => {
 
 			// Start a turn → status becomes InProgress.
 			manager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			});
@@ -606,7 +608,7 @@ suite('AgentHostStateManager', () => {
 			// Turn completes — status flips back to Idle. This schedules a summary
 			// flush 100 ms later but we will call removeSession before it fires.
 			manager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnComplete,
+				type: ActionType.ChatTurnComplete,
 				turnId: 'turn-1',
 			});
 

@@ -34,8 +34,9 @@ import {
 	type JsonRpcResponse,
 	type ReconnectParams,
 	type IStateSnapshot,
+	type SubscribeResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionState } from '../common/state/sessionState.js';
+import { isAhpResourceWatchChannel, isAhpRootChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import {
@@ -286,7 +287,7 @@ export class ProtocolServerHandler extends Disposable {
 			// grace-period timeout so the call cannot hang forever. Calls
 			// stamped while no client is connected are failed immediately by
 			// the provider, so they never reach this path.
-			if (envelope.action.type === ActionType.SessionToolCallStart || envelope.action.type === ActionType.SessionToolCallReady) {
+			if (envelope.action.type === ActionType.ChatToolCallStart || envelope.action.type === ActionType.ChatToolCallReady) {
 				this._checkOrphanedClientToolCalls(envelope.channel);
 			}
 		}));
@@ -714,7 +715,7 @@ export class ProtocolServerHandler extends Disposable {
 	 * ({@link _checkOrphanedClientToolCalls}), and fail orphaned calls
 	 * ({@link _completeDisconnectedClientToolCalls}).
 	 */
-	private *_pendingClientToolCalls(state: SessionState | undefined) {
+	private *_pendingClientToolCalls(state: ISessionWithDefaultChat | undefined) {
 		const activeTurn = state?.activeTurn;
 		if (!activeTurn) {
 			return;
@@ -731,7 +732,7 @@ export class ProtocolServerHandler extends Disposable {
 		}
 	}
 
-	private _hasPendingClientToolCall(state: SessionState | undefined, clientId: string): boolean {
+	private _hasPendingClientToolCall(state: ISessionWithDefaultChat | undefined, clientId: string): boolean {
 		for (const pending of this._pendingClientToolCalls(state)) {
 			if (pending.clientId === clientId) {
 				return true;
@@ -775,7 +776,7 @@ export class ProtocolServerHandler extends Disposable {
 	/**
 	 * Scan a session for pending client tool calls whose owning client is not
 	 * currently connected, and arm the disconnect timeout for each such owner.
-	 * Called when a `SessionToolCallStart` / `SessionToolCallReady` envelope is
+	 * Called when a `ChatToolCallStart` / `ChatToolCallReady` envelope is
 	 * observed — covering calls issued for an already-gone client, which the
 	 * live disconnect path never sees. Ownerless client tool calls (no client
 	 * connected at stamp time) are failed immediately by the provider, so they
@@ -855,7 +856,7 @@ export class ProtocolServerHandler extends Disposable {
 			const mayRetryWithReplacementClient = this._hasReplacementActiveClientTool(state, clientId, toolCall.toolName);
 			if (toolCall.status === ToolCallStatus.Streaming) {
 				this._stateManager.dispatchServerAction(session, {
-					type: ActionType.SessionToolCallReady,
+					type: ActionType.ChatToolCallReady,
 					turnId: activeTurn.id,
 					toolCallId: toolCall.toolCallId,
 					invocationMessage: toolCall.invocationMessage ?? toolCall.displayName,
@@ -863,7 +864,7 @@ export class ProtocolServerHandler extends Disposable {
 				});
 			}
 			this._stateManager.dispatchServerAction(session, {
-				type: ActionType.SessionToolCallComplete,
+				type: ActionType.ChatToolCallComplete,
 				turnId: activeTurn.id,
 				toolCallId: toolCall.toolCallId,
 				result: {
@@ -917,7 +918,10 @@ export class ProtocolServerHandler extends Disposable {
 				const snapshot = await this._agentService.subscribe(URI.parse(params.channel), client.clientId);
 				client.subscriptions.set(classified.uri, classified);
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
-				return { snapshot };
+				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
+				// the generated wire `Snapshot` union does not list it yet. The value
+				// is JSON over the wire, so narrowing at this boundary is safe.
+				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
 				if (err instanceof ProtocolError) {
 					throw err;
@@ -971,6 +975,25 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		disposeSession: async (_client, params) => {
 			await this._agentService.disposeSession(URI.parse(params.channel));
+			return null;
+		},
+		// Multi-chat is not yet surfaced: every session is served by a single
+		// implicit default chat created alongside it. Accept createChat for
+		// that default chat as a no-op and reject additional chats until the
+		// multi-chat surface lands.
+		createChat: async (_client, params) => {
+			const state = this._stateManager.getSessionState(params.channel);
+			if (!state) {
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
+			}
+			const defaultChat = buildDefaultChatUri(params.channel);
+			if (URI.parse(params.chat).toString() !== URI.parse(defaultChat).toString()) {
+				this._logService.warn(`[ProtocolServer] createChat: additional chats are not yet supported (session ${params.channel}, chat ${params.chat})`);
+			}
+			return null;
+		},
+		disposeChat: async (_client, _params) => {
+			// The default chat lives and dies with its session; nothing to do.
 			return null;
 		},
 		resourceWrite: async (_client, params) => {

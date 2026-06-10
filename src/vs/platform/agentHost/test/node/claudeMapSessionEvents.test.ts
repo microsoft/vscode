@@ -81,7 +81,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
-	test('text content block: start emits SessionResponsePart, deltas emit SessionDelta', () => {
+	test('text content block: start emits ChatResponsePart, deltas emit ChatDelta', () => {
 		const out: AgentSignal[] = [];
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
@@ -96,7 +96,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.strictEqual(out.length, 3);
 		const start = out[0];
-		assert.ok(start.kind === 'action' && start.action.type === ActionType.SessionResponsePart);
+		assert.ok(start.kind === 'action' && start.action.type === ActionType.ChatResponsePart);
 		assert.strictEqual(start.session.toString(), SESSION_STR);
 		assert.strictEqual(start.action.turnId, TURN_ID);
 		assert.strictEqual(start.action.part.kind, ResponsePartKind.Markdown);
@@ -108,7 +108,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				kind: 'action',
 				session: SESSION,
 				action: {
-					type: ActionType.SessionDelta,
+					type: ActionType.ChatDelta,
 					turnId: TURN_ID,
 					partId,
 					content: 'Hello, ',
@@ -118,7 +118,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 				kind: 'action',
 				session: SESSION,
 				action: {
-					type: ActionType.SessionDelta,
+					type: ActionType.ChatDelta,
 					turnId: TURN_ID,
 					partId,
 					content: 'world!',
@@ -127,7 +127,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		]);
 	});
 
-	test('thinking content block: start emits Reasoning part, deltas emit SessionReasoning', () => {
+	test('thinking content block: start emits Reasoning part, deltas emit ChatReasoning', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
 
@@ -142,7 +142,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 		assert.strictEqual(startSignals.length, 1);
 		const start = startSignals[0];
-		assert.ok(start.kind === 'action' && start.action.type === ActionType.SessionResponsePart);
+		assert.ok(start.kind === 'action' && start.action.type === ActionType.ChatResponsePart);
 		assert.strictEqual(start.action.part.kind, ResponsePartKind.Reasoning);
 		const partId = start.action.part.id;
 
@@ -158,7 +158,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			kind: 'action',
 			session: SESSION,
 			action: {
-				type: ActionType.SessionReasoning,
+				type: ActionType.ChatReasoning,
 				turnId: TURN_ID,
 				partId,
 				content: 'pondering',
@@ -168,7 +168,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	// #region Phase 7 §3.3 tool_use / tool_result — Tests 8/9/10/11
 
-	test('Test 8 — content_block_start tool_use emits SessionToolCallStart with displayName', () => {
+	test('Test 8 — content_block_start tool_use emits ChatToolCallStart with displayName', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
@@ -186,7 +186,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			kind: 'action',
 			session: SESSION,
 			action: {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				toolName: 'Read',
@@ -196,7 +196,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('Test 9 — input_json_delta emits SessionToolCallDelta scoped to the open tool_use block', () => {
+	test('Test 9 — input_json_delta emits ChatToolCallDelta scoped to the open tool_use block', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
 		const resolver = r();
@@ -217,7 +217,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			kind: 'action',
 			session: SESSION,
 			action: {
-				type: ActionType.SessionToolCallDelta,
+				type: ActionType.ChatToolCallDelta,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				content: '{"file_pa',
@@ -225,13 +225,13 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		}]);
 	});
 
-	test('Test 9.5 — content_block_stop emits SessionToolCallReady so auto-allowed tools leave Streaming', () => {
+	test('Test 9.5 — content_block_stop emits ChatToolCallReady so auto-allowed tools leave Streaming', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 		const resolver = r();
 
 		// Drive a Bash tool_use through start → input deltas → stop. The
-		// fix: `content_block_stop` must emit `SessionToolCallReady` with
+		// fix: `content_block_stop` must emit `ChatToolCallReady` with
 		// `confirmed: NotNeeded`, the parsed input as `toolInput`, the
 		// rich `invocationMessage`, and `_meta.toolKind` — otherwise an
 		// auto-allowed tool (SDK skips `canUseTool`) stays in Streaming
@@ -244,7 +244,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			kind: 'action',
 			session: SESSION,
 			action: {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: TURN_ID,
 				toolCallId: 'tu_b',
 				invocationMessage: { markdown: 'Running `git status`' },
@@ -256,7 +256,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('Test 10 — synthetic user tool_result emits SessionToolCallComplete with the originating turnId', () => {
+	test('Test 10 — synthetic user tool_result emits ChatToolCallComplete with the originating turnId', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 		const resolver = r();
@@ -282,7 +282,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			kind: 'action',
 			session: SESSION,
 			action: {
-				type: ActionType.SessionToolCallComplete,
+				type: ActionType.ChatToolCallComplete,
 				turnId: TURN_ID,
 				toolCallId: 'tu_1',
 				result: {
@@ -332,7 +332,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.strictEqual(signals.length, 1);
 		const complete = signals[0];
-		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.SessionToolCallComplete);
+		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.ChatToolCallComplete);
 		assert.strictEqual(complete.action.result.success, false);
 	});
 
@@ -356,7 +356,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 
 		const complete = signals[0];
-		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.SessionToolCallComplete);
+		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.ChatToolCallComplete);
 		assert.deepStrictEqual(complete.action.result.content, [
 			{ type: ToolResultContentType.Text, text: 'first' },
 			{ type: ToolResultContentType.Text, text: 'second' },
@@ -367,7 +367,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	// #region Phase 8 — file-edit cache
 
-	test('Phase 8 — cached file edit is appended to SessionToolCallComplete.result.content', () => {
+	test('Phase 8 — cached file edit is appended to ChatToolCallComplete.result.content', () => {
 		const log = new NullLogService();
 		const state = new ClaudeMapperState();
 		const resolver = r();
@@ -392,7 +392,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 
 		const complete = signals[0];
-		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.SessionToolCallComplete);
+		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.ChatToolCallComplete);
 		assert.deepStrictEqual(complete.action.result.content, [
 			{ type: ToolResultContentType.Text, text: 'wrote file' },
 			fileEdit,
@@ -416,7 +416,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		);
 
 		const complete = signals[0];
-		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.SessionToolCallComplete);
+		assert.ok(complete.kind === 'action' && complete.action.type === ActionType.ChatToolCallComplete);
 		assert.deepStrictEqual(complete.action.result.content, [
 			{ type: ToolResultContentType.Text, text: 'file contents' },
 		]);
@@ -441,7 +441,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 	// #endregion
 
-	test('canonical assistant envelope drops tool_use blocks silently (partial stream owns SessionToolCallStart)', () => {
+	test('canonical assistant envelope drops tool_use blocks silently (partial stream owns ChatToolCallStart)', () => {
 		const log = new CapturingLogService();
 		const state = new ClaudeMapperState();
 
@@ -480,7 +480,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('result success emits SessionUsage (with model); SessionTurnComplete now lives on the pipeline, not the mapper', () => {
+	test('result success emits ChatUsage (with model); ChatTurnComplete now lives on the pipeline, not the mapper', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.usage.input_tokens = 12;
 		result.usage.output_tokens = 34;
@@ -501,16 +501,16 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const signals = mapSDKMessageToAgentSignals(result, SESSION, TURN_ID, new ClaudeMapperState(), new NullLogService(), r());
 
 		// Pipeline (Phase 9 refactor) owns the protocol-Turn boundary; it
-		// fires SessionTurnComplete via `onTurnComplete` only on the FINAL
+		// fires ChatTurnComplete via `onTurnComplete` only on the FINAL
 		// result of a turn (intermediate results during steering preempt do
 		// NOT close the protocol Turn). The mapper therefore emits only
-		// SessionUsage for `result` messages.
+		// ChatUsage for `result` messages.
 		assert.deepStrictEqual(signals, [
 			{
 				kind: 'action',
 				session: SESSION,
 				action: {
-					type: ActionType.SessionUsage,
+					type: ActionType.ChatUsage,
 					turnId: TURN_ID,
 					usage: {
 						inputTokens: 12,
@@ -523,7 +523,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		]);
 	});
 
-	test('result success without modelUsage omits the model field on SessionUsage', () => {
+	test('result success without modelUsage omits the model field on ChatUsage', () => {
 		const result = makeResultSuccess(SESSION_ID);
 		result.modelUsage = {};
 
@@ -531,7 +531,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		assert.strictEqual(signals.length, 1);
 		const usage = signals[0];
-		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.SessionUsage);
+		assert.ok(usage.kind === 'action' && usage.action.type === ActionType.ChatUsage);
 		assert.strictEqual(usage.action.usage.model, undefined);
 	});
 
@@ -609,8 +609,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const text0Start = text0[0];
 		const think1Start = think1[0];
-		assert.ok(text0Start.kind === 'action' && text0Start.action.type === ActionType.SessionResponsePart);
-		assert.ok(think1Start.kind === 'action' && think1Start.action.type === ActionType.SessionResponsePart);
+		assert.ok(text0Start.kind === 'action' && text0Start.action.type === ActionType.ChatResponsePart);
+		assert.ok(think1Start.kind === 'action' && think1Start.action.type === ActionType.ChatResponsePart);
 		assert.strictEqual(text0Start.action.part.kind, ResponsePartKind.Markdown);
 		assert.strictEqual(think1Start.action.part.kind, ResponsePartKind.Reasoning);
 		const textPartId = text0Start.action.part.id;
@@ -620,9 +620,9 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		const dText = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeTextDelta(0, 'A')), SESSION, TURN_ID, state, log, resolver);
 		const dThink = mapSDKMessageToAgentSignals(makeStreamEvent(SESSION_ID, makeThinkingDelta(1, 'B')), SESSION, TURN_ID, state, log, resolver);
 
-		assert.ok(dText[0].kind === 'action' && dText[0].action.type === ActionType.SessionDelta);
+		assert.ok(dText[0].kind === 'action' && dText[0].action.type === ActionType.ChatDelta);
 		assert.strictEqual(dText[0].action.partId, textPartId);
-		assert.ok(dThink[0].kind === 'action' && dThink[0].action.type === ActionType.SessionReasoning);
+		assert.ok(dThink[0].kind === 'action' && dThink[0].action.type === ActionType.ChatReasoning);
 		assert.strictEqual(dThink[0].action.partId, thinkPartId);
 	});
 
@@ -647,8 +647,8 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const thinkStartSignal = thinkStart[0];
 		const textStartSignal = textStart[0];
-		assert.ok(thinkStartSignal.kind === 'action' && thinkStartSignal.action.type === ActionType.SessionResponsePart);
-		assert.ok(textStartSignal.kind === 'action' && textStartSignal.action.type === ActionType.SessionResponsePart);
+		assert.ok(thinkStartSignal.kind === 'action' && thinkStartSignal.action.type === ActionType.ChatResponsePart);
+		assert.ok(textStartSignal.kind === 'action' && textStartSignal.action.type === ActionType.ChatResponsePart);
 		assert.strictEqual(thinkStartSignal.action.part.kind, ResponsePartKind.Reasoning);
 		assert.strictEqual(textStartSignal.action.part.kind, ResponsePartKind.Markdown);
 		const thinkPartId = thinkStartSignal.action.part.id;
@@ -657,9 +657,9 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 
 		const thinkDeltaSignal = thinkDelta[0];
 		const textDeltaSignal = textDelta[0];
-		assert.ok(thinkDeltaSignal.kind === 'action' && thinkDeltaSignal.action.type === ActionType.SessionReasoning);
+		assert.ok(thinkDeltaSignal.kind === 'action' && thinkDeltaSignal.action.type === ActionType.ChatReasoning);
 		assert.strictEqual(thinkDeltaSignal.action.partId, thinkPartId);
-		assert.ok(textDeltaSignal.kind === 'action' && textDeltaSignal.action.type === ActionType.SessionDelta);
+		assert.ok(textDeltaSignal.kind === 'action' && textDeltaSignal.action.type === ActionType.ChatDelta);
 		assert.strictEqual(textDeltaSignal.action.partId, textPartId);
 	});
 });

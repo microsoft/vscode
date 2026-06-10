@@ -400,7 +400,7 @@ suite('ChatSubagentContentPart', () => {
 
 			assert.ok(getTitleText(part).includes('Subagent:'), 'Title should start with default prefix');
 
-			// Late metadata: real description arrives via SessionToolCallContentChanged
+			// Late metadata: real description arrives via ChatToolCallContentChanged
 			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
 			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
 

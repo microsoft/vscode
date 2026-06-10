@@ -23,8 +23,8 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { AgentSession, type AgentSignal, type IAgentActionSignal, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, type SessionDeltaAction, type SessionErrorAction, type SessionInputRequestedAction, type SessionResponsePartAction, type SessionToolCallCompleteAction, type SessionToolCallReadyAction, type SessionToolCallStartAction, type SessionTurnCompleteAction } from '../../common/state/sessionActions.js';
-import { MessageAttachmentKind, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { ActionType, type ChatDeltaAction, type ChatErrorAction, type ChatInputRequestedAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction } from '../../common/state/sessionActions.js';
+import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import { CopilotAgentSession } from '../../node/copilot/copilotAgentSession.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -185,11 +185,11 @@ function getActions(signals: readonly AgentSignal[]) {
 		.map(s => s.action);
 }
 
-function getInputRequest(signal: AgentSignal): SessionInputRequestedAction['request'] {
+function getInputRequest(signal: AgentSignal): ChatInputRequestedAction['request'] {
 	assert.strictEqual(signal.kind, 'action');
 	if (signal.kind !== 'action') { throw new Error('unreachable'); }
-	assert.strictEqual(signal.action.type, ActionType.SessionInputRequested);
-	return (signal.action as SessionInputRequestedAction).request;
+	assert.strictEqual(signal.action.type, ActionType.ChatInputRequested);
+	return (signal.action as ChatInputRequestedAction).request;
 }
 
 async function createAgentSession(disposables: DisposableStore, options?: {
@@ -448,10 +448,10 @@ suite('CopilotAgentSession', () => {
 		// The turn opened by the server is closed inline (the SDK never fires
 		// `onIdle` for the compact path) without emitting any response content.
 		const actions = getActions(signals);
-		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.SessionResponsePart), []);
-		const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
+		assert.deepStrictEqual(actions.filter(a => a.type === ActionType.ChatResponsePart), []);
+		const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete');
-		assert.strictEqual((turnComplete as SessionTurnCompleteAction).turnId, 'turn-compact');
+		assert.strictEqual((turnComplete as ChatTurnCompleteAction).turnId, 'turn-compact');
 	});
 
 	test('`/compact` completes the turn even when compaction reports failure', async () => {
@@ -462,7 +462,7 @@ suite('CopilotAgentSession', () => {
 
 		assert.strictEqual(mockSession.compactCalls.length, 1);
 		assert.deepStrictEqual(mockSession.sendRequests, []);
-		const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+		const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 		assert.ok(turnComplete, 'expected the turn to complete on a failed compaction');
 	});
 
@@ -487,7 +487,7 @@ suite('CopilotAgentSession', () => {
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')
 			.map(s => s.action)
-			.filter(a => a.type === ActionType.SessionUsage);
+			.filter(a => a.type === ActionType.ChatUsage);
 
 		assert.deepStrictEqual(usageActions.map(a => a.usage), [
 			{
@@ -963,7 +963,7 @@ suite('CopilotAgentSession', () => {
 
 			// Sending the steering must not flip turns until the SDK has
 			// echoed the user message back through the event stream.
-			assert.strictEqual(signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted), undefined);
+			assert.strictEqual(signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted), undefined);
 
 			mockSession.fire('user.message', {
 				content: 'focus on tests',
@@ -971,8 +971,8 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'user.message'>['data']);
 
 			const actions = signals.filter(s => s.kind === 'action').map(s => (s as IAgentActionSignal).action);
-			const turnComplete = actions.find(a => a.type === ActionType.SessionTurnComplete);
-			const turnStarted = actions.find(a => a.type === ActionType.SessionTurnStarted);
+			const turnComplete = actions.find(a => a.type === ActionType.ChatTurnComplete);
+			const turnStarted = actions.find(a => a.type === ActionType.ChatTurnStarted);
 			assert.ok(turnComplete, 'should complete the in-flight turn before promoting steering');
 			assert.strictEqual(turnComplete.turnId, 'turn-original');
 			assert.ok(turnStarted, 'should start a new turn for the steering message');
@@ -994,7 +994,7 @@ suite('CopilotAgentSession', () => {
 			const turnStarted = signals
 				.filter(s => s.kind === 'action')
 				.map(s => (s as IAgentActionSignal).action)
-				.find(a => a.type === ActionType.SessionTurnStarted)!;
+				.find(a => a.type === ActionType.ChatTurnStarted)!;
 
 			mockSession.fire('assistant.message_delta', {
 				deltaContent: 'No problem',
@@ -1003,7 +1003,7 @@ suite('CopilotAgentSession', () => {
 			const responseParts = signals
 				.filter(s => s.kind === 'action')
 				.map(s => (s as IAgentActionSignal).action)
-				.filter(a => a.type === ActionType.SessionResponsePart);
+				.filter(a => a.type === ActionType.ChatResponsePart);
 			assert.ok(responseParts.length > 0, 'expected delta to allocate a response part');
 			assert.strictEqual(responseParts[0].turnId, turnStarted.turnId, 'response part should land in the steering turn, not the original');
 		});
@@ -1023,7 +1023,7 @@ suite('CopilotAgentSession', () => {
 				source: 'skill-pdf',
 			} as SessionEventPayload<'user.message'>['data']);
 
-			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(turnStarted, undefined, 'synthetic user messages should not promote steering to a turn');
 		});
 
@@ -1036,7 +1036,7 @@ suite('CopilotAgentSession', () => {
 				content: 'something completely different',
 			} as SessionEventPayload<'user.message'>['data']);
 
-			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(turnStarted, undefined, 'unrelated user messages should not consume the pending steering');
 		});
 
@@ -1068,7 +1068,7 @@ suite('CopilotAgentSession', () => {
 			await session.sendSteering({ id: 'steer-fail', message: { text: 'will fail', origin: { kind: MessageKind.User } } });
 
 			const consumed = signals.find(s => s.kind === 'steering_consumed');
-			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.SessionTurnStarted);
+			const turnStarted = signals.find(s => s.kind === 'action' && (s as IAgentActionSignal).action.type === ActionType.ChatTurnStarted);
 			assert.strictEqual(consumed, undefined, 'should not fire steering_consumed on failure');
 			assert.strictEqual(turnStarted, undefined, 'should not start a new turn on failure');
 		});
@@ -1138,7 +1138,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(mockSession.sendRequests.length, 0, 'system notification should not call session.send');
 			const actions = getActions(signals);
-			const turnStarted = actions.find(a => a.type === ActionType.SessionTurnStarted);
+			const turnStarted = actions.find(a => a.type === ActionType.ChatTurnStarted);
 			assert.ok(turnStarted, 'should synthesize a fresh turn');
 			assert.deepStrictEqual(turnStarted.message, { text: '`sleep 6` completed', origin: { kind: MessageKind.SystemNotification } });
 		});
@@ -1150,15 +1150,15 @@ suite('CopilotAgentSession', () => {
 				content: 'Shell command completed',
 				kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
 			} as SessionEventPayload<'system.notification'>['data']);
-			const turnStarted = getActions(signals).find(a => a.type === ActionType.SessionTurnStarted)!;
+			const turnStarted = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)!;
 
 			mockSession.fire('assistant.message_delta', {
 				deltaContent: 'Reading the shell output now.',
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
 
-			const responsePart = getActions(signals).find(a => a.type === ActionType.SessionResponsePart && a.part.kind === ResponsePartKind.Markdown);
+			const responsePart = getActions(signals).find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown);
 			assert.ok(responsePart, 'expected response part for follow-up assistant delta');
-			assert.strictEqual((responsePart as SessionResponsePartAction).turnId, (turnStarted as { turnId: string }).turnId);
+			assert.strictEqual((responsePart as ChatResponsePartAction).turnId, (turnStarted as { turnId: string }).turnId);
 		});
 
 		test('notification during an active turn appends a SystemNotification response part', async () => {
@@ -1171,8 +1171,8 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'system.notification'>['data']);
 
 			const actions = getActions(signals);
-			assert.strictEqual(actions.find(a => a.type === ActionType.SessionTurnStarted), undefined, 'should not create a duplicate turn');
-			const systemPart = actions.find(a => a.type === ActionType.SessionResponsePart && a.part.kind === ResponsePartKind.SystemNotification) as SessionResponsePartAction | undefined;
+			assert.strictEqual(actions.find(a => a.type === ActionType.ChatTurnStarted), undefined, 'should not create a duplicate turn');
+			const systemPart = actions.find(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.SystemNotification) as ChatResponsePartAction | undefined;
 			assert.ok(systemPart, 'expected system notification response part');
 			assert.strictEqual(systemPart.turnId, 'turn-active');
 			assert.strictEqual(systemPart.part.kind, ResponsePartKind.SystemNotification);
@@ -1186,11 +1186,11 @@ suite('CopilotAgentSession', () => {
 				content: 'Shell command completed',
 				kind: { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' },
 			} as SessionEventPayload<'system.notification'>['data']);
-			const turnStarted = getActions(signals).find(a => a.type === ActionType.SessionTurnStarted)!;
+			const turnStarted = getActions(signals).find(a => a.type === ActionType.ChatTurnStarted)!;
 
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
-			const turnComplete = getActions(signals).find(a => a.type === ActionType.SessionTurnComplete);
+			const turnComplete = getActions(signals).find(a => a.type === ActionType.ChatTurnComplete);
 			assert.ok(turnComplete, 'expected idle to complete the generated turn');
 			assert.strictEqual((turnComplete as { turnId: string }).turnId, turnStarted.turnId);
 		});
@@ -1205,8 +1205,8 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.message_delta'>['data']);
 
 			const lateMarkdownActions = getActions(signals)
-				.filter(a => a.type === ActionType.SessionResponsePart && a.part.kind === ResponsePartKind.Markdown)
-				.map(a => a as SessionResponsePartAction);
+				.filter(a => a.type === ActionType.ChatResponsePart && a.part.kind === ResponsePartKind.Markdown)
+				.map(a => a as ChatResponsePartAction);
 			const lateMarkdown = lateMarkdownActions[lateMarkdownActions.length - 1];
 			assert.ok(lateMarkdown, 'late event still emits a no-op action for the reducer');
 			assert.notStrictEqual(lateMarkdown.turnId, 'turn-old');
@@ -1227,9 +1227,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 2);
 			const toolStart = signals[0];
-			assert.ok(isAction(toolStart, ActionType.SessionToolCallStart));
-			if (isAction(toolStart, ActionType.SessionToolCallStart)) {
-				const action = toolStart.action as SessionToolCallStartAction;
+			assert.ok(isAction(toolStart, ActionType.ChatToolCallStart));
+			if (isAction(toolStart, ActionType.ChatToolCallStart)) {
+				const action = toolStart.action as ChatToolCallStartAction;
 				assert.strictEqual(action.toolCallId, 'tc-10');
 				assert.strictEqual(action.toolName, 'bash');
 			}
@@ -1247,16 +1247,16 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(signals.length, 2);
 			// toolInput on the auto-ready signal (signals[1])
 			const readySignal = signals[1];
-			assert.ok(isAction(readySignal, ActionType.SessionToolCallReady));
-			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
-				const action = readySignal.action as SessionToolCallReadyAction;
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
+				const action = readySignal.action as ChatToolCallReadyAction;
 				assert.strictEqual(action.toolInput, 'npm test');
 			}
 			// toolArguments in _meta on the tool_start signal (signals[0])
 			const startSignal = signals[0];
-			assert.ok(isAction(startSignal, ActionType.SessionToolCallStart));
-			if (isAction(startSignal, ActionType.SessionToolCallStart)) {
-				const meta = (startSignal.action as SessionToolCallStartAction)._meta;
+			assert.ok(isAction(startSignal, ActionType.ChatToolCallStart));
+			if (isAction(startSignal, ActionType.ChatToolCallStart)) {
+				const meta = (startSignal.action as ChatToolCallStartAction)._meta;
 				const toolArgs = meta?.['toolArguments'] as string | undefined;
 				assert.ok(toolArgs && toolArgs.includes('"npm test"'), `toolArguments should contain rewritten command, was: ${toolArgs}`);
 				assert.ok(!toolArgs?.includes('cd /repo/project'), 'toolArguments should not contain stripped prefix');
@@ -1281,9 +1281,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 3);
 			const completeSignal = signals[2];
-			assert.ok(isAction(completeSignal, ActionType.SessionToolCallComplete));
-			if (isAction(completeSignal, ActionType.SessionToolCallComplete)) {
-				const action = completeSignal.action as SessionToolCallCompleteAction;
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
 				const past = action.result.pastTenseMessage;
 				const pastStr = typeof past === 'string' ? past : (past?.markdown ?? '');
 				assert.ok(!pastStr.includes('cd /repo/project'), `past-tense message should not contain stripped prefix, got: ${pastStr}`);
@@ -1419,9 +1419,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 2);
 			const readySignal = signals[1];
-			assert.ok(isAction(readySignal, ActionType.SessionToolCallReady));
-			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
-				assert.strictEqual((readySignal.action as SessionToolCallReadyAction).toolInput, 'cd /tmp && ls');
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
+				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, 'cd /tmp && ls');
 			}
 		});
 
@@ -1435,9 +1435,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 2);
 			const readySignal = signals[1];
-			assert.ok(isAction(readySignal, ActionType.SessionToolCallReady));
-			if (isAction(readySignal, ActionType.SessionToolCallReady)) {
-				assert.strictEqual((readySignal.action as SessionToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
+			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
+			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
+				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
 			}
 		});
 
@@ -1519,7 +1519,7 @@ suite('CopilotAgentSession', () => {
 				success: true,
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
-			await waitForSignal(s => isAction(s, ActionType.SessionToolCallComplete));
+			await waitForSignal(s => isAction(s, ActionType.ChatToolCallComplete));
 
 			assert.deepStrictEqual(taken, [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts')]);
 		});
@@ -1577,9 +1577,9 @@ suite('CopilotAgentSession', () => {
 
 			assert.strictEqual(signals.length, 3);
 			const completeSignal = signals[2];
-			assert.ok(isAction(completeSignal, ActionType.SessionToolCallComplete));
-			if (isAction(completeSignal, ActionType.SessionToolCallComplete)) {
-				const action = completeSignal.action as SessionToolCallCompleteAction;
+			assert.ok(isAction(completeSignal, ActionType.ChatToolCallComplete));
+			if (isAction(completeSignal, ActionType.ChatToolCallComplete)) {
+				const action = completeSignal.action as ChatToolCallCompleteAction;
 				assert.strictEqual(action.toolCallId, 'tc-12');
 				assert.ok(action.result.success);
 				assert.ok(action.result.pastTenseMessage);
@@ -1602,7 +1602,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 
 			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.SessionTurnComplete));
+			assert.ok(isAction(signals[0], ActionType.ChatTurnComplete));
 		});
 
 		test('idle event without an active turn is ignored', async () => {
@@ -1621,9 +1621,9 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'session.error'>['data']);
 
 			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.SessionError));
-			if (isAction(signals[0], ActionType.SessionError)) {
-				const action = signals[0].action as SessionErrorAction;
+			assert.ok(isAction(signals[0], ActionType.ChatError));
+			if (isAction(signals[0], ActionType.ChatError)) {
+				const action = signals[0].action as ChatErrorAction;
 				assert.strictEqual(action.error.errorType, 'TestError');
 				assert.strictEqual(action.error.message, 'something went wrong');
 			}
@@ -1639,12 +1639,12 @@ suite('CopilotAgentSession', () => {
 			assert.ok(signals.length >= 1);
 			const hasDelta = signals.some(s => {
 				if (s.kind !== 'action') { return false; }
-				if (s.action.type === ActionType.SessionResponsePart) {
-					const part = (s.action as SessionResponsePartAction).part;
+				if (s.action.type === ActionType.ChatResponsePart) {
+					const part = (s.action as ChatResponsePartAction).part;
 					return part.kind === ResponsePartKind.Markdown && part.content === 'Hello ';
 				}
-				if (s.action.type === ActionType.SessionDelta) {
-					return (s.action as SessionDeltaAction).content === 'Hello ';
+				if (s.action.type === ActionType.ChatDelta) {
+					return (s.action as ChatDeltaAction).content === 'Hello ';
 				}
 				return false;
 			});
@@ -1671,12 +1671,12 @@ suite('CopilotAgentSession', () => {
 			assert.ok(signals.length >= 1);
 			const hasPart = signals.some(s => {
 				if (s.kind !== 'action') { return false; }
-				if (s.action.type === ActionType.SessionResponsePart) {
-					const part = (s.action as SessionResponsePartAction).part;
+				if (s.action.type === ActionType.ChatResponsePart) {
+					const part = (s.action as ChatResponsePartAction).part;
 					return part.kind === ResponsePartKind.Markdown && part.content === 'Let me help you.';
 				}
-				if (s.action.type === ActionType.SessionDelta) {
-					return (s.action as SessionDeltaAction).content === 'Let me help you.';
+				if (s.action.type === ActionType.ChatDelta) {
+					return (s.action as ChatDeltaAction).content === 'Let me help you.';
 				}
 				return false;
 			});
@@ -1858,10 +1858,10 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.message'>['data']);
 
 			const markdownParts = signals.flatMap(signal => {
-				if (signal.kind !== 'action' || signal.action.type !== ActionType.SessionResponsePart) {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
 					return [];
 				}
-				const part = (signal.action as SessionResponsePartAction).part;
+				const part = (signal.action as ChatResponsePartAction).part;
 				if (part.kind !== ResponsePartKind.Markdown) {
 					return [];
 				}
@@ -1903,12 +1903,12 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
 
 			// Pull the protocol-level reasoning response parts. Both
-			// `SessionResponsePart{Reasoning}` (allocates a new part) and
-			// `SessionReasoning` (appends to an existing part) translate to
+			// `ChatResponsePart{Reasoning}` (allocates a new part) and
+			// `ChatReasoning` (appends to an existing part) translate to
 			// the legacy `'reasoning'` view, so we have to inspect raw
 			// signals to tell them apart.
 			const reasoningResponseParts = signals.flatMap(s => {
-				if (s.kind !== 'action' || s.action.type !== ActionType.SessionResponsePart) {
+				if (s.kind !== 'action' || s.action.type !== ActionType.ChatResponsePart) {
 					return [];
 				}
 				return s.action.part.kind === ResponsePartKind.Reasoning ? [s.action.part] : [];
@@ -1943,10 +1943,10 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'assistant.reasoning_delta'>['data']);
 
 			const reasoningParts = signals.flatMap(signal => {
-				if (signal.kind !== 'action' || signal.action.type !== ActionType.SessionResponsePart) {
+				if (signal.kind !== 'action' || signal.action.type !== ActionType.ChatResponsePart) {
 					return [];
 				}
-				const part = (signal.action as SessionResponsePartAction).part;
+				const part = (signal.action as ChatResponsePartAction).part;
 				if (part.kind !== ResponsePartKind.Reasoning) {
 					return [];
 				}
@@ -1983,10 +1983,10 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_complete'>['data'], { agentId: 'agent-1' });
 
 			const toolCompletions = signals.flatMap(signal => {
-				if (!isAction(signal, ActionType.SessionToolCallComplete)) {
+				if (!isAction(signal, ActionType.ChatToolCallComplete)) {
 					return [];
 				}
-				const action = signal.action as SessionToolCallCompleteAction;
+				const action = signal.action as ChatToolCallCompleteAction;
 				return [{ parentToolCallId: signal.parentToolCallId, toolCallId: action.toolCallId }];
 			});
 
@@ -2059,10 +2059,10 @@ suite('CopilotAgentSession', () => {
 			const questionId = request.questions[0].id;
 
 			// Respond to unblock the promise
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'Alice' }
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'Alice' }
 				}
 			});
 
@@ -2083,18 +2083,18 @@ suite('CopilotAgentSession', () => {
 			const request = getInputRequest(signals[0]);
 			assert.ok(request.questions);
 			assert.strictEqual(request.questions.length, 1);
-			assert.strictEqual(request.questions[0].kind, SessionInputQuestionKind.SingleSelect);
-			if (request.questions[0].kind === SessionInputQuestionKind.SingleSelect) {
+			assert.strictEqual(request.questions[0].kind, ChatInputQuestionKind.SingleSelect);
+			if (request.questions[0].kind === ChatInputQuestionKind.SingleSelect) {
 				assert.strictEqual(request.questions[0].options.length, 3);
 				assert.strictEqual(request.questions[0].options[0].label, 'red');
 			}
 
 			// Respond with a selected choice
 			const questions = request.questions;
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
 				[questions[0].id]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'blue' }
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'blue' }
 				}
 			});
 
@@ -2112,7 +2112,7 @@ suite('CopilotAgentSession', () => {
 			);
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Cancel);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Cancel);
 
 			const result = await resultPromise;
 			assert.strictEqual(result.answer, '');
@@ -2121,7 +2121,7 @@ suite('CopilotAgentSession', () => {
 
 		test('respondToUserInputRequest returns false for unknown id', async () => {
 			const { session } = await createAgentSession(disposables);
-			assert.strictEqual(session.respondToUserInputRequest('unknown-id', SessionInputResponseKind.Accept), false);
+			assert.strictEqual(session.respondToUserInputRequest('unknown-id', ChatInputResponseKind.Accept), false);
 		});
 
 		test('handleUserInputRequest returns empty answer on skipped question', async () => {
@@ -2134,9 +2134,9 @@ suite('CopilotAgentSession', () => {
 
 			const request = getInputRequest(signals[0]);
 			const questionId = request.questions![0].id;
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Skipped,
+					state: ChatInputAnswerState.Skipped,
 				}
 			});
 
@@ -2193,7 +2193,7 @@ suite('CopilotAgentSession', () => {
 			// short-circuit or emit a progress event.
 			await Promise.resolve();
 			assert.strictEqual(signals.length, 1);
-			assert.ok(isAction(signals[0], ActionType.SessionInputRequested));
+			assert.ok(isAction(signals[0], ActionType.ChatInputRequested));
 		});
 	});
 
@@ -2226,27 +2226,27 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(request.message, 'Configure deployment');
 			assert.ok(request.questions);
 			assert.deepStrictEqual(request.questions.map(q => ({ id: q.id, kind: q.kind, required: q.required })), [
-				{ id: 'environment', kind: SessionInputQuestionKind.SingleSelect, required: true },
-				{ id: 'replicas', kind: SessionInputQuestionKind.Integer, required: false },
-				{ id: 'confirm', kind: SessionInputQuestionKind.Boolean, required: true },
-				{ id: 'region', kind: SessionInputQuestionKind.Text, required: false },
-				{ id: 'tags', kind: SessionInputQuestionKind.MultiSelect, required: false },
+				{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, required: true },
+				{ id: 'replicas', kind: ChatInputQuestionKind.Integer, required: false },
+				{ id: 'confirm', kind: ChatInputQuestionKind.Boolean, required: true },
+				{ id: 'region', kind: ChatInputQuestionKind.Text, required: false },
+				{ id: 'tags', kind: ChatInputQuestionKind.MultiSelect, required: false },
 			]);
 			const envQuestion = request.questions[0];
-			assert.strictEqual(envQuestion.kind, SessionInputQuestionKind.SingleSelect);
-			if (envQuestion.kind === SessionInputQuestionKind.SingleSelect) {
+			assert.strictEqual(envQuestion.kind, ChatInputQuestionKind.SingleSelect);
+			if (envQuestion.kind === ChatInputQuestionKind.SingleSelect) {
 				assert.deepStrictEqual(envQuestion.options, [
 					{ id: 'dev', label: 'Development' },
 					{ id: 'prod', label: 'Production' },
 				]);
 			}
 
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
-				environment: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Selected, value: 'prod' } },
-				replicas: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Number, value: 5 } },
-				confirm: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Boolean, value: true } },
-				region: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'eu-west-1' } },
-				tags: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.SelectedMany, value: ['a', 'c'] } },
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				environment: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'prod' } },
+				replicas: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Number, value: 5 } },
+				confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Boolean, value: true } },
+				region: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'eu-west-1' } },
+				tags: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['a', 'c'] } },
 			});
 
 			assert.deepStrictEqual(await resultPromise, {
@@ -2278,8 +2278,8 @@ suite('CopilotAgentSession', () => {
 			});
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
-				name: { state: SessionInputAnswerState.Skipped },
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				name: { state: ChatInputAnswerState.Skipped },
 				// `count` is missing entirely
 			});
 
@@ -2300,7 +2300,7 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(request.url, 'https://example.com/auth');
 			assert.strictEqual(request.questions, undefined);
 
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept);
 			assert.deepStrictEqual(await resultPromise, { action: 'accept' });
 		});
 
@@ -2317,8 +2317,8 @@ suite('CopilotAgentSession', () => {
 			const request = getInputRequest(signals[0]);
 			assert.strictEqual(request.questions, undefined);
 
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Accept, {
-				answer: { state: SessionInputAnswerState.Submitted, value: { kind: SessionInputAnswerValueKind.Text, value: 'teal' } },
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'teal' } },
 			});
 
 			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: { answer: 'teal' } });
@@ -2335,7 +2335,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Decline);
 			assert.deepStrictEqual(await resultPromise, { action: 'decline' });
 		});
 
@@ -2350,7 +2350,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			const request = getInputRequest(signals[0]);
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Cancel);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Cancel);
 			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
 		});
 
@@ -2498,16 +2498,16 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start is stamped as a client contributor with no owner...
-			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
-			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
-			assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, undefined);
+			const startSignal = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.ChatToolCallStart));
+			assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, undefined);
 
 			// ...and is failed immediately (ready + complete) rather than left
 			// pending for the server-side disconnect timeout.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallReady)).length, 1);
-			const completeSignal = signals.find(s => isAction(s, ActionType.SessionToolCallComplete));
-			assert.ok(completeSignal && isAction(completeSignal, ActionType.SessionToolCallComplete));
-			assert.strictEqual((completeSignal.action as SessionToolCallCompleteAction).result.success, false);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallReady)).length, 1);
+			const completeSignal = signals.find(s => isAction(s, ActionType.ChatToolCallComplete));
+			assert.ok(completeSignal && isAction(completeSignal, ActionType.ChatToolCallComplete));
+			assert.strictEqual((completeSignal.action as ChatToolCallCompleteAction).result.success, false);
 
 			// When the SDK invokes the handler it resolves immediately with the
 			// buffered failure result.
@@ -2528,11 +2528,11 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start fires immediately (client tools don't auto-ready)
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallStart)).length, 1);
-			const startSignal = signals.find(s => isAction(s, ActionType.SessionToolCallStart));
-			assert.ok(startSignal && isAction(startSignal, ActionType.SessionToolCallStart));
-			if (isAction(startSignal!, ActionType.SessionToolCallStart)) {
-				assert.deepStrictEqual((startSignal.action as SessionToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1);
+			const startSignal = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+			assert.ok(startSignal && isAction(startSignal, ActionType.ChatToolCallStart));
+			if (isAction(startSignal!, ActionType.ChatToolCallStart)) {
+				assert.deepStrictEqual((startSignal.action as ChatToolCallStartAction).contributor, { kind: ToolCallContributorKind.Client, clientId: 'test-client' });
 			}
 
 			// SDK invokes the handler — it creates a deferred and waits,
@@ -2541,7 +2541,7 @@ suite('CopilotAgentSession', () => {
 			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1', { file: 'test.ts' });
 
 			// No pending_confirmation or tool_ready should have been emitted by the handler
-			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.SessionToolCallReady)).length, 0);
+			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation' || isAction(s, ActionType.ChatToolCallReady)).length, 0);
 
 			// Complete the tool call
 			session.handleClientToolCallComplete('tc-client-1', {
@@ -2568,7 +2568,7 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start fired, no pending_confirmation yet
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallStart)).length, 1);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1);
 			assert.strictEqual(signals.filter(s => s.kind === 'pending_confirmation').length, 0);
 
 			// Permission request fires — pending_confirmation from permission flow.
@@ -2612,9 +2612,9 @@ suite('CopilotAgentSession', () => {
 			// permission-flow `pending_confirmation` must carry the
 			// parentToolCallId from the originating tool_start. Without it
 			// the host has no way to route the resulting
-			// SessionToolCallReady to the subagent session and emits a
+			// ChatToolCallReady to the subagent session and emits a
 			// stray ready against the parent session (no preceding
-			// SessionToolCallStart).
+			// ChatToolCallStart).
 			const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { clientSnapshot: snapshot, activeClientState: activeClientStateWith('test-client') });
 
 			mockSession.fire('subagent.started', {
@@ -2766,7 +2766,7 @@ suite('CopilotAgentSession', () => {
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
 			// tool_start should have fired
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionToolCallStart)).length, 1);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatToolCallStart)).length, 1);
 
 			// Permission before the handler should produce only the confirmation
 			// pending_confirmation, not a synthetic auto-ready.
@@ -2882,8 +2882,8 @@ suite('CopilotAgentSession', () => {
 				arguments: {},
 			} as SessionEventPayload<'tool.execution_start'>['data']);
 
-			const starts = signals.filter((s): s is IAgentActionSignal => isAction(s, ActionType.SessionToolCallStart));
-			assert.deepStrictEqual(starts.map(s => (s.action as SessionToolCallStartAction).contributor), [
+			const starts = signals.filter((s): s is IAgentActionSignal => isAction(s, ActionType.ChatToolCallStart));
+			assert.deepStrictEqual(starts.map(s => (s.action as ChatToolCallStartAction).contributor), [
 				{ kind: ToolCallContributorKind.Client, clientId: 'client-A' },
 				{ kind: ToolCallContributorKind.Client, clientId: 'client-B' },
 			]);
@@ -2949,7 +2949,7 @@ suite('CopilotAgentSession', () => {
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 
 			// The plan summary and "View full plan" link are emitted as a
@@ -2957,12 +2957,12 @@ suite('CopilotAgentSession', () => {
 			// client renders them inline above the question.
 			const deltaContent = signals.flatMap(s => {
 				if (s.kind !== 'action') { return []; }
-				if (s.action.type === ActionType.SessionResponsePart) {
-					const part = (s.action as SessionResponsePartAction).part;
+				if (s.action.type === ActionType.ChatResponsePart) {
+					const part = (s.action as ChatResponsePartAction).part;
 					return part.kind === ResponsePartKind.Markdown ? [part.content] : [];
 				}
-				if (s.action.type === ActionType.SessionDelta) {
-					return [(s.action as SessionDeltaAction).content];
+				if (s.action.type === ActionType.ChatDelta) {
+					return [(s.action as ChatDeltaAction).content];
 				}
 				return [];
 			}).join('');
@@ -2970,8 +2970,8 @@ suite('CopilotAgentSession', () => {
 			assert.ok(deltaContent.includes('plan.md'), 'delta should include a link to the plan file');
 
 			const question = request.questions?.[0];
-			assert.strictEqual(question?.kind, SessionInputQuestionKind.SingleSelect);
-			if (question?.kind === SessionInputQuestionKind.SingleSelect) {
+			assert.strictEqual(question?.kind, ChatInputQuestionKind.SingleSelect);
+			if (question?.kind === ChatInputQuestionKind.SingleSelect) {
 				assert.deepStrictEqual(question.options.map(o => o.id), ['autopilot', 'interactive', 'exit_only']);
 				const recommended = question.options.find(o => o.recommended);
 				assert.strictEqual(recommended?.id, 'autopilot');
@@ -2979,7 +2979,7 @@ suite('CopilotAgentSession', () => {
 			}
 
 			// Resolve the request so the deferred completes and the test can clean up.
-			session.respondToUserInputRequest(request.id, SessionInputResponseKind.Decline);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Decline);
 			await responsePromise;
 		});
 
@@ -2987,15 +2987,15 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'autopilot' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' },
 				},
 			});
 
@@ -3006,15 +3006,15 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'interactive' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' },
 				},
 			});
 
@@ -3025,9 +3025,9 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 
-			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 
 			assert.deepStrictEqual(await responsePromise, { approved: false });
 		});
@@ -3036,15 +3036,15 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive', 'exit_only'], recommendedAction: 'exit_only' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'exit_only' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' },
 				},
 			});
 
@@ -3055,16 +3055,16 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
+					state: ChatInputAnswerState.Submitted,
 					value: {
-						kind: SessionInputAnswerValueKind.Selected,
+						kind: ChatInputAnswerValueKind.Selected,
 						value: 'interactive',
 						freeformValues: ['Please use Python instead of Node.js'],
 					},
@@ -3082,7 +3082,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
@@ -3091,10 +3091,10 @@ suite('CopilotAgentSession', () => {
 			// somehow sent `autopilot` (e.g. stale UI state). The agent
 			// host clamps to `recommendedAction` so the SDK never sees a
 			// value it didn't offer.
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'autopilot' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' },
 				},
 			});
 
@@ -3108,15 +3108,15 @@ suite('CopilotAgentSession', () => {
 			// the offered set. The client picked something invalid. With
 			// no usable selectedAction and no feedback, decline.
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['exit_only'], recommendedAction: 'autopilot' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Selected, value: 'interactive' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' },
 				},
 			});
 
@@ -3127,7 +3127,7 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
@@ -3136,10 +3136,10 @@ suite('CopilotAgentSession', () => {
 			// value, but a defensive Text response should still be
 			// translated to a revision request when the answer is
 			// non-empty (selectedAction falls back to recommendedAction).
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
-					value: { kind: SessionInputAnswerValueKind.Text, value: 'Add tests for edge cases' },
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'Add tests for edge cases' },
 				},
 			});
 
@@ -3154,16 +3154,16 @@ suite('CopilotAgentSession', () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['autopilot', 'interactive'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
 			const request = getInputRequest(signal);
 			const requestId = request.id;
 			const questionId = request.questions![0].id;
 
-			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+			session.respondToUserInputRequest(requestId, ChatInputResponseKind.Accept, {
 				[questionId]: {
-					state: SessionInputAnswerState.Submitted,
+					state: ChatInputAnswerState.Submitted,
 					value: {
-						kind: SessionInputAnswerValueKind.Selected,
+						kind: ChatInputAnswerValueKind.Selected,
 						value: 'interactive',
 						freeformValues: ['   ', ''],
 					},
@@ -3228,7 +3228,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(response, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
 			// User-input request should NOT be surfaced to the client.
-			assert.strictEqual(signals.filter(s => isAction(s, ActionType.SessionInputRequested)).length, 0);
+			assert.strictEqual(signals.filter(s => isAction(s, ActionType.ChatInputRequested)).length, 0);
 		});
 
 		test('handleExitPlanModeRequest auto-accepts with priority order when no recommended action available', async () => {
@@ -3255,8 +3255,8 @@ suite('CopilotAgentSession', () => {
 			const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams(), { sessionId: 'test-session-1' });
 
 			// The user-input request fires — the user must respond.
-			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
-			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
+			const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested));
+			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 			await responsePromise;
 		});
 	});

@@ -315,7 +315,7 @@ function firstShellLine(input: unknown): string | undefined {
 
 /**
  * Phase 8.5 — rich invocation message for a `pending_confirmation`
- * card or a streaming `SessionToolCallStart` action. Reads the
+ * card or a streaming `ChatToolCallStart` action. Reads the
  * SDK's `tool_use.input` defensively and falls back to the static
  * `displayName` on any shape mismatch. Mirror of
  * [`copilotToolDisplay.getInvocationMessage`](../copilot/copilotToolDisplay.ts#L473).

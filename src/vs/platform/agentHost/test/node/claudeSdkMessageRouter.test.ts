@@ -74,7 +74,7 @@ suite('ClaudeSdkMessageRouter', () => {
 		assert.deepStrictEqual(signals, []);
 	});
 
-	test('handle with a turnId on a text content block produces SessionResponsePart + SessionDelta signals', async () => {
+	test('handle with a turnId on a text content block produces ChatResponsePart + ChatDelta signals', async () => {
 		const { router, signals } = createRouter(disposables);
 		await router.handle(makeStreamEvent('sess-1', makeMessageStart()), 'turn-1');
 		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartText(0)), 'turn-1');

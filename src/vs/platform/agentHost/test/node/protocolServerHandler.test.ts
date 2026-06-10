@@ -415,7 +415,7 @@ suite('ProtocolServerHandler', () => {
 			channel: sessionUri,
 			clientSeq: 1,
 			action: {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
@@ -424,7 +424,7 @@ suite('ProtocolServerHandler', () => {
 		const actionMsgs = findNotifications(transport.sent, 'action');
 		const turnStarted = actionMsgs.find(m => {
 			const envelope = m.params as unknown as { action: { type: string } };
-			return envelope.action.type === ActionType.SessionTurnStarted;
+			return envelope.action.type === ActionType.ChatTurnStarted;
 		});
 		assert.ok(turnStarted, 'should have echoed turnStarted');
 		const envelope = turnStarted!.params as unknown as { origin: { clientId: string; clientSeq: number } };
@@ -817,12 +817,12 @@ suite('ProtocolServerHandler', () => {
 				},
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -830,7 +830,7 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -874,12 +874,12 @@ suite('ProtocolServerHandler', () => {
 				},
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -922,12 +922,12 @@ suite('ProtocolServerHandler', () => {
 				},
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -935,7 +935,7 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -980,12 +980,12 @@ suite('ProtocolServerHandler', () => {
 				},
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -993,7 +993,7 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -1032,12 +1032,12 @@ suite('ProtocolServerHandler', () => {
 				},
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -1045,7 +1045,7 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				invocationMessage: 'Run Task',
@@ -1084,7 +1084,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
@@ -1092,7 +1092,7 @@ suite('ProtocolServerHandler', () => {
 			// stale stamp from a long-dead window). No disconnect event ever
 			// fires for it; the issuance-time orphan check must arm the timeout.
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -1123,12 +1123,12 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -1152,13 +1152,13 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run it', origin: { kind: MessageKind.User } },
 			});
 			// First orphaned tool call (owner never connected) arms the grace timer.
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-1',
 				toolName: 'runTask',
@@ -1173,7 +1173,7 @@ suite('ProtocolServerHandler', () => {
 			// indefinitely.
 			await new Promise(r => setTimeout(r, 20_000));
 			stateManager.dispatchServerAction(sessionUri, {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-2',
 				toolName: 'runTask',

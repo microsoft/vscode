@@ -254,7 +254,7 @@ export function makeAssistantMessage(
  * the SDK delivers as the response to a previously-emitted `tool_use`.
  * Phase 7 §3.3.4 — the mapper detects this by walking
  * `message.content` for `tool_result` blocks and emits a
- * `SessionToolCallComplete` per match. The `content` field is the SDK's
+ * `ChatToolCallComplete` per match. The `content` field is the SDK's
  * `string | (TextBlockParam | ImageBlockParam | ...)[]` shape; the
  * helper accepts a string or pre-built block array verbatim.
  */
