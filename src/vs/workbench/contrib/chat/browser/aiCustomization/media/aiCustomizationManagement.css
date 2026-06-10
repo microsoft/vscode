@@ -2063,11 +2063,38 @@ body:has(.automation-dialog) .monaco-menu-container {
 	gap: 4px;
 }
 
-/* Narrow select so Schedule + Time + Day fit on one line for typical
- * intervals. Matches the visual footprint of the folder picker chip. */
-.automation-form-schedule-select {
-	width: 160px;
+/* SelectBox container sizing — give Schedule / Time / Day enough room
+ * to render without cramping. Each container hosts a themed SelectBox
+ * (`.monaco-select-box`) whose width fills the container. Widths chosen
+ * so all three labels (`Hourly` / `12:45 PM` / `Wednesday`) display
+ * without ellipsis at the default font. flex-wrap on the row drops
+ * controls to the next line on narrow viewports.
+ *
+ * `.monaco-select-box` ships with no intrinsic padding (the only baked-in
+ * padding lives in the `.monaco-action-bar .action-item` selector, which
+ * we're not inside of). Apply the standard standalone-SelectBox padding
+ * — same values used by `breakpointWidget.css` — so the option text is
+ * not flush against the chevron or the left border. */
+.automation-form-schedule-select-container {
+	display: flex;
 	min-width: 0;
+}
+
+.automation-form-schedule-group .automation-form-schedule-select-container {
+	width: 140px;
+}
+
+.automation-form-time-group .automation-form-schedule-select-container.automation-form-time-select-container {
+	width: 130px;
+}
+
+.automation-form-day-group .automation-form-schedule-select-container {
+	width: 140px;
+}
+
+.automation-form-schedule-select-container .monaco-select-box {
+	min-height: 18px;
+	padding: 2px 20px 2px 8px;
 }
 
 .automation-form-label {
@@ -2123,23 +2150,6 @@ body:has(.automation-dialog) .monaco-menu-container {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 	border-color: var(--vscode-focusBorder);
-}
-
-.automation-form-time-fields {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 6px;
-}
-
-.automation-form-time-input {
-	width: 64px;
-	flex: 0 0 auto;
-}
-
-.automation-form-time-sep {
-	color: var(--vscode-foreground);
-	font-weight: 600;
 }
 
 .automation-form-error {
