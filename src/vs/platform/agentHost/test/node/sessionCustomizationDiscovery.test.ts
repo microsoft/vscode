@@ -71,6 +71,32 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		].sort((a, b) => a.localeCompare(b)));
 	});
 
+	test('returns directories sorted by type and URI', async () => {
+		await seed('/workspace/.github/agents/aaa.agent.md', 'workspace agent a');
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+		await seed('/workspace/.github/skills/alpha/SKILL.md', 'workspace skill alpha');
+		await seed('/workspace/.github/skills/bar/SKILL.md', 'workspace skill');
+		await seed('/workspace/.github/instructions/alpha.instructions.md', 'workspace instruction alpha');
+		await seed('/workspace/.github/instructions/baz.instructions.md', 'workspace instruction');
+		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
+		await seed('/home/.copilot/agents/abc.agent.md', 'user agent abc');
+		await seed('/home/.copilot/agents/qux.agent.md', 'user agent');
+		await seed('/home/.agents/skills/aaa/SKILL.md', 'user skill aaa');
+		await seed('/home/.agents/skills/zap/SKILL.md', 'user skill');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const directories = await discovery.directories();
+		const actual = directories.map(directory => `${directory.type}:${directory.uri.toString()}`);
+		const expected = [...actual].sort((a, b) => a.localeCompare(b));
+
+		assert.deepStrictEqual(actual, expected);
+		for (const directory of directories) {
+			const actualFiles = directory.files.map(file => file.uri.toString());
+			const expectedFiles = [...actualFiles].sort((a, b) => a.localeCompare(b));
+			assert.deepStrictEqual(actualFiles, expectedFiles);
+		}
+	});
+
 	test('does not discover agent instruction files outside supported roots', async () => {
 		await seed('/workspace/.github/copilot-instructions.md', 'workspace copilot instructions');
 		await seed('/workspace/docs/AGENTS.md', 'unsupported root');
