@@ -2284,11 +2284,13 @@ body:has(.automation-dialog) .monaco-menu-container {
 /* SelectBox container sizing — give Schedule / Time / Day the full
  * width of their parent group (which itself flex-shares the row).
  *
- * `.monaco-select-box` ships with no intrinsic padding (the only baked-in
- * padding lives in the `.monaco-action-bar .action-item` selector, which
- * we're not inside of). Apply the standard standalone-SelectBox padding
- * — same values used by `breakpointWidget.css` — so the option text is
- * not flush against the chevron or the left border. */
+ * `.monaco-select-box` ships with no intrinsic padding or height (the
+ * only baked-in metrics live in the `.monaco-action-bar .action-item`
+ * selector, which we're not inside of). Mirror the standalone-form
+ * pattern used by the settings editor (`settingsEditor2.css:689-694`
+ * — `height: 26px; padding: 2px 6px`) so the dropdowns match the
+ * Name InputBox above them instead of reading as toolbar widgets
+ * crammed into a form. */
 .automation-form-schedule-select-container {
 	display: flex;
 	min-width: 0;
@@ -2296,8 +2298,8 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 .automation-form-schedule-select-container .monaco-select-box {
-	min-height: 18px;
-	padding: 2px 20px 2px 8px;
+	height: 26px;
+	padding: 2px 8px;
 }
 
 /*
