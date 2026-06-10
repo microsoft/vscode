@@ -326,6 +326,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
 			/** Resolved response model, normalized once and reused by span attributes and the streaming metrics below. */
 			let normalizedResponseModel: string | undefined;
+			/** Time (ms) from request issue to the first content-bearing streamed chunk; basis for the GenAI `time_to_first_chunk` signals. Distinct from `timeToFirstToken`, which is the time to receive the Response object. */
+			let timeToFirstChunkMs: number | undefined;
 			switch (response.type) {
 				case FetchResponseKind.Success: {
 					const result = await this.processSuccessfulResponse(response, messages, imageTelemetryMeasurements, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
@@ -384,6 +386,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 					pendingLoggedChatRequest?.resolve(result, streamRecorder.deltas);
 
+					// First content-chunk timing, captured after the stream is consumed. Mirrors
+					// `timeToFirstTokenEmitted` below and the CLI runtime's TTFC semantics.
+					if (streamRecorder.firstTokenEmittedTime !== undefined) {
+						timeToFirstChunkMs = streamRecorder.firstTokenEmittedTime - baseTelemetry.issuedTime;
+					}
+
 					// Record OTel token usage metrics if available
 					if (result.type === ChatFetchResponseType.Success && result.usage) {
 						// Store copilot_usage for per-request credits display, scoped to the turn.
@@ -424,7 +432,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 								: {}),
 							[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: timeToFirstToken,
 							[GenAiAttr.REQUEST_STREAM]: true,
-							...(timeToFirstToken > 0 ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: timeToFirstToken / 1000 } : {}),
+							...(timeToFirstChunkMs !== undefined && timeToFirstChunkMs > 0 ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: timeToFirstChunkMs / 1000 } : {}),
 							...(result.serverRequestId ? { [CopilotChatAttr.SERVER_REQUEST_ID]: result.serverRequestId } : {}),
 							...(result.usage.completion_tokens_details?.reasoning_tokens
 								? {
@@ -492,8 +500,12 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					// Record OTel time-to-first-token metric
 					if (timeToFirstToken > 0) {
 						GenAiMetrics.recordTimeToFirstToken(this._otelService, chatEndpoint.model, timeToFirstToken / 1000);
-						// GenAI-convention streaming signal, dual-emitted alongside the legacy metric above.
-						GenAiMetrics.recordTimeToFirstChunk(this._otelService, timeToFirstToken / 1000, {
+					}
+
+					// GenAI-convention streaming signal (time to first content chunk), dual-emitted
+					// alongside the legacy time-to-first-token metric above.
+					if (timeToFirstChunkMs !== undefined && timeToFirstChunkMs > 0) {
+						GenAiMetrics.recordTimeToFirstChunk(this._otelService, timeToFirstChunkMs / 1000, {
 							operationName: GenAiOperationName.CHAT,
 							providerName: GenAiProviderName.GITHUB,
 							requestModel: chatEndpoint.model,
