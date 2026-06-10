@@ -929,25 +929,48 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 			}
 		} else {
-			// Try the active chat pane first
+			// Use the currently focused chat session if available
 			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
 			if (currentSession) {
 				// There's an active chat widget — send to it
 				this.commandService.executeCommand('_chat.voice.acceptInput', text);
 			} else {
-				// No active chat session — try the sessions new-chat input (main page)
-				const handled = await this.commandService.executeCommand<boolean>('_sessions.voice.sendQuery', text).catch(() => false);
-				if (!handled) {
-					// Last resort: create a new session and send there
+				// No focused chat session — find the most recent existing session
+				// instead of creating a new one, so voice continues the conversation.
+				const models = [...this.chatService.chatModels.get()];
+				const existingSession = models.length > 0 ? models[models.length - 1] : undefined;
+				const sessionResource = existingSession?.sessionResource;
+
+				if (sessionResource) {
+					// Switch to and send to the existing session
+					const switched = await this.commandService.executeCommand<boolean>('_chat.voice.switchToSession', sessionResource.toString()).catch(() => false);
+					if (switched) {
+						await new Promise(resolve => setTimeout(resolve, 200));
+						await this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(err => {
+							this.logService.warn('[voice] acceptInput failed after switch to existing:', err);
+						});
+					} else {
+						// Direct send as fallback
+						this.chatService.sendRequest(sessionResource, text).catch(err => {
+							this.logService.warn('[voice] Error sending transcription to existing session:', err);
+						});
+					}
+				} else {
+					// Truly no sessions exist — create one
 					const ref = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
 					const resource = ref.object.sessionResource;
 					ref.dispose();
+					// Switch to the new session so the user sees the response
+					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* pane may not exist */ });
 					this.chatService.sendRequest(resource, text).catch(err => {
 						this.logService.warn('[voice] Error sending transcription to new session:', err);
 					});
 				}
 			}
 		}
+
+		// Ensure the chat view is visible so the user sees/hears the response
+		this.commandService.executeCommand('workbench.panel.chat.view.copilot.focus').catch(() => { /* ignore */ });
 	}
 
 	// --- Transcript buffer helpers ---
