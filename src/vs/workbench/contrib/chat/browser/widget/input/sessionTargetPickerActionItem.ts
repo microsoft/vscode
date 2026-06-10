@@ -216,24 +216,24 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._sessionTypeItems = agentSessionItems;
 	}
 
-	/**
-	 * The default session type for the picker when no session is yet active.
-	 * Defaults to {@link AgentSessionProviders.Local} but is overridden based on
-	 * the experimental {@link ChatConfiguration.EditorDefaultProvider} setting
-	 * when the selected provider is registered.
-	 */
-	protected _getDefaultSessionType(): AgentSessionTarget {
-		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
-	}
+/**
+ * The default session type for the picker when no session is yet active.
+ * Defaults to {@link AgentSessionProviders.Local} but is overridden based on
+ * the experimental {@link ChatConfiguration.EditorDefaultProvider} setting
+ * when the selected provider is registered.
+ */
+protected _getDefaultSessionType(): AgentSessionTarget {
+return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
+}
 
-	protected _isVisible(type: AgentSessionTarget): boolean {
-		// Hide the Extension Host Copilot CLI in the editor picker when configured.
-		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
-		if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
-			return false;
-		}
+protected _isVisible(type: AgentSessionTarget): boolean {
+// Hide the Extension Host Copilot CLI in the editor picker when configured.
+const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
+if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
+return false;
+}
 
-		return true;
+return this.delegate.isSessionTypeVisible?.(type) ?? true;
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
