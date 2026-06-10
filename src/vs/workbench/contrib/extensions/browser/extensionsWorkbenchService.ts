@@ -73,6 +73,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { hash } from '../../../../base/common/hash.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 
@@ -1603,7 +1604,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				message,
 				severity: Severity.Info,
 				extensions: [],
-				key: `privateMarketplace:${privateMarketplaceUrl}`,
+				key: `privateMarketplace:${hash(privateMarketplaceUrl)}`,
 			});
 		}
 

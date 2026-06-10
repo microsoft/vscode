@@ -781,10 +781,11 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer<IExtensionsVi
 			const messageText = append(messageContainer, $('span.message-text'));
 			const messageElement = append(messageText, $('span.message'));
 			if (isMarkdownString(status.message)) {
-				const rendered = this.notificationDisposables.value.add(renderMarkdown(status.message, {
-					actionHandler: link => { this.openerService.open(link, { allowCommands: true }); },
-				}));
-				messageElement.appendChild(rendered.element);
+				const isTrusted = status.message.isTrusted;
+				const allowCommands = typeof isTrusted === 'object' ? isTrusted.enabledCommands : !!isTrusted;
+				this.notificationDisposables.value.add(renderMarkdown(status.message, {
+					actionHandler: link => { this.openerService.open(link, { allowCommands }); },
+				}, messageElement));
 			} else {
 				messageElement.textContent = status.message;
 			}
