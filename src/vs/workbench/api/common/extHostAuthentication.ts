@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import * as nls from '../../../nls.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from './extHost.protocol.js';
+import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
@@ -39,6 +40,14 @@ interface ProviderWithMetadata {
 	options: vscode.AuthenticationProviderOptions;
 }
 
+/**
+ * The account icon is a {@link vscode.Uri} that does not survive being sent over the RPC boundary,
+ * so it needs to be revived when an account is received from the main thread.
+ */
+function reviveAccountIcon<T extends { readonly icon?: vscode.Uri | UriComponents }>(account: T): T & { readonly icon?: vscode.Uri } {
+	return { ...account, icon: URI.revive(account.icon) };
+}
+
 export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	declare _serviceBrand: undefined;
@@ -46,7 +55,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	protected readonly _dynamicAuthProviderCtor = DynamicAuthProvider;
 	protected readonly _xaaAuthProviderCtor = XaaifyAuthProvider(DynamicAuthProvider);
 
-	private _proxy: MainThreadAuthenticationShape;
+	private _proxy: Proxied<MainThreadAuthenticationShape>;
 	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
 	private _providerOperations = new SequencerByKey<string>();
 
@@ -124,13 +133,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return await this._getSessionTaskSingler.getOrCreate(singlerKey, async () => {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
-			return this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
+			const session = await this._proxy.$getSession(providerId, scopesOrRequest, extensionId, extensionName, options);
+			return session && { ...session, account: reviveAccountIcon(session.account) };
 		});
 	}
 
 	async getAccounts(providerId: string) {
 		await this._proxy.$ensureProvider(providerId);
-		return await this._proxy.$getAccounts(providerId);
+		const accounts = await this._proxy.$getAccounts(providerId);
+		return accounts.map(account => reviveAccountIcon(account));
 	}
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
@@ -172,6 +183,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			const providerData = this._authenticationProviders.get(providerId);
 			if (providerData) {
 				options.authorizationServer = URI.revive(options.authorizationServer);
+				if (options.account) {
+					options.account = reviveAccountIcon(options.account);
+				}
 				return await providerData.provider.createSession(scopes, options);
 			}
 
@@ -195,6 +209,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			const providerData = this._authenticationProviders.get(providerId);
 			if (providerData) {
 				options.authorizationServer = URI.revive(options.authorizationServer);
+				if (options.account) {
+					options.account = reviveAccountIcon(options.account);
+				}
 				return await providerData.provider.getSessions(scopes, options);
 			}
 
@@ -210,6 +227,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				// Check if provider supports challenges
 				if (typeof provider.getSessionsFromChallenges === 'function') {
 					options.authorizationServer = URI.revive(options.authorizationServer);
+					if (options.account) {
+						options.account = reviveAccountIcon(options.account);
+					}
 					return await provider.getSessionsFromChallenges(constraint, options);
 				}
 				throw new Error(`Authentication provider with handle: ${providerId} does not support getSessionsFromChallenges`);
@@ -227,6 +247,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				// Check if provider supports challenges
 				if (typeof provider.createSessionFromChallenges === 'function') {
 					options.authorizationServer = URI.revive(options.authorizationServer);
+					if (options.account) {
+						options.account = reviveAccountIcon(options.account);
+					}
 					return await provider.createSessionFromChallenges(constraint, options);
 				}
 				throw new Error(`Authentication provider with handle: ${providerId} does not support createSessionFromChallenges`);
@@ -458,7 +481,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		@IExtHostInitDataService protected readonly _initData: IExtHostInitDataService,
 		@IExtHostProgress private readonly _extHostProgress: IExtHostProgress,
 		@ILoggerService loggerService: ILoggerService,
-		protected readonly _proxy: MainThreadAuthenticationShape,
+		protected readonly _proxy: Proxied<MainThreadAuthenticationShape>,
 		readonly authorizationServer: URI,
 		protected readonly _serverMetadata: IAuthorizationServerMetadata,
 		protected readonly _resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,

@@ -8,8 +8,8 @@ declare module 'vscode' {
 
 	export interface AuthenticationSessionAccountInformation {
 		/**
-		 * An optional icon URL string for the account. This is typically a URL to a profile image/avatar.
+		 * An optional icon for the account. This is typically a URI to a profile image/avatar.
 		 */
-		readonly iconUrl?: string;
+		readonly icon?: Uri;
 	}
 }
