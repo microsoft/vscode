@@ -142,6 +142,24 @@ class BranchItem extends RefItem {
 }
 
 class CheckoutItem extends BranchItem {
+
+	override get description(): string {
+		const description = super.description;
+
+		if (this.worktreePath) {
+			const worktreeLabel = l10n.t('worktree: {0}', this.worktreePath);
+			return description.length > 0
+				? `${description}$(circle-small-filled)$(list-tree) ${worktreeLabel}`
+				: `$(list-tree) ${worktreeLabel}`;
+		}
+
+		return description;
+	}
+
+	constructor(ref: Branch, shortCommitLength: number, readonly worktreePath?: string) {
+		super(ref, shortCommitLength);
+	}
+
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -159,6 +177,10 @@ class CheckoutProtectedItem extends CheckoutItem {
 
 	override get label(): string {
 		return `$(lock) ${this.ref.name ?? this.shortCommit}`;
+	}
+
+	constructor(ref: Branch, shortCommitLength: number, worktreePath?: string) {
+		super(ref, shortCommitLength, worktreePath);
 	}
 }
 
@@ -431,7 +453,18 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 	}
 
 	const refs = await repository.getRefs({ includeCommitDetails: showRefDetails });
-	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type))
+
+	// Build a map of branch name -> worktree path
+	const worktreeMap = new Map<string, string>();
+	for (const worktree of repository.worktrees) {
+		if (!worktree.detached) {
+			// worktree.ref is like "refs/heads/branch-name"
+			const branchName = worktree.ref.replace(/^refs\/heads\//, '');
+			worktreeMap.set(branchName, worktree.path);
+		}
+	}
+
+	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type, worktreeMap))
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
@@ -545,15 +578,19 @@ class RefItemsProcessor {
 
 class CheckoutRefProcessor extends RefProcessor {
 
-	constructor(private readonly repository: Repository) {
+	constructor(
+		private readonly repository: Repository,
+		private readonly worktreeMap: Map<string, string>
+	) {
 		super(RefType.Head);
 	}
 
 	override getItems(shortCommitLength: number): QuickPickItem[] {
 		const items = this.refs.map(ref => {
+			const worktreePath = ref.name ? this.worktreeMap.get(ref.name) : undefined;
 			return this.repository.isBranchProtected(ref) ?
-				new CheckoutProtectedItem(ref, shortCommitLength) :
-				new CheckoutItem(ref, shortCommitLength);
+				new CheckoutProtectedItem(ref, shortCommitLength, worktreePath) :
+				new CheckoutItem(ref, shortCommitLength, worktreePath);
 		});
 
 		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
@@ -625,10 +662,10 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 	}
 }
 
-function getCheckoutRefProcessor(repository: Repository, type: string): RefProcessor | undefined {
+function getCheckoutRefProcessor(repository: Repository, type: string, worktreeMap: Map<string, string>): RefProcessor | undefined {
 	switch (type) {
 		case 'local':
-			return new CheckoutRefProcessor(repository);
+			return new CheckoutRefProcessor(repository, worktreeMap);
 		case 'remote':
 			return new RefProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
 		case 'tags':
