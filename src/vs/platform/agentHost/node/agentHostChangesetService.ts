@@ -11,6 +11,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	BASELINE_TURN_ID,
+	buildBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
@@ -43,6 +44,9 @@ import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
  */
 export const META_CHANGESET_UNCOMMITTED = 'agentHost.changeset.uncommitted';
 
+/** Metadata key under which the branch changeset's diff list is persisted. */
+export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
+
 /** Metadata key under which the session-wide changeset's diff list is persisted. */
 export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
 
@@ -61,11 +65,19 @@ export const META_CHANGES_SUMMARY = 'agentHost.changes';
 export type StaticChangesetKind = 'branch' | 'uncommitted' | 'session';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
-	return kind === 'uncommitted' ? buildUncommittedChangesetUri(session) : buildSessionChangesetUri(session);
+	return kind === 'branch'
+		? buildBranchChangesetUri(session)
+		: kind === 'uncommitted'
+			? buildUncommittedChangesetUri(session)
+			: buildSessionChangesetUri(session);
 }
 
 function persistKeyFor(kind: StaticChangesetKind): string {
-	return kind === 'uncommitted' ? META_CHANGESET_UNCOMMITTED : META_CHANGESET_SESSION;
+	return kind === 'branch'
+		? META_CHANGESET_BRANCH :
+		kind === 'uncommitted'
+			? META_CHANGESET_UNCOMMITTED
+			: META_CHANGESET_SESSION;
 }
 
 /**
@@ -149,6 +161,7 @@ export function tryParsePersistedDiffs(raw: string | undefined, sessionUri: stri
  * and `seedIfEmpty` gating.
  */
 export interface IPersistedChangesetMetadata {
+	readonly branchRaw?: string;
 	readonly uncommittedRaw?: string;
 	readonly sessionRaw?: string;
 	readonly legacyRaw?: string;
@@ -161,6 +174,7 @@ export interface IPersistedChangesetMetadata {
  * the session-list overlay.
  */
 export interface IRestoredChangesetDiffs {
+	readonly branch?: readonly ISessionFileDiff[];
 	readonly uncommitted?: readonly ISessionFileDiff[];
 	readonly session?: readonly ISessionFileDiff[];
 }
@@ -375,6 +389,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
+		this._stateManager.registerChangeset(buildBranchChangesetUri(session));
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		this._stateManager.registerChangeset(buildSessionChangesetUri(session));
 	}
@@ -385,13 +400,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
+		const persistedBranch = tryParsePersistedDiffs(metadata.branchRaw, sessionUri, 'branch', this._logService);
 		const persistedUncommitted = tryParsePersistedDiffs(metadata.uncommittedRaw, sessionUri, 'uncommitted', this._logService);
+
 		// Legacy `diffs` is the migration fallback for the session-wide
 		// changeset only — it never carried uncommitted state.
 		const persistedSession = tryParsePersistedDiffs(metadata.sessionRaw, sessionUri, 'session', this._logService)
 			?? tryParsePersistedDiffs(metadata.legacyRaw, sessionUri, 'session (legacy)', this._logService);
 
-		return { uncommitted: persistedUncommitted, session: persistedSession };
+		return { branch: persistedBranch, uncommitted: persistedUncommitted, session: persistedSession };
 	}
 
 	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void {
@@ -400,6 +417,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// refresh in this lifetime) is always more authoritative than a
 		// potentially-stale persisted blob; without this guard a fresh
 		// `restorePersistedStaticChangesets` call would clobber it.
+		this._seedIfEmpty(sessionUri, 'branch', diffs.branch);
 		this._seedIfEmpty(sessionUri, 'uncommitted', diffs.uncommitted);
 		this._seedIfEmpty(sessionUri, 'session', diffs.session);
 	}
@@ -728,6 +746,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
 			if (!diffs) {
+				if (kind === 'branch') {
+					// Branch changeset answers a different question than the
+					// edit-tracker aggregator — do not fall back. Preserve
+					// whatever cached state is already there.
+					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
+					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+					return;
+				}
 				if (kind === 'uncommitted') {
 					// Path B (edit-tracker aggregator) answers a different
 					// question than `git status` and must not be allowed to

@@ -226,11 +226,14 @@ export function parseChangesetUri(uri: URI): { sessionUri: URI; changesetId: str
 		return undefined;
 	}
 	const sessionUri = uri.slice(0, idx);
-	if (changesetId === SESSION_CHANGESET_ID) {
-		return { sessionUri, changesetId, kind: ChangesetKind.Session };
+	if (changesetId === BRANCH_CHANGESET_ID) {
+		return { sessionUri, changesetId, kind: ChangesetKind.Branch };
 	}
 	if (changesetId === UNCOMMITTED_CHANGESET_ID) {
 		return { sessionUri, changesetId, kind: ChangesetKind.Uncommitted };
+	}
+	if (changesetId === SESSION_CHANGESET_ID) {
+		return { sessionUri, changesetId, kind: ChangesetKind.Session };
 	}
 	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
 		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);

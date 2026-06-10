@@ -23,6 +23,7 @@ import {
 	computeChangesSummaryFromPersistedDiffs,
 	IAgentHostChangesetService,
 	META_CHANGES_SUMMARY,
+	META_CHANGESET_BRANCH,
 	META_CHANGESET_SESSION,
 	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
@@ -45,6 +46,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  * apply methods.
  */
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGESET_BRANCH]: true,
 	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
 	[META_CHANGES_SUMMARY]: true,
@@ -149,6 +151,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
+			branchRaw: metadata[META_CHANGESET_BRANCH],
 			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
@@ -213,7 +216,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
 		if (parsed?.kind === ChangesetKind.Branch) {
-			this._triggerSessionRefresh(parsed.sessionUri);
+			this._triggerBranchRefresh(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -248,6 +251,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// no turn has run since process start, no one ever subscribed
 			// to the changeset URIs directly, and the user has been
 			// editing files manually in the working tree.
+			this._triggerBranchRefresh(resourceStr);
 			this._triggerUncommittedRefresh(resourceStr);
 			this._triggerSessionRefresh(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
