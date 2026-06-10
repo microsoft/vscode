@@ -2391,7 +2391,6 @@ suite('LanguageModelToolsService', () => {
 		);
 
 		const published = await waitForPublishedInvocation(capture);
-		await new Promise<void>(resolve => setTimeout(resolve, 20));
 		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		await invokePromise;
 

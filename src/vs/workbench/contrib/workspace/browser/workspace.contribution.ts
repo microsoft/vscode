@@ -500,7 +500,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			};
 
 			type WorkspaceTrustStartupDialogEventClassification = {
-				owner: 'sbatten';
+				owner: 'rwoll';
 				comment: 'Logged when the user makes a decision on the startup workspace trust dialog';
 				decision: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The decision the user made: trust, dontTrust, or dismissed' };
 				trustParentFolderChecked: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the trust parent folder checkbox was checked when the decision was made' };
