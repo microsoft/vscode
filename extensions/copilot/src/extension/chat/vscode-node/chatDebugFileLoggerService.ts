@@ -187,12 +187,63 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		if (this._debugLogsDirUri) {
 			return this._debugLogsDirUri;
 		}
-		const storageUri = this._extensionContext.storageUri as URI | undefined;
+		// Prefer workspace-scoped storage. When a workspace/folder is open
+		// `storageUri` is defined and is always used (this is the common case for
+		// both local and Copilot CLI sessions). Only when no workspace is open is
+		// `storageUri` `undefined`; in that case fall back to the always-available
+		// global storage so debug logs are still written to disk.
+		const storageUri = (this._extensionContext.storageUri ?? this._extensionContext.globalStorageUri) as URI | undefined;
 		if (!storageUri) {
 			return undefined;
 		}
 		this._debugLogsDirUri = URI.joinPath(storageUri, DEBUG_LOGS_DIR_NAME);
 		return this._debugLogsDirUri;
+	}
+
+	/**
+	 * Candidate `debug-logs` roots in priority order. The active write root is
+	 * resolved by {@link _getDebugLogsDir} (workspace storage when a workspace is
+	 * open, otherwise global storage). When resolving a *historical* session we
+	 * also consider the other root, because a session may have been written in a
+	 * different window context than the current one — e.g. logged with no
+	 * workspace open (global storage) and later reopened from the session history
+	 * in a window that has a workspace (or vice versa).
+	 */
+	private _getCandidateDebugLogsRoots(): URI[] {
+		const roots: URI[] = [];
+		const seen = new Set<string>();
+		const add = (base: URI | undefined) => {
+			if (!base) {
+				return;
+			}
+			const dir = URI.joinPath(base, DEBUG_LOGS_DIR_NAME);
+			if (!seen.has(dir.fsPath)) {
+				seen.add(dir.fsPath);
+				roots.push(dir);
+			}
+		};
+		add(this._extensionContext.storageUri as URI | undefined);
+		add(this._extensionContext.globalStorageUri as URI | undefined);
+		return roots;
+	}
+
+	/**
+	 * Resolve the directory of a historical session by probing the candidate
+	 * roots on disk and returning the first that actually contains the session
+	 * directory. Returns `undefined` when no root contains it (e.g. a brand new
+	 * session that hasn't been written yet).
+	 */
+	private _resolveHistoricalSessionDir(sessionId: string): URI | undefined {
+		for (const root of this._getCandidateDebugLogsRoots()) {
+			const candidate = URI.joinPath(root, sessionId);
+			try {
+				fs.accessSync(candidate.fsPath);
+				return candidate;
+			} catch {
+				// Not under this root — try the next one.
+			}
+		}
+		return undefined;
 	}
 
 	async startSession(sessionId: string): Promise<void> {
@@ -279,8 +330,12 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 				},
 			});
 		} else {
-			// Parent session — write as main.jsonl in its own directory
-			sessionDir = URI.joinPath(dir, sessionId);
+			// Parent session — write as main.jsonl in its own directory. When the
+			// session was previously written under a different storage root (e.g.
+			// logged with no workspace open, then resumed in a workspace window),
+			// continue in that existing directory instead of starting a fresh file
+			// under the current root.
+			sessionDir = this._resolveHistoricalSessionDir(sessionId) ?? URI.joinPath(dir, sessionId);
 			fileUri = URI.joinPath(sessionDir, 'main.jsonl');
 		}
 
@@ -421,7 +476,16 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			const dir = this._getDebugLogsDir();
 			return dir ? URI.joinPath(dir, childInfo.parentSessionId) : undefined;
 		}
-		// Unknown session — construct the default path (assuming it's a parent)
+		// Unknown session — likely historical (resumed after restart). It may have
+		// been written under a different storage root than the current window uses
+		// (e.g. a no-workspace session reopened in a workspace window), so probe
+		// disk and prefer the root that actually contains it.
+		const existing = this._resolveHistoricalSessionDir(sessionId);
+		if (existing) {
+			return existing;
+		}
+		// Not found on disk — fall back to the active write root (where it would
+		// be created), so callers still get a well-formed path.
 		const dir = this._getDebugLogsDir();
 		return dir ? URI.joinPath(dir, sessionId) : undefined;
 	}
@@ -431,11 +495,16 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 	}
 
 	isDebugLogUri(uri: URI): boolean {
-		const dir = this._getDebugLogsDir();
-		if (!dir) {
-			return false;
+		// Check every candidate root (workspace + global), not just the active
+		// write root: a session may have been written under a different root than
+		// the current window uses (e.g. a no-workspace session reopened in a
+		// workspace window). The tool read allowlist must cover those too.
+		for (const dir of this._getCandidateDebugLogsRoots()) {
+			if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, dir)) {
+				return true;
+			}
 		}
-		return extUriBiasedIgnorePathCase.isEqualOrParent(uri, dir);
+		return false;
 	}
 
 	getSessionDirForResource(sessionResource: URI): URI | undefined {
@@ -1324,37 +1393,77 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 	}
 
 	async listSessionIds(): Promise<string[]> {
-		const dir = this._getDebugLogsDir();
-		if (!dir) {
-			return [];
-		}
-		try {
-			const entries = await this._fileSystemService.readDirectory(dir);
-			const dirs = entries.filter(([, type]) => type === 2 /* FileType.Directory */);
-
-			// Stat each directory in parallel to sort by most recently modified.
-			const withMtime = await Promise.all(dirs.map(async ([name]) => {
-				try {
-					const stat = await this._fileSystemService.stat(URI.joinPath(dir, name));
-					return { name, mtime: stat.mtime };
-				} catch {
-					return { name, mtime: 0 };
-				}
-			}));
-			withMtime.sort((a, b) => b.mtime - a.mtime);
-			return withMtime.map(e => e.name);
-		} catch {
-			return [];
-		}
+		// Aggregate across all candidate roots (workspace + global) so that
+		// sessions written in a different window context (e.g. with no workspace
+		// open) are still listed. Dedupe by session name, keeping the most recent.
+		const roots = this._getCandidateDebugLogsRoots();
+		const byName = new Map<string, number>();
+		await Promise.all(roots.map(async dir => {
+			try {
+				const entries = await this._fileSystemService.readDirectory(dir);
+				const dirs = entries.filter(([, type]) => type === 2 /* FileType.Directory */);
+				await Promise.all(dirs.map(async ([name]) => {
+					let mtime = 0;
+					try {
+						const stat = await this._fileSystemService.stat(URI.joinPath(dir, name));
+						mtime = stat.mtime;
+					} catch {
+						// Stat failed — treat as oldest.
+					}
+					const existing = byName.get(name);
+					if (existing === undefined || mtime > existing) {
+						byName.set(name, mtime);
+					}
+				}));
+			} catch {
+				// Directory may not exist yet — skip this root.
+			}
+		}));
+		return [...byName.entries()]
+			.sort((a, b) => b[1] - a[1])
+			.map(([name]) => name);
 	}
 
 	private async _cleanupOldLogs(): Promise<void> {
-		const dir = this._getDebugLogsDir();
-		if (!dir) {
+		// Apply the retention cap to each candidate root (workspace + global)
+		// independently. This keeps each workspace's bucket bounded as before
+		// while also trimming the global no-workspace bucket, which may be written
+		// from any window context.
+		const roots = this._getCandidateDebugLogsRoots();
+		if (roots.length === 0) {
 			return;
 		}
 
+		const configuredMax = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ChatDebugFileLoggingMaxRetainedSessionLogs, this._experimentationService);
+		const maxRetainedSessionLogs = Number.isFinite(configuredMax) && configuredMax >= 1 ? Math.trunc(configuredMax) : DEFAULT_MAX_RETAINED_LOGS;
+
 		const startTime = Date.now();
+		let totalEntryCount = 0;
+		let totalDeletedCount = 0;
+		for (const dir of roots) {
+			const result = await this._cleanupOldLogsInRoot(dir, maxRetainedSessionLogs);
+			totalEntryCount += result.entryCount;
+			totalDeletedCount += result.deletedCount;
+		}
+
+		/* __GDPR__
+			"chatDebugFileLogger.cleanupOldLogs" : {
+				"owner": "vijayupadya",
+				"comment": "Old debug log files were cleaned up",
+				"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in ms to perform cleanup" },
+				"entryCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Total number of log entries found" },
+				"deletedCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of log entries deleted" }
+			}
+		*/
+		this._telemetryService.sendMSFTTelemetryEvent('chatDebugFileLogger.cleanupOldLogs', undefined, { durationMs: Date.now() - startTime, entryCount: totalEntryCount, deletedCount: totalDeletedCount });
+	}
+
+	/**
+	 * Trim a single `debug-logs` root down to {@link maxRetainedSessionLogs}
+	 * sessions, deleting the oldest first and never deleting a currently active
+	 * session. Returns the number of entries found and deleted in this root.
+	 */
+	private async _cleanupOldLogsInRoot(dir: URI, maxRetainedSessionLogs: number): Promise<{ entryCount: number; deletedCount: number }> {
 		try {
 			const entries = await this._fileSystemService.readDirectory(dir);
 			// Count both directories (new format) and legacy .jsonl files (old format)
@@ -1363,20 +1472,8 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 				(name.endsWith('.jsonl') && type === 1 /* FileType.File */)
 			);
 
-			const configuredMax = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ChatDebugFileLoggingMaxRetainedSessionLogs, this._experimentationService);
-			const maxRetainedSessionLogs = Number.isFinite(configuredMax) && configuredMax >= 1 ? Math.trunc(configuredMax) : DEFAULT_MAX_RETAINED_LOGS;
 			if (sessionEntries.length <= maxRetainedSessionLogs) {
-				/* __GDPR__
-					"chatDebugFileLogger.cleanupOldLogs" : {
-						"owner": "vijayupadya",
-						"comment": "Old debug log files were cleaned up",
-						"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time in ms to perform cleanup" },
-						"entryCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Total number of log entries found" },
-						"deletedCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of log entries deleted" }
-					}
-				*/
-				this._telemetryService.sendMSFTTelemetryEvent('chatDebugFileLogger.cleanupOldLogs', undefined, { durationMs: Date.now() - startTime, entryCount: sessionEntries.length, deletedCount: 0 });
-				return;
+				return { entryCount: sessionEntries.length, deletedCount: 0 };
 			}
 
 			const entryStats = await Promise.all(
@@ -1410,10 +1507,10 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 					this._logService.warn(`[ChatDebugFileLogger] Failed to delete old debug log: ${entry.name}`);
 				}
 			}
-			// GDPR comment above covers this event
-			this._telemetryService.sendMSFTTelemetryEvent('chatDebugFileLogger.cleanupOldLogs', undefined, { durationMs: Date.now() - startTime, entryCount: sessionEntries.length, deletedCount: deleted });
+			return { entryCount: sessionEntries.length, deletedCount: deleted };
 		} catch {
 			// Directory may not exist yet
+			return { entryCount: 0, deletedCount: 0 };
 		}
 	}
 }
