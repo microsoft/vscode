@@ -13,6 +13,14 @@ import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
 /**
+ * Progress emitted while an agent-host provider is establishing a connection.
+ */
+export interface IAgentHostConnectProgress {
+	readonly connectionKey: string;
+	readonly message: string;
+}
+
+/**
  * Extended sessions provider for agent host providers (local and remote).
  * Adds remote connection properties and dynamic session configuration.
  */
@@ -20,6 +28,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
+	/** Progress messages during on-demand connect. */
+	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
 	/**

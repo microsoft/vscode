@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { equals } from '../../../../../base/common/objects.js';
 import { autorun, IObservable, ISettableObservable, observableValueOpts } from '../../../../../base/common/observable.js';
 import type { ToolDefinition } from '../../../common/state/protocol/state.js';
+import { structuralToolsEqual } from '../../activeClientState.js';
 
 /**
  * Combined snapshot of the workbench-registered client-tool definitions
@@ -76,16 +76,24 @@ export class SessionClientToolsDiff extends Disposable {
 	// tracking. Skip that initial run so a brand-new diff doesn't report
 	// dirty before any `setTools` has happened.
 	private _ignoreNextFire = true;
+	// Structural tool snapshot last marked applied (via {@link consume}).
+	// The dirty bit only flips when the live tools differ structurally from
+	// this — a `clientId`-only change (same tools, new window) must NOT
+	// trigger a yield-restart even though the observable still fires.
+	private _lastAppliedTools: readonly ToolDefinition[] | undefined = undefined;
 
 	constructor() {
 		super();
 		this._register(autorun(reader => {
-			this.model.state.read(reader);
+			const state = this.model.state.read(reader);
 			if (this._ignoreNextFire) {
 				this._ignoreNextFire = false;
+				this._lastAppliedTools = state.tools;
 				return;
 			}
-			this._dirty = true;
+			if (!structuralToolsEqual(state.tools, this._lastAppliedTools)) {
+				this._dirty = true;
+			}
 		}));
 	}
 
@@ -104,6 +112,7 @@ export class SessionClientToolsDiff extends Disposable {
 	consume(): ISessionClientToolsState {
 		const state = this.model.state.get();
 		this._dirty = false;
+		this._lastAppliedTools = state.tools;
 		return state;
 	}
 
@@ -118,37 +127,5 @@ export class SessionClientToolsDiff extends Disposable {
 }
 
 function stateEqual(a: ISessionClientToolsState, b: ISessionClientToolsState): boolean {
-	return a.clientId === b.clientId && snapshotsEqual(a.tools, b.tools);
-}
-
-/**
- * Deep-equal two client-tool snapshots on `name + description + inputSchema`.
- * `undefined` and `[]` compare equal. Order-insensitive.
- */
-function snapshotsEqual(
-	a: readonly ToolDefinition[] | undefined,
-	b: readonly ToolDefinition[] | undefined
-): boolean {
-	const aa = a ?? [];
-	const bb = b ?? [];
-	if (aa.length !== bb.length) {
-		return false;
-	}
-	const byName = new Map<string, ToolDefinition>();
-	for (const t of aa) {
-		byName.set(t.name, t);
-	}
-	for (const t of bb) {
-		const prev = byName.get(t.name);
-		if (!prev) {
-			return false;
-		}
-		if (prev.description !== t.description) {
-			return false;
-		}
-		if (!equals(prev.inputSchema, t.inputSchema)) {
-			return false;
-		}
-	}
-	return true;
+	return a.clientId === b.clientId && structuralToolsEqual(a.tools, b.tools);
 }

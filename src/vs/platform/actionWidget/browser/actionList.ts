@@ -528,6 +528,11 @@ export interface IActionListOptions {
 	 * Optional text shown below the action list as a footer.
 	 */
 	readonly footerText?: string;
+
+	/**
+	 * Optional CSS class name added to the action list container, for scoped styling.
+	 */
+	readonly className?: string;
 }
 
 /**
@@ -590,6 +595,12 @@ export class ActionListWidget<T> extends Disposable {
 		this.domNode.classList.add('actionList');
 		if (this._options?.inlineDescription) {
 			this.domNode.classList.add('inline-description');
+		}
+		if (this._options?.className) {
+			const classNames = this._options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				this.domNode.classList.add(...classNames);
+			}
 		}
 		this._actionLineHeight = 24;
 
