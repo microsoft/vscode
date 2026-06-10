@@ -40,6 +40,23 @@ export interface IWorkspacePickerItem {
 }
 
 /**
+ * Narrow contract for a workspace picker hosted as a chip in
+ * {@link ChatInputPart}'s primary toolbar. Implementers own all selection
+ * state; the chip is purely a rendering / interaction surface.
+ *
+ * Used by the automations dialog so a single picker instance can drive both
+ * the form-row trigger and a toolbar chip without duplicating state.
+ */
+export interface IChatInputWorkspacePicker {
+	/**
+	 * Renders a trigger chip into the given container. The returned disposable
+	 * removes only this trigger; sibling triggers (e.g. the form-row trigger
+	 * in the automations dialog) keep working.
+	 */
+	renderTrigger(container: HTMLElement): IDisposable;
+}
+
+/**
  * Delegate interface for the workspace picker.
  * Allows consumers to get and set the target workspace for chat submissions in empty window contexts.
  */
