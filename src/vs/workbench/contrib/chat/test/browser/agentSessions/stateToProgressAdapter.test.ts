@@ -713,6 +713,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n', 'normalizes \\n to \\r\\n for xterm');
 		});
 
+		test('does not render terminal pill for terminal toolKind without a command (falls back to invocationMessage)', () => {
+			// The built-in bash tool advertises `_meta.toolKind === 'terminal'`
+			// from the tool-open seam, but the command only arrives once the
+			// tool input has streamed in. Until then there is nothing to show in
+			// the terminal pill, so we must fall back to the generic tool widget
+			// (the `invocationMessage`) rather than rendering an empty command.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				invocationMessage: 'Running shell command',
+				_meta: { toolKind: 'terminal' },
+				status: ToolCallStatus.Running,
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData, undefined, 'no terminal pill without a command');
+			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
+		});
+
 		test('creates invocation without toolArguments', () => {
 			const tc = createToolCallState({});
 
