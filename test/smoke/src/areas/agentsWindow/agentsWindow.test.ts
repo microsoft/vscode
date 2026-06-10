@@ -31,7 +31,6 @@ interface SessionConfig {
 
 const SESSIONS: readonly SessionConfig[] = [
 	{ name: 'Copilot CLI', scenarioId: 'smoke-hello-copilot', reply: 'MOCKED_COPILOT_RESPONSE', scenarioId2: 'smoke-hello-copilot-2', reply2: 'MOCKED_COPILOT_RESPONSE_2' },
-	{ name: 'Copilot CLI Sandbox', scenarioId: 'smoke-hello-copilot-sandbox', reply: 'MOCKED_COPILOT_SANDBOX_RESPONSE', scenarioId2: 'smoke-hello-copilot-sandbox-2', reply2: 'MOCKED_COPILOT_SANDBOX_RESPONSE_2' },
 	{ name: 'Claude', scenarioId: 'smoke-hello-claude', reply: 'MOCKED_CLAUDE_RESPONSE', scenarioId2: 'smoke-hello-claude-2', reply2: 'MOCKED_CLAUDE_RESPONSE_2' },
 	{ name: 'Local', scenarioId: 'smoke-hello-local', reply: 'MOCKED_LOCAL_RESPONSE', scenarioId2: 'smoke-hello-local-2', reply2: 'MOCKED_LOCAL_RESPONSE_2' },
 ];
@@ -64,6 +63,22 @@ export function setup(logger: Logger) {
 				registerScenario(session.scenarioId, new ScenarioBuilder().emit(session.reply).build());
 				registerScenario(session.scenarioId2, new ScenarioBuilder().emit(session.reply2).build());
 			}
+
+			registerScenario(COPILOT_SANDBOX_SCENARIO_ID, {
+				type: 'multi-turn',
+				turns: [
+					{
+						kind: 'tool-calls',
+						toolCalls: [
+							{
+								toolNamePattern: /^(bash|pwsh|powershell)$/i,
+								arguments: { command: `echo ${COPILOT_SANDBOX_REPLY}` },
+							},
+						],
+					},
+					{ kind: 'echo-last-message' },
+				],
+			});
 
 			mockServer = await startServer(0, { logger: (msg: string) => logger.log(`[mock-llm] ${msg}`), verbose: true });
 			logger.log(`[Agents Window] mock LLM server started at ${mockServer.url} (platform=${process.platform}, arch=${process.arch}, node=${process.version})`);
