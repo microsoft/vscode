@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { ISelectOptionItem, SelectBox } from '../../../../../base/browser/ui/selectBox/selectBox.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -27,6 +29,7 @@ import { WorkspacePicker } from '../../../../../sessions/contrib/chat/browser/se
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../../sessions/services/sessions/common/session.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
+import { IGitService } from '../../../git/common/gitService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from '../../common/automations/automationService.js';
@@ -139,8 +142,8 @@ export async function showAutomationDialog(
 	let getModelId: () => string | undefined = () => initial?.modelId;
 
 	const title = isEdit
-		? localize('automation.dialog.editTitle', "Edit Automation")
-		: localize('automation.dialog.createTitle', "Create Automation");
+		? localize('automation.dialog.editTitle', "Edit automation")
+		: localize('automation.dialog.createTitle', "New automation");
 
 	const buttonLabels = [
 		isEdit ? localize('automation.dialog.save', "Save") : localize('automation.dialog.create', "Create"),
@@ -275,25 +278,6 @@ interface IRenderFormHandle {
 }
 
 /**
- * Session-type ids the automation dialog allows the user to pick. The
- * picker normally surfaces every type the active providers register
- * (Local, Background = Copilot CLI, Claude, Cloud, plus per-host
- * duplicates). For automations we limit to two:
- *
- *   - {@link AgentSessionProviders.Local}  — runs in this window
- *   - {@link AgentSessionProviders.Background} — Copilot CLI
- *
- * Cloud is intentionally out of scope for the preview; Claude and the
- * duplicate `[Local]` variant of Copilot CLI surfaced by certain
- * provider hosts are noise for our use case and hidden via the
- * delegate's `isSessionTypeVisible` hook.
- */
-const AUTOMATION_VISIBLE_SESSION_TYPES: ReadonlySet<AgentSessionTarget> = new Set([
-	AgentSessionProviders.Local,
-	AgentSessionProviders.Background,
-]);
-
-/**
  * Two-way binding between the chat input's session-target chip and the
  * automation form's `providerId` + `sessionTypeId` fields.
  *
@@ -364,21 +348,6 @@ function createSessionTypeBinder(
 			onDidChange.fire(match.sessionTypeId as AgentSessionTarget);
 		},
 		onDidChangeActiveSessionProvider: onDidChange.event,
-		isSessionTypeVisible: (type: AgentSessionTarget) => {
-			// Restrict to session types this dialog allows AND that the
-			// current folder's provider offers. Anything else (Claude,
-			// Cloud, the duplicate Local entry surfaced by certain
-			// provider hosts) is hidden.
-			if (!AUTOMATION_VISIBLE_SESSION_TYPES.has(type)) {
-				return false;
-			}
-			if (!state.folderUri) {
-				return false;
-			}
-			return sessionTypeProvider
-				.getSessionTypesForFolder(state.folderUri)
-				.some(c => c.sessionTypeId === type);
-		},
 		setFolder: (folder: URI | undefined) => {
 			validateOrDefault(folder);
 			if (state.sessionTypeId) {
@@ -387,6 +356,34 @@ function createSessionTypeBinder(
 				// folder's resolved session type.
 				onDidChange.fire(state.sessionTypeId as AgentSessionTarget);
 			}
+		},
+		// Scope the session-type dropdown to (a) the two providers the
+		// dialog supports at all today — Local and Copilot CLI
+		// (`Background`) — *and* (b) what the currently-selected folder
+		// actually offers. The intersection means picking a folder that
+		// doesn't expose Copilot CLI hides that row, mirroring the
+		// new-session view's behavior.
+		//
+		// `_isVisible` is called fresh every time the picker dropdown
+		// opens (inside `SessionTypePickerActionItem.actionProvider.getActions`),
+		// so reading `state.folderUri` here is enough to track folder
+		// changes — no extra event plumbing required. When the current
+		// selection itself becomes invalid for a new folder,
+		// `setFolder` -> `validateOrDefault` already swaps `state.sessionTypeId`
+		// and fires `onDidChangeActiveSessionProvider`, which makes the
+		// chat input refresh the picker's trigger label.
+		isSessionTypeVisible: (type: AgentSessionTarget) => {
+			if (type !== AgentSessionProviders.Local && type !== AgentSessionProviders.Background) {
+				return false;
+			}
+			if (!state.folderUri) {
+				// No folder selected yet — show the dialog-level
+				// allow-list so the user sees the same options the
+				// scheduler will eventually permit.
+				return true;
+			}
+			const available = sessionTypeProvider.getSessionTypesForFolder(state.folderUri);
+			return available.some(c => c.sessionTypeId === type);
 		},
 	};
 }
@@ -512,8 +509,9 @@ function renderForm(
 	// the chip and dropdown look + behave like the "New Session" view's
 	// workspace picker. We subclass to disable the categorical tab bar
 	// (`Local` / `GitHub` / `Remote`) — the dialog is local-only — but
-	// otherwise inherit the recents list, the local `Select...` browse
-	// action, the keyboard handling, and the trigger chip styling.
+	// otherwise inherit the recents list, the per-tab browse actions
+	// (including `Select...`), the keyboard handling, and the trigger
+	// chip styling.
 	//
 	// `sessionTypeBinder` is created here (above the prompt section)
 	// because the folder picker's `onDidSelectWorkspace` listener calls
@@ -554,6 +552,82 @@ function renderForm(
 		state.folderUri = workspacePicker.selectedFolderUri;
 		sessionTypeBinder.setFolder(state.folderUri);
 	}
+
+	// --- Isolation + branch (read-only preview) ---
+	// Visual mirror of the new-session view's bottom-right indicator: a
+	// disabled `folder` chip + `branch` text. Tells the user
+	// *where* the automation will run (folder, on whatever branch is
+	// checked out at run time) without claiming to be configurable.
+	//
+	// Worktree isolation isn't supported for scheduled automations today
+	// — the shared {@link IsolationPicker} / {@link BranchPicker} from
+	// the sessions layer bind to a *live* {@link ICopilotChatSession},
+	// which doesn't exist for an unstarted schedule. Persisting the
+	// choice + teaching the runner to honor it is a separate slice.
+	//
+	// Built here as detached DOM and parented into the chat input's
+	// `.chat-secondary-toolbar` after `chatInput.render()` runs, so the
+	// chips share a row with `Copilot CLI | Default Approvals` and sit
+	// at the bottom-right of the chat input — matching the new-session
+	// view's layout.
+	//
+	// Branch is read live from {@link IGitService}; the label updates if
+	// HEAD moves while the dialog is open. Neither value is persisted.
+	const isolationGroup = $('span.automation-form-isolation-group');
+	const folderChip = DOM.append(isolationGroup, $('span.automation-form-isolation-chip.automation-form-isolation-chip-disabled')) as HTMLSpanElement;
+	folderChip.setAttribute('role', 'img');
+	folderChip.setAttribute('aria-label', localize('automation.form.isolation.folderAria', "Isolation: Folder (Worktree not supported for scheduled automations)"));
+	folderChip.title = localize('automation.form.isolation.folderTitle', "Scheduled automations run in the workspace folder. Worktree isolation is not yet supported.");
+	DOM.append(folderChip, renderIcon(Codicon.folder));
+	DOM.append(folderChip, $('span.automation-form-isolation-label', undefined, localize('automation.form.isolation.folder', "Folder")));
+
+	const branchSlot = DOM.append(isolationGroup, $('span.automation-form-branch-slot')) as HTMLSpanElement;
+	branchSlot.setAttribute('aria-live', 'polite');
+
+	const gitService = instantiationService.invokeFunction(accessor => accessor.get(IGitService));
+	const branchRepoDisposable = disposables.add(new MutableDisposable());
+	const renderBranchLabel = (text: string, isMissing: boolean) => {
+		DOM.clearNode(branchSlot);
+		branchSlot.classList.toggle('automation-form-branch-missing', isMissing);
+		DOM.append(branchSlot, renderIcon(Codicon.gitBranch));
+		DOM.append(branchSlot, $('span.automation-form-branch-name', undefined, text));
+	};
+	renderBranchLabel(localize('automation.form.branch.unknown', "—"), true);
+
+	const updateBranchForFolder = async (folder: URI | undefined) => {
+		branchRepoDisposable.clear();
+		if (!folder) {
+			renderBranchLabel(localize('automation.form.branch.noFolder', "—"), true);
+			return;
+		}
+		const repo = await gitService.openRepository(folder);
+		if (!repo) {
+			renderBranchLabel(localize('automation.form.branch.noRepo', "no git repo"), true);
+			return;
+		}
+		// Observable: re-render whenever HEAD moves (e.g. user checks
+		// out a different branch in the workbench between save and
+		// reopen).
+		const watcher = new DisposableStore();
+		watcher.add(autorun(reader => {
+			const head = repo.state.read(reader).HEAD;
+			const name = head?.name;
+			if (name) {
+				renderBranchLabel(name, false);
+			} else if (head?.commit) {
+				renderBranchLabel(localize('automation.form.branch.detached', "({0})", head.commit.slice(0, 7)), false);
+			} else {
+				renderBranchLabel(localize('automation.form.branch.noBranch', "—"), true);
+			}
+		}));
+		branchRepoDisposable.value = watcher;
+	};
+	updateBranchForFolder(state.folderUri);
+
+	// Refresh branch whenever the workspace picker emits.
+	disposables.add(workspacePicker.onDidSelectWorkspace(uri => {
+		updateBranchForFolder(uri);
+	}));
 
 	// --- Prompt ---
 	// Hosts the chat composer ({@link ChatInputPart}) so the modal mirrors
@@ -644,6 +718,21 @@ function renderForm(
 		scopedInstantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, chatInputOptions, chatInputStyles, false),
 	);
 	chatInput.render(promptHost, initialPrompt, stubWidget);
+
+	// Parent the isolation + branch group into the chat input's
+	// `.chat-secondary-toolbar` so it shares a row with `Copilot CLI |
+	// Default Approvals` and lands at the bottom-right of the chat
+	// input — same position as the new-session view's indicator.
+	// `.chat-secondary-toolbar` is a stable DOM element created by
+	// `ChatInputPart`'s template (see `dom.h('.chat-secondary-toolbar@secondaryToolbar', ...)`
+	// in `chatInputPart.ts`). It's not refreshed by `MenuWorkbenchToolBar`
+	// — only the action items inside it are — so appending a sibling
+	// element is safe across toolbar updates.
+	// eslint-disable-next-line no-restricted-syntax
+	const secondaryToolbar = promptHost.querySelector('.chat-secondary-toolbar');
+	if (secondaryToolbar) {
+		secondaryToolbar.appendChild(isolationGroup);
+	}
 
 	// Pre-seed mode and permission level for edit-mode dialogs so the
 	// pickers reflect what was previously captured. For create-mode the
