@@ -87,12 +87,12 @@ suite('SessionCustomizationDiscovery + SessionPluginBundler', () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
 		const directories = await discovery.directories();
 		const actual = directories.map(directory => `${directory.type}:${directory.uri.toString()}`);
-		const expected = [...actual].sort((a, b) => a.localeCompare(b));
+		const expected = [...actual].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 
 		assert.deepStrictEqual(actual, expected);
 		for (const directory of directories) {
 			const actualFiles = directory.files.map(file => file.uri.toString());
-			const expectedFiles = [...actualFiles].sort((a, b) => a.localeCompare(b));
+			const expectedFiles = [...actualFiles].sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
 			assert.deepStrictEqual(actualFiles, expectedFiles);
 		}
 	});
