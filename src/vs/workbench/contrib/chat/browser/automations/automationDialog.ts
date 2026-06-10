@@ -830,18 +830,6 @@ function renderForm(
 		}
 	}
 
-	// Model edits use a deliberately different strategy from mode and
-	// permission. {@link ChatInputPart} can asynchronously rewrite
-	// `selectedLanguageModel` on its own (late-arriving persisted model
-	// in `_waitForPersistedLanguageModel`, visibility changes via
-	// `resetCurrentLanguageModelIfUnavailable`). Reading the picker at
-	// Save time on edit-mode could silently overwrite a still-valid
-	// stored modelId with whatever the picker has settled on after a
-	// background event, so edit-mode preserves `initialModelId`
-	// verbatim. Only create-mode captures the picker's current value.
-	// Tracked in `files/deferred-decisions.md` for a true model-edit
-	// follow-up.
-
 	// The editor itself is the source of truth for the prompt value; we
 	// only listen here to re-run validation so the Save button enables
 	// the moment the prompt becomes non-empty. The final value is read
@@ -915,10 +903,12 @@ function renderForm(
 		// above, so an untouched picker still reads back that value.
 		getMode: () => chatInput.currentModeObs.get().kind,
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
-		// Edit-mode preserves the stored modelId verbatim (see the
-		// async-write hazard explained above). Create-mode captures
-		// whatever the picker resolves to at Save time.
-		getModelId: () => initialModelId !== undefined ? initialModelId : chatInput.selectedLanguageModel.get()?.identifier,
+		// Read the picker's current value at Save time, same as mode and
+		// permission. Edit-mode round-trips still preserve the previously
+		// stored value because the pre-seed (and its late-arrival re-apply
+		// listener) above settles the picker on `initialModelId`, so an
+		// untouched picker reads back that value.
+		getModelId: () => chatInput.selectedLanguageModel.get()?.identifier,
 	};
 }
 
