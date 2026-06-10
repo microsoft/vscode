@@ -1064,33 +1064,71 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'Foo Bar Baz');
+				assert.strictEqual(model.getLineContent(1), 'Fo O Ba R Ba Z');
 
 				editor.setSelection(new Selection(2, 1, 2, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(2), 'Foo\'bar\'baz');
+				assert.strictEqual(model.getLineContent(2), 'Fo O\'ba R\'ba Z');
 
 				editor.setSelection(new Selection(3, 1, 3, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(3), 'Foo[Bar]Baz');
+				assert.strictEqual(model.getLineContent(3), 'Fo O[Ba R]Ba Z');
 
 				editor.setSelection(new Selection(4, 1, 4, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(4), 'Foo`Bar~Baz');
+				assert.strictEqual(model.getLineContent(4), 'Fo O`Ba R~Ba Z');
 
 				editor.setSelection(new Selection(5, 1, 5, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(5), 'Foo^Bar%Baz');
+				assert.strictEqual(model.getLineContent(5), 'Fo O^Ba R%Ba Z');
 
 				editor.setSelection(new Selection(6, 1, 6, 12));
 				executeAction(titlecaseAction, editor);
-				assert.strictEqual(model.getLineContent(6), 'Foo$Bar!Baz');
+				assert.strictEqual(model.getLineContent(6), 'Fo O$Ba R!Ba Z');
 
 				editor.setSelection(new Selection(7, 1, 7, 23));
 				executeAction(titlecaseAction, editor);
 				assert.strictEqual(model.getLineContent(7), '\'Physician\'s Assistant\'');
 			}
 		);
+
+			withTestCodeEditor(
+				[
+					'SrecParserLoadFromFile',
+					'parseHTMLString',
+					'getElementById',
+					'XMLHttpRequest',
+					'camelCaseWord',
+					'simple',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const titlecaseAction = new TitleCaseAction();
+
+					editor.setSelection(new Selection(1, 1, 1, 23));
+					executeAction(titlecaseAction, editor);
+					assert.strictEqual(model.getLineContent(1), 'Srec Parser Load From File');
+
+					editor.setSelection(new Selection(2, 1, 2, 16));
+					executeAction(titlecaseAction, editor);
+					assert.strictEqual(model.getLineContent(2), 'Parse Html String');
+
+					editor.setSelection(new Selection(3, 1, 3, 15));
+					executeAction(titlecaseAction, editor);
+					assert.strictEqual(model.getLineContent(3), 'Get Element By Id');
+
+					editor.setSelection(new Selection(4, 1, 4, 15));
+					executeAction(titlecaseAction, editor);
+					assert.strictEqual(model.getLineContent(4), 'Xml Http Request');
+
+					editor.setSelection(new Selection(5, 1, 5, 14));
+					executeAction(titlecaseAction, editor);
+					assert.strictEqual(model.getLineContent(5), 'Camel Case Word');
+
+					editor.setSelection(new Selection(6, 1, 6, 7));
+					executeAction(titlecaseAction, editor);
+					assert.strictEqual(model.getLineContent(6), 'Simple');
+				}
+			);
 
 		withTestCodeEditor(
 			[
