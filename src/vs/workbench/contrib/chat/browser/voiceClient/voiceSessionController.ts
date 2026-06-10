@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, autorun, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -556,15 +556,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									}
 								}
 
-								// Also read tool invocation states reactively to detect
-								// WaitingForConfirmation without confirmationMessages
-								// (e.g. askQuestions tool).
+								// Also subscribe to response changes so the autorun re-fires
+								// when new tool parts are added (e.g. askQuestions entering
+								// WaitingForConfirmation without setting confirmationMessages).
 								if (!pending) {
-									for (const part of lastReq.response.response.value) {
-										if (part.kind === 'toolInvocation') {
-											(part as IChatToolInvocation).state.read(reader);
-										}
-									}
+									const responseSignal = observableSignalFromEvent(lastReq.response, lastReq.response.onDidChange);
+									responseSignal.read(reader);
 								}
 							}
 						}
