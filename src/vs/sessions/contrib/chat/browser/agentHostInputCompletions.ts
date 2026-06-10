@@ -300,7 +300,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 	 */
 	acceptCompletion(entry: IChatRequestVariableEntry, insertText: string, range: OffsetRange | undefined): void {
 		this._insertedReferences.set(entry.id, { text: insertText, range });
-		this._contextAttachments.addAttachments(entry);
+		this._contextAttachments.setAttachments([...this._contextAttachments.attachments.filter(e => e.id !== entry.id), entry]);
 		this._updateDecorations();
 	}
 

@@ -36,9 +36,13 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import {
-	AgentHostCompletionReferenceKind, isAgentFeedbackVariableEntry, isImageVariableEntry, type IAgentFeedbackVariableEntry,
+	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
-	IChatRequestVariableEntry, type IImageVariableEntry
+	isAgentFeedbackVariableEntry,
+	isImageVariableEntry,
+	type IAgentFeedbackVariableEntry,
+	type IChatRequestVariableEntry,
+	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind, type IChatMultiSelectAnswer, type IChatQuestionAnswerValue, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData } from '../../../common/chatService/chatService.js';
