@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, IAgentHostService, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type ChangesetSummary, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationLoadStatus, CustomizationType, SessionLifecycle, type AgentInfo, type Customization, type ModelSelection, type RootState, type SessionConfigState, type SessionState, type SessionSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChangesetStatus, SessionStatus as ProtocolSessionStatus, StateComponents, type ChangesetState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -203,6 +203,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	setAgents(agents: AgentInfo[]): void {
 		this._rootStateValue = { agents };
+		this._onDidRootStateChange.fire(this._rootStateValue);
+	}
+
+	/**
+	 * Fires a root state change that preserves the current `agents` reference,
+	 * simulating non-agent root deltas (e.g. `RootActiveSessionsChanged` on
+	 * every turn start/complete) that the real reducer emits without
+	 * replacing the `agents` slice.
+	 */
+	fireNonAgentRootStateChange(): void {
+		if (!this._rootStateValue || this._rootStateValue instanceof Error) {
+			throw new Error('rootState not initialized; call setAgents first');
+		}
+		this._rootStateValue = { ...this._rootStateValue };
 		this._onDidRootStateChange.fire(this._rootStateValue);
 	}
 
@@ -945,12 +959,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let fired = 0;
 		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
 
-		// Root state change should fire the event.
+		// A root state change that replaces the agents reference should
+		// fire the event. This is the only path that mutates agents in the
+		// real reducer (`RootAgentsChanged`).
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
 		]);
 		const afterRoot = fired;
-		assert.ok(afterRoot > 0, 'expected event to fire on root state change');
+		assert.ok(afterRoot > 0, 'expected event to fire when the agents reference is replaced');
+
+		// A subsequent root state change that preserves the agents reference
+		// (e.g. `activeSessionsChanged` on every turn start/complete) must
+		// NOT fire — firing on those caused chat session bubbles to be
+		// re-hydrated mid-turn, dropping streamed responses.
+		agentHost.fireNonAgentRootStateChange();
+		assert.strictEqual(fired, afterRoot, 'expected event NOT to fire on non-agent root deltas (preserved agents reference)');
 
 		// Session-state update with new customizations should fire it again.
 		provider.getSessionConfig(session!.sessionId);
@@ -1050,7 +1073,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.setSessionState(rawId, sessionTypeId, {
 			...state,
 			customizations: [{
-				...customizations[0],
+				...(customizations[0] as Extract<Customization, { type: CustomizationType.Plugin }>),
 				children: [{ type: CustomizationType.Agent, id: 'agent://only', uri: 'agent://only', name: 'only' }],
 			}],
 		});
@@ -1093,9 +1116,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let fired = 0;
 		disposables.add(provider.onDidChangeCustomAgents(() => { fired++; }));
 
-		// Trigger disposal of the first NewSession by creating a second one
-		// (the MutableDisposable holding `_newSession` disposes the previous).
+		// Trigger disposal of the first NewSession explicitly. Providers no
+		// longer dispose drafts implicitly when a new one is created, so the
+		// management layer (modeled here) disposes the abandoned draft.
 		provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 
 		assert.deepStrictEqual(provider.getCustomAgents(first.sessionId), []);
@@ -1306,9 +1331,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstRawId = first.resource.path.substring(1);
 		const firstBackendUri = AgentSession.uri(sessionTypeId, firstRawId);
 
-		// Switch workspace: should dispose the first backend session and
-		// release its subscription before creating the second.
+		// Switch workspace: the management layer disposes the abandoned draft
+		// (providers no longer do so implicitly), which disposes the first
+		// backend session and releases its subscription.
 		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 		const secondRawId = second.resource.path.substring(1);
 		const secondBackendUri = AgentSession.uri(sessionTypeId, secondRawId);
@@ -1367,8 +1394,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('workspace switch mid-createSession does not open a stale subscription', async () => {
 		// Models the race where the user switches workspaces while the eager
 		// `createSession` for the previous workspace is still in flight on
-		// the wire. Once that create eventually resolves, we must not open
-		// a subscription for it — it has already been disposed.
+		// the wire. Providers now track multiple new sessions, so abandoning
+		// the previous draft is explicit: the management layer calls
+		// `deleteNewSession` on workspace switch. Once the parked create
+		// eventually resolves, we must not open a subscription for it — it has
+		// already been disposed.
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
 
@@ -1381,9 +1411,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		// Switch workspace while the first createSession is still parked.
-		// Disposing the first NewSession should clear its backend URI
-		// before the second eager-create runs.
 		const second = provider.createNewSession(URI.parse('file:///home/user/b'), sessionTypeId);
+		// Abandon the first draft (what the management layer does on a
+		// workspace switch). Disposing the first NewSession clears its backend
+		// URI before the second eager-create runs.
+		provider.deleteNewSession(first.sessionId);
 		await timeout(0);
 
 		// Now release the first createSession. The async IIFE in
@@ -1622,20 +1654,84 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session!.loading.get(), false);
 	});
 
-	test('new session loading reflects authenticationPending until config resolves', async () => {
+	test('new session defers backend startup until authentication settles', async () => {
 		agentHost.setAuthenticationPending(true);
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		// Wait for the resolved config (the mock returns `values.isolation: 'worktree'`)
-		// so that the per-session loading flag has been turned off.
-		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
-		// Even though config has resolved (per-session loading is false), the
-		// auth-pending flag keeps the session in the loading state.
-		assert.strictEqual(session.loading.get(), true);
+		await timeout(0);
+
+		// While auth is pending, config/backend work is intentionally deferred.
+		// Providers such as Codex reject those calls with AuthRequired before the
+		// first auth pass settles.
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 0,
+			resolveRequests: 0,
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
 
 		agentHost.setAuthenticationPending(false);
-		assert.strictEqual(session.loading.get(), false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: false,
+			createdSessions: 1,
+			resolveRequests: 1,
+			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+		});
+	});
+
+	test('new session stays loading after authentication settles when required config is missing', async () => {
+		agentHost.setAuthenticationPending(true);
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 0,
+			resolveRequests: 0,
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
+
+		agentHost.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+
+		assert.deepStrictEqual({
+			loading: session.loading.get(),
+			createdSessions: agentHost.createdSessionUris.length,
+			resolveRequests: agentHost.resolveSessionConfigRequests.length,
+			config: provider.getSessionConfig(session.sessionId),
+		}, {
+			loading: true,
+			createdSessions: 1,
+			resolveRequests: 1,
+			config: {
+				schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+				values: {},
+			},
+		});
 	});
 
 	// ---- sendRequest -------
@@ -1715,6 +1811,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			properties: ['autoApprove', 'isolation'],
 			values: { autoApprove: 'default', isolation: 'worktree' },
+		});
+	}));
+
+	test('running config state seeding preserves already-resolved schema properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('seed-schema', { summary: 'Schema Preserve Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Schema Preserve Session');
+		assert.ok(session);
+
+		const fullState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'seed-schema').toString(), provider: 'copilotcli', title: 'Schema Preserve Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+						'codex.networkAccessEnabled': { type: 'boolean', title: 'Network', default: false, sessionMutable: true },
+					},
+				},
+				values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+			},
+		};
+		agentHost.setSessionState('seed-schema', 'copilotcli', fullState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.schema.properties['codex.networkAccessEnabled'] !== undefined);
+
+		agentHost.setSessionState('seed-schema', 'copilotcli', {
+			...fullState,
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+					},
+				},
+				values: { 'codex.sandboxMode': 'workspace-write' },
+			},
+		});
+
+		assert.deepStrictEqual({
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			properties: ['codex.networkAccessEnabled', 'codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
 		});
 	}));
 
@@ -1878,6 +2022,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('running session config write re-resolves schema-dependent properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('schema-write', { summary: 'Schema Write Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Schema Write Session');
+		assert.ok(session);
+
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+					'codex.networkAccessEnabled': { type: 'boolean', title: 'Network', default: false, sessionMutable: true },
+				},
+			},
+			values: { 'codex.sandboxMode': 'workspace-write', 'codex.networkAccessEnabled': false },
+		};
+		const fakeState: SessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'schema-write').toString(), provider: 'copilotcli', title: 'Schema Write Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		agentHost.setSessionState('schema-write', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values['codex.sandboxMode'] === 'workspace-write');
+
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object',
+				properties: {
+					'codex.sandboxMode': { type: 'string', title: 'Sandbox', enum: ['read-only', 'workspace-write'], sessionMutable: true },
+				},
+			},
+			values: { 'codex.sandboxMode': 'read-only' },
+		};
+
+		await provider.setSessionConfigValue(session!.sessionId, 'codex.sandboxMode', 'read-only');
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.schema.properties['codex.networkAccessEnabled'] === undefined);
+
+		assert.deepStrictEqual({
+			resolveConfig: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			resolveConfig: { 'codex.sandboxMode': 'read-only', 'codex.networkAccessEnabled': false },
+			properties: ['codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'read-only' },
+		});
+
+		agentHost.setSessionState('schema-write', 'copilotcli', {
+			...fakeState,
+			config: {
+				...config,
+				values: { 'codex.sandboxMode': 'read-only', 'codex.networkAccessEnabled': true },
+			},
+		});
+
+		assert.deepStrictEqual({
+			properties: Object.keys(provider.getSessionConfig(session!.sessionId)?.schema.properties ?? {}).sort(),
+			values: provider.getSessionConfig(session!.sessionId)?.values,
+		}, {
+			properties: ['codex.sandboxMode'],
+			values: { 'codex.sandboxMode': 'read-only' },
+		});
+	}));
+
 	test('replaceSessionConfig is a no-op when nothing editable actually changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('rep-2', { summary: 'No-op Session' }));
 		const provider = createProvider(disposables, agentHost);
@@ -2012,20 +2223,17 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function makeActive(rawId: string, sessionType: string = 'copilotcli'): IActiveSession {
+	function makeActive(rawId: string, sessionType: string = 'copilotcli', status: SessionStatus = SessionStatus.Completed): IActiveSession {
 		return {
 			// providerId: 'unused',
 			sessionType,
 			resource: URI.from({ scheme: `agent-host-${sessionType}`, path: `/${rawId}` }),
+			status: constObservable(status),
 		} as unknown as IActiveSession;
 	}
 
 	function branchChangesKeyFor(rawId: string, sessionType: string = 'copilotcli'): string {
 		return `${AgentSession.uri(sessionType, rawId).toString()}/changeset/session`;
-	}
-
-	function catalogueFor(rawId: string, additions: number, deletions: number, sessionType: string = 'copilotcli'): ChangesetSummary[] {
-		return [{ label: 'Branch Changes', uriTemplate: branchChangesKeyFor(rawId, sessionType), additions, deletions, files: 1 }];
 	}
 
 	// The adapter subscribes to its branch changeset lazily — only while the
@@ -2098,6 +2306,15 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		);
 	});
 
+	test('does NOT subscribe to uncommitted changes for an untitled active session', () => {
+		createProvider(disposables, agentHost, undefined, { activeSession });
+
+		activeSession.set(makeActive('sess-new', 'copilotcli', SessionStatus.Untitled), undefined);
+
+		const subKeys = [...agentHost.sessionSubscribeCounts.keys()].filter(k => k.endsWith('/changeset/uncommitted'));
+		assert.deepStrictEqual(subKeys, [], 'new-session composer should not restore the backend session just to refresh changes');
+	});
+
 	test('releases the subscription when no session is active', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
 		addAndObserve(provider, 'sess-A');
@@ -2138,7 +2355,7 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 			};
 		}), [{
 			uri: 'file:///repo/file.ts',
-			originalUri: 'vscode-agent-host://local/session-db/-/before/file.ts',
+			originalUri: 'vscode-agent-host://local/before/file.ts?_ah%3DeyJzY2hlbWUiOiJzZXNzaW9uLWRiIn0',
 			modifiedUri: 'file:///repo/file.ts',
 			insertions: 2,
 			deletions: 1,
@@ -2168,7 +2385,7 @@ suite('LocalAgentHostSessionsProvider - active-session branch changeset subscrip
 		// Once another session becomes active, the catalogue-seeded summary
 		// takes over again.
 		activeSession.set(makeActive('sess-B'), undefined);
-		fireSessionSummaryChanged(agentHost, 'sess-A', { changesets: catalogueFor('sess-A', 5, 3) });
+		fireSessionSummaryChanged(agentHost, 'sess-A', { changes: { additions: 5, deletions: 3, files: 1 } });
 
 		assert.deepStrictEqual(session.changesSummary?.get(), { additions: 5, deletions: 3, files: 1 });
 	});

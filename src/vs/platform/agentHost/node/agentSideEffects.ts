@@ -9,6 +9,7 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSignal, IAgent, IAgentToolPendingConfirmationSignal } from '../common/agentService.js';
@@ -16,6 +17,7 @@ import { IAgentHostChangesetService } from './agentHostChangesetService.js';
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
@@ -33,10 +35,12 @@ import {
 	type ToolResultContent
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { parseRenameCommand } from './agentHostRenameCommand.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
+import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -99,6 +103,7 @@ export class AgentSideEffects extends Disposable {
 	 */
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
+	private readonly _turnTracker: AgentHostTurnTracker;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -111,6 +116,7 @@ export class AgentSideEffects extends Disposable {
 	) {
 		super();
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
+		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
@@ -395,6 +401,14 @@ export class AgentSideEffects extends Disposable {
 
 		this._stateManager.dispatchServerAction(sessionKey, action);
 
+		// Mark first visible progress for TTFT telemetry
+		if (action.type === ActionType.SessionDelta
+			|| action.type === ActionType.SessionResponsePart
+			|| action.type === ActionType.SessionToolCallStart
+			|| action.type === ActionType.SessionReasoning) {
+			this._turnTracker.markFirstProgress(sessionKey, turnId);
+		}
+
 		if (action.type === ActionType.SessionToolCallComplete) {
 			// Drop any events that were buffered for a subagent whose
 			// `subagent_started` never arrived (e.g. the parent tool failed
@@ -409,7 +423,16 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (action.type === ActionType.SessionTurnComplete) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'success');
 			this._runTurnCompleteSideEffects(sessionKey, turnId);
+		}
+
+		if (action.type === ActionType.SessionTurnCancelled) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'cancelled');
+		}
+
+		if (action.type === ActionType.SessionError) {
+			this._turnTracker.turnCompleted(sessionKey, turnId, 'error');
 		}
 	}
 
@@ -569,6 +592,7 @@ export class AgentSideEffects extends Disposable {
 						type: ActionType.SessionTurnCancelled,
 						turnId,
 					});
+					this._turnTracker.turnCompleted(subagentUri, turnId, 'cancelled');
 				}
 				this._subagentSessions.delete(key);
 			}
@@ -701,6 +725,15 @@ export class AgentSideEffects extends Disposable {
 				// Per-turn streaming part tracking is owned by the agent
 				// (e.g. CopilotAgentSession) and reset on its `send()` call.
 
+				// `/rename [title]` is a generic, agent-agnostic slash command:
+				// it is intercepted here and redirected to a title change rather
+				// than forwarded to the agent SDK. Mirrors the per-agent text-side
+				// dispatch (`parseLeadingSlashCommand` in CopilotAgentSession), but
+				// applies to every session type.
+				if (this._tryHandleRenameCommand(channel, action.turnId, action.message.text)) {
+					break;
+				}
+
 				// On the very first turn, immediately set the session title to the
 				// user's message so the UI shows a meaningful title right away
 				// while waiting for the AI-generated title. Only apply when the
@@ -726,6 +759,8 @@ export class AgentSideEffects extends Disposable {
 				}
 				const attachments = action.message.attachments;
 				this._telemetryReporter.userMessageSent(agent.id, channel, state, 'direct', attachments);
+				const { model, permissionLevel } = this._getTurnTelemetryContext(state);
+				this._turnTracker.turnStarted(agent.id, channel, action.turnId, model, permissionLevel);
 				agent.sendMessage(URI.parse(channel), action.message.text, attachments, action.turnId).catch(err => {
 					const errCode = (err as { code?: number })?.code;
 					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${channel}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
@@ -734,6 +769,7 @@ export class AgentSideEffects extends Disposable {
 						turnId: action.turnId,
 						error: { errorType: 'sendFailed', message: String(err) },
 					});
+					this._turnTracker.turnCompleted(channel, action.turnId, 'error');
 				});
 				break;
 			}
@@ -761,6 +797,7 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 			case ActionType.SessionTurnCancelled: {
+				this._turnTracker.turnCompleted(channel, action.turnId, 'cancelled');
 				// Cancel all subagent sessions for this parent
 				this.cancelSubagentSessions(channel);
 				const agent = this._options.getAgent(channel);
@@ -807,11 +844,11 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 				// Always forward client tools, even if empty, to clear previous client's tools
-				const clientId = action.activeClient?.clientId ?? '';
+				const clientId = action.activeClient?.clientId;
 				agent.setClientTools(URI.parse(channel), clientId, action.activeClient?.tools ?? []);
 
 				const refs = action.activeClient?.customizations ?? [];
-				agent.setClientCustomizations(URI.parse(channel), clientId, refs).catch(err => {
+				agent.setClientCustomizations(URI.parse(channel), clientId ?? '', refs).catch(err => {
 					this._logService.error('[AgentSideEffects] setClientCustomizations failed', err);
 				});
 				break;
@@ -870,6 +907,55 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
+	}
+
+	/**
+	 * Handles the generic `/rename [title]` slash command. When `text` is a
+	 * rename command it is redirected to a {@link ActionType.SessionTitleChanged}
+	 * action (when a non-empty title is supplied) and the just-started turn is
+	 * immediately completed, so the command is never forwarded to the agent SDK.
+	 *
+	 * @returns `true` when the message was a rename command and was handled here
+	 * (the caller MUST NOT forward it to the agent), `false` otherwise.
+	 */
+	private _tryHandleRenameCommand(channel: ProtocolURI, turnId: string, text: string): boolean {
+		const title = parseRenameCommand(text);
+		if (title === undefined) {
+			return false;
+		}
+		if (title.length > 0) {
+			this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionTitleChanged,
+				title,
+			});
+			// Server-dispatched actions bypass `handleAction`, so persist the
+			// new title here directly (the client-dispatched rename path relies
+			// on the `SessionTitleChanged` case in `handleAction` instead).
+			this._persistSessionFlag(channel, 'customTitle', title);
+			// Acknowledge the rename with a brief response so the turn has
+			// visible content in the transcript.
+			this._stateManager.dispatchServerAction(channel, {
+				type: ActionType.SessionResponsePart,
+				turnId,
+				part: {
+					kind: ResponsePartKind.Markdown,
+					id: generateUuid(),
+					content: localize('agentHostRename.renamed', "Renamed: {0}", title),
+				},
+			});
+		}
+		// Close out the turn that the reducer opened for this message so the
+		// session returns to idle instead of waiting on an agent response.
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.SessionTurnComplete,
+			turnId,
+		});
+		// This turn was completed via a direct server dispatch rather than
+		// `_runTurnCompleteSideEffects`, so drain any messages queued behind
+		// the rename ourselves; otherwise they would stall until the next
+		// unrelated state change re-triggers consumption.
+		this._tryConsumeNextQueuedMessage(channel);
+		return true;
 	}
 
 	/**
@@ -948,6 +1034,12 @@ export class AgentSideEffects extends Disposable {
 			queuedMessageId: msg.id,
 		});
 
+		// `/rename` is intercepted generically (see the SessionTurnStarted
+		// handler) and must not reach the agent SDK even when queued.
+		if (this._tryHandleRenameCommand(session, turnId, msg.message.text)) {
+			return;
+		}
+
 		// Send the message to the agent backend
 		const agent = this._options.getAgent(session);
 		if (!agent) {
@@ -959,7 +1051,10 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const attachments = msg.message.attachments;
-		this._telemetryReporter.userMessageSent(agent.id, session, this._stateManager.getSessionState(session), 'queued', attachments);
+		const queuedState = this._stateManager.getSessionState(session);
+		this._telemetryReporter.userMessageSent(agent.id, session, queuedState, 'queued', attachments);
+		const { model, permissionLevel } = this._getTurnTelemetryContext(queuedState);
+		this._turnTracker.turnStarted(agent.id, session, turnId, model, permissionLevel);
 		agent.sendMessage(URI.parse(session), msg.message.text, attachments, turnId).catch(err => {
 			this._logService.error('[AgentSideEffects] sendMessage failed (queued)', err);
 			this._stateManager.dispatchServerAction(session, {
@@ -967,7 +1062,16 @@ export class AgentSideEffects extends Disposable {
 				turnId,
 				error: { errorType: 'sendFailed', message: String(err) },
 			});
+			this._turnTracker.turnCompleted(session, turnId, 'error');
 		});
+	}
+
+
+	private _getTurnTelemetryContext(state: SessionState | undefined): { model: string | undefined; permissionLevel: string | undefined } {
+		const model = state?.summary.model?.id;
+		const permissionValue = state?.config?.values[SessionConfigKey.AutoApprove];
+		const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
+		return { model, permissionLevel };
 	}
 
 

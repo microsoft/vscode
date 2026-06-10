@@ -9,7 +9,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 
 export enum AgentSessionProviders {
@@ -67,7 +66,7 @@ export function getAgentSessionProviderName(provider: AgentSessionTarget): strin
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHostCopilot:
-			return 'Copilot CLI [Local]';
+			return localize('chat.session.providerLabel.agentHostCopilot', "Copilot CLI [Agent Host]");
 		default:
 			return provider;
 	}
@@ -88,17 +87,10 @@ export function getAgentSessionProviderIcon(provider: AgentSessionTarget): Theme
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
 		case AgentSessionProviders.AgentHostCopilot:
-			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
+			return Codicon.copilot;
 		default:
 			return Codicon.extensions;
 	}
-}
-
-/**
- * Returns the VS Code or VS Code Insiders icon depending on product quality.
- */
-export function getAgentHostIcon(productService: IProductService): ThemeIcon {
-	return productService.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
 }
 
 export function isFirstPartyAgentSessionProvider(provider: AgentSessionTarget): boolean {

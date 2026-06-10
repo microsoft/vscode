@@ -200,11 +200,11 @@ export class ChatSubmitAction extends SubmitAction {
 			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.arrowUp,
+				icon: Codicon.newLine,
 				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
@@ -772,7 +772,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.arrowUp,
+			icon: Codicon.newLine,
 			precondition,
 			menu: [
 				{
@@ -898,6 +898,8 @@ class SendToNewChatAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
+		const configurationService = accessor.get(IConfigurationService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -919,7 +921,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService);
+		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}

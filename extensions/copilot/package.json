@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot Chat",
   "description": "AI chat features powered by Copilot",
-  "version": "0.52.0",
+  "version": "0.53.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.124.0",
+    "vscode": "^1.125.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -151,6 +151,21 @@
     "toolInvocationApproveCombination",
     "chatSessionCustomizationProvider"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "github.copilot.chat.otel.enabled",
+        "github.copilot.chat.otel.exporterType",
+        "github.copilot.chat.otel.otlpEndpoint",
+        "github.copilot.chat.otel.captureContent",
+        "github.copilot.chat.otel.maxAttributeSizeChars",
+        "github.copilot.chat.otel.outfile",
+        "github.copilot.chat.otel.dbSpanExporter.enabled"
+      ]
+    }
+  },
   "contributes": {
     "languageModelTools": [
       {
@@ -1236,7 +1251,7 @@
         "toolReferenceName": "sessionStoreSql",
         "when": "github.copilot.sessionSearch.enabled",
         "userDescription": "Query your Copilot session history using SQL",
-        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'standup' (pre-fetch last 24h data), 'reindex' (rebuild index from debug logs).",
+        "modelDescription": "Query the local session store containing history from past coding sessions. Uses SQLite syntax (NOT DuckDB or Postgres). SQL queries are read-only — only SELECT and WITH are allowed. Use `datetime('now', '-1 day')` for date math (NOT `now() - INTERVAL '1 day'`), FTS5 `MATCH` for text search.\n\nTables: `sessions`, `turns`, `session_files`, `session_refs`, `checkpoints`, `search_index`. For column details and query patterns, use the **chronicle** skill.\n\nActions: 'query' (execute SQL — supports JOINs, FTS5 MATCH, aggregations), 'reindex' (rebuild index from debug logs).",
         "tags": [],
         "canBeReferencedInPrompt": false,
         "inputSchema": {
@@ -1246,10 +1261,9 @@
               "type": "string",
               "enum": [
                 "query",
-                "standup",
                 "reindex"
               ],
-              "description": "The action to perform. 'query' (default) executes a SQL query. 'standup' pre-fetches last 24h session data for standup reports. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
+              "description": "The action to perform. 'query' (default) executes a SQL query. 'reindex' rebuilds the local session index and syncs to cloud if enabled."
             },
             "query": {
               "type": "string",
@@ -2856,6 +2870,18 @@
         "enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
       },
       {
+        "command": "github.copilot.chat.otel.statusActive",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "github.copilot.chat.otel.statusCapturing",
+        "title": "OpenTelemetry",
+        "category": "Chat",
+        "icon": "$(eye)"
+      },
+      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -3076,6 +3102,12 @@
         "category": "GitHub Pull Request"
       },
       {
+        "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+        "title": "%github.copilot.command.cloudSessions.createPullRequestForTask.title%",
+        "icon": "$(git-pull-request-create)",
+        "category": "GitHub Pull Request"
+      },
+      {
         "command": "github.copilot.chat.cloudSessions.openRepository",
         "title": "%github.copilot.command.cloudSessions.openRepository.title%",
         "icon": "$(repo)",
@@ -3231,6 +3263,11 @@
             ],
             "markdownDescription": "%github.copilot.nextEditSuggestions.enabled%",
             "scope": "language-overridable"
+          },
+          "github.copilot.completions.chat.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.completions.chat.enabled%"
           },
           "github.copilot.nextEditSuggestions.extendedRange": {
             "type": "boolean",
@@ -4035,6 +4072,15 @@
               "onExp"
             ]
           },
+          "github.copilot.chat.responsesApi.persistentCoT.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.responsesApi.persistentCoT.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
           "github.copilot.chat.updated53CodexPrompt.enabled": {
             "type": "boolean",
             "default": true,
@@ -4066,6 +4112,15 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%github.copilot.config.gemini3GetChangedFilesTool.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.gemini3LowReasoningEffort.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.gemini3LowReasoningEffort.enabled%",
             "tags": [
               "experimental",
               "onExp"
@@ -4262,6 +4317,33 @@
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.localIndex.enabled%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.conversationCompaction.usePrismCompaction": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.config.conversationCompaction.usePrismCompaction%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.conversationCompaction.model": {
+            "type": "string",
+            "default": "",
+            "markdownDescription": "%github.copilot.config.conversationCompaction.model%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
+          },
+          "github.copilot.chat.conversationCompaction.prismModelFilter": {
+            "type": "string",
+            "default": "claude-haiku-4.5,claude-sonnet-4.5,claude-sonnet-4.6,gemini-2.5-pro,gemini-3-flash,gemini-3.5-flash",
+            "markdownDescription": "%github.copilot.config.conversationCompaction.prismModelFilter%",
             "tags": [
               "experimental",
               "onExp"
@@ -4931,6 +5013,25 @@
               "default": true
             }
           },
+          "github.copilot.chat.cli.sandbox.enabled": {
+            "type": "string",
+            "enum": [
+              "off",
+              "on",
+              "allowNetwork"
+            ],
+            "enumDescriptions": [
+              "%github.copilot.config.cli.sandbox.enabled.offDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.onDescription%",
+              "%github.copilot.config.cli.sandbox.enabled.allowNetworkDescription%"
+            ],
+            "default": "off",
+            "markdownDescription": "%github.copilot.config.cli.sandbox.enabled%",
+            "tags": [
+              "advanced",
+              "experimental"
+            ]
+          },
           "github.copilot.chat.cli.branchSupport.enabled": {
             "type": "boolean",
             "default": false,
@@ -4963,7 +5064,7 @@
           },
           "github.copilot.chat.cli.autoModel.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
             "tags": [
               "advanced"
@@ -5371,6 +5472,11 @@
           "command": "github.copilot.chat.checkoutPullRequestReroute",
           "when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
           "group": "navigation@0"
+        },
+        {
+          "command": "github.copilot.chat.cloudSessions.createPullRequestForTask",
+          "when": "chatSessionType == copilot-cloud-agent && github.copilot.chat.cloudTaskCanCreatePullRequest && !isSessionsWindow",
+          "group": "navigation@0"
         }
       ],
       "agents/changes/actions/primary": [
@@ -5467,7 +5573,27 @@
           "group": "inline@2"
         }
       ],
+      "chat/input/status": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "github.copilot.otel.state == 'active'",
+          "group": "navigation"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusCapturing",
+          "when": "github.copilot.otel.state == 'capturing'",
+          "group": "navigation"
+        }
+      ],
       "commandPalette": [
+        {
+          "command": "github.copilot.chat.otel.statusActive",
+          "when": "false"
+        },
+        {
+          "command": "github.copilot.chat.otel.statusCapturing",
+          "when": "false"
+        },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
@@ -6168,12 +6294,12 @@
       "chatSessions/item/context": [
         {
           "command": "github.copilot.claude.sessions.rename",
-          "when": "chatSessionType == claude-code",
+          "when": "chatSessionType == claude-code && chatSessionProviderId == default-copilot",
           "group": "1_edit@4"
         },
         {
           "command": "github.copilot.cli.sessions.rename",
-          "when": "chatSessionType == copilotcli",
+          "when": "chatSessionType == copilotcli && chatSessionProviderId == default-copilot",
           "group": "1_edit@4"
         }
       ],
@@ -6962,7 +7088,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "1.0.49",
+    "@github/copilot": "^1.0.60",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",
@@ -6992,7 +7118,6 @@
     "applicationinsights": "^2.9.7",
     "best-effort-json-parser": "^1.2.1",
     "diff": "^8.0.3",
-    "dompurify": "^3.4.1",
     "express": "^5.2.1",
     "ignore": "^7.0.5",
     "isbinaryfile": "^5.0.4",

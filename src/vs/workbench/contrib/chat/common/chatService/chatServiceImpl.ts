@@ -201,11 +201,14 @@ export class ChatService extends Disposable implements IChatService {
 				if (localSessionId && this.shouldStoreSession(model)) {
 					// Always preserve sessions that have custom titles, even if empty
 					if (model.getRequests().length === 0 && !model.customTitle) {
+						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) without title, deleting from storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.deleteSession(localSessionId);
 					} else if (this._saveModelsEnabled) {
+						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
 				} else if (!localSessionId && (model.getRequests().length > 0 || hasDraftInput(model))) {
+					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
 					// External sessions: persist metadata when there are requests, OR when the
 					// user has typed/attached unsent input we need to restore on next open.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
@@ -659,7 +662,7 @@ export class ChatService extends Disposable implements IChatService {
 			sessionResource: sessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
-			inputState: providedSession.transferredState?.inputState ?? storedInputState,
+			inputState: providedSession.transferredState?.inputState,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
 		logChangesToStateModel(modelRef.object.inputModel, `loadRemoteSession inputState source: session=${sessionResource.toString()}, chatSessionType=${chatSessionType}, historyModelId=${modelId}, agentUri=${agentUri?.toString()}, historySelectedModel=${historySelectedModel}, transferredSelectedModel=${providedSession.transferredState?.inputState?.selectedModel?.identifier}, storedSelectedModel=${storedInputState?.selectedModel?.identifier}, finalSelectedModel=${modelRef.object.inputModel.state.get()?.selectedModel?.identifier}, hasTransferredInputState=${!!providedSession.transferredState?.inputState}, hasStoredInputState=${!!storedInputState}, hasInitialData=${!!initialData}`, modelRef.object.inputModel.state.get(), undefined, this.logService);
@@ -1525,7 +1528,7 @@ export class ChatService extends Disposable implements IChatService {
 				this.processNextPendingRequest(model);
 			}
 		});
-		if (options?.userSelectedModelId) {
+		if (options?.userSelectedModelId && !options.isSystemInitiated) {
 			this.languageModelsService.addToRecentlyUsedList(options.userSelectedModelId);
 		}
 		this._onDidSubmitRequest.fire({ chatSessionResource: model.sessionResource, message: parsedRequest });

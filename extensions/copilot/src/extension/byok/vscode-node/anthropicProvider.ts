@@ -97,6 +97,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 		// This handles the case where AsyncLocalStorage context was lost crossing VS Code IPC.
 		const correlationId = (options as { modelOptions?: OTelModelOptions }).modelOptions?._capturingTokenCorrelationId;
 		const capturingToken = correlationId ? retrieveCapturingTokenByCorrelation(correlationId) : undefined;
+		const telemetryTurn = (options as { modelOptions?: OTelModelOptions }).modelOptions?._telemetryTurn;
 
 		// Restore OTel trace context to link spans back to the agent trace
 		const parentTraceContext = (options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
@@ -338,7 +339,9 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						[GenAiAttr.RESPONSE_ID]: requestId,
 						[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
 						[GenAiAttr.CONVERSATION_ID]: requestId,
+						[GenAiAttr.REQUEST_STREAM]: true,
 						...(result.ttft ? { [CopilotChatAttr.TIME_TO_FIRST_TOKEN]: result.ttft } : {}),
+						...(result.ttft ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: result.ttft / 1000 } : {}),
 						[GenAiAttr.REQUEST_MAX_TOKENS]: model.maxOutputTokens ?? 0,
 					});
 					// Opt-in content capture
@@ -366,6 +369,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					if (result.usage.prompt_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.prompt_tokens, 'input', metricAttrs); }
 					if (result.usage.completion_tokens) { GenAiMetrics.recordTokenUsage(this._otelService, result.usage.completion_tokens, 'output', metricAttrs); }
 					if (result.ttft) { GenAiMetrics.recordTimeToFirstToken(this._otelService, model.id, result.ttft / 1000); }
+					if (result.ttft) { GenAiMetrics.recordTimeToFirstChunk(this._otelService, result.ttft / 1000, metricAttrs); }
 				}
 
 				// Emit OTel inference details event
@@ -441,6 +445,7 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 					requestId,
 				}, {
 					totalTokenMax: model.maxInputTokens ?? -1,
+					...(telemetryTurn !== undefined ? { turn: telemetryTurn } : {}),
 					tokenCountMax: model.maxOutputTokens ?? -1,
 					promptTokenCount: result.usage?.prompt_tokens,
 					promptCacheTokenCount: result.usage?.prompt_tokens_details?.cached_tokens,
