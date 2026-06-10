@@ -12,17 +12,21 @@ import { ISelectOptionItem, SelectBox } from '../../../../../base/browser/ui/sel
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../../platform/window/common/window.js';
@@ -1023,3 +1027,30 @@ class AutomationsWorkspacePicker extends WorkspacePicker {
 		return super._getAllBrowseActions().filter(a => a.group === SESSION_WORKSPACE_GROUP_LOCAL);
 	}
 }
+
+// Override the Enter keybinding inside the automations dialog's prompt
+// editor so it inserts a newline instead of triggering `ChatSubmitAction`.
+// `ChatSubmitAction` registers Enter at `KeybindingWeight.EditorContrib`
+// gated by `ChatContextKeys.inChatInput`. The dialog also sets
+// `inChatInput`+`location:Chat` on its scoped context-key service so the
+// embedded `ChatInputPart` renders mode/model/session pickers correctly
+// (see gotcha #8), which means the submit binding would otherwise fire
+// even though we render no Send button (`executeToolbar:
+// MenuId.AutomationsDialogInput`, an empty menu) and the prompt is
+// authored, not sent. Higher weight + `inAutomationsDialog` makes this
+// rule win only inside the dialog; the regular chat composer keeps
+// Enter = submit. The handler calls the default Monaco `type` command
+// with `\n`, matching what Shift+Enter does in the regular composer.
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.action.chat.automationsDialog.insertNewline',
+	weight: KeybindingWeight.EditorContrib + 100,
+	when: ContextKeyExpr.and(
+		EditorContextKeys.textInputFocus,
+		ChatContextKeys.inAutomationsDialog,
+	),
+	primary: KeyCode.Enter,
+	handler: (accessor) => {
+		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		editor?.trigger('keyboard', 'type', { text: '\n' });
+	},
+});
