@@ -92,6 +92,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 	private _ackDataBufferer: AckDataBufferer;
 	private _hasWrittenData: boolean = false;
+	private _hasReceivedProcessOutput: boolean = false;
 	private _hasChildProcesses: boolean = false;
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
@@ -170,6 +171,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
+				this._hasReceivedProcessOutput = true;
 				// This event is used by the caller so the object must be reused
 				if (!isString(ev)) {
 					ev.data = beforeProcessDataEvent.data;
@@ -444,6 +446,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// Clear data written flag to re-enable seamless relaunch if this relaunch was manually
 		// triggered
 		this._hasWrittenData = false;
+		this._hasReceivedProcessOutput = false;
 
 		return this.createProcess(shellLaunchConfig, cols, rows, reset);
 	}
@@ -699,9 +702,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._process = null;
 		// If the process is marked as launching then mark the process as killed
 		// during launch. This typically means that there is a problem with the
-		// shell and args.
+		// shell and args. However, if process output was already received, the
+		// process launched successfully but completed very quickly (e.g. on a
+		// fast system), so treat it as a normal process exit instead.
 		if (this.processState === ProcessState.Launching) {
-			this._setProcessState(ProcessState.KilledDuringLaunch);
+			if (this._hasReceivedProcessOutput) {
+				this._setProcessState(ProcessState.KilledByProcess);
+			} else {
+				this._setProcessState(ProcessState.KilledDuringLaunch);
+			}
 		}
 
 		// If TerminalInstance did not know about the process exit then it was
