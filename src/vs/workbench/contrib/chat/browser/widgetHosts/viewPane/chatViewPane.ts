@@ -1170,9 +1170,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — sized by CSS flex (flex-shrink:0, flex-grow:0).
-		// onResize callback + ResizeObserver trigger relayout when content changes.
-		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
+		// Voice bottom area — measure intrinsic content height.
+		// We temporarily clear any explicit height, read scrollHeight,
+		// then set the explicit pixel value so layoutBody has a stable number.
+		let voiceBarHeight = 0;
+		if (this._voiceBottomArea) {
+			this._voiceBottomArea.style.height = 'auto';
+			voiceBarHeight = this._voiceBottomArea.scrollHeight;
+			this._voiceBottomArea.style.height = `${voiceBarHeight}px`;
+		}
+		remainingHeight -= voiceBarHeight;
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
