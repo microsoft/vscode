@@ -59,7 +59,6 @@ export class AutomationsListWidget extends Disposable {
 
 	private readonly headerEl: HTMLElement;
 	private readonly listEl: HTMLElement;
-	private newButton: Button | undefined;
 	private newEmptyStateButton: Button | undefined;
 
 	// Per-render row disposables, cleared on every re-render.
@@ -122,7 +121,6 @@ export class AutomationsListWidget extends Disposable {
 		newButton.label = localize('newAutomation', "New automation");
 		newButton.element.classList.add('automations-new-button');
 		this._register(newButton.onDidClick(() => this.openCreateDialog()));
-		this.newButton = newButton;
 		this.newButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), newButton.element, localize('newAutomationTooltip', "Create a new automation"));
 	}
 
@@ -506,10 +504,21 @@ export class AutomationsListWidget extends Disposable {
 	}
 
 	focusSearch(): void {
-		// No search input yet. Move focus to the most useful entry point:
-		// the empty-state CTA if visible, otherwise the header New button.
-		const target = this.newEmptyStateButton ?? this.newButton;
-		target?.focus();
+		// Sister widgets (MCP / Plugins / Models) focus a search input on
+		// section activation — a non-disruptive "ready to filter" state.
+		// We don't have a search input, so the only equivalent
+		// non-disruptive focus target is the empty-state CTA: it IS the
+		// primary action when the list is empty, and focusing it lets the
+		// user press Enter to create their first automation.
+		//
+		// When the list has items, do not move focus. The header
+		// `New automation` button is a corner action — focusing it on
+		// every tab switch puts a misleading "selected" focus ring on
+		// the button as if it were primed to fire, which Ben reported as
+		// confusing. Leaving focus where the editor put it (the editor
+		// root) keeps the page calm; keyboard users can still Tab into
+		// the panel to reach the New button or any row.
+		this.newEmptyStateButton?.focus();
 	}
 }
 
