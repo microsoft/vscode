@@ -303,7 +303,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 }
 
-function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
+export function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
 	if (mode.isBuiltin) {
 		return true;
 	}
