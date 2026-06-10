@@ -1615,6 +1615,8 @@ pane is first mounted. View switches inside the modal are not animated. */
 	flex-direction: column;
 	flex: 1;
 	overflow: auto;
+	gap: 6px;
+	padding: 0 8px;
 }
 
 .automations-list-widget .automations-row {
@@ -1622,12 +1624,17 @@ pane is first mounted. View switches inside the modal are not animated. */
 	flex-direction: row;
 	align-items: flex-start;
 	gap: 12px;
-	padding: 12px 24px;
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+	padding: 12px 16px;
+	border-radius: 6px;
 }
 
-.automations-list-widget .automations-row:hover {
+.automations-list-widget .automations-row:not(.automations-row-disabled):hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.automations-list-widget .automations-row:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .automations-list-widget .automations-row-disabled {
@@ -1726,19 +1733,22 @@ pane is first mounted. View switches inside the modal are not animated. */
 .automations-list-widget .automations-row-wrapper {
 	display: flex;
 	flex-direction: column;
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
 }
 
-.automations-list-widget .automations-row-wrapper .automations-row {
-	border-bottom: none;
+/*
+ * When a wrapper has an expanded history panel, flatten the row's bottom
+ * corners so the row + history read as one visually connected card.
+ */
+.automations-list-widget .automations-row-wrapper:has(> .automations-row-history) .automations-row {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
 }
 
 .automations-list-widget .automations-row-history {
-	padding: 4px 24px 12px 48px;
+	padding: 4px 16px 12px 40px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
-	background-color: var(--vscode-editorWidget-background, transparent);
+	gap: 4px;
 }
 
 .automations-list-widget .automations-history-heading {
@@ -1771,7 +1781,9 @@ pane is first mounted. View switches inside the modal are not animated. */
 	align-items: flex-start;
 	gap: 8px;
 	font-size: 12px;
-	padding: 2px 0;
+	padding: 6px 10px;
+	border-radius: 4px;
+	background-color: var(--vscode-editorWidget-background, transparent);
 }
 
 .automations-list-widget .automations-history-status {
