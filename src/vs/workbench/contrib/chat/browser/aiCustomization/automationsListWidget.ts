@@ -25,6 +25,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -93,6 +94,7 @@ export class AutomationsListWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
 	) {
 		super();
 
@@ -435,7 +437,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.quickInputService, this.sessionTypeProvider, {
+		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.quickInputService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 		});
 		if (!result || result.kind !== 'create') {
@@ -465,7 +467,7 @@ export class AutomationsListWidget extends Disposable {
 			await this._notifyDisabled();
 			return;
 		}
-		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.quickInputService, this.sessionTypeProvider, {
+		const result = await showAutomationDialog(this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.keybindingService, this.layoutService, this.hostService, this.fileDialogService, this.quickInputService, this.sessionTypeProvider, {
 			folders: this.collectFolderChoices(),
 			existing: automation,
 		});
