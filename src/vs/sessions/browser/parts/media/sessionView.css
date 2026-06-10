@@ -57,8 +57,8 @@
 
 /* Push tool calls / invocations, thinking sections, and the per-response footer
  * toolbar further back than plain text responses in inactive sessions. Opacity
- * nests multiplicatively, so this stacks on top of the list's 0.75 for an
- * effective ~0.45 while the text stays at 0.75. */
+ * nests multiplicatively, so this stacks on top of the list's 0.9 for an
+ * effective ~0.54 while the plain text stays at 0.9. */
 .session-view:not(.is-active) .interactive-session .interactive-list .chat-tool-invocation-part,
 .session-view:not(.is-active) .interactive-session .interactive-list .chat-thinking-box,
 .session-view:not(.is-active) .interactive-session .interactive-list .chat-footer-toolbar {
