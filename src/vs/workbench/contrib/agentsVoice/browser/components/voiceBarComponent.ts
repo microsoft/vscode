@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { html, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
+import { localize } from '../../../../../nls.js';
 import type { VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import { FONT_SIZE } from './tokens.js';
@@ -30,8 +31,8 @@ export function renderVoiceBar(props: VoiceBarProps): TemplateResult | typeof no
 
 	const dotColor = isSpeaking ? 'var(--vscode-charts-green)' : 'var(--vscode-editorInfo-foreground)';
 	const labelText = isSpeaking
-		? (props.speakingSessionLabel || 'Speaking...')
-		: 'listening';
+		? (props.speakingSessionLabel || localize('agentsVoice.speaking', "Speaking..."))
+		: localize('agentsVoice.listening', "Listening");
 
 	return html`
 		<div style="display:flex;align-items:center;gap:6px;height:24px;padding:4px 2px;border-bottom:1px solid var(--vscode-panel-border);flex-shrink:0;">

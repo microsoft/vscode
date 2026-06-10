@@ -310,9 +310,13 @@ export class VoiceTranscriptStore extends Disposable implements IVoiceTranscript
 	// --- Internals ---
 
 	private fileFor(userId: string): URI {
-		// GitHub logins are restricted to [A-Za-z0-9-], max 39 chars — safe as a filename
-		// as-is. Mirrors how chatSessionStore composes `${sessionId}.jsonl`.
-		return joinPath(this.storageRoot, `${userId}.jsonl`);
+		// Sanitize userId to prevent path traversal — strip anything that isn't
+		// alphanumeric or hyphen (GitHub logins are [A-Za-z0-9-], max 39 chars).
+		const safe = userId.replace(/[^A-Za-z0-9-]/g, '_');
+		if (!safe) {
+			throw new Error('Invalid userId for transcript storage');
+		}
+		return joinPath(this.storageRoot, `${safe}.jsonl`);
 	}
 
 	private async doAppendTurn(userId: string, turn: IVoiceTranscriptTurn): Promise<void> {

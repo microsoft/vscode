@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { html, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
+import { localize } from '../../../../../nls.js';
 import { FONT_SIZE } from './tokens.js';
 
 export interface OnboardingProps {
@@ -19,39 +20,49 @@ const ONBOARDING_ICON_LG = '18px';
 
 export function renderOnboarding(props: OnboardingProps): TemplateResult {
 	const pttKey = props.pttKeyLabel ?? 'F18';
-	const buttonLabel = props.isConnecting ? 'Connecting…' : 'Get Started';
+	const buttonLabel = props.isConnecting ? localize('agentsVoice.connecting', "Connecting…") : localize('agentsVoice.getStarted', "Get Started");
 	const buttonDisabled = props.isConnecting;
+
+	const welcomeTitle = localize('agentsVoice.welcomeTitle', "Welcome to Voice Chat");
+	const welcomeDesc = localize('agentsVoice.welcomeDesc', "Speak to an assistant that controls multiple coding agents at once. Get notified when work is done or input is needed.");
+	const pttDesc = localize('agentsVoice.pttDesc', "Push-to-talk");
+	const pttHoldDesc = localize('agentsVoice.pttHoldDesc', "— hold the key while speaking, release when done.");
+	const changeHotkey = localize('agentsVoice.changeHotkey', "Change the hotkey");
+	const changeHotkeySuffix = localize('agentsVoice.changeHotkeySuffix', "to use it from any app.");
+	const feedbackDesc = localize('agentsVoice.feedbackDesc', "Use the feedback icon to help us improve your experience.");
+	const miniViewLink = localize('agentsVoice.openMiniView', "Open the mini-view");
+	const miniViewSuffix = localize('agentsVoice.miniViewSuffix', "to multitask while VS Code is not in the foreground.");
 
 	return html`
 		<div style="display:flex;flex-direction:column;gap:12px;padding:8px 0;">
-			<span style="font-size:14px;font-weight:600;color:var(--vscode-foreground);">Welcome to Voice Chat</span>
+			<span style="font-size:14px;font-weight:600;color:var(--vscode-foreground);">${welcomeTitle}</span>
 
 			<div style="display:flex;flex-direction:column;gap:10px;font-size:${ONBOARDING_FONT};color:var(--vscode-foreground);line-height:1.5;">
 				<div style="display:flex;gap:10px;align-items:center;">
 					<span style="display:flex;justify-content:center;align-items:center;width:24px;flex-shrink:0;">
 						<span class="codicon codicon-sparkle" style="font-size:20px;"></span>
 					</span>
-					<span>Speak to an assistant that controls multiple coding agents at once. Get notified when work is done or input is needed.</span>
+					<span>${welcomeDesc}</span>
 				</div>
 				<div style="display:flex;gap:10px;align-items:center;">
 					<span style="display:flex;justify-content:center;align-items:center;width:24px;flex-shrink:0;">
 						<span style="font-size:${FONT_SIZE.micro};padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;"
 							@click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPttKeySettings(e); }}>${pttKey}</span>
 					</span>
-					<span><strong>Push-to-talk</strong> — hold the key while speaking, release when done. <a href="#" @click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPttKeySettings(e); }} style="color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:none;">Change the hotkey</a> to use it from any app.</span>
+					<span><strong>${pttDesc}</strong> ${pttHoldDesc} <a href="#" @click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPttKeySettings(e); }} style="color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:none;">${changeHotkey}</a> ${changeHotkeySuffix}</span>
 				</div>
 				<div style="display:flex;gap:10px;align-items:center;">
 					<span style="display:flex;justify-content:center;align-items:center;width:24px;flex-shrink:0;">
 						<span class="codicon codicon-feedback" style="font-size:${ONBOARDING_ICON_LG};"></span>
 					</span>
-					<span>Use the feedback icon to help us improve your experience.</span>
+					<span>${feedbackDesc}</span>
 				</div>
 				${props.onOpenPopout ? html`
 				<div style="display:flex;gap:10px;align-items:center;">
 					<span style="display:flex;justify-content:center;align-items:center;width:24px;flex-shrink:0;">
 						<span class="codicon codicon-link-external" style="font-size:${FONT_SIZE.iconSm};"></span>
 					</span>
-					<span><a href="#" @click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPopout!(e); }} style="color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:none;">Open the mini-view</a> to multitask while VS Code is not in the foreground.</span>
+					<span><a href="#" @click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPopout!(e); }} style="color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:none;">${miniViewLink}</a> ${miniViewSuffix}</span>
 				</div>` : html``}
 			</div>
 

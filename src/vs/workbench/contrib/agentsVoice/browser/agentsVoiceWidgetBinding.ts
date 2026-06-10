@@ -5,6 +5,7 @@
 
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentTitleBarStatusService } from '../../chat/browser/agentSessions/experiments/agentTitleBarStatusService.js';
@@ -210,7 +211,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 			groups.push({ label, sessions: rows });
 		}
 		if (otherRows.length > 0) {
-			groups.push({ label: 'Other', sessions: otherRows });
+			groups.push({ label: localize('agentsVoice.otherSessions', "Other"), sessions: otherRows });
 		}
 
 		widget.setSessionGroups(groups.length > 0 ? groups : undefined);

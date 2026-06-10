@@ -86,10 +86,9 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 
 	playAudioChunk(audio: string, isFinal: boolean, window: Window & typeof globalThis): void {
 		this._window = window;
-		const receiveTime = performance.now();
 		if (!audio && isFinal) {
-			console.log('[voice_code] appendAudioChunk: empty final');
-			this._ensurePlayTurn(window).writeChain = this._ensurePlayTurn(window).writeChain.then(() => this._schedulePlayStop());
+			const turn = this._ensurePlayTurn(window);
+			turn.writeChain = turn.writeChain.then(() => this._schedulePlayStop());
 			return;
 		}
 		if (!audio) { return; }
@@ -100,28 +99,17 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 		const bytes = new Uint8Array(binary.length);
 		for (let i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
 		const arrayBuf = bytes.buffer;
-		const b64DecodeMs = Math.round(performance.now() - receiveTime);
-		console.log(`[voice_code] appendAudioChunk: b64 decode ${b64DecodeMs}ms, ${audio.length} chars -> ${bytes.length} bytes`);
-		const chainQueueTime = performance.now();
 		turn.writeChain = turn.writeChain.then(async () => {
-			const chainWaitMs = Math.round(performance.now() - chainQueueTime);
-			console.log(`[voice_code] appendAudioChunk: chain wait ${chainWaitMs}ms`);
-			if (gen !== this._playbackGen) { console.log('[voice_code] appendAudioChunk: skipped (gen mismatch)'); return; }
+			if (gen !== this._playbackGen) { return; }
 			try {
 				const ctx = this.ensureContext(this._window!);
-				console.log(`[voice_code] appendAudioChunk: AudioContext state=${ctx.state}`);
-				const decodeStart = performance.now();
 				const decoded = await ctx.decodeAudioData(arrayBuf);
-				const decodeMs = Math.round(performance.now() - decodeStart);
-				const totalMs = Math.round(performance.now() - receiveTime);
-				console.log(`[voice_code] appendAudioChunk: audio decode ${decodeMs}ms, samples=${decoded.length}, total=${totalMs}ms`);
 				if (gen !== this._playbackGen) { return; }
 				this._writeToPlayBuffer(decoded);
 				if (!this._playbackTurn?.started) {
-					console.log(`[voice_code] appendAudioChunk: starting playback (${Math.round(performance.now() - receiveTime)}ms since receive)`);
 					this._startPlayback();
 				}
-			} catch (err) { console.error('[voice_code] appendAudioChunk: decode error', err); }
+			} catch (err) { console.error('[voice] TTS decode error', err); }
 		});
 		if (isFinal) {
 			turn.writeChain = turn.writeChain.then(() => this._schedulePlayStop());

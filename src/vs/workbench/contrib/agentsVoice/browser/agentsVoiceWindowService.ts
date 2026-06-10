@@ -113,7 +113,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}));
 
 		const wasOpen = this.storageService.getBoolean(AgentsVoiceStorageKeys.WindowOpen, StorageScope.WORKSPACE, false);
-		if (wasOpen) {
+		if (wasOpen && this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			const reopenTimeout = setTimeout(() => this.openWindow(), 1000);
 			this._register({ dispose: () => clearTimeout(reopenTimeout) });
 		}

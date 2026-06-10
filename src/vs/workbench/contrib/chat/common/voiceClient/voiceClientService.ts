@@ -56,7 +56,6 @@ export interface IVoiceSessionInit {
 }
 
 /**
-/**
  * One entry in the cross-session timeline the FE replays to the BE on
  * ``start_session``. The BE's coding_agent renders these into a
  * ``[PRIOR_CONTEXT]`` block on the *first* command after reconnect so the

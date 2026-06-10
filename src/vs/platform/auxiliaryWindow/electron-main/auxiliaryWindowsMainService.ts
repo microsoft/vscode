@@ -36,7 +36,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	private readonly windows = new Map<number /* webContents ID */, AuxiliaryWindow>();
 
-	private pendingWindowOptions: BrowserWindowConstructorOptions | undefined;
+	private readonly pendingWindowOptionsQueue: BrowserWindowConstructorOptions[] = [];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -97,7 +97,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, state, overrides, {
 			preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload-aux.js').fsPath
 		});
-		this.pendingWindowOptions = options;
+		this.pendingWindowOptionsQueue.push(options);
 		return options;
 	}
 
@@ -166,8 +166,7 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	registerWindow(webContents: WebContents): void {
 		const disposables = new DisposableStore();
 
-		const windowOptions = this.pendingWindowOptions;
-		this.pendingWindowOptions = undefined;
+		const windowOptions = this.pendingWindowOptionsQueue.shift();
 
 		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents, windowOptions);
 
