@@ -806,14 +806,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return this.prepareToolInvocation(tool, dto, forceConfirmationReason, token);
 	}
 
-	/**
-	 * @param userThinkDurationMs Time from when the confirmation dialog was shown to when the user decided.
-	 * Measures only user think time with the visible confirmation; excludes preparation, risk assessment, and rendering.
-	 * Populated only when `confirmKind` is `userAction` or `denied`.
-	 * @param totalDecisionDurationMs Time from immediately before hook-based auto-confirm resolution through risk assessment and confirmation rendering to user decision.
-	 * Includes risk assessment and confirmation rendering time on top of user think time; excludes initial invocation preparation before this point.
-	 * Populated only when `confirmKind` is `userAction` or `denied`.
-	 */
 	private _logToolApprovalTelemetry(tool: IToolEntry, dto: IToolInvocation, reason: ConfirmedReason, userThinkDurationMs: number | undefined, totalDecisionDurationMs: number | undefined): void {
 		const confirmKindNames: Record<ToolConfirmKind, string> = {
 			[ToolConfirmKind.Denied]: 'denied',
@@ -1909,9 +1901,7 @@ type ToolApprovalEvent = LanguageModelToolTelemetryData & {
 	confirmationNotNeededReason: string | undefined;
 	sandboxWrapped: boolean | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
-	/** Time in milliseconds the user spent thinking, from showing the confirmation dialog to the user's decision. */
 	userThinkDurationMs: number | undefined;
-	/** Time in milliseconds from pre-decision processing start (before hook auto-confirm resolution) through risk assessment and rendering to user decision. */
 	totalDecisionDurationMs: number | undefined;
 };
 
