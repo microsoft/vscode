@@ -42,7 +42,6 @@ export function makeNonNullableUsage(): SDKResultSuccess['usage'] {
 		input_tokens: 0,
 		iterations: [],
 		output_tokens: 0,
-		output_tokens_details: { thinking_tokens: 0 },
 		server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 		service_tier: 'standard',
 		speed: 'standard',
@@ -123,7 +122,6 @@ export function makeMessageStart(messageId: string = 'msg_test'): BetaRawMessage
 			stop_details: null,
 			container: null,
 			context_management: null,
-			diagnostics: null,
 			usage: {
 				cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
 				cache_creation_input_tokens: 0,
@@ -132,7 +130,6 @@ export function makeMessageStart(messageId: string = 'msg_test'): BetaRawMessage
 				input_tokens: 0,
 				iterations: [],
 				output_tokens: 0,
-				output_tokens_details: { thinking_tokens: 0 },
 				server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 				service_tier: 'standard',
 				speed: 'standard',
@@ -181,7 +178,7 @@ export function makeThinkingDelta(index: number, thinking: string): BetaRawConte
 	return {
 		type: 'content_block_delta',
 		index,
-		delta: { type: 'thinking_delta', thinking, estimated_tokens: 0 },
+		delta: { type: 'thinking_delta', thinking },
 	};
 }
 
@@ -234,7 +231,6 @@ export function makeAssistantMessage(
 			stop_details: null,
 			container: null,
 			context_management: null,
-			diagnostics: null,
 			usage: {
 				cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
 				cache_creation_input_tokens: 0,
@@ -243,7 +239,6 @@ export function makeAssistantMessage(
 				input_tokens: 0,
 				iterations: [],
 				output_tokens: 0,
-				output_tokens_details: { thinking_tokens: 0 },
 				server_tool_use: { web_fetch_requests: 0, web_search_requests: 0 },
 				service_tier: 'standard',
 				speed: 'standard',
