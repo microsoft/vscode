@@ -300,6 +300,33 @@
 		}
 	}
 
+	.browser-stream-test-indicator-container {
+		display: flex;
+		align-items: center;
+		margin: 0;
+		flex-shrink: 0;
+
+		.browser-stream-test-indicator {
+			padding: 2px;
+			border-radius: var(--vscode-cornerRadius-small);
+			color: var(--vscode-descriptionForeground);
+			background-color: transparent;
+			cursor: pointer;
+			outline: none !important;
+			font-size: 16px;
+
+			&:focus-visible {
+				outline: 1px solid var(--vscode-focusBorder) !important;
+				outline-offset: 0px !important;
+			}
+
+			&:hover {
+				background-color: var(--vscode-toolbar-hoverBackground) !important;
+				color: var(--vscode-foreground);
+			}
+		}
+	}
+
 	.browser-share-toggle-container {
 		display: flex;
 		align-items: center;
@@ -871,5 +898,16 @@
 			outline: 1px solid var(--vscode-focusBorder);
 			outline-offset: 2px;
 		}
+	}
+}
+
+/* Live stream preview hover content. Rendered into the global hover overlay (not inside .browser-root) so it isn't clipped by the URL bar's overflow. */
+.browser-stream-test-hover {
+	display: flex;
+
+	.browser-stream-test-video {
+		display: block;
+		border-radius: var(--vscode-cornerRadius-small);
+		background-color: var(--vscode-editor-background);
 	}
 }

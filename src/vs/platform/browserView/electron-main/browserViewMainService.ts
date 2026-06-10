@@ -252,6 +252,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).canGoForward();
 	}
 
+	async getMediaSourceId(id: string): Promise<string> {
+		return this._getBrowserView(id).getMediaSourceId();
+	}
+
 	async captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		return this._getBrowserView(id).captureScreenshot(options);
 	}

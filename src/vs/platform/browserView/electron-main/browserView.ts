@@ -663,6 +663,19 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
+	 * Get the media source ID for this view's web contents, suitable for
+	 * use with `navigator.mediaDevices.getUserMedia` in the requesting
+	 * window to capture a live video stream of this view.
+	 */
+	getMediaSourceId(): string {
+		const electronWindow = this._currentWindow?.win;
+		if (!electronWindow || electronWindow.isDestroyed()) {
+			throw new Error('Browser view is not attached to a window');
+		}
+		return this._view.webContents.getMediaSourceId(electronWindow.webContents);
+	}
+
+	/**
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {

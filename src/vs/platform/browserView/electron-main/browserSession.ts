@@ -24,6 +24,7 @@ import { localize } from '../../../nls.js';
 const allowedPermissions = new Set([
 	'pointerLock',
 	'notifications',
+	'media',
 	'clipboard-sanitized-write'
 ]);
 
@@ -272,7 +273,12 @@ export class BrowserSession {
 		this.electronSession.setPermissionRequestHandler((_webContents, permission, callback) => {
 			return callback(allowedPermissions.has(permission));
 		});
-		this.electronSession.setPermissionCheckHandler((_webContents, permission, _origin) => {
+		this.electronSession.setPermissionCheckHandler((_webContents, permission, origin, details) => {
+			// Empty origin means we requested it internally.
+			if (origin === '' && permission === 'media' && details.mediaType === 'video') {
+				return true;
+			}
+
 			return allowedPermissions.has(permission);
 		});
 		this.electronSession.registerPreloadScript({

@@ -268,6 +268,28 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	});
 
+	async getStream(width: number, height: number): Promise<MediaStream | undefined> {
+		if (!this._model?.url) {
+			return undefined;
+		}
+
+		return window.navigator.mediaDevices.getUserMedia({
+			audio: false,
+			// eslint-disable-next-line local/code-no-any-casts
+			video: {
+				mandatory: {
+					chromeMediaSource: 'tab',
+					chromeMediaSourceId: await this._model.getMediaSourceId(),
+					minWidth: width,
+					minHeight: height,
+					maxWidth: width,
+					maxHeight: height
+				}
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			} as any
+		});
+	}
+
 	override canReopen(): boolean {
 		return true;
 	}

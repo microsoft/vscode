@@ -453,6 +453,15 @@ export interface IBrowserViewService {
 	canGoForward(id: string): Promise<boolean>;
 
 	/**
+	 * Get a media source ID for the browser view that can be used with
+	 * `navigator.mediaDevices.getUserMedia` in the requesting window to
+	 * capture a live video stream of the view's contents.
+	 * @param id The browser view identifier
+	 * @returns The media source ID string
+	 */
+	getMediaSourceId(id: string): Promise<string>;
+
+	/**
 	 * Capture a screenshot of the browser view
 	 * @param id The browser view identifier
 	 * @param options Screenshot options (quality and rect)
