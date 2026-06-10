@@ -103,6 +103,11 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
+		// The header and composite bar (tabs) are hosted in a centered, width-capped
+		// container so they align with the centered chat content. The chat content
+		// itself lives in a full-width container so its transcript list spans the
+		// whole session view and its scrollbar stays pinned to the right edge; the
+		// chat rows and input self-center at the same max-width via CSS.
 		this._centeredContentContainer = $('.session-view-centered-content');
 		this.element.appendChild(this._centeredContentContainer);
 
@@ -113,7 +118,7 @@ export class SessionView extends Disposable implements ISerializableView {
 		this._centeredContentContainer.appendChild(this._compositeBar.element);
 
 		this._contentContainer = $('.session-view-content');
-		this._centeredContentContainer.appendChild(this._contentContainer);
+		this.element.appendChild(this._contentContainer);
 
 		this._floatingToolbar = this._register(scopedInstantiationService.createInstance(SessionViewFloatingToolbar));
 		this.element.appendChild(this._floatingToolbar.element);
@@ -216,13 +221,18 @@ export class SessionView extends Disposable implements ISerializableView {
 			return;
 		}
 		const { width, height, top, left } = this._lastLayout;
-		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
-		const centeredLeft = left + (width - centeredWidth) / 2;
-		size(this._centeredContentContainer, centeredWidth, height);
 		const headerHeight = this._header.visible ? this._header.height : 0;
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const barHeight = headerHeight + tabsHeight;
-		this._currentView.value?.layout(centeredWidth, height - barHeight, top + barHeight, centeredLeft);
+
+		// Center and width-cap only the header + tabs band. It is horizontally
+		// centered via CSS (`margin: 0 auto`), so we only need to set its size.
+		const centeredWidth = Math.min(width, SessionView.CENTERED_CONTENT_MAX_WIDTH);
+		size(this._centeredContentContainer, centeredWidth, barHeight);
+
+		// Lay out the chat content at full width so its scrollbar reaches the
+		// right edge; the chat rows and input center themselves via CSS.
+		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left);
 	}
 
 	toJSON(): object {
