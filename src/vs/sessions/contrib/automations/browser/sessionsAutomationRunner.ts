@@ -117,6 +117,24 @@ export class SessionsAutomationRunner implements IAutomationRunner {
 				return;
 			}
 
+			// Apply the automation's own name as the session title so
+			// scheduled runs are visually distinguishable from manually
+			// started sessions in the list. The watch glyph (U+231A, an
+			// emoji escape to keep this source ASCII per the repo's
+			// hygiene rule) doubles as a "scheduled" badge. Naming is
+			// best-effort — a provider that rejects the rename must not
+			// fail the run, since the session itself already kicked off
+			// successfully.
+			if (session) {
+				try {
+					const chatUri = session.mainChat.get().resource;
+					const title = localize('automationRunner.sessionTitle', "\u231A {0}", automation.name);
+					await this.sessionsManagementService.renameChat(session, chatUri, title);
+				} catch (renameErr) {
+					this.logService.warn(`[SessionsAutomationRunner] renameChat failed for ${automation.id}`, renameErr);
+				}
+			}
+
 			await this.automationService.updateRun(runId, {
 				status: 'completed',
 				completedAt: new Date().toISOString(),
