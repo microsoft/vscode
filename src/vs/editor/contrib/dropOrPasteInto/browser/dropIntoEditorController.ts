@@ -16,7 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { toExternalVSDataTransfer } from '../../../browser/dnd.js';
+import { toExternalVSDataTransfer } from '../../../browser/dataTransfer.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IPosition } from '../../../common/core/position.js';

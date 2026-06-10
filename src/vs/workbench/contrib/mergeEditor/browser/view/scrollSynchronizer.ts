@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { derivedWithStore, IObservable } from '../../../../../base/common/observable.js';
+import { derived, IObservable } from '../../../../../base/common/observable.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { ScrollType } from '../../../../../editor/common/editorCommon.js';
 import { DocumentLineRangeMap } from '../model/mapping.js';
@@ -40,7 +40,7 @@ export class ScrollSynchronizer extends Disposable {
 	) {
 		super();
 
-		const s = derivedWithStore((reader, store) => {
+		const s = derived((reader) => {
 			const baseView = this.baseView.read(reader);
 			const editors = [this.input1View, this.input2View, this.inputResultView, baseView].filter(isDefined);
 
@@ -73,7 +73,7 @@ export class ScrollSynchronizer extends Disposable {
 			};
 
 			for (const editorView of editors) {
-				store.add(editorView.editor.onDidScrollChange(e => {
+				reader.store.add(editorView.editor.onDidScrollChange(e => {
 					if (!this._isSyncing) {
 						return;
 					}

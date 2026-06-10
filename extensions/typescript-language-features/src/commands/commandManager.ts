@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 export interface Command {
 	readonly id: string;
 
-	execute(...args: any[]): void | any;
+	execute(...args: unknown[]): void | unknown;
 }
 
 export class CommandManager {

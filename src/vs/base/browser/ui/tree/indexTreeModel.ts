@@ -27,8 +27,8 @@ export interface IIndexTreeNode<T, TFilterData = void> extends ITreeNode<T, TFil
 	lastDiffIds?: string[];
 }
 
-export function isFilterResult<T>(obj: any): obj is ITreeFilterDataResult<T> {
-	return typeof obj === 'object' && 'visibility' in obj && 'data' in obj;
+export function isFilterResult<T>(obj: unknown): obj is ITreeFilterDataResult<T> {
+	return !!obj && (<ITreeFilterDataResult<T>>obj).visibility !== undefined;
 }
 
 export function getVisibleState(visibility: boolean | TreeVisibility): TreeVisibility {
@@ -86,10 +86,10 @@ interface CollapsedStateUpdate {
 type CollapseStateUpdate = CollapsibleStateUpdate | CollapsedStateUpdate;
 
 function isCollapsibleStateUpdate(update: CollapseStateUpdate): update is CollapsibleStateUpdate {
-	return typeof (update as any).collapsible === 'boolean';
+	return 'collapsible' in update;
 }
 
-export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
+export class IndexTreeModel<T extends Exclude<unknown, undefined>, TFilterData = void> implements ITreeModel<T, TFilterData, number[]> {
 
 	readonly rootRef = [];
 

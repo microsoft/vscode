@@ -72,7 +72,7 @@ export class NotebookHorizontalTracker extends Disposable {
 				stopPropagation: () => { }
 			};
 
-			(hoveringOnEditor[1] as CodeEditorWidget).delegateScrollFromMouseWheelEvent(evt as any);
+			(hoveringOnEditor[1] as CodeEditorWidget).delegateScrollFromMouseWheelEvent(evt as unknown as IMouseWheelEvent);
 		}));
 	}
 }

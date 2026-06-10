@@ -9,6 +9,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { env } from '../../../../../base/common/process.js';
+import { isNumber } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
@@ -177,7 +178,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 	private _getHistoryLimit() {
 		const historyLimit = this._configurationService.getValue(TerminalHistorySettingId.ShellIntegrationCommandHistory);
-		return typeof historyLimit === 'number' ? historyLimit : Constants.DefaultHistoryLimit;
+		return isNumber(historyLimit) ? historyLimit : Constants.DefaultHistoryLimit;
 	}
 
 	private _getTimestampStorageKey() {
@@ -242,7 +243,8 @@ export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IShe
 		return undefined;
 	}
 	const sourceLabel = '~/.bash_history';
-	const resolvedFile = await fetchFileContents(env['HOME'], '.bash_history', false, fileService, remoteAgentService);
+	const home = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
+	const resolvedFile = await fetchFileContents(home, '.bash_history', false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
 	}
@@ -295,11 +297,13 @@ export async function fetchZshHistory(accessor: ServicesAccessor): Promise<IShel
 	}
 
 	const sourceLabel = '~/.zsh_history';
-	const resolvedFile = await fetchFileContents(env['HOME'], '.zsh_history', false, fileService, remoteAgentService);
+	const home = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
+	const resolvedFile = await fetchFileContents(home, '.zsh_history', false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
 	}
-	const fileLines = resolvedFile.content.split(/\:\s\d+\:\d+;/);
+	const isExtendedHistory = /^:\s\d+:\d+;/.test(resolvedFile.content);
+	const fileLines = resolvedFile.content.split(isExtendedHistory ? /\:\s\d+\:\d+;/ : /(?<!\\)\n/);
 	const result: Set<string> = new Set();
 	for (let i = 0; i < fileLines.length; i++) {
 		const sanitized = fileLines[i].replace(/\\\n/g, '\n').trim();
@@ -318,9 +322,11 @@ export async function fetchZshHistory(accessor: ServicesAccessor): Promise<IShel
 export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IShellFileHistoryEntry | undefined> {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
 
 	const sourceLabel = '~/.python_history';
-	const resolvedFile = await fetchFileContents(env['HOME'], '.python_history', false, fileService, remoteAgentService);
+	const home = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
+	const resolvedFile = await fetchFileContents(home, '.python_history', false, fileService, remoteAgentService);
 
 	if (resolvedFile === undefined) {
 		return undefined;
@@ -356,7 +362,7 @@ export async function fetchPwshHistory(accessor: ServicesAccessor): Promise<IShe
 		filePath = 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
 		sourceLabel = `$APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt`;
 	} else {
-		folderPrefix = env['HOME'];
+		folderPrefix = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
 		sourceLabel = `~/${filePath}`;
 	}
@@ -449,7 +455,7 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 		filePath = 'fish/fish_history';
 	} else {
 		sourceLabel = '~/.local/share/fish/fish_history';
-		folderPrefix = env['HOME'];
+		folderPrefix = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
 		filePath = '.local/share/fish/fish_history';
 	}
 	const resolvedFile = await fetchFileContents(folderPrefix, filePath, false, fileService, remoteAgentService);

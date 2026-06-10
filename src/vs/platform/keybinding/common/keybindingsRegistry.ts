@@ -67,16 +67,17 @@ export const enum KeybindingWeight {
 	ExternalExtension = 400
 }
 
-export interface ICommandAndKeybindingRule extends IKeybindingRule {
-	handler: ICommandHandler;
+export interface ICommandAndKeybindingRule<Args extends unknown[] = unknown[]> extends IKeybindingRule {
+	handler: ICommandHandler<Args>;
 	metadata?: ICommandMetadata | null;
 }
 
 export interface IKeybindingsRegistry {
 	registerKeybindingRule(rule: IKeybindingRule): IDisposable;
 	setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): IDisposable;
+	registerCommandAndKeybindingRule<Args extends unknown[] = unknown[]>(desc: ICommandAndKeybindingRule<Args>): IDisposable;
 	getDefaultKeybindings(): IKeybindingItem[];
+	getDefaultKeybindingsForOS(os: OperatingSystem): IKeybindingItem[];
 }
 
 /**
@@ -85,24 +86,23 @@ export interface IKeybindingsRegistry {
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _coreKeybindings: LinkedList<IKeybindingItem>;
+	private _coreKeybindingRules: LinkedList<IKeybindingRule>;
 	private _extensionKeybindings: IKeybindingItem[];
 	private _cachedMergedKeybindings: IKeybindingItem[] | null;
 
 	constructor() {
 		this._coreKeybindings = new LinkedList();
+		this._coreKeybindingRules = new LinkedList();
 		this._extensionKeybindings = [];
 		this._cachedMergedKeybindings = null;
 	}
 
-	/**
-	 * Take current platform into account and reduce to primary & secondary.
-	 */
-	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
-		if (OS === OperatingSystem.Windows) {
+	private static bindToPlatform(kb: IKeybindings, os: OperatingSystem): { primary?: number; secondary?: number[] } {
+		if (os === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;
 			}
-		} else if (OS === OperatingSystem.Macintosh) {
+		} else if (os === OperatingSystem.Macintosh) {
 			if (kb && kb.mac) {
 				return kb.mac;
 			}
@@ -111,8 +111,14 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				return kb.linux;
 			}
 		}
-
 		return kb;
+	}
+
+	/**
+	 * Take current platform into account and reduce to primary & secondary.
+	 */
+	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
+		return KeybindingsRegistryImpl.bindToPlatform(kb, OS);
 	}
 
 	public registerKeybindingRule(rule: IKeybindingRule): IDisposable {
@@ -135,6 +141,10 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				}
 			}
 		}
+
+		const removeRule = this._coreKeybindingRules.push(rule);
+		result.add(toDisposable(() => { removeRule(); }));
+
 		return result;
 	}
 
@@ -192,6 +202,51 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			this._cachedMergedKeybindings.sort(sorter);
 		}
 		return this._cachedMergedKeybindings.slice(0);
+	}
+
+	public getDefaultKeybindingsForOS(os: OperatingSystem): IKeybindingItem[] {
+		const result: IKeybindingItem[] = [];
+		for (const rule of this._coreKeybindingRules) {
+			const actualKb = KeybindingsRegistryImpl.bindToPlatform(rule, os);
+
+			if (actualKb && actualKb.primary) {
+				const kk = decodeKeybinding(actualKb.primary, os);
+				if (kk) {
+					result.push({
+						keybinding: kk,
+						command: rule.id,
+						commandArgs: rule.args,
+						when: rule.when,
+						weight1: rule.weight,
+						weight2: 0,
+						extensionId: null,
+						isBuiltinExtension: false
+					});
+				}
+			}
+
+			if (actualKb && Array.isArray(actualKb.secondary)) {
+				for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
+					const k = actualKb.secondary[i];
+					const kk = decodeKeybinding(k, os);
+					if (kk) {
+						result.push({
+							keybinding: kk,
+							command: rule.id,
+							commandArgs: rule.args,
+							when: rule.when,
+							weight1: rule.weight,
+							weight2: -i - 1,
+							extensionId: null,
+							isBuiltinExtension: false
+						});
+					}
+				}
+			}
+		}
+
+		result.sort(sorter);
+		return result;
 	}
 }
 export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();

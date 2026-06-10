@@ -75,6 +75,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown.actionRunner = actionRunner;
 	}
 
+	override get actionRunner(): IActionRunner {
+		return super.actionRunner;
+	}
+
 	override setActionContext(newContext: unknown): void {
 		super.setActionContext(newContext);
 		this._primaryAction.setActionContext(newContext);

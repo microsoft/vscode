@@ -3,70 +3,75 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-component.diff-review {
-	user-select: none;
-	-webkit-user-select: none;
-	z-index: 99;
-}
-
 .monaco-diff-editor .diff-review {
 	position: absolute;
 
 }
 
-.monaco-component.diff-review .diff-review-line-number {
-	text-align: right;
-	display: inline-block;
-	color: var(--vscode-editorLineNumber-foreground);
-}
+.monaco-component.diff-review {
+	user-select: none;
+	-webkit-user-select: none;
+	z-index: 99;
 
-.monaco-component.diff-review .diff-review-summary {
-	padding-left: 10px;
-}
 
-.monaco-component.diff-review .diff-review-shadow {
-	position: absolute;
-	box-shadow: var(--vscode-scrollbar-shadow) 0 -6px 6px -6px inset;
-}
+	.diff-review-line-number {
+		text-align: right;
+		display: inline-block;
+		color: var(--vscode-editorLineNumber-foreground);
+	}
 
-.monaco-component.diff-review .diff-review-row {
-	white-space: pre;
-}
+	.diff-review-summary {
+		padding-left: 10px;
+	}
 
-.monaco-component.diff-review .diff-review-table {
-	display: table;
-	min-width: 100%;
-}
+	.diff-review-shadow {
+		position: absolute;
+		box-shadow: var(--vscode-scrollbar-shadow) 0 -6px 6px -6px inset;
+	}
 
-.monaco-component.diff-review .diff-review-row {
-	display: table-row;
-	width: 100%;
-}
+	.diff-review-row {
+		white-space: pre;
+	}
 
-.monaco-component.diff-review .diff-review-spacer {
-	display: inline-block;
-	width: 10px;
-	vertical-align: middle;
-}
+	.diff-review-table {
+		display: table;
+		min-width: 100%;
+	}
 
-.monaco-component.diff-review .diff-review-spacer > .codicon {
-	font-size: 9px !important;
-}
+	.diff-review-row {
+		display: table-row;
+		width: 100%;
+	}
 
-.monaco-component.diff-review .diff-review-actions {
-	display: inline-block;
-	position: absolute;
-	right: 10px;
-	top: 2px;
-	z-index: 100;
-}
+	.diff-review-spacer {
+		display: inline-block;
+		width: 10px;
+		vertical-align: middle;
+	}
 
-.monaco-component.diff-review .diff-review-actions .action-label {
-	width: 16px;
-	height: 16px;
-	margin: 2px 0;
-}
+	.diff-review-spacer > .codicon {
+		font-size: 9px !important;
+	}
 
-.monaco-component.diff-review .revertButton {
-	cursor: pointer;
+	.diff-review-actions {
+		display: inline-block;
+		position: absolute;
+		right: 10px;
+		top: 2px;
+		z-index: 100;
+	}
+
+	.diff-review-actions .action-label {
+		width: 16px;
+		height: 16px;
+		margin: 2px 0;
+	}
+
+	.revertButton {
+		cursor: pointer;
+	}
+
+	.action-label {
+		background: var(--vscode-editorActionList-background);
+	}
 }

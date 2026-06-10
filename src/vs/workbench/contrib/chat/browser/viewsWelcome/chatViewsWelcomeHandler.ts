@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../../base/common/jsonSchema.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -14,42 +15,40 @@ import { checkProposedApiEnabled } from '../../../../services/extensions/common/
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { ChatViewsWelcomeExtensions, IChatViewsWelcomeContributionRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
-interface IRawChatViewsWelcomeContribution {
-	icon: string;
-	title: string;
-	content: string;
-	when: string;
-}
+
+const chatViewsWelcomeJsonSchema = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['icon', 'title', 'contents', 'when'],
+	properties: {
+		icon: {
+			type: 'string',
+			description: localize('chatViewsWelcome.icon', 'The icon for the welcome message.'),
+		},
+		title: {
+			type: 'string',
+			description: localize('chatViewsWelcome.title', 'The title of the welcome message.'),
+		},
+		content: {
+			type: 'string',
+			description: localize('chatViewsWelcome.content', 'The content of the welcome message. The first command link will be rendered as a button.'),
+		},
+		when: {
+			type: 'string',
+			description: localize('chatViewsWelcome.when', 'Condition when the welcome message is shown.'),
+		}
+	}
+} as const satisfies IJSONSchema;
+
+type IRawChatViewsWelcomeContribution = TypeFromJsonSchema<typeof chatViewsWelcomeJsonSchema>;
 
 const chatViewsWelcomeExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatViewsWelcomeContribution[]>({
 	extensionPoint: 'chatViewsWelcome',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.chatViewsWelcome', 'Contributes a welcome message to a chat view'),
 		type: 'array',
-		items: {
-			additionalProperties: false,
-			type: 'object',
-			properties: {
-				icon: {
-					type: 'string',
-					description: localize('chatViewsWelcome.icon', 'The icon for the welcome message.'),
-				},
-				title: {
-					type: 'string',
-					description: localize('chatViewsWelcome.title', 'The title of the welcome message.'),
-				},
-				content: {
-					type: 'string',
-					description: localize('chatViewsWelcome.content', 'The content of the welcome message. The first command link will be rendered as a button.'),
-				},
-				when: {
-					type: 'string',
-					description: localize('chatViewsWelcome.when', 'Condition when the welcome message is shown.'),
-				}
-			}
-		},
-		required: ['icon', 'title', 'contents', 'when'],
-	}
+		items: chatViewsWelcomeJsonSchema,
+	},
 });
 
 export class ChatViewsWelcomeHandler implements IWorkbenchContribution {

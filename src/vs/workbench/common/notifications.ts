@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource } from '../../platform/notification/common/notification.js';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource, IStatusHandle } from '../../platform/notification/common/notification.js';
 import { toErrorMessage, isErrorWithActions } from '../../base/common/errorMessage.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable } from '../../base/common/lifecycle.js';
 import { isCancellationError } from '../../base/common/errors.js';
 import { Action } from '../../base/common/actions.js';
 import { equals } from '../../base/common/arrays.js';
 import { parseLinkedText, LinkedText } from '../../base/common/linkedText.js';
 import { mapsStrictEqualIgnoreOrder } from '../../base/common/map.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
 export interface INotificationsModel {
 
@@ -35,7 +36,7 @@ export interface INotificationsModel {
 
 	readonly onDidChangeStatusMessage: Event<IStatusMessageChangeEvent>;
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable;
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle;
 
 	//#endregion
 }
@@ -275,24 +276,23 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		return item;
 	}
 
-	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IDisposable {
+	showStatusMessage(message: NotificationMessage, options?: IStatusMessageOptions): IStatusHandle {
 		const item = StatusMessageViewItem.create(message, options);
 		if (!item) {
-			return Disposable.None;
+			return { close: () => { } };
 		}
 
-		// Remember as current status message and fire events
 		this._statusMessage = item;
 		this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.ADD, item });
 
-		return toDisposable(() => {
-
-			// Only reset status message if the item is still the one we had remembered
-			if (this._statusMessage === item) {
-				this._statusMessage = undefined;
-				this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.REMOVE, item });
+		return {
+			close: () => {
+				if (this._statusMessage === item) {
+					this._statusMessage = undefined;
+					this._onDidChangeStatusMessage.fire({ kind: StatusMessageChangeType.REMOVE, item });
+				}
 			}
-		});
+		};
 	}
 }
 
@@ -468,7 +468,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	static create(notification: INotification, filter: INotificationsFilter): INotificationViewItem | undefined {
-		if (!notification || !notification.message || isCancellationError(notification.message)) {
+		if (!notification?.message || isCancellationError(notification.message)) {
 			return undefined; // we need a message to show
 		}
 
@@ -737,8 +737,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		const primaryActions = (this._actions && this._actions.primary) || [];
-		const otherPrimaryActions = (other.actions && other.actions.primary) || [];
+		const primaryActions = this._actions?.primary || [];
+		const otherPrimaryActions = other.actions?.primary || [];
 		return equals(primaryActions, otherPrimaryActions, (action, otherAction) => (action.id + action.label) === (otherAction.id + otherAction.label));
 	}
 }
@@ -794,4 +794,25 @@ class StatusMessageViewItem {
 
 		return { message, options };
 	}
+}
+
+export const enum NotificationsSettings {
+	NOTIFICATIONS_POSITION = 'workbench.notifications.position',
+	NOTIFICATIONS_BUTTON = 'workbench.notifications.showInTitleBar'
+}
+
+export const enum NotificationsPosition {
+	BOTTOM_RIGHT = 'bottom-right',
+	BOTTOM_LEFT = 'bottom-left',
+	TOP_RIGHT = 'top-right'
+}
+
+export function getNotificationsPosition(configurationService: IConfigurationService): NotificationsPosition {
+	const position = configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION);
+
+	if (position === NotificationsPosition.BOTTOM_LEFT || position === NotificationsPosition.TOP_RIGHT) {
+		return position;
+	}
+
+	return NotificationsPosition.BOTTOM_RIGHT;
 }

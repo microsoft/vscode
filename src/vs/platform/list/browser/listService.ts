@@ -11,7 +11,7 @@ import { IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOption
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from '../../../base/browser/ui/table/table.js';
 import { ITableOptions, ITableOptionsUpdate, ITableStyles, Table } from '../../../base/browser/ui/table/tableWidget.js';
 import { IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides, TreeFindMatchType, TreeFindMode } from '../../../base/browser/ui/tree/abstractTree.js';
-import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from '../../../base/browser/ui/tree/asyncDataTree.js';
+import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeNode, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from '../../../base/browser/ui/tree/asyncDataTree.js';
 import { DataTree, IDataTreeOptions } from '../../../base/browser/ui/tree/dataTree.js';
 import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from '../../../base/browser/ui/tree/objectTree.js';
 import { IAsyncDataSource, IDataSource, ITreeEvent, ITreeRenderer } from '../../../base/browser/ui/tree/tree.js';
@@ -646,13 +646,6 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	}
 }
 
-export interface IOpenResourceOptions {
-	editorOptions: IEditorOptions;
-	sideBySide: boolean;
-	element: any;
-	payload: any;
-}
-
 export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
@@ -856,9 +849,12 @@ function createKeyboardNavigationEventFilter(keybindingService: IKeybindingServi
 	};
 }
 
-export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
-	readonly accessibilityProvider: IListAccessibilityProvider<T>;
+export interface IWorkbenchObjectTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
+}
+
+export interface IWorkbenchObjectTreeOptions<T, TFilterData> extends IObjectTreeOptions<T, TFilterData>, IWorkbenchObjectTreeOptionsUpdate<T>, IResourceNavigatorOptions {
+	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 	readonly scrollToActiveElement?: boolean;
 }
@@ -881,6 +877,7 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
@@ -888,17 +885,22 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: IAbstractTreeOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchObjectTreeOptionsUpdate<T | null> = {}): void {
 		super.updateOptions(options);
+
+		if (options.overrideStyles) {
+			this.internals.updateStyleOverrides(options.overrideStyles);
+		}
+
 		this.internals.updateOptions(options);
 	}
 }
 
-export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompressibleObjectTreeOptionsUpdate {
+export interface IWorkbenchCompressibleObjectTreeOptionsUpdate<T> extends ICompressibleObjectTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 }
 
-export interface IWorkbenchCompressibleObjectTreeOptions<T, TFilterData> extends IWorkbenchCompressibleObjectTreeOptionsUpdate, ICompressibleObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
+export interface IWorkbenchCompressibleObjectTreeOptions<T, TFilterData> extends IWorkbenchCompressibleObjectTreeOptionsUpdate<T>, ICompressibleObjectTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 }
@@ -921,6 +923,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, treeOptions);
 		this.disposables.add(disposable);
@@ -928,7 +931,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate<T | null> = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -939,11 +942,11 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 	}
 }
 
-export interface IWorkbenchDataTreeOptionsUpdate extends IAbstractTreeOptionsUpdate {
+export interface IWorkbenchDataTreeOptionsUpdate<T> extends IAbstractTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 }
 
-export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate, IDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
+export interface IWorkbenchDataTreeOptions<T, TFilterData> extends IWorkbenchDataTreeOptionsUpdate<T>, IDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 }
@@ -967,6 +970,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -974,7 +978,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate<T | null> = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles !== undefined) {
@@ -985,11 +989,11 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	}
 }
 
-export interface IWorkbenchAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOptionsUpdate {
+export interface IWorkbenchAsyncDataTreeOptionsUpdate<T> extends IAsyncDataTreeOptionsUpdate<T> {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 }
 
-export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate, IAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
+export interface IWorkbenchAsyncDataTreeOptions<T, TFilterData> extends IWorkbenchAsyncDataTreeOptionsUpdate<T>, IAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
 	readonly accessibilityProvider: IListAccessibilityProvider<T>;
 	readonly selectionNavigation?: boolean;
 }
@@ -1013,6 +1017,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, delegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -1020,7 +1025,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate<IAsyncDataTreeNode<TInput, T> | null> = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -1057,6 +1062,7 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		@IListService listService: IListService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		// eslint-disable-next-line local/code-no-any-casts
 		const { options: treeOptions, getTypeNavigationMode, disposable } = instantiationService.invokeFunction(workbenchTreeDataPreamble, options as any);
 		super(user, container, virtualDelegate, compressionDelegate, renderers, dataSource, treeOptions);
 		this.disposables.add(disposable);
@@ -1064,7 +1070,7 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		this.disposables.add(this.internals);
 	}
 
-	override updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate): void {
+	override updateOptions(options: ICompressibleAsyncDataTreeOptionsUpdate<IAsyncDataTreeNode<TInput, T> | null>): void {
 		super.updateOptions(options);
 		this.internals.updateOptions(options);
 	}
@@ -1155,8 +1161,8 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			indent: typeof configurationService.getValue(treeIndentKey) === 'number' ? configurationService.getValue(treeIndentKey) : undefined,
 			renderIndentGuides,
 			smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
-			defaultFindMode: getDefaultTreeFindMode(configurationService),
-			defaultFindMatchType: getDefaultTreeFindMatchType(configurationService),
+			defaultFindMode: options.defaultFindMode ?? getDefaultTreeFindMode(configurationService),
+			defaultFindMatchType: options.defaultFindMatchType ?? getDefaultTreeFindMatchType(configurationService),
 			horizontalScrolling,
 			scrollByPage: Boolean(configurationService.getValue(scrollByPageKey)),
 			paddingBottom: paddingBottom,
@@ -1276,7 +1282,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 			tree.onDidChangeFindOpenState(enabled => this.treeFindOpen.set(enabled)),
 			tree.onDidChangeStickyScrollFocused(focused => this.treeStickyScrollFocused.set(focused)),
 			configurationService.onDidChangeConfiguration(e => {
-				let newOptions: IAbstractTreeOptionsUpdate = {};
+				let newOptions: IAbstractTreeOptionsUpdate<unknown> = {};
 				if (e.affectsConfiguration(multiSelectModifierSettingKey)) {
 					this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 				}

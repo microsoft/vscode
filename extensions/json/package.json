@@ -2,7 +2,7 @@
   "name": "json",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -58,7 +60,8 @@
           ".jshintrc",
           ".swcrc",
           ".hintrc",
-          ".babelrc"
+          ".babelrc",
+          ".toolset.jsonc"
         ],
         "filenames": [
           "babel.config.json",
@@ -66,6 +69,9 @@
           ".babelrc.json",
           ".ember-cli",
           "typedoc.json"
+        ],
+        "filenamePatterns": [
+          "**/.github/hooks/*.json"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -84,14 +90,15 @@
       {
         "id": "snippets",
         "aliases": [
-            "Code Snippets"
+          "Code Snippets"
         ],
         "extensions": [
           ".code-snippets"
         ],
         "filenamePatterns": [
           "**/User/snippets/*.json",
-          "**/User/profiles/*/snippets/*.json"
+          "**/User/profiles/*/snippets/*.json",
+          "**/snippets*.json"
         ],
         "configuration": "./language-configuration.json"
       }

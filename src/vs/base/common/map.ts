@@ -116,34 +116,34 @@ export class ResourceMap<T> implements Map<URI, T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
+	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: object): void {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
 		for (const [_, entry] of this.map) {
-			clb(entry.value, entry.uri, <any>this);
+			clb(entry.value, entry.uri, this);
 		}
 	}
 
-	*values(): IterableIterator<T> {
+	*values(): MapIterator<T> {
 		for (const entry of this.map.values()) {
 			yield entry.value;
 		}
 	}
 
-	*keys(): IterableIterator<URI> {
+	*keys(): MapIterator<URI> {
 		for (const entry of this.map.values()) {
 			yield entry.uri;
 		}
 	}
 
-	*entries(): IterableIterator<[URI, T]> {
+	*entries(): MapIterator<[URI, T]> {
 		for (const entry of this.map.values()) {
 			yield [entry.uri, entry.value];
 		}
 	}
 
-	*[Symbol.iterator](): IterableIterator<[URI, T]> {
+	*[Symbol.iterator](): MapIterator<[URI, T]> {
 		for (const [, entry] of this.map) {
 			yield [entry.uri, entry.value];
 		}
@@ -185,7 +185,7 @@ export class ResourceSet implements Set<URI> {
 		return this._map.delete(value);
 	}
 
-	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: URI, value2: URI, set: Set<URI>) => void, thisArg?: unknown): void {
 		this._map.forEach((_value, key) => callbackfn.call(thisArg, key, key, this));
 	}
 
@@ -193,19 +193,19 @@ export class ResourceSet implements Set<URI> {
 		return this._map.has(value);
 	}
 
-	entries(): IterableIterator<[URI, URI]> {
-		return this._map.entries();
+	entries(): SetIterator<[URI, URI]> {
+		return this._map.entries() as unknown as SetIterator<[URI, URI]>;
 	}
 
-	keys(): IterableIterator<URI> {
-		return this._map.keys();
+	keys(): SetIterator<URI> {
+		return this._map.keys() as unknown as SetIterator<URI>;
 	}
 
-	values(): IterableIterator<URI> {
-		return this._map.keys();
+	values(): SetIterator<URI> {
+		return this._map.keys() as unknown as SetIterator<URI>;
 	}
 
-	[Symbol.iterator](): IterableIterator<URI> {
+	[Symbol.iterator](): SetIterator<URI> {
 		return this.keys();
 	}
 }
@@ -340,7 +340,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return item.value;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
 		const state = this._state;
 		let current = this._head;
 		while (current) {
@@ -356,14 +356,15 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		}
 	}
 
-	keys(): IterableIterator<K> {
+	keys(): MapIterator<K> {
 		const map = this;
 		const state = this._state;
 		let current = this._head;
-		const iterator: IterableIterator<K> = {
+		const iterator: MapIterator<K> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
+			[Symbol.dispose]() { /* no-op */ },
 			next(): IteratorResult<K> {
 				if (map._state !== state) {
 					throw new Error(`LinkedMap got modified during iteration.`);
@@ -380,14 +381,15 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return iterator;
 	}
 
-	values(): IterableIterator<V> {
+	values(): MapIterator<V> {
 		const map = this;
 		const state = this._state;
 		let current = this._head;
-		const iterator: IterableIterator<V> = {
+		const iterator: MapIterator<V> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
+			[Symbol.dispose]() { /* no-op */ },
 			next(): IteratorResult<V> {
 				if (map._state !== state) {
 					throw new Error(`LinkedMap got modified during iteration.`);
@@ -404,14 +406,15 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return iterator;
 	}
 
-	entries(): IterableIterator<[K, V]> {
+	entries(): MapIterator<[K, V]> {
 		const map = this;
 		const state = this._state;
 		let current = this._head;
-		const iterator: IterableIterator<[K, V]> = {
+		const iterator: MapIterator<[K, V]> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
+			[Symbol.dispose]() { /* no-op */ },
 			next(): IteratorResult<[K, V]> {
 				if (map._state !== state) {
 					throw new Error(`LinkedMap got modified during iteration.`);
@@ -428,7 +431,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		return iterator;
 	}
 
-	[Symbol.iterator](): IterableIterator<[K, V]> {
+	[Symbol.iterator](): MapIterator<[K, V]> {
 		return this.entries();
 	}
 
@@ -789,7 +792,7 @@ export class BidirectionalMap<K, V> {
 		return true;
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: BidirectionalMap<K, V>) => void, thisArg?: unknown): void {
 		this._m1.forEach((value, key) => {
 			callbackfn.call(thisArg, value, key, this);
 		});
@@ -894,10 +897,12 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 	public set(value: TValue, ...keys: [...TKeys]): void {
 		let currentMap = this._data;
 		for (let i = 0; i < keys.length - 1; i++) {
-			if (!currentMap.has(keys[i])) {
-				currentMap.set(keys[i], new Map());
+			let nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				nextMap = new Map();
+				currentMap.set(keys[i], nextMap);
 			}
-			currentMap = currentMap.get(keys[i]);
+			currentMap = nextMap;
 		}
 		currentMap.set(keys[keys.length - 1], value);
 	}
@@ -905,10 +910,11 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 	public get(...keys: [...TKeys]): TValue | undefined {
 		let currentMap = this._data;
 		for (let i = 0; i < keys.length - 1; i++) {
-			if (!currentMap.has(keys[i])) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
 				return undefined;
 			}
-			currentMap = currentMap.get(keys[i]);
+			currentMap = nextMap;
 		}
 		return currentMap.get(keys[keys.length - 1]);
 	}

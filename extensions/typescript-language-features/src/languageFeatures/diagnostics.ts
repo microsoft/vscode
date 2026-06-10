@@ -285,7 +285,7 @@ export class DiagnosticsManager extends Disposable {
 	private readonly _diagnostics: ResourceMap<FileDiagnostics>;
 	private readonly _settings = new DiagnosticSettings();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
-	private readonly _pendingUpdates: ResourceMap<any>;
+	private readonly _pendingUpdates: ResourceMap</* timeout */ any>;
 
 	private readonly _updateDelay = 50;
 

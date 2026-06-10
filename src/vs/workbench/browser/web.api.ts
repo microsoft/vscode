@@ -37,7 +37,7 @@ export interface IWorkbench {
 		 * @param rest Parameters passed to the command function.
 		 * @return A promise that resolves to the returned value of the given command.
 		 */
-		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+		executeCommand(command: string, ...args: unknown[]): Promise<unknown>;
 	};
 
 	logger: {
@@ -73,10 +73,10 @@ export interface IWorkbench {
 		retrievePerformanceMarks(): Promise<[string, readonly PerformanceMark[]][]>;
 
 		/**
-		 * Allows to open a `URI` with the standard opener service of the
+		 * Allows to open a target Uri with the standard opener service of the
 		 * workbench.
 		 */
-		openUri(target: URI): Promise<boolean>;
+		openUri(target: URI | UriComponents): Promise<boolean>;
 	};
 
 	window: {
@@ -198,6 +198,15 @@ export interface IWorkbenchConstructionOptions {
 	readonly tunnelProvider?: ITunnelProvider;
 
 	/**
+	 * A provider for discovering and connecting to dev tunnel agent hosts.
+	 *
+	 * The embedder (e.g. vscode.dev) implements this to handle tunnel listing
+	 * and relay WebSocket proxying. If not provided, the sessions workbench
+	 * will not be able to discover tunnel-based agent hosts.
+	 */
+	readonly tunnelDiscoveryProvider?: ITunnelDiscoveryProvider;
+
+	/**
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
 	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
@@ -296,7 +305,7 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
-	readonly configurationDefaults?: Record<string, any>;
+	readonly configurationDefaults?: Record<string, unknown>;
 
 	//#endregion
 
@@ -437,7 +446,7 @@ export type ExtensionId = string;
 export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
 
 export interface ICommonTelemetryPropertiesResolver {
-	(): { [key: string]: any };
+	(): { [key: string]: unknown };
 }
 
 export interface IExternalUriResolver {
@@ -472,6 +481,75 @@ export interface ITunnelProvider {
 	 * The features that the tunnel provider supports.
 	 */
 	features?: TunnelProviderFeatures;
+}
+
+/**
+ * Enables the embedder to provide tunnel discovery and connection for agent
+ * host sessions.
+ */
+export interface ITunnelDiscoveryProvider {
+
+	/**
+	 * List dev tunnels that have agent hosts available.
+	 *
+	 * The embedder is responsible for acquiring and managing authentication
+	 * tokens internally.
+	 *
+	 * @returns An array of discovered tunnels with their metadata.
+	 */
+	listTunnels(): Promise<IDiscoveredTunnel[]>;
+
+	/**
+	 * Connect to a tunnel's agent host port and return a message-passing
+	 * interface. The embedder handles all connection details including
+	 * authentication (e.g. using the Dev Tunnels SDK browser WebSocket
+	 * relay + SSH port forwarding).
+	 *
+	 * The returned {@link ITunnelConnection} carries JSON text messages
+	 * for the Agent Host Protocol.
+	 *
+	 * @param tunnelId The tunnel to connect to.
+	 * @param clusterId The cluster region of the tunnel.
+	 */
+	connect(tunnelId: string, clusterId: string): Promise<ITunnelConnection>;
+}
+
+/**
+ * A bidirectional message-passing connection to a tunnel's agent host.
+ * Returned by {@link ITunnelDiscoveryProvider.connect}.
+ */
+export interface ITunnelConnection {
+	/**
+	 * Send a text message to the agent host.
+	 */
+	send(data: string): void;
+
+	/**
+	 * Fires when a text message is received from the agent host.
+	 */
+	readonly onMessage: Event<string>;
+
+	/**
+	 * Fires when the connection is closed.
+	 */
+	readonly onClose: Event<void>;
+
+	/**
+	 * Close the connection and release resources.
+	 */
+	close(): void;
+}
+
+/**
+ * A tunnel discovered by {@link ITunnelDiscoveryProvider}.
+ */
+export interface IDiscoveredTunnel {
+	readonly tunnelId: string;
+	readonly clusterId: string;
+	readonly name: string;
+	readonly tags: readonly string[];
+	/** Number of hosts currently accepting connections (0 = offline). */
+	readonly hostConnectionCount: number;
 }
 
 export interface ITunnelFactory {
@@ -521,7 +599,7 @@ export interface ITunnel {
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
-	onDidDispose: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
 }
@@ -563,7 +641,7 @@ export interface ICommand {
 	 * Note: arguments and return type should be serializable so that they can
 	 * be exchanged across processes boundaries.
 	 */
-	handler: (...args: any[]) => unknown;
+	handler: (...args: unknown[]) => unknown;
 }
 
 export interface IWelcomeBanner {
@@ -755,6 +833,7 @@ export interface ISettingsSyncOptions {
 	 * Authentication provider
 	 */
 	readonly authenticationProvider?: {
+
 		/**
 		 * Unique identifier of the authentication provider.
 		 */
@@ -801,6 +880,7 @@ export interface IDevelopmentOptions {
  * when remote resolvers are used in the web.
  */
 export interface IRemoteResourceProvider {
+
 	/**
 	 * Path the workbench should delegate requests to. The embedder should
 	 * install a service worker on this path and emit {@link onDidReceiveRequest}
@@ -819,6 +899,7 @@ export interface IRemoteResourceProvider {
  * headers, but for now we only deal with GET requests.
  */
 export interface IRemoteResourceRequest {
+
 	/**
 	 * Request URI. Generally will begin with the current
 	 * origin and {@link IRemoteResourceProvider.pathPrefix}.

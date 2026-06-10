@@ -196,7 +196,7 @@ export class PortsAttributes extends Disposable {
 	private static HOST_AND_PORT = /^([a-z0-9\-]+):(\d{1,5})$/;
 	private portsAttributes: PortAttributes[] = [];
 	private defaultPortAttributes: Attributes | undefined;
-	private _onDidChangeAttributes = new Emitter<void>();
+	private _onDidChangeAttributes = this._register(new Emitter<void>());
 	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
 
 	constructor(private readonly configurationService: IConfigurationService) {
@@ -252,12 +252,12 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private hasStartEnd(value: number | PortRange | RegExp | HostAndPort): value is PortRange {
-		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
+		return (value as Partial<PortRange>).start !== undefined && (value as Partial<PortRange>).end !== undefined;
 	}
 
 	private hasHostAndPort(value: number | PortRange | RegExp | HostAndPort): value is HostAndPort {
-		return ((<any>value).host !== undefined) && ((<any>value).port !== undefined)
-			&& isString((<any>value).host) && isNumber((<any>value).port);
+		return ((value as Partial<HostAndPort>).host !== undefined) && ((value as Partial<HostAndPort>).port !== undefined)
+			&& isString((value as Partial<HostAndPort>).host) && isNumber((value as Partial<HostAndPort>).port);
 	}
 
 	private findNextIndex(port: number, host: string, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
@@ -292,7 +292,7 @@ export class PortsAttributes extends Disposable {
 			if (attributesKey === undefined) {
 				continue;
 			}
-			const setting = (<any>settingValue)[attributesKey];
+			const setting = (settingValue as Record<string, PortAttributes>)[attributesKey];
 			let key: number | PortRange | RegExp | HostAndPort | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
@@ -328,7 +328,7 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
-		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		const defaults = this.configurationService.getValue(PortsAttributes.DEFAULTS) as Partial<Attributes> | undefined;
 		if (defaults) {
 			this.defaultPortAttributes = {
 				elevateIfNeeded: defaults.elevateIfNeeded,
@@ -390,7 +390,7 @@ export class PortsAttributes extends Disposable {
 			newRemoteValue[`${port}`] = {};
 		}
 		for (const attribute in attributes) {
-			newRemoteValue[`${port}`][attribute] = (<any>attributes)[attribute];
+			newRemoteValue[`${port}`][attribute] = (attributes as Record<string, unknown>)[attribute];
 		}
 
 		return this.configurationService.updateValue(PortsAttributes.SETTING, newRemoteValue, target);
@@ -402,26 +402,26 @@ export class TunnelModel extends Disposable {
 	private readonly inProgress: Map<string, true> = new Map();
 	readonly detected: Map<string, Tunnel>;
 	private remoteTunnels: Map<string, RemoteTunnel>;
-	private _onForwardPort: Emitter<Tunnel | void> = new Emitter();
-	public onForwardPort: Event<Tunnel | void> = this._onForwardPort.event;
-	private _onClosePort: Emitter<{ host: string; port: number }> = new Emitter();
-	public onClosePort: Event<{ host: string; port: number }> = this._onClosePort.event;
-	private _onPortName: Emitter<{ host: string; port: number }> = new Emitter();
-	public onPortName: Event<{ host: string; port: number }> = this._onPortName.event;
+	private _onForwardPort = this._register(new Emitter<Tunnel | void>());
+	public onForwardPort = this._onForwardPort.event;
+	private _onClosePort = this._register(new Emitter<{ host: string; port: number }>());
+	public onClosePort = this._onClosePort.event;
+	private _onPortName = this._register(new Emitter<{ host: string; port: number }>());
+	public onPortName = this._onPortName.event;
 	private _candidates: Map<string, CandidatePort> | undefined;
-	private _onCandidatesChanged: Emitter<Map<string, { host: string; port: number }>> = new Emitter();
+	private _onCandidatesChanged = this._register(new Emitter<Map<string, { host: string; port: number }>>());
 	// onCandidateChanged returns the removed candidates
-	public onCandidatesChanged: Event<Map<string, { host: string; port: number }>> = this._onCandidatesChanged.event;
+	public onCandidatesChanged = this._onCandidatesChanged.event;
 	private _candidateFilter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined;
 	private tunnelRestoreValue: Promise<string | undefined>;
-	private _onEnvironmentTunnelsSet: Emitter<void> = new Emitter();
-	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
+	private _onEnvironmentTunnelsSet = this._register(new Emitter<void>());
+	public onEnvironmentTunnelsSet = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: DisposableStore | undefined = undefined;
 	private knownPortsRestoreValue: string | undefined;
 	private restoreComplete = false;
-	private onRestoreComplete: Emitter<void> = new Emitter();
+	private onRestoreComplete = this._register(new Emitter<void>());
 	private unrestoredExtensionTunnels: Map<string, RestorableTunnel> = new Map();
 	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 
@@ -542,8 +542,7 @@ export class TunnelModel extends Disposable {
 
 	private async onTunnelClosed(address: { host: string; port: number }, reason: TunnelCloseReason) {
 		const key = makeAddress(address.host, address.port);
-		if (this.forwarded.has(key)) {
-			this.forwarded.delete(key);
+		if (this.forwarded.delete(key)) {
 			await this.storeForwarded();
 			this._onClosePort.fire(address);
 		}
@@ -907,9 +906,7 @@ export class TunnelModel extends Disposable {
 				detail: value.detail,
 				pid: value.pid
 			});
-			if (removedCandidates.has(addressKey)) {
-				removedCandidates.delete(addressKey);
-			}
+			removedCandidates.delete(addressKey);
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = value.detail;

@@ -30,11 +30,11 @@ export const commonOptions: Fig.Option[] = [
 			'Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results',
 		args: [
 			{
-				name: 'path1',
+				name: 'file',
 				template: 'filepaths',
 			},
 			{
-				name: 'path2',
+				name: 'file',
 				template: 'filepaths',
 			},
 			{
@@ -50,6 +50,15 @@ export const commonOptions: Fig.Option[] = [
 	{
 		name: ['-a', '--add'],
 		description: 'Add folder(s) to the last active window',
+		args: {
+			name: 'folder',
+			template: 'folders',
+			isVariadic: true,
+		},
+	},
+	{
+		name: '--remove',
+		description: 'Remove folder(s) from the last active window',
 		args: {
 			name: 'folder',
 			template: 'folders',
@@ -129,12 +138,20 @@ export const commonOptions: Fig.Option[] = [
 		description:
 			'Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created. A folder or workspace must be provided for the profile to take effect',
 		args: {
-			name: 'settingsProfileName',
+			name: 'profileName',
 		},
 	},
 	{
 		name: ['-h', '--help'],
 		description: 'Print usage',
+	},
+	{
+		name: '--add-mcp',
+		description: 'Adds a Model Context Protocol server definition to the user profile. Accepts JSON input in the form {"name":"server-name","command":...}',
+		args: {
+			name: 'json',
+			description: 'JSON string for MCP server',
+		},
 	},
 	{
 		name: '--locate-shell-integration-path',
@@ -228,9 +245,18 @@ export const extensionManagementOptions = (cliName: string): Fig.Option[] => [
 		},
 	},
 	{
+		name: '--update-extensions',
+		description: 'Update the installed extensions',
+	},
+	{
 		name: '--enable-proposed-api',
 		description:
 			'Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually',
+		args: {
+			name: 'extension-id',
+			generators: createCodeGenerators(cliName),
+			isVariadic: true,
+		}
 	},
 ];
 
@@ -245,9 +271,11 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 	},
 	{
 		name: '--log',
-		description: `Log level to use. Default is 'info' when unspecified`,
+		description: `Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'. You can also configure the log level of an extension by passing extension id and log level in the following format: '{publisher}.{name}:{logLevel}'. For example: 'vscode.csharp:trace'. Can receive one or more such entries.`,
+		isRepeatable: true,
 		args: {
 			name: 'level',
+			description: 'Log level or \'publisher.name:logLevel\'',
 			default: 'info',
 			suggestions: [
 				'critical',
@@ -310,6 +338,14 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 		description: 'Disable GPU hardware acceleration',
 	},
 	{
+		name: '--disable-lcd-text',
+		description: 'Disable LCD font rendering',
+	},
+	{
+		name: '--disable-chromium-sandbox',
+		description: 'Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.',
+	},
+	{
 		name: '--max-memory',
 		description: 'Max memory size for a window (in Mbytes)',
 		args: {
@@ -321,11 +357,15 @@ export const troubleshootingOptions = (cliName: string): Fig.Option[] => [
 		name: '--telemetry',
 		description: 'Shows all telemetry events which VS code collects',
 	},
+	{
+		name: '--transient',
+		description: 'Run with temporary data and extension directories, as if launched for the first time.',
+	},
 ];
 
 export function createCodeGenerators(cliName: string): Fig.Generator {
 	return {
-		script: [cliName, '--list-extensions', '--show-versions'],
+		script: [cliName, '--list-extensions', '--show-versions', '--enable-proposed-api'],
 		postProcess: parseInstalledExtensions
 	};
 }
@@ -415,6 +455,68 @@ export const globalTunnelOptions: Fig.Option[] = [
 	},
 ];
 
+
+const agentHostOptions: Fig.Option[] = [
+	{
+		name: '--host',
+		description: 'Host the agent host should bind on. Defaults to \'localhost\'',
+		args: { name: 'host' },
+	},
+	{
+		name: '--port',
+		description: 'Port the agent host should bind on. If 0 the OS picks a free ephemeral port',
+		args: { name: 'port' },
+	},
+	{
+		name: '--connection-token',
+		description: 'A secret that must be included with all requests',
+		args: { name: 'connection_token' },
+	},
+	{
+		name: '--connection-token-file',
+		description: 'A file containing a secret that must be included with all requests',
+		args: { name: 'connection_token_file' },
+	},
+	{
+		name: '--without-connection-token',
+		description: 'Run without a connection token. Only use this if the connection is secured by other means',
+	},
+	{
+		name: '--server-data-dir',
+		description: 'Specifies the directory that server data is kept in',
+		args: { name: 'server_data_dir' },
+	},
+	{
+		name: '--replace',
+		description: 'Stop any agent host already running on this machine and start a fresh one',
+	},
+	{
+		name: '--tunnel',
+		description: 'Expose the agent host over a dev tunnel',
+	},
+	{
+		name: '--name',
+		description: 'Sets the machine name for the tunnel',
+		args: { name: 'name' },
+	},
+	{
+		name: '--random-name',
+		description: 'Randomly name the machine for the tunnel',
+	},
+];
+
+const agentConnectionOptions: Fig.Option[] = [
+	{
+		name: '--address',
+		description: 'WebSocket address of a running agent host (e.g. ws://127.0.0.1:1234?tkn=secret). If omitted, the CLI discovers a locally running agent host automatically',
+		args: { name: 'address' },
+	},
+	{
+		name: '--tunnel',
+		description: 'Connect via a named dev tunnel instead of the local address',
+		args: { name: 'tunnel' },
+	},
+];
 
 export const codeTunnelOptions = [
 	{
@@ -513,7 +615,7 @@ export const extTunnelSubcommand = {
 };
 
 
-export const codeTunnelSubcommands = [
+export const codeTunnelSubcommands: Fig.Subcommand[] = [
 	{
 		name: 'tunnel',
 		description: 'Create a tunnel that\'s accessible on vscode.dev from anywhere. Run`code tunnel --help` for more usage info',
@@ -762,9 +864,117 @@ export const codeTunnelSubcommands = [
 		],
 	},
 	{
+		name: 'chat',
+		description: 'Pass in a prompt to run in a chat session in the current working directory.',
+		args: {
+			name: 'prompt',
+			description: 'The prompt to use as chat',
+			isVariadic: true,
+			isOptional: true,
+		},
+		options: [
+			{
+				name: ['-m', '--mode'],
+				description: 'The mode to use for the chat session. Available options: \'ask\', \'edit\', \'agent\', or the identifier of a custom mode. Defaults to \'agent\'',
+				args: {
+					name: 'mode',
+					suggestions: ['agent', 'ask', 'edit'],
+				},
+			},
+			{
+				name: ['-a', '--add-file'],
+				description: 'Add files as context to the chat session',
+				isRepeatable: true,
+				args: {
+					name: 'file',
+					template: 'filepaths',
+				},
+			},
+			{
+				name: ['--maximize'],
+				description: 'Maximize the chat session view.',
+			},
+			{
+				name: ['-r', '--reuse-window'],
+				description: 'Force to use the last active window for the chat session',
+			},
+			{
+				name: ['-n', '--new-window'],
+				description: 'Force to open an empty window for the chat session',
+			},
+			{
+				name: ['-h', '--help'],
+				description: 'Print usage',
+			},
+		],
+	},
+	{
 		name: 'status',
 		description: 'Print process usage and diagnostics information',
 		options: [...globalTunnelOptions, ...tunnelHelpOptions],
+	},
+	{
+		name: 'agent',
+		description: 'Manage agent host sessions',
+		subcommands: [
+			{
+				name: 'host',
+				description: 'Start a local agent host server',
+				options: [...agentHostOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'ps',
+				description: 'List active sessions on a running agent host',
+				options: [
+					...agentConnectionOptions,
+					{
+						name: '--json',
+						description: 'Output results as JSON instead of a human-readable table',
+					},
+					{
+						name: ['-a', '--all'],
+						description: 'Show all sessions, including idle and archived ones',
+					},
+					...globalTunnelOptions, ...tunnelHelpOptions,
+				],
+			},
+			{
+				name: 'stop',
+				description: 'Cancel the active turn of a session',
+				args: {
+					name: 'session',
+					description: 'Session URI to cancel the active turn of (e.g. copilot:/<uuid>)',
+				},
+				options: [...agentConnectionOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'kill',
+				description: 'Forcefully kill the running agent host process tree',
+				options: [...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'logs',
+				description: 'Stream live session events',
+				args: {
+					name: 'session',
+					description: 'Session URI to stream events for (e.g. copilot:/<uuid>)',
+				},
+				options: [...agentConnectionOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
+			},
+			{
+				name: 'help',
+				description: 'Print this message or the help of the given subcommand(s)',
+				subcommands: [
+					{ name: 'host', description: 'Start a local agent host server' },
+					{ name: 'ps', description: 'List active sessions on a running agent host' },
+					{ name: 'stop', description: 'Cancel the active turn of a session' },
+					{ name: 'kill', description: 'Forcefully kill the running agent host process tree' },
+					{ name: 'logs', description: 'Stream live session events' },
+					{ name: 'help', description: 'Print this message or the help of the given subcommand(s)' },
+				],
+			},
+		],
+		options: [...agentHostOptions, ...globalTunnelOptions, ...tunnelHelpOptions],
 	},
 	{
 		name: 'version',
@@ -917,6 +1127,10 @@ export const codeTunnelSubcommands = [
 					}
 				],
 			},
+			{
+				name: 'chat',
+				description: 'Pass in a prompt to run in a chat session in the current working directory.',
+			},
 			extTunnelSubcommand,
 			{
 				name: 'status',
@@ -939,6 +1153,17 @@ export const codeTunnelSubcommands = [
 			{
 				name: 'serve-web',
 				description: 'Runs a local web version of Code - OSS',
+			},
+			{
+				name: 'agent',
+				description: 'Manage agent host sessions',
+				subcommands: [
+					{ name: 'host', description: 'Start a local agent host server' },
+					{ name: 'ps', description: 'List active sessions on a running agent host' },
+					{ name: 'stop', description: 'Cancel the active turn of a session' },
+					{ name: 'kill', description: 'Forcefully kill the running agent host process tree' },
+					{ name: 'logs', description: 'Stream live session events' },
+				],
 			},
 			{
 				name: 'command-shell',

@@ -7,9 +7,9 @@ import * as arrays from '../../../base/common/arrays.js';
 import { readUInt32BE, writeUInt32BE } from '../../../base/common/buffer.js';
 import { Position } from '../core/position.js';
 import { IRange } from '../core/range.js';
-import { countEOL } from '../core/eolCounter.js';
+import { countEOL } from '../core/misc/eolCounter.js';
 import { ContiguousTokensEditing } from './contiguousTokensEditing.js';
-import { LineRange } from '../core/lineRange.js';
+import { LineRange } from '../core/ranges/lineRange.js';
 
 /**
  * Represents contiguous tokens over a contiguous range of lines.

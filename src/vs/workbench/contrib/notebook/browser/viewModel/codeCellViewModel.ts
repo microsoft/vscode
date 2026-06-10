@@ -177,7 +177,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
-
+		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
@@ -197,7 +197,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			outputIndicatorHeight: 0,
 			bottomToolbarOffset: 0,
 			layoutState: CellLayoutState.Uninitialized,
-			estimatedHasHorizontalScrolling: false
+			estimatedHasHorizontalScrolling: false,
+			outlineWidth: 1,
+			topMargin: layoutConfiguration.cellTopMargin,
+			bottomMargin: layoutConfiguration.cellBottomMargin,
 		};
 	}
 
@@ -296,7 +299,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputIndicatorHeight,
 				bottomToolbarOffset,
 				layoutState: newState,
-				estimatedHasHorizontalScrolling: hasHorizontalScrolling
+				estimatedHasHorizontalScrolling: hasHorizontalScrolling,
+				topMargin: notebookLayoutConfiguration.cellTopMargin,
+				bottomMargin: notebookLayoutConfiguration.cellBottomMargin,
+				outlineWidth: 1
 			};
 		} else {
 			const codeIndicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight;
@@ -338,7 +344,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				outputIndicatorHeight,
 				bottomToolbarOffset,
 				layoutState: this._layoutInfo.layoutState,
-				estimatedHasHorizontalScrolling: false
+				estimatedHasHorizontalScrolling: false,
+				outlineWidth: 1,
+				topMargin: notebookLayoutConfiguration.cellTopMargin,
+				bottomMargin: notebookLayoutConfiguration.cellBottomMargin,
 			};
 		}
 

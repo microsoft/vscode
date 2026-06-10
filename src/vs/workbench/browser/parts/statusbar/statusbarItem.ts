@@ -15,7 +15,7 @@ import { ThemeColor } from '../../../../base/common/themables.js';
 import { isThemeColor } from '../../../../editor/common/editorCommon.js';
 import { addDisposableListener, EventType, hide, show, append, EventHelper, $ } from '../../../../base/browser/dom.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Command } from '../../../../editor/common/languages.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -46,7 +46,7 @@ export class StatusbarEntryItem extends Disposable {
 	readonly beakContainer: HTMLElement;
 
 	get name(): string {
-		return assertIsDefined(this.entry).name;
+		return assertReturnsDefined(this.entry).name;
 	}
 
 	get hasCommand(): boolean {
@@ -79,6 +79,10 @@ export class StatusbarEntryItem extends Disposable {
 		// Beak Container
 		this.beakContainer = $('.status-bar-item-beak-container');
 		this.container.appendChild(this.beakContainer);
+
+		if (entry.content) {
+			this.container.appendChild(entry.content);
+		}
 
 		this.update(entry);
 	}
@@ -282,7 +286,7 @@ export class StatusbarEntryItem extends Disposable {
 
 class StatusBarCodiconLabel extends SimpleIconLabel {
 
-	private progressCodicon = renderIcon(syncing);
+	private progressCodicon: HTMLElement | undefined;
 
 	private currentText = '';
 	private currentShowProgress: boolean | 'loading' | 'syncing' = false;
@@ -296,7 +300,9 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 	set showProgress(showProgress: boolean | 'loading' | 'syncing') {
 		if (this.currentShowProgress !== showProgress) {
 			this.currentShowProgress = showProgress;
-			this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
+			if (showProgress) {
+				this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
+			}
 			this.text = this.currentText;
 		}
 	}
@@ -305,7 +311,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 
 		// Progress: insert progress codicon as first element as needed
 		// but keep it stable so that the animation does not reset
-		if (this.currentShowProgress) {
+		if (this.currentShowProgress && this.progressCodicon) {
 
 			// Append as needed
 			if (this.container.firstChild !== this.progressCodicon) {

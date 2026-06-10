@@ -37,6 +37,7 @@ const $ = DOM.$;
 interface IMarkerIconColumnTemplateData {
 	readonly icon: HTMLElement;
 	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
 }
 
 interface IMarkerCodeColumnTemplateData {
@@ -79,10 +80,12 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			actionViewItemProvider: (action: IAction, options) => action.id === QuickFixAction.ID ? this.instantiationService.createInstance(QuickFixActionViewItem, <QuickFixAction>action, options) : undefined
 		});
 
-		return { actionBar, icon };
+		return { actionBar, icon, elementDisposables: new DisposableStore() };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.clear();
+
 		const toggleQuickFix = (enabled?: boolean) => {
 			if (!isUndefinedOrNull(enabled)) {
 				const container = DOM.findParentWithClass(templateData.icon, 'monaco-table-td')!;
@@ -100,17 +103,20 @@ class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IM
 			templateData.actionBar.push([quickFixAction], { icon: true, label: false });
 			toggleQuickFix(viewModel.quickFixAction.enabled);
 
-			quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled));
-			quickFixAction.onShowQuickFixes(() => {
+			templateData.elementDisposables.add(quickFixAction.onDidChange(({ enabled }) => toggleQuickFix(enabled)));
+			templateData.elementDisposables.add(quickFixAction.onShowQuickFixes(() => {
 				const quickFixActionViewItem = <QuickFixActionViewItem>templateData.actionBar.viewItems[0];
 				if (quickFixActionViewItem) {
 					quickFixActionViewItem.showQuickFixes();
 				}
-			});
+			}));
 		}
 	}
 
-	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void { }
+	disposeTemplate(templateData: IMarkerIconColumnTemplateData): void {
+		templateData.elementDisposables.dispose();
+		templateData.actionBar.dispose();
+	}
 }
 
 class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerCodeColumnTemplateData> {
@@ -138,7 +144,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposable };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerCodeColumnTemplateData): void {
 		templateData.codeColumn.classList.remove('code-label');
 		templateData.codeColumn.classList.remove('code-link');
 
@@ -186,7 +192,7 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
 		templateData.columnElement.title = element.marker.message;
 		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
 	}
@@ -216,7 +222,7 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		return { columnElement, fileLabel, positionLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerFileColumnTemplateData): void {
 		const positionLabel = Messages.MARKERS_PANEL_AT_LINE_COL_NUMBER(element.marker.startLineNumber, element.marker.startColumn);
 
 		templateData.columnElement.title = `${this.labelService.getUriLabel(element.marker.resource, { relative: false })} ${positionLabel}`;
@@ -242,7 +248,7 @@ class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMar
 		return { columnElement, highlightedLabel };
 	}
 
-	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
+	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData): void {
 		templateData.columnElement.title = element.marker.source ?? '';
 		templateData.highlightedLabel.set(element.marker.source ?? '', element.sourceMatches);
 	}
@@ -252,12 +258,12 @@ class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMar
 	}
 }
 
-class MarkersTableVirtualDelegate implements ITableVirtualDelegate<any> {
+class MarkersTableVirtualDelegate implements ITableVirtualDelegate<MarkerTableItem> {
 	static readonly HEADER_ROW_HEIGHT = 24;
 	static readonly ROW_HEIGHT = 24;
 	readonly headerRowHeight = MarkersTableVirtualDelegate.HEADER_ROW_HEIGHT;
 
-	getHeight(item: any) {
+	getHeight(item: MarkerTableItem) {
 		return MarkersTableVirtualDelegate.ROW_HEIGHT;
 	}
 }
@@ -335,12 +341,13 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 			options
 		) as WorkbenchTable<MarkerTableItem>;
 
+		// eslint-disable-next-line no-restricted-syntax
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
 		// mouseover/mouseleave event handlers
 		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
 			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
-				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
+				.filter<HTMLElement>(e => !!e)
 				.map(e => parseInt(e.getAttribute('data-index')!))
 		);
 
@@ -445,6 +452,11 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 					this.filterOptions.showInfos && MarkerSeverity.Info === marker.marker.severity;
 
 				if (!matchesSeverity) {
+					continue;
+				}
+
+				// Source filters
+				if (!this.filterOptions.matchesSourceFilters(marker.marker.source)) {
 					continue;
 				}
 

@@ -12,10 +12,11 @@ import { UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import type { EditorWorker } from './editorWebWorker.js';
 import { SectionHeader, FindSectionHeaderOptions } from './findSectionHeaders.js';
+import { StringEdit } from '../core/edits/stringEdit.js';
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
-export type DiffAlgorithmName = 'legacy' | 'advanced';
+export type DiffAlgorithmName = 'legacy' | 'advanced' | 'advanced-external' | 'advanced-wasm';
 
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
@@ -31,6 +32,8 @@ export interface IEditorWorkerService {
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
 	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
+
+	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;

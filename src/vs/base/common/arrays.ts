@@ -109,7 +109,16 @@ export function binarySearch2(length: number, compareToKey: (index: number) => n
 
 type Compare<T> = (a: T, b: T) => number;
 
-
+/**
+ * Finds the nth smallest element in the array using quickselect algorithm.
+ * The data does not need to be sorted.
+ *
+ * @param nth The zero-based index of the element to find (0 = smallest, 1 = second smallest, etc.)
+ * @param data The unsorted array
+ * @param compare A comparator function that defines the sort order
+ * @returns The nth smallest element
+ * @throws TypeError if nth is >= data.length
+ */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
 	nth = nth | 0;
@@ -191,6 +200,10 @@ export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, ele
 	for (let i = 0; i < arr.length; i++) {
 		f(i === 0 ? undefined : arr[i - 1], arr[i], i + 1 === arr.length ? undefined : arr[i + 1]);
 	}
+}
+
+export function concatArrays<T extends any[]>(...arrays: T): T[number][number][] {
+	return [].concat(...arrays);
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -368,7 +381,7 @@ export function move(array: unknown[], from: number, to: number): void {
 /**
  * @returns false if the provided object is an array and not empty.
  */
-export function isFalsyOrEmpty(obj: any): boolean {
+export function isFalsyOrEmpty(obj: unknown): boolean {
 	return !Array.isArray(obj) || obj.length === 0;
 }
 
@@ -389,7 +402,7 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknow
 	const seen = new Set<any>();
 
 	return array.filter(element => {
-		const key = keyFn!(element);
+		const key = keyFn(element);
 		if (seen.has(key)) {
 			return false;
 		}
@@ -559,6 +572,22 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 		fn(items);
 }
 
+export function mapFilter<T, U>(array: ReadonlyArray<T>, fn: (t: T) => U | undefined): U[] {
+	const result: U[] = [];
+	for (const item of array) {
+		const mapped = fn(item);
+		if (mapped !== undefined) {
+			result.push(mapped);
+		}
+	}
+	return result;
+}
+
+export function withoutDuplicates<T>(array: ReadonlyArray<T>): T[] {
+	const s = new Set(array);
+	return Array.from(s);
+}
+
 export function asArray<T>(x: T | T[]): T[];
 export function asArray<T>(x: T | readonly T[]): readonly T[];
 export function asArray<T>(x: T | T[]): T[] {
@@ -620,35 +649,7 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 	return start < 0 ? Math.max(start + array.length, 0) : Math.min(start, array.length);
 }
 
-/**
- * Utility that helps to pick a property from an object.
- *
- * ## Examples
- *
- * ```typescript
- * interface IObject = {
- *   a: number,
- *   b: string,
- * };
- *
- * const list: IObject[] = [
- *   { a: 1, b: 'foo' },
- *   { a: 2, b: 'bar' },
- * ];
- *
- * assert.deepStrictEqual(
- *   list.map(pick('a')),
- *   [1, 2],
- * );
- * ```
- */
-export const pick = <TObject, TKeyName extends keyof TObject>(
-	key: TKeyName,
-) => {
-	return (obj: TObject): TObject[TKeyName] => {
-		return obj[key];
-	};
-};
+
 
 /**
  * When comparing two values,
@@ -937,4 +938,12 @@ export async function findAsync<T>(array: readonly T[], predicate: (element: T, 
 	));
 
 	return results.find(r => r.ok)?.element;
+}
+
+export function sum(array: readonly number[]): number {
+	return array.reduce((acc, value) => acc + value, 0);
+}
+
+export function sumBy<T>(array: readonly T[], selector: (value: T) => number): number {
+	return array.reduce((acc, value) => acc + selector(value), 0);
 }

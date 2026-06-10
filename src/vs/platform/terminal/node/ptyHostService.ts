@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -13,7 +13,7 @@ import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { RequestStore } from '../common/requestStore.js';
-import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
+import { HeartbeatConstants, IHeartbeatService, ITerminalLaunchResult, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IPtyHostLatencyMeasurement, IPtyHostService, IPtyService, IRequestResolveVariablesEvent, ISerializedTerminalState, IShellLaunchConfig, ITerminalLaunchError, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ProcessPropertyType, TerminalIcon, TerminalIpcChannels, TerminalSettingId, TitleEventSource } from '../common/terminal.js';
 import { registerTerminalPlatformConfiguration } from '../common/terminalPlatformConfiguration.js';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from '../common/terminalProcess.js';
 import { IPtyHostConnection, IPtyHostStarter } from './ptyHost.js';
@@ -37,10 +37,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private __proxy?: IPtyService;
 
-	private get _connection(): IPtyHostConnection {
-		this._ensurePtyHost();
-		return this.__connection!;
-	}
 	private get _proxy(): IPtyService {
 		this._ensurePtyHost();
 		return this.__proxy!;
@@ -63,8 +59,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	private _wasQuitRequested = false;
 	private _restartCount = 0;
 	private _isResponsive = true;
-	private _heartbeatFirstTimeout?: NodeJS.Timeout;
-	private _heartbeatSecondTimeout?: NodeJS.Timeout;
+	private _heartbeatFirstTimeout?: Timeout;
+	private _heartbeatSecondTimeout?: Timeout;
 
 	private readonly _onPtyHostExit = this._register(new Emitter<number>());
 	readonly onPtyHostExit = this._onPtyHostExit.event;
@@ -87,10 +83,12 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 	private readonly _onDidRequestDetach = this._register(new Emitter<{ requestId: number; workspaceId: string; instanceId: number }>());
 	readonly onDidRequestDetach = this._onDidRequestDetach.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty<any> }>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<{ id: number; property: IProcessProperty }>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
+
+	private readonly _ptyHostStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _ptyHostStarter: IPtyHostStarter,
@@ -142,9 +140,12 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		}
 	}
 
-	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
+	private _startPtyHost(): void {
 		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
+		const store = this._ptyHostStore;
+		// Transfer ownership of the per-host connection store so it is disposed together with the listeners below on the next restart.
+		store.add(connection.store);
 
 		// Log a full stack trace which will tell the exact reason the pty host is starting up
 		if (this._logService.getLevel() === LogLevel.Trace) {
@@ -153,11 +154,11 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
-		heartbeatService.onBeat(() => this._handleHeartbeat());
+		store.add(heartbeatService.onBeat(() => this._handleHeartbeat()));
 		this._handleHeartbeat(true);
 
 		// Handle exit
-		this._register(connection.onDidProcessExit(e => {
+		store.add(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._wasQuitRequested && !this._store.isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -172,29 +173,27 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
-		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
-		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
-		this._register(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
-		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
-		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
-		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
+		store.add(proxy.onProcessData(e => this._onProcessData.fire(e)));
+		store.add(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
+		store.add(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
+		store.add(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
+		store.add(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+		store.add(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
+		store.add(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
-		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
+		store.add(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		this.__connection = connection;
 		this.__proxy = proxy;
 
 		this._onPtyHostStart.fire();
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+		store.add(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
 				await this._refreshIgnoreProcessNames();
 			}
 		}));
 		this._refreshIgnoreProcessNames();
-
-		return [connection, proxy];
 	}
 
 	async createProcess(
@@ -239,7 +238,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	async reduceConnectionGraceTime(): Promise<void> {
 		return this._optionalProxy?.reduceConnectionGraceTime();
 	}
-	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
@@ -248,11 +247,14 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	input(id: number, data: string): Promise<void> {
 		return this._proxy.input(id, data);
 	}
+	sendSignal(id: number, signal: string): Promise<void> {
+		return this._proxy.sendSignal(id, signal);
+	}
 	processBinary(id: number, data: string): Promise<void> {
 		return this._proxy.processBinary(id, data);
 	}
-	resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._proxy.resize(id, cols, rows);
+	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void> {
+		return this._proxy.resize(id, cols, rows, pixelWidth, pixelHeight);
 	}
 	clearBuffer(id: number): Promise<void> {
 		return this._proxy.clearBuffer(id);
@@ -262,6 +264,9 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void> {
 		return this._proxy.setUnicodeVersion(id, version);
+	}
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		return this._proxy.setNextCommandId(id, commandLine, commandId);
 	}
 	getInitialCwd(id: number): Promise<string> {
 		return this._proxy.getInitialCwd(id);
@@ -363,8 +368,15 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	}
 
 	private _disposePtyHost(): void {
-		this._proxy.shutdownAll();
-		this._connection.store.dispose();
+		// Heartbeat timers are bare setTimeout handles, not disposables in the store, so they need an explicit clear.
+		// shutdownAll() is fired before clearing the store so any in-flight exit listener still has a live proxy to read from;
+		// the per-host listener store is cleared last so the on-exit signal isn't dropped on the floor.
+		this._clearHeartbeatTimeouts();
+		// Fire-and-forget: the IPC channel may already be gone; swallow rejections so we don't surface an unhandled promise.
+		this._optionalProxy?.shutdownAll().catch(() => { });
+		this.__connection = undefined;
+		this.__proxy = undefined;
+		this._ptyHostStore.clear();
 	}
 
 	private _handleHeartbeat(isConnecting?: boolean) {

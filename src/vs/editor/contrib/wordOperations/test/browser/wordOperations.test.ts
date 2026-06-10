@@ -112,8 +112,8 @@ suite('WordOperations', () => {
 	function deleteWordEndRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordEndRight);
 	}
-	function deleteInsideWord(editor: ICodeEditor): void {
-		_deleteInsideWord.run(null!, editor, null);
+	function deleteInsideWord(editor: ICodeEditor, args?: unknown): void {
+		_deleteInsideWord.run(null!, editor, args);
 	}
 
 	test('cursorWordLeft - simple', () => {
@@ -319,7 +319,7 @@ suite('WordOperations', () => {
 
 			assert.strictEqual(editor.getValue(), 'foo qbar baz');
 
-			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			editor.runCommand(CoreEditingCommands.Undo, null);
 			assert.strictEqual(editor.getValue(), 'foo bar baz');
 		});
 	});
@@ -1001,6 +1001,28 @@ suite('WordOperations', () => {
 			assert.strictEqual(model.getValue(), '');
 			deleteInsideWord(editor);
 			assert.strictEqual(model.getValue(), '');
+		});
+	});
+
+	test('deleteInsideWord - onlyWord: does not delete whitespace before last word', () => {
+		withTestCodeEditor([
+			'hello world'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 9));
+			deleteInsideWord(editor, { onlyWord: true });
+			assert.strictEqual(model.getValue(), 'hello ');
+		});
+	});
+
+	test('deleteInsideWord - onlyWord: deletes just the word (leaves double spaces)', () => {
+		withTestCodeEditor([
+			'This is interesting'
+		], {}, (editor, _) => {
+			const model = editor.getModel()!;
+			editor.setPosition(new Position(1, 7));
+			deleteInsideWord(editor, { onlyWord: true });
+			assert.strictEqual(model.getValue(), 'This  interesting');
 		});
 	});
 });

@@ -84,7 +84,7 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 		}
 
 		if (fileEventImpactsUs && this.orphaned !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
+			let newInOrphanModeValidated = false;
 			if (newInOrphanModeGuess) {
 
 				// We have received reports of users seeing delete events even though the file still

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions revision="1.1" schemaVersion="1.0">
+	<policyNamespaces>
+		<target prefix="CodeOSS" namespace="Microsoft.Policies.CodeOSS" />
+	</policyNamespaces>
+	<resources minRequiredRevision="1.0" />
+	<supportedOn>
+		<definitions>
+			<definition name="Supported_1_101" displayName="$(string.Supported_1_101)" />
+			<definition name="Supported_1_104" displayName="$(string.Supported_1_104)" />
+			<definition name="Supported_1_67" displayName="$(string.Supported_1_67)" />
+			<definition name="Supported_1_96" displayName="$(string.Supported_1_96)" />
+			<definition name="Supported_1_99" displayName="$(string.Supported_1_99)" />
+		</definitions>
+	</supportedOn>
+	<categories>
+		<category displayName="$(string.Application)" name="Application" />
+		<category displayName="$(string.Category_interactiveSessionConfigurationTitle)" name="interactiveSessionConfigurationTitle"><parentCategory ref="Application" /></category>
+		<category displayName="$(string.Category_extensionsConfigurationTitle)" name="extensionsConfigurationTitle"><parentCategory ref="Application" /></category>
+		<category displayName="$(string.Category_terminalIntegratedConfigurationTitle)" name="terminalIntegratedConfigurationTitle"><parentCategory ref="Application" /></category>
+		<category displayName="$(string.Category_telemetryConfigurationTitle)" name="telemetryConfigurationTitle"><parentCategory ref="Application" /></category>
+		<category displayName="$(string.Category_updateConfigurationTitle)" name="updateConfigurationTitle"><parentCategory ref="Application" /></category>
+	</categories>
+	<policies>
+		<policy name="ChatAgentExtensionTools" class="Both" displayName="$(string.ChatAgentExtensionTools)" explainText="$(string.ChatAgentExtensionTools_chat_extensionToolsEnabled)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatAgentExtensionTools)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<boolean id="ChatAgentExtensionTools" valueName="ChatAgentExtensionTools">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="ChatAgentMode" class="Both" displayName="$(string.ChatAgentMode)" explainText="$(string.ChatAgentMode_chat_agent_enabled_description)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatAgentMode)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<boolean id="ChatAgentMode" valueName="ChatAgentMode">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="ChatMCP" class="Both" displayName="$(string.ChatMCP)" explainText="$(string.ChatMCP_chat_mcp_access)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatMCP)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<enum id="ChatMCP" valueName="ChatMCP">
+			<item displayName="$(string.ChatMCP_chat_mcp_access_none)"><value><string>none</string></value></item>
+			<item displayName="$(string.ChatMCP_chat_mcp_access_registry)"><value><string>registry</string></value></item>
+			<item displayName="$(string.ChatMCP_chat_mcp_access_any)"><value><string>all</string></value></item>
+		</enum>
+			</elements>
+		</policy>
+		<policy name="ChatPromptFiles" class="Both" displayName="$(string.ChatPromptFiles)" explainText="$(string.ChatPromptFiles_chat_promptFiles_policy)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatPromptFiles)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<boolean id="ChatPromptFiles" valueName="ChatPromptFiles">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="ChatToolsAutoApprove" class="Both" displayName="$(string.ChatToolsAutoApprove)" explainText="$(string.ChatToolsAutoApprove_autoApprove2_description)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatToolsAutoApprove)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<boolean id="ChatToolsAutoApprove" valueName="ChatToolsAutoApprove">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="McpGalleryServiceUrl" class="Both" displayName="$(string.McpGalleryServiceUrl)" explainText="$(string.McpGalleryServiceUrl_mcp_gallery_serviceUrl)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.McpGalleryServiceUrl)">
+			<parentCategory ref="interactiveSessionConfigurationTitle" />
+			<supportedOn ref="Supported_1_101" />
+			<elements>
+		<text id="McpGalleryServiceUrl" valueName="McpGalleryServiceUrl" required="true" />
+			</elements>
+		</policy>
+		<policy name="AllowedExtensions" class="Both" displayName="$(string.AllowedExtensions)" explainText="$(string.AllowedExtensions_extensions_allowed_policy)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.AllowedExtensions)">
+			<parentCategory ref="extensionsConfigurationTitle" />
+			<supportedOn ref="Supported_1_96" />
+			<elements>
+		<multiText id="AllowedExtensions" valueName="AllowedExtensions" required="true" />
+			</elements>
+		</policy>
+		<policy name="ExtensionGalleryServiceUrl" class="Both" displayName="$(string.ExtensionGalleryServiceUrl)" explainText="$(string.ExtensionGalleryServiceUrl_extensions_gallery_serviceUrl)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ExtensionGalleryServiceUrl)">
+			<parentCategory ref="extensionsConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<text id="ExtensionGalleryServiceUrl" valueName="ExtensionGalleryServiceUrl" required="true" />
+			</elements>
+		</policy>
+		<policy name="ChatToolsTerminalEnableAutoApprove" class="Both" displayName="$(string.ChatToolsTerminalEnableAutoApprove)" explainText="$(string.ChatToolsTerminalEnableAutoApprove_autoApproveMode_description)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.ChatToolsTerminalEnableAutoApprove)">
+			<parentCategory ref="terminalIntegratedConfigurationTitle" />
+			<supportedOn ref="Supported_1_104" />
+			<elements>
+		<boolean id="ChatToolsTerminalEnableAutoApprove" valueName="ChatToolsTerminalEnableAutoApprove">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="EnableFeedback" class="Both" displayName="$(string.EnableFeedback)" explainText="$(string.EnableFeedback_telemetry_feedback_enabled)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.EnableFeedback)">
+			<parentCategory ref="telemetryConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<boolean id="EnableFeedback" valueName="EnableFeedback">
+			<trueValue><decimal value="1" /></trueValue><falseValue><decimal value="0" /></falseValue>
+		</boolean>
+			</elements>
+		</policy>
+		<policy name="TelemetryLevel" class="Both" displayName="$(string.TelemetryLevel)" explainText="$(string.TelemetryLevel_telemetry_telemetryLevel_policyDescription)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.TelemetryLevel)">
+			<parentCategory ref="telemetryConfigurationTitle" />
+			<supportedOn ref="Supported_1_99" />
+			<elements>
+		<enum id="TelemetryLevel" valueName="TelemetryLevel">
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_default)"><value><string>all</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_error)"><value><string>error</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_crash)"><value><string>crash</string></value></item>
+			<item displayName="$(string.TelemetryLevel_telemetry_telemetryLevel_off)"><value><string>off</string></value></item>
+		</enum>
+			</elements>
+		</policy>
+		<policy name="UpdateMode" class="Both" displayName="$(string.UpdateMode)" explainText="$(string.UpdateMode_updateMode)" key="Software\Policies\Microsoft\CodeOSS" presentation="$(presentation.UpdateMode)">
+			<parentCategory ref="updateConfigurationTitle" />
+			<supportedOn ref="Supported_1_67" />
+			<elements>
+		<enum id="UpdateMode" valueName="UpdateMode">
+			<item displayName="$(string.UpdateMode_none)"><value><string>none</string></value></item>
+			<item displayName="$(string.UpdateMode_manual)"><value><string>manual</string></value></item>
+			<item displayName="$(string.UpdateMode_start)"><value><string>start</string></value></item>
+			<item displayName="$(string.UpdateMode_default)"><value><string>default</string></value></item>
+		</enum>
+			</elements>
+		</policy>
+	</policies>
+</policyDefinitions>

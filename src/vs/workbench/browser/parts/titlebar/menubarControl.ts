@@ -5,8 +5,8 @@
 
 import './media/menubarControl.css';
 import { localize, localize2 } from '../../../../nls.js';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, hasNativeTitlebar, TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from '../../../../base/common/actions.js';
 import { addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
@@ -33,7 +33,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IsMacNativeContext, IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { OpenRecentAction } from '../../actions/windowActions.js';
@@ -45,91 +45,10 @@ import { ActivityBarPosition } from '../../../services/layout/browser/layoutServ
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarFileMenu,
-	title: {
-		value: 'File',
-		original: 'File',
-		mnemonicTitle: localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
-	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarEditMenu,
-	title: {
-		value: 'Edit',
-		original: 'Edit',
-		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")
-	},
-	order: 2
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarSelectionMenu,
-	title: {
-		value: 'Selection',
-		original: 'Selection',
-		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")
-	},
-	order: 3
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarViewMenu,
-	title: {
-		value: 'View',
-		original: 'View',
-		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")
-	},
-	order: 4
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarGoMenu,
-	title: {
-		value: 'Go',
-		original: 'Go',
-		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")
-	},
-	order: 5
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarTerminalMenu,
-	title: {
-		value: 'Terminal',
-		original: 'Terminal',
-		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
-	},
-	order: 7
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarHelpMenu,
-	title: {
-		value: 'Help',
-		original: 'Help',
-		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
-	},
-	order: 8
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarPreferencesMenu,
-	title: {
-		value: 'Preferences',
-		original: 'Preferences',
-		mnemonicTitle: localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "Preferences")
-	},
-	when: IsMacNativeContext,
-	order: 9
-});
-
 export abstract class MenubarControl extends Disposable {
 
 	protected keys = [
-		'window.menuBarVisibility',
+		MenuSettings.MenuBarVisibility,
 		'window.enableMenuBarMnemonics',
 		'window.customMenuBarAltFocus',
 		'workbench.sideBar.location',
@@ -287,7 +206,7 @@ export abstract class MenubarControl extends Disposable {
 
 		// Since we try not update when hidden, we should
 		// try to update the recently opened list on visibility changes
-		if (event.affectsConfiguration('window.menuBarVisibility')) {
+		if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			this.onDidChangeRecentlyOpened();
 		}
 	}
@@ -352,18 +271,18 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.APPLICATION, false);
-		const usingCustomMenubar = !hasNativeTitlebar(this.configurationService);
+		const usingCustomMenubar = !hasNativeMenu(this.configurationService);
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
 			return;
 		}
 
-		const message = localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom title bar style.");
+		const message = localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom menu style.");
 		this.notificationService.prompt(Severity.Info, message, [
 			{
 				label: localize('goToSetting', "Open Settings"),
 				run: () => {
-					return this.preferencesService.openUserSettings({ query: TitleBarSetting.TITLE_BAR_STYLE });
+					return this.preferencesService.openUserSettings({ query: MenuSettings.MenuStyle });
 				}
 			}
 		]);
@@ -437,9 +356,9 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onFocusStateChange = this._register(new Emitter<boolean>());
 
 		this.actionRunner = this._register(new ActionRunner());
-		this.actionRunner.onDidRun(e => {
+		this._register(this.actionRunner.onDidRun(e => {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'menu' });
-		});
+		}));
 
 		this.workspacesService.getRecentlyOpened().then((recentlyOpened) => {
 			this.recentlyOpened = recentlyOpened;
@@ -463,29 +382,38 @@ export class CustomMenubarControl extends MenubarControl {
 
 		switch (state.type) {
 			case StateType.Idle:
-				return new Action('update.check', localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), undefined, true, () =>
-					this.updateService.checkForUpdates(true));
+				return toAction({
+					id: 'update.check', label: localize({ key: 'checkForUpdates', comment: ['&& denotes a mnemonic'] }, "Check for &&Updates..."), enabled: true, run: () =>
+						this.updateService.checkForUpdates(true)
+				});
 
 			case StateType.CheckingForUpdates:
-				return new Action('update.checking', localize('checkingForUpdates', "Checking for Updates..."), undefined, false);
+				return toAction({ id: 'update.checking', label: localize('checkingForUpdates', "Checking for Updates..."), enabled: false, run: () => { } });
 
 			case StateType.AvailableForDownload:
-				return new Action('update.downloadNow', localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), undefined, true, () =>
-					this.updateService.downloadUpdate());
+				return toAction({
+					id: 'update.downloadNow', label: localize({ key: 'download now', comment: ['&& denotes a mnemonic'] }, "D&&ownload Update"), enabled: true, run: () =>
+						this.updateService.downloadUpdate(true)
+				});
 
 			case StateType.Downloading:
-				return new Action('update.downloading', localize('DownloadingUpdate', "Downloading Update..."), undefined, false);
+			case StateType.Overwriting:
+				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update..."), enabled: false, run: () => { } });
 
 			case StateType.Downloaded:
-				return isMacintosh ? null : new Action('update.install', localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), undefined, true, () =>
-					this.updateService.applyUpdate());
+				return isMacintosh ? null : toAction({
+					id: 'update.install', label: localize({ key: 'installUpdate...', comment: ['&& denotes a mnemonic'] }, "Install &&Update..."), enabled: true, run: () =>
+						this.updateService.applyUpdate()
+				});
 
 			case StateType.Updating:
-				return new Action('update.updating', localize('installingUpdate', "Installing Update..."), undefined, false);
+				return toAction({ id: 'update.updating', label: localize('installingUpdate', "Installing Update..."), enabled: false, run: () => { } });
 
 			case StateType.Ready:
-				return new Action('update.restart', localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), undefined, true, () =>
-					this.updateService.quitAndInstall());
+				return toAction({
+					id: 'update.restart', label: localize({ key: 'restartToUpdate', comment: ['&& denotes a mnemonic'] }, "Restart to &&Update"), enabled: true, run: () =>
+						this.updateService.quitAndInstall()
+				});
 
 			default:
 				return null;
@@ -721,8 +649,10 @@ export class CustomMenubarControl extends MenubarControl {
 					const title = typeof action.item.title === 'string'
 						? action.item.title
 						: action.item.title.mnemonicTitle ?? action.item.title.value;
-					webNavigationActions.push(new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, async (event?: any) => {
-						this.commandService.executeCommand(action.id, event);
+					webNavigationActions.push(toAction({
+						id: action.id, label: mnemonicMenuLabel(title), class: action.class, enabled: action.enabled, run: async (event?: unknown) => {
+							this.commandService.executeCommand(action.id, event);
+						}
 					}));
 				}
 			}

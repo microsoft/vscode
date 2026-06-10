@@ -860,7 +860,8 @@ abstract class AbstractElementRenderer extends Disposable {
 					height: this.cell.layoutInfo.metadataHeight
 				},
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-				readOnly: false
+				readOnly: false,
+				allowVariableLineHeights: false
 			}, {});
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
@@ -956,7 +957,8 @@ abstract class AbstractElementRenderer extends Disposable {
 				width: Math.min(OUTPUT_EDITOR_HEIGHT_MAGIC, this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, this.cell.type === 'unchanged' || this.cell.type === 'modified') - 32),
 				height: this.cell.layoutInfo.rawOutputHeight
 			},
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+			allowVariableLineHeights: false
 		}, {});
 		this._outputEditorDisposeStore.add(this._outputEditor);
 

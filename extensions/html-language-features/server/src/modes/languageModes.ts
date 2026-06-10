@@ -5,8 +5,9 @@
 
 import { getCSSLanguageService } from 'vscode-css-languageservice';
 import {
-	DocumentContext, getLanguageService as getHTMLLanguageService, IHTMLDataProvider, ClientCapabilities
+	DocumentContext, IHTMLDataProvider, ClientCapabilities as HtmlClientCapabilities, getLanguageService as getHTMLLanguageService, ClientCapabilities, TokenType
 } from 'vscode-html-languageservice';
+
 import {
 	SelectionRange,
 	CompletionItem, CompletionList, Definition, Diagnostic, DocumentHighlight, DocumentLink, FoldingRange, FormattingOptions,
@@ -14,14 +15,14 @@ import {
 	Color, ColorInformation, ColorPresentation, WorkspaceEdit,
 	WorkspaceFolder
 } from 'vscode-languageserver';
-import { TextDocument } from 'vscode-languageserver-textdocument';
+import { DocumentUri, TextDocument } from 'vscode-languageserver-textdocument';
 
-import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache';
-import { getCSSMode } from './cssMode';
-import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
-import { getHTMLMode } from './htmlMode';
-import { getJavaScriptMode } from './javascriptMode';
-import { FileSystemProvider } from '../requests';
+import { getLanguageModelCache, LanguageModelCache } from '../languageModelCache.js';
+import { getCSSMode } from './cssMode.js';
+import { getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport.js';
+import { getHTMLMode } from './htmlMode.js';
+import { getJavaScriptMode } from './javascriptMode.js';
+import { FileSystemProvider } from '../requests.js';
 
 export {
 	WorkspaceFolder, CompletionItem, CompletionList, CompletionItemKind, Definition, Diagnostic, DocumentHighlight, DocumentHighlightKind,
@@ -32,9 +33,10 @@ export {
 	SelectionRange, TextDocumentIdentifier
 } from 'vscode-languageserver';
 
-export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration, TokenType } from 'vscode-html-languageservice';
+export type { DocumentContext, LanguageService, HTMLDocument, HTMLFormatConfiguration } from 'vscode-html-languageservice';
+export { ClientCapabilities, TokenType };
 
-export { TextDocument } from 'vscode-languageserver-textdocument';
+export { TextDocument, DocumentUri } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
 	readonly css?: any;
@@ -89,6 +91,7 @@ export interface LanguageMode {
 	onDocumentRemoved(document: TextDocument): void;
 	getSemanticTokens?(document: TextDocument): Promise<SemanticTokenData[]>;
 	getSemanticTokenLegend?(): { types: string[]; modifiers: string[] };
+	getTextDocumentContent?(uri: DocumentUri): Promise<string | undefined>;
 	dispose(): void;
 }
 
@@ -108,7 +111,9 @@ export interface LanguageModeRange extends Range {
 	attributeValue?: boolean;
 }
 
-export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: ClientCapabilities, requestService: FileSystemProvider): LanguageModes {
+export const FILE_PROTOCOL = 'html-server';
+
+export function getLanguageModes(supportedLanguages: { [languageId: string]: boolean }, workspace: Workspace, clientCapabilities: HtmlClientCapabilities, requestService: FileSystemProvider): LanguageModes {
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 

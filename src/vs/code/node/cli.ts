@@ -5,8 +5,8 @@
 
 import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
 import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
-import { homedir, release, tmpdir } from 'os';
-import type { ProfilingSession, Target } from 'v8-inspect-profiler';
+import { homedir, tmpdir } from 'os';
+import { startProfiling, ProfilingSession, Target } from '../../base/node/profiling.js';
 import { Event } from '../../base/common/event.js';
 import { isAbsolute, resolve, join, dirname } from '../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows } from '../../base/common/platform.js';
@@ -15,8 +15,9 @@ import { whenDeleted, writeFileSync } from '../../base/node/pfs.js';
 import { findFreePort } from '../../base/node/ports.js';
 import { watchFileContents } from '../../platform/files/node/watcher/nodejs/nodejsWatcherLib.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
-import { buildHelpMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
+import { buildHelpMessage, buildStdinMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
 import { addArg, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { combineUriFlags } from './cliArgs.js';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import product from '../../platform/product/common/product.js';
@@ -40,7 +41,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['telemetry'];
 }
 
-export async function main(argv: string[]): Promise<any> {
+export async function main(argv: string[]): Promise<void> {
 	let args: NativeParsedArgs;
 
 	try {
@@ -73,7 +74,7 @@ export async function main(argv: string[]): Promise<any> {
 					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
 					const appPath = process.platform === 'darwin'
-						// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
+						// ./Contents/MacOS/Code => ./Contents/Resources/app/bin/code-tunnel-insiders
 						? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 						: dirname(process.execPath);
 					const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
@@ -88,10 +89,16 @@ export async function main(argv: string[]): Promise<any> {
 		}
 	}
 
-	// Help
+	// Help (general)
 	if (args.help) {
 		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
 		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
+	}
+
+	// Help (chat)
+	else if (args.chat?.help) {
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
+		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS.chat.options, { isChat: true }));
 	}
 
 	// Version Info
@@ -177,9 +184,9 @@ export async function main(argv: string[]): Promise<any> {
 		try {
 
 			// Check for readonly status and chmod if so if we are told so
-			let targetMode: number = 0;
+			let targetMode = 0;
 			let restoreMode = false;
-			if (!!args['file-chmod']) {
+			if (args['file-chmod']) {
 				targetMode = statSync(target).mode;
 				if (!(targetMode & 0o200 /* File mode indicating writable by owner */)) {
 					chmodSync(target, targetMode | 0o200);
@@ -236,7 +243,27 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		const hasReadStdinArg = args._.some(arg => arg === '-');
+		// Handle --transient option
+		if (args['transient']) {
+			const tempParentDir = randomPath(tmpdir(), 'vscode');
+			const tempUserDataDir = join(tempParentDir, 'data');
+			const tempExtensionsDir = join(tempParentDir, 'extensions');
+			const tempSharedDataDir = join(tempParentDir, 'shared');
+			const tempAgentPluginsDir = join(tempParentDir, 'agent-plugins');
+			const tempAgentsUserDataDir = join(tempParentDir, 'agents-data');
+			const tempAgentsExtensionsDir = join(tempParentDir, 'agents-extensions');
+
+			addArg(argv, '--user-data-dir', tempUserDataDir);
+			addArg(argv, '--extensions-dir', tempExtensionsDir);
+			addArg(argv, '--shared-data-dir', tempSharedDataDir);
+			addArg(argv, '--agent-plugins-dir', tempAgentPluginsDir);
+			addArg(argv, '--agents-user-data-dir', tempAgentsUserDataDir);
+			addArg(argv, '--agents-extensions-dir', tempAgentsExtensionsDir);
+
+			console.log(`State is temporarily stored. Relaunch this state with: ${product.applicationName} --user-data-dir "${tempUserDataDir}" --extensions-dir "${tempExtensionsDir}" --shared-data-dir "${tempSharedDataDir}" --agent-plugins-dir "${tempAgentPluginsDir}" --agents-user-data-dir "${tempAgentsUserDataDir}" --agents-extensions-dir "${tempAgentsExtensionsDir}"`);
+		}
+
+		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
 			// remove the "-" argument when we read from stdin
 			args._ = args._.filter(a => a !== '-');
@@ -275,9 +302,15 @@ export async function main(argv: string[]): Promise<any> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					// Make sure to open tmp file as editor but ignore it in the "recently open" list
-					addArg(argv, stdinFilePath);
-					addArg(argv, '--skip-add-to-recently-opened');
+					if (args.chat) {
+						// Make sure to add tmp file as context to chat
+						addArg(argv, '--add-file', stdinFilePath);
+					} else {
+						// Make sure to open tmp file as editor but ignore
+						// it in the "recently open" list
+						addArg(argv, stdinFilePath);
+						addArg(argv, '--skip-add-to-recently-opened');
+					}
 
 					console.log(`Reading from stdin via: ${stdinFilePath}`);
 				} catch (e) {
@@ -290,17 +323,11 @@ export async function main(argv: string[]): Promise<any> {
 				// if we detect that data flows into via stdin after a certain timeout.
 				processCallbacks.push(_ => stdinDataListener(1000).then(dataReceived => {
 					if (dataReceived) {
-						if (isWindows) {
-							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
-						} else {
-							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
-						}
+						console.log(buildStdinMessage(product.applicationName, !!args.chat));
 					}
 				}));
 			}
 		}
-
-		const isMacOSBigSurOrNewer = isMacintosh && release() > '20.0.0';
 
 		// If we are started with --wait create a random temporary file
 		// and pass it over to the starting instance. We can use this file
@@ -319,8 +346,8 @@ export async function main(argv: string[]): Promise<any> {
 			// - the launched process terminates (e.g. due to a crash)
 			processCallbacks.push(async child => {
 				let childExitPromise;
-				if (isMacOSBigSurOrNewer) {
-					// On Big Sur, we resolve the following promise only when the child,
+				if (isMacintosh) {
+					// On macOS, we resolve the following promise only when the child,
 					// i.e. the open command, exited with a signal or error. Otherwise, we
 					// wait for the marker file to be deleted or for the child to error.
 					childExitPromise = new Promise<void>(resolve => {
@@ -367,9 +394,9 @@ export async function main(argv: string[]): Promise<any> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
-			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -379,11 +406,10 @@ export async function main(argv: string[]): Promise<any> {
 
 				class Profiler {
 					static async start(name: string, filenamePrefix: string, opts: { port: number; tries?: number; target?: (targets: Target[]) => Target }) {
-						const profiler = await import('v8-inspect-profiler');
 
 						let session: ProfilingSession;
 						try {
-							session = await profiler.startProfiling({ ...opts, host: profileHost });
+							session = await startProfiling({ ...opts, host: profileHost });
 						} catch (err) {
 							console.error(`FAILED to start profiling for '${name}' on port '${opts.port}'`);
 						}
@@ -462,15 +488,20 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
-		if (!isMacOSBigSurOrNewer) {
+		if (!isMacintosh) {
 			if (!args.verbose && args.status) {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
 
-			// We spawn process.execPath directly
-			child = spawn(process.execPath, argv.slice(2), options);
+			// On Windows, Chromium filters standalone URL-like argv tokens (containing "://")
+			// before main.js runs, so rewrite `--folder-uri <uri>` / `--file-uri <uri>` to
+			// `--flag=value` form. See https://github.com/microsoft/vscode/issues/209072.
+			const spawnArgs = isWindows ? combineUriFlags(argv.slice(2)) : argv.slice(2);
+
+			// We spawn the resolved executable directly
+			child = spawn(process.execPath, spawnArgs, options);
 		} else {
-			// On Big Sur, we spawn using the open command to obtain behavior
+			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
 
@@ -482,8 +513,7 @@ export async function main(argv: string[]): Promise<any> {
 			//    This way, Mac does not automatically try to foreground the new instance, which causes
 			//    focusing issues when the new instance only sends data to a previous instance and then closes.
 			const spawnArgs = ['-n', '-g'];
-			// -a opens the given application.
-			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
+			spawnArgs.push('-a', process.execPath); // -a opens the given application.
 
 			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
@@ -547,7 +577,7 @@ export async function main(argv: string[]): Promise<any> {
 			child = spawn('open', spawnArgs, { ...options, env: {} });
 		}
 
-		return Promise.all(processCallbacks.map(callback => callback(child)));
+		await Promise.all(processCallbacks.map(callback => callback(child)));
 	}
 }
 

@@ -48,6 +48,16 @@ class RegistryImpl implements IRegistry {
 	public as(id: string): any {
 		return this.data.get(id) || null;
 	}
+
+	public dispose() {
+		this.data.forEach((value) => {
+			if (Types.isFunction(value.dispose)) {
+				value.dispose();
+			}
+		});
+		this.data.clear();
+	}
+
 }
 
 export const Registry: IRegistry = new RegistryImpl();

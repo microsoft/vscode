@@ -125,12 +125,12 @@ export enum PortsEnablement {
 
 export interface IRemoteExplorerService {
 	readonly _serviceBrand: undefined;
-	onDidChangeTargetType: Event<string[]>;
+	readonly onDidChangeTargetType: Event<string[]>;
 	targetType: string[];
-	onDidChangeHelpInformation: Event<readonly IExtensionPointUser<HelpInformation>[]>;
+	readonly onDidChangeHelpInformation: Event<readonly IExtensionPointUser<HelpInformation>[]>;
 	helpInformation: IExtensionPointUser<HelpInformation>[];
 	readonly tunnelModel: TunnelModel;
-	onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined>;
+	readonly onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined>;
 	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
 	getEditableData(tunnelItem: ITunnelItem | undefined, editId?: TunnelEditId): IEditableData | undefined;
 	forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | string | undefined>;
@@ -140,7 +140,7 @@ export interface IRemoteExplorerService {
 	onFoundNewCandidates(candidates: CandidatePort[]): void;
 	restore(): Promise<void>;
 	enablePortsFeatures(viewOnly: boolean): void;
-	onEnabledPortsFeatures: Event<void>;
+	readonly onEnabledPortsFeatures: Event<void>;
 	portsFeaturesEnabled: PortsEnablement;
 	readonly namedProcesses: Map<number, string>;
 }

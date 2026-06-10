@@ -209,7 +209,8 @@ export class OpenEditorsView extends ViewPane {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 			dnd: this.dnd,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			accessibilityProvider: new OpenEditorsAccessibilityProvider()
+			accessibilityProvider: new OpenEditorsAccessibilityProvider(),
+			openOnSingleClick: true
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
 		this._register(this.listLabels);
@@ -286,7 +287,7 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}));
 
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
 			this.updateSize();
 		}));
@@ -321,7 +322,7 @@ export class OpenEditorsView extends ViewPane {
 				dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
 				readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
 				resourceContext.set(resource ?? null);
-			} else if (!!element) {
+			} else if (element) {
 				groupFocusedContext.set(true);
 			}
 		}));
@@ -512,7 +513,7 @@ export class OpenEditorsView extends ViewPane {
 		if (typeof minVisibleOpenEditors !== 'number') {
 			minVisibleOpenEditors = OpenEditorsView.DEFAULT_MIN_VISIBLE_OPEN_EDITORS;
 		}
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		if (containerModel.visibleViewDescriptors.length <= 1) {
 			return Number.POSITIVE_INFINITY;
 		}
@@ -544,6 +545,7 @@ export class OpenEditorsView extends ViewPane {
 		}
 
 		const parentNode = this.list.getHTMLElement();
+		// eslint-disable-next-line no-restricted-syntax
 		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);
@@ -638,8 +640,8 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
 
-	private readonly closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
-	private readonly unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
+	private readonly closeEditorAction;
+	private readonly unpinEditorAction;
 
 	constructor(
 		private labels: ResourceLabels,
@@ -647,6 +649,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService
 	) {
+		this.closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
+		this.unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
 		// noop
 	}
 

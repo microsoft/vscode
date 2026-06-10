@@ -171,7 +171,7 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 				return undefined;
 			}
 			const item = items.items[0];
-			if (!item) {
+			if (!item || !item.insertText) {
 				return undefined;
 			}
 			const range = item.range as vscode.Range;
@@ -184,8 +184,8 @@ function refreshCompletionProviders(_: vscode.ExtensionContext) {
 
 			return [
 				{
-					insertText: item.insertText as any,
-					filterText: item.label as any,
+					insertText: item.insertText,
+					filterText: item.label,
 					range
 				}
 			];

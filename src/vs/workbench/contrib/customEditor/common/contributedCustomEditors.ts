@@ -10,10 +10,23 @@ import * as nls from '../../../../nls.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { CustomEditorDescriptor, CustomEditorInfo } from './customEditor.js';
+import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority, CustomEditorPriorityInfo } from './customEditor.js';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from './extensionPoint.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+
+type StoredCustomEditorPriorityInfo = Omit<CustomEditorPriorityInfo, 'diff' | 'merge'> & {
+	readonly diff?: RegisteredEditorPriority;
+	readonly merge?: RegisteredEditorPriority;
+};
+
+type StoredCustomEditorDescriptor = Omit<CustomEditorDescriptor, 'priority'> & {
+	readonly priority: StoredCustomEditorPriorityInfo | RegisteredEditorPriority;
+};
+
+interface CustomEditorsMemento {
+	editors?: StoredCustomEditorDescriptor[];
+}
 
 export class ContributedCustomEditors extends Disposable {
 
@@ -21,7 +34,7 @@ export class ContributedCustomEditors extends Disposable {
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
 	private readonly _editors = new Map<string, CustomEditorInfo>();
-	private readonly _memento: Memento;
+	private readonly _memento: Memento<CustomEditorsMemento>;
 
 	constructor(storageService: IStorageService) {
 		super();
@@ -29,13 +42,13 @@ export class ContributedCustomEditors extends Disposable {
 		this._memento = new Memento(ContributedCustomEditors.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		for (const info of (mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] || []) as CustomEditorDescriptor[]) {
-			this.add(new CustomEditorInfo(info));
+		for (const info of mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] || []) {
+			this.add(new CustomEditorInfo(normalizeStoredCustomEditorDescriptor(info)));
 		}
 
-		customEditorsExtensionPoint.setHandler(extensions => {
+		this._register(customEditorsExtensionPoint.setHandler(extensions => {
 			this.update(extensions);
-		});
+		}));
 	}
 
 	private readonly _onChange = this._register(new Emitter<void>());
@@ -45,13 +58,15 @@ export class ContributedCustomEditors extends Disposable {
 		this._editors.clear();
 
 		for (const extension of extensions) {
+			const hasCustomEditorPriorityProposal = extension.description.enabledApiProposals?.includes('customEditorPriority') ?? false;
 			for (const webviewEditorContribution of extension.value) {
+				const priority = getPriorityFromContribution(webviewEditorContribution.priority, extension.description, hasCustomEditorPriorityProposal);
 				this.add(new CustomEditorInfo({
 					id: webviewEditorContribution.viewType,
 					displayName: webviewEditorContribution.displayName,
 					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					selector: webviewEditorContribution.selector || [],
-					priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
+					priority,
 				}));
 			}
 		}
@@ -85,20 +100,50 @@ export class ContributedCustomEditors extends Disposable {
 	}
 }
 
-function getPriorityFromContribution(
-	contribution: ICustomEditorsExtensionPoint,
-	extension: IExtensionDescription,
-): RegisteredEditorPriority {
-	switch (contribution.priority) {
-		case RegisteredEditorPriority.default:
-		case RegisteredEditorPriority.option:
-			return contribution.priority;
+function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDescriptor): CustomEditorDescriptor {
+	return {
+		id: descriptor.id,
+		displayName: descriptor.displayName,
+		providerDisplayName: descriptor.providerDisplayName,
+		selector: descriptor.selector,
+		priority: typeof descriptor.priority === 'string' ? {
+			editor: descriptor.priority,
+			diff: descriptor.priority,
+			merge: descriptor.priority,
+		} : {
+			editor: descriptor.priority.editor,
+			diff: descriptor.priority.diff ?? descriptor.priority.editor,
+			merge: descriptor.priority.merge ?? descriptor.priority.editor,
+		},
+	};
+}
 
-		case RegisteredEditorPriority.builtin:
+function getPriorityFromContribution(
+	contribution: ICustomEditorsExtensionPoint['priority'],
+	extension: IExtensionDescription,
+	includeDiffAndMergePriority: boolean,
+): CustomEditorDescriptor['priority'] {
+	const editorPriority = getSinglePriorityFromContribution(typeof contribution === 'string' ? contribution : contribution?.editor, extension) ?? RegisteredEditorPriority.default;
+	return {
+		editor: editorPriority,
+		diff: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.diff, extension) ?? editorPriority : editorPriority,
+		merge: includeDiffAndMergePriority && typeof contribution !== 'string' ? getSinglePriorityFromContribution(contribution?.merge, extension) ?? editorPriority : editorPriority,
+	};
+}
+
+function getSinglePriorityFromContribution(value: CustomEditorPriority | undefined, extension: IExtensionDescription): RegisteredEditorPriority | undefined {
+	switch (value) {
+		case CustomEditorPriority.default:
+			return RegisteredEditorPriority.default;
+
+		case CustomEditorPriority.option:
+			return RegisteredEditorPriority.option;
+
+		case CustomEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions
 			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 
 		default:
-			return RegisteredEditorPriority.default;
+			return undefined;
 	}
 }

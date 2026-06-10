@@ -25,7 +25,7 @@
 	background: var(--vscode-minimapSlider-activeBackground);
 }
 .monaco-editor .minimap-shadow-visible {
-	box-shadow: var(--vscode-scrollbar-shadow) -6px 0 6px -6px inset;
+	box-shadow: var(--vscode-shadow-md);
 }
 .monaco-editor .minimap-shadow-hidden {
 	position: absolute;
@@ -35,6 +35,7 @@
 	position: absolute;
 	left: -6px;
 	width: 6px;
+	pointer-events: none;
 }
 .monaco-editor.no-minimap-shadow .minimap-shadow-visible {
 	position: absolute;
@@ -43,14 +44,24 @@
 }
 
 /* 0.5s fade in/out for the minimap */
-.minimap.autohide {
+.minimap.minimap-autohide-mouseover,
+.minimap.minimap-autohide-scroll {
 	opacity: 0;
 	transition: opacity 0.5s;
 }
-.minimap.autohide:hover {
+.minimap.minimap-autohide-scroll{
+	pointer-events: none;
+}
+.minimap.minimap-autohide-mouseover:hover,
+.minimap.minimap-autohide-scroll.active {
 	opacity: 1;
+	pointer-events: auto;
 }
 
 .monaco-editor .minimap {
 	z-index: 5;
+}
+
+.monaco-editor .minimap canvas {
+	opacity: 0.9;
 }

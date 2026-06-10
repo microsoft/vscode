@@ -274,7 +274,7 @@ function buildAttachment(
 		const filenameWithoutExt = basename(attachment.fileName, fileExt);
 
 		let tempFilename = filenameWithoutExt + fileExt;
-		for (let appendValue = 2; tempFilename in cellMetadata.attachments; appendValue++) {
+		for (let appendValue = 2; cellMetadata.attachments[tempFilename]; appendValue++) {
 			const objEntries = Object.entries(cellMetadata.attachments[tempFilename]);
 			if (objEntries.length) { // check that mime:b64 are present
 				const [mime, attachmentb64] = objEntries[0];

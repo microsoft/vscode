@@ -19,19 +19,21 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ActivityBarCompositeBar, ActivitybarPart } from '../activitybar/activitybarPart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Action2, IMenuService, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ToggleActivityBarVisibilityActionId } from '../../actions/layoutActions.js';
 import { localize2 } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
+import { Extensions } from '../../panecomposite.js';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -51,18 +53,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		const viewlet = this.getActivePaneComposite();
 
 		if (!viewlet) {
-			return;
+			return undefined;
 		}
 
 		const width = viewlet.getOptimalWidth();
 		if (typeof width !== 'number') {
-			return;
+			return undefined;
 		}
 
 		return Math.max(width, 300);
 	}
 
-	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this));
+	private readonly activityBarPart = this._register(this.instantiationService.createInstance(ActivitybarPart, this.location, this));
+	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	//#endregion
 
@@ -83,7 +86,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
+			{ hasTitle: true, trailingSeparator: false, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -91,6 +94,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,
 			SIDE_BAR_TITLE_BORDER,
+			ViewContainerLocation.Sidebar,
+			Extensions.Viewlets,
+			MenuId.SidebarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -105,14 +111,34 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+		// Track visible view containers for auto-hide
+		this.visibleViewContainersTracker = this._register(instantiationService.createInstance(VisibleViewContainersTracker, ViewContainerLocation.Sidebar));
+		this._register(this.visibleViewContainersTracker.onDidChange((e) => this.onDidChangeAutoHideViewContainers(e)));
+
 		this.rememberActivityBarVisiblePosition();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.onDidChangeActivityBarLocation();
 			}
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE)) {
+				this.onDidChangeActivityBarLocation();
+			}
 		}));
 
 		this.registerActions();
+	}
+
+	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
+		// Only update if auto-hide is enabled and composite bar position is top/bottom
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
+		if (autoHide && (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM)) {
+			const visibleBefore = e.before > 1;
+			const visibleAfter = e.after > 1;
+			if (visibleBefore !== visibleAfter) {
+				this.onDidChangeActivityBarLocation();
+			}
+		}
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -135,7 +161,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
@@ -164,7 +190,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected override createCompositeBar(): ActivityBarCompositeBar {
-		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.getCompositeBarOptions(), this.partId, this, false);
+		return this.instantiationService.createInstance(ActivityBarCompositeBar, ViewContainerLocation.Sidebar, this.getCompositeBarOptions(), this.partId, this, false);
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
@@ -207,7 +233,23 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	protected shouldShowCompositeBar(): boolean {
 		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM;
+		if (activityBarPosition !== ActivityBarPosition.TOP && activityBarPosition !== ActivityBarPosition.BOTTOM) {
+			return false;
+		}
+
+		// Check if auto-hide is enabled and there's only one visible view container
+		const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
+		if (autoHide) {
+			// Use visible composite count from the composite bar if available (considers pinned state),
+			// otherwise fall back to the tracker's count (based on active view descriptors).
+			// Note: We access paneCompositeBar directly to avoid circular calls with getVisiblePaneCompositeIds()
+			const visibleCount = this.visibleViewContainersTracker.visibleCount;
+			if (visibleCount <= 1) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private shouldShowActivityBar(): boolean {

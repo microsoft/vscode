@@ -17,9 +17,9 @@ export class AccessibilityProgressSignalScheduler extends Disposable {
 	private _signalLoop: IDisposable | undefined;
 	constructor(msDelayTime: number, msLoopTime: number | undefined, @IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
 		super();
-		this._scheduler = new RunOnceScheduler(() => {
+		this._scheduler = this._register(new RunOnceScheduler(() => {
 			this._signalLoop = this._accessibilitySignalService.playSignalLoop(AccessibilitySignal.progress, msLoopTime ?? PROGRESS_SIGNAL_LOOP_DELAY);
-		}, msDelayTime);
+		}, msDelayTime));
 		this._scheduler.schedule();
 	}
 	override dispose(): void {
@@ -28,4 +28,3 @@ export class AccessibilityProgressSignalScheduler extends Disposable {
 		this._scheduler.dispose();
 	}
 }
-

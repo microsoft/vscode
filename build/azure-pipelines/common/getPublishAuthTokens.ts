@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccessToken } from '@azure/core-auth';
+import type { AccessToken } from '@azure/core-auth';
 import { ConfidentialClientApplication } from '@azure/msal-node';
 
 function e(name: string): string {
@@ -44,7 +44,7 @@ async function main() {
 	console.log(JSON.stringify({ cosmosDBAccessToken, blobServiceAccessToken }));
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

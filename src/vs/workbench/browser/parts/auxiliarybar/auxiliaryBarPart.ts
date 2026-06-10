@@ -15,27 +15,25 @@ import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from '../../../common/contextkeys.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_TOP_ACTIVE_BORDER, ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_TOP_FOREGROUND, ACTIVITY_BAR_TOP_INACTIVE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { ToggleAuxiliaryBarAction } from './auxiliaryBarActions.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
-import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { $ } from '../../../../base/browser/dom.js';
-import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { CompositeMenuActions } from '../../actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
+import { Extensions } from '../../panecomposite.js';
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -67,12 +65,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		const activeComposite = this.getActivePaneComposite();
 
 		if (!activeComposite) {
-			return;
+			return undefined;
 		}
 
 		const width = activeComposite.getOptimalWidth();
 		if (typeof width !== 'number') {
-			return;
+			return undefined;
 		}
 
 		return Math.max(width, 300);
@@ -81,6 +79,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	readonly priority = LayoutPriority.Low;
 
 	private configuration: IAuxiliaryBarPartConfiguration;
+	private readonly visibleViewContainersTracker: VisibleViewContainersTracker;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -102,6 +101,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			Parts.AUXILIARYBAR_PART,
 			{
 				hasTitle: true,
+				trailingSeparator: true,
 				borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0,
 			},
 			AuxiliaryBarPart.activeViewSettingsKey,
@@ -111,6 +111,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			'auxiliarybar',
 			undefined,
 			SIDE_BAR_TITLE_BORDER,
+			ViewContainerLocation.AuxiliaryBar,
+			Extensions.Auxiliary,
+			MenuId.AuxiliaryBarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -125,6 +128,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			menuService,
 		);
 
+		// Track visible view containers for auto-hide
+		this.visibleViewContainersTracker = this._register(instantiationService.createInstance(VisibleViewContainersTracker, ViewContainerLocation.AuxiliaryBar));
+		this._register(this.visibleViewContainersTracker.onDidChange((e) => this.onDidChangeAutoHideViewContainers(e)));
+
 		this.configuration = this.resolveConfiguration();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -134,14 +141,28 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
 				this.configuration = this.resolveConfiguration();
 				this.updateCompositeBar(true);
+			} else if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE)) {
+				this.onDidChangeActivityBarLocation();
 			}
 		}));
+	}
+
+	private onDidChangeAutoHideViewContainers(e: { before: number; after: number }): void {
+		// Only update if auto-hide is enabled and composite bar would show
+		const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
+		if (autoHide && (this.configuration.position === ActivityBarPosition.TOP || this.configuration.position === ActivityBarPosition.BOTTOM)) {
+			const visibleBefore = e.before > 1;
+			const visibleAfter = e.after > 1;
+			if (visibleBefore !== visibleAfter) {
+				this.onDidChangeActivityBarLocation();
+			}
+		}
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
 		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 
-		const canShowLabels = position !== ActivityBarPosition.TOP; // otherwise labels would repeat vertically
+		const canShowLabels = position !== ActivityBarPosition.TOP && position !== ActivityBarPosition.BOTTOM; // use same style as activity bar in this case
 		const showLabels = canShowLabels && this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 
 		return { position, canShowLabels, showLabels };
@@ -159,7 +180,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(SIDE_BAR_BACKGROUND) || '';
 		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.layoutService.getSideBarPosition() === Position.RIGHT;
@@ -239,7 +260,26 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.configuration.position !== ActivityBarPosition.HIDDEN;
+		if (this.configuration.position === ActivityBarPosition.HIDDEN) {
+			return false;
+		}
+
+		// Check if auto-hide is enabled and there's only one visible view container
+		// while the activity bar is configured to be top or bottom.
+		if (this.configuration.position === ActivityBarPosition.TOP || this.configuration.position === ActivityBarPosition.BOTTOM) {
+			const autoHide = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_AUTO_HIDE);
+			if (autoHide) {
+				// Use visible composite count from the composite bar if available (considers pinned state),
+				// otherwise fall back to the tracker's count (based on active view descriptors).
+				// Note: We access paneCompositeBar directly to avoid circular calls with getVisiblePaneCompositeIds()
+				const visibleCount = this.visibleViewContainersTracker.visibleCount;
+				if (visibleCount <= 1) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
@@ -250,35 +290,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
 			default: return CompositeBarPosition.TITLE;
 		}
-	}
-
-	protected override createHeaderArea() {
-		const headerArea = super.createHeaderArea();
-		const globalHeaderContainer = $('.auxiliary-bar-global-header');
-
-		// Add auxillary header action
-		const menu = this.headerFooterCompositeBarDispoables.add(this.instantiationService.createInstance(CompositeMenuActions, MenuId.AuxiliaryBarHeader, undefined, undefined));
-
-		const toolBar = this.headerFooterCompositeBarDispoables.add(this.instantiationService.createInstance(WorkbenchToolBar, globalHeaderContainer, {
-			actionViewItemProvider: (action, options) => this.headerActionViewItemProvider(action, options),
-			orientation: ActionsOrientation.HORIZONTAL,
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-		}));
-
-		toolBar.setActions(prepareActions(menu.getPrimaryActions()));
-		this.headerFooterCompositeBarDispoables.add(menu.onDidChange(() => toolBar.setActions(prepareActions(menu.getPrimaryActions()))));
-
-		headerArea.appendChild(globalHeaderContainer);
-		return headerArea;
-	}
-
-	private headerActionViewItemProvider(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === ToggleAuxiliaryBarAction.ID) {
-			return this.instantiationService.createInstance(ActionViewItem, undefined, action, options);
-		}
-
-		return undefined;
 	}
 
 	override toJSON(): object {

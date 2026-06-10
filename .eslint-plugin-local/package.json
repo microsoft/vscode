@@ -1,3 +1,7 @@
 {
-	"type": "commonjs"
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsgo -p tsconfig.json --noEmit"
+  }
 }

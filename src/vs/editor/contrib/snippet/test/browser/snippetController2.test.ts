@@ -11,7 +11,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { TextModel } from '../../../../common/model/textModel.js';
 import { SnippetController2 } from '../../browser/snippetController2.js';
-import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -51,7 +51,7 @@ suite('SnippetController2', function () {
 	}
 
 	let ctrl: SnippetController2;
-	let editor: ICodeEditor;
+	let editor: ITestCodeEditor;
 	let model: TextModel;
 	let contextKeys: MockContextKeyService;
 	let instaService: IInstantiationService;
@@ -483,7 +483,7 @@ suite('SnippetController2', function () {
 	test('issue #90135: confusing trim whitespace edits', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+		editor.runCommand(CoreEditingCommands.Tab, null);
 
 		ctrl.insert('\nfoo');
 		assertSelections(editor, new Selection(2, 8, 2, 8));
@@ -492,7 +492,7 @@ suite('SnippetController2', function () {
 	test('issue #145727: insertSnippet can put snippet selections in wrong positions (1 of 2)', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+		editor.runCommand(CoreEditingCommands.Tab, null);
 
 		ctrl.insert('\naProperty: aClass<${2:boolean}> = new aClass<${2:boolean}>();\n', { adjustWhitespace: false });
 		assertSelections(editor, new Selection(2, 19, 2, 26), new Selection(2, 41, 2, 48));
@@ -501,7 +501,7 @@ suite('SnippetController2', function () {
 	test('issue #145727: insertSnippet can put snippet selections in wrong positions (2 of 2)', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+		editor.runCommand(CoreEditingCommands.Tab, null);
 
 		ctrl.insert('\naProperty: aClass<${2:boolean}> = new aClass<${2:boolean}>();\n');
 		// This will insert \n    aProperty....
@@ -565,7 +565,7 @@ suite('SnippetController2', function () {
 				{ range: new Range(1, 1, 1, 1), template: 'const ${1:new_const} = "bar";\n' }
 			]);
 
-			assert.strictEqual(model.getValue(), "const new_const = \"bar\";\nfoo(new_const)");
+			assert.strictEqual(model.getValue(), 'const new_const = "bar";\nfoo(new_const)');
 			assertContextKeys(contextKeys, true, false, true);
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 16), new Selection(2, 5, 2, 14)]);
 
@@ -584,7 +584,7 @@ suite('SnippetController2', function () {
 				{ range: new Range(1, 1, 1, 1), template: 'const ${1:new_const}$0 = "bar";\n' }
 			]);
 
-			assert.strictEqual(model.getValue(), "const new_const = \"bar\";\nfoo(new_const)");
+			assert.strictEqual(model.getValue(), 'const new_const = "bar";\nfoo(new_const)');
 			assertContextKeys(contextKeys, true, false, true);
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 7, 1, 16), new Selection(2, 5, 2, 14)]);
 
@@ -604,7 +604,7 @@ suite('SnippetController2', function () {
 				{ range: new Range(1, 1, 1, 1), template: '### ${2:Header}\n' }
 			]);
 
-			assert.strictEqual(model.getValue(), "### Header\nfoo\nbar");
+			assert.strictEqual(model.getValue(), '### Header\nfoo\nbar');
 			assert.deepStrictEqual(getContextState(), { inSnippet: true, hasPrev: false, hasNext: true });
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 11)]);
 
@@ -695,7 +695,7 @@ suite('SnippetController2', function () {
 			}];
 			ctrl.apply(edits);
 
-			assert.strictEqual(model.getValue(), "fooAbazzBone\nfooCbazzDtwo");
+			assert.strictEqual(model.getValue(), 'fooAbazzBone\nfooCbazzDtwo');
 			assert.deepStrictEqual(getContextState(), { inSnippet: false, hasPrev: false, hasNext: false });
 			assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10), new Selection(2, 5, 2, 5), new Selection(2, 10, 2, 10)]);
 		});
@@ -740,5 +740,44 @@ suite('SnippetController2', function () {
 		}]);
 
 		assert.strictEqual(model.getValue(), `function foo(f, x, condition) {\n    if (condition) {\n        f();\n        return x;\n    }\n}`);
+	});
+
+	test('$TM_SELECTED_TEXT resolves per edit, not the last selection (multi-cursor wrap snippet) #206121', function () {
+		model.setValue('aaa\nbbb\nccc');
+		const ranges = [new Range(1, 1, 1, 4), new Range(2, 1, 2, 4), new Range(3, 1, 3, 4)];
+		editor.setSelections(ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn)));
+
+		ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply(ranges.map(range => ({ range, template: 'if(${1:cond}) {$TM_SELECTED_TEXT}$0' })));
+
+		assert.strictEqual(model.getValue(), 'if(cond) {aaa}\nif(cond) {bbb}\nif(cond) {ccc}');
+	});
+
+	test('apply with multiple cursors threads $CURSOR_NUMBER per edit', function () {
+		model.setValue('aa\nbb\ncc');
+
+		ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply([
+			{ range: new Range(1, 3, 1, 3), template: ':$CURSOR_NUMBER' },
+			{ range: new Range(2, 3, 2, 3), template: ':$CURSOR_NUMBER' },
+			{ range: new Range(3, 3, 3, 3), template: ':$CURSOR_NUMBER' },
+		]);
+
+		assert.strictEqual(model.getValue(), 'aa:1\nbb:2\ncc:3');
+	});
+
+	test('undo restores original selection after apply (regression for #170041)', function () {
+		model.setValue('Some text and more text');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl = instaService.createInstance(SnippetController2, editor);
+		ctrl.apply([{ range: new Range(1, 6, 1, 10), template: '${0:hi}' }]);
+
+		assert.strictEqual(model.getValue(), 'Some hi and more text');
+
+		editor.runCommand(CoreEditingCommands.Undo, null);
+
+		assert.strictEqual(model.getValue(), 'Some text and more text');
+		assert.deepStrictEqual(editor.getSelections(), [new Selection(1, 1, 1, 1)]);
 	});
 });

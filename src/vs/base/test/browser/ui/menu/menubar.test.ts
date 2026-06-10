@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../browser/dom.js';
+import { $, ModifierKeyEmitter } from '../../../../browser/dom.js';
 import { unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
 import { MenuBar } from '../../../../browser/ui/menu/menubar.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -65,20 +65,33 @@ suite('Menubar', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	const container = $('.container');
 
-	const menubar = new MenuBar(container, {
-		enableMnemonics: true,
-		visibility: 'visible'
-	}, unthemedMenuStyles);
+	const withMenuMenubar = (callback: (menubar: MenuBar) => void) => {
+		const menubar = new MenuBar(container, {
+			enableMnemonics: true,
+			visibility: 'visible'
+		}, unthemedMenuStyles);
+
+		callback(menubar);
+
+		menubar.dispose();
+		ModifierKeyEmitter.disposeInstance();
+	};
 
 	test('English File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '&File', 'File', 'F');
+		withMenuMenubar(menubar => {
+			validateMenuBarItem(menubar, container, '&File', 'File', 'F');
+		});
 	});
 
 	test('Russian File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
+		withMenuMenubar(menubar => {
+			validateMenuBarItem(menubar, container, '&Файл', 'Файл', 'Ф');
+		});
 	});
 
 	test('Chinese File menu renders mnemonics', function () {
-		validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
+		withMenuMenubar(menubar => {
+			validateMenuBarItem(menubar, container, '文件(&F)', '文件', 'F');
+		});
 	});
 });

@@ -22,7 +22,7 @@ export class QuickAccess {
 
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		await this.runCommand('workbench.action.clearEditorHistory');
+		await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
 
 		const PollingStrategy = {
 			Stop: true,
@@ -98,6 +98,13 @@ export class QuickAccess {
 			}
 
 			await this.quickInput.closeQuickInput();
+
+			// Back off between retries so that slow file search
+			// indexing (e.g. browser/remote on CI) has a chance to
+			// catch up before we hammer it again.
+			if (retries < 9) {
+				await this.code.wait(250 * retries);
+			}
 		}
 
 		if (!success) {
@@ -127,8 +134,7 @@ export class QuickAccess {
 		await this.quickInput.selectQuickInputElement(0);
 
 		// wait for editor being focused
-		await this.editors.waitForActiveTab(fileName);
-		await this.editors.selectTab(fileName);
+		await this.editors.waitForEditorFocus(fileName);
 	}
 
 	private async openQuickAccessWithRetry(kind: QuickAccessKind, value?: string): Promise<void> {
@@ -143,13 +149,17 @@ export class QuickAccess {
 				// Open via keybinding
 				switch (kind) {
 					case QuickAccessKind.Files:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', accept);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+p' : 'ctrl+p', accept);
 						break;
 					case QuickAccessKind.Symbols:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+o' : 'ctrl+shift+o', accept);
 						break;
 					case QuickAccessKind.Commands:
-						await this.code.sendKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', accept);
+						await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+shift+p' : 'ctrl+shift+p', async () => {
+
+							await this.code.wait(100);
+							await this.quickInput.waitForQuickInputOpened(10);
+						});
 						break;
 				}
 				break;
@@ -159,7 +169,7 @@ export class QuickAccess {
 				}
 
 				// Retry
-				await this.code.sendKeybinding('escape');
+				await this.code.dispatchKeybinding('escape', async () => { });
 			}
 		}
 
@@ -238,5 +248,23 @@ export class QuickAccess {
 				continue;
 			}
 		}
+	}
+
+	async getVisibleCommandNames(searchValue: string): Promise<string[]> {
+
+		// open commands picker
+		await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${searchValue}`);
+
+		// wait for quick input elements to be available
+		let commandNames: string[] = [];
+		await this.quickInput.waitForQuickInputElements(elementNames => {
+			commandNames = elementNames;
+			return true;
+		});
+
+		// close the quick input
+		await this.quickInput.closeQuickInput();
+
+		return commandNames;
 	}
 }

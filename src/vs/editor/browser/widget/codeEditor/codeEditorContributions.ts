@@ -76,8 +76,8 @@ export class CodeEditorContributions extends Disposable {
 		}, 5000));
 	}
 
-	public saveViewState(): { [key: string]: any } {
-		const contributionsState: { [key: string]: any } = {};
+	public saveViewState(): { [key: string]: unknown } {
+		const contributionsState: { [key: string]: unknown } = {};
 		for (const [id, contribution] of this._instances) {
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
@@ -86,7 +86,7 @@ export class CodeEditorContributions extends Disposable {
 		return contributionsState;
 	}
 
-	public restoreViewState(contributionsState: { [key: string]: any }): void {
+	public restoreViewState(contributionsState: { [key: string]: unknown }): void {
 		for (const [id, contribution] of this._instances) {
 			if (typeof contribution.restoreViewState === 'function') {
 				contribution.restoreViewState(contributionsState[id]);

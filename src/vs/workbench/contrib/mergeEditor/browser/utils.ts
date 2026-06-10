@@ -77,10 +77,6 @@ export function* join<TLeft, TRight>(
 	}
 }
 
-export function concatArrays<TArr extends any[]>(...arrays: TArr): TArr[number][number][] {
-	return ([] as any[]).concat(...arrays);
-}
-
 export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
 	return arr[index];
 }
@@ -90,6 +86,7 @@ export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
 }
 
 export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
+	// eslint-disable-next-line local/code-no-any-casts
 	const result = {} as any as T;
 	for (const key in source1) {
 		result[key] = source1[key];
@@ -99,6 +96,7 @@ export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
 		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
 			result[key] = deepMerge<any>(result[key], source2Value);
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts
 			result[key] = source2Value as any;
 		}
 	}
@@ -119,6 +117,7 @@ export class PersistentStore<T> {
 			const value = this.storageService.get(this.key, StorageScope.PROFILE);
 			if (value !== undefined) {
 				try {
+					// eslint-disable-next-line local/code-no-any-casts
 					this.value = JSON.parse(value) as any;
 				} catch (e) {
 					onUnexpectedError(e);

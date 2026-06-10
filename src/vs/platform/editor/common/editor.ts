@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IRectangle } from '../../window/common/window.js';
 
 export interface IResolvableEditorModel extends IDisposable {
 
@@ -251,11 +253,6 @@ export interface IEditorOptions {
 	inactive?: boolean;
 
 	/**
-	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
-	 * message as needed. By default, an error will be presented as notification if opening was not possible.
-	 */
-
-	/**
 	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
 	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
 	 * in that case.
@@ -286,6 +283,18 @@ export interface IEditorOptions {
 	source?: EditorOpenSource;
 
 	/**
+	 * Indicates whether the editor is being opened due to an explicit user
+	 * action (`true`) or automatically (`false`) as a side effect of another
+	 * action (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should be treated as explicit. Layout logic may
+	 * use this to decide whether to react to the visibility change (for
+	 * example, by leaving the auxiliary side bar maximized when the change
+	 * was not initiated by the user).
+	 */
+	isExplicit?: boolean;
+
+	/**
 	 * An optional property to signal that certain view state should be
 	 * applied when opening the editor.
 	 */
@@ -303,6 +312,144 @@ export interface IEditorOptions {
 	 * not turn transient.
 	 */
 	transient?: boolean;
+
+	/**
+	 * Options that only apply when `AUX_WINDOW_GROUP` is used for opening.
+	 */
+	auxiliary?: {
+
+		/**
+		 * Define the bounds of the editor window.
+		 */
+		bounds?: Partial<IRectangle>;
+
+		/**
+		 * Show editor compact, hiding unnecessary elements.
+		 */
+		compact?: boolean;
+
+		/**
+		 * Show the editor always on top of other windows.
+		 */
+		alwaysOnTop?: boolean;
+	};
+
+	/**
+	 * Options that only apply when `MODAL_GROUP` is used for opening.
+	 */
+	modal?: IModalEditorPartOptions;
+}
+
+export interface IModalEditorPartOptions {
+
+	/**
+	 * Whether the modal editor should be maximized.
+	 */
+	readonly maximized?: boolean;
+
+	/**
+	 * Size of the modal editor part unless it is maximized.
+	 */
+	readonly size?: { readonly width: number; readonly height: number };
+
+	/**
+	 * Position of the modal editor part unless it is maximized.
+	 */
+	readonly position?: { readonly left: number; readonly top: number };
+
+	/**
+	 * The navigation context for navigating between items
+	 * within this modal editor. Pass `undefined` to clear.
+	 */
+	readonly navigation?: IModalEditorNavigation;
+
+	/**
+	 * Optional sidebar content to render on the left side of the
+	 * modal editor. The caller provides a render callback that
+	 * receives a container element and a layout callback, and
+	 * returns a disposable to clean up when the modal closes.
+	 *
+	 * Note: the sidebar will only be shown when provided during
+	 * opening and cannot currently be added, removed, or updated
+	 * after the modal editor is opened.
+	 */
+	readonly sidebar?: IModalEditorSidebar;
+}
+
+/**
+ * Per-editor modal options provided by an editor input that wants to influence
+ * how it is rendered inside the modal editor part. Unlike
+ * {@link IModalEditorPartOptions}, these options are scoped to a single editor
+ * and resolved from the active editor (not from the part-level options API).
+ */
+export interface IModalEditorOptions {
+
+	/**
+	 * When true, the modal editor renders a simplified header:
+	 * uses the editor background, hides the title icon, removes the
+	 * bottom border and uses a slightly taller fixed height. Useful
+	 * for editors that provide their own header chrome.
+	 */
+	readonly compactHeader?: boolean;
+}
+
+/**
+ * Marker interface for editor inputs that want to customize how they are
+ * rendered when opened in the modal editor part (see {@link IModalEditorOptions}).
+ */
+export interface IModalEditorOptionsProvider {
+	getModalEditorOptions(): IModalEditorOptions | undefined;
+}
+
+export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
+	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
+}
+
+/**
+ * Modal sidebar supports rendering custom content in a sidebar next to the main editor content.
+ */
+export interface IModalEditorSidebar {
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth?: number;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden?: boolean;
+
+	/**
+	 * Render the sidebar content into the given container.
+	 *
+	 * @param container The DOM element to render into.
+	 * @param onDidLayout An event that fires when the sidebar is
+	 * 		laid out with the available dimensions.
+	 * @returns A disposable to clean up when the modal closes.
+	 */
+	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => IDisposable;
+}
+
+/**
+ * Context for navigating between items within a modal editor.
+ */
+export interface IModalEditorNavigation {
+
+	/**
+	 * Total number of items in the navigation list.
+	 */
+	readonly total: number;
+
+	/**
+	 * Current 0-based index in the navigation list.
+	 */
+	readonly current: number;
+
+	/**
+	 * Navigate to the item at the given 0-based index.
+	 */
+	readonly navigate: (index: number) => void;
 }
 
 export interface ITextEditorSelection {

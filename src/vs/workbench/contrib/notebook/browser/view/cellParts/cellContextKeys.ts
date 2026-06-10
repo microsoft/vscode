@@ -7,14 +7,13 @@ import { Disposable, DisposableStore } from '../../../../../../base/common/lifec
 import { autorun } from '../../../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { NotebookChatController } from '../../controller/chat/notebookChatController.js';
 import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
 import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
 import { CellContentPart } from '../cellPart.js';
 import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { NotebookCellExecutionState } from '../../../common/notebookCommon.js';
-import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from '../../../common/notebookContextKeys.js';
+import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from '../../../common/notebookContextKeys.js';
 import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 
 export class CellContextKeyPart extends CellContentPart {
@@ -47,7 +46,6 @@ export class CellContextKeyManager extends Disposable {
 	private cellOutputCollapsed!: IContextKey<boolean>;
 	private cellLineNumbers!: IContextKey<'on' | 'off' | 'inherit'>;
 	private cellResource!: IContextKey<string>;
-	private cellGeneratedByChat!: IContextKey<boolean>;
 	private cellHasErrorDiagnostics!: IContextKey<boolean>;
 
 	private markdownEditMode!: IContextKey<boolean>;
@@ -74,7 +72,6 @@ export class CellContextKeyManager extends Disposable {
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this._contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this._contextKeyService);
 			this.cellLineNumbers = NOTEBOOK_CELL_LINE_NUMBERS.bindTo(this._contextKeyService);
-			this.cellGeneratedByChat = NOTEBOOK_CELL_GENERATED_BY_CHAT.bindTo(this._contextKeyService);
 			this.cellResource = NOTEBOOK_CELL_RESOURCE.bindTo(this._contextKeyService);
 			this.cellHasErrorDiagnostics = NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS.bindTo(this._contextKeyService);
 
@@ -121,21 +118,10 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForEditState();
 			this.updateForCollapseState();
 			this.updateForOutputs();
-			this.updateForChat();
 
 			this.cellLineNumbers.set(this.element!.lineNumbers);
 			this.cellResource.set(this.element!.uri.toString());
 		});
-
-		const chatController = NotebookChatController.get(this.notebookEditor);
-
-		if (chatController) {
-			this.elementDisposables.add(chatController.onDidChangePromptCache(e => {
-				if (e.cell.toString() === this.element!.uri.toString()) {
-					this.updateForChat();
-				}
-			}));
-		}
 	}
 
 	private onDidChangeState(e: CellViewModelStateChangeEvent) {
@@ -235,16 +221,5 @@ export class CellContextKeyManager extends Disposable {
 		} else {
 			this.cellHasOutputs.set(false);
 		}
-	}
-
-	private updateForChat() {
-		const chatController = NotebookChatController.get(this.notebookEditor);
-
-		if (!chatController || !this.element) {
-			this.cellGeneratedByChat.set(false);
-			return;
-		}
-
-		this.cellGeneratedByChat.set(chatController.isCellGeneratedByChat(this.element));
 	}
 }

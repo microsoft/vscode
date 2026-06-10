@@ -5,7 +5,7 @@
 
 import { localize } from '../../nls.js';
 import { Event } from '../../base/common/event.js';
-import { DeepRequiredNonNullable, assertIsDefined } from '../../base/common/types.js';
+import { DeepRequiredNonNullable, assertReturnsDefined } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from '../../editor/common/editorCommon.js';
@@ -410,7 +410,7 @@ export interface IFileEditorFactory {
 	typeId: string;
 
 	/**
-	 * Creates new new editor capable of showing files.
+	 * Creates new editor capable of showing files.
 	 */
 	createFileEditor(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredLanguageId: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
@@ -504,12 +504,12 @@ export interface IResourceSideBySideEditorInput extends IBaseUntypedEditorInput 
 	/**
 	 * The right hand side editor to open inside a side-by-side editor.
 	 */
-	readonly primary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly primary: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The left hand side editor to open inside a side-by-side editor.
 	 */
-	readonly secondary: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly secondary: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 /**
@@ -524,12 +524,25 @@ export interface IResourceDiffEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly original: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly original: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly modified: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modified: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
+}
+
+export interface ITextResourceDiffEditorInput extends IBaseTextResourceEditorInput {
+
+	/**
+	 * The left hand side text editor to open inside a diff editor.
+	 */
+	readonly original: Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
+
+	/**
+	 * The right hand side text editor to open inside a diff editor.
+	 */
+	readonly modified: Omit<ITextResourceEditorInput, 'options'> | Omit<IUntitledTextResourceEditorInput, 'options'>;
 }
 
 /**
@@ -558,7 +571,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 export interface IMultiDiffEditorResource extends IResourceDiffEditorInput {
 	readonly goToFileResource?: URI;
 }
-export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };
+export type IResourceMergeEditorInputSide = (Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>) & { detail?: string };
 
 /**
  * A resource merge editor input compares multiple editors
@@ -582,12 +595,12 @@ export interface IResourceMergeEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The base common ancestor of the file to merge.
 	 */
-	readonly base: IResourceEditorInput | ITextResourceEditorInput;
+	readonly base: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>;
 
 	/**
 	 * The resulting output of the merge.
 	 */
-	readonly result: IResourceEditorInput | ITextResourceEditorInput;
+	readonly result: Omit<IResourceEditorInput, 'options'> | Omit<ITextResourceEditorInput, 'options'>;
 }
 
 export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
@@ -836,7 +849,20 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9
+	Scratchpad = 1 << 9,
+
+	/**
+	 * Signals that the editor should be revealed when being
+	 * opened if it is already opened in any editor group.
+	 */
+	ForceReveal = 1 << 10,
+
+	/**
+	 * Signals that the editor must be opened in a modal editor
+	 * part. This is honored unless the user has explicitly opted
+	 * out of modal editors via `workbench.editor.useModal: 'off'`.
+	 */
+	RequiresModal = 1 << 11
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1141,6 +1167,15 @@ export interface IActiveEditorChangeEvent {
 	 * The new active editor or `undefined` if the group is empty.
 	 */
 	editor: EditorInput | undefined;
+
+	/**
+	 * Indicates whether the editor change is the result of an explicit
+	 * user action (`true`) or happened automatically as a side effect
+	 * (e.g. the chat agent opening files it has edited).
+	 *
+	 * When omitted, callers should treat the change as explicit.
+	 */
+	isExplicit?: boolean;
 }
 
 export interface IEditorWillMoveEvent extends IEditorIdentifier {
@@ -1219,6 +1254,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	showTabIndex?: boolean;
 	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
@@ -1228,6 +1264,7 @@ interface IEditorPartConfiguration {
 	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
+	titleScrollbarVisibility?: 'auto' | 'visible' | 'hidden';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
 	enablePreview?: boolean;
@@ -1239,12 +1276,14 @@ interface IEditorPartConfiguration {
 	closeEmptyGroups?: boolean;
 	autoLockGroups?: Set<string>;
 	revealIfOpen?: boolean;
+	swipeToNavigate?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
 	restoreViewState?: boolean;
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	allowDropIntoGroup?: boolean;
 	dragToOpenWindow?: boolean;
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
@@ -1277,6 +1316,11 @@ export interface IFindEditorOptions {
 	 * as matching, even if the editor is opened in one of the sides.
 	 */
 	supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY;
+
+	/**
+	 * The order in which to consider editors for finding.
+	 */
+	order?: EditorsOrder;
 }
 
 export interface IMatchEditorOptions {
@@ -1367,7 +1411,7 @@ class EditorResourceAccessorImpl {
 
 		// Original URI is the `preferredResource` of an editor if any
 		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
-		if (!originalResource || !options || !options.filterByScheme) {
+		if (!originalResource || !options?.filterByScheme) {
 			return originalResource;
 		}
 
@@ -1436,7 +1480,7 @@ class EditorResourceAccessorImpl {
 
 		// Canonical URI is the `resource` of an editor
 		const canonicalResource = editor.resource;
-		if (!canonicalResource || !options || !options.filterByScheme) {
+		if (!canonicalResource || !options?.filterByScheme) {
 			return canonicalResource;
 		}
 
@@ -1540,7 +1584,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 	}
 
 	getFileEditorFactory(): IFileEditorFactory {
-		return assertIsDefined(this.fileEditorFactory);
+		return assertReturnsDefined(this.fileEditorFactory);
 	}
 
 	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature<IEditorSerializer>): IDisposable {
@@ -1570,7 +1614,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 Registry.add(EditorExtensions.EditorFactory, new EditorFactoryRegistry());
 
 export async function pathsToEditors(paths: IPathData[] | undefined, fileService: IFileService, logService: ILogService): Promise<ReadonlyArray<IResourceEditorInput | IUntitledTextResourceEditorInput | undefined>> {
-	if (!paths || !paths.length) {
+	if (!paths?.length) {
 		return [];
 	}
 

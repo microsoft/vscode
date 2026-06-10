@@ -20,9 +20,9 @@ import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IViewDescriptorService } from '../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
@@ -31,6 +31,7 @@ import { getContextMenuActions } from '../../../../platform/actions/browser/menu
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions } from '../../panecomposite.js';
 
 export class PanelPart extends AbstractPaneCompositePart {
 
@@ -51,12 +52,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 		const activeComposite = this.getActivePaneComposite();
 
 		if (!activeComposite) {
-			return;
+			return undefined;
 		}
 
 		const width = activeComposite.getOptimalWidth();
 		if (typeof width !== 'number') {
-			return;
+			return undefined;
 		}
 
 		return Math.max(width, 300);
@@ -84,7 +85,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.PANEL_PART,
-			{ hasTitle: true },
+			{ hasTitle: true, trailingSeparator: true },
 			PanelPart.activePanelSettingsKey,
 			ActivePanelContext.bindTo(contextKeyService),
 			PanelFocusContext.bindTo(contextKeyService),
@@ -92,6 +93,9 @@ export class PanelPart extends AbstractPaneCompositePart {
 			'panel',
 			undefined,
 			PANEL_TITLE_BORDER,
+			ViewContainerLocation.Panel,
+			Extensions.Panels,
+			MenuId.PanelTitle,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -116,16 +120,15 @@ export class PanelPart extends AbstractPaneCompositePart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND) || '';
 		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;
 		container.style.borderRightColor = borderColor;
 		container.style.borderBottomColor = borderColor;
 
-		const title = this.getTitleArea();
-		if (title) {
-			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		if (this.titleArea) {
+			this.titleArea.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		}
 	}
 

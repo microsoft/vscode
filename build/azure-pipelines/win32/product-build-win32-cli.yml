@@ -1,0 +1,132 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_QUALITY
+    type: string
+
+jobs:
+  - job: WindowsCLI_${{ upper(parameters.VSCODE_ARCH) }}
+    displayName: Windows CLI (${{ upper(parameters.VSCODE_ARCH) }})
+    pool:
+      name: 1es-windows-2022-x64
+      os: windows
+    timeoutInMinutes: 90
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    templateContext:
+      outputs:
+        - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+            artifactName: vscode_cli_win32_$(VSCODE_ARCH)_cli
+            displayName: Publish vscode_cli_win32_$(VSCODE_ARCH)_cli artifact
+            sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign
+            sbomPackageName: "VS Code Windows $(VSCODE_ARCH) CLI"
+            sbomPackageVersion: $(Build.SourceVersion)
+
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - template: ../cli/cli-apply-patches.yml@self
+
+      - task: Npm@1
+        displayName: Download openssl prebuilt
+        inputs:
+          command: custom
+          customCommand: pack @vscode-internal/openssl-prebuilt@0.0.11
+          customRegistry: useFeed
+          customFeed: "Monaco/openssl-prebuilt"
+          workingDir: $(Build.ArtifactStagingDirectory)
+
+      - powershell: |
+          mkdir $(Build.ArtifactStagingDirectory)/openssl
+          tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+        displayName: Extract openssl prebuilt
+
+      - template: ./steps/product-build-win32-install-rust.yml@self
+        parameters:
+          targets:
+            - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              - x86_64-pc-windows-msvc
+            - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              - aarch64-pc-windows-msvc
+
+      - template: ../cli/cli-compile.yml@self
+        parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
+          ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
+          VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+          VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          VSCODE_CLI_ENV:
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/$(VSCODE_ARCH)-windows-static/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/$(VSCODE_ARCH)-windows-static/include
+            ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
+            ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT:NO"
+            CFLAGS: "/guard:cf /Qspectre"
+
+      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+        - template: ../common/publish-artifact.yml@self
+          parameters:
+            targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+            artifactName: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+            displayName: Publish unsigned CLI
+            sbomEnabled: false
+
+        - task: ExtractFiles@1
+          displayName: Extract unsigned CLI
+          inputs:
+            archiveFilePatterns: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli.zip
+            destinationFolder: $(Build.ArtifactStagingDirectory)/sign
+
+        - task: UseDotNet@2
+          inputs:
+            version: 6.x
+
+        - task: EsrpCodeSigning@5
+          inputs:
+            UseMSIAuthentication: true
+            ConnectedServiceName: vscode-esrp
+            AppRegistrationClientId: $(ESRP_CLIENT_ID)
+            AppRegistrationTenantId: $(ESRP_TENANT_ID)
+            AuthAKVName: vscode-esrp
+            AuthSignCertName: esrp-sign
+            FolderPath: .
+            Pattern: noop
+          displayName: 'Install ESRP Tooling'
+
+        - powershell: |
+            . build/azure-pipelines/win32/exec.ps1
+            $ErrorActionPreference = "Stop"
+            $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
+            $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+            echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
+          displayName: Find ESRP CLI
+
+        - powershell: node build\azure-pipelines\common\sign.ts $env:EsrpCliDllPath sign-windows $(Build.ArtifactStagingDirectory)/sign "*.exe"
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          displayName: ✍️ Codesign
+
+        - powershell: Remove-Item -Path "$(Build.ArtifactStagingDirectory)/sign/CodeSignSummary*.md" -Force -ErrorAction SilentlyContinue
+          displayName: Remove CodeSignSummary
+
+        - task: ArchiveFiles@2
+          displayName: Archive signed CLI
+          inputs:
+            rootFolderOrFile: $(Build.ArtifactStagingDirectory)/sign
+            includeRootFolder: false
+            archiveType: zip
+            archiveFile: $(Build.ArtifactStagingDirectory)/out/vscode_cli_win32_$(VSCODE_ARCH)_cli.zip

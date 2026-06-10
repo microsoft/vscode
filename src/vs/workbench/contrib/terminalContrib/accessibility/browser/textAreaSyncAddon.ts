@@ -30,8 +30,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		super();
 
 		this._register(Event.runAndSubscribe(Event.any(
-			this._capabilities.onDidAddCapability,
-			this._capabilities.onDidRemoveCapability,
+			this._capabilities.onDidChangeCapabilities,
 			this._accessibilityService.onDidChangeScreenReaderOptimized,
 		), () => {
 			this._refreshListeners();

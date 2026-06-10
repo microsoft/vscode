@@ -18,6 +18,8 @@ import { IPickerQuickAccessItem } from '../../../../platform/quickinput/browser/
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
 import { basename } from '../../../../base/common/path.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
+import { Event } from '../../../../base/common/event.js';
 
 
 type DefaultProfileName = string;
@@ -40,9 +42,7 @@ export class TerminalProfileQuickpick {
 			return;
 		}
 		if (type === 'setDefault') {
-			if ('command' in result.profile) {
-				return; // Should never happen
-			} else if ('id' in result.profile) {
+			if (hasKey(result.profile, { id: true })) {
 				// extension contributed profile
 				await this._configurationService.updateValue(defaultProfileKey, result.profile.title, ConfigurationTarget.USER);
 				return {
@@ -60,7 +60,7 @@ export class TerminalProfileQuickpick {
 			}
 
 			// Add the profile to settings if necessary
-			if ('isAutoDetected' in result.profile) {
+			if (hasKey(result.profile, { profileName: true })) {
 				const profilesConfig = await this._configurationService.getValue(profilesKey);
 				if (typeof profilesConfig === 'object') {
 					const newProfile: ITerminalProfileObject = {
@@ -76,17 +76,30 @@ export class TerminalProfileQuickpick {
 			// Set the default profile
 			await this._configurationService.updateValue(defaultProfileKey, result.profileName, ConfigurationTarget.USER);
 		} else if (type === 'createInstance') {
-			if ('id' in result.profile) {
+			if (hasKey(result.profile, { id: true })) {
+				const config: {
+					extensionIdentifier: string;
+					id: string;
+					title: string;
+					titleTemplate?: string;
+					options: {
+						icon: IExtensionTerminalProfile['icon'];
+						color: IExtensionTerminalProfile['color'];
+					};
+				} = {
+					extensionIdentifier: result.profile.extensionIdentifier,
+					id: result.profile.id,
+					title: result.profile.title,
+					options: {
+						icon: result.profile.icon,
+						color: result.profile.color,
+					}
+				};
+				if (result.profile.titleTemplate !== undefined) {
+					config.titleTemplate = result.profile.titleTemplate;
+				}
 				return {
-					config: {
-						extensionIdentifier: result.profile.extensionIdentifier,
-						id: result.profile.id,
-						title: result.profile.title,
-						options: {
-							icon: result.profile.icon,
-							color: result.profile.color,
-						}
-					},
+					config,
 					keyMods: result.keyMods
 				};
 			} else {
@@ -94,7 +107,7 @@ export class TerminalProfileQuickpick {
 			}
 		}
 		// for tests
-		return 'profileName' in result.profile ? result.profile.profileName : result.profile.title;
+		return hasKey(result.profile, { profileName: true }) ? result.profile.profileName : result.profile.title;
 	}
 
 	private async _createAndShow(type: 'setDefault' | 'createInstance'): Promise<IProfileQuickPickItem | undefined> {
@@ -110,13 +123,10 @@ export class TerminalProfileQuickpick {
 				if (!await this._isProfileSafe(context.item.profile)) {
 					return;
 				}
-				if ('command' in context.item.profile) {
+				if (hasKey(context.item.profile, { id: true })) {
 					return;
 				}
-				if ('id' in context.item.profile) {
-					return;
-				}
-				const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+				const configProfiles: { [key: string]: ITerminalExecutable | null | undefined } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 				const existingProfiles = !!configProfiles ? Object.keys(configProfiles) : [];
 				const name = await this._quickInputService.input({
 					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
@@ -131,7 +141,7 @@ export class TerminalProfileQuickpick {
 				if (!name) {
 					return;
 				}
-				const newConfigValue: { [key: string]: ITerminalExecutable } = {
+				const newConfigValue: { [key: string]: ITerminalExecutable | null | undefined } = {
 					...configProfiles,
 					[name]: this._createNewProfileConfig(context.item.profile)
 				};
@@ -154,7 +164,7 @@ export class TerminalProfileQuickpick {
 		const contributedProfiles: IProfileQuickPickItem[] = [];
 		for (const contributed of this._terminalProfileService.contributedProfiles) {
 			let icon: ThemeIcon | undefined;
-			if (typeof contributed.icon === 'string') {
+			if (isString(contributed.icon)) {
 				if (contributed.icon.startsWith('$(')) {
 					icon = ThemeIcon.fromString(contributed.icon);
 				} else {
@@ -180,7 +190,8 @@ export class TerminalProfileQuickpick {
 					title: contributed.title,
 					icon: contributed.icon,
 					id: contributed.id,
-					color: contributed.color
+					color: contributed.color,
+					titleTemplate: contributed.titleTemplate
 				},
 				profileName: contributed.title,
 				iconClasses
@@ -223,8 +234,8 @@ export class TerminalProfileQuickpick {
 	}
 
 	private async _isProfileSafe(profile: ITerminalProfile | IExtensionTerminalProfile): Promise<boolean> {
-		const isUnsafePath = 'isUnsafePath' in profile && profile.isUnsafePath;
-		const requiresUnsafePath = 'requiresUnsafePath' in profile && profile.requiresUnsafePath;
+		const isUnsafePath = hasKey(profile, { profileName: true }) && profile.isUnsafePath;
+		const requiresUnsafePath = hasKey(profile, { profileName: true }) && profile.requiresUnsafePath;
 		if (!isUnsafePath && !requiresUnsafePath) {
 			return true;
 		}
@@ -251,7 +262,9 @@ export class TerminalProfileQuickpick {
 					run: () => r(false)
 				}]
 			);
-			handle.onDidClose(() => r(false));
+			Event.once(handle.onDidClose)(() => {
+				r(false);
+			});
 		});
 	}
 
@@ -270,7 +283,7 @@ export class TerminalProfileQuickpick {
 		}
 
 		if (profile.args) {
-			if (typeof profile.args === 'string') {
+			if (isString(profile.args)) {
 				return { label, description: `${profile.path} ${profile.args}`, profile, profileName: profile.profileName, buttons, iconClasses };
 			}
 			const argsString = profile.args.map(e => {

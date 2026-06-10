@@ -1,0 +1,42 @@
+steps:
+  - script: |
+      set -e
+
+      EXTENSION_ID="GitHub.copilot-chat"
+      L10N_REPO="https://github.com/microsoft/vscode-extensions-loc.git"
+      L10N_DIR="$(Agent.TempDirectory)/vscode-extensions-loc"
+
+      echo "Cloning vscode-extensions-loc (sparse checkout)..."
+      git clone --depth 1 --filter=blob:none --sparse "$L10N_REPO" "$L10N_DIR"
+      cd "$L10N_DIR"
+      git sparse-checkout set "out/$EXTENSION_ID"
+
+      TRANSLATED_DIR="$L10N_DIR/out/$EXTENSION_ID"
+
+      if [ ! -d "$TRANSLATED_DIR" ] || [ -z "$(ls -A "$TRANSLATED_DIR" 2>/dev/null)" ]; then
+        echo "No translated strings found for $EXTENSION_ID, skipping l10n import."
+        rm -rf "$L10N_DIR"
+        exit 0
+      fi
+
+      echo "Importing translated XLF files..."
+      cd $(Build.SourcesDirectory)/extensions/copilot
+
+      L10N_ROOT=$(node -e "const p=require('./package.json'); console.log(p.l10n || '.')")
+
+      npx @vscode/l10n-dev import-xlf -o "$L10N_ROOT" "$TRANSLATED_DIR"/*/*.xlf
+
+      # Move package.nls.*.json files from l10n root to extension root if needed
+      if [ "$L10N_ROOT" != "." ]; then
+        for f in "$L10N_ROOT"/package.nls.*.json; do
+          [ -f "$f" ] && mv "$f" .
+        done
+      fi
+
+      echo "Localized files:"
+      ls -la package.nls.*.json 2>/dev/null || echo "  (no package.nls.*.json)"
+      ls -la "$L10N_ROOT"/bundle.l10n.*.json 2>/dev/null || echo "  (no bundle.l10n.*.json)"
+
+      # Cleanup
+      rm -rf "$L10N_DIR"
+    displayName: Import localized strings

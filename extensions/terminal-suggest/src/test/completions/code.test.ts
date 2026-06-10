@@ -14,7 +14,7 @@ export const codeSpecOptionsAndSubcommands = [
 	'-d <file> <file>',
 	'-g <file:line[:character]>',
 	'-h',
-	'-m <path1> <path2> <base> <result>',
+	'-m <file> <file> <base> <result>',
 	'-n',
 	'-r',
 	'-s',
@@ -22,12 +22,15 @@ export const codeSpecOptionsAndSubcommands = [
 	'-w',
 	'-',
 	'--add <folder>',
+	'--add-mcp <json>',
 	'--category <category>',
 	'--diff <file> <file>',
+	'--disable-chromium-sandbox',
 	'--disable-extension <extension-id>',
 	'--disable-extensions',
 	'--disable-gpu',
-	'--enable-proposed-api',
+	'--disable-lcd-text',
+	'--enable-proposed-api <extension-id>',
 	'--extensions-dir <dir>',
 	'--goto <file:line[:character]>',
 	'--help',
@@ -39,23 +42,28 @@ export const codeSpecOptionsAndSubcommands = [
 	'--locate-shell-integration-path <shell>',
 	'--log <level>',
 	'--max-memory <memory>',
-	'--merge <path1> <path2> <base> <result>',
+	'--merge <file> <file> <base> <result>',
 	'--new-window',
 	'--pre-release',
 	'--prof-startup',
-	'--profile <settingsProfileName>',
+	'--profile <profileName>',
+	'--remove <folder>',
 	'--reuse-window',
 	'--show-versions',
 	'--status',
 	'--sync <sync>',
 	'--telemetry',
+	'--transient',
 	'--uninstall-extension <extension-id>',
+	'--update-extensions',
 	'--user-data-dir <dir>',
 	'--verbose',
 	'--version',
 	'--wait',
 	'tunnel',
+	'chat [<prompt>]',
 	'serve-web',
+	'agent',
 	'help',
 	'status',
 	'version'
@@ -66,10 +74,16 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 	const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
 	const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
 	const syncOptions = ['on', 'off'];
+	const chatOptions = ['--add-file <file>', '--help', '--maximize', '--mode <mode>', '--new-window', '--reuse-window', '-a <file>', '-h', '-m <mode>', '-n', '-r'];
+	const agentCommonFlags = ['--cli-data-dir <cli_data_dir>', '--log [<log>]', '--verbose', '--help', '-h'];
+	const agentHostFlags = ['--host <host>', '--port <port>', '--connection-token <connection_token>', '--connection-token-file <connection_token_file>', '--without-connection-token', '--server-data-dir <server_data_dir>', '--replace', '--tunnel', '--name <name>', '--random-name'];
+	const agentConnectionFlags = ['--address <address>', '--tunnel <tunnel>'];
+	const agentSubcommands = ['host', 'ps', 'stop <session>', 'kill', 'logs <session>', 'help'];
+	const agentHelpSubcommands = ['host', 'ps', 'stop', 'kill', 'logs', 'help'];
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name ? (codeCompletionSpec as Fig.Subcommand).description : (codeInsidersCompletionSpec as Fig.Subcommand).description }];
 		const input = `${executable.slice(0, i)}|`;
 		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
 	}
@@ -80,6 +94,20 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 
 		// Basic arguments
 		{ input: `${executable} |`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --remove
+		{ input: `${executable} --remove |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		// Test for --add-mcp
+		{ input: `${executable} --add-mcp |`, expectedCompletions: [] },
+		// Test for --update-extensions
+		{ input: `${executable} --update-extensions |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--update-extensions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --disable-lcd-text
+		{ input: `${executable} --disable-lcd-text |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--disable-lcd-text'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --disable-chromium-sandbox
+		{ input: `${executable} --disable-chromium-sandbox |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--disable-chromium-sandbox'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --enable-proposed-api variadic
+		{ input: `${executable} --enable-proposed-api |`, expectedCompletions: [executable] },
+		// Test for --log repeatable and extension-specific
+		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
 		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
@@ -100,6 +128,20 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions },
 
+		// Chat subcommand tests
+		{ input: `${executable} chat |`, expectedCompletions: chatOptions },
+		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
+		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
+
+		// Agent subcommand tests
+		{ input: `${executable} agent |`, expectedCompletions: [...agentSubcommands, ...agentHostFlags, ...agentCommonFlags] },
+		{ input: `${executable} agent host |`, expectedCompletions: [...agentHostFlags, ...agentCommonFlags] },
+		{ input: `${executable} agent ps |`, expectedCompletions: [...agentConnectionFlags, '--json', '--all', '-a', ...agentCommonFlags] },
+		{ input: `${executable} agent stop |`, expectedCompletions: [...agentConnectionFlags, ...agentCommonFlags] },
+		{ input: `${executable} agent logs |`, expectedCompletions: [...agentConnectionFlags, ...agentCommonFlags] },
+		{ input: `${executable} agent kill |`, expectedCompletions: [...agentCommonFlags] },
+		{ input: `${executable} agent help |`, expectedCompletions: agentHelpSubcommands },
+
 		// Middle of command
 		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	];
@@ -109,13 +151,16 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 	const subcommandAndFlags: string[] = [
 		'-',
 		'--add <folder>',
+		'--add-mcp <json>',
 		'--category <category>',
 		'--cli-data-dir <cli_data_dir>',
 		'--diff <file> <file>',
+		'--disable-chromium-sandbox',
 		'--disable-extension <extension-id>',
 		'--disable-extensions',
 		'--disable-gpu',
-		'--enable-proposed-api',
+		'--disable-lcd-text',
+		'--enable-proposed-api <extension-id>',
 		'--extensions-dir [<extensions_dir>]',
 		'--goto <file:line[:character]>',
 		'--help',
@@ -127,17 +172,20 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'--locate-shell-integration-path <shell>',
 		'--log [<log>]',
 		'--max-memory <memory>',
-		'--merge <path1> <path2> <base> <result>',
+		'--merge <file> <file> <base> <result>',
 		'--new-window',
 		'--pre-release',
 		'--prof-startup',
-		'--profile <settingsProfileName>',
+		'--profile <profileName>',
+		'--remove <folder>',
 		'--reuse-window',
 		'--show-versions',
 		'--status',
 		'--sync <sync>',
 		'--telemetry',
+		'--transient',
 		'--uninstall-extension <extension-id>',
+		'--update-extensions',
 		'--use-version [<use_version>]',
 		'--user-data-dir [<user_data_dir>]',
 		'--verbose',
@@ -147,12 +195,14 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'-d <file> <file>',
 		'-g <file:line[:character]>',
 		'-h',
-		'-m <path1> <path2> <base> <result>',
+		'-m <file> <file> <base> <result>',
 		'-n',
 		'-r',
 		'-s',
 		'-v',
 		'-w',
+		'agent',
+		'chat [<prompt>]',
 		'ext',
 		'help',
 		'serve-web',
@@ -229,9 +279,14 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'-h'
 	];
 
+	const agentHostFlags: string[] = ['--host <host>', '--port <port>', '--connection-token <connection_token>', '--connection-token-file <connection_token_file>', '--without-connection-token', '--server-data-dir <server_data_dir>', '--replace', '--tunnel', '--name <name>', '--random-name'];
+	const agentConnectionFlags: string[] = ['--address <address>', '--tunnel <tunnel>'];
+	const agentSubcommands: string[] = ['host', 'ps', 'stop <session>', 'kill', 'logs <session>', 'help'];
+	const agentHelpSubcommands: string[] = ['host', 'ps', 'stop', 'kill', 'logs', 'help'];
+
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
-		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as any).description : (codeInsidersCompletionSpec as any).description }];
+		const expectedCompletions = [{ label: executable, description: executable === codeCompletionSpec.name || executable === codeTunnelCompletionSpec.name ? (codeCompletionSpec as Fig.Subcommand).description : (codeInsidersCompletionSpec as Fig.Subcommand).description }];
 		const input = `${executable.slice(0, i)}|`;
 		typingTests.push({ input, expectedCompletions, expectedResourceRequests: input.endsWith(' ') ? undefined : { type: 'both', cwd: testPaths.cwd } });
 	}
@@ -249,6 +304,9 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} tunnel unregister |`, expectedCompletions: [...commonFlags] },
 		{ input: `${executable} tunnel service |`, expectedCompletions: [...commonFlags, 'help', 'install', 'log', 'uninstall'] },
 		{ input: `${executable} tunnel help |`, expectedCompletions: helpSubcommands },
+		{ input: `${executable} chat |`, expectedCompletions: ['--mode <mode>', '--add-file <file>', '--help', '--maximize', '--new-window', '--reuse-window', '-m <mode>', '-a <file>', '-h', '-n', '-r'] },
+		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
+		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndFlags },
 		{ input: `${executable} ext |`, expectedCompletions: extSubcommands },
 		{ input: `${executable} ext list |`, expectedCompletions: [...commonFlags, '--category [<category>]', '--show-versions'] },
@@ -256,6 +314,13 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} ext update |`, expectedCompletions: [...commonFlags] },
 		{ input: `${executable} status |`, expectedCompletions: commonFlags },
 		{ input: `${executable} version |`, expectedCompletions: commonFlags },
+		{ input: `${executable} agent |`, expectedCompletions: [...agentSubcommands, ...agentHostFlags, ...commonFlags] },
+		{ input: `${executable} agent host |`, expectedCompletions: [...agentHostFlags, ...commonFlags] },
+		{ input: `${executable} agent ps |`, expectedCompletions: [...agentConnectionFlags, '--json', '--all', '-a', ...commonFlags] },
+		{ input: `${executable} agent stop |`, expectedCompletions: [...agentConnectionFlags, ...commonFlags] },
+		{ input: `${executable} agent logs |`, expectedCompletions: [...agentConnectionFlags, ...commonFlags] },
+		{ input: `${executable} agent kill |`, expectedCompletions: [...commonFlags] },
+		{ input: `${executable} agent help |`, expectedCompletions: agentHelpSubcommands },
 
 	];
 }

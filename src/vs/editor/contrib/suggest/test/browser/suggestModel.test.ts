@@ -3,44 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
-import { ITextModel } from '../../../../common/model.js';
-import { TextModel } from '../../../../common/model/textModel.js';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../../common/languages.js';
 import { MetadataConsts } from '../../../../common/encodedTokenAttributes.js';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, InlineCompletionsProvider, IState, TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../../common/languages/nullTokenize.js';
-import { ILanguageService } from '../../../../common/languages/language.js';
+import { ITextModel } from '../../../../common/model.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../common/services/editorWorker.js';
+import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
+import { createTestCodeEditor, ITestCodeEditor, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../../../../test/common/testTextModel.js';
+import { InlineCompletionsController } from '../../../inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { InlineSuggestionsView } from '../../../inlineCompletions/browser/view/inlineSuggestionsView.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
+import { getSnippetSuggestSupport, setSnippetSuggestSupport } from '../../browser/suggest.js';
 import { SuggestController } from '../../browser/suggestController.js';
 import { ISuggestMemoryService } from '../../browser/suggestMemory.js';
 import { LineContext, SuggestModel } from '../../browser/suggestModel.js';
 import { ISelectedSuggestion } from '../../browser/suggestWidget.js';
-import { createTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
-import { createModelServices, createTextModel, instantiateTextModel } from '../../../../test/common/testTextModel.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
-import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { getSnippetSuggestSupport, setSnippetSuggestSupport } from '../../browser/suggest.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -110,7 +120,7 @@ suite('SuggestModel - Context', function () {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new EncodedTokenizationResult(tokens, state);
+					return new EncodedTokenizationResult(tokens, [], state);
 				}
 			}));
 		}
@@ -694,7 +704,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			});
 
 			await assertEvent(model.onDidSuggest, () => {
-				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+				editor.runCommand(CoreEditingCommands.DeleteLeft, null);
 
 			}, event => {
 				assert.strictEqual(event.triggerOptions.auto, true);
@@ -1226,6 +1236,354 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.strictEqual(event.completionModel.items[1].textLabel, 'log');
 			});
 
+		});
+	});
+
+	test('offWhenInlineCompletions - allows quick suggest when inline provider returns empty results', function () {
+
+		disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		// Register a dummy inline completions provider that returns no items
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: () => ({ items: [] }),
+			disposeInlineCompletions: () => { }
+		};
+		disposables.add(languageFeaturesService.inlineCompletionsProvider.register({ scheme: 'test' }, inlineProvider));
+
+		return withOracle((suggestOracle, editor) => {
+			editor.updateOptions({ quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' } });
+
+			// Without an InlineCompletionsController, the fallback triggers immediately
+			return assertEvent(suggestOracle.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+			}, suggestEvent => {
+				assert.strictEqual(suggestEvent.triggerOptions.auto, true);
+			});
+		});
+	});
+
+	test('offWhenInlineCompletions - allows quick suggest when no inline provider exists', function () {
+
+		disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		// No inline completions provider registered for 'test' scheme
+
+		return withOracle((suggestOracle, editor) => {
+			editor.updateOptions({ quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' } });
+
+			return assertEvent(suggestOracle.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+			}, suggestEvent => {
+				assert.strictEqual(suggestEvent.triggerOptions.auto, true);
+				assert.strictEqual(suggestEvent.completionModel.items.length, 1);
+			});
+		});
+	});
+
+	test('offWhenInlineCompletions - allows quick suggest when inlineSuggest is disabled', function () {
+		return runWithFakedTimers({ useFakeTimers: true }, () => {
+			disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+			// Register a dummy inline completions provider
+			const inlineProvider: InlineCompletionsProvider = {
+				provideInlineCompletions: () => ({ items: [] }),
+				disposeInlineCompletions: () => { }
+			};
+			disposables.add(languageFeaturesService.inlineCompletionsProvider.register({ scheme: 'test' }, inlineProvider));
+
+			return withOracle((suggestOracle, editor) => {
+				editor.updateOptions({
+					quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' },
+					inlineSuggest: { enabled: false }
+				});
+
+				return assertEvent(suggestOracle.onDidSuggest, () => {
+					editor.setPosition({ lineNumber: 1, column: 4 });
+					editor.trigger('keyboard', Handler.Type, { text: 'd' });
+				}, suggestEvent => {
+					assert.strictEqual(suggestEvent.triggerOptions.auto, true);
+					assert.strictEqual(suggestEvent.completionModel.items.length, 1);
+				});
+			});
+		});
+	});
+
+	test('string shorthand - "off" disables quick suggestions for all token types', function () {
+		return runWithFakedTimers({ useFakeTimers: true }, () => {
+
+			disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+			return withOracle((suggestOracle, editor) => {
+				// Use string shorthand instead of object form
+				editor.updateOptions({ quickSuggestions: 'off' });
+
+				return new Promise<void>((resolve, reject) => {
+					const sub = suggestOracle.onDidSuggest(() => {
+						sub.dispose();
+						reject(new Error('Quick suggestions should have been suppressed by string shorthand "off"'));
+					});
+
+					editor.setPosition({ lineNumber: 1, column: 4 });
+					editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+					setTimeout(() => {
+						sub.dispose();
+						resolve();
+					}, 200);
+				});
+			});
+		});
+	});
+
+	test('string shorthand - "offWhenInlineCompletions" allows quick suggest when inline provider returns empty', function () {
+		return runWithFakedTimers({ useFakeTimers: true }, () => {
+			disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+			const inlineProvider: InlineCompletionsProvider = {
+				provideInlineCompletions: () => ({ items: [] }),
+				disposeInlineCompletions: () => { }
+			};
+			disposables.add(languageFeaturesService.inlineCompletionsProvider.register({ scheme: 'test' }, inlineProvider));
+
+			return withOracle((suggestOracle, editor) => {
+				// Use string shorthand - applies to all token types
+				editor.updateOptions({ quickSuggestions: 'offWhenInlineCompletions' });
+
+				// Without InlineCompletionsController, the fallback triggers immediately
+				return assertEvent(suggestOracle.onDidSuggest, () => {
+					editor.setPosition({ lineNumber: 1, column: 4 });
+					editor.trigger('keyboard', Handler.Type, { text: 'd' });
+				}, suggestEvent => {
+					assert.strictEqual(suggestEvent.triggerOptions.auto, true);
+				});
+			});
+		});
+	});
+});
+
+suite('SuggestModel - offWhenInlineCompletions with InlineCompletionsController', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const completionProvider: CompletionItemProvider = {
+		_debugDisplayName: 'test',
+		provideCompletionItems(doc, pos): CompletionList {
+			const wordUntil = doc.getWordUntilPosition(pos);
+			return {
+				incomplete: false,
+				suggestions: [{
+					label: doc.getWordUntilPosition(pos).word,
+					kind: CompletionItemKind.Property,
+					insertText: 'foofoo',
+					range: new Range(pos.lineNumber, wordUntil.startColumn, pos.lineNumber, wordUntil.endColumn)
+				}]
+			};
+		}
+	};
+
+	async function withSuggestModelAndInlineCompletions(
+		text: string,
+		inlineProvider: InlineCompletionsProvider,
+		callback: (suggestModel: SuggestModel, editor: ITestCodeEditor) => Promise<void>,
+	): Promise<void> {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const disposableStore = new DisposableStore();
+			try {
+				const languageFeaturesService = new LanguageFeaturesService();
+				disposableStore.add(languageFeaturesService.completionProvider.register({ pattern: '**' }, completionProvider));
+				disposableStore.add(languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, inlineProvider));
+
+				const serviceCollection = new ServiceCollection(
+					[ILanguageFeaturesService, languageFeaturesService],
+					[ITelemetryService, NullTelemetryService],
+					[ILogService, new NullLogService()],
+					[IStorageService, disposableStore.add(new InMemoryStorageService())],
+					[IKeybindingService, new MockKeybindingService()],
+					[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
+						override computeWordRanges() {
+							return Promise.resolve({});
+						}
+					}],
+					[ISuggestMemoryService, new class extends mock<ISuggestMemoryService>() {
+						override memorize(): void { }
+						override select(): number { return 0; }
+					}],
+					[IMenuService, new class extends mock<IMenuService>() {
+						override createMenu() {
+							return new class extends mock<IMenu>() {
+								override onDidChange = Event.None;
+								override dispose() { }
+							};
+						}
+					}],
+					[ILabelService, new class extends mock<ILabelService>() { }],
+					[IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { }],
+					[IEnvironmentService, new class extends mock<IEnvironmentService>() {
+						override isBuilt: boolean = true;
+						override isExtensionDevelopment: boolean = false;
+					}],
+					[IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+						override async playSignal() { }
+						override isSoundEnabled() { return false; }
+					}],
+					[IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+						override onDidChangeDefaultAccount = Event.None;
+						override getDefaultAccount = async () => null;
+						override setDefaultAccountProvider = () => { };
+					}],
+				);
+
+				await withAsyncTestCodeEditor(text, { serviceCollection }, async (editor, _editorViewModel, instantiationService) => {
+					instantiationService.stubInstance(InlineSuggestionsView, {
+						dispose: () => { }
+					});
+					editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
+					editor.registerAndInstantiateContribution(InlineCompletionsController.ID, InlineCompletionsController);
+
+					editor.hasWidgetFocus = () => true;
+					editor.updateOptions({
+						quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' },
+					});
+
+					const suggestModel = disposableStore.add(
+						editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(SuggestModel, editor))
+					);
+
+					await callback(suggestModel, editor);
+				});
+			} finally {
+				disposableStore.dispose();
+				ModifierKeyEmitter.disposeInstance();
+			}
+		});
+	}
+
+	test('suppresses quick suggest when inline completions are showing ghost text', async function () {
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: (model, pos) => {
+				// Return a completion that extends the current word - must be visible at cursor
+				const word = model.getWordAtPosition(pos);
+				if (!word) { return { items: [] }; }
+				return {
+					items: [{
+						insertText: word.word + 'Suffix',
+						range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn),
+					}]
+				};
+			},
+			disposeInlineCompletions: () => { }
+		};
+
+		await withSuggestModelAndInlineCompletions('abc def', inlineProvider, async (suggestModel, editor) => {
+			let didSuggest = false;
+			const sub = suggestModel.onDidSuggest(() => { didSuggest = true; });
+
+			editor.setPosition({ lineNumber: 1, column: 4 });
+			editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			await timeout(200);
+
+			sub.dispose();
+			assert.strictEqual(didSuggest, false, 'Quick suggestions should have been suppressed when inline completions are showing');
+		});
+	});
+
+	test('allows quick suggest when inline completions resolve with no results', async function () {
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: () => ({ items: [] }),
+			disposeInlineCompletions: () => { }
+		};
+
+		await withSuggestModelAndInlineCompletions('abc def', inlineProvider, async (suggestModel, editor) => {
+			let didSuggest = false;
+			const sub = suggestModel.onDidSuggest(e => {
+				didSuggest = true;
+				assert.strictEqual(e.triggerOptions.auto, true);
+			});
+
+			editor.setPosition({ lineNumber: 1, column: 4 });
+			editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			await timeout(200);
+
+			sub.dispose();
+			assert.strictEqual(didSuggest, true, 'Quick suggestions should have been triggered after inline completions resolved empty');
+		});
+	});
+
+	test('allows quick suggest when inlineSuggest is disabled even with provider', async function () {
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: (model, pos) => {
+				const word = model.getWordAtPosition(pos);
+				if (!word) { return { items: [] }; }
+				return {
+					items: [{
+						insertText: word.word + 'Suffix',
+						range: new Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn),
+					}]
+				};
+			},
+			disposeInlineCompletions: () => { }
+		};
+
+		await withSuggestModelAndInlineCompletions('abc def', inlineProvider, async (suggestModel, editor) => {
+			editor.updateOptions({ inlineSuggest: { enabled: false } });
+
+			let didSuggest = false;
+			const sub = suggestModel.onDidSuggest(e => {
+				didSuggest = true;
+				assert.strictEqual(e.triggerOptions.auto, true);
+			});
+
+			editor.setPosition({ lineNumber: 1, column: 4 });
+			editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			await timeout(200);
+
+			sub.dispose();
+			assert.strictEqual(didSuggest, true, 'Quick suggestions should have been triggered when inlineSuggest is disabled');
+		});
+	});
+
+	test('does not trigger after the inline model is disposed mid-wait (e.g., readonly toggled)', async function () {
+		// Provider that only resolves when its cancellation token fires. This keeps the
+		// wait in the loading state until either the inline model is disposed
+		// (cancelling the token) or the 750ms timeout fires.
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: (_model, _pos, _ctx, token) => new Promise(resolve => {
+				const d = token.onCancellationRequested(() => {
+					d.dispose();
+					resolve({ items: [] });
+				});
+			}),
+			disposeInlineCompletions: () => { }
+		};
+
+		await withSuggestModelAndInlineCompletions('abc def', inlineProvider, async (suggestModel, editor) => {
+			let didSuggest = false;
+			const sub = suggestModel.onDidSuggest(() => { didSuggest = true; });
+
+			editor.setPosition({ lineNumber: 1, column: 4 });
+			editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			// Let _waitForInlineCompletionsAndTrigger be scheduled and set up.
+			await timeout(50);
+
+			// Toggling readonly causes the controller's `model` derivedDisposable to
+			// recompute and dispose the InlineCompletionsModel. SuggestModel does NOT
+			// cancel on configuration change, so without binding the wait to the
+			// model's lifetime, the 750ms timeout would still fire and call
+			// `this.trigger({ auto: true })` (and `stop()` on the disposed model).
+			editor.updateOptions({ readOnly: true });
+
+			// Advance past the 750ms timeout window.
+			await timeout(1000);
+
+			sub.dispose();
+			assert.strictEqual(didSuggest, false,
+				'Quick suggest should not fire after the inline model is disposed mid-wait');
 		});
 	});
 });

@@ -57,7 +57,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	appInsightsCore.addTelemetryInitializer((envelope: any) => {
+	appInsightsCore.addTelemetryInitializer((envelope) => {
 		// Opt the user out of 1DS data sharing
 		envelope['ext'] = envelope['ext'] ?? {};
 		envelope['ext']['web'] = envelope['ext']['web'] ?? {};
@@ -84,7 +84,7 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 	constructor(
 		private readonly _isInternalTelemetry: boolean,
 		private _eventPrefix: string,
-		private _defaultData: { [key: string]: any } | null,
+		private _defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 		private _xhrOverride?: IXHROverride
 	) {
@@ -125,20 +125,20 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 		);
 	}
 
-	log(eventName: string, data?: any): void {
+	log(eventName: string, data?: unknown): void {
 		if (!this._aiCoreOrKey) {
 			return;
 		}
 		data = mixin(data, this._defaultData);
-		data = validateTelemetryData(data);
+		const validatedData = validateTelemetryData(data);
 		const name = this._eventPrefix + '/' + eventName;
 
 		try {
 			this._withAIClient((aiClient) => {
-				aiClient.pluginVersionString = data?.properties.version ?? 'Unknown';
+				aiClient.pluginVersionString = validatedData?.properties.version ?? 'Unknown';
 				aiClient.track({
 					name,
-					baseData: { name, properties: data?.properties, measurements: data?.measurements }
+					baseData: { name, properties: validatedData?.properties, measurements: validatedData?.measurements }
 				});
 			});
 		} catch { }

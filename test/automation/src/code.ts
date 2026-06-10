@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process';
 import * as os from 'os';
+import * as playwright from 'playwright';
 import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
@@ -14,14 +15,18 @@ import { teardown } from './processes';
 import { Quality } from './application';
 
 export interface LaunchOptions {
+	// Allows you to override the Playwright instance
+	playwright?: typeof playwright;
 	codePath?: string;
-	readonly workspacePath: string;
-	userDataDir: string;
-	readonly extensionsPath: string;
+	readonly workspacePath?: string;
+	userDataDir?: string;
+	readonly extensionsPath?: string;
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
+	readonly videosPath?: string;
 	verbose?: boolean;
+	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
 	readonly web?: boolean;
@@ -30,6 +35,16 @@ export interface LaunchOptions {
 	readonly headless?: boolean;
 	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	readonly quality: Quality;
+	version: { major: number; minor: number; patch: number };
+	readonly extensionDevelopmentPath?: string;
+
+	/**
+	 * Extra environment variables merged on top of the inherited `process.env`
+	 * when launching the Electron child process. Set a value to `undefined`
+	 * to unset the variable. Used by tests that need to inject env-based
+	 * mocks (e.g. `VSCODE_COPILOT_CHAT_TOKEN`).
+	 */
+	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
 }
 
 interface ICodeInstance {
@@ -89,7 +104,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { serverProcess, driver } = await measureAndLog(() => launchPlaywrightBrowser(options), 'launch playwright (browser)', options.logger);
 		registerInstance(serverProcess, options.logger, 'server');
 
-		return new Code(driver, options.logger, serverProcess, undefined, options.quality);
+		return new Code(driver, options.logger, serverProcess, undefined, options.quality, options.version);
 	}
 
 	// Electron smoke tests (playwright)
@@ -97,7 +112,7 @@ export async function launch(options: LaunchOptions): Promise<Code> {
 		const { electronProcess, driver } = await measureAndLog(() => launchPlaywrightElectron(options), 'launch playwright (electron)', options.logger);
 		const { safeToKill } = registerInstance(electronProcess, options.logger, 'electron');
 
-		return new Code(driver, options.logger, electronProcess, safeToKill, options.quality);
+		return new Code(driver, options.logger, electronProcess, safeToKill, options.quality, options.version);
 	}
 }
 
@@ -110,7 +125,8 @@ export class Code {
 		readonly logger: Logger,
 		private readonly mainProcess: cp.ChildProcess,
 		private readonly safeToKill: Promise<void> | undefined,
-		readonly quality: Quality
+		readonly quality: Quality,
+		readonly version: { major: number; minor: number; patch: number }
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop) {
@@ -118,6 +134,7 @@ export class Code {
 					throw new Error('Invalid usage');
 				}
 
+				// eslint-disable-next-line local/code-no-any-casts
 				const targetProp = (target as any)[prop];
 				if (typeof targetProp !== 'function') {
 					return targetProp;
@@ -131,15 +148,32 @@ export class Code {
 		});
 	}
 
-	async startTracing(name: string): Promise<void> {
+	get editContextEnabled(): boolean {
+		return !(this.quality === Quality.Stable && this.version.major === 1 && this.version.minor < 101);
+	}
+
+	async startTracing(name?: string): Promise<void> {
 		return await this.driver.startTracing(name);
 	}
 
-	async stopTracing(name: string, persist: boolean): Promise<void> {
+	async stopTracing(name?: string, persist: boolean = false): Promise<void> {
 		return await this.driver.stopTracing(name, persist);
 	}
 
-	async sendKeybinding(keybinding: string, accept?: () => Promise<void> | void): Promise<void> {
+	/**
+	 * Dispatch a keybinding to the application.
+	 * @param keybinding The keybinding to dispatch, e.g. 'ctrl+shift+p'.
+	 * @param accept The acceptance function to await before returning. Wherever
+	 * possible this should verify that the keybinding did what was expected,
+	 * otherwise it will likely be a cause of difficult to investigate race
+	 * conditions. This is particularly insidious when used in the automation
+	 * library as it can surface across many test suites.
+	 *
+	 * This requires an async function even when there's no implementation to
+	 * force the author to think about the accept callback and prevent mistakes
+	 * like not making it async.
+	 */
+	async dispatchKeybinding(keybinding: string, accept: () => Promise<void>): Promise<void> {
 		await this.driver.sendKeybinding(keybinding, accept);
 	}
 
@@ -243,6 +277,21 @@ export class Code {
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		await this.poll(() => this.driver.click(selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
+	}
+
+	/**
+	 * Clicks an element using Playwright's actionability-checked `page.click` (which
+	 * re-verifies `elementFromPoint` right before dispatching, so the element can't
+	 * shift under the click), with a stable-coordinates fallback when actionability
+	 * checks fail due to an overlay intercepting pointer events. Unlike
+	 * {@link waitAndClick} this does not poll/retry the click — it waits for the
+	 * element to exist first, then attempts a single click. Use for elements that
+	 * may shift due to siblings being inserted asynchronously (e.g. status bar items
+	 * in the editor area when extensions register a language status item).
+	 */
+	async robustClick(selector: string): Promise<void> {
+		await this.waitForElement(selector);
+		await this.driver.robustClick(selector);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {

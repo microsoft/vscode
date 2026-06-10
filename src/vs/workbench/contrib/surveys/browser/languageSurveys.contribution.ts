@@ -119,7 +119,7 @@ class LanguageSurvey extends Disposable {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ sticky: true, priority: NotificationPriority.OPTIONAL }
+			{ priority: NotificationPriority.OPTIONAL }
 		);
 	}
 }

@@ -10,8 +10,8 @@ import * as url from 'url';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
-import * as kill from 'tree-kill';
-import * as minimist from 'minimist';
+import kill from 'tree-kill';
+import minimist from 'minimist';
 import { promisify } from 'util';
 import { promises } from 'fs';
 
@@ -57,8 +57,8 @@ if (args.help) {
 	process.exit(1);
 }
 
-const width = 1200;
-const height = 800;
+const width = 1440;
+const height = 900;
 
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 type BrowserChannel = 'msedge' | 'chrome';
@@ -134,10 +134,32 @@ async function runTestsInBrowser(browserType: BrowserType, browserChannel: Brows
 
 	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
 
-	if (path.extname(testWorkspacePath) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
+	const targetUrl = path.extname(testWorkspacePath) === '.code-workspace'
+		? `${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`
+		: `${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`;
+
+	// The server prints "Web UI available at" before its HTTP listener is fully ready to
+	// accept connections on some platforms (notably Windows + Firefox). Retry the initial
+	// navigation a few times on connection-refused errors to avoid spurious test failures.
+	await gotoWithRetry(page, targetUrl);
+}
+
+async function gotoWithRetry(page: playwright.Page, targetUrl: string): Promise<void> {
+	const maxAttempts = 5;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			await page.goto(targetUrl);
+			return;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			const isConnectionRefused = /NS_ERROR_CONNECTION_REFUSED|net::ERR_CONNECTION_REFUSED|ECONNREFUSED/i.test(message);
+			if (!isConnectionRefused || attempt >= maxAttempts) {
+				throw error;
+			}
+			const delayMs = 500 * attempt;
+			console.log(`page.goto failed with connection refused (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+			await new Promise(resolve => setTimeout(resolve, delayMs));
+		}
 	}
 }
 
@@ -169,7 +191,7 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 		...process.env
 	};
 
-	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
+	const serverArgs = ['--enable-proposed-api', '--disable-telemetry', '--disable-experiments', '--server-data-dir', userDataDir, '--accept-server-license-terms', '--disable-workspace-trust'];
 
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {

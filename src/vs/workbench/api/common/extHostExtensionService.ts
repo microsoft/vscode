@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import * as nls from '../../../nls.js';
 import * as path from '../../../base/common/path.js';
 import * as performance from '../../../base/common/performance.js';
@@ -559,10 +557,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 							return undefined;
 						}
 
-						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data));
+						const onDidReceiveMessage = Event.buffer(Event.fromDOMEventEmitter(messagePort, 'message', e => e.data), 'onDidReceiveMessage');
 						messagePort.start();
 						messagePassingProtocol = {
 							onDidReceiveMessage,
+							// eslint-disable-next-line local/code-no-any-casts
 							postMessage: messagePort.postMessage.bind(messagePort) as any
 						};
 					}
@@ -593,8 +592,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			try {
 				activationTimesBuilder.activateCallStart();
 				logService.trace(`ExtensionService#_callActivateOptional ${extensionId.value}`);
-				const scope = typeof global === 'object' ? global : self; // `global` is nodejs while `self` is for workers
-				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(scope, [context]);
+				const activateResult: Promise<IExtensionAPI> = extensionModule.activate.apply(globalThis, [context]);
 				activationTimesBuilder.activateCallStop();
 
 				activationTimesBuilder.activateResolveStart();
@@ -1006,6 +1004,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
@@ -1046,6 +1045,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public async $deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+		// eslint-disable-next-line local/code-no-any-casts
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		// First build up and update the trie and only afterwards apply the delta
@@ -1087,8 +1087,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	protected _isESM(extensionDescription: IExtensionDescription | undefined, modulePath?: string): boolean {
-		modulePath ??= extensionDescription?.main;
-		return modulePath?.endsWith('.mjs') || extensionDescription?.type === 'module';
+		modulePath ??= extensionDescription ? this._getEntryPoint(extensionDescription) : modulePath;
+		return modulePath?.endsWith('.mjs') || (extensionDescription?.type === 'module' && !modulePath?.endsWith('.cjs'));
 	}
 
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
@@ -1160,7 +1160,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 	getRemoteExecServer(authority: string): Promise<vscode.ExecServer | undefined>;
 
-	onDidChangeRemoteConnectionData: Event<void>;
+	readonly onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;
 }
 

@@ -1,0 +1,134 @@
+[
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 0)",
+		"requests": [
+			"440a52bbc0dbc11bc9b49bb64836722c9cbe581dc1b5def786362d8e113f8bfb"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 1)",
+		"requests": [
+			"568bf9a102090d0f06d8b9e67af88d2cb0b4d1dbc34eb2097acfb686b9c95ede"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 10)",
+		"requests": [
+			"74dd35cd37e114e044834b92d8c54a8af3741b99b6b2dad939b714be69c84089"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 2)",
+		"requests": [
+			"53f36edb80425727dab31e180f899d1663f3880dd005c149de82e63e54b28d31"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 3)",
+		"requests": [
+			"8ff4c9e1ea3f27735533efd1735640a69584f760a90af22e4886b330f40ae785"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 4)",
+		"requests": [
+			"9d7d95d858db37fc985274e41d981fbbe1e5215c1087f84add6edf05c20e5e12"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 5)",
+		"requests": [
+			"78c354c1643743546fbe7a813b4b3c212ab372146ce529986e66a2b8f7849fda"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 6)",
+		"requests": [
+			"c3eef2afab664d18668c7738520dae5c19a3ff6ec2ad5d0fb7595c90609b2684"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 7)",
+		"requests": [
+			"226dedf8fcd156269b1f049a8ac985065acde6586af086ad0e6d243988678832"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 8)",
+		"requests": [
+			"dfc78d088cc7885a8b09847b5427073a7fda4b3c36f8f2b580a9488c5f7d9f44"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests a devcontainer.json template (sample 9)",
+		"requests": [
+			"7871b2f374f61a974e041dc60e308a6dd2c95a97bed9d67d6410b3248cbfe667"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 0)",
+		"requests": [
+			"440a52bbc0dbc11bc9b49bb64836722c9cbe581dc1b5def786362d8e113f8bfb"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 1)",
+		"requests": [
+			"568bf9a102090d0f06d8b9e67af88d2cb0b4d1dbc34eb2097acfb686b9c95ede"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 10)",
+		"requests": [
+			"74dd35cd37e114e044834b92d8c54a8af3741b99b6b2dad939b714be69c84089"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 2)",
+		"requests": [
+			"53f36edb80425727dab31e180f899d1663f3880dd005c149de82e63e54b28d31"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 3)",
+		"requests": [
+			"8ff4c9e1ea3f27735533efd1735640a69584f760a90af22e4886b330f40ae785"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 4)",
+		"requests": [
+			"9d7d95d858db37fc985274e41d981fbbe1e5215c1087f84add6edf05c20e5e12"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 5)",
+		"requests": [
+			"78c354c1643743546fbe7a813b4b3c212ab372146ce529986e66a2b8f7849fda"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 6)",
+		"requests": [
+			"c3eef2afab664d18668c7738520dae5c19a3ff6ec2ad5d0fb7595c90609b2684"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 7)",
+		"requests": [
+			"226dedf8fcd156269b1f049a8ac985065acde6586af086ad0e6d243988678832"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 8)",
+		"requests": [
+			"dfc78d088cc7885a8b09847b5427073a7fda4b3c36f8f2b580a9488c5f7d9f44"
+		]
+	},
+	{
+		"name": "Dev Container Configuration [external] - Suggests devcontainer.json features (sample 9)",
+		"requests": [
+			"7871b2f374f61a974e041dc60e308a6dd2c95a97bed9d67d6410b3248cbfe667"
+		]
+	}
+]

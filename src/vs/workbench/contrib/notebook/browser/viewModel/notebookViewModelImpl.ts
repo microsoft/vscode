@@ -44,13 +44,13 @@ class DecorationsTree {
 		this._decorationsTree = new IntervalTree();
 	}
 
-	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number, onlyMarginDecorations: boolean = false): IntervalNode[] {
-		const r1 = this._decorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, cachedVersionId: number, onlyMarginDecorations: boolean = false): IntervalNode[] {
+		const r1 = this._decorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, filterFontDecorations, cachedVersionId, onlyMarginDecorations);
 		return r1;
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
-		return this._decorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId, onlyMarginDecorations);
+	public search(filterOwnerId: number, filterOutValidation: boolean, filterFontDecorations: boolean, overviewRulerOnly: boolean, cachedVersionId: number, onlyMarginDecorations: boolean): IntervalNode[] {
+		return this._decorationsTree.search(filterOwnerId, filterOutValidation, filterFontDecorations, cachedVersionId, onlyMarginDecorations);
 
 	}
 
@@ -159,6 +159,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const handles: number[] = [];
 		cellRangesToIndexes(this._selectionCollection.selections).map(index => index < this.length ? this.cellAt(index) : undefined).forEach(cell => {
 			if (cell && !handlesSet.has(cell.handle)) {
+				handlesSet.add(cell.handle);
 				handles.push(cell.handle);
 			}
 		});
@@ -177,8 +178,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _instanceId: string;
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
-	private _onDidFoldingStateChanged = new Emitter<void>();
-	onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
+	private _onDidFoldingStateChanged = this._register(new Emitter<void>());
+	readonly onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
 
@@ -731,9 +732,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this._decorationIdToCellMap.delete(id);
 			}
 
-			if (this._overviewRulerDecorations.has(id)) {
-				this._overviewRulerDecorations.delete(id);
-			}
+			this._overviewRulerDecorations.delete(id);
 		});
 
 		const result: string[] = [];
@@ -778,7 +777,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
-			const ids = deletesByHandle[handle];
+			const ids = deletesByHandle[handle]!;
 			const cell = this.getCellByHandle(handle);
 			cell?.deltaCellStatusBarItems(ids, []);
 			ids.forEach(id => this._statusBarItemIdToCellMap.delete(id));

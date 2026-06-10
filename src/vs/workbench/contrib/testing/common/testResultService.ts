@@ -106,7 +106,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 		}
 	}));
 
-	protected readonly persistScheduler = new RunOnceScheduler(() => this.persistImmediately(), 500);
+	protected readonly persistScheduler = this._register(new RunOnceScheduler(() => this.persistImmediately(), 500));
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,

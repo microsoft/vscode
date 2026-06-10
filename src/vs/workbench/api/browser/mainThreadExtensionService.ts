@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from '../../../base/common/actions.js';
+import { toAction } from '../../../base/common/actions.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SerializedError, transformErrorFromSerialization } from '../../../base/common/errors.js';
@@ -54,6 +54,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		internalExtHostContext._setExtensionHostProxy(
 			new ExtensionHostProxy(extHostContext.getProxy(ExtHostContext.ExtHostExtensionService))
 		);
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		internalExtHostContext._setAllMainProxyIdentifiers(Object.keys(MainContext).map((key) => (<any>MainContext)[key]));
 	}
 
@@ -114,7 +115,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				severity: Severity.Error,
 				message: localize('reload window', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is not loaded. Would you like to reload the window to load the extension?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
 				actions: {
-					primary: [new Action('reload', localize('reload', "Reload Window"), '', true, () => this._hostService.reload())]
+					primary: [toAction({ id: 'reload', label: localize('reload', "Reload Window"), run: () => this._hostService.reload() })]
 				}
 			});
 		} else {
@@ -129,8 +130,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 					severity: Severity.Error,
 					message: localize('restrictedMode', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is not supported in Restricted Mode", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
 					actions: {
-						primary: [new Action('manageWorkspaceTrust', localize('manageWorkspaceTrust', "Manage Workspace Trust"), '', true,
-							() => this._commandService.executeCommand('workbench.trust.manage'))]
+						primary: [toAction({ id: 'manageWorkspaceTrust', label: localize('manageWorkspaceTrust', "Manage Workspace Trust"), run: () => this._commandService.executeCommand('workbench.trust.manage') })]
 					}
 				});
 			} else if (this._extensionEnablementService.canChangeEnablement(missingInstalledDependency)) {
@@ -138,9 +138,11 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 					severity: Severity.Error,
 					message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
 					actions: {
-						primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
-							() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
-								.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
+						primary: [toAction({
+							id: 'enable', label: localize('enable dep', "Enable and Reload"), enabled: true,
+							run: () => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
+								.then(() => this._hostService.reload(), e => this._notificationService.error(e))
+						})]
 					}
 				});
 			} else {
@@ -164,9 +166,12 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				severity: Severity.Error,
 				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension from '{2}', which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName, dependencyExtension.publisherDisplayName),
 				actions: {
-					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
-						() => this._extensionsWorkbenchService.install(dependencyExtension)
-							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
+					primary: [toAction({
+						id: 'install',
+						label: localize('install missing dep', "Install and Reload"),
+						run: () => this._extensionsWorkbenchService.install(dependencyExtension)
+							.then(() => this._hostService.reload(), e => this._notificationService.error(e))
+					})]
 				}
 			});
 		} else {

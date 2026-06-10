@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-const { dirs } = require('../../npm/dirs');
+import { dirs } from '../../npm/dirs.ts';
 
-const ROOT = path.join(__dirname, '../../../');
+const ROOT = path.join(import.meta.dirname, '../../../');
 
 const shasum = crypto.createHash('sha256');
 
 shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
+shasum.update(fs.readFileSync(path.join(ROOT, 'extensions/copilot/build/.cachesalt'))); // TODO: remove this one when all build scripts are cleaned up
 shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));
