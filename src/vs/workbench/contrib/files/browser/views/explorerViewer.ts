@@ -184,22 +184,40 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 	 */
 	private applyPaging(element: ExplorerItem, children: ExplorerItem[]): ExplorerItem[] {
 		const limit = this.configService.getValue<IFilesConfiguration>({ resource: element.root.resource }).explorer.fileLimit;
-		if (limit <= 0 || children.length <= limit) {
+		const plan = computeExplorerPage(children.length, limit, element.currentPageCount);
+		if (!plan.paged) {
 			return children;
 		}
 
 		// Sort before slicing so the visible page is deterministic and matches the order the tree
 		// will render. The tree re-sorts afterwards, but the sentinel always sorts last (see FileSorter).
 		const sorted = children.slice().sort((a, b) => this.sorter.compare(a, b));
-		const showCount = element.currentPageCount > 0 ? element.currentPageCount : limit;
-		if (showCount >= sorted.length) {
-			return sorted; // paged all the way through, no sentinel needed
+		const page = sorted.slice(0, plan.showCount);
+		if (plan.needsSentinel) {
+			page.push(new LoadMoreExplorerItem(element, this.fileService, this.configService, this.filesConfigService));
 		}
-
-		const page = sorted.slice(0, showCount);
-		page.push(new LoadMoreExplorerItem(element, this.fileService, this.configService, this.filesConfigService));
 		return page;
 	}
+}
+
+/**
+ * Pure paging decision for a folder's children, factored out of {@link ExplorerDataSource.applyPaging}
+ * so it can be unit tested. Given the total number of children, the configured `explorer.fileLimit`
+ * (`0` or negative means unlimited) and the folder's current paging cursor, decides whether paging
+ * applies, how many children to show, and whether a "Load more" sentinel is needed.
+ */
+export function computeExplorerPage(childCount: number, limit: number, currentPageCount: number): { paged: boolean; showCount: number; needsSentinel: boolean } {
+	if (limit <= 0 || childCount <= limit) {
+		return { paged: false, showCount: childCount, needsSentinel: false };
+	}
+
+	// A cursor of 0 means the folder has not been paged yet, so it shows the first `limit` children.
+	const showCount = currentPageCount > 0 ? currentPageCount : limit;
+	if (showCount >= childCount) {
+		return { paged: true, showCount: childCount, needsSentinel: false };
+	}
+
+	return { paged: true, showCount, needsSentinel: true };
 }
 
 export class PhantomExplorerItem extends ExplorerItem {

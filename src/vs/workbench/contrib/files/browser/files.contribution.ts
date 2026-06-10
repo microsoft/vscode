@@ -575,7 +575,7 @@ configurationRegistry.registerConfiguration({
 			'default': true
 		},
 		'explorer.fileLimit': {
-			'type': 'number',
+			'type': 'integer',
 			'minimum': 0,
 			'markdownDescription': nls.localize('fileLimit', "Controls the maximum number of files and folders the Explorer shows per directory before displaying a \"Load more\" entry. This helps keep very large folders responsive. Set to `0` to always show all entries."),
 			'default': 5000,
