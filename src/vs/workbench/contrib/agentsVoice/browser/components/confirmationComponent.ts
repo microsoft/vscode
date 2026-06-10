@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { html, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
+import { localize } from '../../../../../nls.js';
 import type { IPendingToolConfirmation } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { FONT_SIZE } from './tokens.js';
 
@@ -24,9 +25,9 @@ export function renderToolConfirmations(props: ToolConfirmationsProps): Template
 					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tc.description}</span>
 					<div style="display:flex;gap:6px;">
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-charts-green);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => tc.approve()}>Approve</button>
+							@click=${() => tc.approve()}>${localize('agentsVoice.approve', "Approve")}</button>
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-editorError-foreground);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => tc.deny()}>Deny</button>
+							@click=${() => tc.deny()}>${localize('agentsVoice.deny', "Deny")}</button>
 					</div>
 				</div>
 			` : html`
@@ -35,7 +36,7 @@ export function renderToolConfirmations(props: ToolConfirmationsProps): Template
 					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tc.description}</span>
 					<div style="display:flex;gap:6px;">
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => props.onOpenSession(tc.sessionResource)}>Open in VS Code</button>
+							@click=${() => props.onOpenSession(tc.sessionResource)}>${localize('agentsVoice.openInVSCode', "Open in VS Code")}</button>
 					</div>
 				</div>
 			`)}

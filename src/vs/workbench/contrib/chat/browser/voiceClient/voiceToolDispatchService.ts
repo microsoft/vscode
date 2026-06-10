@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -54,16 +55,16 @@ export const IVoiceToolDispatchService = createDecorator<IVoiceToolDispatchServi
 
 /** Action labels displayed in the status bar during tool execution. */
 const ACTION_LABELS: Record<string, string> = {
-	send_to_chat: 'Sending to chat...',
-	new_sessions: 'Starting new sessions...',
-	get_session_info: 'Checking sessions...',
-	get_session_changes: 'Checking changes...',
-	get_session_thread: 'Checking conversation...',
-	approve_confirmation: 'Approving...',
-	reject_confirmation: 'Rejecting...',
-	focus_session: 'Focusing session...',
-	auto_approve_session: 'Auto-approving session...',
-	revoke_auto_approve: 'Revoking auto-approve...',
+	send_to_chat: localize('agentsVoice.action.sendToChat', "Sending to chat..."),
+	new_sessions: localize('agentsVoice.action.newSessions', "Starting new sessions..."),
+	get_session_info: localize('agentsVoice.action.getSessionInfo', "Checking sessions..."),
+	get_session_changes: localize('agentsVoice.action.getSessionChanges', "Checking changes..."),
+	get_session_thread: localize('agentsVoice.action.getSessionThread', "Checking conversation..."),
+	approve_confirmation: localize('agentsVoice.action.approve', "Approving..."),
+	reject_confirmation: localize('agentsVoice.action.reject', "Rejecting..."),
+	focus_session: localize('agentsVoice.action.focusSession', "Focusing session..."),
+	auto_approve_session: localize('agentsVoice.action.autoApprove', "Auto-approving session..."),
+	revoke_auto_approve: localize('agentsVoice.action.revokeAutoApprove', "Revoking auto-approve..."),
 };
 
 export class VoiceToolDispatchService implements IVoiceToolDispatchService {
@@ -84,7 +85,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 	/** Get the action label for a tool call name. */
 	static getActionLabel(name: string): string {
-		return ACTION_LABELS[name] ?? 'Working...';
+		return ACTION_LABELS[name] ?? localize('agentsVoice.action.working', "Working...");
 	}
 
 	private get _agentModeOptions(): IChatSendRequestOptions {

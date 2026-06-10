@@ -5,6 +5,7 @@
 
 import { html, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
 import type { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import type { IPendingToolConfirmation } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { FONT_SIZE } from './tokens.js';
 
@@ -113,14 +114,14 @@ function renderSessionRow(session: SessionRowData, props: SessionListProps): Tem
 				<div style="display:flex;gap:6px;">
 					${session.toolConfirmation.type === 'approval' ? html`
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-charts-green);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => session.toolConfirmation!.approve()}>Approve</button>
+							@click=${() => session.toolConfirmation!.approve()}>${localize('agentsVoice.approve', "Approve")}</button>
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-secondaryBackground);border:none;color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => session.toolConfirmation!.deny()}>Deny</button>
+							@click=${() => session.toolConfirmation!.deny()}>${localize('agentsVoice.deny', "Deny")}</button>
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-secondaryBackground);border:none;color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => props.onCancelSession(session.resource)}>Stop</button>
+							@click=${() => props.onCancelSession(session.resource)}>${localize('agentsVoice.stop', "Stop")}</button>
 					` : html`
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
-							@click=${() => props.onOpenSession(session.resource)}>Open in VS Code</button>
+							@click=${() => props.onOpenSession(session.resource)}>${localize('agentsVoice.openInVSCode', "Open in VS Code")}</button>
 					`}
 				</div>
 			</div>
@@ -134,11 +135,11 @@ export function renderSessionList(props: SessionListProps): TemplateResult {
 
 	const headerRow = html`
 		<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 4px;border-bottom:1px solid var(--vscode-editorGroup-border);">
-			<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-disabledForeground);text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">Send to${props.selectedTarget ? '' : ' (active)'}</span>
+			<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-disabledForeground);text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">${props.selectedTarget ? localize('agentsVoice.sendTo', "Send to") : localize('agentsVoice.sendToActive', "Send to (active)")}</span>
 			<span
 				class="codicon codicon-add"
 				style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px 2px;"
-				title="New session"
+				title="${localize('agentsVoice.newSession', "New session")}"
 				@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
 				@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; }}
 				@mousedown=${(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); props.onNewSession(); }}></span>
@@ -150,7 +151,7 @@ export function renderSessionList(props: SessionListProps): TemplateResult {
 			<div style="display:flex;flex-direction:column;min-height:84px;max-height:140px;overflow-y:auto;">
 				${headerRow}
 				<div style="display:flex;align-items:center;justify-content:center;height:60px;">
-					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-foreground);">No active sessions</span>
+					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-foreground);">${localize('agentsVoice.noActiveSessions', "No active sessions")}</span>
 				</div>
 			</div>
 		`;

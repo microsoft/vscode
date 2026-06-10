@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { html, render, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
+import { localize } from '../../../../../nls.js';
 import { FONT_SIZE } from './tokens.js';
 
 export interface FeedbackDialogProps {
@@ -26,7 +27,7 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 		return html`
 			<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 14px;gap:8px;flex:1;">
 				<span class="codicon codicon-check" style="font-size:20px;color:var(--vscode-charts-green);"></span>
-				<span style="font-size:${FONT_SIZE.body};color:var(--vscode-foreground);font-weight:500;text-align:center;">Thank you for your feedback!</span>
+				<span style="font-size:${FONT_SIZE.body};color:var(--vscode-foreground);font-weight:500;text-align:center;">${localize('agentsVoice.feedbackThanks', "Thank you for your feedback!")}</span>
 			</div>
 		`;
 	}
@@ -38,11 +39,11 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 		<div style="display:flex;flex-direction:column;gap:8px;padding:4px 0;">
 			<div style="display:flex;align-items:center;gap:6px;">
 				<span class="codicon codicon-feedback" style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-foreground);"></span>
-				<span style="font-size:${FONT_SIZE.body};font-weight:600;color:var(--vscode-foreground);">Send Feedback</span>
+				<span style="font-size:${FONT_SIZE.body};font-weight:600;color:var(--vscode-foreground);">${localize('agentsVoice.sendFeedback', "Send Feedback")}</span>
 			</div>
 			<textarea
 				rows="3"
-				placeholder="What could we improve?"
+				placeholder="${localize('agentsVoice.feedbackPlaceholder', "What could we improve?")}"
 				style="
 					width:100%;box-sizing:border-box;
 					background:var(--vscode-input-background);
@@ -58,14 +59,14 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 				@input=${(e: InputEvent) => { textareaEl = e.target as HTMLTextAreaElement; }}
 				?disabled=${submitDisabled}></textarea>
 			<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);line-height:1.3;">
-				By submitting, you agree that your session logs and transcript history will be included with your feedback.
+				${localize('agentsVoice.feedbackConsent', "By submitting, you agree that your session logs and transcript history will be included with your feedback.")}
 			</span>
 			${state.error ? html`<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-errorForeground);">${state.error}</span>` : nothing}
 			<div style="display:flex;gap:6px;justify-content:flex-end;">
 				<button
 					style="-webkit-app-region:no-drag;background:transparent;border:1px solid var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-border));color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;"
 					@click=${props.onCancel}
-					?disabled=${submitDisabled}>Cancel</button>
+					?disabled=${submitDisabled}>${localize('agentsVoice.cancel', "Cancel")}</button>
 				<button
 					style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;font-weight:500;"
 					@mouseenter=${(e: MouseEvent) => { if (!submitDisabled) { (e.target as HTMLElement).style.background = 'var(--vscode-button-hoverBackground)'; } }}
@@ -74,7 +75,7 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
 			const text = textareaEl?.value.trim() ?? '';
 			if (text) { props.onSubmit(text); }
 		}}
-					?disabled=${submitDisabled}>${state.isSubmitting ? 'Submitting...' : 'Submit'}</button>
+					?disabled=${submitDisabled}>${state.isSubmitting ? localize('agentsVoice.submitting', "Submitting...") : localize('agentsVoice.submit', "Submit")}</button>
 			</div>
 		</div>
 	`;
@@ -112,7 +113,7 @@ export class FeedbackDialogController {
 			this._render();
 			setTimeout(() => this._onClose(), 3000);
 		} else {
-			this._state = { isSubmitting: false, submitted: false, error: result.error ?? 'Failed to submit feedback' };
+			this._state = { isSubmitting: false, submitted: false, error: result.error ?? localize('agentsVoice.feedbackError', "Failed to submit feedback") };
 			this._render();
 		}
 	}

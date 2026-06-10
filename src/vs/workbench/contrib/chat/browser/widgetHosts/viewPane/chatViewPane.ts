@@ -486,6 +486,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			onOnboardingCompleted: () => {
 				this.storageService.store(AgentsVoiceStorageKeys.OnboardingCompleted, true, StorageScope.PROFILE, StorageTarget.USER);
 				this.telemetryService.publicLog2<VoiceOnboardingCompletedEvent, VoiceOnboardingCompletedClassification>('voiceOnboardingCompleted', {});
+				// Force relayout after onboarding is dismissed so the voice
+				// bar shrinks and the chat widget reclaims the freed space.
+				setTimeout(() => {
+					if (this.lastDimensions) {
+						this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+					}
+				}, 0);
 			},
 		}, {
 			width: 'auto',

@@ -150,7 +150,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 
 		return {
 			resource: session.resource,
-			label: session.label || 'Untitled session',
+			label: session.label || localize('agentsVoice.untitledSession', "Untitled session"),
 			isActive: session.status === AgentSessionStatus.InProgress,
 			needsInput: session.status === AgentSessionStatus.NeedsInput,
 			isIdle: session.status === AgentSessionStatus.Completed,
@@ -172,7 +172,7 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 			if (requests.length === 0) { continue; }
 			sessionRows.push({
 				resource: model.sessionResource,
-				label: model.title || 'Chat',
+				label: model.title || localize('agentsVoice.chat', "Chat"),
 				isActive: false,
 				needsInput: false,
 				isIdle: true,

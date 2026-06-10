@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { html, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
+import { localize } from '../../../../../nls.js';
 import type { IPendingToolConfirmation } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import { renderToolConfirmations } from './confirmationComponent.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -45,12 +46,12 @@ export function renderStatusRows(props: StatusRowsProps): TemplateResult {
 						<span style="font-size:${FONT_SIZE.body};color:var(--vscode-agentsVoice-speakingForeground);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${props.speakingSessionLabel}</span>
 					</div>
 				` : nothing}
-				${showCounters ? renderStatusRow('var(--vscode-charts-green)', props.workingCount, 'working') : nothing}
-				${showCounters ? renderStatusRow('var(--vscode-editorWarning-foreground)', props.needsInputCount, 'needs input') : nothing}
-				${showCounters ? renderStatusRow('var(--vscode-disabledForeground)', props.doneCount, 'done') : nothing}
+				${showCounters ? renderStatusRow('var(--vscode-charts-green)', props.workingCount, localize('agentsVoice.working', "working")) : nothing}
+				${showCounters ? renderStatusRow('var(--vscode-editorWarning-foreground)', props.needsInputCount, localize('agentsVoice.needsInput', "needs input")) : nothing}
+				${showCounters ? renderStatusRow('var(--vscode-disabledForeground)', props.doneCount, localize('agentsVoice.done', "done")) : nothing}
 				${showCounters && !hasAny ? html`
 					<div style="display:flex;align-items:center;height:20px;flex-shrink:0;padding-left:2px;">
-						<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);font-style:italic;">No active sessions</span>
+						<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);font-style:italic;">${localize('agentsVoice.noActiveSessions', "No active sessions")}</span>
 					</div>
 				` : nothing}
 			</div>
