@@ -51,12 +51,6 @@ const STATUS_COMMAND_DESCRIPTORS: ReadonlyMap<string, IStatusActionDescriptor> =
 		manageLabel: localize('chat.inputStatus.otel.manageSettings', "Manage Settings"),
 		titleMarkdown: OTEL_HOVER_TITLE_MARKDOWN,
 	}],
-	['github.copilot.chat.otel.statusCapturing', {
-		entryId: 'copilot.otelStatus',
-		manageCommandId: 'github.copilot.chat.otel.openSettings',
-		manageLabel: localize('chat.inputStatus.otel.manageSettings', "Manage Settings"),
-		titleMarkdown: OTEL_HOVER_TITLE_MARKDOWN,
-	}],
 ]);
 
 /**
