@@ -155,7 +155,10 @@ export class RenameSuggestionsProvider implements vscode.NewSymbolNamesProvider 
 						);
 						const fetchTime = sw.elapsed();
 
-						if (fetchResult.type === ChatFetchResponseType.QuotaExceeded || (fetchResult.type === ChatFetchResponseType.RateLimited && this._authService.copilotToken?.isNoAuthUser)) {
+						// @ulugbekna: only show the quota exceeded dialog when the user manually invoked rename suggestions.
+						// For automatic triggers (e.g., when pressing F2), showing a modal dialog steals focus from the
+						// rename widget and cancels the user's rename action - see https://github.com/microsoft/vscode/issues/319414
+						if (triggerKind === NewSymbolNameTriggerKind.Invoke && (fetchResult.type === ChatFetchResponseType.QuotaExceeded || (fetchResult.type === ChatFetchResponseType.RateLimited && this._authService.copilotToken?.isNoAuthUser))) {
 							await this._notificationService.showQuotaExceededDialog({ isNoAuthUser: this._authService.copilotToken?.isNoAuthUser ?? false });
 						}
 
