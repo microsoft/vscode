@@ -275,6 +275,25 @@ interface IRenderFormHandle {
 }
 
 /**
+ * Session-type ids the automation dialog allows the user to pick. The
+ * picker normally surfaces every type the active providers register
+ * (Local, Background = Copilot CLI, Claude, Cloud, plus per-host
+ * duplicates). For automations we limit to two:
+ *
+ *   - {@link AgentSessionProviders.Local}  — runs in this window
+ *   - {@link AgentSessionProviders.Background} — Copilot CLI
+ *
+ * Cloud is intentionally out of scope for the preview; Claude and the
+ * duplicate `[Local]` variant of Copilot CLI surfaced by certain
+ * provider hosts are noise for our use case and hidden via the
+ * delegate's `isSessionTypeVisible` hook.
+ */
+const AUTOMATION_VISIBLE_SESSION_TYPES: ReadonlySet<AgentSessionTarget> = new Set([
+	AgentSessionProviders.Local,
+	AgentSessionProviders.Background,
+]);
+
+/**
  * Two-way binding between the chat input's session-target chip and the
  * automation form's `providerId` + `sessionTypeId` fields.
  *
@@ -345,6 +364,21 @@ function createSessionTypeBinder(
 			onDidChange.fire(match.sessionTypeId as AgentSessionTarget);
 		},
 		onDidChangeActiveSessionProvider: onDidChange.event,
+		isSessionTypeVisible: (type: AgentSessionTarget) => {
+			// Restrict to session types this dialog allows AND that the
+			// current folder's provider offers. Anything else (Claude,
+			// Cloud, the duplicate Local entry surfaced by certain
+			// provider hosts) is hidden.
+			if (!AUTOMATION_VISIBLE_SESSION_TYPES.has(type)) {
+				return false;
+			}
+			if (!state.folderUri) {
+				return false;
+			}
+			return sessionTypeProvider
+				.getSessionTypesForFolder(state.folderUri)
+				.some(c => c.sessionTypeId === type);
+		},
 		setFolder: (folder: URI | undefined) => {
 			validateOrDefault(folder);
 			if (state.sessionTypeId) {
