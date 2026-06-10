@@ -818,10 +818,12 @@ export class ChatStatusDashboard extends DomWidget {
 			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
 			const isUsageBasedBilling = quotas.usageBasedBilling === true;
 
+			// Only chat quotas drive the global callout. Reaching the inline
+			// suggestions (completions) limit pauses ghost text only, so it must
+			// not trigger the "Copilot is paused" message reserved for chat limits.
 			const allQuotas: IQuotaSnapshot[] = [];
 			if (quotas.chat && !quotas.chat.unlimited) { allQuotas.push(quotas.chat); }
 			if (quotas.premiumChat && !quotas.premiumChat.unlimited) { allQuotas.push(quotas.premiumChat); }
-			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
 			const isPooledQuotaExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
