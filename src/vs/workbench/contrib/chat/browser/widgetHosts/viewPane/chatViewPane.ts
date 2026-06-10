@@ -1141,8 +1141,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private static readonly VOICE_BAR_MAX_HEIGHT = 160;
-
 	private doLayoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
@@ -1151,14 +1149,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let remainingHeight = height;
 		const remainingWidth = width;
 
-		// Voice bottom area — cap its height so it never crowds out the chat
-		if (this._voiceBottomArea) {
-			const voiceHeight = Math.min(this._voiceBottomArea.scrollHeight, ChatViewPane.VOICE_BAR_MAX_HEIGHT);
-			this._voiceBottomArea.style.height = voiceHeight > 0 ? `${voiceHeight}px` : '';
-			this._voiceBottomArea.style.maxHeight = `${ChatViewPane.VOICE_BAR_MAX_HEIGHT}px`;
-			this._voiceBottomArea.style.overflow = 'hidden';
-			remainingHeight -= voiceHeight;
-		}
+		// Voice bottom area — use actual rendered height (capped by CSS max-height)
+		remainingHeight -= this._voiceBottomArea?.offsetHeight ?? 0;
 
 		// Title Control
 		const titleHeight = this.titleControl?.getHeight() ?? 0;
