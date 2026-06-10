@@ -40,6 +40,10 @@ export class ManagedSettingsNativePolicyService extends AbstractPolicyService im
 	}
 
 	protected async _updatePolicyDefinitions(_policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
+		// Register the raw data carrier as a definition so it flows through
+		// serialize() → PolicyChannelClient → AccountPolicyService.
+		this.policyDefinitions[MANAGED_SETTINGS_RAW_POLICY_NAME] = { type: 'string' };
+
 		this.logService.trace(`ManagedSettingsNativePolicyService#_updatePolicyDefinitions - Registering ${Object.keys(MANAGED_SETTINGS_SCHEMA_KEYS).length} schema keys for ${this.productName}`);
 
 		const { createWatcher } = await import('@vscode/policy-watcher');

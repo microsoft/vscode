@@ -104,11 +104,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
-		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
-
 		const updated: string[] = [];
 		const policyData = this.defaultAccountService.policyData;
 		const managedSettings = this.readManagedSettings();
+
+		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: ${Object.keys(policyDefinitions).length} definitions, managedSettings=${managedSettings ? 'present' : 'none'}, accountPolicy=${policyData ? 'present' : 'none'}`);
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
