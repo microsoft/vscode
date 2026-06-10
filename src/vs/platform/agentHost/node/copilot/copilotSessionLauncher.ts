@@ -14,6 +14,7 @@ import { AgentHostSessionSyncEnabledConfigKey, platformRootSchema } from '../../
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
+import type { ActiveClientState } from '../activeClientState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkSkillDirectories } from './copilotPluginConverters.js';
@@ -51,11 +52,13 @@ export const COPILOT_AGENT_HOST_SYSTEM_MESSAGE = {
 } satisfies NonNullable<ResumeSessionConfig['systemMessage']>;
 
 /**
- * Immutable snapshot of the active client's contributions at session creation
- * time. Used to detect when the session needs to be refreshed.
+ * Immutable snapshot of the active client's structural contributions at
+ * session creation time. Used to detect when the session needs to be
+ * refreshed. The owning `clientId` is deliberately NOT part of this snapshot:
+ * client identity is tracked live via {@link ActiveClientState} so a window
+ * reload (new `clientId`, identical tools/plugins) does not force a restart.
  */
 export interface IActiveClientSnapshot {
-	readonly clientId: string;
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
 }
@@ -88,6 +91,13 @@ interface ICopilotSessionLaunchBase {
 	readonly workingDirectory: URI | undefined;
 	readonly resolvedAgentName: string | undefined;
 	readonly snapshot: IActiveClientSnapshot;
+	/**
+	 * Live, long-lived holder of the owning client's identity. Read at
+	 * tool-call stamp time so a window reload (new `clientId`, identical
+	 * tools) stamps subsequent client tool calls with the current id
+	 * rather than the one frozen into {@link snapshot} at creation.
+	 */
+	readonly activeClientState: ActiveClientState;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubToken: string | undefined;
 }

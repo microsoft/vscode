@@ -46,6 +46,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { ActiveClientState } from '../activeClientState.js';
 import { areDiscoveredDirectoriesEqual, DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
@@ -963,6 +964,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				resolvedAgentName,
 				snapshot,
+				activeClientState: activeClient.state,
 				shellManager,
 				githubToken: this._githubToken,
 				model: provisional.model,
@@ -1077,11 +1079,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return activeClient.pluginController.sync(clientId, customizations);
 	}
 
-	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void {
+	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {
 		const sessionId = AgentSession.id(session);
 		const activeClient = this._getOrCreateActiveClient(session, undefined);
 		const hasCachedEntry = this._sessions.has(sessionId);
-		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
+		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId ?? '(none)'}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
 		activeClient.updateTools(clientId, tools);
 	}
 
@@ -1128,14 +1130,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const activeClient = this._activeClients.get(session);
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
-			if (entry && activeClient && await activeClient.isOutdated(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${sessionId}] Session config changed (isOutdated=true), refreshing session. snapshotClientId=${entry.appliedSnapshot.clientId}`);
+			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
+				this._logService.info(`[Copilot:${sessionId}] Session config changed (requiresRestart=true), refreshing session. clientId=${activeClient.state.clientId ?? '(none)'}`);
 				this._sessions.deleteAndDispose(sessionId);
 				entry = undefined;
 			}
 
 			if (!entry) {
-				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by isOutdated)' : ''}, calling _resumeSession`);
+				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
 			}
 			entry ??= await this._resumeSession(sessionId);
 
@@ -1512,6 +1514,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
+				activeClientState: launchPlan.activeClientState,
 			},
 		);
 
@@ -1610,6 +1613,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			workingDirectory,
 			resolvedAgentName,
 			snapshot,
+			activeClientState: activeClient.state,
 			shellManager,
 			githubToken: this._githubToken,
 			fallback: {
@@ -2529,8 +2533,13 @@ class SessionPluginController extends Disposable {
  * tears down the controller and any disk watchers it created.
  */
 class ActiveClient extends Disposable {
-	private _tools: readonly ToolDefinition[] = [];
-	private _clientId = '';
+	/**
+	 * Live holder of the owning `clientId` and contributed tools. Shared by
+	 * reference with the session's {@link CopilotAgentSession} so a window
+	 * reload (new `clientId`, identical tools) is reflected at tool-call
+	 * stamp time without restarting the SDK session.
+	 */
+	readonly state = new ActiveClientState();
 
 	public readonly pluginController: SessionPluginController;
 
@@ -2548,34 +2557,26 @@ class ActiveClient extends Disposable {
 		}));
 	}
 
-	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {
-		this._clientId = clientId;
-		this._tools = tools;
+	updateTools(clientId: string | undefined, tools: readonly ToolDefinition[]): void {
+		this.state.update(clientId, tools);
 	}
 
 	async snapshot(): Promise<IActiveClientSnapshot> {
-		return { clientId: this._clientId, tools: this._tools, plugins: await this.pluginController.getAppliedPlugins() };
+		return { tools: this.state.tools, plugins: await this.pluginController.getAppliedPlugins() };
 	}
 
-	async isOutdated(snap: IActiveClientSnapshot): Promise<boolean> {
+	/**
+	 * Returns `true` when the SDK session must be disposed and resumed to
+	 * pick up a changed config. Compares ONLY plugins and the structural
+	 * tool set (name + description + inputSchema). The `clientId` is
+	 * deliberately excluded — a clientId-only change is reflected live via
+	 * {@link state} and never requires a restart.
+	 */
+	async requiresRestart(snap: IActiveClientSnapshot): Promise<boolean> {
 		const plugins = await this.pluginController.getAppliedPlugins();
 		if (!parsedPluginsEqual(snap.plugins, plugins)) {
 			return true;
 		}
-		if (snap.tools.length !== this._tools.length) {
-			return true;
-		}
-		// Compare tool definitions by name, description, and schema —
-		// not just names — so schema/description changes trigger a refresh.
-		const snapByName = new Map(snap.tools.map(t => [t.name, t]));
-		for (const tool of this._tools) {
-			const prev = snapByName.get(tool.name);
-			if (!prev
-				|| prev.description !== tool.description
-				|| !equals(prev.inputSchema, tool.inputSchema)) {
-				return true;
-			}
-		}
-		return false;
+		return !this.state.structuralEquals({ tools: snap.tools });
 	}
 }

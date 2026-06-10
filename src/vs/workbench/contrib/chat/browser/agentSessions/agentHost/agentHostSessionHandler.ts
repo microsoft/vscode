@@ -122,12 +122,12 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	const copilotUsage = usage?._meta?.copilotUsage;
 	if (copilotUsage && typeof copilotUsage === 'object' && hasKey(copilotUsage, { totalNanoAiu: true })) {
 		const totalNanoAiu = Object.getOwnPropertyDescriptor(copilotUsage, 'totalNanoAiu')?.value;
-		if (typeof totalNanoAiu === 'number' && totalNanoAiu > 0) {
+		if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
 			return totalNanoAiu / 1_000_000_000;
 		}
 	}
 	const cost = usage?._meta?.cost;
-	return typeof cost === 'number' && cost > 0
+	return typeof cost === 'number' && cost >= 0
 		? cost
 		: undefined;
 }
