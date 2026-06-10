@@ -11,6 +11,7 @@ import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platfo
 import { AgentCustomization, Customization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
+import { IAgentHostMcpServer } from '../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
@@ -142,6 +143,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Returns the working directory for the session, if provided by the host.
 	 */
 	getWorkingDirectory(sessionId: string): string | undefined;
+
+	/**
+	 * Returns the MCP servers exposed by the session as rich objects whose
+	 * {@link IAgentHostMcpServer.setEnabled} dispatches the appropriate
+	 * protocol-level toggle. Returns an empty array when the session is
+	 * unknown or exposes no MCP servers.
+	 */
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

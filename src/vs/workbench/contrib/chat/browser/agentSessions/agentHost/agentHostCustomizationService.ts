@@ -10,7 +10,7 @@ import { AgentSession, IAgentHostService } from '../../../../../../platform/agen
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import type { Customization, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerCustomization, type Customization, type McpServerStatus, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -32,6 +32,28 @@ export interface IAgentHostCustomizationService {
 	getCustomizations(sessionResource: URI): readonly Customization[];
 
 	getWorkingDirectory(sessionResource: URI): string | undefined;
+
+	/**
+	 * Returns the MCP servers exposed by an agent-host session. Each entry
+	 * carries the current status and a {@link IAgentHostMcpServer.setEnabled}
+	 * method that dispatches the protocol-level toggle on behalf of the
+	 * caller. Returns an empty array for sessions not backed by an agent
+	 * host, or that don't expose any MCP servers.
+	 */
+	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
+}
+
+/**
+ * A rich view of a single MCP server exposed by an agent host session.
+ * Encapsulates the dispatch plumbing so consumers can present and toggle
+ * servers without depending on the low-level protocol action surface.
+ */
+export interface IAgentHostMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly status: McpServerStatus;
+	setEnabled(enabled: boolean): void;
 }
 
 export class NullAgentHostCustomizationService implements IAgentHostCustomizationService {
@@ -46,6 +68,9 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	}
 	getWorkingDirectory(sessionResource: URI): string | undefined {
 		return undefined;
+	}
+	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
+		return [];
 	}
 }
 
@@ -109,6 +134,30 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 	getWorkingDirectory(sessionResource: URI): string | undefined {
 		const sessionState = this._readSessionState(sessionResource);
 		return sessionState?.summary.workingDirectory;
+	}
+
+	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
+		const backendSession = this._resolveBackendSession(sessionResource);
+		if (!backendSession) {
+			return [];
+		}
+		const customizations = this._readSessionState(sessionResource)?.customizations ?? [];
+		const channel = backendSession.toString();
+		return customizations
+			.filter((c): c is McpServerCustomization => c.type === CustomizationType.McpServer)
+			.map((c): IAgentHostMcpServer => ({
+				id: c.id,
+				name: c.name,
+				enabled: c.enabled,
+				status: c.state.kind,
+				setEnabled: (enabled: boolean) => {
+					this._agentHostService.dispatch(channel, {
+						type: ActionType.SessionCustomizationToggled,
+						id: c.id,
+						enabled,
+					});
+				},
+			}));
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {

@@ -2170,10 +2170,7 @@ export class CopilotAgentSession extends Disposable {
 		// plugin-derived child (narrow `SessionMcpServerStateChanged`) or a
 		// bare top-level entry (`SessionCustomizationUpdated`).
 		this._register(wrapper.onMcpServersLoaded(e => {
-			const servers = e.data.servers
-				.map(s => this._toSdkMcpServer(s.name, s.status, s.error))
-				.filter(isDefined);
-			this._mcpCustomizations.applyAll(servers);
+			this._applyMcpServerList(e.data.servers);
 		}));
 		this._register(wrapper.onMcpServerStatusChanged(e => {
 			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
@@ -2187,6 +2184,37 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolsUpdated(() => {
 			this._fireMcpToolsListChanged();
 		}));
+
+		// Seed the inventory with any servers the SDK has already loaded by
+		// the time we attach. The `session.mcp_servers_loaded` event may
+		// have fired before our subscription (e.g. for restored sessions or
+		// when servers are configured at session-creation time), and there
+		// is no replay. Subsequent `applyAll` calls from the event are
+		// idempotent, so this safely converges either way.
+		this._seedMcpServersFromRpc();
+	}
+
+	/**
+	 * One-shot fetch of `rpc.mcp.list` at subscription time. Best-effort:
+	 * any failure is logged and the inventory simply stays empty until the
+	 * next live event arrives.
+	 */
+	private _seedMcpServersFromRpc(): void {
+		this._wrapper.session.rpc.mcp.list().then(result => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._applyMcpServerList(result.servers);
+		}, err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to seed MCP server inventory: ${err}`);
+		});
+	}
+
+	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+		const sdkServers = servers
+			.map(s => this._toSdkMcpServer(s.name, s.status, s.error))
+			.filter(isDefined);
+		this._mcpCustomizations.applyAll(sdkServers);
 	}
 
 	/**

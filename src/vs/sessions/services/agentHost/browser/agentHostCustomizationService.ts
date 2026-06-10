@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/resources.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostCustomizationService, IAgentHostMcpServer } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
@@ -85,6 +85,17 @@ export class AgentHostCustomizationService extends Disposable implements IAgentH
 			}
 		}
 		return undefined;
+	}
+
+	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[] {
+		const session = this._getSession(sessionResource);
+		if (session) {
+			const provider = this._getAHSProvider(session);
+			if (provider) {
+				return provider.getMcpServers(session.sessionId);
+			}
+		}
+		return [];
 	}
 
 
