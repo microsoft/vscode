@@ -22,6 +22,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { defaultDialogStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { AutomationInterval, IAutomation, IAutomationSchedule } from '../../common/automations/automation.js';
@@ -163,6 +164,16 @@ export async function showAutomationDialog(
 			extraClasses: ['automation-dialog'],
 			cancelId: 1,
 			isExternalFocusAllowed: isAutomationDialogPopupTarget,
+			// {@link Dialog.style} walks every `<a>` in `messageContainer` and
+			// stamps `el.style.color = textLinkForeground` (inline style) when
+			// `textLinkForeground` is truthy. Chat input picker chips render
+			// as `<a class="action-label">`, so every chip that exists at
+			// `show()` time gets stamped link-blue and that inline color
+			// beats every CSS rule until something re-creates the element.
+			// Suppress the stamp entirely — the dialog body has no real
+			// links to highlight, and the chips inherit the correct neutral
+			// color from chat.css.
+			dialogStyles: { ...defaultDialogStyles, textLinkForeground: undefined },
 			buttonOptions: [
 				{
 					styleButton: button => {
@@ -463,11 +474,10 @@ function renderForm(
 	// re-renders of the chip and the quick pick.
 	const browsedFolders: URI[] = [];
 
-	// All folder-chip elements (the dedicated form row chip plus the
-	// pragmatic toolbar-style chip rendered above the chat input below)
-	// re-render through this list whenever the selected folder changes.
-	// Initially populated with the form-row chip's renderer; the prompt
-	// section adds the toolbar chip's renderer once `promptHost` exists.
+	// All folder-chip elements re-render through this list whenever the
+	// selected folder changes. Today this holds only the form-row chip's
+	// renderer; the array is preserved so additional chip surfaces can be
+	// registered without rewiring the folder-change path.
 	const folderChipRefreshers: Array<() => void> = [];
 
 	const renderChipLabel = () => {
@@ -604,41 +614,6 @@ function renderForm(
 	DOM.append(promptRow, $('label.automation-form-label', undefined, localize('automation.form.prompt', "Prompt")));
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const promptError = DOM.append(promptRow, $('.automation-form-error'));
-
-	// Pragmatic "folder chip in the chat input toolbar" approximation:
-	// render a chat-style chip immediately above the chat input box so
-	// it visually flows with the chip row at the bottom of the composer.
-	// Truly hosting the chip *inside* the chat input toolbar would
-	// require registering a global MenuId.ChatInput action and adding
-	// custom action-view-item handling inside ChatInputPart — too much
-	// surface area for a feature only this dialog uses.
-	//
-	// The chip mirrors the form-row folder picker's state via
-	// {@link folderChipRefreshers}; clicking either opens the same
-	// quick pick.
-	const toolbarChipRow = DOM.append(promptHost, $('.automation-toolbar-chip-row'));
-	const toolbarFolderChip = DOM.append(toolbarChipRow, $('button.automation-folder-chip.chat-input-picker-item', { type: 'button' })) as HTMLButtonElement;
-	toolbarFolderChip.setAttribute('aria-haspopup', 'listbox');
-	const renderToolbarFolderChip = () => {
-		DOM.clearNode(toolbarFolderChip);
-		const labelText = state.folderUri
-			? basenameOrUri(state.folderUri)
-			: localize('automation.form.folderPlaceholder', "Select folder…");
-		toolbarFolderChip.append(
-			...renderLabelWithIcons(`$(${Codicon.folder.id})`),
-			$('span.chat-input-picker-label', undefined, labelText),
-			...renderLabelWithIcons(`$(${Codicon.chevronDown.id})`),
-		);
-		toolbarFolderChip.title = state.folderUri
-			? localize('automation.form.folderTitle', "Workspace folder: {0}", state.folderUri.fsPath ?? state.folderUri.toString())
-			: localize('automation.form.folderTitleEmpty', "Select a workspace folder for this automation.");
-		toolbarFolderChip.setAttribute('aria-label', toolbarFolderChip.title);
-	};
-	folderChipRefreshers.push(renderToolbarFolderChip);
-	renderToolbarFolderChip();
-	disposables.add(DOM.addStandardDisposableListener(toolbarFolderChip, 'click', () => {
-		openFolderPicker();
-	}));
 
 	const chatInputStyles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
