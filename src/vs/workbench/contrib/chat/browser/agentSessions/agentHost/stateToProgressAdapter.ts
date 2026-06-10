@@ -17,7 +17,7 @@ import { type ChatExternalEditKind, type IChatExternalEdit, type IChatModifiedFi
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -320,6 +320,11 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		};
 	}
 
+	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);
+	if (agentHostCompletionKind !== undefined) {
+		return toAgentHostCompletionVariableEntryFromMetadata(agentHostCompletionKind, attachment.label, attachment._meta);
+	}
+
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
 	return {
 		kind: 'generic',
@@ -328,6 +333,19 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		value: modelRepresentation || attachment.label,
 		_meta: attachment._meta,
 	};
+}
+
+function getAgentHostCompletionKind(attachment: MessageAttachment): AgentHostCompletionReferenceKind | undefined {
+	if (attachment.type !== MessageAttachmentKind.Simple) {
+		return undefined;
+	}
+	switch (attachment.displayKind) {
+		case 'command':
+			return AgentHostCompletionReferenceKind.Command;
+		case 'skill':
+			return AgentHostCompletionReferenceKind.Skill;
+	}
+	return undefined;
 }
 
 function textRangeToIRange(range: TextRange): IRange {

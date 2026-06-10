@@ -17,7 +17,7 @@ import { CompletionItem, CompletionItemKind } from '../../../../editor/common/la
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { AgentHostCompletionReferenceKind, agentHostCompletionVariableValue, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
@@ -199,13 +199,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		switch (attachment.kind) {
 			case 'command': {
 				const referenceText = item.insertText.trimEnd();
-				const entry: IChatRequestVariableEntry = {
-					id: 'agent-host-command:' + attachment.command,
-					name: referenceText,
-					value: agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Command),
-					kind: 'generic',
-					_meta: attachment._meta,
-				};
+				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, referenceText, attachment.command, attachment._meta);
 				return {
 					label: item.insertText,
 					insertText: item.insertText,
@@ -227,13 +221,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 			}
 			case 'skill': {
 				const referenceText = item.insertText.trimEnd();
-				const entry: IChatRequestVariableEntry = {
-					id: attachment.uri.toString(),
-					name: referenceText,
-					value: agentHostCompletionVariableValue(AgentHostCompletionReferenceKind.Skill),
-					kind: 'generic',
-					_meta: attachment._meta,
-				};
+				const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, referenceText, attachment.uri, attachment._meta);
 				return {
 					label: { label: item.insertText, description: attachment.description },
 					insertText: item.insertText,
