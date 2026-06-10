@@ -235,6 +235,28 @@ suite('AgentPluginManager', () => {
 			const pluginDirs = listing.children.filter(c => c.isDirectory);
 			assert.strictEqual(pluginDirs.length, 3, 'should have exactly 3 plugin dirs after eviction');
 		});
+
+		test('retains a locked LRU candidate and skips ahead to evict an unlocked one', async () => {
+			const smallManager = new AgentPluginManager(basePath, fileService, new NullLogService(), 2);
+
+			await seedPluginDir('plugin-1', { 'index.js': 'p1' });
+			const r1 = await smallManager.syncCustomizations('client-1', [makeRef('plugin-1', 'n1')]);
+			const dir1 = r1[0].pluginDir!;
+
+			await seedPluginDir('plugin-2', { 'index.js': 'p2' });
+			const r2 = await smallManager.syncCustomizations('client-2', [makeRef('plugin-2', 'n2')]);
+			const dir2 = r2[0].pluginDir!;
+
+			// Lock the LRU head so its directory can't be deleted.
+			provider.lockedPaths.add(dir1.path);
+
+			await seedPluginDir('plugin-3', { 'index.js': 'p3' });
+			await smallManager.syncCustomizations('client-3', [makeRef('plugin-3', 'n3')]);
+
+			// plugin-1 should survive (locked) and plugin-2 should be evicted instead.
+			assert.strictEqual(await fileService.exists(dir1), true, 'locked plugin-1 should be retained');
+			assert.strictEqual(await fileService.exists(dir2), false, 'unlocked plugin-2 should be evicted');
+		});
 	});
 
 	// ---- cache persistence --------------------------------------------------

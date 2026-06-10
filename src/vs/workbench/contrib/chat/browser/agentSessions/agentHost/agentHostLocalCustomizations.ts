@@ -145,7 +145,7 @@ export async function resolveCustomizationRefs(
 	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
 	const looseFiles: { uri: URI; type: PromptsType }[] = [];
 
-	const addPluginRef = async (plugin: IAgentPlugin) => {
+	const addPluginRef = (plugin: IAgentPlugin) => {
 		const key = plugin.uri.toString();
 		if (!pluginRefs.has(key)) {
 			const promise = (async (): Promise<ClientPluginCustomization> => {

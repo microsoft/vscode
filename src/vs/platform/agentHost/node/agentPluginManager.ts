@@ -226,15 +226,22 @@ export class AgentPluginManager implements IAgentPluginManager {
 	}
 
 	private async _evictIfNeeded(): Promise<void> {
-		while (this._lru.length > this._maxPlugins) {
-			const evicted = this._lru.shift();
-			if (!evicted) {
-				break;
-			}
-			this._logService.info(`[AgentPluginManager] Evicting plugin: ${evicted.uri}`);
-			await this._tryDeleteDir(this._dirFor(evicted.uri, evicted.nonce));
-			if (!this._lru.some(entry => entry.uri === evicted.uri)) {
-				await this._tryDeleteDir(this._pluginRootFor(evicted.uri));
+		// Pop from the head until we're at-or-below the cap. Entries whose
+		// directory can't be deleted (still locked by a running session)
+		// are kept in the LRU so they can be retried on a later eviction
+		// pass; the cap may be exceeded temporarily in that case.
+		let i = 0;
+		while (this._lru.length > this._maxPlugins && i < this._lru.length) {
+			const candidate = this._lru[i];
+			this._logService.info(`[AgentPluginManager] Evicting plugin: ${candidate.uri}`);
+			if (await this._tryDeleteDir(this._dirFor(candidate.uri, candidate.nonce))) {
+				this._lru.splice(i, 1);
+				if (!this._lru.some(entry => entry.uri === candidate.uri)) {
+					await this._tryDeleteDir(this._pluginRootFor(candidate.uri));
+				}
+			} else {
+				// Locked — keep it in the LRU and try the next candidate.
+				i++;
 			}
 		}
 	}

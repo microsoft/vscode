@@ -2200,13 +2200,18 @@ export class CopilotAgentSession extends Disposable {
 	 * next live event arrives.
 	 */
 	private _seedMcpServersFromRpc(): void {
-		this._wrapper.session.rpc.mcp.list().then(result => {
+		const mcpRpc = this._wrapper.session.rpc?.mcp;
+		if (!mcpRpc) {
+			// Older SDKs (and test mocks) may not expose the MCP RPC surface.
+			return;
+		}
+		mcpRpc.list().then(result => {
 			if (this._store.isDisposed) {
 				return;
 			}
 			this._applyMcpServerList(result.servers);
 		}, err => {
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to seed MCP server inventory: ${err}`);
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to seed MCP server inventory`, err);
 		});
 	}
 
