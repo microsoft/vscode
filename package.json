@@ -27,6 +27,7 @@
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
+    "watch-transpile": "npm-run-all2 -lp watch-client-transpile watch-extensions watch-copilot",
     "watchd": "deemon npm run watch",
     "watch-webd": "deemon npm run watch-web",
     "kill-watchd": "deemon --kill npm run watch",
