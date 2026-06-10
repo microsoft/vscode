@@ -232,6 +232,14 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 
 			switch (action.kind) {
 				case 'mode':
+					// Session-less hosts (e.g. the automations dialog) provide
+					// `setMode` and a `sessionResource` that returns undefined.
+					// Skip the command path because it requires a registered
+					// `IChatWidget`; route the change to the host directly.
+					if (modeDelegate?.setMode && !modeDelegate.sessionResource()) {
+						modeDelegate.setMode(action.mode);
+						break;
+					}
 					// Same dispatch the desktop mode picker uses (see
 					// `modePickerActionItem.ts` — the row's `run()` invokes
 					// `ToggleAgentModeActionId` with `{ modeId, sessionResource }`).

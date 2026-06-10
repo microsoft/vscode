@@ -1043,6 +1043,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			currentMode: this._currentModeObservable,
 			currentChatModes,
 			sessionResource: () => this._widget?.viewModel?.sessionResource,
+			// Direct setter for hosts that embed `ChatInputPart` without
+			// registering an `IChatWidget` (e.g. the automations dialog).
+			// The picker only calls this when `sessionResource()` is
+			// `undefined`; real chat widgets keep the command path.
+			setMode: (mode: IChatMode) => this.setChatMode2(mode, true),
 			customAgentTarget: () => {
 				const sessionResource = this._widget?.viewModel?.model.sessionResource;
 				return (sessionResource && this.chatSessionsService.getCustomAgentTargetForSessionType(getChatSessionType(sessionResource))) ?? Target.Undefined;
