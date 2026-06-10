@@ -84,11 +84,6 @@ export interface ICodeReviewService {
 	removeComment(sessionResource: URI, commentId: string): void;
 
 	/**
-	 * Update the body text of a single code review comment.
-	 */
-	updateComment(sessionResource: URI, commentId: string, newBody: string): void;
-
-	/**
 	 * Get the observable PR review state for a session.
 	 * Returns unresolved review comments from the PR associated with the session.
 	 */
@@ -243,22 +238,6 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}
 
 		data.comments.set(filtered, undefined);
-		this._saveToStorage();
-	}
-
-	updateComment(sessionResource: URI, commentId: string, newBody: string): void {
-		const data = this._reviewsBySession.get(sessionResource.toString());
-		if (!data) {
-			return;
-		}
-
-		const current = data.comments.get();
-		if (!current.some(c => c.id === commentId)) {
-			return;
-		}
-
-		const updated = current.map(c => c.id === commentId ? { ...c, body: newBody } : c);
-		data.comments.set(updated, undefined);
 		this._saveToStorage();
 	}
 

@@ -666,7 +666,6 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		getComments: () => constObservable([]),
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
 		removeComment: () => { },
-		updateComment: () => { },
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
 	});

@@ -23,7 +23,6 @@ export function createMockCodeReviewService(): ICodeReviewService {
 
 		override addComment(): never { throw new Error('not implemented'); }
 		override removeComment(): void { }
-		override updateComment(): void { }
 		override async resolvePRReviewThread(): Promise<void> { }
 		override markPRReviewCommentConverted(): void { }
 	}();

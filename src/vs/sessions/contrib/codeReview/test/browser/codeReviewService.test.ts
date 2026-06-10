@@ -371,24 +371,6 @@ suite('CodeReviewService', () => {
 		assert.deepStrictEqual(service.getComments(session).get(), []);
 	});
 
-	// --- updateComment ---
-
-	test('updateComment updates the body of an existing comment', () => {
-		const comment = service.addComment(session, fileA, new Range(1, 1, 1, 1), 'original');
-
-		service.updateComment(session, comment.id, 'edited');
-
-		assert.strictEqual(service.getComments(session).get()[0].body, 'edited');
-	});
-
-	test('updateComment is a no-op for unknown comment id', () => {
-		service.addComment(session, fileA, new Range(1, 1, 1, 1), 'comment1');
-
-		service.updateComment(session, 'nonexistent-id', 'new body');
-
-		assert.strictEqual(service.getComments(session).get()[0].body, 'comment1');
-	});
-
 	// --- Isolation between sessions ---
 
 	test('different sessions are independent', () => {
