@@ -653,6 +653,12 @@ function renderForm(
 		renderWorkingSet: false,
 		enableImplicitContext: false,
 		supportsChangingModes: true,
+		// Custom-agent discovery walks the workbench's open folders, not
+		// the dialog's selected folder — surfacing them here would
+		// mislead the user about which agents are actually available at
+		// the scheduled folder. Hide them; built-in modes (Agent / Ask /
+		// Edit / Plan) are always shown.
+		hideCustomChatModes: true,
 		menus: {
 			executeToolbar: MenuId.AutomationsDialogInput,
 			telemetrySource: 'automations.dialog',

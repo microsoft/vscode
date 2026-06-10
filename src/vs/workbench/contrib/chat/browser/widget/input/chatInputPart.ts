@@ -183,6 +183,15 @@ export interface IChatInputPartOptions {
 	 */
 	workspacePickerDelegate?: IWorkspacePickerDelegate;
 	/**
+	 * When true, the mode picker hides custom agents and only offers the
+	 * built-in modes (Agent / Ask / Edit / Plan, gated by their normal
+	 * visibility rules). Custom-agent discovery is workspace-scoped and
+	 * doesn't follow the dialog's folder selection, so surfacing custom
+	 * agents tied to the workbench's open folders would mislead the user
+	 * when scheduling against a different folder.
+	 */
+	hideCustomChatModes?: boolean;
+	/**
 	 * Whether we are running in the sessions window.
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
@@ -992,9 +1001,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _createModePickerDelegate(): IModePickerDelegate {
+		// When `hideCustomChatModes` is set (e.g. for the automations
+		// dialog), expose a wrapper view of `_currentChatModesObservable`
+		// that always reports an empty `custom` list. Custom-agent
+		// discovery walks the workbench's open folders rather than a
+		// caller-provided folder, so showing custom agents in a host
+		// that targets a different folder would lie about availability.
+		const currentChatModes: IObservable<IChatModes> = this.options.hideCustomChatModes
+			? derived(reader => {
+				const inner = this._currentChatModesObservable.read(reader);
+				const wrapped: IChatModes = {
+					onDidChange: inner.onDidChange,
+					builtin: inner.builtin,
+					custom: [],
+					findModeById: (id: string) => inner.builtin.find(m => m.id === id),
+					findModeByName: (name: string) => inner.builtin.find(m => m.name.read(undefined) === name),
+					waitForPendingUpdates: () => inner.waitForPendingUpdates(),
+				};
+				return wrapped;
+			})
+			: this._currentChatModesObservable;
+
 		return {
 			currentMode: this._currentModeObservable,
-			currentChatModes: this._currentChatModesObservable,
+			currentChatModes,
 			sessionResource: () => this._widget?.viewModel?.sessionResource,
 			customAgentTarget: () => {
 				const sessionResource = this._widget?.viewModel?.model.sessionResource;
