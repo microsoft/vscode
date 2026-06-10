@@ -758,7 +758,8 @@
 .ai-customization-management-editor .prompts-content-container,
 .ai-customization-management-editor .mcp-content-container,
 .ai-customization-management-editor .plugin-content-container,
-.ai-customization-management-editor .models-content-container {
+.ai-customization-management-editor .models-content-container,
+.ai-customization-management-editor .automations-content-container {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -1524,18 +1525,21 @@ pane is first mounted. View switches inside the modal are not animated. */
 /* Welcome page styles live in the welcome page variant stylesheets. */
 
 
-/* Automations section */
-.automations-content-container {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	overflow: auto;
-}
+/* Automations section
+ *
+ * The outer `.automations-content-container` shares the panel-surface
+ * styling with the prompts / MCP / plugin / models containers (see the
+ * shared rule above near line 758) so the Automations tab visually
+ * matches its siblings: 40px panel padding, agentsPanel background,
+ * rounded border. The list-widget below fills that panel.
+ *
+ * No standalone rule is needed here — the shared selector covers it. */
 
 .automations-list-widget {
 	display: flex;
 	flex-direction: column;
 	flex: 1;
+	min-height: 0;
 }
 
 .automations-list-widget .automations-empty-state {
@@ -1570,10 +1574,15 @@ pane is first mounted. View switches inside the modal are not animated. */
 	align-self: center;
 }
 
-/* Header */
+/* Header — mirrors `.section-title-header` on the prompts side so the
+ * Automations tab reads with the same vertical rhythm and underline
+ * treatment as Agents / Skills / Prompts / Instructions. Horizontal
+ * padding is absent because the parent `.automations-content-container`
+ * already owns 40px panel padding. */
 .automations-list-widget .automations-header {
-	padding: 16px 24px 12px;
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+	flex-shrink: 0;
+	padding: 0 0 32px;
+	border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .automations-list-widget .automations-header-row {
@@ -1581,20 +1590,26 @@ pane is first mounted. View switches inside the modal are not animated. */
 	flex-direction: row;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
+	gap: 8px 16px;
+	flex-wrap: wrap;
 }
 
 .automations-list-widget .automations-header-title {
-	font-size: 16px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-heading2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-foreground);
 	margin: 0;
+	min-width: 0;
 }
 
 .automations-list-widget .automations-header-subtitle {
 	font-size: var(--vscode-agents-fontSize-body1);
+	line-height: 1.45;
 	color: var(--vscode-descriptionForeground);
-	margin: 4px 0 0;
+	margin: 0 0 8px 0;
+	/* Reserve ~2 lines so vertical rhythm matches the prompts-side
+	 * `.section-title-description` even when our subtitle is short. */
+	min-height: 38px;
 }
 
 .automations-list-widget .automations-new-button {
@@ -1614,9 +1629,9 @@ pane is first mounted. View switches inside the modal are not animated. */
 	display: flex;
 	flex-direction: column;
 	flex: 1;
+	min-height: 0;
 	overflow: auto;
 	gap: 6px;
-	padding: 0 8px;
 }
 
 .automations-list-widget .automations-row {

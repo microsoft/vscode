@@ -113,7 +113,7 @@ export class AutomationsListWidget extends Disposable {
 
 	private renderHeader(): void {
 		const titleRow = DOM.append(this.headerEl, $('.automations-header-row'));
-		const titleEl = DOM.append(titleRow, $('h3.automations-header-title'));
+		const titleEl = DOM.append(titleRow, $('h2.automations-header-title'));
 		titleEl.textContent = localize('automationsHeaderTitle', "Automations");
 		const subtitleEl = DOM.append(this.headerEl, $('p.automations-header-subtitle'));
 		subtitleEl.textContent = localize('automationsHeaderSubtitle', "Schedule agent sessions to run on a cadence you choose.");
