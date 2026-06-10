@@ -34,6 +34,7 @@ import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 
@@ -203,6 +204,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 	) {
 		super();
 
@@ -535,7 +537,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		return (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
+		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
+			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 	}
 

@@ -107,8 +107,9 @@ import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../cha
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { AgentHostChatInputPicker, AgentHostChatInputPickerActionViewItem } from '../../agentSessions/agentHost/agentHostChatInputPicker.js';
-import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction, OpenAgentHostFolderPickerAction } from '../../agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostGenericConfigChips } from '../../agentSessions/agentHost/agentHostGenericConfigChips.js';
+import { AgentHostFolderPickerActionItem } from '../../agentSessions/agentHost/agentHostFolderPickerActionItem.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { IChatPhoneInputPresenter, MobileChatInputCombinedPickerActionItem } from './chatPhoneInputPresenter.js';
@@ -2866,6 +2867,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			[OpenAgentHostModePickerAction.ID, 22],
 			[OpenAgentHostAutoApprovePickerAction.ID, 22],
 			[OpenAgentHostPermissionModePickerAction.ID, 22],
+			[OpenAgentHostFolderPickerAction.ID, 22],
 			['sessions.tunnelHost.toggleSharing', 16],
 		]);
 		// Direct-rendered chip lane for agent-host config properties that
@@ -2988,6 +2990,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							: SessionConfigKey.Mode;
 					const picker = this.instantiationService.createInstance(AgentHostChatInputPicker, widget, property);
 					return new AgentHostChatInputPickerActionViewItem(action, picker);
+				} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
+					if (this.options.isSessionsWindow) {
+						return new HiddenActionViewItem(action);
+					}
+					return this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, secondaryPickerOptions);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action, secondaryPickerOptions);
