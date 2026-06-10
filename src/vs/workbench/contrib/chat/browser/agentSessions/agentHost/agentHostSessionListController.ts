@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -12,10 +13,8 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { ChangesSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
-import { getAgentHostIcon } from '../agentSessions.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
@@ -76,7 +75,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _connection: IAgentConnection,
 		private readonly _description: string | undefined,
 		_connectionAuthority: string,
-		@IProductService private readonly _productService: IProductService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
@@ -319,7 +317,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
 			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description,
-			iconPath: getAgentHostIcon(this._productService),
+			iconPath: Codicon.copilot,
 			status: mapSessionStatus(opts.status),
 			archived: opts.status !== undefined && (opts.status & SessionStatus.IsArchived) === SessionStatus.IsArchived,
 			metadata: this._buildMetadata(opts.workingDirectory),
