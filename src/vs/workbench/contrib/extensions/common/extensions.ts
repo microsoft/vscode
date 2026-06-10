@@ -121,12 +121,12 @@ export interface InstallExtensionOptions extends InstallOptions {
 }
 
 export interface IExtensionsNotification {
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
 	readonly query?: string;
 	readonly action?: { readonly label: string; run(): void };
-	dismiss(): void;
+	dismiss?(): void;
 }
 
 export interface IExtensionsWorkbenchService {
@@ -161,6 +161,8 @@ export interface IExtensionsWorkbenchService {
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	openSearch(searchValue: string, focus?: boolean): Promise<void>;
 	getAutoUpdateValue(): AutoUpdateConfigurationValue;
+	isAutoUpdateDelayed(extension: IExtension): boolean;
+	getAutoUpdateDelayRemaining(extension: IExtension): number;
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
@@ -192,7 +194,7 @@ export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
 
 export interface IExtensionsConfiguration {
-	autoUpdate: boolean;
+	autoUpdate: AutoUpdateConfigurationValue;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;

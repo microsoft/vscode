@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -24,6 +25,7 @@ import { IPaneCompositePartService } from '../../../../../workbench/services/pan
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -91,8 +93,10 @@ function makeSession(resource: URI, opts?: {
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('activeChat', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
+		isCreated: observableValue('isCreated', true),
+		sticky: observableValue('sticky', false),
 	};
 }
 
@@ -110,14 +114,23 @@ suite('LayoutController', () => {
 	let setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	let activePaneCompositeId: string | undefined;
 
-	function createLayoutController(): LayoutController {
+	interface ICreateOptions {
+		readonly useModal?: 'off' | 'some' | 'all';
+		readonly workspaceFolders?: readonly { readonly uri: URI }[];
+		readonly layoutState?: readonly object[];
+	}
+
+	function createLayoutController(options: ICreateOptions = {}): LayoutController {
 		const instaService = store.add(new TestInstantiationService());
 
 		storageService = store.add(new TestStorageService());
+		if (options.layoutState) {
+			storageService.store('sessions.layoutState', JSON.stringify(options.layoutState), StorageScope.WORKSPACE, 0);
+		}
 		instaService.stub(IStorageService, storageService);
 
 		const configService = new TestConfigurationService();
-		configService.setUserConfiguration('workbench.editor.useModal', 'all');
+		configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
 		instaService.stub(IConfigurationService, configService);
 
 		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
@@ -127,6 +140,9 @@ suite('LayoutController', () => {
 			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override getSessions() { return []; }
+		});
+		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+			override readonly visibleSessions = constObservable([]);
 		});
 
 		onDidSubmitRequest = store.add(new Emitter<{ chatSessionResource: URI }>());
@@ -148,7 +164,12 @@ suite('LayoutController', () => {
 			}
 			override setPartHidden(hidden: boolean, part: Parts): void {
 				setPartHiddenCalls.push({ hidden, part });
+				const wasVisible = partVisibility.get(part) ?? true;
 				partVisibility.set(part, !hidden);
+				// Mirror production: fire the visibility change synchronously when it actually changes
+				if (wasVisible === hidden) {
+					onDidChangePartVisibility.fire({ partId: part, visible: !hidden });
+				}
 			}
 			override hasFocus(_part: Parts): boolean { return false; }
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
@@ -190,7 +211,7 @@ suite('LayoutController', () => {
 
 		instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
-			override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+			override getWorkspace(): IWorkspace { return { id: 'test', folders: (options.workspaceFolders ?? []) as IWorkspace['folders'] }; }
 		});
 
 		return store.add(instaService.createInstance(LayoutController));
@@ -273,6 +294,52 @@ suite('LayoutController', () => {
 		assert.ok(
 			openedViewContainers.includes('some.custom.view'),
 			'should restore active view container when returning to session 1'
+		);
+	});
+
+	// --- Editor / auxiliary bar invariant ---
+
+	test('reveals auxiliary bar when the editor part becomes visible', () => {
+		createLayoutController();
+		partVisibility.set(Parts.EDITOR_PART, true);
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		setPartHiddenCalls = [];
+
+		// Simulate the editor part becoming visible (e.g. opening a file from chat)
+		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
+			'auxiliary bar should be revealed when the editor becomes visible'
+		);
+	});
+
+	test('does not force auxiliary bar visible when restoring editor working set on session switch', async () => {
+		const session = makeSession(URI.parse('session:1'));
+		createLayoutController({
+			useModal: 'some',
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+			layoutState: [{
+				sessionResource: 'session:1',
+				editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+				viewState: { auxiliaryBarVisible: false, auxiliaryBarActiveViewContainerId: undefined },
+			}],
+		});
+		partVisibility.set(Parts.EDITOR_PART, false);
+		partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		setPartHiddenCalls = [];
+
+		activeSessionObs.set(session, undefined);
+		// Flush the working-set sequencer (queued microtasks)
+		await timeout(0);
+
+		assert.ok(
+			setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
+			'editor part should be revealed by the working set restore'
+		);
+		assert.ok(
+			!setPartHiddenCalls.some(c => c.part === Parts.AUXILIARYBAR_PART && c.hidden === false),
+			'auxiliary bar must not be forced visible during working set restore'
 		);
 	});
 
@@ -402,6 +469,9 @@ suite('LayoutController', () => {
 			override activeSession = activeSession;
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions() { return []; }
+		});
+		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
+			override readonly visibleSessions = constObservable([]);
 		});
 		instaService.stub(IChatService, new class extends mock<IChatService>() {
 			override readonly onDidSubmitRequest = Event.None;

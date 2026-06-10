@@ -28,8 +28,7 @@ export function extractLeadingSlashToken(text: string, offset: number): ILeading
 	}
 	let end = 1;
 	while (end < text.length) {
-		const ch = text.charCodeAt(end);
-		if (ch === 0x20 /* space */ || ch === 0x09 /* tab */ || ch === 0x0a /* \n */ || ch === 0x0d /* \r */) {
+		if (isSlashTokenWhitespace(text.charCodeAt(end))) {
 			break;
 		}
 		end++;
@@ -39,4 +38,37 @@ export function extractLeadingSlashToken(text: string, offset: number): ILeading
 	}
 	const token = text.slice(0, end);
 	return { token, typed: token.slice(1), rangeStart: 0, rangeEnd: end };
+}
+
+/**
+ * Extracts the slash token containing the cursor when the slash is either at
+ * the start of the input or immediately follows whitespace.
+ */
+export function extractWhitespaceDelimitedSlashToken(text: string, offset: number): ILeadingSlashToken | undefined {
+	if (text.length === 0 || offset < 0 || offset > text.length) {
+		return undefined;
+	}
+
+	let start = offset;
+	while (start > 0 && !isSlashTokenWhitespace(text.charCodeAt(start - 1))) {
+		start--;
+	}
+	if (start >= text.length || text.charCodeAt(start) !== 0x2f /* / */) {
+		return undefined;
+	}
+
+	let end = start + 1;
+	while (end < text.length && !isSlashTokenWhitespace(text.charCodeAt(end))) {
+		end++;
+	}
+	if (offset > end) {
+		return undefined;
+	}
+
+	const token = text.slice(start, end);
+	return { token, typed: token.slice(1), rangeStart: start, rangeEnd: end };
+}
+
+function isSlashTokenWhitespace(ch: number): boolean {
+	return ch === 0x20 /* space */ || ch === 0x09 /* tab */ || ch === 0x0a /* \n */ || ch === 0x0d /* \r */;
 }

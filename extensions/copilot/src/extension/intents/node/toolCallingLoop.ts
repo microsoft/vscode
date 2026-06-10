@@ -10,7 +10,7 @@ import { IAuthenticationChatUpgradeService } from '../../../platform/authenticat
 import { IChatDebugFileLoggerService } from '../../../platform/chat/common/chatDebugFileLoggerService';
 import { IChatHookService, SessionStartHookInput, SessionStartHookOutput, StopHookInput, StopHookOutput, SubagentStartHookInput, SubagentStartHookOutput, SubagentStopHookInput, SubagentStopHookOutput } from '../../../platform/chat/common/chatHookService';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
-import { CanceledResult, ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { CanceledResult, ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { IHistoricalTurn, ISessionTranscriptService, ToolRequest } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
@@ -20,9 +20,9 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAIContextManagementResponse, OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
-import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
+import { IChatEndpoint, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
+import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, GitHubCopilotAttr, normalizeResponseModel, resolveWorkspaceOTelMetadata, StdAttr, stringifyToolDefinitionsForOTel, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
@@ -32,9 +32,10 @@ import { computePromptTokenDetails } from '../../../platform/tokenizer/node/prom
 import { tryFinalizeResponseStream } from '../../../util/common/chatResponseStreamImpl';
 import { ChatExtPerfMark, markChatExt } from '../../../util/common/performance';
 import { DeferredPromise, timeout } from '../../../util/vs/base/common/async';
+import { CancellationTokenSource } from '../../../util/vs/base/common/cancellation';
 import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter } from '../../../util/vs/base/common/event';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { Mutable } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -104,7 +105,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number };
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest' | 'turnId'>> & Pick<IMakeChatRequestOptions, 'modelCapabilities' | 'summarizedAtRoundId' | 'topLevelTurnId'> & { iterationNumber: number; isKeepAliveProbe?: boolean };
 
 interface StartHookResult {
 	/**
@@ -178,6 +179,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private toolsAvailableEmitted = false;
 	private lastHeaderRequestId: string | undefined;
 	private lastModelCallId: string | undefined;
+
+	/**
+	 * The full {@link ToolCallingLoopFetchOptions} from the most recent fetch.
+	 * Probes reuse this wholesale (overriding only `messages` and `finishedCb`)
+	 * so that the server-side prompt cache key — which includes tool schemas,
+	 * model capabilities, and other request-shape fields — matches.
+	 */
+	private lastFetchOptions: ToolCallingLoopFetchOptions | undefined;
+
+	/** Interval between keep-alive probes while buildPrompt is in flight. */
+	private static readonly KEEP_ALIVE_INTERVAL_MS = 4 * 60 * 1000;
 
 	public appendAdditionalHookContext(context: string): void {
 		if (!context) {
@@ -362,20 +374,41 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	private static readonly MAX_AUTOPILOT_RETRIES = 3;
-	private static readonly MAX_AUTOPILOT_ITERATIONS = 5;
+	private static readonly MAX_AUTOPILOT_ITERATIONS = 3;
 	private autopilotRetryCount = 0;
 	private autopilotIterationCount = 0;
 
 	private taskCompleted = false;
 	private autopilotStopHookActive = false;
 	private autopilotProgressDeferred: DeferredPromise<void> | undefined;
+	/**
+	 * Short, user-facing reason for the most recent goal-mode continuation. Set
+	 * by {@link shouldAutopilotContinue} on each call (or cleared if no reason
+	 * is available) so the caller can surface it in the progress spinner.
+	 */
+	private autopilotLastUserReason: string | undefined;
 
 	/**
-	 * Autopilot stop hook — the model needs to call `task_complete` to signal it's done.
-	 * If it stops without calling it, we nudge it to keep going. Returns a continuation
-	 * message or `undefined` to let the loop stop.
+	 * Autopilot stop hook. In standard Autopilot the model signals completion by calling
+	 * `task_complete`; if it stops without doing so we nudge it to keep going. In Advanced
+	 * Autopilot (`chat.autopilot.advanced.enabled`) completion is judged by the goal
+	 * classifier instead and `task_complete` is ignored as a stop signal — see
+	 * {@link advancedAutopilotContinue}. Returns a continuation message or `undefined` to
+	 * let the loop stop.
 	 */
-	protected shouldAutopilotContinue(result: IToolCallSingleResult): string | undefined {
+	protected async shouldAutopilotContinue(result: IToolCallSingleResult, token: CancellationToken): Promise<string | undefined> {
+		this.autopilotLastUserReason = undefined;
+
+		const advancedAutopilotEnabled = this._configurationService.getNonExtensionConfig<boolean>('chat.autopilot.advanced.enabled') === true;
+
+		// Advanced Autopilot delegates the completion decision entirely to the goal
+		// classifier. The model's `task_complete` call is intentionally NOT treated as a
+		// stop signal here — the loop only stops when the classifier agrees the original
+		// request has been satisfied (or a hard safety cap is reached).
+		if (advancedAutopilotEnabled) {
+			return this.advancedAutopilotContinue(result, token);
+		}
+
 		if (this.taskCompleted) {
 			this._logService.info('[ToolCallingLoop] Autopilot: task_complete was called, stopping');
 			return undefined;
@@ -430,6 +463,162 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	}
 
 	/**
+	 * Advanced Autopilot continuation logic. Unlike standard Autopilot — where the model
+	 * signals completion by calling `task_complete` — Advanced Autopilot relies solely on
+	 * a small/fast goal classifier to judge whether the user's original request has been
+	 * satisfied after each turn. `task_complete` is ignored as a stop signal: the loop
+	 * continues until the classifier agrees the goal is met (or is impossible), or a safety
+	 * cap on consecutive continuations is hit. Returns a continuation message or `undefined` to let the loop stop.
+	 */
+	private async advancedAutopilotContinue(result: IToolCallSingleResult, token: CancellationToken): Promise<string | undefined> {
+		// Safety cap on consecutive classifier-driven continuations. Note run() resets
+		// autopilotIterationCount whenever the model makes productive tool calls, so
+		// this bounds stalled nudge loops rather than the total number of turns; the
+		// overall run is still bounded by the global tool-call limit.
+		if (this.autopilotIterationCount >= ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS) {
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot: hit max consecutive iterations (${ToolCallingLoop.MAX_AUTOPILOT_ITERATIONS}), letting it stop`);
+			return undefined;
+		}
+
+		const classifierResult = await this._runAutopilotGoalClassifier(result, token);
+		if (classifierResult?.done) {
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot classifier: complete — ${classifierResult.reason}`);
+			return undefined;
+		}
+		if (classifierResult?.impossible) {
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot classifier: impossible — ${classifierResult.reason}`);
+			return undefined;
+		}
+		if (classifierResult) {
+			this.autopilotIterationCount++;
+			this._logService.info(`[ToolCallingLoop] Advanced Autopilot classifier: incomplete — ${classifierResult.reason}`);
+			this.autopilotLastUserReason = classifierResult.reason;
+			return 'The Advanced Autopilot evaluator determined that your original request is not yet complete.\n\n' +
+				`Reason: ${classifierResult.reason}\n\n` +
+				'Pick up where you left off and keep working autonomously until the original request is fully satisfied. ' +
+				'Do NOT repeat or restate your previous response.';
+		}
+
+		// Classifier unavailable (network/parse failure). Advanced Autopilot does not fall
+		// back to task_complete, so issue one bounded generic nudge — unless a prior nudge
+		// already stalled (no further tool calls), in which case stop to avoid wasted requests.
+		if (this.autopilotStopHookActive && result.round.toolCalls.length === 0) {
+			this._logService.info('[ToolCallingLoop] Advanced Autopilot: classifier unavailable and prior nudge produced no tool calls, stopping');
+			return undefined;
+		}
+		this.autopilotIterationCount++;
+		this._logService.warn('[ToolCallingLoop] Advanced Autopilot classifier returned no decision; falling back to a generic nudge');
+		return 'Keep working autonomously until the original request is fully satisfied. ' +
+			'Do NOT repeat or restate your previous response — pick up where you left off. ' +
+			'If you were planning, stop planning and start implementing, and resolve any errors or remaining steps before you stop.';
+	}
+
+	/**
+	 * Asks a small/fast model whether the user's original request has been fully
+	 * satisfied by the conversation so far. Returns `undefined` if the classifier
+	 * fails so callers can fall back to a rules-based decision.
+	 *
+	 * The classifier may also return `impossible: true` when the goal can never be
+	 * satisfied in the current session (self-contradictory, missing capability,
+	 * exhausted approaches). Callers treat that the same as `done: true` to bail
+	 * out of the loop instead of nudging forever.
+	 */
+	private async _runAutopilotGoalClassifier(result: IToolCallSingleResult, token: CancellationToken): Promise<{ done: boolean; impossible?: boolean; reason: string } | undefined> {
+		try {
+			const endpoint = await this._endpointProvider.getChatEndpoint('copilot-utility-small');
+			const originalRequest = (this.options.request.prompt ?? '').trim();
+			const transcript = this._buildAutopilotTranscript(result);
+
+			const systemPrompt = [
+				'You are an evaluator inside an autonomous coding agent loop.',
+				'You are judging whether the user-provided request has been fully satisfied by the conversation transcript below.',
+				'',
+				'Your response must be exactly one line in one of these forms, with no other text:',
+				'- YES <quote evidence from the transcript that satisfies the request>',
+				'- NO <quote what is missing or what still blocks the request>',
+				'- IMPOSSIBLE <explain why the request can never be satisfied>',
+				'',
+				'Always include a reason, quoting specific text from the transcript whenever possible.',
+				'If the transcript does not contain clear evidence that the request is satisfied, reply "NO insufficient evidence in transcript".',
+				'',
+				'Only use IMPOSSIBLE when the request is genuinely unachievable in this session — for example: the request is self-contradictory, depends on a resource or capability that is unavailable, or the assistant has explicitly tried and exhausted reasonable approaches and stated it cannot be done.',
+				'The assistant claiming completion is evidence, not proof — independently verify by looking for concrete actions (tool calls, file edits, test runs) in the transcript. When in doubt, reply NO without IMPOSSIBLE.',
+			].join('\n');
+
+			const userPrompt = `Original user request:\n${originalRequest || '(empty)'}\n\nConversation transcript:\n${transcript}\n\nHas the original request been fully completed?`;
+
+			const messages: Raw.ChatMessage[] = [
+				{ role: Raw.ChatRole.System, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: systemPrompt }] },
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: userPrompt }] },
+			];
+
+			const fetchResult = await endpoint.makeChatRequest(
+				'autopilotGoalClassifier',
+				messages,
+				undefined,
+				token,
+				ChatLocation.Other,
+				undefined,
+				{ max_tokens: 500, temperature: 0 },
+			);
+
+			if (fetchResult.type !== ChatFetchResponseType.Success) {
+				this._logService.warn(`[ToolCallingLoop] Autopilot goal classifier non-success response: ${fetchResult.type}`);
+				return undefined;
+			}
+
+			const text = String(fetchResult.value ?? '').trim();
+			const match = text.match(/^(YES|NO|IMPOSSIBLE)\b\s*[:.\-]?\s*([\s\S]*)$/i);
+			if (!match) {
+				this._logService.warn(`[ToolCallingLoop] Autopilot goal classifier unparseable response: ${text.slice(0, 200)}`);
+				return undefined;
+			}
+			const verdict = match[1].toUpperCase();
+			const done = verdict === 'YES';
+			const impossible = verdict === 'IMPOSSIBLE';
+			const reason = match[2].trim().replace(/\s+/g, ' ') ||
+				(done ? 'Task complete' : impossible ? 'Task cannot be completed' : 'Task not yet complete');
+			return { done, impossible, reason };
+		} catch (e) {
+			this._logService.warn(`[ToolCallingLoop] Autopilot goal classifier failed: ${e instanceof Error ? e.message : String(e)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Renders the conversation so far (all previous tool-call rounds plus the current
+	 * one) as a compact transcript for the goal classifier. Per-field truncation keeps
+	 * a runaway file edit or grep result from blowing the small-model context window.
+	 */
+	private _buildAutopilotTranscript(result: IToolCallSingleResult): string {
+		const MAX_ARGS_PER_CALL = 200;
+		const MAX_RESPONSE_PER_TURN = 800;
+		const MAX_TOTAL = 8000;
+
+		const truncate = (s: string, max: number): string =>
+			s.length <= max ? s : s.slice(0, max) + `… (truncated ${s.length - max} chars)`;
+
+		const formatRound = (round: IToolCallRound, index: number): string => {
+			const toolCalls = round.toolCalls.length === 0
+				? '(none)'
+				: round.toolCalls
+					.map(tc => `${tc.name}(${truncate(tc.arguments ?? '', MAX_ARGS_PER_CALL)})`)
+					.join('; ');
+			const response = truncate((round.response ?? '').trim() || '(empty)', MAX_RESPONSE_PER_TURN);
+			return `Turn ${index + 1}:\n  Tool calls: ${toolCalls}\n  Assistant response: ${response}`;
+		};
+
+		// Concatenate prior rounds plus the current round, then truncate the whole thing
+		// from the front so we keep the most recent context if it overflows.
+		const allRounds = [...this.toolCallRounds, result.round];
+		const rendered = allRounds.map(formatRound).join('\n\n');
+		if (rendered.length <= MAX_TOTAL) {
+			return rendered;
+		}
+		return `… (earlier turns truncated)\n\n${rendered.slice(-MAX_TOTAL)}`;
+	}
+
+	/**
 	 * Shows a progress spinner in the chat stream while autopilot continues.
 	 * The spinner resolves to the past-tense message when {@link resolveAutopilotProgress} is called.
 	 */
@@ -480,7 +669,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	 * Whether the loop should auto-retry after a failed fetch in auto-approve/autopilot mode.
 	 * Does not retry rate-limited, quota-exceeded, or cancellation errors.
 	 */
-	private shouldAutoRetry(response: ChatResponse): boolean {
+	protected shouldAutoRetry(response: ChatResponse): boolean {
 		const permLevel = this.options.request.permissionLevel;
 		if (permLevel !== 'autoApprove' && permLevel !== 'autopilot') {
 			return false;
@@ -738,6 +927,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// Extract custom mode name for debug logging (kept separate from agentName to avoid metric cardinality)
 		const modeInstructions = (this.options.request as { modeInstructions2?: { name?: string; isBuiltin?: boolean } }).modeInstructions2;
 		const customModeName = modeInstructions?.name && !modeInstructions.isBuiltin ? modeInstructions.name : undefined;
+		const agentType: 'builtin' | 'custom' = modeInstructions && modeInstructions.isBuiltin === false ? 'custom' : 'builtin';
 
 		// If this is a subagent request, look up the parent trace context stored by the parent agent's execute_tool span
 		// Try subAgentInvocationId first (unique per subagent, supports parallel), then request-level key
@@ -773,6 +963,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					...(parentChatSessionId ? { [CopilotChatAttr.PARENT_CHAT_SESSION_ID]: parentChatSessionId } : {}),
 					...(debugLogLabel ? { [CopilotChatAttr.DEBUG_LOG_LABEL]: debugLogLabel } : {}),
 					...(customModeName ? { [CopilotChatAttr.MODE_NAME]: customModeName } : {}),
+					[GitHubCopilotAttr.AGENT_TYPE]: agentType,
 					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 				parentTraceContext,
@@ -811,22 +1002,19 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					}
 				}
 
+				// Resolve the endpoint once for session start + request model attribute.
+				let requestModel: string | undefined;
+				try {
+					const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+					requestModel = endpoint.model;
+					span.setAttribute(GenAiAttr.REQUEST_MODEL, endpoint.model);
+				} catch { /* endpoint not yet available */ }
+
 				// Emit session start event and metric for top-level agent invocations (not subagents)
 				if (!parentTraceContext) {
 					GenAiMetrics.incrementSessionCount(this._otelService);
-					try {
-						const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
-						emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, endpoint.model, agentName);
-					} catch {
-						emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, 'unknown', agentName);
-					}
+					emitSessionStartEvent(this._otelService, this.options.conversation.sessionId, requestModel ?? 'unknown', agentName);
 				}
-
-				// Set request model from the endpoint
-				try {
-					const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
-					span.setAttribute(GenAiAttr.REQUEST_MODEL, endpoint.model);
-				} catch { /* endpoint not available yet, will be set on response */ }
 
 				// Always capture user input message for the debug panel
 				{
@@ -850,6 +1038,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				let totalOutputTokens = 0;
 				let totalCacheReadTokens = 0;
 				let totalCacheCreationTokens = 0;
+				let totalReasoningTokens = 0;
 				let lastResolvedModel: string | undefined;
 				let turnIndex = 0;
 				const tokenListener = this.onDidReceiveResponse(({ response }) => {
@@ -860,6 +1049,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						totalOutputTokens += turnOutputTokens;
 						totalCacheReadTokens += (response.usage.prompt_tokens_details?.cached_tokens || 0);
 						totalCacheCreationTokens += (response.usage.prompt_tokens_details?.cache_creation_input_tokens || 0);
+						totalReasoningTokens += (response.usage.completion_tokens_details?.reasoning_tokens || 0);
 					}
 					if (response.type === ChatFetchResponseType.Success && response.resolvedModel) {
 						lastResolvedModel = response.resolvedModel;
@@ -876,7 +1066,11 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						[GenAiAttr.USAGE_OUTPUT_TOKENS]: totalOutputTokens,
 						...(totalCacheReadTokens ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: totalCacheReadTokens } : {}),
 						...(totalCacheCreationTokens ? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: totalCacheCreationTokens } : {}),
-						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: lastResolvedModel } : {}),
+						// Reasoning tokens are a SUBSET of USAGE_OUTPUT_TOKENS (mirrors OpenAI
+						// completion_tokens_details.reasoning_tokens), so this is a sub-breakdown
+						// of output, not an addition.
+						...(totalReasoningTokens ? { [GenAiAttr.USAGE_REASONING_OUTPUT_TOKENS]: totalReasoningTokens } : {}),
+						...(lastResolvedModel ? { [GenAiAttr.RESPONSE_MODEL]: normalizeResponseModel(requestModel, lastResolvedModel) ?? lastResolvedModel } : {}),
 					});
 					// Always capture agent output message and tool definitions for the debug panel
 					{
@@ -891,14 +1085,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						// Includes `parameters` (inputSchema) per OTel GenAI semantic convention so
 						// trace viewers can render full tool signatures (issue #300318).
 						if (result.availableTools.length > 0) {
-							span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(JSON.stringify(
-								result.availableTools.map(t => ({
-									type: 'function',
-									name: t.name,
-									description: t.description,
-									parameters: t.inputSchema,
-								}))
-							)));
+							const toolDefsJson = stringifyToolDefinitionsForOTel(result.availableTools);
+							if (toolDefsJson) {
+								span.setAttribute(GenAiAttr.TOOL_DEFINITIONS, truncateForOTel(toolDefsJson));
+							}
 						}
 					}
 					span.setStatus(SpanStatusCode.OK);
@@ -1039,10 +1229,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					// In Autopilot mode, check if the task is actually done before stopping.
 					// This acts as an internal stop hook that keeps the agent churning until completion.
 					if (this.options.request.permissionLevel === 'autopilot' && result.response.type === ChatFetchResponseType.Success) {
-						const autopilotContinue = this.shouldAutopilotContinue(result);
+						const autopilotContinue = await this.shouldAutopilotContinue(result, token);
 						if (autopilotContinue) {
 							this._logService.info(`[ToolCallingLoop] Autopilot internal stop hook: continuing because task may not be complete`);
-							this.showAutopilotProgress(outputStream, l10n.t('Autopilot: verifying task is done\u2026'), l10n.t('Autopilot continued working'));
+							const userReason = this.autopilotLastUserReason;
+							const spinnerMessage = userReason
+								? l10n.t('Autopilot: continuing — {0}', userReason)
+								: l10n.t('Autopilot: verifying task is done\u2026');
+							const spinnerPastTense = userReason
+								? l10n.t('Autopilot continued: {0}', userReason)
+								: l10n.t('Autopilot continued working');
+							this.showAutopilotProgress(outputStream, spinnerMessage, spinnerPastTense);
 							this.stopHookReason = autopilotContinue;
 							result.round.hookContext = formatHookContext([autopilotContinue]);
 							this.autopilotStopHookActive = true;
@@ -1205,24 +1402,30 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// starts in fetch(). This lets the debug logger write tools_*.json early.
 		if (!this.toolsAvailableEmitted && this.agentSpan && availableTools.length > 0) {
 			this.toolsAvailableEmitted = true;
-			this.agentSpan.addEvent('tools_available', {
-				toolDefinitions: truncateForOTel(JSON.stringify(availableTools.map(t => ({
-					type: 'function',
-					name: t.name,
-					description: t.description,
-					parameters: t.inputSchema,
-				})))),
-				...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
-			});
+			const toolDefsJson = stringifyToolDefinitionsForOTel(availableTools);
+			if (toolDefsJson) {
+				this.agentSpan.addEvent('tools_available', {
+					toolDefinitions: truncateForOTel(toolDefsJson),
+					...(this.chatSessionIdForTools ? { [CopilotChatAttr.CHAT_SESSION_ID]: this.chatSessionIdForTools } : {}),
+				});
+			}
 		}
 
 		const context = this.createPromptContext(availableTools, outputStream);
 		const isContinuation = context.isContinuation || false;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillBuildPrompt);
 		let buildPromptResult: IBuildPromptResult;
+		// Resolve a (cheap, cached) endpoint up front so the keep-alive can decide whether
+		// to arm before buildPrompt2 runs. `startBuildPromptKeepAlive` bails fast on
+		// non-Anthropic families and when the experiment is off, so the flag-off path stays
+		// a no-op. Kept as a *separate* lookup from the tokenizer endpoint below so the
+		// rest of runOne is byte-for-byte identical to upstream.
+		const keepAliveEndpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+		const keepAlive = this.startBuildPromptKeepAlive(token, keepAliveEndpoint);
 		try {
 			buildPromptResult = await this.buildPrompt2(context, outputStream, token);
 		} finally {
+			keepAlive.dispose();
 			markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidBuildPrompt);
 		}
 		this.throwIfCancelled(token);
@@ -1358,7 +1561,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		let phase: string | undefined;
 		let compaction: OpenAIContextManagementResponse | undefined;
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.WillFetch);
-		const fetchResult = await this.fetch({
+		const fetchOptions: ToolCallingLoopFetchOptions = {
 			messages: this.applyMessagePostProcessing(effectiveBuildPromptResult.messages, { stripOrphanedToolCalls: isGeminiFamily(endpoint) }),
 			turnId: this.options.request.id,
 			topLevelTurnId: this.options.request.parentRequestId ?? this.turn.id,
@@ -1401,7 +1604,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			modelCapabilities: {
 				enableThinking,
 			},
-		}, token).finally(() => {
+		};
+		const fetchResult = await this.fetch(fetchOptions, token).finally(() => {
 			this.stopHookUserInitiated = false;
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
@@ -1415,6 +1619,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 			this.lastHeaderRequestId = fetchResult.serverRequestId || fetchResult.requestId;
 			this.lastModelCallId = fetchResult.modelCallId;
 		}
+
+		// Cache the full fetch options so the next iteration's keep-alive probes can
+		// reuse them as a cache-warming prefix while buildPrompt2 is awaiting slow
+		// tool calls. The options include already-post-processed messages so probes
+		// apply the same validation/stripping (e.g. stripOrphanedToolCalls for Gemini).
+		this.lastFetchOptions = fetchOptions;
 
 		const promptTokenDetails = await computePromptTokenDetails({
 			messages: effectiveBuildPromptResult.messages,
@@ -1669,6 +1879,130 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		}
 
 		return filtered;
+	}
+
+	/**
+	 * While `buildPrompt2` is awaiting slow tool calls (e.g. long-running subagents),
+	 * the prompt cache on the model side can expire. This sets up a periodic side-channel
+	 * `fetch` that re-sends the previous turn's messages plus a dummy "Still working"
+	 * user message so that the server keeps the cache prefix warm.
+	 *
+	 * - Fires every {@link KEEP_ALIVE_INTERVAL_MS} starting 4 minutes after `buildPrompt2`
+	 *   is called (so a fast render incurs no probe).
+	 * - Stops after the configured max probes limit is reached.
+	 * - Probes are pure side-channel: results are discarded, no mutation of
+	 *   `toolCallRounds`, `toolCallResults`, or `conversation`. Nothing to "slice off".
+	 * - The first chunk of any probe response causes the network layer to stop reading
+	 *   (we only need the server to ingest the prefix to refresh its cache).
+	 *
+	 * Returns a disposable that clears the timer and cancels any in-flight probe.
+	 */
+	private startBuildPromptKeepAlive(parentToken: CancellationToken, endpoint: IChatEndpoint): IDisposable {
+		// Only Anthropic-family models benefit from this side-channel cache warming today;
+		// other providers' caches behave differently and probes would just be wasted requests.
+		// Checked before the config lookup so non-Anthropic flows skip the experiment evaluation entirely.
+		if (!isAnthropicFamily(endpoint)) {
+			return Disposable.None;
+		}
+
+		if (!this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservation, this._experimentationService)) {
+			return Disposable.None;
+		}
+
+		const baseFetchOptions = this.lastFetchOptions;
+		// Nothing useful to send if we haven't rendered a prompt yet (first iteration).
+		if (!baseFetchOptions || baseFetchOptions.messages.length === 0) {
+			return Disposable.None;
+		}
+
+		// Only keep the cache warm when the round we're currently awaiting includes an
+		// execution subagent, which is the primary source of long tool-call durations
+		// that cause cache expiry. Scoping to the latest round (vs. any past round in the
+		// turn) avoids firing probes for fast tool calls that follow an earlier subagent.
+		const latestRound = this.toolCallRounds[this.toolCallRounds.length - 1];
+		const hasExecutionSubagent = latestRound?.toolCalls.some(tc => tc.name === ToolName.ExecutionSubagent) ?? false;
+		if (!hasExecutionSubagent) {
+			return Disposable.None;
+		}
+
+		const maxProbes = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.LongToolCallCachePreservationMaxProbes, this._experimentationService);
+		const inFlight = new Set<CancellationTokenSource>();
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let disposed = false;
+		let probeCount = 0;
+
+		const probe = async () => {
+			if (disposed || parentToken.isCancellationRequested) {
+				return;
+			}
+			if (probeCount >= maxProbes) {
+				this._logService.info(`[ToolCallingLoop] Keep-alive: max probes reached (${probeCount}), stopping`);
+				return;
+			}
+			probeCount++;
+
+			const cts = new CancellationTokenSource(parentToken);
+			inFlight.add(cts);
+
+			// Reuse the already-post-processed messages from the last real fetch so
+			// the same validation/stripping (e.g. stripOrphanedToolCalls for Gemini)
+			// is applied. Only append a dummy user message if the last message was
+			// from the assistant.
+			const processedMessages = baseFetchOptions.messages;
+			const lastMessage = processedMessages[processedMessages.length - 1];
+			const probeMessages: Raw.ChatMessage[] = lastMessage.role === Raw.ChatRole.Assistant
+				? [
+					...processedMessages,
+					{
+						role: Raw.ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Still working' }],
+					},
+				]
+				: [...processedMessages];
+
+			this._logService.info(`[ToolCallingLoop] Keep-alive: sending probe ${probeCount}/${maxProbes}`);
+			try {
+				await this.fetch({
+					...baseFetchOptions,
+					messages: probeMessages,
+					finishedCb: async () => 1, // returning any number (vs undefined) stops reading on the first chunk; constant 1 avoids the empty-string edge case where text.length would be 0
+					userInitiatedRequest: false,
+					isKeepAliveProbe: true,
+				}, cts.token);
+			} catch (err) {
+				if (!isCancellationError(err)) {
+					this._logService.warn(`[ToolCallingLoop] Keep-alive probe failed: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			} finally {
+				inFlight.delete(cts);
+				cts.dispose();
+			}
+
+			if (!disposed && !parentToken.isCancellationRequested) {
+				schedule();
+			}
+		};
+
+		const schedule = () => {
+			timer = setTimeout(probe, ToolCallingLoop.KEEP_ALIVE_INTERVAL_MS);
+		};
+
+		schedule();
+
+		return {
+			dispose: () => {
+				disposed = true;
+				if (timer) {
+					clearTimeout(timer);
+					timer = undefined;
+				}
+				for (const cts of inFlight) {
+					cts.cancel();
+					cts.dispose();
+				}
+				inFlight.clear();
+			},
+		};
 	}
 
 	private async buildPrompt2(buildPromptContext: IBuildPromptContext, stream: ChatResponseStream | undefined, token: CancellationToken): Promise<IBuildPromptResult> {

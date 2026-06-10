@@ -57,4 +57,80 @@ suite('PendingRequestRegistry', () => {
 		// After respond removed it, denyAll has nothing to do — no throw, no second resolution.
 		registry.denyAll(false);
 	});
+
+	test('rejectAll rejects every parked deferred with the supplied error and clears the registry', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		const a = registry.registerAndFire('a', () => { });
+		const b = registry.registerAndFire('b', () => { });
+		const err = new Error('cancelled');
+
+		registry.rejectAll(err);
+
+		await Promise.all([a, b].map(async p => {
+			try {
+				await p;
+				assert.fail('expected reject');
+			} catch (e) {
+				assert.strictEqual(e, err);
+			}
+		}));
+		// Cleared: post-rejectAll respond calls find nothing.
+		assert.strictEqual(registry.respond('a', 'x'), false);
+		assert.strictEqual(registry.respond('b', 'y'), false);
+	});
+
+	test('respondOrBuffer: result arriving before register resolves the subsequent register', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		// Completion races ahead of the awaiting handler.
+		registry.respondOrBuffer('k', 'early');
+		// The handler registers afterwards and resolves immediately from the buffer.
+		assert.strictEqual(await registry.register('k'), 'early');
+		// Buffer consumed exactly once: a fresh register parks a new deferred.
+		const pending = registry.register('k');
+		let settled = false;
+		void pending.then(() => { settled = true; });
+		await Promise.resolve();
+		assert.strictEqual(settled, false);
+		registry.respondOrBuffer('k', 'second');
+		assert.strictEqual(await pending, 'second');
+	});
+
+	test('respondOrBuffer behaves like respond when a deferred is already parked', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		const promise = registry.register('k');
+		registry.respondOrBuffer('k', 'value');
+		assert.strictEqual(await promise, 'value');
+	});
+
+	test('respondOrBuffer: a buffered `undefined` value still resolves a subsequent register', async () => {
+		// Guards against the `get() !== undefined` sentinel bug: when T includes
+		// undefined, a buffered undefined must be distinguished from "no entry"
+		// so register() resolves immediately instead of parking and hanging.
+		const registry = new PendingRequestRegistry<string | undefined>();
+		registry.respondOrBuffer('k', undefined);
+		assert.strictEqual(await registry.register('k'), undefined);
+		// Buffer consumed exactly once: a fresh register parks a new deferred.
+		const pending = registry.register('k');
+		let settled = false;
+		void pending.then(() => { settled = true; });
+		await Promise.resolve();
+		assert.strictEqual(settled, false);
+		registry.respondOrBuffer('k', 'second');
+		assert.strictEqual(await pending, 'second');
+	});
+
+	test('rejectAll clears buffered early results', async () => {
+		const registry = new PendingRequestRegistry<string>();
+		registry.respondOrBuffer('k', 'early');
+		registry.rejectAll(new Error('cancelled'));
+		// Buffer dropped: a later register parks a fresh deferred rather than
+		// resolving from the stale buffered value.
+		const pending = registry.register('k');
+		let settled = false;
+		void pending.then(() => { settled = true; });
+		await Promise.resolve();
+		assert.strictEqual(settled, false);
+		registry.respondOrBuffer('k', 'fresh');
+		assert.strictEqual(await pending, 'fresh');
+	});
 });

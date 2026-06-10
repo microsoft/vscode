@@ -90,6 +90,15 @@ suite('CommandLineSandboxAnalyzer', () => {
 		strictEqual(result.forceAutoApproval, false);
 	});
 
+	test('should not force auto approval when unrestricted sandbox network confirmation is required', async () => {
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+
+		const result = await analyzer.analyze(createOptions({ requiresAllowNetworkConfirmation: true }));
+
+		strictEqual(result.isAutoApproveAllowed, true);
+		strictEqual(result.forceAutoApproval, false);
+	});
+
 	test('should set auto approval allowed from setting when sandbox is disabled', async () => {
 		sandboxEnabled = false;
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);

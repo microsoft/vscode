@@ -11,10 +11,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { AgentSession, type AgentProvider, type AgentSignal, type IAgent, type IAgentActionSignal, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal } from '../../common/agentService.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
-import { ProtectedResourceMetadata, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, ToolCallContributorKind, type MessageAttachment, type ModelSelection } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationStatus, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, parseSubagentSessionUri, type CustomizationRef, type PendingMessage, type SessionCustomization, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
@@ -55,13 +55,13 @@ export class MockAgent implements IAgent {
 	readonly respondToPermissionCalls: { requestId: string; approved: boolean }[] = [];
 	readonly changeModelCalls: { session: URI; model: ModelSelection }[] = [];
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
-	readonly setClientCustomizationsCalls: { clientId: string; customizations: CustomizationRef[] }[] = [];
-	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
+	readonly setClientCustomizationsCalls: { clientId: string; customizations: ClientPluginCustomization[] }[] = [];
+	readonly setCustomizationEnabledCalls: { id: string; enabled: boolean }[] = [];
 	/** Configurable return value for getCustomizations. */
-	customizations: CustomizationRef[] = [];
+	customizations: Customization[] = [];
 	private readonly _onDidCustomizationsChange = new Emitter<void>();
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
-	getSessionCustomizations?: (session: URI) => Promise<readonly SessionCustomization[]>;
+	getSessionCustomizations?: (session: URI) => Promise<readonly Customization[]>;
 
 	/**
 	 * Configurable session history. Tests construct {@link IHistoryRecord}
@@ -165,25 +165,31 @@ export class MockAgent implements IAgent {
 		return true;
 	}
 
-	getCustomizations(): CustomizationRef[] {
+	getCustomizations(): Customization[] {
 		return this.customizations;
 	}
 
-	async setClientCustomizations(clientId: string, customizations: CustomizationRef[], progress?: (results: ISyncedCustomization[]) => void): Promise<ISyncedCustomization[]> {
+	async setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 		this.setClientCustomizationsCalls.push({ clientId, customizations });
 		const results: ISyncedCustomization[] = customizations.map(c => ({
 			customization: {
-				customization: c,
-				enabled: true,
-				status: CustomizationStatus.Loaded,
+				...c,
+				load: { kind: CustomizationLoadStatus.Loaded },
 			},
 		}));
-		progress?.(results);
+		this._onDidSessionProgress.fire({
+			kind: 'action',
+			session,
+			action: {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: results.map(result => result.customization),
+			},
+		});
 		return results;
 	}
 
-	setCustomizationEnabled(uri: string, enabled: boolean): void {
-		this.setCustomizationEnabledCalls.push({ uri, enabled });
+	setCustomizationEnabled(id: string, enabled: boolean): void {
+		this.setCustomizationEnabledCalls.push({ id, enabled });
 	}
 
 	setClientTools(): void { }
@@ -547,7 +553,7 @@ export class ScriptedMockAgent implements IAgent {
 						toolCallId: 'tc-client-1',
 						toolName: 'runTests',
 						displayName: 'Run Tests',
-						toolClientId: 'test-client-tool',
+						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
 					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-client-1', 'Running tests...', { toolInput: '{}' }));
@@ -573,7 +579,7 @@ export class ScriptedMockAgent implements IAgent {
 						toolCallId: 'tc-client-perm-1',
 						toolName: 'runTests',
 						displayName: 'Run Tests',
-						toolClientId: 'test-client-tool',
+						contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client-tool' },
 					}));
 					await timeout(5);
 					this._onDidSessionProgress.fire(_pendingConfirmation(session, 'tc-client-perm-1', 'Run tests on project', { confirmationTitle: 'Allow Run Tests?' }));
@@ -834,7 +840,7 @@ function _toolStart(session: URI, sessionStr: string, turnId: string, toolCallId
 		toolCallId,
 		toolName,
 		displayName,
-		toolClientId: opts?.toolClientId,
+		contributor: opts?.toolClientId ? { kind: ToolCallContributorKind.Client, clientId: opts.toolClientId } : undefined,
 		_meta: Object.keys(meta).length ? meta : undefined,
 	}, opts?.parentToolCallId)];
 	if (!opts?.toolClientId) {

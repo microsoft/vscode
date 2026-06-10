@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import mermaid, { MermaidConfig } from 'mermaid';
-import { createMermaidErrorElement, markVsCodeContextAsError } from '../shared';
+import { buildMermaidConfig, createMermaidErrorElement, loadExtensionConfig, markVsCodeContextAsError } from '../shared';
+import { VsCodeMermaidThemeTracker } from '../shared/vsCodeTheme';
 import { VsCodeApi } from './vscodeApi';
 
 interface PanZoomState {
@@ -377,18 +378,11 @@ export class PanZoomHandler {
 	}
 }
 
-export function getMermaidTheme(): 'dark' | 'default' {
-	return document.body.classList.contains('vscode-dark') || (document.body.classList.contains('vscode-high-contrast') && !document.body.classList.contains('vscode-high-contrast-light'))
-		? 'dark'
-		: 'default';
-}
-
 /**
  * Unpersisted state
  */
 interface LocalState {
 	readonly mermaidSource: string;
-	readonly theme: 'dark' | 'default';
 }
 
 interface PersistedState {
@@ -402,14 +396,12 @@ interface PersistedState {
 async function rerenderMermaidDiagram(
 	diagramElement: HTMLElement,
 	diagramText: string,
-	newTheme: 'dark' | 'default'
+	themeTracker: VsCodeMermaidThemeTracker,
 ): Promise<void> {
 	diagramElement.textContent = diagramText;
 	delete diagramElement.dataset.processed;
 
-	mermaid.initialize({
-		theme: newTheme,
-	});
+	mermaid.initialize(buildMermaidConfig(loadExtensionConfig(), themeTracker));
 	await mermaid.run({
 		nodes: [diagramElement]
 	});
@@ -422,11 +414,10 @@ export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZ
 	}
 
 	// Capture diagram state
-	const theme = getMermaidTheme();
 	const diagramText = diagram.textContent ?? '';
-	let state: LocalState = {
+	const themeTracker = new VsCodeMermaidThemeTracker();
+	const state: LocalState = {
 		mermaidSource: diagramText,
-		theme
 	};
 
 	// Save the mermaid source in the webview state
@@ -449,11 +440,8 @@ export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZ
 	content.appendChild(diagram);
 	wrapper.appendChild(content);
 
-	// Run mermaid
-	const config: MermaidConfig = {
-		startOnLoad: false,
-		theme,
-	};
+	// Run mermaid using the selected VS Code-themed config
+	const config: MermaidConfig = buildMermaidConfig(loadExtensionConfig(), themeTracker);
 	mermaid.initialize(config);
 	try {
 		await mermaid.run({ nodes: [diagram] });
@@ -481,25 +469,18 @@ export async function initializeMermaidWebview(vscode: VsCodeApi, options?: PanZ
 		}
 	});
 
-	// Re-render when theme changes
-	new MutationObserver(() => {
-		const newTheme = getMermaidTheme();
-		if (state?.theme === newTheme) {
-			return;
-		}
-
+	// Re-render when the active VS Code theme changes. The tracker watches DOM mutations on the
+	// body (theme class / data attributes) and the document element (inline CSS variable updates
+	// from `workbench.colorCustomizations`), and only fires when the resolved colors actually
+	// change.
+	themeTracker.onDidChange(() => {
 		const diagramNode = document.querySelector('.mermaid');
-		if (!diagramNode || !(diagramNode instanceof HTMLElement)) {
+		if (!(diagramNode instanceof HTMLElement)) {
 			return;
 		}
-
-		state = {
-			mermaidSource: state?.mermaidSource ?? '',
-			theme: newTheme
-		};
-
-		rerenderMermaidDiagram(diagramNode, state.mermaidSource, newTheme);
-	}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+		rerenderMermaidDiagram(diagramNode, state.mermaidSource, themeTracker);
+	});
+	themeTracker.observeDomChanges();
 
 	return panZoomHandler;
 }

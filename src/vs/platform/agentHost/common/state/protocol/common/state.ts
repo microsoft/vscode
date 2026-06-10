@@ -10,6 +10,8 @@ import type { RootState } from '../channels-root/state.js';
 import type { SessionState } from '../channels-session/state.js';
 import type { TerminalState } from '../channels-terminal/state.js';
 import type { ChangesetState } from '../channels-changeset/state.js';
+import type { ResourceWatchState } from '../channels-resource-watch/state.js';
+import type { AnnotationsState } from '../channels-annotations/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
@@ -322,7 +324,7 @@ export interface Snapshot {
 	/** The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState;
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

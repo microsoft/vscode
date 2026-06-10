@@ -10,24 +10,25 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
+	BASELINE_TURN_ID,
+	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
-	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
 	sessionChangesetLabel,
-	thisTurnChangesetLabel,
 	uncommittedChangesetLabel,
 	uncommittedChangesetDescription,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { ChangesetState, ChangesetSummary } from '../common/state/protocol/state.js';
+import type { Changeset, ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
 	type ChangesetFile,
 	type ISessionFileDiff,
 	type URI as ProtocolURI,
+	readSessionGitState,
 } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from './agentHostGitService.js';
@@ -54,6 +55,11 @@ export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
  */
 export const META_LEGACY_DIFFS = 'diffs';
 
+/**
+ * Metadata key under which the session's changes is persisted.
+ */
+export const META_CHANGES_SUMMARY = 'agentHost.changes';
+
 /** The two static changeset kinds we publish by default. */
 export type StaticChangesetKind = 'uncommitted' | 'session';
 
@@ -66,15 +72,13 @@ function persistKeyFor(kind: StaticChangesetKind): string {
 }
 
 /**
- * Builds a single static {@link ChangesetSummary} catalogue entry from a
- * persisted (or live-state-derived) file list. Returns the bare entry
- * (no counts) when `diffs` is undefined. Optional `description` is
- * threaded through when provided.
+ * Sums the per-file diff counts into the {@link ChangesSummary} shape
+ * that lives on `summary.changes`. Returns `undefined` for an undefined
+ * input so callers can distinguish "no data yet" from "data, zero changes".
  */
-function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly ISessionFileDiff[] | undefined, description?: string): ChangesetSummary {
-	const base: ChangesetSummary = description ? { label, uriTemplate: uri, description } : { label, uriTemplate: uri };
+function summariseDiffs(diffs: readonly ISessionFileDiff[] | undefined): ChangesSummary | undefined {
 	if (!diffs) {
-		return base;
+		return undefined;
 	}
 	let additions = 0;
 	let deletions = 0;
@@ -82,26 +86,67 @@ function buildStaticCatalogueEntry(label: string, uri: string, diffs: readonly I
 		additions += d.diff?.added ?? 0;
 		deletions += d.diff?.removed ?? 0;
 	}
-	return { ...base, additions, deletions, files: diffs.length };
+	return { additions, deletions, files: diffs.length };
 }
 
-function defaultCatalogueWithCounts(
-	sessionUri: string,
-	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
+/**
+ * Derives the `summary.changes` aggregate for an unopened session from
+ * the ready live {@link ChangesetState} of the catalogue entry whose
+ * `changeKind === 'session'` — typically because a previous
+ * `restoreStaticChangeset` warmed the cache before the session itself
+ * was attached.
+ *
+ * Returns `undefined` when no live session-wide state is ready, so
+ * `listSessions` leaves the `changes` field unset for sessions without
+ * usable counts — preserving the long-standing contract that unopened
+ * sessions without live or persisted data advertise no aggregate.
+ *
+ * Only the `changeKind: 'session'` entry feeds the summary; other kinds
+ * (`'uncommitted'`, `'turn'`, `'compare-turns'`) describe slices, not
+ * the session-level footprint. The static catalogue itself (built by
+ * {@link buildDefaultChangesetCatalogue}) is independent of counts and
+ * is seeded once at session creation.
+ */
+export function computeChangesSummaryFromLiveState(
+	session: ChangesetState | undefined,
+): ChangesSummary | undefined {
+	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
+	return summariseDiffs(sessionDiffs);
+}
+
+/**
+ * Derives the `summary.changes` aggregate for an unopened session from
+ * parsed persisted diffs for the `changeKind: 'session'` catalogue
+ * entry. Returns `undefined` when the session-wide blob is absent so
+ * malformed metadata leaves `summary.changes` unset.
+ */
+export function computeChangesSummaryFromPersistedDiffs(
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesetSummary[] {
+): ChangesSummary | undefined {
+	return summariseDiffs(sessionDiffs);
+}
+
+/**
+ * Builds a single static {@link Changeset} catalogue entry. Optional
+ * `description` is threaded through when provided.
+ */
+function buildStaticCatalogueEntry(label: string, uri: string, changeKind: string, description?: string): Changeset {
+	return description ? { label, uriTemplate: uri, changeKind, description } : { label, uriTemplate: uri, changeKind };
+}
+
+function defaultCatalogueWithCounts(sessionUri: string): Changeset[] {
 	return [
-		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), sessionDiffs),
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), uncommittedDiffs, uncommittedChangesetDescription()),
-		{ label: thisTurnChangesetLabel(), uriTemplate: buildTurnChangesetUriTemplate(sessionUri) },
+		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), 'session'),
+		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), 'uncommitted', uncommittedChangesetDescription())
 	];
 }
 
 /**
  * Build the default ordered changeset catalogue (`Branch Changes`,
- * `Uncommitted Changes`, `This Turn`) seeded from the live {@link ChangesetState}
- * for an unopened session that has no live `SessionState` but already has
- * ready changeset states (e.g. from a prior `restoreStaticChangeset` call).
+ * `Uncommitted Changes`, `This Turn`) seeded from the live
+ * {@link ChangesetState} for an unopened session that has no live
+ * `SessionState` but already has ready changeset states (e.g. from a
+ * prior `restoreStaticChangeset` call).
  *
  * Returns `undefined` when no live state is ready, so `listSessions`
  * naturally leaves the `changesets` field undefined for sessions that
@@ -113,18 +158,22 @@ function defaultCatalogueWithCounts(
  * `summary.changesets` for non-git working directories. The synthesised
  * catalogue here mirrors the live-state shape so list overlays stay
  * consistent with the per-session catalogue clients subscribe to.
+ *
+ * The compare-turns changeset is intentionally NOT advertised in the
+ * catalogue — it is subscribe-only (see
+ * {@link buildDefaultChangesetCatalogue}).
  */
 export function buildCatalogueFromLiveState(
 	sessionUri: string,
 	uncommitted: ChangesetState | undefined,
 	session: ChangesetState | undefined,
-): ChangesetSummary[] | undefined {
-	const uncommittedDiffs = uncommitted?.status === ChangesetStatus.Ready ? uncommitted.files.map(f => f.edit) : undefined;
-	const sessionDiffs = session?.status === ChangesetStatus.Ready ? session.files.map(f => f.edit) : undefined;
-	if (!uncommittedDiffs && !sessionDiffs) {
+): Changeset[] | undefined {
+	const uncommittedReady = uncommitted?.status === ChangesetStatus.Ready;
+	const sessionReady = session?.status === ChangesetStatus.Ready;
+	if (!uncommittedReady && !sessionReady) {
 		return undefined;
 	}
-	return defaultCatalogueWithCounts(sessionUri, uncommittedDiffs, sessionDiffs);
+	return defaultCatalogueWithCounts(sessionUri);
 }
 
 /**
@@ -137,11 +186,11 @@ export function buildCatalogueFromPersistedDiffs(
 	sessionUri: string,
 	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
 	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): ChangesetSummary[] | undefined {
+): Changeset[] | undefined {
 	if (!uncommittedDiffs && !sessionDiffs) {
 		return undefined;
 	}
-	return defaultCatalogueWithCounts(sessionUri, uncommittedDiffs, sessionDiffs);
+	return defaultCatalogueWithCounts(sessionUri);
 }
 
 /**
@@ -177,8 +226,9 @@ export interface IPersistedChangesetMetadata {
 
 /**
  * The parsed diffs returned from {@link IAgentHostChangesetService.restorePersistedStaticChangesets},
- * suitable for passing into {@link buildCatalogueFromPersistedDiffs} when
- * the caller needs to synthesise a catalogue for the session-list overlay.
+ * suitable for passing into {@link computeChangesSummaryFromPersistedDiffs}
+ * when the caller needs to synthesise a `summary.changes` aggregate for
+ * the session-list overlay.
  */
 export interface IRestoredChangesetDiffs {
 	readonly uncommitted?: readonly ISessionFileDiff[];
@@ -209,7 +259,7 @@ export interface IAgentHostChangesetService {
 	 * Registers the two static changeset URIs (`uncommitted`, `session`)
 	 * on the state manager so client subscriptions resolve to a
 	 * `status: computing` snapshot before the first compute pass
-	 * completes. The catalogue itself (`summary.changesets`) is seeded
+	 * completes. The catalogue itself (`state.changesets`) is seeded
 	 * upstream by `_buildInitialSummary` / `restoreSession` — this only
 	 * deals with the state-manager-side per-changeset entries.
 	 *
@@ -228,22 +278,54 @@ export interface IAgentHostChangesetService {
 
 	/**
 	 * Parses the persisted changeset metadata blobs (`uncommitted`,
-	 * `session`, and the legacy `diffs` fallback for `session`), applies
-	 * each parsed file list via {@link restoreStaticChangeset}, and returns
-	 * the parsed diffs so the caller can pass them into
-	 * {@link buildCatalogueFromPersistedDiffs} for the session-list overlay.
+	 * `session`, and the legacy `diffs` fallback for `session`) without
+	 * mutating live state. Intended for list overlays that only need
+	 * aggregate catalogue counts and should not pin full changeset state in
+	 * memory.
+	 */
+	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
+
+	/**
+	 * Applies parsed persisted changeset diffs to live state via
+	 * {@link restoreStaticChangeset}. This is the side-effectful half of
+	 * persisted restore and should only be used on real restore/subscribe
+	 * paths that need a subscribable changeset snapshot.
+	 *
+	 * Honours `seedIfEmpty`: when a live changeset state already has files
+	 * for the same kind, persisted diffs are NOT applied (they would
+	 * otherwise overwrite the live state).
+	 */
+	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void;
+
+	/**
+	 * Compatibility wrapper that parses persisted changeset metadata and then
+	 * applies it to live state. New list-overlay callers should prefer
+	 * {@link parsePersistedStaticChangesets}; restore/subscribe callers can
+	 * use this method when they intentionally want both parse and seed.
 	 *
 	 * The `AgentService` orchestration boundary batches the metadata read
 	 * (custom title + read / archive flags + config values + these three
 	 * blobs) in a single database round-trip, then hands the raw values
 	 * here; the service does not open the database itself for this method.
-	 *
-	 * Honours `seedIfEmpty`: when a live changeset state already has files
-	 * for the same kind, persisted diffs are NOT applied (they would
-	 * otherwise overwrite the live state). Malformed JSON is logged and
-	 * the corresponding slot is left `undefined`.
 	 */
 	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs;
+
+	/**
+	 * Fire-and-forget persistence of the `summary.changes` aggregate to the
+	 * session DB under {@link META_CHANGES_SUMMARY}. Used both by the
+	 * happy-path turn-complete write and by the {@link ChangesetSessionCoordinator}
+	 * one-shot migration that reads the old `META_CHANGESET_SESSION` /
+	 * `META_LEGACY_DIFFS` blobs and projects them into the new key on
+	 * sessions written by older builds. Errors are logged, not thrown.
+	 */
+	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void;
+
+	/**
+	 * Returns true when the static changeset identified by `changesetUri` is
+	 * currently being recomputed. Used by cache eviction to avoid dropping a
+	 * slot while its producer is mid-flight.
+	 */
+	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean;
 
 	/**
 	 * Lazy refresh of the uncommitted changeset, kicked off when a client
@@ -265,6 +347,24 @@ export interface IAgentHostChangesetService {
 	 * Per-turn changesets are not persisted.
 	 */
 	computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI>;
+
+	/**
+	 * Computes and publishes the compare-turns changeset between
+	 * `originalTurnId` (the "from" endpoint) and `modifiedTurnId` (the
+	 * "to" endpoint) on `session`. Diff direction is
+	 * `originalTurnId.current → modifiedTurnId.current` — endpoint-to-
+	 * endpoint, so it captures what differs between the two turn states.
+	 *
+	 * Implemented via git: both refs come from the per-turn checkpoint
+	 * captured at the end of each turn. When either checkpoint is missing
+	 * (non-git session, baseline never captured, capture failure), the
+	 * changeset transitions to `status: Error` instead of rejecting; no
+	 * SDK edit-tracker fallback exists.
+	 *
+	 * Compare-turns changesets are not persisted and are computed once
+	 * on subscribe (no live recompute).
+	 */
+	computeCompareTurnsChangeset(session: ProtocolURI, originalTurnId: string, modifiedTurnId: string): Promise<ProtocolURI>;
 
 	/**
 	 * Hook called by `AgentSideEffects` after a tool call that produced
@@ -306,6 +406,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
 	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
 	private readonly _perTurnDebouncedDiffTimers = this._register(new DisposableMap<string>());
+	private readonly _activeStaticComputes = new Set<ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	/**
@@ -347,22 +448,38 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._publishChangesetDiffs(session, changesetUri, diffs);
 	}
 
-	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
+	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
 		const persistedUncommitted = tryParsePersistedDiffs(metadata.uncommittedRaw, sessionUri, 'uncommitted', this._logService);
 		// Legacy `diffs` is the migration fallback for the session-wide
 		// changeset only — it never carried uncommitted state.
 		const persistedSession = tryParsePersistedDiffs(metadata.sessionRaw, sessionUri, 'session', this._logService)
 			?? tryParsePersistedDiffs(metadata.legacyRaw, sessionUri, 'session (legacy)', this._logService);
 
+		return { uncommitted: persistedUncommitted, session: persistedSession };
+	}
+
+	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void {
 		// `seedIfEmpty`: only reseed persisted diffs when the matching live
 		// changeset state is absent or empty. Live state (e.g. from a prior
 		// refresh in this lifetime) is always more authoritative than a
 		// potentially-stale persisted blob; without this guard a fresh
 		// `restorePersistedStaticChangesets` call would clobber it.
-		this._seedIfEmpty(sessionUri, 'uncommitted', persistedUncommitted);
-		this._seedIfEmpty(sessionUri, 'session', persistedSession);
+		this._seedIfEmpty(sessionUri, 'uncommitted', diffs.uncommitted);
+		this._seedIfEmpty(sessionUri, 'session', diffs.session);
+	}
 
-		return { uncommitted: persistedUncommitted, session: persistedSession };
+	restorePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
+		const parsed = this.parsePersistedStaticChangesets(sessionUri, metadata);
+		this.applyPersistedStaticChangesets(sessionUri, parsed);
+		return parsed;
+	}
+
+	persistChangesSummary(sessionUri: ProtocolURI, summary: ChangesSummary): void {
+		this._persistSessionFlag(sessionUri, META_CHANGES_SUMMARY, JSON.stringify(summary));
+	}
+
+	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean {
+		return this._activeStaticComputes.has(changesetUri);
 	}
 
 	private _seedIfEmpty(session: ProtocolURI, kind: StaticChangesetKind, diffs: readonly ISessionFileDiff[] | undefined): void {
@@ -377,11 +494,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshUncommittedChangeset(session: ProtocolURI): void {
-		this._scheduleStaticRecompute(session, 'uncommitted');
+		this._scheduleStaticRecompute(session, 'uncommitted', undefined, this._markStaticChangesetComputing(session, 'uncommitted'));
 	}
 
 	refreshSessionChangeset(session: ProtocolURI): void {
-		this._scheduleStaticRecompute(session, 'session');
+		this._scheduleStaticRecompute(session, 'session', undefined, this._markStaticChangesetComputing(session, 'session'));
 	}
 
 	async computeTurnChangeset(session: ProtocolURI, turnId: string): Promise<ProtocolURI> {
@@ -417,6 +534,92 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			ref.dispose();
 		}
 		return turnUri;
+	}
+
+	async computeCompareTurnsChangeset(session: ProtocolURI, originalTurnId: string, modifiedTurnId: string): Promise<ProtocolURI> {
+		const compareUri = this._stateManager.registerChangeset(buildCompareTurnsChangesetUri(session, originalTurnId, modifiedTurnId));
+		let ref: ReturnType<ISessionDataService['openDatabase']>;
+		try {
+			ref = this._sessionDataService.openDatabase(URI.parse(session));
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for compare-turns diff: ${session}`, err);
+			this._stateManager.dispatchServerAction(compareUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Error,
+				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+			});
+			return compareUri;
+		}
+		try {
+			const sessionUri = URI.parse(session);
+			const originalIsBaseline = originalTurnId === BASELINE_TURN_ID;
+			const [originalCurrentRef, modifiedPair] = await Promise.all([
+				originalIsBaseline
+					? this._checkpointService.getBaselineCheckpointRef(sessionUri)
+					: this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId),
+			]);
+			if (!originalCurrentRef || !modifiedPair) {
+				// One of the turns has no checkpoint — either it's an
+				// unknown id, the session isn't git-backed, or the
+				// baseline / capture failed. No edit-tracker fallback
+				// exists for between-two-turns comparisons.
+				const missing = !originalCurrentRef && !modifiedPair
+					? 'both turns'
+					: !originalCurrentRef ? (originalIsBaseline ? 'baseline' : 'original turn') : 'modified turn';
+				this._stateManager.dispatchServerAction(compareUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: `No checkpoint available for ${missing}; compare requires git-backed sessions.` },
+				});
+				return compareUri;
+			}
+			if (originalCurrentRef === modifiedPair.current) {
+				// Same endpoint on both sides — diff is empty by
+				// construction (covers compare(turn, turn) and the no-op
+				// turn case where two adjacent turns share a ref).
+				this._publishChangesetDiffs(session, compareUri, []);
+				return compareUri;
+			}
+			const workingDir = await this._resolveWorkingDirectory(ref.object);
+			if (!workingDir) {
+				this._stateManager.dispatchServerAction(compareUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: 'No working directory recorded for session; compare requires git-backed sessions.' },
+				});
+				return compareUri;
+			}
+			const diffs = await this._gitService.computeFileDiffsBetweenRefs(workingDir, {
+				sessionUri: session,
+				fromRef: originalCurrentRef,
+				toRef: modifiedPair.current,
+			});
+			if (diffs === undefined) {
+				// `computeFileDiffsBetweenRefs` returns undefined to signal a
+				// git failure (not a git work tree, bad ref, transport error,
+				// etc.) and an empty array to signal "no changes". Collapsing
+				// both into [] would mask real failures as an empty Ready
+				// snapshot — surface the failure explicitly instead.
+				this._stateManager.dispatchServerAction(compareUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: `Failed to compute compare-turns diff from git (${originalCurrentRef}..${modifiedPair.current}).` },
+				});
+				return compareUri;
+			}
+			this._publishChangesetDiffs(session, compareUri, diffs);
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to compute compare-turns diffs for ${session}/${originalTurnId}/${modifiedTurnId}`, err);
+			this._stateManager.dispatchServerAction(compareUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Error,
+				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+			});
+		} finally {
+			ref.dispose();
+		}
+		return compareUri;
 	}
 
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {
@@ -550,19 +753,38 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * stale `previousDiffs` reads. Fire-and-forget — failures are logged
 	 * but do not fail the turn.
 	 */
-	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string): void {
-		this._diffComputationSequencer.queue(`${session}\u0000${kind}`, () => this._doComputeStaticChangeset(session, kind, changedTurnId));
+	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus): void {
+		this._diffComputationSequencer.queue(`${session}\u0000${kind}`, () => this._doComputeStaticChangeset(session, kind, changedTurnId, statusBeforeRefresh));
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string): Promise<void> {
+	private _markStaticChangesetComputing(session: ProtocolURI, kind: StaticChangesetKind): ChangesetStatus | undefined {
+		const changesetUri = staticChangesetUri(session, kind);
+		this._stateManager.registerChangeset(changesetUri);
+		const status = this._stateManager.getChangesetState(changesetUri)?.status;
+		if (status !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(changesetUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
+		return status;
+	}
+
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetStatus): Promise<void> {
+		const changesetUri = staticChangesetUri(session, kind);
+		this._activeStaticComputes.add(changesetUri);
+		const statusBeforeCompute = statusBeforeRefresh ?? this._stateManager.getChangesetState(changesetUri)?.status;
 		let ref: ReturnType<ISessionDataService['openDatabase']>;
 		try {
 			ref = this._sessionDataService.openDatabase(URI.parse(session));
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to open session database for ${kind} diff computation: ${session}`, err);
+			this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+			this._activeStaticComputes.delete(changesetUri);
+			this._stateManager.onChangesetLivenessChanged();
 			return;
 		}
-		const changesetUri = this._stateManager.registerChangeset(staticChangesetUri(session, kind));
+		this._stateManager.registerChangeset(changesetUri);
 		try {
 			let diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
 			if (!diffs) {
@@ -575,6 +797,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					// snapshot. Leave whatever live/persisted state is
 					// already there; the next successful path A will
 					// refresh it.
+					this._logService.debug(`[AgentHostChangesetService] Uncommitted git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
+					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
 					return;
 				}
 				// `session` kind: working-tree git is unavailable (no
@@ -601,6 +825,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// during the rollout window.
 			if (kind === 'session') {
 				this._persistSessionFlag(session, META_LEGACY_DIFFS, JSON.stringify(diffs));
+
+				// Persist the changes summary and update the in-memory session summary.
+				const changesSummary = summariseDiffs(diffs) ?? { additions: 0, deletions: 0, files: 0 };
+				this.persistChangesSummary(session, changesSummary);
+				this._stateManager.setSessionSummaryChanges(session, changesSummary);
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] Failed to compute ${kind} diffs`, err);
@@ -610,8 +839,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
 			});
 		} finally {
+			this._activeStaticComputes.delete(changesetUri);
+			this._stateManager.onChangesetLivenessChanged();
 			ref.dispose();
 		}
+	}
+
+	/**
+	 * Refresh requests optimistically mark static changesets as Computing
+	 * while preserving their current files. Some refresh paths intentionally
+	 * do not publish a replacement file list (for example, uncommitted git
+	 * diff is temporarily unavailable), so restore the previous non-computing
+	 * status instead of leaving a stale cached snapshot stuck as Computing.
+	 */
+	private _restoreStaticChangesetStatus(changesetUri: ProtocolURI, status: ChangesetStatus | undefined): void {
+		if (!status || status === ChangesetStatus.Computing) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetStatusChanged,
+			status,
+		});
 	}
 
 	/**
@@ -629,14 +877,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/**
 	 * Translates the new file list into a sequence of changeset/* actions
-	 * (fileSet, fileRemoved) and updates the matching catalogue entry's
-	 * aggregate counts via {@link AgentHostStateManager.setSessionChangesets}.
-	 *
-	 * The catalogue entry is matched by URI: for static changesets the
-	 * `uriTemplate` is the concrete URI; for the per-turn template it
-	 * contains `{turnId}` and never matches a concrete turn URI, so per-
-	 * turn computations don't update catalogue counts (intended — the
-	 * template entry advertises the shape, not aggregates).
+	 * (fileSet, fileRemoved) and moves the changeset to `ready` once the
+	 * fresh file list has been applied.
 	 */
 	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
 		const previous = this._stateManager.getChangesetState(changesetUri);
@@ -679,27 +921,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				status: ChangesetStatus.Ready,
 			});
 		}
-
-		// Refresh the catalogue's aggregate counts so chip rendering stays
-		// in sync without subscribers having to attach to the changeset.
-		const sessionState = this._stateManager.getSessionState(session);
-		if (!sessionState) {
-			return;
-		}
-		const totals = Array.from(nextFilesById.values()).reduce(
-			(acc, d) => {
-				acc.additions += d.diff?.added ?? 0;
-				acc.deletions += d.diff?.removed ?? 0;
-				return acc;
-			},
-			{ additions: 0, deletions: 0 },
-		);
-		const existing = sessionState.summary.changesets ?? [];
-		const next = existing.map(c => c.uriTemplate === changesetUri
-			? { ...c, additions: totals.additions, deletions: totals.deletions, files: nextFilesById.size }
-			: c,
-		);
-		this._stateManager.setSessionChangesets(session, next);
 	}
 
 	/**
@@ -726,9 +947,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		} catch {
 			return undefined;
 		}
-		const baseBranch = kind === 'session'
-			? (await db.getMetadata(META_DIFF_BASE_BRANCH)) ?? undefined
-			: undefined;
+		let baseBranch: string | undefined;
+		if (kind === 'session') {
+			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
+			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
+			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
+			if (!persistedBaseBranch && gitStateBaseBranch) {
+				this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
+			}
+		}
 		try {
 			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
 		} catch (err) {

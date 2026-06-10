@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -44,13 +45,17 @@ function makeClaudePermissionModeConfig(): ResolveSessionConfigResult {
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id = PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string> = Event.None;
 	readonly setCalls: Array<[string, string, unknown]> = [];
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult {
 		return makeClaudePermissionModeConfig();
+	}
+
+	isSessionConfigResolving(_sessionId: string) {
+		return constObservable(false);
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
@@ -76,8 +81,9 @@ suite('AgentHostClaudePermissionModePicker', () => {
 				onSelect = delegate.onSelect as (item: IAgentHostSessionEnumPickerItem) => void;
 			},
 		});
+		const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
 		instantiationService.set(ISessionsManagementService, new (class extends mock<ISessionsManagementService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
+			override readonly activeSession = sessionObs;
 		})());
 		instantiationService.set(ISessionsProvidersService, new (class extends mock<ISessionsProvidersService>() {
 			override readonly onDidChangeProviders = Event.None;
@@ -93,8 +99,11 @@ suite('AgentHostClaudePermissionModePicker', () => {
 			}
 		})());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: () => ({ dispose: () => { } }),
+		} as Partial<IHoverService> as IHoverService);
 
-		const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker));
+		const picker = store.add(instantiationService.createInstance(AgentHostClaudePermissionModePicker, sessionObs));
 		const container = document.createElement('div');
 		picker.render(container);
 		container.querySelector<HTMLElement>('a.action-label')?.click();

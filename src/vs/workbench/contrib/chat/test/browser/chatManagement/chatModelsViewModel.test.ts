@@ -131,6 +131,18 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
 	}
 
+	async renameLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async updateLanguageModelsProviderGroupApiKey(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async addLanguageModelsProviderGroupModel(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async openLanguageModelsProviderGroupSettings(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
 	async configureModel(_modelId: string): Promise<void> {
 	}
 

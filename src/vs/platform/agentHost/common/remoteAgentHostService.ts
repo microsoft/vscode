@@ -104,6 +104,7 @@ export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoCon
 export const enum RemoteAgentHostEntryType {
 	WebSocket = 'websocket',
 	SSH = 'ssh',
+	WSL = 'wsl',
 	Tunnel = 'tunnel',
 }
 
@@ -157,7 +158,15 @@ export interface IRemoteAgentHostTunnelConnection {
 	readonly authProvider?: 'github' | 'microsoft';
 }
 
-export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostTunnelConnection;
+export interface IRemoteAgentHostWSLConnection {
+	readonly type: RemoteAgentHostEntryType.WSL;
+	/** Display address: `wsl:<distro>`. */
+	readonly address: string;
+	/** WSL distro name (e.g. `Ubuntu-22.04`). */
+	readonly distro: string;
+}
+
+export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection;
 
 /** A configured remote agent host entry. WebSocket entries are persisted in {@link RemoteAgentHostsSettingId}; SSH entries are persisted in storage. */
 export interface IRemoteAgentHostEntry {
@@ -170,10 +179,15 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	switch (entry.connection.type) {
 		case RemoteAgentHostEntryType.WebSocket:
 		case RemoteAgentHostEntryType.SSH:
+		case RemoteAgentHostEntryType.WSL:
 			return entry.connection.address;
 		case RemoteAgentHostEntryType.Tunnel:
 			return `${TUNNEL_ADDRESS_PREFIX}${entry.connection.tunnelId}`;
 	}
+}
+
+export function remoteAgentHostLogOutputChannelId(address: string): string {
+	return `agentHost.otlp.${address}`;
 }
 
 export const enum RemoteAgentHostInputValidationError {
@@ -252,8 +266,28 @@ export interface IRemoteAgentHostService {
 	 * Callers should put any teardown that needs to happen on entry removal
 	 * (e.g. closing the shared-process tunnel, dropping renderer-side handles)
 	 * into this disposable, so a single removal path tears down the whole stack.
+	 *
+	 * `status` defaults to `connected`. Pass `incompatible` when the managed
+	 * transport is alive but the protocol handshake rejected the client version;
+	 * this keeps recovery actions (such as server upgrade) addressable without
+	 * exposing the connection as ready for session traffic.
 	 */
-	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo>;
+	addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable, status?: RemoteAgentHostConnectionStatus): Promise<IRemoteAgentHostConnectionInfo>;
+
+	/**
+	 * Force the protocol client at `address` (if any) to treat its
+	 * transport as closed. Used by services that learn about a
+	 * connection loss out-of-band — e.g. the SSH service receiving an
+	 * `onDidCloseConnection` IPC event from the shared process — to
+	 * make sure the renderer-side client doesn't sit in `Connected`
+	 * waiting on its watchdog. The watchdog is a `setTimeout` and
+	 * Chromium aggressively throttles those in backgrounded windows,
+	 * so we can't rely on it as the sole death-detection path.
+	 *
+	 * No-op if no active entry exists for the address, or if the
+	 * existing client has already transitioned out of `Connected`.
+	 */
+	notifyConnectionClosed(address: string): void;
 
 	/**
 	 * Look up the {@link IRemoteAgentHostEntry} for a given address.
@@ -299,6 +333,7 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	}
 	async removeRemoteAgentHost(_address: string): Promise<void> { }
 	reconnect(_address: string): void { }
+	notifyConnectionClosed(_address: string): void { }
 	async addManagedConnection(): Promise<IRemoteAgentHostConnectionInfo> {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}
@@ -433,6 +468,7 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				name: entry.name,
 				connectionToken: entry.connectionToken,
 			};
+		case RemoteAgentHostEntryType.WSL:
 		case RemoteAgentHostEntryType.Tunnel:
 			return undefined;
 	}
