@@ -84,7 +84,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						category: this._getSessionCategory(sessionTypeItem),
 						description: lockedForEntitlement ? this._getUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: lockedForEntitlement ? this._getUpgradeHover(sessionTypeItem.type) : sessionTypeItem.hoverDescription },
+						hover: { content: lockedForEntitlement ? this._getUpgradeHover(sessionTypeItem) : sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -238,14 +238,14 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	/**
 	 * Whether the given session type is locked behind a plan upgrade for the
-	 * current user's entitlement. The cloud agent and the Claude harness are not
-	 * available to Copilot Free or Copilot Student (EDU) users, so they are shown
-	 * greyed out with an Upgrade prompt instead of being selectable. The Claude
-	 * harness has no Auto fallback and can only run Claude models, which require
-	 * a paid plan.
+	 * current user's entitlement. A session type opts in declaratively by
+	 * contributing an `upgradeMessage` (rather than core hardcoding which
+	 * providers are paid-only); when present, Copilot Free or Copilot Student
+	 * (EDU) users see that type greyed out with the message in its hover instead
+	 * of being able to select it.
 	 */
 	protected _isLockedForEntitlement(type: AgentSessionTarget): boolean {
-		if (type !== AgentSessionProviders.Cloud && type !== AgentSessionProviders.Claude) {
+		if (!this.chatSessionsService.getChatSessionContribution(type)?.upgradeMessage) {
 			return false;
 		}
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -259,13 +259,13 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		);
 	}
 
-	private _getUpgradeHover(type: AgentSessionTarget): MarkdownString {
+	private _getUpgradeHover(sessionTypeItem: ISessionTypeItem): MarkdownString {
 		const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
-		if (type === AgentSessionProviders.Claude) {
-			hover.appendMarkdown(localize('chat.sessionTarget.upgradeHoverClaude', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to use the Claude agent."));
-		} else {
-			hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to delegate work to the cloud agent."));
-		}
+		// The contributed `upgradeMessage` is what gated this type (see
+		// `_isLockedForEntitlement`); render it (it supports markdown, e.g. its
+		// own upgrade link). The generic fallback is only a safety net.
+		const contributedMessage = this.chatSessionsService.getChatSessionContribution(sessionTypeItem.type)?.upgradeMessage;
+		hover.appendMarkdown(contributedMessage ?? localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to use {0}.", sessionTypeItem.label));
 		return hover;
 	}
 

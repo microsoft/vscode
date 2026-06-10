@@ -133,6 +133,15 @@ export interface IChatSessionsExtensionPoint {
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
 	/**
+	 * When set, this session type is only available to users on a paid plan: for
+	 * Copilot Free or Copilot Student (EDU) users it is shown greyed out and this
+	 * message (which supports markdown, e.g. the
+	 * `command:workbench.action.chat.upgradePlan` upgrade link) is shown in its
+	 * hover instead of being selectable. Use this for session types that cannot
+	 * run on the Auto model (e.g. agents that require specific paid models).
+	 */
+	readonly upgradeMessage?: string;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
