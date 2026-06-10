@@ -29,6 +29,7 @@ import { CodexAgent } from './codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
+import { AgentHostSpanTelemetryConsumer } from './otel/agentHostSpanTelemetryConsumer.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -159,6 +160,12 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(ICodexProxyService, codexProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
+		// Route SDK-emitted spans into standard VS Code telemetry as per-turn
+		// summary events. The consumer registration is what flips the OTel
+		// service into loopback mode for in-process span inspection — see
+		// `AgentHostOTelService.getSdkTelemetryConfig()`.
+		const spanTelemetryConsumer = disposables.add(instantiationService.createInstance(AgentHostSpanTelemetryConsumer));
+		disposables.add(agentHostOTelService.registerSpanConsumer(spanTelemetryConsumer));
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
 		diServices.set(IAgentService, agentService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);

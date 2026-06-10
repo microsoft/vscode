@@ -1,6 +1,6 @@
 # Agent Host OTel Pipeline
 
-The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that embeds the native [`@github/copilot-sdk`](https://github.com/github/copilot-cli) runtime instead of using the extension's in-process tool-calling loop. The agent host has its own OTel pipeline so traces from native-SDK sessions can be exported to a collector or persisted locally for inspection.
+The **agent host** is a separate utility process (under `src/vs/platform/agentHost/`) that embeds the native [`@github/copilot-sdk`](https://github.com/github/copilot-cli) runtime instead of using the extension's in-process tool-calling loop. The agent host has its own OTel pipeline so traces from native-SDK sessions can be exported to a collector, persisted locally for inspection, or routed into VS Code's standard telemetry pipeline as per-turn summaries.
 
 > **Availability:** Insiders / non-stable builds only. Requires `chat.agentHost.enabled` to be `true`.
 
@@ -14,12 +14,48 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
 | SDK | `@github/copilot-sdk` `TelemetryConfig` | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
 
-## Two Modes
+## Background: What OTel Is and Why We Use It
+
+[OpenTelemetry](https://opentelemetry.io/) (OTel) is a vendor-neutral standard for emitting **traces** (causal chains of work), **metrics** (numeric measurements over time), and **logs**. The agent host only uses **traces** today.
+
+### The core concepts
+
+| Concept | What it is | Example for an agent turn |
+|---|---|---|
+| **Trace** | A directed tree of spans sharing one `traceId`. Represents one logical end-to-end operation. | A single user turn: prompt → model call → tool calls → final response. |
+| **Span** | One unit of work inside a trace. Has a name, a start/end time, optional `parentSpanId`, status (OK / ERROR), key-value attributes, and timeline events. | The `chat gpt-4o` call to the LLM that took 837 ms and returned 250 output tokens. |
+| **Attribute** | A typed key-value tag on a span (string / number / bool / string[]). Used for filtering and aggregation. Follows [GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions/tree/main/docs/gen-ai) — e.g. `gen_ai.usage.input_tokens`, `gen_ai.tool.name`. | `gen_ai.request.model="gpt-4o"`, `gen_ai.usage.input_tokens=120`. |
+| **Event** | A timestamped point on a span (not a separate span). Cheaper than a child span. | Streaming `gen_ai.choice` deltas during a chat call. |
+| **Status** | Final outcome of a span: `UNSET` (default), `OK`, or `ERROR`. | A `permission` span marked `ERROR` because the user rejected. |
+| **Exporter** | The component that ships finished spans somewhere — usually OTLP/HTTP to a collector, but can be file or console. | The SDK's bundled OTLP/HTTP exporter posting JSON to `http://localhost:4318/v1/traces`. |
+| **Collector / sink** | The receiver that ingests OTLP and forwards/persists/aggregates. Common dev sinks: Aspire Dashboard, Jaeger, Honeycomb, Datadog. | Aspire showing a flame graph of one turn. |
+
+### A typical agent-turn trace
+
+```
+invoke_agent copilotcli       ◀── root span (no parent), one per turn
+├── chat gpt-4o                    ◀── LLM round-trip
+│       gen_ai.usage.input_tokens=120, output_tokens=60
+├── execute_tool readFile          ◀── tool call
+├── execute_tool runCommand
+│   └── permission                 ◀── user prompt for a sensitive op
+└── chat gpt-4o                    ◀── follow-up LLM round-trip
+        gen_ai.usage.input_tokens=200, output_tokens=75
+```
+
+This whole tree shares one `traceId`. The root span ends when the agent finishes the turn — that's the natural moment to compute a per-turn summary (how many LLM calls, how many tokens, total duration, etc.).
+
+### Why traces (and not just metrics)?
+
+Metrics give you "200 chat calls happened today". Traces give you "this specific user's slow turn spent 12 s in `runCommand`, then made three follow-up LLM calls". Traces are how you debug a specific failure or hot path; metrics are how you watch fleet-wide health. The agent host emits traces; the `AgentHostSpanTelemetryConsumer` (below) derives metric-like rollups from them for standard VS Code telemetry.
+
+## Three Modes
 
 | Mode | Trigger | Behavior |
 |---|---|---|
-| **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). No process-local interception. |
+| **Pass-through** | `chat.agentHost.otel.enabled` is `true` and `dbSpanExporter.enabled` is `false` and no in-process span consumer is registered | The SDK exports directly to the user-configured exporter (OTLP/HTTP, OTLP/gRPC, file, or console). No process-local interception. |
 | **DB mode** | `chat.agentHost.otel.dbSpanExporter.enabled` is `true` (implicitly enables OTel) | The SDK is pointed at a loopback OTLP/HTTP receiver inside the agent host. Spans are decoded and written to a local SQLite database. If `otlpEndpoint` is **also** configured, the receiver fans the raw OTLP body out to it — so an external collector keeps receiving traces alongside the local DB. |
+| **In-process consumer mode** | A consumer is registered via `IAgentHostOTelService.registerSpanConsumer()` (e.g. the `AgentHostSpanTelemetryConsumer`) | Same loopback shape as DB mode, but the SQLite store is skipped unless DB mode is *also* on. The receiver decodes each batch and dispatches the resulting `ICompletedSpanData` objects to every registered consumer in addition to any optional outbound forwarder. |
 
 ```
                  ┌─────────────────────────────────────────────────────────────────┐
@@ -31,7 +67,7 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
                  │   │ TelemetryConfig         │                 │ OTLP sink    │  │
    spawn-time    │   └─────────────────────────┘                 └──────────────┘  │
    env binding   │                                                                 │
-   in            │   db mode (dbSpanExporter.enabled)                              │
+   in            │   db / consumer mode                                            │
    electron-     │   ┌─────────────────────────┐    127.0.0.1    ┌──────────────┐  │
    AgentHostStar ─→  │ copilot-sdk             │ ─────────────── │ loopback     │  │
    ter.ts and    │   │ TelemetryConfig         │  ephemeral port │ OTLP receiver│  │
@@ -39,18 +75,67 @@ This doc lives next to the code (`IAgentHostOTelService` in [node/otel/agentHost
    HostStarter   │   └─────────────────────────┘                 │  Receiver)   │  │
    .ts           │                                               └──────┬───────┘  │
                  │                                                      │          │
-                 │                                onSpans  ────────────►├─→ SQLite │
-                 │                                                      │   store  │
-                 │                                onForward ────────────┘          │
-                 │                                       │                         │
-                 │                                       ▼                         │
+                 │                              onSpans ────────────────┼─► SQLite (db mode)
+                 │                                                      │
+                 │                                     ┌────────────────┼─► IAgentHostOTelSpanConsumer
+                 │                                     │                │       (e.g. AgentHostSpanTelemetryConsumer
+                 │                                     │                │        → ITelemetryService.publicLog2)
+                 │                              onForward ──────────────┘
+                 │                                       │
+                 │                                       ▼
                  │                          OtlpHttpForwarder   OTLP/HTTP          │
                  │                          (optional fan-out) ─────────────────→  │ user-config OTLP sink
                  └─────────────────────────────────────────────────────────────────┘
 ```
 
-- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. The agent host does not intercept span data.
+- **Pass-through mode** (default when only `otlpEndpoint` is configured **and** no consumer is registered): the SDK is constructed with the user's exporter settings unmodified and exports directly. The agent host does not intercept span data.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then constructs the SDK pointing at that loopback URL. For each batch the receiver decodes the OTLP-JSON body and inserts spans into `OTelSqliteStore` (`onSpans`). If an external `otlpEndpoint` is also configured, the receiver fans the **raw** OTLP body out to an `OtlpHttpForwarder` (`onForward`) so the user's collector keeps receiving traces alongside the local DB.
+- **In-process consumer mode**: when any code calls `IAgentHostOTelService.registerSpanConsumer(consumer)`, the loopback is started even when DB mode is off. Decoded spans are dispatched to every registered consumer (in addition to the SQLite store if DB mode is on, and the outbound forwarder if an external sink is configured).
+
+## Span Routing to VS Code Telemetry
+
+`AgentHostSpanTelemetryConsumer` ([node/otel/agentHostSpanTelemetryConsumer.ts](node/otel/agentHostSpanTelemetryConsumer.ts)) is registered unconditionally in `agentHostMain.ts` / `agentHostServerMain.ts`. It:
+
+1. Aggregates spans **per `traceId`** in memory using `gen_ai.operation.name` to classify them (`invoke_agent`, `chat`, `execute_tool`, `permission`).
+2. When the root `invoke_agent` span ends (no `parentSpanId`), emits a single `agentHost.invokeAgent` event via `ITelemetryService.publicLog2`, then drops the aggregator. The event name mirrors the root span name so the source is obvious in queries.
+3. Caps in-flight trace aggregators at 256 to avoid memory growth from orphan traces (traces whose root never ends — typically from a crashed turn).
+
+### `agentHost.invokeAgent` event fields
+
+| Field | Source |
+|---|---|
+| `provider` / `agent` / `model` | `gen_ai.provider.name` / `gen_ai.agent.name` / `gen_ai.request.model` on the root span |
+| `totalDurationMs` | Root span end − start (server-measured) |
+| `finishReason` | First entry of `gen_ai.response.finish_reasons` on the latest-ending `chat` span (e.g. `stop`, `tool_calls`, `length`) |
+| `spanCount`, `llmCallCount`, `toolCallCount`, `subagentCallCount`, `permissionCount`, `errorCount` | Counters maintained as spans arrive |
+| `inputTokensTotal`, `outputTokensTotal` | Sum of `gen_ai.usage.input_tokens` / `output_tokens` across chat spans |
+| `cacheReadTokensTotal`, `cacheCreationTokensTotal`, `reasoningTokensTotal` | Sum of the corresponding `gen_ai.usage.*` attributes across chat spans |
+| `distinctToolCount` | Distinct `gen_ai.tool.name` values across `execute_tool` spans |
+
+### Relationship to `agentHost.turnCompleted`
+
+`AgentHostTelemetryReporter` emits `agentHost.turnCompleted` per turn with `timeToFirstProgress` and `totalTime` measured from **the VS Code side** (turn dispatch → first stream event; turn dispatch → completion). The `agentHost.invokeAgent` event uses the **SDK's** server-measured root span duration and adds token counts the workbench-side event doesn't have.
+
+> **Note on TTFT.** The SDK's `gen_ai.response.time_to_first_chunk` attribute has been observed reporting implausibly small values (single-digit ms) on real multi-second chat spans. Until that's fixed upstream we deliberately do NOT emit a `ttftMs` field on `agentHost.invokeAgent` — `agentHost.turnCompleted.timeToFirstProgress` remains the trustworthy TTFT for now. The per-chat value is still visible at trace level via `[agentHost.otel]` log lines for debugging.
+
+Both events run in parallel intentionally so we can compare workbench-perceived vs SDK-measured timings in Kusto. If they agree closely we can consolidate on the OTel-derived numbers and drop the workbench-side stopwatches; if they diverge meaningfully the gap itself is informative (e.g. measures the cost of cross-process plumbing between the agent host and the workbench).
+
+**Privacy**: the consumer only reads attributes that are counters, IDs, or short enums — never prompt/response content. It is safe to run regardless of `chat.agentHost.otel.captureContent`.
+
+**Cost**: registering the consumer forces the loopback receiver to start, which means the SDK runs with its OTel exporter even when the user hasn't enabled `chat.agentHost.otel.enabled`. The wire format is OTLP/JSON over localhost — overhead is small but non-zero. If this becomes a concern, gate registration on a setting in `agentHostMain.ts`.
+
+### Adding a new span consumer
+
+Implement `IAgentHostOTelSpanConsumer` from [common/otel/agentHostOTelSpanConsumer.ts](common/otel/agentHostOTelSpanConsumer.ts) and call `agentHostOTelService.registerSpanConsumer(consumer)` from the agent host main. The first registration starts the loopback receiver; the receiver stays up across consumer churn so the SDK never sees an endpoint change.
+
+```typescript
+class MySpanLogger implements IAgentHostOTelSpanConsumer {
+    onSpan(span: ICompletedSpanData): void {
+        console.log(`${span.name} (${span.endTime - span.startTime}ms)`);
+    }
+}
+disposables.add(agentHostOTelService.registerSpanConsumer(new MySpanLogger()));
+```
 
 ## VS Code Settings
 
