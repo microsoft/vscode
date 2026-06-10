@@ -237,13 +237,31 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		for (const root of this._getCandidateDebugLogsRoots()) {
 			const candidate = URI.joinPath(root, sessionId);
 			try {
-				fs.accessSync(candidate.fsPath);
-				return candidate;
+				// Verify the candidate is an actual directory, not a stray file,
+				// so we never return a path under which `main.jsonl` could never exist.
+				if (fs.statSync(candidate.fsPath).isDirectory()) {
+					return candidate;
+				}
 			} catch {
 				// Not under this root — try the next one.
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Resolve the directory a child session should be written to. A child must
+	 * live under its parent's *actual* directory, which may sit under a different
+	 * storage root than the current window's active write root (e.g. when the
+	 * parent was logged with no workspace open and later resumed in a workspace
+	 * window). Prefer the parent's already-resolved active `sessionDir`, then
+	 * probe disk for a historical parent directory, and only fall back to the
+	 * current write root when neither is available.
+	 */
+	private _resolveParentSessionDir(parentSessionId: string, fallbackRoot: URI): URI {
+		return this._activeSessions.get(parentSessionId)?.sessionDir
+			?? this._resolveHistoricalSessionDir(parentSessionId)
+			?? URI.joinPath(fallbackRoot, parentSessionId);
 	}
 
 	async startSession(sessionId: string): Promise<void> {
@@ -302,16 +320,19 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		let fileUri: URI;
 
 		if (childInfo) {
-			// Child session — write under parent's directory
-			sessionDir = URI.joinPath(dir, childInfo.parentSessionId);
-			const safeLabel = childInfo.label.replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').replace(/\.\./g, '_');
-			const fileName = `${safeLabel}-${sessionId}.jsonl`;
-			fileUri = URI.joinPath(sessionDir, fileName);
-
-			// Ensure parent session exists so we can write a cross-reference.
+			// Ensure parent session exists so we can write a cross-reference and
+			// resolve the parent's actual directory before deriving the child path.
 			// A child referencing a parent proves it is a main user session,
 			// so promote it with hasOwnSpans = true.
 			this._ensureSession(childInfo.parentSessionId, /* hasOwnSpans */ true);
+
+			// Child session — write under the parent's *actual* directory, which may
+			// live under a different storage root than the current write root when
+			// the parent was resumed from history.
+			sessionDir = this._resolveParentSessionDir(childInfo.parentSessionId, dir);
+			const safeLabel = childInfo.label.replace(/[/\\:*?"<>|\x00-\x1f]/g, '_').replace(/\.\./g, '_');
+			const fileName = `${safeLabel}-${sessionId}.jsonl`;
+			fileUri = URI.joinPath(sessionDir, fileName);
 
 			// Write a cross-reference entry in the parent's main.jsonl
 			this._bufferEntry(childInfo.parentSessionId, {
@@ -456,7 +477,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		if (childInfo) {
 			const dir = this._getDebugLogsDir();
 			if (!dir) { return undefined; }
-			const parentDir = URI.joinPath(dir, childInfo.parentSessionId);
+			const parentDir = this._resolveParentSessionDir(childInfo.parentSessionId, dir);
 			return URI.joinPath(parentDir, `${childInfo.label}-${sessionId}.jsonl`);
 		}
 		// For historical sessions (after restart), construct the default path
@@ -474,7 +495,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		const childInfo = this._childSessionMap.get(sessionId);
 		if (childInfo) {
 			const dir = this._getDebugLogsDir();
-			return dir ? URI.joinPath(dir, childInfo.parentSessionId) : undefined;
+			return dir ? this._resolveParentSessionDir(childInfo.parentSessionId, dir) : undefined;
 		}
 		// Unknown session — likely historical (resumed after restart). It may have
 		// been written under a different storage root than the current window uses
