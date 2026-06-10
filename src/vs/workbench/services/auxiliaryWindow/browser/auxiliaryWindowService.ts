@@ -369,7 +369,11 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined,
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined,
 			options?.frameless ? 'window-frameless=yes' : undefined,
+			options?.transparent ? 'window-transparent=yes' : undefined,
+			options?.notResizable ? 'window-not-resizable=yes' : undefined,
+			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
+		]);
 
 		const auxiliaryWindow = mainWindow.open(isFirefox ? '' /* FF immediately fires an unload event if using about:blank */ : 'about:blank', undefined, features.join(','));
 		if (!auxiliaryWindow && isWeb) {
