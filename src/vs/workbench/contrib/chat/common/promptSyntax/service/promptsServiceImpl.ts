@@ -431,9 +431,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		const skills = useAgentSkills ? await this.listPromptFiles(PromptsType.skill, token) : [];
 		const disabledSkills = this.getDisabledPromptFiles(PromptsType.skill);
+		// Order skills by precedence before parsing so that the duplicate-name
+		// dedup below keeps a deterministic winner (e.g. workspace over personal).
+		const enabledSkills = skills
+			.filter(s => !disabledSkills.has(s.uri))
+			.sort((a, b) => this.getSkillPriority(a) - this.getSkillPriority(b));
 		const slashCommandFiles = [
 			...promptFiles,
-			...skills.filter(s => !disabledSkills.has(s.uri)),
+			...enabledSkills,
 		];
 
 		const parseResults = await Promise.all(slashCommandFiles.map(async promptPath => {
@@ -462,7 +467,27 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}));
 
-		const files = parseResults;
+		// Deduplicate skills that resolve to the same canonical name. This can
+		// happen when two skill locations point at the same files, e.g. when
+		// `~/.claude/skills` is a symlink to `~/.agents/skills` (created by
+		// `npx skills`). Without this, every such skill would appear twice in
+		// the `/` menu. `parseResults` preserves input order, so skills are
+		// already sorted by precedence; the first occurrence of a name wins.
+		const seenSkillNames = new Set<string>();
+		const files: ISlashCommandDiscoveryResult[] = [];
+		for (const result of parseResults) {
+			if (result.status === 'loaded' && result.promptPath.type === PromptsType.skill) {
+				const name = result.promptPath.name;
+				if (name !== undefined) {
+					if (seenSkillNames.has(name)) {
+						files.push({ status: 'skipped', skipReason: 'duplicate-name', promptPath: result.promptPath });
+						continue;
+					}
+					seenSkillNames.add(name);
+				}
+			}
+			files.push(result);
+		}
 
 		const promptSourceFolders = await this._collectSourceFolderDiagnostics(PromptsType.prompt);
 		const sourceFolders = [...promptSourceFolders];
@@ -1244,6 +1269,30 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	/**
+	 * Precedence used when deduplicating skills that share the same canonical
+	 * name: workspace > personal > plugin > extension API > extension contribution.
+	 * Lower numbers win.
+	 */
+	private getSkillPriority(skill: IPromptPath): number {
+		if (skill.storage === PromptsStorage.local) {
+			return 0; // workspace
+		}
+		if (skill.storage === PromptsStorage.user) {
+			return 1; // personal
+		}
+		if (skill.storage === PromptsStorage.plugin) {
+			return 2; // plugin
+		}
+		if (skill.source === PromptFileSource.ExtensionAPI) {
+			return 3;
+		}
+		if (skill.source === PromptFileSource.ExtensionContribution) {
+			return 4;
+		}
+		return 5;
+	}
+
+	/**
 	 * Returns the discovery results for skill files.
 	 */
 	private async computeSkillDiscoveryInfo(token: CancellationToken): Promise<IPromptFileDiscoveryResult[]> {
@@ -1258,26 +1307,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const pluginSkills = this._pluginPromptFilesByType.get(PromptsType.skill) ?? [];
 		allSkills.push(...discoveredSkills, ...extensionSkills, ...pluginSkills);
 
-		const getPriority = (skill: IPromptPath): number => {
-			if (skill.storage === PromptsStorage.local) {
-				return 0; // workspace
-			}
-			if (skill.storage === PromptsStorage.user) {
-				return 1; // personal
-			}
-			if (skill.storage === PromptsStorage.plugin) {
-				return 2; // plugin
-			}
-			if (skill.source === PromptFileSource.ExtensionAPI) {
-				return 3;
-			}
-			if (skill.source === PromptFileSource.ExtensionContribution) {
-				return 4;
-			}
-			return 5;
-		};
 		// Stable sort; we should keep order consistent to the order in the user's configuration object
-		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
+		allSkills.sort((a, b) => this.getSkillPriority(a) - this.getSkillPriority(b));
 
 		for (const skill of allSkills) {
 			const uri = skill.uri;
