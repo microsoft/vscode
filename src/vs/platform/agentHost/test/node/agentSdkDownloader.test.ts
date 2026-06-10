@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawn } from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
@@ -36,17 +35,14 @@ interface ITestSdkDownloadFixture {
 }
 
 async function buildFixtureTarball(): Promise<ITestSdkDownloadFixture> {
+	const tar = await import('tar');
 	const stagingDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'sdk-fixture-'));
 	const innerRel = path.join('node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
 	const innerContents = '// fixture sdk.mjs\nexport default {};\n';
 	await fsp.mkdir(path.dirname(path.join(stagingDir, innerRel)), { recursive: true });
 	await fsp.writeFile(path.join(stagingDir, innerRel), innerContents);
 	const tarballPath = path.join(stagingDir, 'fixture.tgz');
-	await new Promise<void>((resolve, reject) => {
-		const child = spawn('tar', ['-czf', tarballPath, '-C', stagingDir, 'node_modules'], { stdio: 'inherit' });
-		child.on('error', reject);
-		child.on('exit', code => code === 0 ? resolve() : reject(new Error(`tar exit ${code}`)));
-	});
+	await tar.c({ file: tarballPath, cwd: stagingDir, gzip: true }, ['node_modules']);
 	const tarballSha = crypto
 		.createHash('sha256')
 		.update(await fsp.readFile(tarballPath))

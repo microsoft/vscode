@@ -182,7 +182,7 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on the SDK being reachable —
-		// either via the dev-override env var (`VSCODE_AGENT_HOST_*_PATH`) or
+		// either via the dev-override env var (`VSCODE_AGENT_HOST_*_SDK_ROOT`) or
 		// via a `product.agentSdks.<pkg>` entry that ships with this build.
 		// If neither is present, the provider is not registered and never
 		// appears in the agent picker (matches the pre-CDN UX exactly).

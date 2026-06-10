@@ -82,7 +82,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
 			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
-		}, env);
+		}, process.env);
 		Object.assign(env, sdkEnv);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by

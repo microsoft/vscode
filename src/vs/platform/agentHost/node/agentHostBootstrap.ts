@@ -48,5 +48,5 @@ export async function registerAgentHostNetworkServices(
 	const configurationService = disposables.add(new ConfigurationService(settingsResource, fileService, policyService, logService));
 	await configurationService.initialize();
 	diServices.set(IConfigurationService, configurationService);
-	diServices.set(IRequestService, new RequestService('local', configurationService, environmentService, logService));
+	diServices.set(IRequestService, disposables.add(new RequestService('local', configurationService, environmentService, logService)));
 }

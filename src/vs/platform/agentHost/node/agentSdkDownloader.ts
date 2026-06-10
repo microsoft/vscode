@@ -316,6 +316,17 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			await this._extractTarGz(tarballPath, tmpDir);
 			await this._fileService.del(URI.file(tarballPath));
 
+			// Write the `.complete` sentinel inside the tmp dir BEFORE the move.
+			// That way the move atomically publishes a directory that already
+			// carries its sentinel — a crash between move and sentinel-write
+			// can't leave a wedged, sentinel-less cacheDir behind (which would
+			// trip `_handleRenameLoser` on the next attempt and require a
+			// manual cache wipe to recover).
+			await this._fileService.writeFile(
+				URI.joinPath(tmpDirUri, '.complete'),
+				VSBuffer.fromString(expectedSha),
+			);
+
 			// Atomic publish of the completed extraction.
 			try {
 				await this._fileService.move(tmpDirUri, URI.file(cacheDir));
@@ -327,7 +338,6 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 				throw err;
 			}
 
-			await this._fileService.writeFile(sentinel, VSBuffer.fromString(expectedSha));
 			const elapsed = Math.round((Date.now() - start) / 1000);
 			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded + verified in ${elapsed}s`);
 			return cacheDir;
