@@ -66,6 +66,23 @@ export class MdLinkOpener {
 					}
 				}
 
+				// Check if the file exists before opening. If not, offer to create it.
+				try {
+					await vscode.workspace.fs.stat(uri.with({ fragment: '' }));
+				} catch {
+					const fileName = uri.path.split('/').pop() ?? uri.fsPath;
+					const create = vscode.l10n.t('Create File');
+					const choice = await vscode.window.showInformationMessage(
+						vscode.l10n.t("The file '{0}' does not exist.", fileName),
+						{ modal: false },
+						create
+					);
+					if (choice !== create) {
+						return;
+					}
+					await vscode.workspace.fs.writeFile(uri.with({ fragment: '' }), new Uint8Array(0));
+				}
+
 				return vscode.commands.executeCommand('vscode.open', uri, {
 					selection: resolved.position
 						? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character)
