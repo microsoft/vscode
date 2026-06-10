@@ -5,9 +5,10 @@
 
 import { Delayer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { joinPath } from '../../../../base/common/resources.js';
+import { compare as compareStrings } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -28,7 +29,62 @@ export const enum DiscoveredType {
 export interface IDiscoveredDirectory {
 	readonly uri: URI;
 	readonly type: DiscoveredType;
-	readonly files: readonly URI[];
+	readonly files: readonly IDiscoveredFile[];
+}
+
+export interface IDiscoveredFile {
+	readonly uri: URI;
+	readonly etag: string;
+}
+
+export function areDiscoveredDirectoriesEqual(a: readonly IDiscoveredDirectory[], b: readonly IDiscoveredDirectory[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	const sortedA = [...a].sort(compareDiscoveredDirectory);
+	const sortedB = [...b].sort(compareDiscoveredDirectory);
+
+	for (let i = 0; i < sortedA.length; i++) {
+		const left = sortedA[i];
+		const right = sortedB[i];
+		if (left.type !== right.type || left.uri.toString() !== right.uri.toString() || !areDiscoveredFilesEqual(left.files, right.files)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function compareDiscoveredDirectory(a: IDiscoveredDirectory, b: IDiscoveredDirectory): number {
+	const byType = compareStrings(a.type, b.type);
+	if (byType !== 0) {
+		return byType;
+	}
+	return compareStrings(a.uri.toString(), b.uri.toString());
+}
+
+function areDiscoveredFilesEqual(a: readonly IDiscoveredFile[], b: readonly IDiscoveredFile[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	const sortedA = [...a].sort(compareDiscoveredFile);
+	const sortedB = [...b].sort(compareDiscoveredFile);
+
+	for (let i = 0; i < sortedA.length; i++) {
+		const left = sortedA[i];
+		const right = sortedB[i];
+		if (left.uri.toString() !== right.uri.toString() || left.etag !== right.etag) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function compareDiscoveredFile(a: IDiscoveredFile, b: IDiscoveredFile): number {
+	return compareStrings(a.uri.toString(), b.uri.toString());
 }
 
 /**
@@ -114,7 +170,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly _watchers = this._register(new DisposableStore());
+	private readonly _watchers = new ResourceMap<{ readonly recursive: boolean; readonly disposable: IDisposable }>();
 	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
 	private readonly _watchRootUris = new ResourceMap<boolean>();
 
@@ -127,6 +183,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._watchRootUris.clear();
 		this._register(this._fileService.onDidFilesChange(e => {
 			for (const rootUri of this._watchRootUris.keys()) {
@@ -152,7 +209,6 @@ export class SessionCustomizationDiscovery extends Disposable {
 	 */
 	refresh(): void {
 		this._cached = undefined;
-		this._watchers.clear();
 	}
 
 	private _scheduleRefresh(): void {
@@ -163,34 +219,61 @@ export class SessionCustomizationDiscovery extends Disposable {
 	}
 
 	private async _scan(): Promise<readonly IDiscoveredDirectory[]> {
-		this._watchers.clear();
-		this._watchRootUris.clear();
+		const nextWatchRootUris = new ResourceMap<boolean>();
 		const seen = new ResourceSet();
 		const result: IDiscoveredDirectory[] = [];
 
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
-			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result)),
-			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result)),
-			this._scanAgentInstructions(this._workingDirectory, agentInstructions.workspace, seen, result),
-			this._scanAgentInstructions(this._userHome, agentInstructions.user, seen, result)
+			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris)),
+			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris)),
+			this._scanAgentInstructions(this._workingDirectory, agentInstructions.workspace, seen, result, nextWatchRootUris),
+			this._scanAgentInstructions(this._userHome, agentInstructions.user, seen, result, nextWatchRootUris)
 		]);
 
-		for (const [rootUri, recursive] of this._watchRootUris.entries()) {
+		this._reconcileWatchers(nextWatchRootUris);
+		return result;
+	}
+
+	private _reconcileWatchers(nextWatchRootUris: ResourceMap<boolean>): void {
+		for (const [rootUri, watcher] of this._watchers.entries()) {
+			const nextRecursive = nextWatchRootUris.get(rootUri);
+			if (typeof nextRecursive !== 'boolean' || nextRecursive !== watcher.recursive) {
+				watcher.disposable.dispose();
+				this._watchers.delete(rootUri);
+			}
+		}
+
+		for (const [rootUri, recursive] of nextWatchRootUris.entries()) {
+			if (this._watchers.has(rootUri)) {
+				continue;
+			}
 			try {
-				this._watchers.add(this._fileService.watch(rootUri, { recursive, excludes: [] }));
+				const disposable = this._fileService.watch(rootUri, { recursive, excludes: [] });
+				this._watchers.set(rootUri, { recursive, disposable });
 			} catch (err) {
 				this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
-		return result;
+
+		this._watchRootUris.clear();
+		for (const [rootUri, recursive] of nextWatchRootUris.entries()) {
+			this._watchRootUris.set(rootUri, recursive);
+		}
+	}
+
+	private _disposeAllWatchers(): void {
+		for (const watcher of this._watchers.values()) {
+			watcher.disposable.dispose();
+		}
+		this._watchers.clear();
 	}
 
 	/**
 	 * For agent instructions, create a single root for the base directory.
 	 */
-	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
-		const files = [];
+	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>): Promise<void> {
+		const files: IDiscoveredFile[] = [];
 		for (const root of roots) {
 			const rootUri = joinPath(base, ...root.path);
 			let stat: IFileStatWithMetadata;
@@ -204,15 +287,15 @@ export class SessionCustomizationDiscovery extends Disposable {
 				continue;
 			}
 
-			if (!this._watchRootUris.has(rootUri)) {
-				this._watchRootUris.set(rootUri, false); // set up non recursive watcher
+			if (!watchRootUris.has(rootUri)) {
+				watchRootUris.set(rootUri, false); // set up non recursive watcher
 			}
 			for (const entry of stat.children) {
 				if (entry.isFile && root.filenames.includes(entry.name)) {
 					const uri = joinPath(rootUri, entry.name);
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						files.push(uri);
+						files.push({ uri, etag: entry.etag });
 					}
 				}
 			}
@@ -222,7 +305,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[]): Promise<void> {
+	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>): Promise<void> {
 		const rootUri = joinPath(base, ...root.path);
 		let stat: IFileStatWithMetadata;
 		try {
@@ -235,19 +318,19 @@ export class SessionCustomizationDiscovery extends Disposable {
 			return;
 		}
 
-		const recursive = root.recursive || this._watchRootUris.get(rootUri) === true;
-		this._watchRootUris.set(rootUri, recursive);
+		const recursive = root.recursive || watchRootUris.get(rootUri) === true;
+		watchRootUris.set(rootUri, recursive);
 
 		if (root.type === DiscoveredType.Skill) {
-			const files = [];
+			const files: IDiscoveredFile[] = [];
 			for (const child of stat.children) {
 				if (child.isDirectory) {
 					const skillFile = joinPath(child.resource, SKILL_FILENAME);
 					try {
-						const skillStat = await this._fileService.resolve(skillFile, { resolveMetadata: false });
+						const skillStat = await this._fileService.resolve(skillFile, { resolveMetadata: true });
 						if (skillStat.isFile && !seen.has(skillFile)) {
 							seen.add(skillFile);
-							files.push(skillFile);
+							files.push({ uri: skillFile, etag: skillStat.etag });
 						}
 					} catch {
 						// SKILL.md missing — skip this skill directory.
@@ -256,7 +339,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 			result.push({ uri: rootUri, type: root.type, files });
 		} else if (root.type === DiscoveredType.Agent) {
-			const files: URI[] = [];
+			const files: IDiscoveredFile[] = [];
 			// agents are markdown files directly under the root (no subdirectory scanning),
 			// excluding only exact-case README.md.
 			for (const child of stat.children) {
@@ -264,14 +347,14 @@ export class SessionCustomizationDiscovery extends Disposable {
 					const filename = child.name;
 					if (filename.endsWith(MARKDOWN_SUFFIX) && filename !== README_FILENAME && !seen.has(child.resource)) {
 						seen.add(child.resource);
-						files.push(child.resource);
+						files.push({ uri: child.resource, etag: child.etag });
 					}
 				}
 			}
 			result.push({ uri: rootUri, type: root.type, files });
 
 		} else if (root.type === DiscoveredType.Instruction) {
-			const files: URI[] = [];
+			const files: IDiscoveredFile[] = [];
 			// instructions are all .instructions.md files directly under the root or in a subdirectory
 			const findInstructions = async (stat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
 				for (const child of stat.children ?? []) {
@@ -279,7 +362,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 						const name = child.name.toLowerCase();
 						if (name.endsWith(INSTRUCTION_FILE_SUFFIX) && !seen.has(child.resource)) {
 							seen.add(child.resource);
-							files.push(child.resource);
+							files.push({ uri: child.resource, etag: child.etag });
 						}
 					} else if (child.isDirectory && recursionLevel < MAX_INSTRUCTIONS_RECURSION_DEPTH) {
 						let childStat: IFileStatWithMetadata | undefined = undefined;

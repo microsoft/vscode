@@ -327,17 +327,6 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		this._connections.set(connectionId, connection);
 		this._distroToConnectionId.set(distro, connectionId);
 
-		// Defense-in-depth: if the child dies after we've registered, surface
-		// the close. The ws will usually emit `close` first when the agent
-		// host exits cleanly, but a hard kill (e.g. WSL shutdown) can take
-		// the child down without a clean WebSocket close frame.
-		// Registered after `_connections.set` so a synchronous exit on the
-		// same tick can't race the map insert.
-		child.on('exit', (code, signal) => {
-			this._logService.info(`${LOG_PREFIX} Agent host child for ${connectionKey} exited (code=${code}, signal=${signal})`);
-			this._closeConnection(connectionId);
-		});
-
 		this._onDidChangeConnections.fire();
 
 		return {
@@ -419,7 +408,7 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	private async _resolvePlatform(distro: string): Promise<{ os: string; arch: string }> {
 		const result = await runWslCommand(['-e', 'uname', '-s', '-m'], { distro, timeout: 10_000 });
 		if (result.exitCode !== 0) {
-			throw new Error(`${LOG_PREFIX} Failed to detect platform in '${distro}' (exit ${result.exitCode}): ${result.stderr.trim()}`);
+			throw new Error(`${LOG_PREFIX} Failed to detect platform in '${distro}' (exit ${result.exitCode}): ${result.stderr.trim() || result.stdout.trim()}`);
 		}
 		const tokens = result.stdout.trim().split(/\s+/);
 		if (tokens.length < 2) {

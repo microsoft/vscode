@@ -75,6 +75,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.otel.enabled', "When enabled, the agent host emits OpenTelemetry traces from the Copilot SDK. Requires `#chat.agentHost.enabled#`. Either configure `#chat.agentHost.otel.otlpEndpoint#` to ship traces to an external collector or enable `#chat.agentHost.otel.dbSpanExporter.enabled#` to capture them locally."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelExporterTypeSettingId]: {
@@ -82,30 +83,35 @@ configurationRegistry.registerConfiguration({
 			enum: ['otlp-http', 'otlp-grpc', 'console', 'file'],
 			markdownDescription: nls.localize('chat.agentHost.otel.exporterType', "Exporter backend used by the Copilot SDK when `#chat.agentHost.otel.enabled#` is on. `otlp-grpc` is downgraded to `otlp-http` transparently in the CLI runtime."),
 			default: 'otlp-http',
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelOtlpEndpointSettingId]: {
 			type: 'string',
 			markdownDescription: nls.localize('chat.agentHost.otel.otlpEndpoint', "OTLP endpoint URL when exporter type is `otlp-http` or `otlp-grpc`. Sets `OTEL_EXPORTER_OTLP_ENDPOINT` inside the agent host process."),
 			default: '',
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelCaptureContentSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.otel.captureContent', "When enabled, includes prompt and response content in OTel span attributes. Sets `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`. Privacy-sensitive: do not enable in environments that ship spans to shared sinks."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelOutfileSettingId]: {
 			type: 'string',
 			markdownDescription: nls.localize('chat.agentHost.otel.outfile', "Output path for span JSON lines when exporter type is `file`. Sets `COPILOT_OTEL_FILE_EXPORTER_PATH`."),
 			default: '',
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostOTelDbSpanExporterEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.otel.dbSpanExporter.enabled', "When enabled, the agent host persists every emitted OTel span to a local SQLite database. Spans can be inspected via the `Export Agent Host Traces Database` command. Compatible with external exporters: spans are written to SQLite *and* forwarded to the user-configured sink."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
 	}

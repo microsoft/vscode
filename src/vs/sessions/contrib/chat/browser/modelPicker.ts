@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -22,7 +20,7 @@ import { IsPhoneLayoutContext, ActiveSessionUsesCombinedConfigPickerContext } fr
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionModelPickerOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
@@ -83,9 +81,9 @@ export class ModelPicker extends Disposable {
 	private _settingModelInternally = false;
 
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -98,7 +96,7 @@ export class ModelPicker extends Disposable {
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				const previousModel = this._currentModel.get();
 				this._currentModel.set(model, undefined);
-				const session = this._sessionsManagementService.activeSession.get();
+				const session = this._session.get();
 				if (session) {
 					this._storageService.store(modelPickerStorageKey(session.providerId, session.sessionType), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 					this._sessionsProvidersService.getProvider(session.providerId)?.setModel(session.sessionId, model.identifier);
@@ -114,11 +112,11 @@ export class ModelPicker extends Disposable {
 					});
 				}
 			},
-			getModels: () => [...getModelsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService)],
-			useGroupedModelPicker: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).useGroupedModelPicker,
-			showManageModelsAction: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showManageModelsAction,
-			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showUnavailableFeatured,
-			showFeatured: () => getModelPickerOptionsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).showFeatured,
+			getModels: () => [...getModelsForSession(this._session.get(), this._sessionsProvidersService)],
+			useGroupedModelPicker: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).useGroupedModelPicker,
+			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
+			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
+			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -136,7 +134,7 @@ export class ModelPicker extends Disposable {
 		// forwards to the provider, so no additional provider.setModel() call is
 		// needed.
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			// Re-run when the provider restores model state for an existing
 			// session, or when an untitled session becomes established after send.
 			session?.modelId.read(reader);
@@ -151,7 +149,7 @@ export class ModelPicker extends Disposable {
 	}
 
 	private _initModel(): void {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const sessionKey = session ? `${session.providerId}/${session.sessionType}` : undefined;
 
 		// Reset the current model when switching provider/session type so we
@@ -224,7 +222,7 @@ export class ModelPicker extends Disposable {
 	render(container: HTMLElement): void {
 		this._container = container;
 		this._modelPicker.render(container);
-		this._updateVisibility(getModelsForSession(this._sessionsManagementService.activeSession.get(), this._sessionsProvidersService).length > 0);
+		this._updateVisibility(getModelsForSession(this._session.get(), this._sessionsProvidersService).length > 0);
 	}
 
 	private _updateVisibility(hasModels: boolean): void {
@@ -255,9 +253,9 @@ registerAction2(class extends Action2 {
 	override async run(): Promise<void> { /* handled by action view item */ }
 });
 
-// -- Action View Item + Context Key Contribution --
+// -- Action View Item --
 
-class ModelPickerActionViewItem extends BaseActionViewItem {
+export class ModelPickerActionViewItem extends BaseActionViewItem {
 	constructor(private readonly picker: ModelPicker) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
@@ -271,24 +269,3 @@ class ModelPickerActionViewItem extends BaseActionViewItem {
 		super.dispose();
 	}
 }
-
-class ModelPickerContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'sessions.contrib.modelPicker';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-	) {
-		super();
-
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig, 'sessions.modelPicker',
-			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(ModelPicker);
-				return new ModelPickerActionViewItem(picker);
-			},
-		));
-	}
-}
-
-registerWorkbenchContribution2(ModelPickerContribution.ID, ModelPickerContribution, WorkbenchPhase.AfterRestored);

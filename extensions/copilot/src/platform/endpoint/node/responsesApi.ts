@@ -27,7 +27,7 @@ import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManage
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
+import { getVerbosityForModelSync, isHiddenModelM } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
@@ -163,10 +163,13 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')
 		: undefined;
 	const summary = summaryConfig === 'off' || shouldDisableReasoningSummary ? undefined : summaryConfig;
-	if (effort || summary) {
+	const persistentCoTEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiPersistentCoTEnabled, expService)
+		&& isHiddenModelM(endpoint);
+	if (effort || summary || persistentCoTEnabled) {
 		body.reasoning = {
 			...(effort ? { effort } : {}),
-			...(summary ? { summary } : {})
+			...(summary ? { summary } : {}),
+			...(persistentCoTEnabled ? { context: 'all_turns' } : {})
 		};
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../nls.js';
-import type { ChangesetSummary, URI } from './state/sessionState.js';
+import type { Changeset, URI } from './state/sessionState.js';
 
 /**
  * Helpers for building / parsing the URI clients subscribe to in order to
@@ -281,9 +281,18 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * compare-turns diffs construct the URI themselves from two known
  * turn ids and subscribe directly.
  */
-export function buildDefaultChangesetCatalogue(sessionUri: URI): ChangesetSummary[] {
+export function buildDefaultChangesetCatalogue(sessionUri: URI): Changeset[] {
 	return [
-		{ label: sessionChangesetLabel(), uriTemplate: buildSessionChangesetUri(sessionUri) },
-		{ label: uncommittedChangesetLabel(), uriTemplate: buildUncommittedChangesetUri(sessionUri), description: uncommittedChangesetDescription() }
+		{
+			label: sessionChangesetLabel(),
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: 'session'
+		},
+		{
+			label: uncommittedChangesetLabel(),
+			description: uncommittedChangesetDescription(),
+			uriTemplate: buildUncommittedChangesetUri(sessionUri),
+			changeKind: 'uncommitted'
+		}
 	];
 }

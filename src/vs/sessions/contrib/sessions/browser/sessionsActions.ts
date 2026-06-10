@@ -190,6 +190,7 @@ registerAction2(class GoBackAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowLeft,
+			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
 			keybinding: {
@@ -231,6 +232,7 @@ registerAction2(class GoForwardAction extends Action2 {
 			},
 			f1: true,
 			icon: Codicon.arrowRight,
+			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
 			keybinding: {
@@ -288,14 +290,19 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 });
 
 // -- Focus Nth Session in the Grid (Cmd/Ctrl+1..9) --
+// Mirrors VS Code's "Focus Editor Group N": Ctrl/Cmd+1..8 focus that grid slot
+// and Ctrl/Cmd+9 focuses the LAST slot. Does nothing when the slot doesn't exist.
 
 for (let index = 0; index < 9; index++) {
 	const position = index + 1;
+	const isLast = position === 9;
 	registerAction2(class FocusSessionByPositionAction extends Action2 {
 		constructor() {
 			super({
 				id: `sessions.focusSessionInGrid${position}`,
-				title: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
+				title: isLast
+					? localize2('focusLastSessionInGrid', "Focus Last Session in Grid")
+					: localize2('focusSessionInGrid', "Focus Session {0} in Grid", position),
 				f1: true,
 				category: SessionsCategories.Sessions,
 				keybinding: {
@@ -311,11 +318,12 @@ for (let index = 0; index < 9; index++) {
 			const sessionsPartService = accessor.get(ISessionsPartService);
 
 			const visible = sessionsViewService.visibleSessions.get();
-			if (index >= visible.length) {
+			const targetIndex = isLast ? visible.length - 1 : index;
+			if (targetIndex < 0 || targetIndex >= visible.length) {
 				return;
 			}
 
-			const session = visible[index];
+			const session = visible[targetIndex];
 			sessionsViewService.setActive(session);
 			sessionsPartService.focusSession(session);
 		}

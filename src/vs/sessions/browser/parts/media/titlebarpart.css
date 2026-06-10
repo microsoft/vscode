@@ -64,7 +64,7 @@
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
 	/* Match the VS Code window command center font size. */
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {

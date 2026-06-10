@@ -87,6 +87,7 @@ ToolRegistry.registerModelSpecificTool(
 			{ family: 'claude-opus-4.7-1m-internal' },
 			{ family: 'claude-opus-4.7-high' },
 			{ family: 'claude-opus-4.7-xhigh' },
+			{ family: 'claude-opus-4.8' },
 		],
 	},
 	ToolSearchTool,

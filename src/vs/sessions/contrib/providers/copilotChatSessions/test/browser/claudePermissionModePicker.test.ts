@@ -68,8 +68,9 @@ function createPicker(
 			capturedOnSelect = delegate.onSelect as (item: IPermissionModeItem) => void;
 		},
 	});
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
 	instantiationService.stub(ISessionsManagementService, {
-		activeSession: observableValue<IActiveSession | undefined>('activeSession', activeSession),
+		activeSession: sessionObs,
 	} as unknown as ISessionsManagementService);
 	instantiationService.stub(ISessionsProvidersService, {
 		onDidChangeProviders: Event.None,
@@ -83,7 +84,7 @@ function createPicker(
 	}
 	instantiationService.stub(IConfigurationService, configService);
 
-	const picker = disposables.add(instantiationService.createInstance(ClaudePermissionModePicker));
+	const picker = disposables.add(instantiationService.createInstance(ClaudePermissionModePicker, sessionObs));
 
 	return {
 		picker,

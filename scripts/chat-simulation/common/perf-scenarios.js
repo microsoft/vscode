@@ -13,7 +13,7 @@
  */
 
 const path = require('path');
-const { ScenarioBuilder, registerScenario } = require('./mock-llm-server');
+const { ScenarioBuilder, registerScenario } = require('./mock-llm-server.ts');
 
 const FIXTURES_DIR = path.join(__dirname, '..', 'fixtures');
 

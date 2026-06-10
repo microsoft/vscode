@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_LABEL_FORMATTER, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -30,17 +29,17 @@ suite('ChangesEditorLabels', () => {
 		return labelService;
 	}
 
-	function hex(value: string): string {
-		return encodeHex(VSBuffer.fromString(value)).toString();
-	}
-
 	test('labels are derived from the display file URI, not the backing git blob URI', () => {
 		const labelService = createLabelService();
 		const displayUri = toAgentHostUri(URI.file('/workspaces/demo/src/app.ts'), 'remotehost');
 		const backingUri = toAgentHostUri(URI.from({
 			scheme: 'git-blob',
-			authority: hex('session-db://session-123'),
-			path: `/abc123/${hex('src/app.ts')}/app.ts`
+			path: '/workspaces/demo/src/app.ts',
+			query: JSON.stringify({
+				sessionUri: 'session-db://session-123',
+				sha: 'abc123',
+				repoRelativePath: 'src/app.ts',
+			}),
 		}), 'remotehost');
 
 		assert.deepStrictEqual({
@@ -53,8 +52,25 @@ suite('ChangesEditorLabels', () => {
 			},
 			backing: {
 				label: 'app.ts',
-				description: '/abc123/7372632f6170702e7473',
+				description: '/workspaces/demo/src',
 			},
+		});
+	});
+
+	test('root-level wrapped git blob URIs do not expose the empty-authority placeholder', () => {
+		const labelService = createLabelService();
+		const wrappedGitBlobUri = toAgentHostUri(URI.from({
+			scheme: 'git-blob',
+			path: '/hello_count.txt',
+			query: JSON.stringify({
+				sessionUri: 'copilotcli:/62a7348d-686c-4c62-9019-dab388e8868f',
+				sha: 'e911392f5dc4ea151cc013f47c9b7c8bd7a14ea6',
+			}),
+		}), 'local');
+
+		assert.deepStrictEqual(getChangesEditorLabels(wrappedGitBlobUri, labelService), {
+			label: 'hello_count.txt',
+			description: '',
 		});
 	});
 

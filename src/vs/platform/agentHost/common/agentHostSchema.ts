@@ -332,8 +332,8 @@ export const platformSessionSchema = createSchema({
 			localize('agentHost.sessionConfig.mode.plan', "Plan"),
 		],
 		enumDescriptions: [
-			localize('agentHost.sessionConfig.mode.interactiveDescription', "Ask for input and approval for each action"),
-			localize('agentHost.sessionConfig.mode.planDescription', "Generate a plan first, then choose how to execute it"),
+			localize('agentHost.sessionConfig.mode.interactiveDescription', "Step-by-step collaboration"),
+			localize('agentHost.sessionConfig.mode.planDescription', "Plan first, execute when ready"),
 		],
 		default: 'interactive',
 		sessionMutable: true,

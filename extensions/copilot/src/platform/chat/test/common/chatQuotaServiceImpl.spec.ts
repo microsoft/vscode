@@ -92,10 +92,10 @@ describe('ChatQuotaService', () => {
 			expect(svc.getCreditsForTurn(TURN_A)).toBeCloseTo(50.45);
 		});
 
-		test('ignores zero nano-AIU values', () => {
+		test('records zero nano-AIU values as zero credits', () => {
 			const svc = create();
 			svc.setLastCopilotUsage(0, TURN_A);
-			expect(svc.getCreditsForTurn(TURN_A)).toBeUndefined();
+			expect(svc.getCreditsForTurn(TURN_A)).toBe(0);
 		});
 
 		test('ignores negative nano-AIU values', () => {

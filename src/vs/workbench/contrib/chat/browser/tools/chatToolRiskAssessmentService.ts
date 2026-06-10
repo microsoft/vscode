@@ -28,18 +28,24 @@ export interface IToolRiskAssessment {
 
 export const IChatToolRiskAssessmentService = createDecorator<IChatToolRiskAssessmentService>('chatToolRiskAssessmentService');
 
+/**
+ * Which rubric the model uses to assess a tool call: `terminal` for a shell command, `generic`
+ * for file edits, reads, fetches, and everything else. When omitted, auto-detected from the tool id.
+ */
+export type ToolRiskPromptKind = 'terminal' | 'generic';
+
 export interface IChatToolRiskAssessmentService {
 	readonly _serviceBrand: undefined;
 	/** Returns whether the feature is enabled by configuration. */
 	isEnabled(): boolean;
 	/** Synchronously read a previously cached assessment, or undefined if none. */
-	getCached(tool: IToolData, parameters: unknown): IToolRiskAssessment | undefined;
+	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined;
 	/**
-	 * Get a cached or freshly-computed risk assessment for a tool call.
-	 * Returns `undefined` when the feature is disabled, no model is available,
-	 * or the assessment cannot be parsed.
+	 * Get a cached or freshly-computed risk assessment for a tool call. Returns `undefined` when no
+	 * model is available or the assessment cannot be parsed, or when the feature is disabled unless
+	 * `options.ignoreEnablement` is set (used by the Autopilot risk gate).
 	 */
-	assess(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined>;
+	assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind, options?: { ignoreEnablement?: boolean }): Promise<IToolRiskAssessment | undefined>;
 }
 
 const MAX_PARAM_BYTES = 2000;
@@ -64,16 +70,17 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		return this._configurationService.getValue<boolean>(ChatConfiguration.ToolRiskAssessmentEnabled) !== false;
 	}
 
-	getCached(tool: IToolData, parameters: unknown): IToolRiskAssessment | undefined {
-		return this._cache.get(this._cacheKey(tool, parameters))?.assessment;
+	getCached(tool: IToolData, parameters: unknown, kind?: ToolRiskPromptKind): IToolRiskAssessment | undefined {
+		return this._cache.get(this._cacheKey(tool, parameters, resolveRiskPromptKind(tool, kind)))?.assessment;
 	}
 
-	async assess(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
-		if (!this.isEnabled()) {
+	async assess(tool: IToolData, parameters: unknown, token: CancellationToken, kind?: ToolRiskPromptKind, options?: { ignoreEnablement?: boolean }): Promise<IToolRiskAssessment | undefined> {
+		if (!options?.ignoreEnablement && !this.isEnabled()) {
 			return undefined;
 		}
 
-		const key = this._cacheKey(tool, parameters);
+		const resolvedKind = resolveRiskPromptKind(tool, kind);
+		const key = this._cacheKey(tool, parameters, resolvedKind);
 
 		const cached = this._cache.get(key);
 		if (cached) {
@@ -87,7 +94,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 		const promise = (async () => {
 			try {
-				const assessment = await this._invokeModel(tool, parameters, token);
+				const assessment = await this._invokeModel(tool, parameters, resolvedKind, token);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}
@@ -104,11 +111,11 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 		return promise;
 	}
 
-	private _cacheKey(tool: IToolData, parameters: unknown): string {
-		return tool.id + '::' + stableStringify(normalizeRiskCacheParameters(tool, parameters));
+	private _cacheKey(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
+		return kind + '::' + tool.id + '::' + stableStringify(normalizeRiskCacheParameters(parameters, kind));
 	}
 
-	private async _invokeModel(tool: IToolData, parameters: unknown, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
+	private async _invokeModel(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
 		const modelId = this._configurationService.getValue<string>(ChatConfiguration.ToolRiskAssessmentModel) || 'copilot-utility-small';
 
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: modelId });
@@ -116,7 +123,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 			return undefined;
 		}
 
-		const prompt = buildPrompt(tool, parameters);
+		const prompt = buildPrompt(tool, parameters, kind);
 		const response = await this._languageModelsService.sendChatRequest(
 			models[0],
 			undefined,
@@ -150,19 +157,34 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 }
 
 /**
+ * Resolve which rubric to assess a tool call under. An explicit kind wins; otherwise it is
+ * auto-detected from the tool id so `run_in_terminal` keeps the terminal rubric.
+ */
+function resolveRiskPromptKind(tool: IToolData, kind: ToolRiskPromptKind | undefined): ToolRiskPromptKind {
+	return kind ?? (tool.id === TerminalToolId.RunInTerminal ? 'terminal' : 'generic');
+}
+
+/**
  * Compute the subset of tool parameters that are relevant to the risk
  * assessment, used as the cache key so re-invocations of the same tool call
  * hit the cache even when model-generated descriptive fields differ.
  */
-function normalizeRiskCacheParameters(tool: IToolData, parameters: unknown): unknown {
-	if (tool.id === TerminalToolId.RunInTerminal && parameters && typeof parameters === 'object') {
+function normalizeRiskCacheParameters(parameters: unknown, kind: ToolRiskPromptKind): unknown {
+	if (kind === 'terminal' && parameters && typeof parameters === 'object') {
 		const p = parameters as Record<string, unknown>;
 		return { command: p.command };
 	}
 	return parameters;
 }
 
-function buildPrompt(tool: IToolData, parameters: unknown): string {
+function buildPrompt(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind): string {
+	const argsJson = serializeParameters(parameters);
+	return kind === 'terminal'
+		? buildTerminalPrompt(tool, argsJson)
+		: buildGenericToolPrompt(tool, argsJson);
+}
+
+function serializeParameters(parameters: unknown): string {
 	let argsJson: string;
 	try {
 		argsJson = JSON.stringify(parameters ?? {});
@@ -172,6 +194,10 @@ function buildPrompt(tool: IToolData, parameters: unknown): string {
 	if (argsJson.length > MAX_PARAM_BYTES) {
 		argsJson = argsJson.slice(0, MAX_PARAM_BYTES) + '...[truncated]';
 	}
+	return argsJson;
+}
+
+function buildTerminalPrompt(tool: IToolData, argsJson: string): string {
 	return [
 		`You assess what one terminal command does for a code-editing AI agent, and how risky it is.`,
 		`Reply with STRICT JSON only (no prose, no markdown fences):`,
@@ -184,14 +210,19 @@ function buildPrompt(tool: IToolData, parameters: unknown): string {
 		`  1. irreversible deletion of source code or user data (rm -rf on $HOME / source paths,`,
 		`     find ... -delete on source globs), force-push, drop, format, npm publish        -> red`,
 		`  2. arbitrary code execution from a remote source (curl ... | bash)                  -> red`,
-		`  3. modifies remote state (git push, deploy, post)                                   -> orange`,
-		`  4. modifies local files or installs packages, including recoverable deletions`,
-		`     such as rm -rf of build output, caches, or node_modules                          -> orange`,
-		`  5. otherwise (read-only, listing, status, diagnostics, GET requests)                -> green`,
+		`  3. installs a package or dependency from a registry (npm/yarn/pnpm install, pip`,
+		`     install, cargo add, gem install, go get, brew install, etc.) — pulls untrusted`,
+		`     third-party code that may run install scripts, a common supply-chain vector      -> red`,
+		`  4. modifies remote state (git push, deploy, post)                                   -> orange`,
+		`  5. modifies local files, including recoverable deletions such as rm -rf of build`,
+		`     output, caches, or node_modules                                                  -> orange`,
+		`  6. otherwise (read-only, listing, status, diagnostics, GET requests)                -> green`,
 		``,
 		`Read-only commands are always GREEN. "rm -rf" is RED only when the target is`,
 		`source code or user data; deleting recoverable build artifacts (node_modules,`,
-		`dist, .cache) is ORANGE.`,
+		`dist, .cache) is ORANGE. Installing a package is RED even from a major registry,`,
+		`because it pulls untrusted third-party code onto this machine — a supply-chain`,
+		`risk regardless of whether the package manager runs install scripts.`,
 		``,
 		`Examples:`,
 		`  ls -lh                              -> green`,
@@ -201,10 +232,11 @@ function buildPrompt(tool: IToolData, parameters: unknown): string {
 		`  npm ls                              -> green`,
 		`  az vm list                          -> green`,
 		`  kubectl get pods --all-namespaces   -> green`,
-		`  npm install lodash                  -> orange`,
 		`  rm -rf node_modules                 -> orange  (recoverable: reinstall)`,
 		`  rm -rf dist                         -> orange  (recoverable: rebuild)`,
 		`  git push origin feature             -> orange`,
+		`  npm install lodash                  -> red     (pulls untrusted third-party code)`,
+		`  pip install requests                -> red     (pulls untrusted third-party code)`,
 		`  rm -rf $HOME                        -> red`,
 		`  rm -rf src                          -> red     (irreplaceable source code)`,
 		`  find . -name '*.test.ts' -delete    -> red`,
@@ -216,13 +248,71 @@ function buildPrompt(tool: IToolData, parameters: unknown): string {
 		// allow-any-unicode-next-line
 		`  - green : "<verb> <target>."  e.g. "Lists running VMs in the current Azure subscription."`,
 		// allow-any-unicode-next-line
-		`  - orange: "<verb> <target> — <consequence>."  e.g. "Installs lodash into node_modules."`,
+		`  - orange: "<verb> <target> — <consequence>."  e.g. "Pushes the feature branch to origin."`,
 		// allow-any-unicode-next-line
-		`  - red   : "<verb> <target> — <irreversible consequence>."  e.g. "Force-pushes main — overwrites public history."`,
+		`  - red   : "<verb> <target> — <irreversible or untrusted-code consequence>."  e.g. "Force-pushes main — overwrites public history." or "Installs lodash — pulls untrusted third-party code."`,
 		``,
 		`Strict explanation rules:`,
 		`  - Cite the ACTUAL paths, commands, URLs, branches, globs from the arguments below.`,
 		`  - Decode cryptic flags (e.g. -f, -rf, --no-verify).`,
+		`  - Never use generic phrases like "may have side effects". Always name WHAT is read or changed.`,
+		`  - Plain prose. No quotes around the sentence. No markdown fences.`,
+		``,
+		`Tool: ${tool.displayName} (id: ${tool.id})`,
+		`Description: ${tool.modelDescription || tool.userDescription || ''}`,
+		`Arguments (JSON): ${argsJson}`,
+	].join('\n');
+}
+
+function buildGenericToolPrompt(tool: IToolData, argsJson: string): string {
+	return [
+		`You assess what one tool call does for a code-editing AI agent, and how risky it is.`,
+		`The tool may edit files, read files, fetch data, or perform some other action.`,
+		`Reply with STRICT JSON only (no prose, no markdown fences):`,
+		`{`,
+		`  "risk": "green" | "orange" | "red",`,
+		`  "explanation": "<one short sentence, <=18 words>"`,
+		`}`,
+		``,
+		`Rules for "risk" — apply in order; take the FIRST match:`,
+		`  1. permanently destroys source code or user data with no recovery`,
+		`     (irrecoverable deletion, wiping a database, unrecoverable overwrite)             -> red`,
+		`  2. executes code downloaded on the fly from an arbitrary or untrusted URL           -> red`,
+		`  3. installs a package or dependency from a registry (npm/pip/cargo/gem/etc.) —`,
+		`     pulls untrusted third-party code, a common supply-chain attack vector            -> red`,
+		`  4. sends data to a remote server or changes remote state (POST/PUT, upload, deploy) -> orange`,
+		`  5. modifies local files or workspace state (edits, creates, reversible deletes)      -> orange`,
+		`  6. otherwise (reads files, lists, searches, fetches public read-only data)          -> green`,
+		``,
+		`Read-only operations are always GREEN. Editing or creating a workspace file is`,
+		`ORANGE (reversible via undo or version control), never red. RED is reserved for`,
+		`actions whose effects cannot be undone OR that execute untrusted third-party code.`,
+		`Installing a package is RED even from a normal registry, because it pulls`,
+		`untrusted third-party code onto this machine — a supply-chain risk regardless of`,
+		`whether the package manager runs install scripts.`,
+		``,
+		`Examples:`,
+		`  read a file's contents              -> green`,
+		`  list files in a directory           -> green`,
+		`  search the workspace for a symbol   -> green`,
+		`  fetch a public web page (GET)       -> green`,
+		`  edit an existing source file        -> orange`,
+		`  create a new file in the workspace  -> orange`,
+		`  POST data to an external API        -> orange`,
+		`  install a package                   -> red     (pulls untrusted third-party code)`,
+		`  wipe a database table               -> red`,
+		`  run code from an untrusted URL      -> red`,
+		``,
+		`Write "explanation" in this exact shape:`,
+		// allow-any-unicode-next-line
+		`  - green : "<verb> <target>."  e.g. "Reads the contents of package.json."`,
+		// allow-any-unicode-next-line
+		`  - orange: "<verb> <target> — <consequence>."  e.g. "Edits src/app.ts — changes workspace source."`,
+		// allow-any-unicode-next-line
+		`  - red   : "<verb> <target> — <irreversible or untrusted-code consequence>."  e.g. "Deletes src/app.ts — permanently removes source." or "Installs lodash — pulls untrusted third-party code."`,
+		``,
+		`Strict explanation rules:`,
+		`  - Cite the ACTUAL files, paths, URLs, or values from the arguments below.`,
 		`  - Never use generic phrases like "may have side effects". Always name WHAT is read or changed.`,
 		`  - Plain prose. No quotes around the sentence. No markdown fences.`,
 		``,

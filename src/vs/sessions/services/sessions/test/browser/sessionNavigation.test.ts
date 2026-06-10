@@ -126,6 +126,10 @@ class MockSessionStore implements ISessionsManagementService {
 		}
 	}
 
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void {
+		this.setActiveSession(to);
+	}
+
 	setActiveChat(chat: IChat): void {
 		const active = this.activeSession.get();
 		if (active) {

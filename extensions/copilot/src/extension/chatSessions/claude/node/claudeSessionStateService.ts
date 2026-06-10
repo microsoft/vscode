@@ -47,7 +47,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext: existing?.traceContext,
 			turnId: existing?.turnId,
 		});
@@ -70,7 +69,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext: existing?.traceContext,
 			turnId: existing?.turnId,
 		});
@@ -90,7 +88,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext: existing?.traceContext,
 			turnId: existing?.turnId,
 		});
@@ -112,7 +109,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext: existing?.traceContext,
 			turnId: existing?.turnId,
 		});
@@ -132,7 +128,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: handler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext: existing?.traceContext,
 			turnId: existing?.turnId,
 		});
@@ -154,29 +149,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: effort,
-			contextSize: existing?.contextSize,
-			traceContext: existing?.traceContext,
-			turnId: existing?.turnId,
-		});
-	}
-
-	getContextSizeForSession(sessionId: string): number | undefined {
-		return this._sessionState.get(sessionId)?.contextSize;
-	}
-
-	setContextSizeForSession(sessionId: string, contextSize: number | undefined): void {
-		const existing = this._sessionState.get(sessionId);
-		if (existing?.contextSize === contextSize) {
-			return;
-		}
-		this._sessionState.set(sessionId, {
-			modelId: existing?.modelId,
-			permissionMode: existing?.permissionMode ?? 'acceptEdits',
-			capturingToken: existing?.capturingToken,
-			folderInfo: existing?.folderInfo,
-			usageHandler: existing?.usageHandler,
-			reasoningEffort: existing?.reasoningEffort,
-			contextSize,
 			traceContext: existing?.traceContext,
 			turnId: existing?.turnId,
 		});
@@ -195,7 +167,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext,
 			turnId: existing?.turnId,
 		});
@@ -214,7 +185,6 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 			folderInfo: existing?.folderInfo,
 			usageHandler: existing?.usageHandler,
 			reasoningEffort: existing?.reasoningEffort,
-			contextSize: existing?.contextSize,
 			traceContext: existing?.traceContext,
 			turnId,
 		});

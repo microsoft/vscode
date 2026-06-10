@@ -9,7 +9,7 @@ import { Gesture, EventType as TouchEventType } from '../../../../../../base/bro
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
@@ -25,9 +25,10 @@ import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/ch
 import { Menus } from '../../../../../browser/menus.js';
 import { ActiveSessionUsesCombinedConfigPickerContext, IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, isAgentHostProviderId } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { type ISession } from '../../../../../services/sessions/common/session.js';
+import { ISessionInputContext } from '../../../../chat/browser/sessionInputContext.js';
 import { isWellKnownModeSchema } from '../agentHostPermissionPickerDelegate.js';
 import { agentHostModelPickerStorageKey } from '../agentHostModelPicker.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
@@ -101,8 +102,8 @@ class MobileChatInputConfigPicker extends Disposable {
 	private _triggerElement: HTMLElement | undefined;
 
 	constructor(
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -121,7 +122,7 @@ class MobileChatInputConfigPicker extends Disposable {
 		// flow, which the gated-off desktop picker no longer runs on
 		// phone.
 		this._register(autorun(reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			session?.modelId.read(reader);
 			this._updateTrigger();
 		}));
@@ -186,7 +187,7 @@ class MobileChatInputConfigPicker extends Disposable {
 	}
 
 	private _getContext(): IMobileConfigContext | undefined {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return undefined;
 		}
@@ -430,7 +431,8 @@ class MobileChatInputConfigPickerContribution extends Disposable implements IWor
 			Menus.NewSessionConfig,
 			MOBILE_CHAT_INPUT_CONFIG_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
-				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker);
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				const picker = scopedInstantiationService.createInstance(MobileChatInputConfigPicker, session);
 				return new MobileChatInputConfigPickerActionViewItem(picker);
 			},
 		));

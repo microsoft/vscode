@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, type VSBufferReadableStream } from '../../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -17,7 +18,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService, type IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
@@ -27,7 +28,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { COPILOT_CLI_LOCAL_AH_SCHEME, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
+import { buildLocalCopilotLogsUri, buildRemoteCopilotLogsUri, COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme, resolveEventsUri } from '../copilotCliEventsUri.js';
 
 /** Output channel ID for the agent host process logger (forwarded via RemoteLoggerChannelClient). */
 const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
@@ -35,6 +36,9 @@ const AGENT_HOST_LOGGER_CHANNEL_ID = 'agenthost';
 const WINDOW_LOG_CHANNEL_ID = 'rendererLog';
 /** Output channel ID for the shared process compound log. */
 const SHARED_PROCESS_LOG_CHANNEL_ID = 'shared';
+/** Bound the best-effort scan of Copilot SDK process logs. */
+const MAX_COPILOT_LOG_SCAN_FILES = 20;
+const MAX_COPILOT_LOG_FILE_SIZE = 10 * 1024 * 1024;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -200,6 +204,19 @@ export async function collectAgentHostDebugLogs(
 		}
 	}
 
+	// 5. Copilot SDK process logs under ~/.copilot/logs do not include the
+	// session id in the filename, but relevant entries include it in the content.
+	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
+	if (rawSessionId) {
+		const copilotLogsDir = activeSession?.isLocal
+			? buildLocalCopilotLogsUri(userHome)
+			: remoteConnection ? buildRemoteCopilotLogsUri(remoteConnection) : undefined;
+		if (copilotLogsDir) {
+			const copilotLogFiles = await readCopilotLogsForSession(copilotLogsDir, rawSessionId, fileService, logService);
+			files.push(...copilotLogFiles);
+		}
+	}
+
 	if (files.length === 0) {
 		notificationService.notify({
 			severity: Severity.Warning,
@@ -214,6 +231,101 @@ export async function collectAgentHostDebugLogs(
 		? `-${activeSession.title.replace(/[/\\:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40)}`
 		: '';
 	return { files, exportName: `ah-logs${titleSlug}` };
+}
+
+async function readCopilotLogsForSession(
+	logsDir: URI,
+	rawSessionId: string,
+	fileService: IFileService,
+	logService: ILogService,
+): Promise<{ path: string; contents: string }[]> {
+	let children: IFileStatWithMetadata[] | undefined;
+	try {
+		children = (await fileService.resolve(logsDir, { resolveMetadata: true })).children;
+	} catch {
+		return [];
+	}
+
+	const files: { path: string; contents: string }[] = [];
+	const candidateLogs = (children ?? [])
+		.filter(child => !child.isDirectory && child.name.endsWith('.log') && child.size <= MAX_COPILOT_LOG_FILE_SIZE)
+		.sort((a, b) => b.mtime - a.mtime)
+		.slice(0, MAX_COPILOT_LOG_SCAN_FILES);
+	for (const child of candidateLogs) {
+		try {
+			if (await logStreamContains(child.resource, rawSessionId, fileService)) {
+				const content = await fileService.readFile(child.resource, { limits: { size: MAX_COPILOT_LOG_FILE_SIZE } });
+				const contents = content.value.toString();
+				files.push({ path: `copilot-logs/${child.name}`, contents });
+			}
+		} catch (error) {
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to read Copilot log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	return files;
+}
+
+async function logStreamContains(
+	resource: URI,
+	rawSessionId: string,
+	fileService: IFileService,
+): Promise<boolean> {
+	const tokenSource = new CancellationTokenSource();
+	let stream: VSBufferReadableStream;
+	try {
+		stream = (await fileService.readFileStream(resource, {
+			length: MAX_COPILOT_LOG_FILE_SIZE,
+			limits: { size: MAX_COPILOT_LOG_FILE_SIZE },
+		}, tokenSource.token)).value;
+	} catch (error) {
+		tokenSource.dispose(true);
+		throw error;
+	}
+	return new Promise<boolean>((resolve, reject) => {
+		let settled = false;
+		let previous = '';
+
+		const cleanup = (removeErrorListener: boolean) => {
+			stream.removeListener('data', onData);
+			stream.removeListener('end', onEnd);
+			if (removeErrorListener) {
+				stream.removeListener('error', onError);
+			}
+		};
+		const settle = (contains: boolean) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			tokenSource.dispose(contains);
+			cleanup(!contains);
+			resolve(contains);
+		};
+		const onData = (chunk: VSBuffer) => {
+			const text = previous + chunk.toString();
+			if (text.includes(rawSessionId)) {
+				settle(true);
+				return;
+			}
+			previous = text.slice(Math.max(0, text.length - rawSessionId.length + 1));
+		};
+		const onError = (error: Error) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			tokenSource.dispose();
+			cleanup(true);
+			reject(error);
+		};
+		const onEnd = () => {
+			settle(false);
+		};
+
+		stream.on('error', onError);
+		stream.on('end', onEnd);
+		stream.on('data', onData);
+	});
 }
 
 export async function exportAgentHostDebugLogs(

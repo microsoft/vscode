@@ -8,7 +8,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { buildCompareTurnsChangesetUri, buildTurnChangesetUri, BASELINE_TURN_ID } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { ChangesetStatus, ChangesetSummary, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetStatus, Changeset, StateComponents, type ChangesetState, type Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISessionChangeset, ISessionFileChange, sessionFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { changesetFilesToChanges } from './agentHostDiffs.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
@@ -17,7 +17,7 @@ export function createChangesets(
 	sessionUri: URI,
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
-	changesets: readonly ChangesetSummary[] | undefined
+	changesets: readonly Changeset[] | undefined
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -139,7 +139,7 @@ export class AgentHostCatalogChangeset extends AbstractAgentHostChangeset {
 	constructor(
 		options: IAgentHostAdapterOptions,
 		isActiveSessionObs: IObservable<boolean>,
-		changesetSummary: ChangesetSummary & { isDefault: boolean },
+		changesetSummary: Changeset & { isDefault: boolean },
 	) {
 		super(options);
 
@@ -157,7 +157,7 @@ export class AgentHostCatalogChangeset extends AbstractAgentHostChangeset {
 		this.isDefault = constObservable(changesetSummary.isDefault);
 	}
 
-	update(changesetSummary: ChangesetSummary): void {
+	update(changesetSummary: Changeset): void {
 		this._label = changesetSummary.label;
 		this._description = changesetSummary.description;
 	}

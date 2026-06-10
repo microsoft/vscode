@@ -36,6 +36,11 @@ describe('deriveCopilotCliOTelEnv', () => {
 		expect(result).toEqual({});
 	});
 
+	it('returns empty in db-only mode (enabled but not enabledExplicitly)', () => {
+		const result = deriveCopilotCliOTelEnv(makeConfig({ enabledExplicitly: false, enabledVia: 'dbSpanExporterOnly', dbSpanExporter: true }), emptyEnv);
+		expect(result).toEqual({});
+	});
+
 	it('returns correct env vars when enabled', () => {
 		const result = deriveCopilotCliOTelEnv(makeConfig(), emptyEnv);
 		expect(result).toEqual({
@@ -79,6 +84,11 @@ describe('deriveCopilotCliOTelEnv', () => {
 describe('deriveClaudeOTelEnv', () => {
 	it('returns empty when disabled', () => {
 		const result = deriveClaudeOTelEnv(makeConfig({ enabled: false }), emptyEnv);
+		expect(result).toEqual({});
+	});
+
+	it('returns empty in db-only mode (enabled but not enabledExplicitly)', () => {
+		const result = deriveClaudeOTelEnv(makeConfig({ enabledExplicitly: false, enabledVia: 'dbSpanExporterOnly', dbSpanExporter: true }), emptyEnv);
 		expect(result).toEqual({});
 	});
 

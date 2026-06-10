@@ -305,7 +305,7 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 
 		// Reflect provider session replacement (e.g. a draft graduating into a
 		// committed session) onto the grid slot.
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._visibility.updateSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
@@ -345,6 +345,16 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 				this.setActive(session);
 			}
 		}));
+	}
+
+	private _onDidReplaceSession(from: ISession, to: ISession): void {
+		this._visibility.updateSession(from, to);
+		// call session management service to set to session as active session if from is active
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		const visibleActiveSession = this._visibility.activeSession.get();
+		if (activeSession?.sessionId === from.sessionId && to.sessionId === visibleActiveSession?.sessionId) {
+			this.sessionsManagementService.replaceActiveSession(activeSession, visibleActiveSession);
+		}
 	}
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {

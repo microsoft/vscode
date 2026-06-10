@@ -98,9 +98,9 @@
 }
 
 .chat-confirmation-widget-message h3 {
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	margin: 4px 0 8px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown p a {
@@ -108,7 +108,8 @@
 }
 
 .chat-confirmation-widget-title small {
-	font-size: 1em;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-regular);
 	opacity: 0.7;
 
 	&::before {
@@ -236,6 +237,11 @@
 	justify-content: space-between;
 	column-gap: 10px;
 
+	.chat-title {
+		font-size: var(--vscode-agents-fontSize-heading3);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
+	}
+
 	.rendered-markdown {
 		line-height: 24px !important;
 
@@ -301,7 +307,7 @@
 		flex: 1;
 		min-width: 0;
 		color: var(--vscode-descriptionForeground);
-		font-size: 12px;
+		font-size: var(--vscode-agents-fontSize-label1);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -344,8 +350,8 @@
 		display: inline-flex;
 		gap: 4px;
 		margin-left: 6px;
-		font-size: 11px;
-		font-weight: 500;
+		font-size: var(--vscode-agents-fontSize-label2);
+		font-weight: var(--vscode-agents-fontWeight-semiBold);
 		flex-shrink: 0;
 	}
 
@@ -449,7 +455,7 @@
 	}
 
 	.monaco-button-dropdown > .monaco-button.monaco-dropdown-button.codicon[class*='codicon-'] {
-		font-size: 12px;
+		font-size: var(--vscode-codiconFontSize-compact);
 	}
 }
 
@@ -485,7 +491,7 @@
 		}
 
 		.codicon {
-			font-size: 12px;
+			font-size: var(--vscode-codiconFontSize-compact);
 		}
 
 		&:hover  {

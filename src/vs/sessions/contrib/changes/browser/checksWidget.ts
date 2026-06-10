@@ -398,6 +398,7 @@ export class CIStatusWidget extends Disposable {
 	private _setCollapsed(collapsed: boolean): void {
 		this._collapsed = collapsed;
 		this._updateChevron();
+		this._headerNode.classList.toggle('collapsed', collapsed);
 		this._headerNode.setAttribute('aria-expanded', String(!collapsed));
 	}
 

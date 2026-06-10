@@ -13,7 +13,6 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { AgentFeedbackService, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -42,7 +41,6 @@ suite('AgentFeedbackService - Ordering', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
@@ -299,7 +297,6 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = visibleEditorsEmitter.event;

@@ -58,7 +58,7 @@ class BrowserEditorErrorFeatures extends BrowserEditorContribution {
 		this._content = { location: BrowserWidgetLocation.ContentArea, element: this._element, order: 300 };
 
 		this._siteInfoWidget = this._register(instantiationService.createInstance(SiteInfoWidget, this._siteInfoSlot, editor));
-		this._preUrlWidget = { location: BrowserWidgetLocation.PreUrl, element: this._siteInfoSlot, order: 0 };
+		this._preUrlWidget = { location: BrowserWidgetLocation.PreUrl, element: this._siteInfoSlot, order: 10 };
 	}
 
 	override get widgets(): readonly IBrowserEditorWidget[] {

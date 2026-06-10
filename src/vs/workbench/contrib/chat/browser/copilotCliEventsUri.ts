@@ -30,6 +30,13 @@ export function buildLocalEventsUri(userHome: URI, rawSessionId: string): URI {
 }
 
 /**
+ * Builds the local `~/.copilot/logs` directory URI.
+ */
+export function buildLocalCopilotLogsUri(userHome: URI): URI {
+	return joinPath(userHome, '.copilot', 'logs');
+}
+
+/**
  * Builds a `vscode-agent-host://` URI for the `events.jsonl` file inside
  * the host's user home directory, using the connection's reported
  * `defaultDirectory` (set from `os.homedir()` on the host during the
@@ -56,6 +63,24 @@ export function buildRemoteEventsUri(connection: IRemoteAgentHostConnectionInfo,
 }
 
 /**
+ * Builds a `vscode-agent-host://` URI for the host's `~/.copilot/logs`
+ * directory, using the connection's reported home directory.
+ */
+export function buildRemoteCopilotLogsUri(connection: IRemoteAgentHostConnectionInfo): URI | undefined {
+	const homePath = connection.defaultDirectory;
+	if (!homePath) {
+		return undefined;
+	}
+	const trimmed = homePath.endsWith('/') ? homePath.slice(0, -1) : homePath;
+	const remoteFileUri = URI.from({
+		scheme: 'file',
+		path: `${trimmed}/.copilot/logs`,
+	});
+	const authority = agentHostAuthority(connection.address);
+	return toAgentHostUri(remoteFileUri, authority);
+}
+
+/**
  * Parses the connection authority out of a remote AH chat session scheme
  * of the form `remote-<authority>-copilotcli`. Returns `undefined` for
  * any other scheme, including the local `copilotcli` scheme.
@@ -66,6 +91,19 @@ export function parseRemoteAuthorityFromScheme(scheme: string): string | undefin
 	}
 	const authority = scheme.slice(REMOTE_PROVIDER_PREFIX.length, scheme.length - REMOTE_PROVIDER_SUFFIX.length);
 	return authority || undefined;
+}
+
+/**
+ * Extracts the raw Copilot CLI session id from a chat session resource.
+ */
+export function getCopilotCliSessionRawId(sessionResource: URI | undefined): string | undefined {
+	if (!sessionResource) {
+		return undefined;
+	}
+	if (sessionResource.scheme !== COPILOT_CLI_LOCAL_AH_SCHEME && sessionResource.scheme !== COPILOT_CLI_EH_SCHEME && !parseRemoteAuthorityFromScheme(sessionResource.scheme)) {
+		return undefined;
+	}
+	return getRawSessionId(sessionResource);
 }
 
 export type ResolveEventsUriResult =
@@ -88,7 +126,7 @@ export function resolveEventsUri(
 	if (!sessionResource) {
 		return { kind: 'no-session' };
 	}
-	const rawId = sessionResource.path.startsWith('/') ? sessionResource.path.substring(1) : sessionResource.path;
+	const rawId = getRawSessionId(sessionResource);
 	if (!rawId) {
 		return { kind: 'no-session' };
 	}
@@ -111,4 +149,9 @@ export function resolveEventsUri(
 	}
 
 	return { kind: 'unsupported-scheme', scheme: sessionResource.scheme };
+}
+
+function getRawSessionId(sessionResource: URI): string | undefined {
+	const rawId = sessionResource.path.startsWith('/') ? sessionResource.path.substring(1) : sessionResource.path;
+	return rawId || undefined;
 }

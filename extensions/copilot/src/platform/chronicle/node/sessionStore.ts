@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdirSync } from 'fs';
+import { mkdirSync, rmSync } from 'fs';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname } from 'path';
-import type { CheckpointRow, FileRow, ISessionStore, RefRow, SearchResult, SessionRow, TurnRow } from '../common/sessionStore';
+import type { CheckpointRow, FileRow, ISessionStore, RefRow, SearchResult, SessionRow, SessionStoreOptions, TurnRow } from '../common/sessionStore';
 
 /**
  * SQLite authorizer action codes that are safe for read-only access.
@@ -38,6 +38,26 @@ const DENIED_FUNCTIONS = new Set(['load_extension']);
 const SCHEMA_VERSION = 3;
 
 /**
+ * Substrings (matched case-insensitively) that identify a corrupt or otherwise
+ * unusable database file. These typically appear on non-POSIX network
+ * filesystems (NFS/SMB/sshfs) used by SSH-Remote workspaces, where SQLite's
+ * locking protocol is not honoured and the file can become permanently
+ * malformed.
+ */
+const CORRUPTION_ERROR_MARKERS = [
+	'malformed',
+	'file is not a database',
+	'not a database',
+	'disk image',
+	'disk i/o error',
+];
+
+function errorMessageIncludes(err: unknown, markers: readonly string[]): boolean {
+	const message = (err instanceof Error ? err.message : String(err)).toLowerCase();
+	return markers.some(marker => message.includes(marker));
+}
+
+/**
  * Session store backed by SQLite + FTS5.
  *
  * Schema is identical to the copilot-agent-runtime SessionStore so that
@@ -48,9 +68,11 @@ export class SessionStore implements ISessionStore {
 	declare readonly _serviceBrand: undefined;
 	private db: DatabaseSync | null = null;
 	private readonly dbPath: string;
+	private readonly remote: boolean;
 
-	constructor(dbPath: string) {
+	constructor(dbPath: string, options?: SessionStoreOptions) {
 		this.dbPath = dbPath;
+		this.remote = options?.remote ?? false;
 	}
 
 	/**
@@ -62,20 +84,51 @@ export class SessionStore implements ISessionStore {
 
 	/**
 	 * Lazily open (or create) the database and ensure the schema exists.
+	 *
+	 * On remote workspaces the database often lives on a network filesystem
+	 * (NFS/SMB/sshfs) that does not provide the POSIX locking guarantees WAL
+	 * mode relies on. If the file is detected to be corrupt it is deleted and
+	 * recreated once before giving up.
 	 */
 	private ensureDb(): DatabaseSync {
 		if (this.db) {
 			return this.db;
 		}
 
+		try {
+			return this.openDb();
+		} catch (err) {
+			// A corrupt on-disk database is unrecoverable in place. Delete it and
+			// the WAL/SHM sidecar files, then try once more with a fresh file.
+			if (this.dbPath !== ':memory:' && errorMessageIncludes(err, CORRUPTION_ERROR_MARKERS)) {
+				this.deleteDbFiles();
+				return this.openDb();
+			}
+			throw err;
+		}
+	}
+
+	/**
+	 * Open the database, configure pragmas and ensure the schema exists.
+	 */
+	private openDb(): DatabaseSync {
 		if (this.dbPath !== ':memory:') {
 			mkdirSync(dirname(this.dbPath), { recursive: true });
 		}
 
 		const db = new DatabaseSync(this.dbPath);
 		try {
-			db.exec('PRAGMA journal_mode = WAL');
-			db.exec('PRAGMA busy_timeout = 3000');
+			if (this.remote) {
+				// WAL requires shared-memory (-shm) plus POSIX byte-range locking,
+				// neither of which network filesystems reliably provide. A rollback
+				// journal with a longer busy timeout is far more robust there.
+				db.exec('PRAGMA journal_mode = DELETE');
+				db.exec('PRAGMA busy_timeout = 10000');
+				db.exec('PRAGMA synchronous = NORMAL');
+			} else {
+				db.exec('PRAGMA journal_mode = WAL');
+				db.exec('PRAGMA busy_timeout = 3000');
+			}
 			db.exec('PRAGMA foreign_keys = ON');
 			this.db = db;
 			this.ensureSchema();
@@ -85,6 +138,15 @@ export class SessionStore implements ISessionStore {
 			throw err;
 		}
 		return this.db;
+	}
+
+	/**
+	 * Best-effort deletion of the database file and its WAL/SHM sidecar files.
+	 */
+	private deleteDbFiles(): void {
+		for (const suffix of ['', '-wal', '-shm', '-journal']) {
+			rmSync(this.dbPath + suffix, { force: true });
+		}
 	}
 
 	/**
@@ -537,6 +599,10 @@ export class SessionStore implements ISessionStore {
 	 * Run a function inside a SQLite transaction (BEGIN/COMMIT/ROLLBACK).
 	 * All writes are batched into a single atomic commit, which is significantly
 	 * faster than auto-committing each individual INSERT.
+	 *
+	 * Transient lock contention is handled by SQLite's `busy_timeout` pragma; a
+	 * failed transaction propagates to the caller, which re-queues the writes for
+	 * the next flush rather than blocking here.
 	 */
 	runInTransaction(fn: () => void): void {
 		const db = this.ensureDb();
@@ -545,8 +611,20 @@ export class SessionStore implements ISessionStore {
 			fn();
 			db.exec('COMMIT');
 		} catch (err) {
-			db.exec('ROLLBACK');
+			this.rollbackQuietly(db);
 			throw err;
+		}
+	}
+
+	/**
+	 * Roll back the active transaction, swallowing the "no transaction is active"
+	 * error that occurs when the failure happened before BEGIN took effect.
+	 */
+	private rollbackQuietly(db: DatabaseSync): void {
+		try {
+			db.exec('ROLLBACK');
+		} catch {
+			// No active transaction to roll back — safe to ignore.
 		}
 	}
 

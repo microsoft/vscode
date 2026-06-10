@@ -145,7 +145,8 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
-		"product.overrides.json"
+		"product.overrides.json",
+		"**/node_modules/**",
 	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,

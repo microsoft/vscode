@@ -93,7 +93,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	insta.set(ISessionsManagementService, sessionsManagementService);
 	insta.set(ISessionsProvidersService, sessionsProvidersService);
 
-	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate));
+	const delegate = store.add(insta.createInstance(AgentHostPermissionPickerDelegate, activeSessionObs));
 	return { delegate, provider, activeSessionObs };
 }
 

@@ -349,6 +349,21 @@ jobs:
       - name: Compile extensions for smoke tests
         run: npm run gulp compile-extension-media
 
+      # Remove the musl-libc Claude Code native binary so the bundled
+      # @anthropic-ai/claude-agent-sdk in extensions/copilot falls through to the
+      # glibc variant (or its bundled ./cli.js fallback). The musl binary is
+      # pulled in by the root devDependency @anthropic-ai/claude-agent-sdk@0.2.x,
+      # whose package metadata declares both "linux-x64" and "linux-x64-musl" as
+      # optionalDependencies with `os: ["linux"]` and no libc filter, so npm
+      # installs both variants on any Linux. The SDK probes the musl variant
+      # first; spawning a musl-linked ELF on the glibc-based GitHub Actions
+      # runner returns ENOENT (missing ELF interpreter), which causes Claude
+      # session smoke tests to time out. See
+      # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
+      # resolution order.
+      - name: Remove musl Claude binary on glibc Linux
+        run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
+
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
         run: |
           set -e

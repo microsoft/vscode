@@ -3636,6 +3636,48 @@ suite('PromptsService', () => {
 			assert.strictEqual(anotherSkillCommand.storage, PromptsStorage.local);
 		});
 
+		test('should deduplicate skills with the same name from symlinked locations', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'slash-commands-symlinked-skills';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// `npx skills` installs to `~/.agents/skills` and symlinks
+			// `~/.claude/skills` to it, so the same skill is discovered under two
+			// default user locations. They must collapse to a single slash command.
+			await mockFiles(fileService, [
+				{
+					path: '/home/user/.agents/skills/deploy/SKILL.md',
+					contents: [
+						'---',
+						'name: "deploy"',
+						'description: "Deploy skill"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+				{
+					path: '/home/user/.claude/skills/deploy/SKILL.md',
+					contents: [
+						'---',
+						'name: "deploy"',
+						'description: "Deploy skill"',
+						'---',
+						'Deploy skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const deployCommands = slashCommands.filter(cmd => cmd.name === 'deploy');
+			assert.strictEqual(deployCommands.length, 1, 'Duplicated skill should appear only once as a slash command');
+		});
+
 		test('should include skills from user storage as slash commands', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});

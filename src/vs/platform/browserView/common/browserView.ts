@@ -180,7 +180,7 @@ export interface IBrowserViewCreatedEvent {
 
 export interface IBrowserViewCreateOptions {
 	readonly owner: IBrowserViewOwner;
-	readonly scope: BrowserViewStorageScope;
+	readonly sessionOptions: IBrowserSessionOptions;
 	readonly initialState?: Partial<IBrowserViewState>;
 }
 
@@ -207,6 +207,7 @@ export interface IBrowserViewState {
 	storageKeys: IBrowserViewStorageKeys;
 	browserZoomIndex: number;
 	isElementSelectionActive: boolean;
+	isRemoteSession: boolean;
 	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 }
@@ -291,6 +292,13 @@ export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
 	Ephemeral = 'ephemeral'
+}
+
+export interface IBrowserSessionOptions {
+	/** Storage / data-isolation scope for the session. */
+	scope: BrowserViewStorageScope;
+	/** ID of the shared-process tunnel proxy this session should use for network requests. */
+	proxyId?: string;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';

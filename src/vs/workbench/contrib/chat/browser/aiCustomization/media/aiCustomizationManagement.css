@@ -45,7 +45,7 @@
 	color: var(--vscode-foreground);
 	cursor: pointer;
 	font-size: 12px;
-	font-weight: 600;
+	font-weight: 400;
 	line-height: 18px;
 	font-family: inherit;
 	transition: background-color 0.1s ease;

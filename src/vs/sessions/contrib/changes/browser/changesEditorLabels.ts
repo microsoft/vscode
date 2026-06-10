@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 
@@ -12,9 +11,22 @@ export interface IChangesEditorLabels {
 	readonly description: string;
 }
 
-export function getChangesEditorLabels(uri: URI, labelService: Pick<ILabelService, 'getUriBasenameLabel' | 'getUriLabel'>): IChangesEditorLabels {
+function getChangesEditorDescription(uri: URI, label: string, labelService: Pick<ILabelService, 'getUriLabel' | 'getSeparator'>): string {
+	const fullLabel = labelService.getUriLabel(uri, { relative: true });
+	const separator = labelService.getSeparator(uri.scheme, uri.authority);
+	const lastSeparatorIndex = fullLabel.lastIndexOf(separator);
+
+	if (lastSeparatorIndex < 0) {
+		return fullLabel === label ? '' : fullLabel;
+	}
+
+	return fullLabel.slice(0, lastSeparatorIndex);
+}
+
+export function getChangesEditorLabels(uri: URI, labelService: Pick<ILabelService, 'getUriBasenameLabel' | 'getUriLabel' | 'getSeparator'>): IChangesEditorLabels {
+	const label = labelService.getUriBasenameLabel(uri);
 	return {
-		label: labelService.getUriBasenameLabel(uri),
-		description: labelService.getUriLabel(dirname(uri), { relative: true }),
+		label,
+		description: getChangesEditorDescription(uri, label, labelService),
 	};
 }

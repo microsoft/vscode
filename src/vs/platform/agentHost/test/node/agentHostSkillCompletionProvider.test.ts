@@ -136,6 +136,54 @@ suite('AgentHostSkillCompletionProvider', () => {
 		]);
 	});
 
+	test('filters skills by an in-message slash prefix and replaces only that token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
+		const provider = createProvider(agent);
+		const text = 'use /b extra';
+
+		const result = await run(provider, text, text.indexOf('/b') + '/b'.length);
+
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/beta ', rangeStart: 4, rangeEnd: 6 },
+		]);
+	});
+
+	test('returns skills for a slash token after whitespace', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha'), skill('beta')])];
+		const provider = createProvider(agent);
+		const text = 'use /';
+
+		const result = await run(provider, text);
+
+		assert.deepStrictEqual(result.map(item => ({ insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd })), [
+			{ insertText: '/alpha ', rangeStart: 4, rangeEnd: 5 },
+			{ insertText: '/beta ', rangeStart: 4, rangeEnd: 5 },
+		]);
+	});
+
+	test('does not complete slash tokens embedded in non-whitespace text', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('alpha')])];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, 'foo/bar', 'foo/bar'.length);
+
+		assert.deepStrictEqual(result, []);
+	});
+
+	test('returns an empty list when the cursor is past an in-message slash token', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];
+		const provider = createProvider(agent);
+		const text = 'use /cached-skill trailing';
+
+		const result = await run(provider, text, text.indexOf('trailing'));
+
+		assert.deepStrictEqual(result, []);
+	});
+
 	test('returns an empty list when the cursor is past the leading slash token', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [plugin('skills', [skill('cached-skill')])];

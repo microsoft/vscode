@@ -8,6 +8,7 @@ import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid
 import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
 import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
@@ -18,6 +19,20 @@ import { IChat } from '../../services/sessions/common/session.js';
  * requiring core code (`sessions/browser/`) to import them from contrib.
  */
 export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
+
+/**
+ * Options passed to a chat view when it is created.
+ */
+export interface IChatViewOptions {
+
+	/**
+	 * Whether to render the session type ("harness") picker below the input
+	 * (in the controls) instead of next to the workspace picker. The view
+	 * reads the value once when it is created and does not react to later
+	 * changes, so the placement stays stable for the view's lifetime.
+	 */
+	readonly renderSessionTypePickerInControls: IObservable<boolean>;
+}
 
 /**
  * Base class for a view that lives inside the {@link SessionsPart} internal grid.

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// @ts-check
-
 /**
  * Local mock server that implements the OpenAI Chat Completions streaming API.
  * Used by the chat perf benchmark to replace the real LLM backend with
@@ -13,25 +11,27 @@
  * Supports scenario-based responses: the `messages` array's last user message
  * content is matched against scenario IDs. Unknown scenarios get a default
  * text-only response.
+ *
+ * Note: this file is loaded as CommonJS (scripts/package.json declares
+ * `"type": "commonjs"`), so it uses `require()` / `module.exports` rather
+ * than ESM `import` / `export` syntax. TypeScript types are stripped by
+ * Node 24's native type-stripping; no compile step is required.
  */
 
-const http = require('http');
-const path = require('path');
-const { EventEmitter } = require('events');
+const http: typeof import('http') = require('http');
+const path: typeof import('path') = require('path');
+const { EventEmitter }: typeof import('events') = require('events');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
 
-/** @type {(msg: string) => void} */
-let _log = console.log;
+let _log: (msg: string) => void = console.log;
 let _verbose = false;
 
 /**
  * Pretty-print a payload for verbose logs, truncating long strings.
- * @param {unknown} obj
- * @param {number} [maxLen]
  */
-function _formatVerbose(obj, maxLen = 8000) {
-	let text;
+function _formatVerbose(obj: unknown, maxLen = 8000): string {
+	let text: string;
 	try {
 		text = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
 	} catch {
@@ -45,69 +45,77 @@ function _formatVerbose(obj, maxLen = 8000) {
 
 /**
  * Indent each line with the verbose prefix.
- * @param {string} text
  */
-function _indentVerbose(text) {
+function _indentVerbose(text: string): string {
 	return text.split('\n').map(l => `[mock-llm]     ${l}`).join('\n');
 }
 
 // -- Scenario fixtures -------------------------------------------------------
 
-/**
- * @typedef {{ content: string, delayMs: number }} StreamChunk
- */
+interface StreamChunk {
+	content: string;
+	delayMs: number;
+}
 
 /**
  * A single turn in a multi-turn scenario.
- *
- * @typedef {{
- *   kind: 'tool-calls',
- *   toolCalls: Array<{ toolNamePattern: RegExp, arguments: Record<string, any> }>,
- * } | {
- *   kind: 'content',
- *   chunks: StreamChunk[],
- * } | {
- *   kind: 'thinking',
- *   thinkingChunks: StreamChunk[],
- *   chunks: StreamChunk[],
- * } | {
- *   kind: 'echo-last-message',
- * } | {
- *   kind: 'user',
- *   message: string,
- * }} ScenarioTurn
  */
+type ScenarioTurn =
+	| {
+		kind: 'tool-calls';
+		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+	}
+	| {
+		kind: 'content';
+		chunks: StreamChunk[];
+	}
+	| {
+		kind: 'thinking';
+		thinkingChunks: StreamChunk[];
+		chunks: StreamChunk[];
+	}
+	| {
+		kind: 'echo-last-message';
+	}
+	| {
+		kind: 'user';
+		message: string;
+	};
 
 /**
  * A scenario turn produced by the model.
- *
- * @typedef {{
- *   kind: 'tool-calls',
- *   toolCalls: Array<{ toolNamePattern: RegExp, arguments: Record<string, any> }>,
- * } | {
- *   kind: 'content',
- *   chunks: StreamChunk[],
- * } | {
- *   kind: 'thinking',
- *   thinkingChunks: StreamChunk[],
- *   chunks: StreamChunk[],
- * } | {
- *   kind: 'echo-last-message',
- * }} ModelScenarioTurn
  */
+type ModelScenarioTurn =
+	| {
+		kind: 'tool-calls';
+		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+	}
+	| {
+		kind: 'content';
+		chunks: StreamChunk[];
+	}
+	| {
+		kind: 'thinking';
+		thinkingChunks: StreamChunk[];
+		chunks: StreamChunk[];
+	}
+	| {
+		kind: 'echo-last-message';
+	};
 
 /**
  * A model turn that emits content chunks.
- *
- * @typedef {{
- *   kind: 'content',
- *   chunks: StreamChunk[],
- * } | {
- *   kind: 'thinking',
- *   thinkingChunks: StreamChunk[],
- *   chunks: StreamChunk[],
- * }} ContentScenarioTurn
  */
+type ContentScenarioTurn =
+	| {
+		kind: 'content';
+		chunks: StreamChunk[];
+	}
+	| {
+		kind: 'thinking';
+		thinkingChunks: StreamChunk[];
+		chunks: StreamChunk[];
+	};
 
 /**
  * A multi-turn scenario — an ordered sequence of turns.
@@ -115,58 +123,44 @@ function _indentVerbose(text) {
  * of assistant→tool round-trips already present in the conversation.
  * User turns are skipped by the server and instead injected by the test
  * harness, which types them into the chat input and presses Enter.
- *
- * @typedef {{
- *   type: 'multi-turn',
- *   turns: ScenarioTurn[],
- * }} MultiTurnScenario
  */
+interface MultiTurnScenario {
+	type: 'multi-turn';
+	turns: ScenarioTurn[];
+}
 
-/**
- * @param {any} scenario
- * @returns {scenario is MultiTurnScenario}
- */
-function isMultiTurnScenario(scenario) {
+function isMultiTurnScenario(scenario: any): scenario is MultiTurnScenario {
 	return scenario && typeof scenario === 'object' && scenario.type === 'multi-turn';
 }
 
 /**
  * Helper for building scenario chunk sequences with timing control.
  */
-class ScenarioBuilder {
-	constructor() {
-		/** @type {StreamChunk[]} */
-		this.chunks = [];
-	}
+class ScenarioBuilderImpl {
+	chunks: StreamChunk[] = [];
 
 	/**
 	 * Emit a content chunk immediately (no delay before it).
-	 * @param {string} content
-	 * @returns {this}
 	 */
-	emit(content) {
+	emit(content: string): this {
 		this.chunks.push({ content, delayMs: 0 });
 		return this;
 	}
 
 	/**
 	 * Wait, then emit a content chunk — simulates network/token generation latency.
-	 * @param {number} ms - delay in milliseconds before this chunk
-	 * @param {string} content
-	 * @returns {this}
+	 * @param ms - delay in milliseconds before this chunk
 	 */
-	wait(ms, content) {
+	wait(ms: number, content: string): this {
 		this.chunks.push({ content, delayMs: ms });
 		return this;
 	}
 
 	/**
 	 * Emit multiple chunks with uniform inter-chunk delay.
-	 * @param {string[]} contents
-	 * @param {number} [delayMs=15] - delay between each chunk (default ~1 frame)
-	 * @returns {this}
+	 * @param delayMs - delay between each chunk (default ~1 frame)
 	 */
-	stream(contents, delayMs = 15) {
+	stream(contents: string[], delayMs = 15): this {
 		for (const content of contents) {
 			this.chunks.push({ content, delayMs });
 		}
@@ -175,28 +169,21 @@ class ScenarioBuilder {
 
 	/**
 	 * Emit multiple chunks with no delay (burst).
-	 * @param {string[]} contents
-	 * @returns {this}
 	 */
-	burst(contents) {
+	burst(contents: string[]): this {
 		return this.stream(contents, 0);
 	}
 
-	/** @returns {StreamChunk[]} */
-	build() {
+	build(): StreamChunk[] {
 		return this.chunks;
 	}
 }
 
-/** @type {Record<string, StreamChunk[] | MultiTurnScenario>} */
-const SCENARIOS = /** @type {Record<string, StreamChunk[] | MultiTurnScenario>} */ ({});
+const SCENARIOS: Record<string, StreamChunk[] | MultiTurnScenario> = {};
 
 const DEFAULT_SCENARIO = 'text-only';
 
-/**
- * @returns {StreamChunk[]}
- */
-function getDefaultScenarioChunks() {
+function getDefaultScenarioChunks(): StreamChunk[] {
 	const scenario = SCENARIOS[DEFAULT_SCENARIO];
 	if (isMultiTurnScenario(scenario)) {
 		throw new Error(`Default scenario '${DEFAULT_SCENARIO}' must be content-only`);
@@ -270,7 +257,7 @@ const EXTRA_MODELS = [
  * Complete model list used by both GET /models and GET /models/{id}.
  * Kept in a single array so the two handlers always return consistent data.
  */
-const ALL_MODELS = [
+const ALL_MODELS: any[] = [
 	{
 		id: MODEL,
 		name: 'GPT-4o (Mock)',
@@ -325,12 +312,7 @@ const ALL_MODELS = [
 	...EXTRA_MODELS,
 ];
 
-/**
- * @param {string} content
- * @param {number} index
- * @param {boolean} finish
- */
-function makeChunk(content, index, finish) {
+function makeChunk(content: string, index: number, finish: boolean) {
 	return {
 		id: 'chatcmpl-perf-benchmark',
 		object: 'chat.completion.chunk',
@@ -383,11 +365,11 @@ function makeToolCallInitialChunk() {
 
 /**
  * Build a tool-call function-start chunk.
- * @param {number} index - tool call index
- * @param {string} callId - unique call ID
- * @param {string} functionName - tool function name
+ * @param index - tool call index
+ * @param callId - unique call ID
+ * @param functionName - tool function name
  */
-function makeToolCallStartChunk(index, callId, functionName) {
+function makeToolCallStartChunk(index: number, callId: string, functionName: string) {
 	return {
 		id: 'chatcmpl-perf-benchmark',
 		object: 'chat.completion.chunk',
@@ -412,10 +394,10 @@ function makeToolCallStartChunk(index, callId, functionName) {
 
 /**
  * Build a tool-call arguments chunk.
- * @param {number} index - tool call index
- * @param {string} argsFragment - partial JSON arguments
+ * @param index - tool call index
+ * @param argsFragment - partial JSON arguments
  */
-function makeToolCallArgsChunk(index, argsFragment) {
+function makeToolCallArgsChunk(index: number, argsFragment: string) {
 	return {
 		id: 'chatcmpl-perf-benchmark',
 		object: 'chat.completion.chunk',
@@ -458,9 +440,9 @@ function makeToolCallFinishChunk() {
 /**
  * Build a thinking (chain-of-thought summary) chunk.
  * Uses the `cot_summary` field in the delta, matching the Copilot API wire format.
- * @param {string} text - thinking text fragment
+ * @param text - thinking text fragment
  */
-function makeThinkingChunk(text) {
+function makeThinkingChunk(text: string) {
 	return {
 		id: 'chatcmpl-perf-benchmark',
 		object: 'chat.completion.chunk',
@@ -478,9 +460,9 @@ function makeThinkingChunk(text) {
 
 /**
  * Build a thinking ID chunk (sent after thinking text to close the block).
- * @param {string} cotId - unique chain-of-thought ID
+ * @param cotId - unique chain-of-thought ID
  */
-function makeThinkingIdChunk(cotId) {
+function makeThinkingIdChunk(cotId: string) {
 	return {
 		id: 'chatcmpl-perf-benchmark',
 		object: 'chat.completion.chunk',
@@ -498,11 +480,7 @@ function makeThinkingIdChunk(cotId) {
 
 // -- Request handler ---------------------------------------------------------
 
-/**
- * @param {http.IncomingMessage} req
- * @param {http.ServerResponse} res
- */
-function handleRequest(req, res) {
+function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse): void {
 	const contentLength = req.headers['content-length'] || '0';
 	const ts = new Date().toISOString().slice(11, -1); // HH:MM:SS.mmm
 	_log(`[mock-llm] ${ts} ${req.method} ${req.url} (${contentLength} bytes)`);
@@ -513,13 +491,13 @@ function handleRequest(req, res) {
 	res.setHeader('Access-Control-Allow-Headers', '*');
 	if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-	const url = new URL(req.url || '/', `http://${req.headers.host}`);
-	const path = url.pathname;
-	const json = (/** @type {number} */ status, /** @type {any} */ data) => {
+	const reqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+	const path = reqUrl.pathname;
+	const json = (status: number, data: any) => {
 		res.writeHead(status, { 'Content-Type': 'application/json' });
 		res.end(JSON.stringify(data));
 	};
-	const readBody = () => new Promise(resolve => {
+	const readBody = (): Promise<string> => new Promise(resolve => {
 		let body = '';
 		req.on('data', chunk => { body += chunk; });
 		req.on('end', () => resolve(body));
@@ -651,7 +629,7 @@ function handleRequest(req, res) {
 
 	// -- Chat Completions (DomainService.capiChatURL = /chat/completions) --
 	if (path === '/chat/completions' && req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => handleChatCompletions(body, res));
+		readBody().then((body: string) => handleChatCompletions(body, res));
 		return;
 	}
 
@@ -660,7 +638,7 @@ function handleRequest(req, res) {
 	// The SDK expects events like response.created, response.output_item.added,
 	// response.output_text.delta, response.output_item.done, response.completed.
 	if (path === '/responses' && req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => handleResponsesApi(body, res));
+		readBody().then((body: string) => handleResponsesApi(body, res));
 		return;
 	}
 
@@ -669,13 +647,13 @@ function handleRequest(req, res) {
 	// a different SSE dialect than OpenAI Chat Completions, so dispatch to a
 	// dedicated handler that emits `message_start` / `content_block_*` events.
 	if (path === '/v1/messages' && req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => handleMessagesApi(body, res));
+		readBody().then((body: string) => handleMessagesApi(body, res));
 		return;
 	}
 
 	// -- Proxy completions (/v1/engines/*/completions) ----------------
 	if (path.includes('/v1/engines/') && req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => handleChatCompletions(body, res));
+		readBody().then((body: string) => handleChatCompletions(body, res));
 		return;
 	}
 
@@ -687,11 +665,11 @@ function handleRequest(req, res) {
 
 	// -- Catch-all: any remaining POST with messages → chat completions
 	if (req.method === 'POST') {
-		readBody().then((/** @type {string} */ body) => {
+		readBody().then((body: string) => {
 			try {
-				const parsed = JSON.parse(/** @type {string} */(body));
+				const parsed = JSON.parse(body);
 				if (parsed.messages && Array.isArray(parsed.messages)) {
-					handleChatCompletions(/** @type {string} */(body), res);
+					handleChatCompletions(body, res);
 					return;
 				}
 			} catch { }
@@ -709,19 +687,15 @@ function handleRequest(req, res) {
 /** Emitted when a scenario chat completion is fully served. */
 const serverEvents = new EventEmitter();
 
-/** @param {number} ms */
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Count the number of model turns already completed for the CURRENT scenario.
  * Only counts assistant messages that appear after the last user message
  * containing a [scenario:X] tag. This prevents assistant messages from
  * previous scenarios (in the same chat session) from inflating the count.
- *
- * @param {any[]} messages
- * @returns {number}
  */
-function countCompletedModelTurns(messages) {
+function countCompletedModelTurns(messages: any[]): number {
 	// Find the index of the last user message with a scenario tag
 	let scenarioMsgIdx = -1;
 	for (let i = messages.length - 1; i >= 0; i--) {
@@ -730,7 +704,7 @@ function countCompletedModelTurns(messages) {
 		const content = typeof msg.content === 'string'
 			? msg.content
 			: Array.isArray(msg.content)
-				? msg.content.map((/** @type {any} */ c) => c.text || '').join('')
+				? msg.content.map((c: any) => c.text || '').join('')
 				: '';
 		if (/\[scenario:[^\]]+\]/.test(content)) {
 			scenarioMsgIdx = i;
@@ -757,24 +731,16 @@ function countCompletedModelTurns(messages) {
  * The algorithm counts completed assistant messages in the conversation
  * history (each one = one served model turn), then maps that to the
  * n-th model turn in the scenario (skipping user turns).
- *
- * @param {ScenarioTurn[]} turns
- * @param {any[]} messages
- * @returns {{ turn: ModelScenarioTurn, turnIndex: number }}
  */
-function resolveCurrentTurn(turns, messages) {
+function resolveCurrentTurn(turns: ScenarioTurn[], messages: any[]): { turn: ModelScenarioTurn; turnIndex: number } {
 	const completedModelTurns = countCompletedModelTurns(messages);
 	// Build the model-only turn list (skip user turns)
-	const modelTurns = /** @type {ModelScenarioTurn[]} */ (turns.filter(t => t.kind !== 'user'));
+	const modelTurns = turns.filter(t => t.kind !== 'user') as ModelScenarioTurn[];
 	const idx = Math.min(completedModelTurns, modelTurns.length - 1);
 	return { turn: modelTurns[idx], turnIndex: idx };
 }
 
-/**
- * @param {string} body
- * @param {http.ServerResponse} res
- */
-async function handleChatCompletions(body, res) {
+async function handleChatCompletions(body: string, res: import('http').ServerResponse): Promise<void> {
 	if (_verbose) {
 		_log(`[mock-llm]   chat/completions request body:`);
 		try {
@@ -785,15 +751,13 @@ async function handleChatCompletions(body, res) {
 	}
 	let scenarioId = DEFAULT_SCENARIO;
 	let isScenarioRequest = false;
-	/** @type {string[]} */
-	let requestToolNames = [];
-	/** @type {any[]} */
-	let messages = [];
+	let requestToolNames: string[] = [];
+	let messages: any[] = [];
 	try {
 		const parsed = JSON.parse(body);
 		messages = parsed.messages || [];
 		// Log user messages for debugging
-		const userMsgs = messages.filter((/** @type {any} */ m) => m.role === 'user');
+		const userMsgs = messages.filter((m: any) => m.role === 'user');
 		if (userMsgs.length > 0) {
 			const lastContent = typeof userMsgs[userMsgs.length - 1].content === 'string'
 				? userMsgs[userMsgs.length - 1].content.substring(0, 100)
@@ -803,7 +767,7 @@ async function handleChatCompletions(body, res) {
 		}
 		// Extract available tool names from the request's tools array
 		const tools = parsed.tools || [];
-		requestToolNames = tools.map((/** @type {any} */ t) => t.function?.name).filter(Boolean);
+		requestToolNames = tools.map((t: any) => t.function?.name).filter(Boolean);
 		if (requestToolNames.length > 0) {
 			const ts = new Date().toISOString().slice(11, -1);
 			_log(`[mock-llm]   ${ts} → ${requestToolNames.length} tools available: ${requestToolNames.join(', ')}`);
@@ -821,7 +785,7 @@ async function handleChatCompletions(body, res) {
 			const content = typeof msg.content === 'string'
 				? msg.content
 				: Array.isArray(msg.content)
-					? msg.content.map((/** @type {any} */ c) => c.text || '').join('')
+					? msg.content.map((c: any) => c.text || '').join('')
 					: '';
 			const match = content.match(/\[scenario:([^\]]+)\]/);
 			if (match && SCENARIOS[match[1]]) {
@@ -877,7 +841,7 @@ async function handleChatCompletions(body, res) {
 	// ancillary requests like title generation that don't include tools)
 	const chunks = isMultiTurnScenario(scenario)
 		? getFirstContentTurn(scenario)
-		: /** @type {StreamChunk[]} */ (scenario);
+		: scenario as StreamChunk[];
 
 	await streamContent(res, chunks, isScenarioRequest);
 }
@@ -885,12 +849,9 @@ async function handleChatCompletions(body, res) {
 /**
  * Get the chunks from the first content turn of a multi-turn scenario,
  * used as fallback text for ancillary requests (title generation etc).
- * @param {MultiTurnScenario} scenario
- * @returns {StreamChunk[]}
  */
-function getFirstContentTurn(scenario) {
-	/** @type {ContentScenarioTurn | undefined} */
-	let contentTurn;
+function getFirstContentTurn(scenario: MultiTurnScenario): StreamChunk[] {
+	let contentTurn: ContentScenarioTurn | undefined;
 	for (const turn of scenario.turns) {
 		if (turn.kind === 'content') {
 			contentTurn = turn;
@@ -906,11 +867,8 @@ function getFirstContentTurn(scenario) {
 
 /**
  * Stream content chunks as a standard SSE response.
- * @param {http.ServerResponse} res
- * @param {StreamChunk[]} chunks
- * @param {boolean} isScenarioRequest
  */
-async function streamContent(res, chunks, isScenarioRequest) {
+async function streamContent(res: import('http').ServerResponse, chunks: StreamChunk[], isScenarioRequest: boolean): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeInitialChunk())}\n\n`);
 
 	for (const chunk of chunks) {
@@ -936,11 +894,8 @@ async function streamContent(res, chunks, isScenarioRequest) {
  * `response.output_item.done`, and `response.completed` events.
  *
  * The request body uses `input` (array of items) instead of `messages`.
- *
- * @param {string} body
- * @param {http.ServerResponse} res
  */
-async function handleResponsesApi(body, res) {
+async function handleResponsesApi(body: string, res: import('http').ServerResponse): Promise<void> {
 	if (_verbose) {
 		_log(`[mock-llm]   /responses request body:`);
 		try {
@@ -952,14 +907,13 @@ async function handleResponsesApi(body, res) {
 
 	let scenarioId = DEFAULT_SCENARIO;
 	let isScenarioRequest = false;
-	/** @type {string[]} */
-	let requestToolNames = [];
+	let requestToolNames: string[] = [];
 	try {
 		const parsed = JSON.parse(body);
 		// Responses API uses `input` array and `tools` array
 		const input = parsed.input || [];
 		const tools = parsed.tools || [];
-		requestToolNames = tools.map((/** @type {any} */ t) => t.name).filter(Boolean);
+		requestToolNames = tools.map((t: any) => t.name).filter(Boolean);
 
 		// Search input items for scenario tags (input items have role + content)
 		for (let i = input.length - 1; i >= 0; i--) {
@@ -968,7 +922,7 @@ async function handleResponsesApi(body, res) {
 			const content = typeof item.content === 'string'
 				? item.content
 				: Array.isArray(item.content)
-					? item.content.map((/** @type {any} */ c) => c.text || '').join('')
+					? item.content.map((c: any) => c.text || '').join('')
 					: '';
 			const match = content.match(/\[scenario:([^\]]+)\]/);
 			if (match && SCENARIOS[match[1]]) {
@@ -1000,18 +954,15 @@ async function handleResponsesApi(body, res) {
 	// Resolve content chunks
 	const chunks = isMultiTurnScenario(scenario)
 		? getFirstContentTurn(scenario)
-		: /** @type {StreamChunk[]} */ (scenario);
+		: scenario as StreamChunk[];
 
 	await streamResponsesContent(res, chunks, isScenarioRequest);
 }
 
 /**
  * Stream content as Responses API SSE events.
- * @param {http.ServerResponse} res
- * @param {StreamChunk[]} chunks
- * @param {boolean} isScenarioRequest
  */
-async function streamResponsesContent(res, chunks, isScenarioRequest) {
+async function streamResponsesContent(res: import('http').ServerResponse, chunks: StreamChunk[], isScenarioRequest: boolean): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const outputItemId = `msg_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
@@ -1143,23 +1094,16 @@ async function streamResponsesContent(res, chunks, isScenarioRequest) {
  *
  * Each event must be written as both an `event:` line and a `data:` line per
  * the SSE spec; the Anthropic SDK's stream parser keys off the `event:` line.
- *
- * @param {http.ServerResponse} res
- * @param {string} eventType
- * @param {Record<string, any>} payload
  */
-function writeAnthropicEvent(res, eventType, payload) {
+function writeAnthropicEvent(res: import('http').ServerResponse, eventType: string, payload: Record<string, any>): void {
 	res.write(`event: ${eventType}\n`);
 	res.write(`data: ${JSON.stringify({ type: eventType, ...payload })}\n\n`);
 }
 
 /**
  * Stream a content scenario as an Anthropic Messages API SSE response.
- * @param {http.ServerResponse} res
- * @param {StreamChunk[]} chunks
- * @param {boolean} isScenarioRequest
  */
-async function streamAnthropicContent(res, chunks, isScenarioRequest) {
+async function streamAnthropicContent(res: import('http').ServerResponse, chunks: StreamChunk[], isScenarioRequest: boolean): Promise<void> {
 	const messageId = `msg_mock_${Date.now()}`;
 	const model = 'claude-sonnet-4.5';
 
@@ -1221,11 +1165,8 @@ async function streamAnthropicContent(res, chunks, isScenarioRequest) {
  * Anthropic SSE events. Multi-turn / thinking / tool-call scenarios fall
  * back to their first content turn for now — Claude Code smoke tests only
  * need a single text response.
- *
- * @param {string} body
- * @param {http.ServerResponse} res
  */
-async function handleMessagesApi(body, res) {
+async function handleMessagesApi(body: string, res: import('http').ServerResponse): Promise<void> {
 	if (_verbose) {
 		_log(`[mock-llm]   /v1/messages request body:`);
 		try {
@@ -1236,22 +1177,20 @@ async function handleMessagesApi(body, res) {
 	}
 	let scenarioId = DEFAULT_SCENARIO;
 	let isScenarioRequest = false;
-	/** @type {any[]} */
-	let messages = [];
-	/** @type {string[]} */
-	let requestToolNames = [];
+	let messages: any[] = [];
+	let requestToolNames: string[] = [];
 	try {
 		const parsed = JSON.parse(body);
 		messages = parsed.messages || [];
 		const tools = parsed.tools || [];
-		requestToolNames = tools.map((/** @type {any} */ t) => t.name).filter(Boolean);
-		const userMsgs = messages.filter((/** @type {any} */ m) => m.role === 'user');
+		requestToolNames = tools.map((t: any) => t.name).filter(Boolean);
+		const userMsgs = messages.filter((m: any) => m.role === 'user');
 		if (userMsgs.length > 0) {
 			const last = userMsgs[userMsgs.length - 1];
 			const lastContent = typeof last.content === 'string'
 				? last.content.substring(0, 100)
 				: Array.isArray(last.content)
-					? last.content.map((/** @type {any} */ c) => c.text || '').join('').substring(0, 100)
+					? last.content.map((c: any) => c.text || '').join('').substring(0, 100)
 					: '(structured)';
 			const ts = new Date().toISOString().slice(11, -1);
 			_log(`[mock-llm]   ${ts} → messages-api: ${messages.length} msgs, ${requestToolNames.length} tools, last user: "${lastContent}"`);
@@ -1263,7 +1202,7 @@ async function handleMessagesApi(body, res) {
 			const content = typeof msg.content === 'string'
 				? msg.content
 				: Array.isArray(msg.content)
-					? msg.content.map((/** @type {any} */ c) => c.text || '').join('')
+					? msg.content.map((c: any) => c.text || '').join('')
 					: '';
 			const match = content.match(/\[scenario:([^\]]+)\]/);
 			if (match && SCENARIOS[match[1]]) {
@@ -1282,7 +1221,7 @@ async function handleMessagesApi(body, res) {
 			const systemContent = typeof parsed.system === 'string'
 				? parsed.system
 				: Array.isArray(parsed.system)
-					? parsed.system.map((/** @type {any} */ c) => c.text || '').join('')
+					? parsed.system.map((c: any) => c.text || '').join('')
 					: '';
 			const match = systemContent.match(/\[scenario:([^\]]+)\]/);
 			if (match && SCENARIOS[match[1]]) {
@@ -1329,7 +1268,7 @@ async function handleMessagesApi(body, res) {
 
 	const chunks = isMultiTurnScenario(scenario)
 		? getFirstContentTurn(scenario)
-		: /** @type {StreamChunk[]} */ (scenario);
+		: scenario as StreamChunk[];
 
 	await streamAnthropicContent(res, chunks, isScenarioRequest);
 }
@@ -1339,14 +1278,14 @@ async function handleMessagesApi(body, res) {
  * Emits one `tool_use` content block per requested tool call, with the
  * arguments delivered as `input_json_delta` chunks, then finishes with
  * `stop_reason: 'tool_use'`.
- *
- * @param {http.ServerResponse} res
- * @param {Array<{ toolNamePattern: RegExp, arguments: Record<string, any> }>} toolCalls
- * @param {string[]} requestToolNames
- * @param {string} scenarioId
- * @param {boolean} isScenarioRequest
  */
-async function streamAnthropicToolCalls(res, toolCalls, requestToolNames, scenarioId, isScenarioRequest) {
+async function streamAnthropicToolCalls(
+	res: import('http').ServerResponse,
+	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	requestToolNames: string[],
+	scenarioId: string,
+	isScenarioRequest: boolean
+): Promise<void> {
 	const messageId = `msg_mock_${Date.now()}`;
 	const model = 'claude-sonnet-4.5';
 
@@ -1407,12 +1346,13 @@ async function streamAnthropicToolCalls(res, toolCalls, requestToolNames, scenar
  * Stream thinking chunks followed by content chunks as an SSE response.
  * Thinking is emitted as `cot_summary` deltas, then a `cot_id` to close the
  * thinking block, followed by standard content deltas.
- * @param {http.ServerResponse} res
- * @param {StreamChunk[]} thinkingChunks
- * @param {StreamChunk[]} contentChunks
- * @param {boolean} isScenarioRequest
  */
-async function streamThinkingThenContent(res, thinkingChunks, contentChunks, isScenarioRequest) {
+async function streamThinkingThenContent(
+	res: import('http').ServerResponse,
+	thinkingChunks: StreamChunk[],
+	contentChunks: StreamChunk[],
+	isScenarioRequest: boolean
+): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeInitialChunk())}\n\n`);
 
 	// Stream thinking text
@@ -1443,12 +1383,13 @@ async function streamThinkingThenContent(res, thinkingChunks, contentChunks, isS
 
 /**
  * Stream tool call chunks as an SSE response.
- * @param {http.ServerResponse} res
- * @param {Array<{ toolNamePattern: RegExp, arguments: Record<string, any> }>} toolCalls
- * @param {string[]} requestToolNames
- * @param {string} scenarioId
  */
-async function streamToolCalls(res, toolCalls, requestToolNames, scenarioId) {
+async function streamToolCalls(
+	res: import('http').ServerResponse,
+	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	requestToolNames: string[],
+	scenarioId: string
+): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeToolCallInitialChunk())}\n\n`);
 
 	for (let i = 0; i < toolCalls.length; i++) {
@@ -1480,12 +1421,29 @@ async function streamToolCalls(res, toolCalls, requestToolNames, scenarioId) {
 	res.end();
 }
 
+interface MockLlmServerHandle {
+	port: number;
+	url: string;
+	close(): Promise<void>;
+	/** Return total request count. */
+	requestCount(): number;
+	/** Wait until at least `n` requests have been received. */
+	waitForRequests(n: number, timeoutMs: number): Promise<void>;
+	/** Return total scenario-completion count. */
+	completionCount(): number;
+	/** Wait until at least `n` scenario chat completions have been served. */
+	waitForCompletion(n: number, timeoutMs: number): Promise<void>;
+}
+
+interface StartServerOptions {
+	logger?: (msg: string) => void;
+	verbose?: boolean;
+}
+
 /**
  * Start the mock server and return a handle.
- * @param {number} port
- * @param {{ logger?: (msg: string) => void, verbose?: boolean }} [options]
  */
-function startServer(port = 0, options) {
+function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmServerHandle> {
 	if (options?.logger) {
 		_log = options.logger;
 	}
@@ -1495,10 +1453,8 @@ function startServer(port = 0, options) {
 	return new Promise((resolve, reject) => {
 		let reqCount = 0;
 		let completions = 0;
-		/** @type {Array<() => boolean>} */
-		let requestWaiters = [];
-		/** @type {Array<() => boolean>} */
-		let completionWaiters = [];
+		let requestWaiters: Array<() => boolean> = [];
+		let completionWaiters: Array<() => boolean> = [];
 
 		const onCompletion = () => {
 			completions++;
@@ -1518,19 +1474,12 @@ function startServer(port = 0, options) {
 			resolve({
 				port: actualPort,
 				url,
-				close: () => /** @type {Promise<void>} */(new Promise((resolve, reject) => {
+				close: () => new Promise<void>((resolve, reject) => {
 					serverEvents.removeListener('scenarioCompletion', onCompletion);
 					server.close(err => err ? reject(err) : resolve(undefined));
-				})),
-				/** Return total request count. */
+				}),
 				requestCount: () => reqCount,
-				/**
-				 * Wait until at least `n` requests have been received.
-				 * @param {number} n
-				 * @param {number} timeoutMs
-				 * @returns {Promise<void>}
-				 */
-				waitForRequests: (n, timeoutMs) => new Promise((resolve, reject) => {
+				waitForRequests: (n: number, timeoutMs: number) => new Promise<void>((resolve, reject) => {
 					if (reqCount >= n) { resolve(); return; }
 					const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${n} requests (got ${reqCount})`)), timeoutMs);
 					requestWaiters.push(() => {
@@ -1538,15 +1487,8 @@ function startServer(port = 0, options) {
 						return false;
 					});
 				}),
-				/** Return total scenario-completion count. */
 				completionCount: () => completions,
-				/**
-				 * Wait until at least `n` scenario chat completions have been served.
-				 * @param {number} n
-				 * @param {number} timeoutMs
-				 * @returns {Promise<void>}
-				 */
-				waitForCompletion: (n, timeoutMs) => new Promise((resolve, reject) => {
+				waitForCompletion: (n: number, timeoutMs: number) => new Promise<void>((resolve, reject) => {
 					if (completions >= n) { resolve(); return; }
 					const timer = setTimeout(() => reject(new Error(`Timed out waiting for ${n} completions (got ${completions})`)), timeoutMs);
 					completionWaiters.push(() => {
@@ -1560,29 +1502,16 @@ function startServer(port = 0, options) {
 	});
 }
 
-// Allow running standalone for testing: node scripts/mock-llm-server.js
-if (require.main === module) {
-	const { registerPerfScenarios } = require('./perf-scenarios');
-	registerPerfScenarios();
-	const port = parseInt(process.argv[2] || '0', 10);
-	startServer(port).then((/** @type {any} */ handle) => {
-		_log(`Mock LLM server listening at ${handle.url}`);
-		_log(`Scenarios: ${Object.keys(SCENARIOS).join(', ')}`);
-	});
-}
-
 /**
  * Get the user follow-up messages for a scenario, in order.
  * Returns an array of { message, afterModelTurn } objects where afterModelTurn
  * is the 0-based index of the model turn after which this user message should
  * be injected.
- * @param {string} scenarioId
- * @returns {Array<{ message: string, afterModelTurn: number }>}
  */
-function getUserTurns(scenarioId) {
+function _getUserTurns(scenarioId: string): Array<{ message: string; afterModelTurn: number }> {
 	const scenario = SCENARIOS[scenarioId];
 	if (!isMultiTurnScenario(scenario)) { return []; }
-	const result = [];
+	const result: Array<{ message: string; afterModelTurn: number }> = [];
 	let modelTurnsSeen = 0;
 	for (const turn of scenario.turns) {
 		if (turn.kind === 'user') {
@@ -1596,10 +1525,8 @@ function getUserTurns(scenarioId) {
 
 /**
  * Get the total number of model turns (non-user turns) in a scenario.
- * @param {string} scenarioId
- * @returns {number}
  */
-function getModelTurnCount(scenarioId) {
+function _getModelTurnCount(scenarioId: string): number {
 	const scenario = SCENARIOS[scenarioId];
 	if (!isMultiTurnScenario(scenario)) { return 1; }
 	return scenario.turns.filter(t => t.kind !== 'user').length;
@@ -1608,19 +1535,62 @@ function getModelTurnCount(scenarioId) {
 /**
  * Register a scenario dynamically. Test files call this to add
  * scenarios that are only relevant to them.
- * @param {string} id - unique scenario identifier
- * @param {StreamChunk[] | MultiTurnScenario} definition - scenario data
  */
-function registerScenario(id, definition) {
+function _registerScenario(id: string, definition: StreamChunk[] | MultiTurnScenario): void {
 	SCENARIOS[id] = definition;
 }
 
 /**
  * Return the IDs of all currently registered scenarios.
- * @returns {string[]}
  */
-function getScenarioIds() {
+function _getScenarioIds(): string[] {
 	return Object.keys(SCENARIOS);
 }
 
-module.exports = { startServer, SCENARIOS, ScenarioBuilder, registerScenario, getScenarioIds, getUserTurns, getModelTurnCount };
+module.exports = {
+	startServer: _startServer,
+	ScenarioBuilder: ScenarioBuilderImpl,
+	registerScenario: _registerScenario,
+	getScenarioIds: _getScenarioIds,
+	getUserTurns: _getUserTurns,
+	getModelTurnCount: _getModelTurnCount,
+};
+
+// -----------------------------------------------------------------------------
+// Type-level re-exports for TypeScript consumers (CJS-compatible).
+//
+// TypeScript doesn't infer module shape from `module.exports = {...}` in `.ts`
+// files (only in `.js`), so consumers using `import('./mock-llm-server').X` in
+// JSDoc or destructuring `require(...)` under `@ts-check` would fail to find
+// the exports. The `export type` re-exports and `export declare` redeclarations
+// below let TS see the module shape; both are pure type syntax that Node 24's
+// TS type-stripping removes entirely at runtime, preserving CJS compatibility.
+// -----------------------------------------------------------------------------
+
+export type {
+	StreamChunk,
+	ScenarioTurn,
+	ModelScenarioTurn,
+	ContentScenarioTurn,
+	MultiTurnScenario,
+	MockLlmServerHandle,
+	StartServerOptions,
+};
+
+export declare const startServer: typeof _startServer;
+export declare const ScenarioBuilder: typeof ScenarioBuilderImpl;
+export declare const registerScenario: typeof _registerScenario;
+export declare const getScenarioIds: typeof _getScenarioIds;
+export declare const getUserTurns: typeof _getUserTurns;
+export declare const getModelTurnCount: typeof _getModelTurnCount;
+
+// Allow running standalone for testing: node scripts/chat-simulation/common/mock-llm-server.ts
+if (require.main === module) {
+	const { registerPerfScenarios } = require('./perf-scenarios') as { registerPerfScenarios: () => void };
+	registerPerfScenarios();
+	const port = parseInt(process.argv[2] || '0', 10);
+	_startServer(port).then((handle: MockLlmServerHandle) => {
+		_log(`Mock LLM server listening at ${handle.url}`);
+		_log(`Scenarios: ${Object.keys(SCENARIOS).join(', ')}`);
+	});
+}

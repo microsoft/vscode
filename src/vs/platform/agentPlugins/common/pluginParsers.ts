@@ -7,7 +7,7 @@ import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { untildify } from '../../../base/common/labels.js';
-import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals } from '../../../base/common/resources.js';
+import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -964,28 +964,46 @@ export async function readAgentComponents(dirs: readonly URI[], fileService: IFi
 	return result;
 }
 
-export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string }> {
-	// Use regex to strip the trailing `.agent.md` before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
-	const nameFromFile = basename(uri).replace(/\.agent\.md$/i, '');
+export async function parseAgentFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean }> {
+	// Use regex to strip the trailing `.agent.md` or .md before parsing, so we can fall back to a cleaner name if frontmatter is missing or broken.
+	const nameFromFile = basename(uri).replace(/(\.agent)?\.md$/i, '');
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
 		const description = frontmatter?.getStringValue('description')?.trim();
-		return { name, ...(description ? { description } : {}) };
+		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
+		return { name, description, userInvocable };
 	} catch {
 		return { name: nameFromFile };
 	}
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ description?: string }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
+		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
-		return { ...(description ? { description } : {}) };
+		const userInvokable = frontmatter?.getBooleanValue('user-invocable');
+		return { name, description, userInvokable };
 	} catch {
-		return {};
+		return { name: basename(dirname(uri)) };
+	}
+}
+
+export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
+	const nameFromFile = basename(uri).replace(/(\.instructions)?\.md$/i, '');
+	try {
+		const content = await fileService.readFile(uri);
+		const frontmatter = parseFrontMatter(content.value.toString());
+		const name = frontmatter?.getStringValue('name')?.trim() || nameFromFile;
+		const description = frontmatter?.getStringValue('description')?.trim();
+		const globs = frontmatter?.getStringArrayValue('globs') ?? frontmatter?.getStringArrayValue('applyTo') ?? frontmatter?.getStringArrayValue('paths') ?? undefined;
+		const alwaysApply = frontmatter?.getBooleanValue('alwaysApply');
+		return { name, description, globs, alwaysApply };
+	} catch {
+		return { name: nameFromFile };
 	}
 }
 

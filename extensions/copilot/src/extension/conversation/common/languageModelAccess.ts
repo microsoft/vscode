@@ -120,6 +120,9 @@ export function getModelCapabilitiesDescription(endpoint: IChatEndpoint | Langua
 }
 
 function formatAicPrice(price: number): string {
+	if (price === 0) {
+		return '0';
+	}
 	if (price < 0.01) {
 		return price.toExponential(2);
 	}

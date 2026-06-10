@@ -719,4 +719,5 @@ export const codiconsLibrary = {
 	askCompact: register('ask-compact', 0xecc1),
 	settingsCompact: register('settings-compact', 0xecc2),
 	vmCompact: register('vm-compact', 0xecc3),
+	runCompact: register('run-compact', 0xecc4),
 } as const;

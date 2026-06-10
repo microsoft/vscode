@@ -1366,7 +1366,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	setClientTools(_session: URI, _clientId: string, _tools: ToolDefinition[]): void {
+	setClientTools(_session: URI, _clientId: string | undefined, _tools: ToolDefinition[]): void {
 		// Phase 6+: in-process MCP client tools. Not implemented in Phase 2.
 	}
 

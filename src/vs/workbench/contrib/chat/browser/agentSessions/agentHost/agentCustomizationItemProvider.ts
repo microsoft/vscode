@@ -116,6 +116,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (!type) {
 			return undefined;
 		}
+		let userInvocable: boolean | undefined = undefined;
+		if (child.type === CustomizationType.Agent) {
+			userInvocable = child._meta?.userInvocable !== false;
+		}
 
 		return {
 			itemKey: child.id,
@@ -127,7 +131,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			groupKey,
 			extensionId: undefined,
 			pluginUri: undefined,
-			userInvocable: undefined,
+			userInvocable,
 		};
 	}
 
@@ -153,7 +157,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			agentInstructions: { content: '', toolReferences: [] },
 			visibility: {
 				agentInvocable: true,
-				userInvocable: true,
+				userInvocable: agent._meta?.userInvocable !== false
 			},
 			target: Target.Undefined
 		} satisfies ICustomAgent));
@@ -232,7 +236,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
 			const groupKey = sessionCustomization.clientId ? REMOTE_CLIENT_GROUP : undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, groupKey)) {
 				items.set(child.itemKey ?? child.uri.toString(), {

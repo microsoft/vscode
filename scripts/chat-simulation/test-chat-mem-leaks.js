@@ -41,7 +41,7 @@ const {
 } = require('./common/perf-scenarios');
 const {
 	getUserTurns, getModelTurnCount,
-} = require('./common/mock-llm-server');
+} = require('./common/mock-llm-server.ts');
 
 // -- Config (edit config.jsonc to change defaults) ---------------------------
 
@@ -372,7 +372,7 @@ async function main() {
 		process.exit(1);
 	}
 
-	const { startServer } = require('./common/mock-llm-server');
+	const { startServer } = require('./common/mock-llm-server.ts');
 	const { registerPerfScenarios } = require('./common/perf-scenarios');
 	registerPerfScenarios();
 	const mockServer = await startServer(0);
