@@ -1973,9 +1973,9 @@ pane is first mounted. View switches inside the modal are not animated. */
 	position: sticky;
 	top: 0;
 	z-index: 1;
-	padding: 8px 12px;
-	text-align: center;
-	font-weight: 600;
+	padding: 8px 14px;
+	text-align: left;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-size: var(--vscode-agents-fontSize-body1, 13px);
 	color: var(--vscode-quickInput-foreground);
 	background-color: var(--vscode-quickInputTitle-background);
@@ -2266,14 +2266,23 @@ body:has(.automation-dialog) .monaco-menu-container {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
+	/*
+	 * Each visible group splits the schedule row equally. Hidden
+	 * groups (`display: none` from `applyIntervalVisibility`) drop out
+	 * of flex distribution, so:
+	 *   - manual / hourly → Schedule fills 100% of the row
+	 *   - daily          → Schedule + Time split 50/50
+	 *   - weekly         → Schedule + Time + Day split 33/33/33
+	 * `min-width: 0` lets the contained SelectBox shrink past its
+	 * intrinsic content width when the row is narrow, before the
+	 * row's `flex-wrap: wrap` kicks in as a final safety net.
+	 */
+	flex: 1 1 0;
+	min-width: 0;
 }
 
-/* SelectBox container sizing — give Schedule / Time / Day enough room
- * to render without cramping. Each container hosts a themed SelectBox
- * (`.monaco-select-box`) whose width fills the container. Widths chosen
- * so all three labels (`Hourly` / `12:45 PM` / `Wednesday`) display
- * without ellipsis at the default font. flex-wrap on the row drops
- * controls to the next line on narrow viewports.
+/* SelectBox container sizing — give Schedule / Time / Day the full
+ * width of their parent group (which itself flex-shares the row).
  *
  * `.monaco-select-box` ships with no intrinsic padding (the only baked-in
  * padding lives in the `.monaco-action-bar .action-item` selector, which
@@ -2283,18 +2292,7 @@ body:has(.automation-dialog) .monaco-menu-container {
 .automation-form-schedule-select-container {
 	display: flex;
 	min-width: 0;
-}
-
-.automation-form-schedule-group .automation-form-schedule-select-container {
-	width: 140px;
-}
-
-.automation-form-time-group .automation-form-schedule-select-container.automation-form-time-select-container {
-	width: 130px;
-}
-
-.automation-form-day-group .automation-form-schedule-select-container {
-	width: 140px;
+	width: 100%;
 }
 
 .automation-form-schedule-select-container .monaco-select-box {
@@ -2303,20 +2301,19 @@ body:has(.automation-dialog) .monaco-menu-container {
 }
 
 /*
- * Form-row labels read as section titles ("Name", "Schedule",
- * "Workspace folder", "Prompt"). Mirror the established agents
+ * Form-row labels read as section titles ("Name", "Schedule", "Time",
+ * "Day of week", "Prompt"). Mirror the established agents
  * design-system section-label pattern (see `.overview-section
  * .section-label` at line ~734: label1 / fontWeight-medium /
- * foreground) but at regular weight per Hawk's call — the larger
- * size + foreground colour does the heavy lifting, so the labels
- * don't need extra weight to register as headings.
+ * foreground) so the labels carry visual weight as section headings
+ * and clearly out-rank their controls.
  *
  * `margin-bottom` adds breathing room between the title text and
  * its control so each form row reads as a discrete section.
  */
 .automation-form-label {
 	font-size: var(--vscode-agents-fontSize-label1);
-	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-weight: var(--vscode-agents-fontWeight-medium);
 	color: var(--vscode-foreground);
 	line-height: 1.4;
 	margin-bottom: 2px;
