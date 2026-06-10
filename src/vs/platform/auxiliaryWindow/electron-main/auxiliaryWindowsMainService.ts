@@ -145,11 +145,8 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-not-resizable':
 					overrides.notResizable = true;
 					break;
-				case 'window-no-background-throttling':
-					overrides.noBackgroundThrottling = true;
-					break;
 				case 'window-background-color':
-					if (typeof value === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(value)) {
+					if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
 						overrides.backgroundColor = value;
 					}
 					break;
