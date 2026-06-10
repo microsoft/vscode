@@ -439,16 +439,16 @@ export function buildModelPickerItems(
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
-	requiresModelSelection: boolean = false,
+	autoModelUnavailable: boolean = false,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
-		if (requiresModelSelection) {
-			// The session requires a specific model (e.g. the Claude agent host)
-			// and cannot run on Auto. Surface a single disabled "No models
-			// available" entry rather than offering Auto. For Copilot Free /
-			// Student users, attach an inline upgrade link on the right (matching
-			// the unavailable-model upgrade affordance elsewhere in the picker).
+		if (autoModelUnavailable) {
+			// Auto is not available for this session type (e.g. the Claude agent
+			// host), so the empty list cannot fall back to Auto. Surface a single
+			// disabled "No models available" entry. For Copilot Free / Student
+			// users, attach an inline upgrade link on the right (matching the
+			// unavailable-model upgrade affordance elsewhere in the picker).
 			const entitlement = chatEntitlementService.entitlement;
 			const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
 			const description = canUpgrade
@@ -1118,7 +1118,7 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
-			this._delegate.requiresModelSelection?.() ?? false,
+			this._delegate.autoModelUnavailable?.() ?? false,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1210,18 +1210,24 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
+		// When Auto is unavailable for this session and there are no models to
+		// pick, surface the empty state on the button itself — overriding any
+		// stale/carried-over selection (e.g. an "Auto" model from another
+		// session type) so the label matches the dropdown's "No models
+		// available" entry.
+		const noModelsAvailable = (this._delegate.autoModelUnavailable?.() ?? false) && this._delegate.getModels().length === 0;
+
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		if (statusIcon) {
+		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = name
-			?? (this._delegate.requiresModelSelection?.() && this._delegate.getModels().length === 0
-				? localize('chat.modelPicker.noModels', "No models available")
-				: localize('chat.modelPicker.auto', "Auto"));
+		const modelLabel = noModelsAvailable
+			? localize('chat.modelPicker.noModels', "No models available")
+			: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		// In PRU mode, append the config description (e.g. thinking effort) to the button label
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		const configDescription = !isUBB && this._selectedModel
+		const configDescription = !isUBB && this._selectedModel && !noModelsAvailable
 			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
 			: undefined;
 		const fullLabel = configDescription

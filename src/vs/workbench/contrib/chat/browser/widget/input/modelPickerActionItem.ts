@@ -28,12 +28,12 @@ export interface IModelPickerDelegate {
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
 	/**
-	 * Whether the current session requires an explicit model selection and cannot
+	 * Whether the Auto model is unavailable for the current session, so it cannot
 	 * fall back to Auto. When true and {@link getModels} is empty, the picker
 	 * shows a "No models available" entry (and an upgrade prompt for Copilot
 	 * Free / Student users) instead of an Auto entry.
 	 */
-	requiresModelSelection?(): boolean;
+	autoModelUnavailable?(): boolean;
 }
 
 /**

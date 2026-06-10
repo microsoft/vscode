@@ -113,7 +113,7 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
-		requiresModelSelection?: boolean;
+		autoModelUnavailable?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -140,7 +140,7 @@ function callBuild(
 		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
-		opts.requiresModelSelection ?? false,
+		opts.autoModelUnavailable ?? false,
 	);
 }
 
@@ -202,8 +202,8 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
 	});
 
-	test('requiresModelSelection shows a single disabled no-models entry instead of auto', () => {
-		const items = callBuild([], { requiresModelSelection: true });
+	test('autoModelUnavailable shows a single disabled no-models entry instead of auto', () => {
+		const items = callBuild([], { autoModelUnavailable: true });
 		const actions = getActionItems(items);
 		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
 		assert.strictEqual(actions.length, 1);
@@ -211,16 +211,16 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].item?.enabled, false);
 	});
 
-	test('requiresModelSelection attaches inline upgrade link for Free users', () => {
-		const items = callBuild([], { requiresModelSelection: true, entitlement: ChatEntitlement.Free });
+	test('autoModelUnavailable attaches inline upgrade link for Free users', () => {
+		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Free });
 		const actions = getActionItems(items);
 		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions[0].item?.id, 'noModels');
 		assert.ok(actions[0].description, 'expected an upgrade description for Free users');
 	});
 
-	test('requiresModelSelection omits upgrade link for paid users', () => {
-		const items = callBuild([], { requiresModelSelection: true, entitlement: ChatEntitlement.Pro });
+	test('autoModelUnavailable omits upgrade link for paid users', () => {
+		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Pro });
 		const actions = getActionItems(items);
 		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions[0].item?.id, 'noModels');

@@ -117,7 +117,7 @@ export class ModelPicker extends Disposable {
 			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
-			requiresModelSelection: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).requiresModelSelection,
+			autoModelUnavailable: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).autoModelUnavailable,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -161,11 +161,12 @@ export class ModelPicker extends Disposable {
 		}
 
 		const models = getModelsForSession(session, this._sessionsProvidersService);
-		// When a session requires an explicit model but has none (e.g. the Claude
-		// agent host for a Copilot Free / Student user), keep the picker visible so
-		// it can show a "No models available" state instead of disappearing.
-		const requiresModelSelection = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).requiresModelSelection;
-		const showPicker = models.length > 0 || requiresModelSelection;
+		// When the Auto model is unavailable for this session type but it has no
+		// models (e.g. the Claude agent host for a Copilot Free / Student user),
+		// keep the picker visible so it can show a "No models available" state
+		// instead of disappearing.
+		const autoModelUnavailable = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).autoModelUnavailable;
+		const showPicker = models.length > 0 || autoModelUnavailable;
 		this._modelPicker.setEnabled(showPicker);
 		// Drive the picker's visibility directly from the provider's model
 		// list rather than mirroring this state into a context key. The picker
@@ -231,8 +232,8 @@ export class ModelPicker extends Disposable {
 		this._modelPicker.render(container);
 		const session = this._session.get();
 		const hasModels = getModelsForSession(session, this._sessionsProvidersService).length > 0;
-		const requiresModelSelection = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).requiresModelSelection;
-		this._updateVisibility(hasModels || requiresModelSelection);
+		const autoModelUnavailable = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).autoModelUnavailable;
+		this._updateVisibility(hasModels || autoModelUnavailable);
 	}
 
 	private _updateVisibility(hasModels: boolean): void {

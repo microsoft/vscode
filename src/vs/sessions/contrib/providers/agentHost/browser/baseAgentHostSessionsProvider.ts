@@ -1811,7 +1811,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			// list is empty (e.g. for a Copilot Free / Student user), keep the
 			// picker visible with a "No models available" state plus an upgrade
 			// prompt instead of hiding it.
-			requiresModelSelection: this._resolveAgentProvider(sessionId) === 'claude',
+			autoModelUnavailable: this._resolveAgentProvider(sessionId) === 'claude',
 		};
 	}
 
