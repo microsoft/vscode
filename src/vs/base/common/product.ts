@@ -64,6 +64,27 @@ export type ExtensionVirtualWorkspaceSupport = {
 	readonly override?: boolean;
 };
 
+/**
+ * Per-package configuration for downloading an agent SDK on demand. When
+ * `IProductConfiguration.agentSdks?.[pkg]` is set, the agent host fetches the
+ * per-platform tarball at `format2(urlTemplate, { sdkVersion, sdkTarget })`,
+ * verifies its sha256 against `sha256[sdkTarget]`, and caches it under
+ * `userDataPath/agent-host/sdk-cache/`.
+ *
+ * `{sdkTarget}` is `${platform}-${arch}`, plus `-musl` on Linux when musl is
+ * detected — same suffixes npm uses for the platform `optionalDependencies`
+ * (`@anthropic-ai/claude-agent-sdk-${sdkTarget}`, `@openai/codex-${sdkTarget}`).
+ *
+ * The `sha256` map's keys define the supported platforms: a `currentSdkTarget()`
+ * not present in the map is treated as unsupported and the provider is not
+ * registered.
+ */
+export interface IAgentSdkProductConfig {
+	readonly version: string;
+	readonly urlTemplate: string;
+	readonly sha256: { readonly [sdkTarget: string]: string };
+}
+
 export interface IProductConfiguration {
 	readonly version: string;
 	readonly date?: string;
@@ -117,6 +138,8 @@ export interface IProductConfiguration {
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
 	};
+
+	readonly agentSdks?: { readonly [packageId: string]: IAgentSdkProductConfig };
 
 	readonly mcpGallery?: {
 		readonly serviceUrl: string;

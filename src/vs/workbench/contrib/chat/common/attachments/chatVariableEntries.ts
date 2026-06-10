@@ -8,6 +8,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { IOffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation, Location, SymbolKind } from '../../../../../editor/common/languages.js';
@@ -63,8 +64,36 @@ export interface IAgentHostCompletionVariableValue {
 	readonly kind: AgentHostCompletionReferenceKind;
 }
 
-export function agentHostCompletionVariableValue(kind: AgentHostCompletionReferenceKind): IAgentHostCompletionVariableValue {
+function agentHostCompletionVariableValue(kind: AgentHostCompletionReferenceKind): IAgentHostCompletionVariableValue {
 	return { $mid: 'agentHostCompletion', kind };
+}
+
+function agentHostCompletionVariableId(kind: AgentHostCompletionReferenceKind, reference: URI | string): string {
+	switch (kind) {
+		case AgentHostCompletionReferenceKind.Skill:
+			return reference.toString();
+		case AgentHostCompletionReferenceKind.Command:
+			return 'agent-host-command:' + reference.toString();
+	}
+}
+
+export function toAgentHostCompletionVariableEntry(kind: AgentHostCompletionReferenceKind, name: string, reference: URI | string | undefined, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
+	return {
+		kind: 'generic',
+		id: reference !== undefined ? agentHostCompletionVariableId(kind, reference) : generateUuid(),
+		name,
+		value: agentHostCompletionVariableValue(kind),
+		_meta,
+	};
+}
+
+export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCompletionReferenceKind, name: string, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
+	switch (kind) {
+		case AgentHostCompletionReferenceKind.Skill:
+			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.uri === 'string' ? _meta.uri : undefined, _meta);
+		case AgentHostCompletionReferenceKind.Command:
+			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.command === 'string' ? _meta.command : undefined, _meta);
+	}
 }
 
 export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {

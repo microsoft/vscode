@@ -17,7 +17,7 @@ import { type ChatExternalEditKind, type IChatExternalEdit, type IChatModifiedFi
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -320,6 +320,11 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		};
 	}
 
+	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);
+	if (agentHostCompletionKind !== undefined) {
+		return toAgentHostCompletionVariableEntryFromMetadata(agentHostCompletionKind, attachment.label, attachment._meta);
+	}
+
 	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
 	return {
 		kind: 'generic',
@@ -328,6 +333,19 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		value: modelRepresentation || attachment.label,
 		_meta: attachment._meta,
 	};
+}
+
+function getAgentHostCompletionKind(attachment: MessageAttachment): AgentHostCompletionReferenceKind | undefined {
+	if (attachment.type !== MessageAttachmentKind.Simple) {
+		return undefined;
+	}
+	switch (attachment.displayKind) {
+		case 'command':
+			return AgentHostCompletionReferenceKind.Command;
+		case 'skill':
+			return AgentHostCompletionReferenceKind.Skill;
+	}
+	return undefined;
 }
 
 function textRangeToIRange(range: TextRange): IRange {
@@ -427,21 +445,26 @@ function getTerminalLanguage(tc: ToolCallState) {
  *
  * 1. `existingKind === 'terminal'` — preserve the prior render decision so a
  *    tool already set up as terminal stays terminal across snapshots.
- * 2. `getToolKind(tc) === 'terminal'` — the always-available `_meta.toolKind`
- *    flag set by the event mapper for built-in `bash`/`powershell` SDK tools
- *    that never emit a {@link ToolResultContentType.Terminal} content block.
+ * 2. `getToolKind(tc) === 'terminal'` with a command available — the
+ *    always-available `_meta.toolKind` flag set by the event mapper for
+ *    built-in `bash`/`powershell` SDK tools that never emit a
+ *    {@link ToolResultContentType.Terminal} content block. We only render the
+ *    terminal pill once we actually have the command (`getTerminalInput`):
+ *    rendering a terminal pill with an empty command line looks broken, so
+ *    until the command arrives we fall back to the generic tool widget
+ *    (the `invocationMessage`).
  * 3. A `Terminal` content block in `tc.content` (Running/Completed only) —
  *    the AHP-side signal for the custom terminal tool (`agenthost-terminal:`
  *    URIs).
  *
- * Without (1) and (2) the live invocation would race against the async
- * arrival of the Terminal block via `onDidAssociateTerminal`.
+ * Without (1) the live invocation would race against the async arrival of the
+ * Terminal block via `onDidAssociateTerminal`.
  */
 function isTerminalToolCall(tc: ToolCallState, existingKind?: string): boolean {
 	if (existingKind === 'terminal') {
 		return true;
 	}
-	if (getToolKind(tc) === 'terminal') {
+	if (getToolKind(tc) === 'terminal' && getTerminalInput(tc) !== undefined) {
 		return true;
 	}
 	if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) {
