@@ -219,10 +219,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
-				upgradeMessage: {
-					description: localize('chatSessionsExtPoint.upgradeMessage', 'When set, this session type is only available to users on a paid plan. Copilot Free and Copilot Student (EDU) users see it greyed out with this message (supports markdown, e.g. an upgrade link) in its hover instead of being able to select it.'),
-					type: 'string'
-				},
 				autoAttachReferences: {
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',

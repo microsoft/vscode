@@ -1800,13 +1800,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
+			// The Claude agent host serves Copilot-provided Anthropic models, which
+			// require a paid Copilot plan and cannot run on Auto. When the model
+			// list is empty (e.g. for a Copilot Free / Student user), keep the
+			// picker visible with a "No models available" state plus an upgrade
+			// prompt instead of hiding it.
+			requiresModelSelection: this._resolveAgentProvider(sessionId) === 'claude',
 		};
+	}
+
+	private _resolveAgentProvider(sessionId: string): string | undefined {
+		const newSession = this._getNewSession(sessionId);
+		if (newSession) {
+			return newSession.session.agentProvider;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		return cached?.agentProvider;
 	}
 
 	private _resolveSessionResourceScheme(sessionId: string): string | undefined {

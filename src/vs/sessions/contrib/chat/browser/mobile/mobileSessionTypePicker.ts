@@ -8,8 +8,6 @@ import { IActionWidgetService } from '../../../../../platform/actionWidget/brows
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -38,11 +36,9 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService);
+		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {

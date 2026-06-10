@@ -113,6 +113,7 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
+		requiresModelSelection?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -139,6 +140,7 @@ function callBuild(
 		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
+		opts.requiresModelSelection ?? false,
 	);
 }
 
@@ -198,6 +200,31 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
+	});
+
+	test('requiresModelSelection shows a single disabled no-models entry instead of auto', () => {
+		const items = callBuild([], { requiresModelSelection: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].item?.id, 'noModels');
+		assert.strictEqual(actions[0].item?.enabled, false);
+	});
+
+	test('requiresModelSelection attaches inline upgrade link for Free users', () => {
+		const items = callBuild([], { requiresModelSelection: true, entitlement: ChatEntitlement.Free });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].item?.id, 'noModels');
+		assert.ok(actions[0].description, 'expected an upgrade description for Free users');
+	});
+
+	test('requiresModelSelection omits upgrade link for paid users', () => {
+		const items = callBuild([], { requiresModelSelection: true, entitlement: ChatEntitlement.Pro });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].item?.id, 'noModels');
+		assert.strictEqual(actions[0].description, undefined);
 	});
 
 	test('only auto model produces auto and manage models with separator', () => {

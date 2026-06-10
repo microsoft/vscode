@@ -6682,7 +6682,6 @@
         "when": "config.github.copilot.chat.claudeAgent.enabled",
         "canDelegate": true,
         "requiresCustomModels": true,
-        "upgradeMessage": "%github.copilot.session.upgradeMessage.claude%",
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6802,7 +6801,6 @@
         "capabilities": {
           "supportsFileAttachments": true
         },
-        "upgradeMessage": "%github.copilot.session.upgradeMessage.cloud%",
         "autoAttachReferences": true
       }
     ],

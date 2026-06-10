@@ -117,6 +117,7 @@ export class ModelPicker extends Disposable {
 			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
+			requiresModelSelection: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).requiresModelSelection,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -160,11 +161,17 @@ export class ModelPicker extends Disposable {
 		}
 
 		const models = getModelsForSession(session, this._sessionsProvidersService);
-		this._modelPicker.setEnabled(models.length > 0);
+		// When a session requires an explicit model but has none (e.g. the Claude
+		// agent host for a Copilot Free / Student user), keep the picker visible so
+		// it can show a "No models available" state instead of disappearing.
+		const requiresModelSelection = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).requiresModelSelection;
+		const showPicker = models.length > 0 || requiresModelSelection;
+		this._modelPicker.setEnabled(showPicker);
 		// Drive the picker's visibility directly from the provider's model
 		// list rather than mirroring this state into a context key. The picker
-		// hides itself when the active session's provider offers no models.
-		this._updateVisibility(models.length > 0);
+		// hides itself when the active session's provider offers no models and
+		// does not require an explicit selection.
+		this._updateVisibility(showPicker);
 		if (models.length === 0) {
 			return;
 		}
@@ -222,7 +229,10 @@ export class ModelPicker extends Disposable {
 	render(container: HTMLElement): void {
 		this._container = container;
 		this._modelPicker.render(container);
-		this._updateVisibility(getModelsForSession(this._session.get(), this._sessionsProvidersService).length > 0);
+		const session = this._session.get();
+		const hasModels = getModelsForSession(session, this._sessionsProvidersService).length > 0;
+		const requiresModelSelection = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).requiresModelSelection;
+		this._updateVisibility(hasModels || requiresModelSelection);
 	}
 
 	private _updateVisibility(hasModels: boolean): void {

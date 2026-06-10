@@ -439,18 +439,55 @@ export function buildModelPickerItems(
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
+	requiresModelSelection: boolean = false,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
-		items.push(createModelItem({
-			id: 'auto',
-			enabled: true,
-			checked: true,
-			class: undefined,
-			tooltip: localize('chat.modelPicker.auto', "Auto"),
-			label: localize('chat.modelPicker.auto', "Auto"),
-			run: () => { }
-		}));
+		if (requiresModelSelection) {
+			// The session requires a specific model (e.g. the Claude agent host)
+			// and cannot run on Auto. Surface a single disabled "No models
+			// available" entry rather than offering Auto. For Copilot Free /
+			// Student users, attach an inline upgrade link on the right (matching
+			// the unavailable-model upgrade affordance elsewhere in the picker).
+			const entitlement = chatEntitlementService.entitlement;
+			const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
+			const description = canUpgrade
+				? new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true })
+				: undefined;
+			let hover: MarkdownString | undefined;
+			if (canUpgrade) {
+				hover = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+				hover.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			}
+			items.push({
+				item: {
+					id: 'noModels',
+					enabled: false,
+					checked: false,
+					class: undefined,
+					tooltip: localize('chat.modelPicker.noModels', "No models available"),
+					label: localize('chat.modelPicker.noModels', "No models available"),
+					run: () => { }
+				},
+				kind: ActionListItemKind.Action,
+				label: localize('chat.modelPicker.noModels', "No models available"),
+				description,
+				group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
+				disabled: true,
+				hideIcon: false,
+				hover: hover ? { content: hover } : undefined,
+			});
+		} else {
+			items.push(createModelItem({
+				id: 'auto',
+				enabled: true,
+				checked: true,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.auto', "Auto"),
+				label: localize('chat.modelPicker.auto', "Auto"),
+				run: () => { }
+			}));
+		}
 	}
 
 	if (useGroupedModelPicker) {
@@ -1081,6 +1118,7 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
+			this._delegate.requiresModelSelection?.() ?? false,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1177,7 +1215,10 @@ export class ModelPickerWidget extends Disposable {
 		if (statusIcon) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const modelLabel = name
+			?? (this._delegate.requiresModelSelection?.() && this._delegate.getModels().length === 0
+				? localize('chat.modelPicker.noModels', "No models available")
+				: localize('chat.modelPicker.auto', "Auto"));
 		// In PRU mode, append the config description (e.g. thinking effort) to the button label
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const configDescription = !isUBB && this._selectedModel
