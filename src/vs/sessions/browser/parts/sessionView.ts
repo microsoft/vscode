@@ -103,6 +103,11 @@ export class SessionView extends Disposable implements ISerializableView {
 
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
+		// Expose the centered-content cap as a CSS variable so styles that need
+		// to align with the centered band (e.g. the chat-view progress bar) can
+		// reference it without duplicating the constant.
+		this.element.style.setProperty('--session-view-centered-content-max-width', `${SessionView.CENTERED_CONTENT_MAX_WIDTH}px`);
+
 		// The header and composite bar (tabs) are hosted in a centered, width-capped
 		// container so they align with the centered chat content. The chat content
 		// itself lives in a full-width container so its transcript list spans the
