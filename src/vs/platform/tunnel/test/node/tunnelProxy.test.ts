@@ -351,8 +351,9 @@ suite('TunnelProxy', () => {
 
 		// Simulating an upstream endpoint change must drop the now-stale
 		// pooled socket so it isn't reset later by the dead endpoint.
+		const closed = new Promise<void>(resolve => remoteSockets[0].once('close', () => resolve()));
 		p.drainConnectionPool();
-		await new Promise<void>(resolve => remoteSockets[0].once('close', () => resolve()));
+		await closed;
 		assert.strictEqual(remoteSockets[0].destroyed, true);
 
 		p.dispose();
