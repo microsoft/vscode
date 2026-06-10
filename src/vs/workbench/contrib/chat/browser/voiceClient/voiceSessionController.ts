@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -21,7 +22,7 @@ import { IVoiceToolDispatchService, VoiceToolDispatchService } from './voiceTool
 import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
-import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -178,6 +179,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _confirmationFlushWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
 	private static readonly _CONFIRMATION_FLUSH_DELAY_MS = 1500;
 
+	/** Model refs eagerly loaded for sessions awaiting input (no UI focus needed). */
+	private readonly _eagerModelRefs = new Map<string, IChatModelReference>();
+
 	// --- Transcript persistence (local-only) ---
 	/** Cached GitHub login resolved on connect; used as transcript partition key. */
 	private _userLogin: string | undefined;
@@ -270,19 +274,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._register(autorun(reader => {
 			const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 			const toolConfirmations: IPendingToolConfirmation[] = [];
-			console.log('[VoiceController] autorun: sessions count:', sessions.length);
 			for (const s of sessions) {
 				const model = this.chatService.getSession(s.resource);
-				console.log('[VoiceController] session:', s.label, 'hasModel:', !!model);
 				if (model) {
 					const lastReq = model.lastRequestObs.read(reader);
-					console.log('[VoiceController] lastReq:', !!lastReq, 'hasResponse:', !!lastReq?.response);
 					if (lastReq?.response) {
 						const pending = lastReq.response.isPendingConfirmation.read(reader);
-						console.log('[VoiceController] pending:', pending);
-						if (pending) {
-							console.log('[VoiceController] pending confirmation detected', s.label, 'autoApproved:', this._autoApprovedSessions.has(s.resource.toString()), 'detail:', pending.detail);
-						}
 						if (pending && !this._autoApprovedSessions.has(s.resource.toString())) {
 							const confirmType = this._classifyPendingType(lastReq.response);
 							const desc = this._getConfirmationDescription(lastReq.response);
@@ -544,6 +541,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 									: s.status === AgentSessionStatus.Completed ? 'idle'
 										: 'unknown';
+							// Eagerly load the chat model for sessions awaiting input so the
+							// autorun re-fires with full confirmation detail (tool name,
+							// parameters, etc.) and the backend can narrate it properly.
+							if (s.status === AgentSessionStatus.NeedsInput) {
+								this._ensureModelLoaded(s.resource);
+							}
 						}
 
 						const prevState = this._prevSessionStates.get(sessionId);
@@ -621,6 +624,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							const t = this._confirmationFlushWatchdogs.get(id);
 							if (t) { clearTimeout(t); }
 							this._confirmationFlushWatchdogs.delete(id);
+						}
+					}
+					// Release eagerly-loaded model refs for sessions no longer awaiting input
+					for (const id of [...this._eagerModelRefs.keys()]) {
+						if (!stillWaiting.has(id)) {
+							this._eagerModelRefs.get(id)!.dispose();
+							this._eagerModelRefs.delete(id);
 						}
 					}
 				});
@@ -784,6 +794,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._userCancelledSessions.clear();
 		for (const t of this._confirmationFlushWatchdogs.values()) { clearTimeout(t); }
 		this._confirmationFlushWatchdogs.clear();
+		for (const ref of this._eagerModelRefs.values()) { ref.dispose(); }
+		this._eagerModelRefs.clear();
 		this._userLogin = undefined;
 		this._lastPersistedTurnId = undefined;
 		this._pendingPriorTimeline = [];
@@ -1404,6 +1416,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 						: s.status === AgentSessionStatus.Completed ? 'idle'
 							: 'unknown';
+				if (s.status === AgentSessionStatus.NeedsInput) {
+					this._ensureModelLoaded(s.resource);
+				}
 			}
 
 			const prevState = this._prevSessionStates.get(sessionId);
@@ -1500,6 +1515,26 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			context.active_session = activeSession;
 		}
 		return context;
+	}
+
+	/**
+	 * Eagerly load a chat model for a session that needs input but hasn't been
+	 * opened in the UI yet. Once loaded, the autorun observables will re-fire
+	 * with full confirmation detail so the backend can narrate properly.
+	 */
+	private _ensureModelLoaded(resource: URI): void {
+		const key = resource.toString();
+		if (this._eagerModelRefs.has(key) || this.chatService.getSession(resource)) {
+			return;
+		}
+		this.logService.info(`[voice] eagerly loading model for session ${key.slice(-32)}`);
+		const cts = new CancellationTokenSource();
+		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token, 'VoiceSessionController#eagerLoad').then(ref => {
+			if (ref) {
+				this._eagerModelRefs.set(key, ref);
+			}
+			cts.dispose();
+		}, () => { cts.dispose(); });
 	}
 
 	private _getAgentStateInfo(model: IChatModel | undefined | null): { state: string; detail?: string; last_response_summary?: string } {
