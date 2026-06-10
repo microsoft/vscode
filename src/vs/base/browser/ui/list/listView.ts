@@ -1064,6 +1064,10 @@ export class ListView<T> implements IListView<T> {
 				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size, onScroll });
 			}
 
+			if (item.row.domNode.contains(document.activeElement)) {
+				this.domNode.focus({ preventScroll: true });
+			}
+
 			this.cache.release(item.row);
 			item.row = null;
 		}
