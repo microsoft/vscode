@@ -324,6 +324,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			}
 			const timeToFirstToken = Date.now() - baseTelemetry.issuedTime;
 			pendingLoggedChatRequest?.markTimeToFirstToken(timeToFirstToken);
+			/** Resolved response model, normalized once and reused by span attributes and the streaming metrics below. */
+			let normalizedResponseModel: string | undefined;
 			switch (response.type) {
 				case FetchResponseKind.Success: {
 					const result = await this.processSuccessfulResponse(response, messages, imageTelemetryMeasurements, requestBody, ourRequestId, maxResponseTokens, tokenCount, timeToFirstToken, streamRecorder, baseTelemetry, chatEndpoint, userInitiatedRequest, interactionType, transport, actualFetcher, actualBytesReceived, suspendEventSeen, resumeEventSeen, actualModelCallId);
@@ -392,7 +394,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 						// Normalize once so span attributes, metric attributes, and the inference
 						// details event all report the same value (issue #318805).
-						const normalizedResponseModel = normalizeResponseModel(chatEndpoint.model, result.resolvedModel);
+						normalizedResponseModel = normalizeResponseModel(chatEndpoint.model, result.resolvedModel);
 
 						const metricAttrs = {
 							operationName: GenAiOperationName.CHAT,
@@ -421,6 +423,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 								? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: result.usage.prompt_tokens_details.cache_creation_input_tokens }
 								: {}),
 							[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: timeToFirstToken,
+							[GenAiAttr.REQUEST_STREAM]: true,
+							...(timeToFirstToken > 0 ? { [GenAiAttr.RESPONSE_TIME_TO_FIRST_CHUNK]: timeToFirstToken / 1000 } : {}),
 							...(result.serverRequestId ? { [CopilotChatAttr.SERVER_REQUEST_ID]: result.serverRequestId } : {}),
 							...(result.usage.completion_tokens_details?.reasoning_tokens
 								? {
@@ -488,6 +492,23 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					// Record OTel time-to-first-token metric
 					if (timeToFirstToken > 0) {
 						GenAiMetrics.recordTimeToFirstToken(this._otelService, chatEndpoint.model, timeToFirstToken / 1000);
+						// GenAI-convention streaming signal, dual-emitted alongside the legacy metric above.
+						GenAiMetrics.recordTimeToFirstChunk(this._otelService, timeToFirstToken / 1000, {
+							operationName: GenAiOperationName.CHAT,
+							providerName: GenAiProviderName.GITHUB,
+							requestModel: chatEndpoint.model,
+							responseModel: normalizedResponseModel,
+						});
+					}
+
+					// Record per-output-chunk inter-arrival latency for the streamed response.
+					for (const gapMs of streamRecorder.outputChunkGapsMs) {
+						GenAiMetrics.recordTimePerOutputChunk(this._otelService, gapMs / 1000, {
+							operationName: GenAiOperationName.CHAT,
+							providerName: GenAiProviderName.GITHUB,
+							requestModel: chatEndpoint.model,
+							responseModel: normalizedResponseModel,
+						});
 					}
 
 					if (useWebSocket && result.type === ChatFetchResponseType.Success) {
