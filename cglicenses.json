@@ -1183,5 +1183,12 @@
 			"",
 			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
 		]
+	},
+	{
+		// Reason: The package-lock.json entry for cpu-features (overridden via ssh2 nested override
+		// to 0.0.0) has no version field, causing the OSS tool to fail resolving it. Pinning to the
+		// actual MIT license from the upstream GitHub repository (mscdex/cpu-features).
+		"name": "cpu-features",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/mscdex/cpu-features/b2d0463a20fa85beb807aff849ccd261393a8d08/LICENSE"
 	}
 ]
