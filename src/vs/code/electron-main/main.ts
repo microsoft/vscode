@@ -76,6 +76,7 @@ import { ThemeMainService } from '../../platform/theme/electron-main/themeMainSe
 import { LINUX_SYSTEM_POLICY_FILE_PATH } from '../../base/common/policy.js';
 import { GITHUB_COPILOT_WIN32_POLICY_NAME, GITHUB_COPILOT_WIN32_REGISTRY_PATH, GITHUB_COPILOT_MACOS_BUNDLE_ID, GITHUB_COPILOT_LINUX_POLICY_FILE, GITHUB_COPILOT_MACOS_POLICY_FILE } from '../../base/common/copilotPolicy.js';
 import { ManagedSettingsFilePolicyService } from '../../platform/policy/common/managedSettingsFilePolicyService.js';
+import { ManagedSettingsNativePolicyService } from '../../platform/policy/node/managedSettingsNativePolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
 import { validatePolicyFile } from '../../base/node/policyFileValidation.js';
 
@@ -237,9 +238,9 @@ class CodeMain {
 		// platform-specific locations defined in the managed-settings ADR.
 		const copilotPolicySources: IPolicyService[] = [];
 		if (isWindows) {
-			copilotPolicySources.push(disposables.add(new NativePolicyService(logService, GITHUB_COPILOT_WIN32_POLICY_NAME, { registryPath: GITHUB_COPILOT_WIN32_REGISTRY_PATH })));
+			copilotPolicySources.push(disposables.add(new ManagedSettingsNativePolicyService(logService, GITHUB_COPILOT_WIN32_POLICY_NAME, { registryPath: GITHUB_COPILOT_WIN32_REGISTRY_PATH })));
 		} else if (isMacintosh) {
-			copilotPolicySources.push(disposables.add(new NativePolicyService(logService, GITHUB_COPILOT_MACOS_BUNDLE_ID)));
+			copilotPolicySources.push(disposables.add(new ManagedSettingsNativePolicyService(logService, GITHUB_COPILOT_MACOS_BUNDLE_ID)));
 		}
 		if (isMacintosh) {
 			copilotPolicySources.push(disposables.add(new ManagedSettingsFilePolicyService(URI.file(GITHUB_COPILOT_MACOS_POLICY_FILE), fileService, logService, validatePolicyFile)));

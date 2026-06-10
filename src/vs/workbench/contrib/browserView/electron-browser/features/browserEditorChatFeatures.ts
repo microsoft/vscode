@@ -751,7 +751,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				name: 'BrowserChatTools',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.110',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'browser.enableChatTools',

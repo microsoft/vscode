@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../base/common/collections.js';
-import { IManagedSettingsData } from '../../../base/common/copilotPolicy.js';
-import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { PolicyName } from '../../../base/common/policy.js';
+import { IPolicyValueSources, PolicyName } from '../../../base/common/policy.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export type PolicyValue = string | number | boolean;
 export type PolicyDefinition = {
 	type: 'string' | 'number' | 'boolean';
-	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+	value?: (sources: IPolicyValueSources) => string | number | boolean | undefined;
 	restrictedValue?: PolicyValue;
 	/**
 	 * When set, this value is treated as a security-critical "deny" signal.
@@ -25,7 +23,6 @@ export type PolicyDefinition = {
 	 * from any enterprise source must stick.
 	 */
 	denyValue?: PolicyValue;
-	managedSettingsValue?: (data: IManagedSettingsData) => string | number | boolean | undefined;
 };
 
 /**

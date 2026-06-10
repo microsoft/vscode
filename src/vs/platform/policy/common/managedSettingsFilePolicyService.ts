@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IManagedSettingsData } from '../../../base/common/copilotPolicy.js';
+import { IManagedSettingsData, MANAGED_SETTINGS_RAW_POLICY_NAME } from '../../../base/common/copilotPolicy.js';
 import { PolicyName } from '../../../base/common/policy.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -13,14 +13,15 @@ import { IPolicyService, PolicyValue } from './policy.js';
 import { FilePolicyService } from './filePolicyService.js';
 
 /**
- * Reads the GitHubCopilot managed-settings.json file and evaluates each
- * policy definition's {@link PolicyDefinition.managedSettingsValue} callback
- * against the parsed data.
+ * Reads the GitHubCopilot managed-settings.json file and stores the raw
+ * {@link IManagedSettingsData} as a JSON-encoded policy value under
+ * {@link MANAGED_SETTINGS_RAW_POLICY_NAME}.
+ *
+ * The raw data is forwarded to the renderer via the existing policy IPC
+ * channel, where `AccountPolicyService` reads it and passes it to each
+ * policy definition's `value({ managedSettings })` callback.
  *
  * Extends {@link FilePolicyService} for file watching, throttling, and diff logic.
- * Overrides {@link read} to parse the managed-settings schema and apply
- * per-policy value callbacks — the same pattern as {@link AccountPolicyService}
- * uses {@link PolicyDefinition.value} for account policy data.
  *
  * An optional `validateFile` callback can be provided to enforce security
  * checks (root-owned, no symlinks, not world-writable) before reading.
@@ -54,19 +55,7 @@ export class ManagedSettingsFilePolicyService extends FilePolicyService implemen
 			}
 
 			const data = raw as IManagedSettingsData;
-			const result = new Map<PolicyName, PolicyValue>();
-
-			for (const name in this.policyDefinitions) {
-				const definition = this.policyDefinitions[name];
-				if (definition.managedSettingsValue) {
-					const value = definition.managedSettingsValue(data);
-					if (value !== undefined) {
-						result.set(name, value);
-					}
-				}
-			}
-
-			return result;
+			return new Map([[MANAGED_SETTINGS_RAW_POLICY_NAME, JSON.stringify(data)]]);
 		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				this._logService.error(`[ManagedSettingsFilePolicyService] Failed to read managed settings`, error);

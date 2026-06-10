@@ -95,7 +95,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -106,7 +106,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -117,7 +117,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {

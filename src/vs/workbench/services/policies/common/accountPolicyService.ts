@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IManagedSettingsData, MANAGED_SETTINGS_RAW_POLICY_NAME } from '../../../../base/common/copilotPolicy.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -88,7 +89,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}));
 		if (this.managedPolicyReader) {
 			this._register(this.managedPolicyReader.onDidChange(names => {
-				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME)) {
+				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME) || names.includes(MANAGED_SETTINGS_RAW_POLICY_NAME)) {
 					this._updatePolicyDefinitions(this.policyDefinitions);
 				}
 			}));
@@ -107,6 +108,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		const updated: string[] = [];
 		const policyData = this.defaultAccountService.policyData;
+		const managedSettings = this.readManagedSettings();
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
@@ -130,11 +132,12 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 			let policyValue: PolicyValue | undefined;
 			if (gateRestricted && (policy.value !== undefined || policy.restrictedValue !== undefined)) {
-				// MDM-only policies (no `value`, no `restrictedValue`) — including the policy
-				// that DRIVES the gate itself — are left untouched so the admin remains in control.
+				// Policies without a `value` callback or `restrictedValue` are not account-gated
+				// and are left untouched — this includes MDM-only policies and the policy
+				// that DRIVES the gate itself, so the admin remains in control.
 				policyValue = getRestrictedPolicyValue(policy);
-			} else if (policyData && policy.value) {
-				policyValue = policy.value(policyData);
+			} else if (policy.value && (policyData || managedSettings)) {
+				policyValue = policy.value({ accountPolicy: policyData ?? undefined, managedSettings });
 			}
 
 			if (policyValue !== undefined) {
@@ -154,6 +157,21 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}
 		if (gateInfoChanged) {
 			this._onDidChangeGateInfo.fire(this._gateInfo);
+		}
+	}
+
+	private readManagedSettings(): IManagedSettingsData | undefined {
+		if (!this.managedPolicyReader) {
+			return undefined;
+		}
+		const raw = this.managedPolicyReader.getPolicyValue(MANAGED_SETTINGS_RAW_POLICY_NAME);
+		if (typeof raw !== 'string') {
+			return undefined;
+		}
+		try {
+			return JSON.parse(raw) as IManagedSettingsData;
+		} catch {
+			return undefined;
 		}
 	}
 
