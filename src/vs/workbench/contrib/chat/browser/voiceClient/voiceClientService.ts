@@ -359,6 +359,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
+	invalidateSessionCache(sessionId: string): void {
+		this._lastSentById.delete(sessionId);
+	}
+
 	private _sendDelta(context: IVoiceSessionContext): void {
 		const currentIds = new Set(context.sessions.map(s => s.id));
 		const removes = [...this._lastSentById.keys()].filter(id => !currentIds.has(id));

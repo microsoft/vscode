@@ -171,7 +171,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _replaySourceNode: AudioBufferSourceNode | undefined;
 
 	// --- Session state tracking for explicit change notifications ---
-	private readonly _prevSessionStates = new Map<string, string>();
+	private readonly _prevSessionStates = new Map<string, { state: string; detail: string }>();
 
 	// Sessions the user explicitly cancelled from VS Code UI. We swallow the
 	// NEXT state change for each (typically the chat model going `idle`) so the
@@ -570,13 +570,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Seed previous session states so existing sessions don't trigger false transitions
 				for (const s of this.agentSessionsService.model.sessions.filter(ss => !ss.isArchived())) {
 					const model = this.chatService.getSession(s.resource);
-					const currentState = model ? this._getAgentStateInfo(model).state
-						: s.status === AgentSessionStatus.InProgress ? 'thinking'
+					const info = model ? this._getAgentStateInfo(model) : undefined;
+					const currentState = info?.state
+						?? (s.status === AgentSessionStatus.InProgress ? 'thinking'
 							: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 								: s.status === AgentSessionStatus.Completed ? 'idle'
-									: 'unknown';
+									: 'unknown');
 					if (currentState !== 'unknown') {
-						this._prevSessionStates.set(s.resource.toString(), currentState);
+						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '' });
 					}
 				}
 
@@ -589,7 +590,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const autorunDisposable = autorun(reader => {
 					const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 					let needsRecheck = false;
-					const stateChanges: { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string }[] = [];
+					const stateChanges: { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string; detailOnly?: boolean }[] = [];
 					const waitingForConfirmationSessions: { sessionId: string; label: string; detail?: string; transition: boolean }[] = [];
 					for (const s of sessions) {
 						const model = this.chatService.getSession(s.resource);
@@ -609,13 +610,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 									}
 								}
 
-								// Also subscribe to response changes so the autorun re-fires
-								// when new tool parts are added (e.g. askQuestions entering
-								// WaitingForConfirmation without setting confirmationMessages).
-								if (!pending) {
-									const responseSignal = observableSignalFromEvent(lastReq.response, lastReq.response.onDidChange);
-									responseSignal.read(reader);
-								}
+								// Always subscribe to response changes so the autorun
+								// re-fires when tool parts change (new confirmations,
+								// questions added, or existing ones resolved). Without
+								// this, a pending→pending detail change is invisible.
+								const responseSignal = observableSignalFromEvent(lastReq.response, lastReq.response.onDidChange);
+								responseSignal.read(reader);
 							}
 						}
 
@@ -642,10 +642,12 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							}
 						}
 
-						const prevState = this._prevSessionStates.get(sessionId);
-						const isTransition = prevState !== undefined && prevState !== currentState && currentState !== 'unknown';
+						const prev = this._prevSessionStates.get(sessionId);
+						const isStateTransition = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
+						const isDetailTransition = !isStateTransition && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+						const isTransition = isStateTransition || isDetailTransition;
 						if (isTransition) {
-							this.logService.info(`[voice] autorun transition id=${sessionId.slice(-32)} ${prevState} -> ${currentState} hasModel=${!!model} hasDetail=${!!detail}`);
+							this.logService.info(`[voice] autorun transition id=${sessionId.slice(-32)} ${prev?.state}→${currentState} detailChanged=${isDetailTransition} hasDetail=${!!detail}`);
 							// User just hit Stop on this session — swallow this one state
 							// change (typically the chat model transitioning to `idle`) so
 							// the backend doesn't proactively narrate a status update the
@@ -656,11 +658,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								clearTimeout(cancelExpiry);
 								this._userCancelledSessions.delete(sessionId);
 							} else {
-								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, lastResponseSummary });
+								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, lastResponseSummary, detailOnly: isDetailTransition });
 							}
 						}
 						if (currentState !== 'unknown') {
-							this._prevSessionStates.set(sessionId, currentState);
+							this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '' });
 						}
 
 						if (currentState === 'waiting_for_confirmation') {
@@ -680,7 +682,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					// duplicate / mid-stream-replaced narrations.
 					this._sendContext();
 					if (stateChanges.length > 0) {
-						this.logService.info(`[voice] autorun stateChanges=${stateChanges.length} flushing immediately: ${stateChanges.map(c => `${c.label}:${c.currentState}`).join(', ')}`);
+						// For detail-only transitions (same agent_state but
+						// different confirmation content), invalidate the
+						// cache so _sendDelta treats the session as new and
+						// includes agent_state + agent_state_detail together.
+						for (const change of stateChanges) {
+							if (change.detailOnly) {
+								this.voiceClientService.invalidateSessionCache(change.sessionId);
+							}
+						}
+						// Re-send after cache invalidation so the delta
+						// picks up the full session fields.
+						if (stateChanges.some(c => c.detailOnly)) {
+							this._sendContext();
+						}
+						this.logService.info(`[voice] autorun stateChanges=${stateChanges.length} flushing immediately: ${stateChanges.map(c => `${c.label}:${c.currentState}${c.detailOnly ? ' (detail-only)' : ''}`).join(', ')}`);
 						// Flush the 500 ms debounce so the BE picks up the
 						// transition (and the accompanying detail / summary)
 						// promptly.
@@ -1553,18 +1569,23 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				}
 			}
 
-			const prevState = this._prevSessionStates.get(sessionId);
-			if (prevState !== undefined && prevState !== currentState && currentState !== 'unknown') {
+			const prev = this._prevSessionStates.get(sessionId);
+			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
+			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+			if (isStateChange || isDetailChange) {
 				const cancelExpiry = this._userCancelledSessions.get(sessionId);
 				if (cancelExpiry) {
 					clearTimeout(cancelExpiry);
 					this._userCancelledSessions.delete(sessionId);
 				} else {
+					if (isDetailChange) {
+						this.voiceClientService.invalidateSessionCache(sessionId);
+					}
 					stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, lastResponseSummary });
 				}
 			}
 			if (currentState !== 'unknown') {
-				this._prevSessionStates.set(sessionId, currentState);
+				this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '' });
 			}
 		}
 

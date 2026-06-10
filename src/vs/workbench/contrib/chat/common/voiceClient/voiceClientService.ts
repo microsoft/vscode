@@ -144,6 +144,14 @@ export interface IVoiceClientService {
 	 * Safe to call when no flush is pending — it just no-ops.
 	 */
 	flushSessionContext(): void;
+	/**
+	 * Clear the cached last-sent fields for a session so the next
+	 * ``_sendDelta`` treats it as a brand-new session (full field send).
+	 * Use when the confirmation detail changes within the same
+	 * ``agent_state`` — the normal merge-patch would strip the detail
+	 * because the state field itself didn't change.
+	 */
+	invalidateSessionCache(sessionId: string): void;
 	sendToolResult(callId: string, result: string): void;
 	/**
 	 * Notify the backend of a session state transition.
