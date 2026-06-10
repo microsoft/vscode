@@ -886,12 +886,15 @@ function renderForm(
 
 	return {
 		getPrompt: () => chatInput.inputEditor.getValue(),
-		// Capture the *raw* mode kind currently in the picker (e.g.
-		// 'agent' / 'ask' / 'edit'). We deliberately avoid
-		// `currentModeKind` which rewrites Agent -> Edit whenever the
-		// tools agent isn't currently registered; that environmental
-		// concern is the runner's responsibility at execution time, not
-		// capture time.
+		// Capture the mode's stable `id` (e.g. 'agent', 'ask', 'plan',
+		// or any extension-contributed mode id) rather than `kind`,
+		// which is a 3-value enum (`ask` | `edit` | `agent`) that
+		// collapses every extension-contributed mode into 'agent'.
+		//
+		// We also deliberately avoid `currentModeKind`, which rewrites
+		// Agent -> Edit whenever the tools agent isn't currently
+		// registered; that environmental concern is the runner's
+		// responsibility at execution time, not capture time.
 		//
 		// Always reading from the picker (rather than gating on whether
 		// the user "changed" it from a baseline) is what makes a
@@ -901,7 +904,7 @@ function renderForm(
 		// Edit-mode round-trips still preserve the previously stored
 		// value because we pre-seed the picker with `initialMode`
 		// above, so an untouched picker still reads back that value.
-		getMode: () => chatInput.currentModeObs.get().kind,
+		getMode: () => chatInput.currentModeObs.get().id,
 		getPermissionLevel: () => chatInput.currentPermissionLevelObs.get(),
 		// Read the picker's current value at Save time, same as mode and
 		// permission. Edit-mode round-trips still preserve the previously
