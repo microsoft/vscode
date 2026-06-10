@@ -510,8 +510,8 @@ export class QueryBuilder {
 				searchPath: workspaceUri,
 				pattern: cleanedPattern
 			}];
-		} else if (searchPath === './' || searchPath === '.\\') {
-			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
+		} else if (searchPath === '.' || searchPath === './' || searchPath === '.\\') {
+			return []; // ., ./ and .\ refer to the current workspace folder which only makes sense in a single-folder workspace
 		} else {
 			const searchPathWithoutDotSlash = searchPath.replace(/^\.[\/\\]/, '');
 			const folders = this.workspaceContextService.getWorkspace().folders;
