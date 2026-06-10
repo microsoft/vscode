@@ -20,7 +20,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { ChatAgentLocation } from '../../../../../../workbench/contrib/chat/common/constants.js';
-import { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatModelInputState, IInputModel, ISerializableChatModelInputState } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatModelReference, IChatService, IChatSessionStartOptions, IChatSessionTiming } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
@@ -31,15 +31,24 @@ import { LocalChatSessionsProvider, LocalSessionType, LOCAL_SESSION_ENABLED_SETT
 
 // ---- Mock chat service ----------------------------------------------------
 
-function createMockModel(sessionResource: URI, opts?: { title?: string; requestInProgress?: IObservable<boolean>; timing?: IChatSessionTiming }): IChatModel {
-	let workingDirectory: URI | undefined;
+function createMockModel(sessionResource: URI, opts?: { title?: string; requestInProgress?: IObservable<boolean>; timing?: IChatSessionTiming; inputState?: IChatModelInputState; workingDirectory?: URI }): IChatModel {
+	let workingDirectory: URI | undefined = opts?.workingDirectory;
 	const requestInProgress = opts?.requestInProgress ?? observableValue<boolean>('requestInProgress', false);
 	const timing: IChatSessionTiming = opts?.timing ?? { created: 1_000, lastRequestStarted: undefined, lastRequestEnded: undefined };
+	const inputState = observableValue<IChatModelInputState | undefined>('inputState', opts?.inputState);
+	const inputModel: IInputModel = {
+		state: inputState,
+		setState: state => inputState.set({ ...inputState.get(), ...state } as IChatModelInputState, undefined),
+		clearState: () => inputState.set(undefined, undefined),
+		toJSON: (): ISerializableChatModelInputState | undefined => undefined,
+	};
 	return new class extends mock<IChatModel>() {
 		override readonly sessionResource = sessionResource;
 		override readonly title = opts?.title ?? 'Test Session';
 		override readonly timing = timing;
+		override readonly lastMessageDate = timing.lastRequestEnded ?? timing.lastRequestStarted ?? timing.created;
 		override readonly requestInProgress = requestInProgress;
+		override readonly inputModel = inputModel;
 		override get workingDirectory() { return workingDirectory; }
 		override setWorkingDirectory(uri: URI | undefined): void { workingDirectory = uri; }
 	}();
@@ -71,12 +80,17 @@ class MockChatService extends Disposable {
 		return this._models.get(resource.toString());
 	}
 
+	acquireExistingSession(resource: URI): IChatModelReference | undefined {
+		const model = this.getSession(resource);
+		return model ? { object: model, dispose: () => { } } : undefined;
+	}
+
 	registerModel(model: IChatModel): void {
 		this._models.set(model.sessionResource.toString(), model);
 	}
 
-	async acquireOrLoadSession(): Promise<IChatModelReference | undefined> {
-		return undefined;
+	async acquireOrLoadSession(resource: URI): Promise<IChatModelReference | undefined> {
+		return this.acquireExistingSession(resource);
 	}
 
 	async sendRequest(resource: URI, query: string) {
@@ -142,6 +156,7 @@ const STORAGE_KEY_SESSIONS = 'sessions.localChat.sessions';
 
 interface IReadStoredSession {
 	readonly uri: UriComponents;
+	readonly workingDirectory?: UriComponents;
 	readonly parentUri?: UriComponents;
 }
 
@@ -497,5 +512,69 @@ suite('LocalChatSessionsProvider', () => {
 
 		childInProgress.set(false, undefined);
 		assert.strictEqual(group.status.get(), SessionStatus.Completed);
+	});
+
+	test('adoptForkedChat materializes a forked local chat as a provider-owned session', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService, storage } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const source = await commitNewSession(provider);
+		const forkedWorkingDirectory = URI.file('/forked/folder');
+		const forkedResource = URI.parse('vscode-local-chat://chat/forked-primary');
+		chatService.registerModel(createMockModel(forkedResource, {
+			title: 'Forked: hello',
+			timing: { created: 2_000, lastRequestStarted: 2_100, lastRequestEnded: 2_200 },
+			workingDirectory: forkedWorkingDirectory,
+		}));
+
+		const adopted = await provider.adoptForkedChat(source.sessionId, source.resource, forkedResource);
+
+		const stored = readStoredSessions(storage);
+		const storedFork = stored.find(s => URI.revive(s.uri).toString() === forkedResource.toString());
+		assert.deepStrictEqual({
+			adopted: adopted.resource.toString(),
+			sessions: provider.getSessions().map(session => session.resource.toString()),
+			chats: adopted.chats.get().map(chat => chat.resource.toString()),
+			storedParent: storedFork?.parentUri ? URI.revive(storedFork.parentUri).toString() : undefined,
+			storedWorkingDirectory: storedFork?.workingDirectory ? URI.revive(storedFork.workingDirectory).toString() : undefined,
+		}, {
+			adopted: forkedResource.toString(),
+			sessions: [source.resource.toString(), forkedResource.toString()],
+			chats: [forkedResource.toString()],
+			storedParent: undefined,
+			storedWorkingDirectory: forkedWorkingDirectory.toString(),
+		});
+	});
+
+	test('adoptForkedChat from a child chat creates a standalone primary session', async () => {
+		const store = leaks.add(new DisposableStore());
+		const { instantiationService, chatService, storage } = createFixture(store);
+		const provider = store.add(instantiationService.createInstance(LocalChatSessionsProvider));
+
+		const source = await commitNewSession(provider);
+		const childResource = await addChat(provider, source);
+		const forkedResource = URI.parse('vscode-local-chat://chat/forked-child');
+		chatService.registerModel(createMockModel(forkedResource, {
+			title: 'Forked: second',
+			workingDirectory: TEST_FOLDER,
+		}));
+
+		const adopted = await provider.adoptForkedChat(source.sessionId, childResource, forkedResource);
+
+		const storedFork = readStoredSessions(storage).find(s => URI.revive(s.uri).toString() === forkedResource.toString());
+		assert.deepStrictEqual({
+			adopted: adopted.resource.toString(),
+			sessionCount: provider.getSessions().length,
+			originalChatCount: provider.getSessions().find(session => session.resource.toString() === source.resource.toString())?.chats.get().length,
+			forkChatCount: adopted.chats.get().length,
+			storedParent: storedFork?.parentUri ? URI.revive(storedFork.parentUri).toString() : undefined,
+		}, {
+			adopted: forkedResource.toString(),
+			sessionCount: 2,
+			originalChatCount: 2,
+			forkChatCount: 1,
+			storedParent: undefined,
+		});
 	});
 });

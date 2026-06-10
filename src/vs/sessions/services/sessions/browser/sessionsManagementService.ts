@@ -238,6 +238,26 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		);
 	}
 
+	getSessionForChatResource(chatResource: URI): ISession | undefined {
+		for (const session of this.getSessions()) {
+			if (this.uriIdentityService.extUri.isEqual(session.resource, chatResource)) {
+				return session;
+			}
+			if (session.chats.get().some(chat => this.uriIdentityService.extUri.isEqual(chat.resource, chatResource))) {
+				return session;
+			}
+		}
+		return undefined;
+	}
+
+	async adoptForkedChat(sourceChatUri: URI, forkedChatUri: URI): Promise<ISession | undefined> {
+		const sourceSession = this.getSessionForChatResource(sourceChatUri);
+		if (!sourceSession) {
+			return undefined;
+		}
+		const provider = this._getProvider(sourceSession);
+		return provider?.adoptForkedChat?.(sourceSession.sessionId, sourceChatUri, forkedChatUri);
+	}
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}

@@ -132,6 +132,19 @@ export interface ISessionsManagementService {
 	getSession(resource: URI): ISession | undefined;
 
 	/**
+	 * Get the session that owns the given chat resource. For single-chat sessions
+	 * this is usually the same as {@link getSession}; for multi-chat sessions the
+	 * chat resource may belong to a child chat inside the returned session.
+	 */
+	getSessionForChatResource(chatResource: URI): ISession | undefined;
+
+	/**
+	 * Adopt an already-created forked chat resource into the provider that owns
+	 * the source chat, returning the provider-owned session that should be opened.
+	 */
+	adoptForkedChat(sourceChatUri: URI, forkedChatUri: URI): Promise<ISession | undefined>;
+
+	/**
 	 * Get all session types from all registered providers.
 	 */
 	getAllSessionTypes(): ISessionType[];

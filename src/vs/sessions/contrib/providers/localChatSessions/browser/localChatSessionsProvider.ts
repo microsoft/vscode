@@ -11,7 +11,7 @@ import { autorun, constObservable, IObservable, IReader, ISettableObservable, ob
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatService, IChatSendRequestOptions, IChatDetail, convertLegacyChatSessionTiming } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, IChatSendRequestOptions, IChatDetail, convertLegacyChatSessionTiming, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange2, IChatSessionProviderOptionItem, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, ISessionType, ISessionFileChange, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -373,6 +373,12 @@ class LocalSession extends Disposable {
 		}
 	}
 
+	setModeSnapshot(mode: { readonly id: string; readonly kind: ChatModeKind | undefined } | undefined): void {
+		this._mode = undefined;
+		// The sessions surface stores a concrete mode kind; local chats default to agent mode when input state has no kind.
+		this._modeObservable.set(mode ? { id: mode.id, kind: mode.kind ?? ChatModeKind.Agent } : undefined, undefined);
+	}
+
 	/**
 	 * Update this session from a persisted history detail.
 	 */
@@ -569,7 +575,7 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 				lastMessageDate: stored.lastMessageDate,
 				timing: { created: stored.createdAt, lastRequestStarted: undefined, lastRequestEnded: stored.lastMessageDate },
 				isActive: false,
-				lastResponseState: 0 /* ResponseModelState.Complete */,
+				lastResponseState: ResponseModelState.Complete,
 				workingDirectory,
 			};
 
@@ -870,6 +876,78 @@ export class LocalChatSessionsProvider extends Disposable implements ISessionsPr
 		}
 
 		throw new Error(`Session '${sessionId}' not found or is not the current new session`);
+	}
+
+	async adoptForkedChat(sessionId: string, sourceChatUri: URI, forkedChatUri: URI): Promise<ISession> {
+		if (this._sessionCache.has(forkedChatUri.toString())) {
+			return this._toISession(this._sessionCache.get(forkedChatUri.toString())!);
+		}
+
+		const source = this._findSession(sessionId);
+		if (!source) {
+			throw new Error(`Session '${sessionId}' not found`);
+		}
+
+		const primary = this._resolvePrimary(source);
+		const sourceChat = this._getGroupChats(primary).find(chat => isEqual(chat.resource, sourceChatUri));
+		if (!sourceChat) {
+			throw new Error(`Chat resource ${sourceChatUri.toString()} is not part of session '${sessionId}'`);
+		}
+
+		const modelRef = this.chatService.acquireExistingSession(forkedChatUri, 'LocalChatSessionsProvider#adoptForkedChat')
+			?? await this.chatService.acquireOrLoadSession(forkedChatUri, ChatAgentLocation.Chat, CancellationToken.None, 'LocalChatSessionsProvider#adoptForkedChat');
+		if (!modelRef) {
+			throw new Error(`Forked chat resource ${forkedChatUri.toString()} could not be loaded`);
+		}
+
+		try {
+			const model = modelRef.object;
+			const sourceWorkspace = primary.workspace.get();
+			const modelWorkingDirectory = model.workingDirectory;
+			const workingDirectory = modelWorkingDirectory ?? sourceWorkspace?.folders[0]?.root;
+			const workspace = (modelWorkingDirectory ? this.resolveWorkspace(modelWorkingDirectory) : undefined)
+				?? sourceWorkspace
+				?? (workingDirectory ? this.resolveWorkspace(workingDirectory) : undefined);
+			if (!workspace) {
+				throw new Error(`Cannot resolve workspace for forked chat ${forkedChatUri.toString()}`);
+			}
+
+			if (!model.workingDirectory && workingDirectory) {
+				model.setWorkingDirectory(workingDirectory);
+			}
+
+			const timing = model.timing;
+			const lastUpdate = model.lastMessageDate || timing.lastRequestEnded || timing.lastRequestStarted || timing.created;
+			const requestInProgress = model.requestInProgress.get();
+			const detail: IChatDetail = {
+				sessionResource: forkedChatUri,
+				title: model.title,
+				lastMessageDate: lastUpdate,
+				timing,
+				isActive: requestInProgress,
+				lastResponseState: requestInProgress ? ResponseModelState.Pending : ResponseModelState.Complete,
+				workingDirectory,
+			};
+
+			const session = LocalSession.fromHistory(detail, this.id, workspace, this.instantiationService);
+			session.setStatus(requestInProgress ? SessionStatus.InProgress : SessionStatus.Completed);
+			const inputState = model.inputModel.state.get();
+			session.setModelId(inputState?.selectedModel?.identifier);
+			session.setModeSnapshot(inputState?.mode);
+			if (inputState?.permissionLevel) {
+				session.setPermissionLevel(inputState.permissionLevel);
+			}
+
+			this._sessionCache.set(session.resource.toString(), session);
+			this._addStoredSession(session);
+
+			const forkedSession = this._toISession(session);
+			this._onDidChangeSessions.fire({ added: [forkedSession], removed: [], changed: [] });
+			this._syncSessionFromModel(session);
+			return forkedSession;
+		} finally {
+			modelRef.dispose();
+		}
 	}
 
 	/**
