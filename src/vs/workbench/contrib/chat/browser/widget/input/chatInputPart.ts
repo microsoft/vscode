@@ -95,7 +95,7 @@ import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chat
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
-import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
+import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenAutomationsWorkspacePickerAction, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
 import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
@@ -103,7 +103,7 @@ import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentW
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
-import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
+import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate, IChatInputWorkspacePicker } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
@@ -135,6 +135,7 @@ import { IModePickerDelegate, isModeConsideredBuiltIn, ModePickerActionItem } fr
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
+import { WorkspacePickerInputActionItem } from './workspacePickerInputActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
@@ -183,6 +184,15 @@ export interface IChatInputPartOptions {
 	 * for their chat request. This is useful for empty window contexts.
 	 */
 	workspacePickerDelegate?: IWorkspacePickerDelegate;
+	/**
+	 * Optional workspace picker rendered as a chip in the PRIMARY toolbar
+	 * (between the mode picker and the model picker). Used by the automations
+	 * dialog so its existing `WorkspacePicker` instance can drive both the
+	 * form-row trigger and a toolbar chip from a single source of truth.
+	 * Gated by {@link ChatContextKeys.inAutomationsDialog} on the menu side
+	 * and a defensive null-check in `actionViewItemProvider`.
+	 */
+	workspacePickerInput?: IChatInputWorkspacePicker;
 	/**
 	 * When true, the mode picker hides custom agents and only offers the
 	 * built-in modes (Agent / Ask / Edit / Plan, gated by their normal
@@ -2681,6 +2691,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = this._createModePickerDelegate();
 					return this.modeWidget = this.instantiationService.createInstance(ModePickerActionItem, action, delegate, pickerOptions);
+				} else if (action.id === OpenAutomationsWorkspacePickerAction.ID && action instanceof MenuItemAction) {
+					// Toolbar chip for an externally-owned workspace picker
+					// (today: the automations dialog's single picker instance,
+					// also rendered in the dialog form row). Defensive guard:
+					// the menu's `when` clause should already gate visibility,
+					// but if a host registers the menu contribution without
+					// supplying the picker we hide rather than throw.
+					if (this.options.workspacePickerInput) {
+						return this.instantiationService.createInstance(WorkspacePickerInputActionItem, action, this.options.workspacePickerInput, undefined);
+					}
+					return new HiddenActionViewItem(action);
 				} else if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
 					// Use provided delegate if available, otherwise create default delegate
 					const getActiveSessionType = () => {
