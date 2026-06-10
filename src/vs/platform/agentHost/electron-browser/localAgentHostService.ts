@@ -15,18 +15,22 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
-import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService, isAgentHostEnabled } from '../common/agentService.js';
+import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
 import { wrapAgentServiceWithAhpLogging } from './localAhpJsonlLogging.js';
-import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, type IActiveSubscriptionInfo, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import { ActionType, type ActionEnvelope, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { createRemoteWatchHandle, type IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
+import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type RootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
 import { AGENT_HOST_CLIENT_RESOURCE_CHANNEL, AgentHostClientResourceChannel } from '../common/agentHostClientResourceChannel.js';
+import { TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
+import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
+import { AgentHostTelemetryLevelConfigKey, AgentHostSessionSyncEnabledConfigKey, SESSION_SYNC_ENABLED_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -76,10 +80,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -92,8 +95,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// Optionally wrap the proxy with a logging layer that synthesizes JSON-RPC
 		// frames for every request/response/notification on the in-process MessagePort
 		// channel, mirroring the AHP transport JSONL logs produced by remote agent hosts.
-		this._ahpLogger = configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
-			? this._register(instantiationService.createInstance(AhpJsonlLogger, {
+		this._ahpLogger = this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)
+			? this._register(this._instantiationService.createInstance(AhpJsonlLogger, {
 				logsHome: environmentService.logsHome,
 				connectionId: this.clientId,
 				transport: 'local',
@@ -113,7 +116,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			resource => this.unsubscribe(resource),
 		));
 
-		if (configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TELEMETRY_SETTING_ID) || e.affectsConfiguration(TELEMETRY_OLD_SETTING_ID) || e.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)) {
+				this._updateTelemetryLevel();
+			}
+			if (e.affectsConfiguration(SESSION_SYNC_ENABLED_SETTING_ID)) {
+				this._updateSessionSyncEnabled();
+			}
+		}));
+
+		if (isAgentHostEnabled(this._configurationService)) {
 			this._connect();
 		}
 	}
@@ -131,14 +143,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		// Serve filesystem reverse-RPCs from the local file service. The
 		// agent host registers an authority on its
 		// AgentHostClientFileSystemProvider that calls back through this channel.
-		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, new AgentHostClientResourceChannel(this._fileService, this._ahpLogger));
+		client.registerChannel(AGENT_HOST_CLIENT_RESOURCE_CHANNEL, this._instantiationService.createInstance(AgentHostClientResourceChannel, this._ahpLogger));
 		this._clientEventually.complete(client);
+		this._updateTelemetryLevel();
+		this._updateSessionSyncEnabled();
 
 		store.add(this._proxy.onDidAction(e => {
 			const revived = revive(e) as ActionEnvelope;
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'action', params: e };
-				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+				this._ahpLogger.log(frame, 's2c');
 			}
 			this._subscriptionManager.receiveEnvelope(revived);
 			this._onDidAction.fire(revived);
@@ -146,7 +160,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		store.add(this._proxy.onDidNotification(e => {
 			if (this._ahpLogger) {
 				const frame = { jsonrpc: '2.0' as const, method: 'notification', params: { notification: e } };
-				this._ahpLogger.log(frame, 's2c', getAhpLogByteLength(JSON.stringify(frame)));
+				this._ahpLogger.log(frame, 's2c');
 			}
 			this._onDidNotification.fire(revive(e));
 		}));
@@ -161,6 +175,21 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		});
 	}
 
+	private _updateTelemetryLevel(): void {
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(getTelemetryLevel(this._configurationService)) },
+		}, this.clientId, 0);
+	}
+
+	private _updateSessionSyncEnabled(): void {
+		const enabled = !!this._configurationService.getValue<boolean>(SESSION_SYNC_ENABLED_SETTING_ID);
+		this.dispatchAction(ROOT_STATE_URI, {
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSessionSyncEnabledConfigKey]: enabled },
+		}, this.clientId, 0);
+	}
+
 	// ---- IAgentService forwarding (no await needed, delayed channel handles queuing) ----
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
@@ -170,7 +199,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._proxy.listSessions();
 	}
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		return this._proxy.createSession(config);
+		const promise = this._proxy.createSession(config);
+		// When the caller pre-specifies the session URI, a subscribe for
+		// that URI can race the in-flight create. Register the promise so
+		// `AgentSubscriptionManager.getSubscription` gates the wire-level
+		// subscribe on it (avoids transient `AHP_SESSION_NOT_FOUND`).
+		// When the server assigns the URI, no caller can subscribe to it
+		// ahead of `await createSession()`, so there's no race to track.
+		if (config?.session) {
+			this._subscriptionManager.trackSessionCreate(config.session, promise);
+		}
+		return promise;
 	}
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
 		return this._proxy.resolveSessionConfig(params);
@@ -194,6 +233,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	disposeTerminal(terminal: URI): Promise<void> {
 		return this._proxy.disposeTerminal(terminal);
 	}
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._proxy.invokeChangesetOperation(params);
+	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
@@ -203,8 +245,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	private unsubscribe(resource: URI): void {
 		this._proxy.unsubscribe(resource, this.clientId);
 	}
-	dispatchAction(action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
-		this._proxy.dispatchAction(action, clientId, clientSeq);
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+		this._proxy.dispatchAction(channel, action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
 	nextClientSeq(): number {
@@ -215,17 +257,21 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._subscriptionManager.rootState;
 	}
 
-	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
-		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, resource, owner);
 	}
 
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
 		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
-	dispatch(action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
-		const seq = this._subscriptionManager.dispatchOptimistic(action);
-		this.dispatchAction(action, this.clientId, seq);
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		return this._subscriptionManager.getActiveSubscriptions();
+	}
+
+	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
+		this.dispatchAction(channel, action, this.clientId, seq);
 	}
 
 	resourceList(uri: URI): Promise<ResourceListResult> {
@@ -245,6 +291,23 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	}
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult> {
 		return this._proxy.resourceMove(params);
+	}
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		return this._proxy.resourceResolve(params);
+	}
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		return this._proxy.resourceMkdir(params);
+	}
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		return this._proxy.createResourceWatch(params);
+	}
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle> {
+		return createRemoteWatchHandle({
+			createResourceWatch: p => this._proxy.createResourceWatch(p),
+			subscribe: uri => this.subscribe(uri),
+			unsubscribe: uri => this.unsubscribe(uri),
+			onDidAction: this.onDidAction,
+		}, params);
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side

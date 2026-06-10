@@ -38,7 +38,7 @@
 	max-width: 800px;
 	box-sizing: border-box;
 	border: 1px solid var(--vscode-agentsChatInput-border);
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
@@ -54,7 +54,8 @@
 	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
-.chat-input-picker-item .action-label.disabled {
+.chat-input-picker-item .action-label.disabled,
+.chat-input-picker-item.disabled .action-label {
 	opacity: 0.5;
 	cursor: default;
 	pointer-events: none;
@@ -70,7 +71,7 @@
 .sessions-chat-editor .monaco-editor .overflow-guard,
 .sessions-chat-editor .monaco-editor-background {
 	background-color: transparent !important;
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
 /* Toolbar */
@@ -127,7 +128,7 @@
 	padding: 3px 7px;
 	background-color: transparent;
 	border: none;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	touch-action: manipulation;
 	color: var(--vscode-icon-foreground);
@@ -143,7 +144,7 @@
 
 .sessions-chat-config-toolbar .action-label,
 .sessions-chat-config-toolbar .action-label .chat-input-picker-label {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 }
 
 /* Allow long labels (e.g. the model picker name) to ellipsize when space is tight */
@@ -161,23 +162,12 @@
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	flex-shrink: 0;
 	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
 	 * so the leading icon sizes naturally to its font-size, matching the bottom-row pickers. */
 	width: auto;
 	height: auto;
-}
-
-/* Left divider for the agents app welcome view */
-.sessions-chat-config-toolbar .action-label.model-picker-split::before {
-	content: '';
-	position: absolute;
-	top: 25%;
-	bottom: 25%;
-	left: 0;
-	width: 1px;
-	background-color: var(--vscode-editorWidget-border);
 }
 
 .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
@@ -315,7 +305,7 @@
 	width: 22px;
 	height: 22px;
 	flex-shrink: 0;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	background: transparent;
@@ -354,10 +344,10 @@
 	display: inline-flex;
 	align-items: center;
 	overflow: hidden;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2, 11px);
 	padding: 0 4px 0 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	height: 18px;
 	max-width: 200px;
 	width: fit-content;
@@ -413,7 +403,7 @@
 }
 
 .sessions-chat-attachment-remove .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	padding: 0;
 }
 
@@ -453,7 +443,7 @@
 
 .sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
 	height: 12px;
-	font-size: 12px;
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
 	margin-right: 3px;
 }
 

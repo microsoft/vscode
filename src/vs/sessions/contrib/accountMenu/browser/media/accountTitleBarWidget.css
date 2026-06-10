@@ -85,11 +85,11 @@
 	min-width: 18px;
 	height: 16px;
 	padding: 0 5px;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
-	font-size: 10px;
-	font-weight: 700;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	line-height: 1;
 }
@@ -169,8 +169,8 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
 }
 
@@ -182,6 +182,26 @@
 	margin-left: auto;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-label {
+	padding: 3px;
+	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:focus-visible {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-header-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:active {
+	background: var(--vscode-toolbar-activeBackground);
+	color: var(--vscode-foreground);
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions {
 	display: contents;
 }
@@ -189,46 +209,9 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-cta-actions .monaco-button {
 	height: 22px;
 	padding: 0 8px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	line-height: 20px;
 	border-radius: var(--vscode-cornerRadius-medium);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: transparent;
-	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
-	cursor: default;
-	font-size: 14px !important;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:active {
-	background: var(--vscode-toolbar-activeBackground);
-	color: var(--vscode-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-	background: var(--vscode-list-focusBackground);
-	color: var(--vscode-list-focusForeground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-header-action:disabled {
-	opacity: 0.5;
-	cursor: default;
 }
 
 .monaco-hover.workbench-hover.sessions-account-titlebar-panel-hover,
@@ -241,12 +224,11 @@
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	border-top: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-summary {
 	padding: 12px 16px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 1.4;
 	color: var(--vscode-descriptionForeground);
 }
@@ -256,6 +238,31 @@
 	flex-direction: column;
 	gap: 0;
 	padding: 2px 0 6px 0;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .actions-container {
+	align-items: stretch;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-item {
+	width: 100%;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-label {
+	width: 100%;
+	min-height: 24px;
+	padding: 3px 16px;
+	justify-content: flex-start;
+	border-radius: 0;
+	font-size: var(--vscode-agents-fontSize-label1);
+	line-height: 18px;
+	color: var(--vscode-foreground);
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:hover,
+.agent-sessions-workbench .sessions-account-titlebar-panel-actions > .monaco-action-bar .action-item:not(.disabled) .action-label:focus-visible {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section {
@@ -285,9 +292,9 @@
 	padding: 0 28px 0 0;
 	border-top: none;
 	background: none;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
-	font-weight: 400;
+	font-weight: var(--vscode-agents-fontWeight-regular);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -297,12 +304,12 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .collapsible-status {
 	margin-left: auto;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	line-height: 15px;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section .chat-status-bar-entry-tooltip .collapsible-header.non-collapsible .contributed-detail {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2);
 	line-height: 15px;
 }
 
@@ -314,8 +321,8 @@
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-title {
 	padding: 4px 8px 2px;
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 18px;
 	color: var(--vscode-foreground);
 }
@@ -342,7 +349,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 18px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -350,124 +357,12 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .header-label {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-weight: 400;
-	font-size: 11px;
+	font-weight: var(--vscode-agents-fontWeight-regular);
+	font-size: var(--vscode-agents-fontSize-label2);
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-panel-section-header > div.header .monaco-action-bar {
 	flex: 0 0 auto;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	height: 24px;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action-icon {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	height: 16px;
-	flex: 0 0 auto;
-	color: var(--vscode-icon-foreground, var(--vscode-descriptionForeground));
-	/* `!important` to override `.codicon`'s own `font-size` rule. */
-	font-size: 14px !important;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon:hover .sessions-account-titlebar-panel-action-icon,
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.with-icon:focus-visible .sessions-account-titlebar-panel-action-icon {
-	color: inherit;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action-label {
-	flex: 1 1 auto;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-separator {
-	height: 1px;
-	margin: 5px 0;
-	background: var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action {
-	display: flex;
-	align-items: center;
-	width: auto;
-	box-sizing: border-box;
-	height: 24px;
-	margin: 0 4px;
-	padding: 0 6px;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: transparent;
-	color: inherit;
-	font-size: 12px;
-	line-height: 1;
-	text-align: left;
-	cursor: default;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.checked,
-.agent-sessions-workbench .sessions-account-titlebar-panel-action:active {
-	background: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-	background: var(--vscode-list-focusBackground);
-	color: var(--vscode-list-focusForeground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action:disabled {
-	opacity: 0.6;
-	cursor: default;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action {
-	margin: 4px 8px;
-	padding: 0 12px;
-	justify-content: center;
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	font-weight: 500;
-	cursor: pointer;
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:hover {
-	background: var(--vscode-button-hoverBackground);
-	color: var(--vscode-button-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action.checked,
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:active {
-	background: var(--vscode-button-secondaryHoverBackground, var(--vscode-button-hoverBackground));
-	color: var(--vscode-button-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:focus-visible {
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-}
-
-.agent-sessions-workbench .sessions-account-titlebar-panel-action.primary-action:disabled {
-	opacity: 0.5;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	cursor: default;
 }
 
 /* Signed-out CTA inside the embedded chat status dashboard
@@ -483,7 +378,7 @@
 .agent-sessions-workbench .sessions-account-titlebar-panel-section.subscription .chat-status-bar-entry-tooltip > div.description {
 	margin: 0;
 	padding: 0 2px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
 	color: var(--vscode-descriptionForeground);
 }
@@ -494,8 +389,8 @@
 	margin: 0;
 	padding: 0 12px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 1;
 }
 

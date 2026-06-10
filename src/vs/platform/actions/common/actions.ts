@@ -261,6 +261,7 @@ export class MenuId {
 	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSecondary = new MenuId('ChatInputSecondary');
+	static readonly ChatInputStatus = new MenuId('ChatInputStatus');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly ChatModePicker = new MenuId('ChatModePicker');
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
@@ -303,6 +304,8 @@ export class MenuId {
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
 	static readonly BrowserNavigationToolbar = new MenuId('BrowserNavigationToolbar');
 	static readonly BrowserActionsToolbar = new MenuId('BrowserActionsToolbar');
+	static readonly BrowserChatActionsMenu = new MenuId('BrowserChatActionsMenu');
+	static readonly BrowserEmulationToolbar = new MenuId('BrowserEmulationToolbar');
 	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
 	static readonly AgentSessionSectionContext = new MenuId('AgentSessionSectionContext');
@@ -310,6 +313,8 @@ export class MenuId {
 	static readonly AgentSessionsToolbar = new MenuId('AgentSessionsToolbar');
 	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 	static readonly AgentSessionSectionToolbar = new MenuId('AgentSessionSectionToolbar');
+	static readonly SessionItemContextMenu = new MenuId('SessionItemContextMenu');
+	static readonly SessionHeaderContext = new MenuId('SessionsSessionHeaderContext');
 	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
 	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
 	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');

@@ -1038,55 +1038,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ---------------------------------------------------------
 
-chacha20 0.10.0 - MIT OR Apache-2.0
-https://github.com/RustCrypto/stream-ciphers
-
-All crates licensed under either of
-
- * [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
- * [MIT license](http://opensource.org/licenses/MIT)
-
-at your option.
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
-[//]: # (badges)
-
-[chat-image]: https://img.shields.io/badge/zulip-join_chat-blue.svg
-[chat-link]: https://rustcrypto.zulipchat.com/#narrow/stream/260049-stream-ciphers
-[deps-image]: https://deps.rs/repo/github/RustCrypto/stream-ciphers/status.svg
-[deps-link]: https://deps.rs/repo/github/RustCrypto/stream-ciphers
-[license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
-[hazmat-image]: https://img.shields.io/badge/crypto-hazmat%E2%9A%A0-red.svg
-[hazmat-link]: https://github.com/RustCrypto/meta/blob/master/HAZMAT.md
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
-
-[//]: # (footnotes)
-
-[stream ciphers]: https://en.wikipedia.org/wiki/Stream_cipher
-[`cipher`]: https://docs.rs/cipher
-
-[//]: # (crates)
-
-[`chacha20`]: ./chacha20
-[`hc-256`]: ./hc-256
-[`rabbit`]: ./rabbit
-[`rc4`]: ./rc4
-[`salsa20`]: ./salsa20
-
-[//]: # (links)
-
-[ChaCha]: https://en.wikipedia.org/wiki/Salsa20#ChaCha_variant
-[HC-256]: https://en.wikipedia.org/wiki/HC-256
-[Rabbit]: https://en.wikipedia.org/wiki/Rabbit_(cipher)
-[RC4]: https://en.wikipedia.org/wiki/RC4
-[Salsa20]: https://en.wikipedia.org/wiki/Salsa20
----------------------------------------------------------
-
----------------------------------------------------------
-
 clap 4.5.58 - MIT OR Apache-2.0
 https://github.com/clap-rs/clap
 
@@ -1387,7 +1338,6 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 cpufeatures 0.2.17 - MIT OR Apache-2.0
-cpufeatures 0.3.0 - MIT OR Apache-2.0
 https://github.com/RustCrypto/utils
 
 All crates licensed under either of
@@ -6233,7 +6183,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl 0.10.79 - Apache-2.0
+openssl 0.10.80 - Apache-2.0
 https://github.com/rust-openssl/rust-openssl
 
 Copyright 2011-2017 Google Inc.
@@ -6312,7 +6262,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-openssl-sys 0.9.115 - MIT
+openssl-sys 0.9.116 - MIT
 https://github.com/rust-openssl/rust-openssl
 
 The MIT License (MIT)
@@ -7513,9 +7463,8 @@ https://github.com/r-efi/r-efi
 
 ---------------------------------------------------------
 
-rand 0.10.1 - MIT OR Apache-2.0
 rand 0.7.3 - MIT OR Apache-2.0
-rand 0.8.5 - MIT OR Apache-2.0
+rand 0.8.6 - MIT OR Apache-2.0
 rand 0.9.4 - MIT OR Apache-2.0
 https://github.com/rust-random/rand
 
@@ -7584,7 +7533,6 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-rand_core 0.10.1 - MIT OR Apache-2.0
 rand_core 0.5.1 - MIT OR Apache-2.0
 rand_core 0.6.4 - MIT OR Apache-2.0
 rand_core 0.9.5 - MIT OR Apache-2.0
@@ -9001,16 +8949,13 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`ascon‑hash256`]: ./ascon-hash256
-[`ascon‑xof128`]: ./ascon-xof128
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
-[`cshake`]: ./cshake
 [`fsb`]: ./fsb
 [`gost94`]: ./gost94
 [`groestl`]: ./groestl
 [`jh`]: ./jh
-[`k12`]: ./k12
 [`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
@@ -9025,39 +8970,26 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
-[`turboshake`]: ./turboshake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
 
 [1]: https://en.wikipedia.org/wiki/Cryptographic_hash_function
+[XOF]: https://en.wikipedia.org/wiki/Extendable-output_function
+[RustCrypto/XOFs]: https://github.com/RustCrypto/XOFs
 [`blake3`]: https://github.com/BLAKE3-team/BLAKE3
-[`base16ct`]: https://docs.rs/base16ct
-[`base64ct`]: https://docs.rs/base64ct
 [`digest`]: https://docs.rs/digest
-[`Digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html
-[`Digest::digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html#tymethod.digest
-[`DynDigest`]: https://docs.rs/digest/0.10.0/digest/trait.DynDigest.html
-[`generic-array`]: https://docs.rs/generic-array
-[HMAC]: https://en.wikipedia.org/wiki/Hash-based_message_authentication_code
-[`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html
-[`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html
-[`hmac`]: https://docs.rs/hmac
-[RustCrypto/MACs]: https://github.com/RustCrypto/MACs
 
 [//]: # (algorithms)
 
 [Ascon-Hash256]: https://doi.org/10.6028/NIST.SP.800-232.ipd
-[Ascon-Xof128]: https://doi.org/10.6028/NIST.SP.800-232.ipd
-[Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
+[STB 34.101.77-2020]: http://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
-[cSHAKE]: https://csrc.nist.gov/pubs/sp/800/185/final
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
 [GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
-[KangarooTwelve]: https://keccak.team/kangarootwelve.html
 [Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
@@ -9073,7 +9005,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Streebog]: https://en.wikipedia.org/wiki/Streebog
 [Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
 [Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
-[TurboSHAKE]: https://keccak.team/turboshake.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9103,16 +9034,13 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`ascon‑hash256`]: ./ascon-hash256
-[`ascon‑xof128`]: ./ascon-xof128
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
-[`cshake`]: ./cshake
 [`fsb`]: ./fsb
 [`gost94`]: ./gost94
 [`groestl`]: ./groestl
 [`jh`]: ./jh
-[`k12`]: ./k12
 [`kupyna`]: ./kupyna
 [`md2`]: ./md2
 [`md4`]: ./md4
@@ -9127,39 +9055,26 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
-[`turboshake`]: ./turboshake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
 
 [1]: https://en.wikipedia.org/wiki/Cryptographic_hash_function
+[XOF]: https://en.wikipedia.org/wiki/Extendable-output_function
+[RustCrypto/XOFs]: https://github.com/RustCrypto/XOFs
 [`blake3`]: https://github.com/BLAKE3-team/BLAKE3
-[`base16ct`]: https://docs.rs/base16ct
-[`base64ct`]: https://docs.rs/base64ct
 [`digest`]: https://docs.rs/digest
-[`Digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html
-[`Digest::digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html#tymethod.digest
-[`DynDigest`]: https://docs.rs/digest/0.10.0/digest/trait.DynDigest.html
-[`generic-array`]: https://docs.rs/generic-array
-[HMAC]: https://en.wikipedia.org/wiki/Hash-based_message_authentication_code
-[`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html
-[`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html
-[`hmac`]: https://docs.rs/hmac
-[RustCrypto/MACs]: https://github.com/RustCrypto/MACs
 
 [//]: # (algorithms)
 
 [Ascon-Hash256]: https://doi.org/10.6028/NIST.SP.800-232.ipd
-[Ascon-Xof128]: https://doi.org/10.6028/NIST.SP.800-232.ipd
-[Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
+[STB 34.101.77-2020]: http://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
-[cSHAKE]: https://csrc.nist.gov/pubs/sp/800/185/final
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
 [GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
 [JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
-[KangarooTwelve]: https://keccak.team/kangarootwelve.html
 [Kupyna]: https://eprint.iacr.org/2015/885.pdf
 [MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
 [MD4]: https://en.wikipedia.org/wiki/MD4
@@ -9175,7 +9090,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Streebog]: https://en.wikipedia.org/wiki/Streebog
 [Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
 [Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
-[TurboSHAKE]: https://keccak.team/turboshake.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9879,8 +9793,8 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tar 0.4.45 - MIT OR Apache-2.0
-https://github.com/alexcrichton/tar-rs
+tar 0.4.46 - MIT OR Apache-2.0
+https://github.com/composefs/tar-rs
 
 Copyright (c) The tar-rs Project Contributors
 

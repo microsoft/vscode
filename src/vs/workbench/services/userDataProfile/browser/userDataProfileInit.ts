@@ -85,7 +85,7 @@ export class UserDataProfileInitializer implements IUserDataInitializer {
 				promises.push(this.initialize(new McpResourceInitializer(this.userDataProfileService, this.fileService, this.logService), profileTemplate.mcp, ProfileResourceType.Mcp));
 			}
 			if (profileTemplate?.snippets) {
-				promises.push(this.initialize(new SnippetsResourceInitializer(this.userDataProfileService, this.fileService, this.uriIdentityService), profileTemplate.snippets, ProfileResourceType.Snippets));
+				promises.push(this.initialize(new SnippetsResourceInitializer(this.userDataProfileService, this.fileService, this.uriIdentityService, this.logService), profileTemplate.snippets, ProfileResourceType.Snippets));
 			}
 			promises.push(this.initializeInstalledExtensions(instantiationService));
 			await Promises.settled(promises);

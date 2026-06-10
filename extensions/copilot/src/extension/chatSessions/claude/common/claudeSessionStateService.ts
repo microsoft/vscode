@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import type * as vscode from 'vscode';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import type { TraceContext } from '../../../../platform/otel/common/otelService';

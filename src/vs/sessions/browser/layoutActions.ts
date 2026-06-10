@@ -17,6 +17,7 @@ import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { mainWindow } from '../../base/browser/window.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -48,12 +49,6 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			menu: [
 				{
 					id: Menus.TitleBarLeftLayout,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				},
-				{
-					id: Menus.TitleBarContext,
 					group: 'navigation',
 					order: 0,
 					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
@@ -89,20 +84,19 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 				description: localize('openAndCloseSecondarySidebar', 'Open/Show and Close/Hide Secondary Side Bar'),
 			},
 			category: Categories.View,
-			f1: true,
-			menu: [
-				{
-					id: Menus.TitleBarContext,
-					order: 1,
-					when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
-				}
-			]
+			f1: true
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		// When hiding and unhidning editor part and auxiliary bar, hiding must be done
+		// in the opposite order than showing for sizing to restore correct dimensions.
+		if (isCurrentlyVisible && layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			layoutService.setPartHidden(true, Parts.EDITOR_PART);
+		}
 
 		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
 
@@ -124,15 +118,7 @@ class TogglePanelVisibilityAction extends Action2 {
 			title: localize2('togglePanel', 'Toggle Panel Visibility'),
 			category: Categories.View,
 			f1: true,
-			icon: panelCloseIcon,
-			menu: [
-				{
-					id: Menus.PanelTitle,
-					group: 'navigation',
-					order: 2,
-					when: IsAuxiliaryWindowContext.toNegated()
-				}
-			]
+			icon: panelCloseIcon
 		});
 	}
 

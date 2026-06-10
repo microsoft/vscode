@@ -49,7 +49,7 @@ export interface IActionListItemHover {
 	/**
 	 * Content to display in the hover. Can be a markdown string or an HTMLElement for full DOM control.
 	 */
-	readonly content?: string | MarkdownString | HTMLElement;
+	readonly content?: string | IMarkdownString | HTMLElement;
 	/**
 	 * Optional disposable associated with the hover content (e.g. from rendered markdown).
 	 */
@@ -528,6 +528,11 @@ export interface IActionListOptions {
 	 * Optional text shown below the action list as a footer.
 	 */
 	readonly footerText?: string;
+
+	/**
+	 * Optional CSS class name added to the action list container, for scoped styling.
+	 */
+	readonly className?: string;
 }
 
 /**
@@ -591,12 +596,22 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._options?.inlineDescription) {
 			this.domNode.classList.add('inline-description');
 		}
+		if (this._options?.className) {
+			const classNames = this._options.className.split(/\s+/).filter(className => className.length > 0);
+			if (classNames.length > 0) {
+				this.domNode.classList.add(...classNames);
+			}
+		}
 		this._actionLineHeight = 24;
 
 		// Create submenu container appended to domNode
 		this._submenuContainer = document.createElement('div');
 		this._submenuContainer.className = 'action-list-submenu-panel action-widget';
 		this._submenuContainer.style.display = 'none';
+		// Make focusable so clicking the hover panel keeps focus inside the
+		// tracked element instead of moving it to document.body (which would
+		// trigger the blur handler and dismiss the widget).
+		this._submenuContainer.tabIndex = -1;
 		this.domNode.append(this._submenuContainer);
 
 		this._register(dom.addDisposableListener(this._submenuContainer, 'mouseenter', () => {

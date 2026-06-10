@@ -39,22 +39,29 @@ import { ContextMenuController } from '../../../../editor/contrib/contextmenu/br
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
 import { NewChatContextAttachments } from './newChatContextAttachments.js';
 import { SessionTypePicker } from './sessionTypePicker.js';
+import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { MobileSessionTypePicker } from './mobile/mobileSessionTypePicker.js';
 import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobileChipLaneScroll.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ChatInputStatusActionViewItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStatusActionViewItem.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
+import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
+import { ModelPicker, ModelPickerActionViewItem } from './modelPicker.js';
+import { ISessionInputContext, SessionInputContext } from './sessionInputContext.js';
+import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
@@ -64,6 +71,16 @@ const MAX_EDITOR_HEIGHT = 200;
 interface IDraftState {
 	inputText: string;
 	attachments: readonly IChatRequestVariableEntry[];
+}
+
+/**
+ * Options passed to the {@link NewChatInputWidget}'s `sendRequest` callback when
+ * the user submits the input.
+ */
+export interface INewChatInputSendRequest {
+	readonly query: string;
+	readonly attachments?: IChatRequestVariableEntry[];
+	readonly background?: boolean;
 }
 
 /**
@@ -129,6 +146,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Slash commands
 	private _slashCommandHandler: SlashCommandHandler | undefined;
+	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
+	private readonly _scopedInstantiationService: IInstantiationService;
 
 	// Input state
 	private _draftState: IDraftState | undefined = {
@@ -143,13 +162,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	constructor(
 		private readonly options: {
+			session: IObservable<IActiveSession | undefined>;
 			getContextFolderUri: () => URI | undefined;
-			sendRequest: (query: string, attachments?: IChatRequestVariableEntry[]) => Promise<void>;
+			sendRequest: (request: INewChatInputSendRequest) => Promise<void>;
 			canSendRequest: IObservable<boolean>;
 			loading: IObservable<boolean>;
+			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
 			placeholder?: string;
 			renderSessionTypePickerInControls?: boolean;
+			supportsBackground?: boolean;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -162,16 +184,29 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
+			[INewChatModelPickerService, new NewChatModelPickerService()],
+			[ISessionInputContext, new SessionInputContext(this.options.session)],
+		)));
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
+		if (this.options.historyKey) {
+			this._register(autorun(reader => this._setHistoryKey(this.options.historyKey?.read(reader))));
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
+					this._setHistoryKey(this.options.historyKey?.get());
+				}
+			}));
+		}
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		// Always use the mobile-aware picker. Its overrides bail to the
 		// desktop behavior when `isPhoneLayout()` is false, so picking
 		// the same class regardless of construction-time viewport
 		// avoids a class-mismatch when the user resizes across the
 		// phone breakpoint after the chat input mounted.
-		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker));
+		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session));
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
+			this._updateSendButtonState();
 			this.focus();
 		}));
 		this._register(autorun(reader => {
@@ -180,6 +215,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
 		}));
+	}
+
+	private _setHistoryKey(historyKey: string | undefined): void {
+		this._history.setHistoryKey(this.configurationService.getValue<boolean>(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING) !== false ? historyKey : undefined);
 	}
 
 	// --- Rendering ---
@@ -191,12 +230,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Overflow widget DOM node at the top level so the suggest widget
 		// is not clipped by any overflow:hidden ancestor.
 		const editorOverflowWidgetsDomNode = dom.append(root, dom.$('.sessions-chat-editor-overflow.monaco-editor'));
+		// Suppress the default `Text` kind icon in the suggest widget; chat slash/skill
+		// completions use that kind and rely on the chat module's CSS rule scoped to this class.
+		editorOverflowWidgetsDomNode.classList.add('hideSuggestTextIcons');
 		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
 
 		// Notification widget above the input area
 		const notificationContainer = dom.append(chatInputContainer, dom.$('.chat-input-notification-container'));
-		const notificationWidget = this._register(this.instantiationService.createInstance(ChatInputNotificationWidget));
+		const notificationWidget = this._register(this.instantiationService.createInstance(
+			ChatInputNotificationWidget,
+			() => this.sessionTypePicker.selectedPick?.sessionTypeId,
+		));
 		notificationContainer.appendChild(notificationWidget.domNode);
+		this._register(this.sessionTypePicker.onDidSelectSessionType(() => notificationWidget.rerender()));
 
 		// Input area inside the input slot
 		const inputArea = dom.append(chatInputContainer, dom.$('.new-chat-input-area'));
@@ -216,12 +262,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this.options.renderSessionTypePickerInControls !== false) {
 			this.sessionTypePicker.render(newChatControlsContainer);
 		}
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(newChatControlsContainer, dom.$('')), Menus.NewSessionControl, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 
 		const repoConfigContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-repo-config-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, repoConfigContainer, Menus.NewSessionRepositoryConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 		}));
 
@@ -233,6 +279,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// pointer-event-based scroll handler that no-ops on desktop and
 		// kicks in once a drag crosses a small threshold on phone.
 		this._register(installMobileChipLaneScroll(newChatBottomContainer, this.layoutService));
+
+		// Status indicators (e.g. OpenTelemetry pill) for the new-session view.
+		const statusContainer = dom.append(repoConfigContainer, dom.$('.new-chat-status-toolbar'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			actionViewItemProvider: (action) => {
+				if (action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(ChatInputStatusActionViewItem, action);
+				}
+				return undefined;
+			},
+		}));
 
 		// Restore draft input state from storage
 		this._restoreState();
@@ -352,10 +410,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				e.stopPropagation();
 				this._send();
 			}
-			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
+			// Alt+Enter — send in the background without navigating into the session
+			if (this.options.supportsBackground && e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._send();
+				this._send(true);
 			}
 			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
 			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
@@ -394,14 +453,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 
 		// Slash commands
-		this._slashCommandHandler = this._register(this.instantiationService.createInstance(SlashCommandHandler, this._editor));
+		this._slashCommandHandler = this._register(this._scopedInstantiationService.createInstance(SlashCommandHandler, this._editor));
 
 		// Variable completions (#file, #folder)
 		this._register(this.instantiationService.createInstance(
 			VariableCompletionHandler, this._editor, this._contextAttachments, () => this.options.getContextFolderUri(),
 		));
 
-		this._register(this.instantiationService.createInstance(
+		this._agentHostInputCompletionHandler = this._register(this.instantiationService.createInstance(
 			AgentHostInputCompletionHandler, this._editor, this._contextAttachments,
 		));
 
@@ -436,8 +495,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Session config pickers (mode, model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
+		this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, configContainer, Menus.NewSessionConfig, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			actionViewItemProvider: (action) => {
+				if (action.id === 'sessions.modelPicker') {
+					const picker = this._scopedInstantiationService.createInstance(ModelPicker, this.options.session);
+					return new ModelPickerActionViewItem(picker);
+				}
+				return undefined;
+			},
 		}));
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
@@ -446,15 +512,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		const loadingIcon = dom.append(this._loadingSpinner, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 		loadingIcon.setAttribute('aria-hidden', 'true');
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
+		this._loadingSpinner.classList.toggle('visible', this.options.loading.get());
 
 		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
 		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
 			secondary: true,
-			title: localize('send', "Send"),
+			title: this.options.supportsBackground
+				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+				: localize('send', "Send"),
 			ariaLabel: localize('send', "Send"),
 		}));
-		sendButton.icon = Codicon.arrowUp;
-		this._register(sendButton.onDidClick(() => this._send()));
+		sendButton.icon = Codicon.newLine;
+		// Hold Alt while clicking Send to start the session in the background.
+		this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 	}
 
 	// --- Input History (IHistoryNavigationWidget) ---
@@ -518,21 +588,26 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Send ---
 
 
-	private async _send(): Promise<void> {
-		const query = this._editor.getModel()?.getValue().trim();
-		if (!query || this._sending) {
+	private async _send(background = false): Promise<void> {
+		const rawQuery = this._editor.getModel()?.getValue() ?? '';
+		const query = rawQuery.trim();
+		const queryOffset = rawQuery.length - rawQuery.trimStart().length;
+		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
+		if ((!query && !hasSendableAttachment) || this._sending) {
 			return;
 		}
 
 		// Check for slash commands first
-		if (this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
+		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
 			return;
 		}
 
-		const attachedContext = this._contextAttachments.attachments.length > 0
-			? [...this._contextAttachments.attachments]
+		const attachments = this._agentHostInputCompletionHandler?.getAttachmentsForSend(query, queryOffset) ?? [...this._contextAttachments.attachments];
+		const attachedContext = attachments.length > 0
+			? attachments
 			: undefined;
+		const request = query;
 
 		if (this._draftState) {
 			this._history.append(this._toHistoryEntry(this._draftState));
@@ -545,7 +620,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateInputLoadingState();
 
 		try {
-			await this.options.sendRequest(query, attachedContext);
+			await this.options.sendRequest({ query: request, attachments: attachedContext, background });
 			this._contextAttachments.clear();
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
@@ -563,7 +638,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		this._sendButton.enabled = !this._sending && hasText && this.options.canSendRequest.get();
+		const hasSendableAttachment = this._contextAttachments.attachments.some(isExplicitFileOrImageVariableEntry);
+		this._sendButton.enabled = !this._sending && (hasText || hasSendableAttachment) && this.options.canSendRequest.get();
 	}
 
 	private _restoreState(): void {

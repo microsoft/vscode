@@ -72,6 +72,21 @@ suite('AuthenticationService', function () {
 		expect(authenticationService.copilotToken?.token).toBe(testToken);
 	});
 
+	test('hasCopilotTokenSource is true for static auth even without a GitHub session', () => {
+		// Static auth represents non-OAuth Copilot token pathways (proxy/HMAC, eval harness, ...),
+		// so it must report a token source regardless of whether anyGitHubSession is populated.
+		const accessor = disposables.add(createPlatformServices().createTestingAccessor());
+		const staticWithoutSession = disposables.add(new StaticGitHubAuthenticationService(
+			undefined,
+			accessor.get(ILogService),
+			accessor.get(ICopilotTokenStore),
+			copilotTokenManager,
+			accessor.get(IConfigurationService),
+		));
+		expect(staticWithoutSession.anyGitHubSession).toBeUndefined();
+		expect(staticWithoutSession.hasCopilotTokenSource).toBe(true);
+	});
+
 	test('Emits onDidAuthenticationChange when a Copilot Token change is notified', async () => {
 		const promise = Event.toPromise(authenticationService.onDidAuthenticationChange);
 		const newToken = 'tid=new';
