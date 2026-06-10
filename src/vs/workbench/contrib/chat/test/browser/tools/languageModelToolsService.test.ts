@@ -2369,6 +2369,67 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(errorEvents[0].data.toolId, 'errorTool');
 	});
 
+	test('tool approval telemetry includes confirmation timing for user decisions', async () => {
+		const testTelemetryService = new TestTelemetryService();
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			telemetryService: testTelemetryService
+		});
+
+		const tool = registerToolForTest(testService, store, 'approvalTimingTool', {
+			prepareToolInvocation: async () => ({ confirmationMessages: { title: 'Confirm?', message: 'Proceed?' } }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'executed' }] })
+		});
+
+		const sessionId = 'approval-timing-session';
+		const capture: { invocation?: IChatProgress } = {};
+		stubGetSession(testChatService, sessionId, { requestId: 'approval-timing-request', capture });
+
+		const invokePromise = testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		const published = await waitForPublishedInvocation(capture);
+		await new Promise<void>(resolve => setTimeout(resolve, 20));
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		await invokePromise;
+
+		const approvalEvents = testTelemetryService.events.filter(e => e.eventName === 'chat.toolApproval');
+		assert.strictEqual(approvalEvents.length, 1, 'should have tool approval telemetry event');
+		assert.strictEqual(approvalEvents[0].data.confirmKind, 'userAction');
+		assert.ok(typeof approvalEvents[0].data.confirmationShownTimeMs === 'number', 'confirmation timing should be recorded');
+		assert.ok(typeof approvalEvents[0].data.decisionProcessTimeMs === 'number', 'decision process timing should be recorded');
+		assert.ok(approvalEvents[0].data.decisionProcessTimeMs >= approvalEvents[0].data.confirmationShownTimeMs, 'decision process timing should include confirmation timing');
+	});
+
+	test('tool approval telemetry leaves timing undefined when confirmation is not needed', async () => {
+		const testTelemetryService = new TestTelemetryService();
+		const { service: testService, chatService: testChatService } = createTestToolsService(store, {
+			telemetryService: testTelemetryService
+		});
+
+		const tool = registerToolForTest(testService, store, 'approvalTimingNoPromptTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'executed' }] })
+		});
+
+		const sessionId = 'approval-timing-no-confirm-session';
+		stubGetSession(testChatService, sessionId, { requestId: 'approval-timing-no-confirm-request' });
+
+		await testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+
+		const approvalEvents = testTelemetryService.events.filter(e => e.eventName === 'chat.toolApproval');
+		assert.strictEqual(approvalEvents.length, 1, 'should have tool approval telemetry event');
+		assert.strictEqual(approvalEvents[0].data.confirmKind, 'confirmationNotNeeded');
+		assert.strictEqual(approvalEvents[0].data.confirmationShownTimeMs, undefined);
+		assert.strictEqual(approvalEvents[0].data.decisionProcessTimeMs, undefined);
+	});
+
 	test('call tracking and cleanup', async () => {
 		// Test that cancelToolCallsForRequest method exists and can be called
 		// (The detailed cancellation behavior is already tested in "cancel tool call" test)
