@@ -103,8 +103,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Transpile client and extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
+      - name: Compile
+        run: npm run gulp core-ci
 
       - name: Download Electron and Playwright
         run: |

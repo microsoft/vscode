@@ -255,8 +255,8 @@ jobs:
           fc-cache --version 2>&1 | head -1
         continue-on-error: true
 
-      - name: Transpile client and extensions
-        run: npm run gulp transpile-client-esbuild transpile-extensions
+      - name: Compile
+        run: npm run gulp core-ci
 
       - name: Download Electron and Playwright
         run: |
@@ -282,19 +282,19 @@ jobs:
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        run: ./scripts/test.sh --build --tfs "Unit Tests"
         env:
           DISPLAY: ":10"
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 15
-        run: npm run test-node
+        run: npm run test-node -- --build
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 30
-        run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
+        run: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
 
