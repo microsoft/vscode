@@ -22,6 +22,7 @@ import { ILanguageModelToolsService } from '../../../../common/tools/languageMod
 import { ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
+import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
@@ -44,8 +45,9 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatToolRiskAssessmentService riskAssessmentService: IChatToolRiskAssessmentService,
 	) {
-		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService);
+		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
 
 		const state = toolInvocation.state.get();
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
@@ -67,6 +69,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
 				buttons: this.createButtons(data.options),
 				message: this.createWidgetContentElement(state.confirmationMessages.message, data),
+				footerBanner: this.createRiskBadgeDomNode(state.parameters),
 			}
 		));
 

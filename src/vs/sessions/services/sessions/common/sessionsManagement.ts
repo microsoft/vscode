@@ -210,6 +210,14 @@ export interface ISessionsManagementService {
 	setActiveSession(session: IActiveSession | undefined): void;
 
 	/**
+	 * Replace the currently active session if it matches the given `from` session.
+	 *
+	 * @param from The session to be replaced.
+	 * @param to The session to replace with.
+	 */
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void;
+
+	/**
 	 * Observable for the in-progress new session (composed but not yet sent),
 	 * or `undefined` when there is none. Owned by the model; consumers read it
 	 * reactively (e.g. the view restores it into the composer slot).

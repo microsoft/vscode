@@ -100,14 +100,15 @@ export class SessionPluginBundler extends Disposable {
 				continue; // do not bundle agent instructions
 			}
 			for (const file of discoveredDirectory.files) {
-				const fileName = basename(file);
+				const fileUri = file.uri;
+				const fileName = basename(fileUri);
 
 				let destUri: URI;
 				let hashKey: string;
 				if (discoveredDirectory.type === DiscoveredType.Skill) {
 					// Skills are conventionally `<skillName>/SKILL.md`. Preserve the
 					// containing directory name so multiple skills don't collide.
-					const skillDirName = basename(dirname(file));
+					const skillDirName = basename(dirname(fileUri));
 					destUri = URI.joinPath(this._rootUri, dir, skillDirName, fileName);
 					hashKey = `${dir}/${skillDirName}/${fileName}`;
 				} else {
@@ -115,7 +116,7 @@ export class SessionPluginBundler extends Disposable {
 					hashKey = `${dir}/${fileName}`;
 				}
 
-				const content = await this._fileService.readFile(file);
+				const content = await this._fileService.readFile(fileUri);
 				if (token.isCancellationRequested) {
 					return undefined;
 				}

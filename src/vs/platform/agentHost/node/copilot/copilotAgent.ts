@@ -17,14 +17,14 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
-import { basename as resourceBasename, dirname as resourceDirname } from '../../../../base/common/resources.js';
+import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { IParsedPlugin, parseAgentFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedPlugin, parseAgentFile, parseRuleFile, parsePlugin, parseSkillFile } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { ILogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostSessionSyncEnabledConfigKey, AutoApproveLevel, ISchemaProperty, SessionMode, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -35,7 +35,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type AgentSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { CustomizationLoadStatus, CustomizationType, ResponsePartKind, SessionInputResponseKind, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, SessionInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -46,10 +46,29 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
-import { DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { ActiveClientState } from '../activeClientState.js';
+import { areDiscoveredDirectoriesEqual, DiscoveredType, SessionCustomizationDiscovery, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 import { SessionPluginBundler } from '../shared/sessionPluginBundler.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { getEffectiveAgents } from '../../common/customAgents.js';
+
+/**
+ * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
+ * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
+ * match the agent host's configured verbosity. `Trace` maps to the CLI's most
+ * verbose `'all'` level so renderer-side trace logging surfaces the CLI's
+ * internal diagnostics.
+ */
+function copilotCliLogLevelFor(level: LogLevel): NonNullable<CopilotClientOptions['logLevel']> {
+	switch (level) {
+		case LogLevel.Off: return 'none';
+		case LogLevel.Trace: return 'all';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warning';
+		case LogLevel.Error: return 'error';
+	}
+}
 
 interface ICreatedWorktree {
 	readonly repositoryRoot: URI;
@@ -529,6 +548,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				connection: RuntimeConnection.forStdio({ path: cliPath }),
 				env,
 				telemetry,
+				logLevel: copilotCliLogLevelFor(this._logService.getLevel()),
 				enableRemoteSessions: this._isSessionSyncEnabled(),
 			};
 			const client = this._createCopilotClient(clientOptions);
@@ -944,6 +964,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory,
 				resolvedAgentName,
 				snapshot,
+				activeClientState: activeClient.state,
 				shellManager,
 				githubToken: this._githubToken,
 				model: provisional.model,
@@ -1058,11 +1079,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return activeClient.pluginController.sync(clientId, customizations);
 	}
 
-	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void {
+	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void {
 		const sessionId = AgentSession.id(session);
 		const activeClient = this._getOrCreateActiveClient(session, undefined);
 		const hasCachedEntry = this._sessions.has(sessionId);
-		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
+		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId ?? '(none)'}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
 		activeClient.updateTools(clientId, tools);
 	}
 
@@ -1109,14 +1130,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const activeClient = this._activeClients.get(session);
 			const hadCachedEntry = !!entry;
 			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
-			if (entry && activeClient && await activeClient.isOutdated(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${sessionId}] Session config changed (isOutdated=true), refreshing session. snapshotClientId=${entry.appliedSnapshot.clientId}`);
+			if (entry && activeClient && await activeClient.requiresRestart(entry.appliedSnapshot)) {
+				this._logService.info(`[Copilot:${sessionId}] Session config changed (requiresRestart=true), refreshing session. clientId=${activeClient.state.clientId ?? '(none)'}`);
 				this._sessions.deleteAndDispose(sessionId);
 				entry = undefined;
 			}
 
 			if (!entry) {
-				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by isOutdated)' : ''}, calling _resumeSession`);
+				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by requiresRestart)' : ''}, calling _resumeSession`);
 			}
 			entry ??= await this._resumeSession(sessionId);
 
@@ -1493,6 +1514,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,
 				clientSnapshot: launchPlan.snapshot,
+				activeClientState: launchPlan.activeClientState,
 			},
 		);
 
@@ -1591,6 +1613,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			workingDirectory,
 			resolvedAgentName,
 			snapshot,
+			activeClientState: activeClient.state,
 			shellManager,
 			githubToken: this._githubToken,
 			fallback: {
@@ -1899,6 +1922,7 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private _customizations: readonly DirectoryCustomization[] = [];
 	private _plugin: IParsedPlugin | undefined;
+	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 	private readonly _fileService: IFileService;
 
@@ -1964,6 +1988,10 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
+			if (this._directories && areDiscoveredDirectoriesEqual(this._directories, directories)) {
+				return false;
+			}
+
 			const customizations = await toDiscoveredDirectoryCustomizations(directories, this._fileService);
 			if (token.isCancellationRequested) {
 				return false;
@@ -1985,6 +2013,7 @@ class SessionDiscoveredEntry extends Disposable {
 				this._customizations = customizations;
 				this._plugin = plugin;
 			}
+			this._directories = directories;
 			return true;
 		} catch (err) {
 			// Don't update `_customizations` / `_plugin` when cancelled.
@@ -1993,9 +2022,11 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
+			const hadState = this._customizations.length > 0 || this._plugin !== undefined || this._directories !== undefined;
 			this._customizations = [];
 			this._plugin = undefined;
-			return true;
+			this._directories = undefined;
+			return hadState;
 		}
 	}
 }
@@ -2012,7 +2043,7 @@ function toDiscoveredDirectoryCustomizations(directories: readonly IDiscoveredDi
 			contents: toDirectoryContentsType(directory.type),
 			writable: false,
 			load: { kind: CustomizationLoadStatus.Loaded },
-			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file, directory.type, fileService))),
+			children: await Promise.all(directory.files.map(file => toDiscoveredChildCustomization(file.uri, directory.type, fileService))),
 		};
 	}));
 }
@@ -2034,31 +2065,41 @@ async function toDiscoveredChildCustomization(file: URI, type: DiscoveredType, f
 	const id = customizationId(uri);
 	if (type === DiscoveredType.Agent) {
 		const agentInfo = await parseAgentFile(file, fileService);
-		return {
+		const agentCustomization: AgentCustomization = {
 			type: CustomizationType.Agent,
 			id,
 			uri,
 			name: agentInfo.name,
-			...(agentInfo.description ? { description: agentInfo.description } : {}),
-		};
+			description: agentInfo.description,
+		} satisfies AgentCustomization;
+		if (agentInfo.userInvocable !== undefined) {
+			agentCustomization._meta = { userInvocable: agentInfo.userInvocable };
+		}
+		return agentCustomization;
 	}
 	if (type === DiscoveredType.Skill) {
 		const skillInfo = await parseSkillFile(file, fileService);
-		return {
+		const skillCustomization: SkillCustomization = {
 			type: CustomizationType.Skill,
 			id,
 			uri,
-			name: resourceBasename(resourceDirname(file)),
-			...(skillInfo.description ? { description: skillInfo.description } : {}),
+			name: skillInfo.name,
+			description: skillInfo.description,
 		};
+		return skillCustomization;
 	}
 	if (type === DiscoveredType.Instruction) {
-		return {
+		const ruleInfo = await parseRuleFile(file, fileService);
+		const ruleCustomization: RuleCustomization = {
 			type: CustomizationType.Rule,
 			id,
 			uri,
-			name: resourceBasename(file),
+			name: ruleInfo.name,
+			description: ruleInfo.description,
+			globs: ruleInfo.globs,
+			alwaysApply: ruleInfo.alwaysApply,
 		};
+		return ruleCustomization;
 	}
 	// agent instruction
 	return {
@@ -2502,8 +2543,13 @@ class SessionPluginController extends Disposable {
  * tears down the controller and any disk watchers it created.
  */
 class ActiveClient extends Disposable {
-	private _tools: readonly ToolDefinition[] = [];
-	private _clientId = '';
+	/**
+	 * Live holder of the owning `clientId` and contributed tools. Shared by
+	 * reference with the session's {@link CopilotAgentSession} so a window
+	 * reload (new `clientId`, identical tools) is reflected at tool-call
+	 * stamp time without restarting the SDK session.
+	 */
+	readonly state = new ActiveClientState();
 
 	public readonly pluginController: SessionPluginController;
 
@@ -2521,34 +2567,26 @@ class ActiveClient extends Disposable {
 		}));
 	}
 
-	updateTools(clientId: string, tools: readonly ToolDefinition[]): void {
-		this._clientId = clientId;
-		this._tools = tools;
+	updateTools(clientId: string | undefined, tools: readonly ToolDefinition[]): void {
+		this.state.update(clientId, tools);
 	}
 
 	async snapshot(): Promise<IActiveClientSnapshot> {
-		return { clientId: this._clientId, tools: this._tools, plugins: await this.pluginController.getAppliedPlugins() };
+		return { tools: this.state.tools, plugins: await this.pluginController.getAppliedPlugins() };
 	}
 
-	async isOutdated(snap: IActiveClientSnapshot): Promise<boolean> {
+	/**
+	 * Returns `true` when the SDK session must be disposed and resumed to
+	 * pick up a changed config. Compares ONLY plugins and the structural
+	 * tool set (name + description + inputSchema). The `clientId` is
+	 * deliberately excluded — a clientId-only change is reflected live via
+	 * {@link state} and never requires a restart.
+	 */
+	async requiresRestart(snap: IActiveClientSnapshot): Promise<boolean> {
 		const plugins = await this.pluginController.getAppliedPlugins();
 		if (!parsedPluginsEqual(snap.plugins, plugins)) {
 			return true;
 		}
-		if (snap.tools.length !== this._tools.length) {
-			return true;
-		}
-		// Compare tool definitions by name, description, and schema —
-		// not just names — so schema/description changes trigger a refresh.
-		const snapByName = new Map(snap.tools.map(t => [t.name, t]));
-		for (const tool of this._tools) {
-			const prev = snapByName.get(tool.name);
-			if (!prev
-				|| prev.description !== tool.description
-				|| !equals(prev.inputSchema, tool.inputSchema)) {
-				return true;
-			}
-		}
-		return false;
+		return !this.state.structuralEquals({ tools: snap.tools });
 	}
 }

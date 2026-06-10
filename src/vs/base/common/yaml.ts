@@ -71,6 +71,16 @@ export class MarkdownNode {
 		}
 		return undefined;
 	}
+
+	getBooleanValue(name: string): boolean | undefined {
+		const value = this.getStringValue(name);
+		if (value === 'true') {
+			return true;
+		} else if (value === 'false') {
+			return false;
+		}
+		return undefined;
+	}
 }
 
 
