@@ -71,7 +71,7 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
@@ -1116,6 +1116,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateExtensionsNotificaiton();
 			this.reportProgressFromOtherSources();
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ExtensionGalleryServiceUrlConfigKey)) {
+				this.updateExtensionsNotificaiton();
+			}
+		}));
 	}
 
 	private initializeAutoUpdate(): void {
@@ -1585,6 +1590,20 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				severity: Severity.Warning,
 				extensions: deprecatedExtensions,
 				key: 'deprecatedExtensions:' + deprecatedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
+			});
+		}
+
+		const privateMarketplaceUrl = this.configurationService.inspect<string>(ExtensionGalleryServiceUrlConfigKey).policyValue;
+		if (privateMarketplaceUrl) {
+			const settingsQuery = `@hasPolicy ${ExtensionGalleryServiceUrlConfigKey}`;
+			const settingsCommandUri = `command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify(settingsQuery))}`;
+			const message = new MarkdownString(nls.localize('privateMarketplace', "This window is connected to a [private extension marketplace]({0}) managed by your organization.", settingsCommandUri));
+			message.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
+			computedNotificiations.push({
+				message,
+				severity: Severity.Info,
+				extensions: [],
+				key: `privateMarketplace:${privateMarketplaceUrl}`,
 			});
 		}
 
