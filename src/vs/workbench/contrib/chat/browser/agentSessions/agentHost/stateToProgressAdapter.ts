@@ -320,11 +320,12 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		};
 	}
 
+	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
 	return {
 		kind: 'generic',
 		id: generateUuid(),
 		name: attachment.label,
-		value: attachment.modelRepresentation || attachment.label,
+		value: modelRepresentation || attachment.label,
 		_meta: attachment._meta,
 	};
 }
