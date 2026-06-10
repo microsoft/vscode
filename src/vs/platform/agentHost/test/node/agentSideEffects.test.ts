@@ -1614,6 +1614,7 @@ suite('AgentSideEffects', () => {
 				action: {
 					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-client-approve-1', toolName: 'runTask', displayName: 'Run Task', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+					_meta: { toolKind: 'terminal' },
 				},
 			});
 
@@ -1637,7 +1638,7 @@ suite('AgentSideEffects', () => {
 				permissionCalls: agent.respondToPermissionCalls,
 			}, {
 				status: ToolCallStatus.PendingConfirmation,
-				meta: { autoApproveBySetting: true },
+				meta: { toolKind: 'terminal', autoApproveBySetting: true },
 				permissionCalls: [],
 			});
 

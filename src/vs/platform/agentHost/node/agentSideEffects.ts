@@ -703,14 +703,15 @@ export class AgentSideEffects extends Disposable {
 		};
 		const autoApproval = this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
 		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
-		const contributor = e.state.contributor ?? (part?.kind === ResponsePartKind.ToolCall ? part.toolCall.contributor : undefined);
+		const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+		const contributor = e.state.contributor ?? toolCall?.contributor;
 		let effective = e;
 		const clientShouldAutoApprove = autoApproval !== undefined
 			&& contributor?.kind === ToolCallContributorKind.Client
 			&& !!e.state.confirmationTitle;
 		if (clientShouldAutoApprove) {
 			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
-			effective = { ...e, state: { ...e.state, _meta: { ...e.state._meta, autoApproveBySetting: true } } };
+			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, autoApproveBySetting: true } } };
 		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
 			agent.respondToPermissionRequest(e.state.toolCallId, true);
