@@ -829,33 +829,50 @@ function renderForm(
 	if (initialPermissionLevel && isChatPermissionLevel(initialPermissionLevel)) {
 		chatInput.setPermissionLevel(initialPermissionLevel);
 	}
-	// Pre-seed the language model. {@link ChatInputPart.switchModelByIdentifier}
-	// is synchronous: it looks the id up in the currently-registered models
-	// and no-ops (returns false) if it isn't found yet. Two cases:
+	// --- Pre-seed the language model ---
 	//
-	// 1. Model is gone (extension uninstalled). switchModelByIdentifier
-	//    stays false forever; the picker keeps its default and the runner
-	//    falls back at execution time.
+	// The dialog has its own opinion about the initial model:
+	//   * Create: always "auto" (the location's default), regardless of
+	//     what the user last picked in regular chat.
+	//   * Edit: the model the automation was saved with — falling back to
+	//     "auto" if that model can't be resolved (e.g. extension was
+	//     uninstalled since the automation was created).
 	//
-	// 2. Model registry hasn't populated yet (extension cold start). The
-	//    ChatInputPart constructor already armed
-	//    `_waitForPersistedLanguageModel`, which fires on the first
-	//    `onDidChangeLanguageModels` and stomps the picker with the
-	//    workbench-global last-used model — NOT the one the automation
-	//    was saved with. To win that race we listen to the same event
-	//    and retry our switch each time the registry changes; the first
-	//    successful apply disposes the listener so we never fight a
-	//    subsequent user-initiated change.
-	if (initialModelId) {
-		if (!chatInput.switchModelByIdentifier(initialModelId)) {
-			const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
-			const retry = disposables.add(new MutableDisposable<IDisposable>());
-			retry.value = languageModelsService.onDidChangeLanguageModels(() => {
-				if (chatInput.switchModelByIdentifier(initialModelId)) {
-					retry.clear();
-				}
-			});
-		}
+	// `ChatInputPart`'s constructor already ran `initSelectedModel`, which
+	// restored the workbench-global "last used" selection from APPLICATION
+	// storage and (in the cold-start case) armed `_waitForPersistedLanguageModel`
+	// to apply that same workbench-global id on the first registry change.
+	// We need to override both: snap to default now, tear down the waiter
+	// so it can't stomp us later. `resetLanguageModelToDefault(false)` does
+	// both without persisting the reset back to the regular chat input's key.
+	chatInput.resetLanguageModelToDefault(/* storeSelection */ false);
+
+	// On edit, try to apply the saved model on top of the default. The
+	// `false` second arg keeps the apply dialog-local — we must not
+	// overwrite the user's regular-chat selection just because they opened
+	// an automation.
+	//
+	// If the registry hasn't loaded the model yet (extension cold start),
+	// retry on each registry change. The retry self-clears once the model
+	// applies, and also bails if the user has manually picked something
+	// else in the meantime (so a late-arriving model doesn't override a
+	// deliberate user choice). A model that never arrives just leaves the
+	// picker on the default — which is exactly the desired fallback.
+	if (initialModelId && !chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
+		const languageModelsService = instantiationService.invokeFunction(accessor => accessor.get(ILanguageModelsService));
+		const baseline = chatInput.selectedLanguageModel.get()?.identifier;
+		const retry = disposables.add(new MutableDisposable<IDisposable>());
+		retry.value = languageModelsService.onDidChangeLanguageModels(() => {
+			if (chatInput.selectedLanguageModel.get()?.identifier !== baseline) {
+				// User picked away from the default while we were waiting.
+				// Don't fight them.
+				retry.clear();
+				return;
+			}
+			if (chatInput.switchModelByIdentifier(initialModelId, /* storeSelection */ false)) {
+				retry.clear();
+			}
+		});
 	}
 
 	// The editor itself is the source of truth for the prompt value; we
