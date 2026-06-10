@@ -70,6 +70,7 @@
  * affordance. */
 .session-view:not(.is-active) .interactive-session .chat-input-toolbars > .chat-input-toolbar {
 	opacity: 0;
+	visibility: hidden;
 	pointer-events: none;
 }
 
