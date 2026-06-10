@@ -1840,9 +1840,25 @@ pane is first mounted. View switches inside the modal are not animated. */
 }
 
 /* Dialog */
-.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message,
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message-detail {
 	display: none;
+}
+
+/*
+ * Show the dialog's built-in title (set via the `message` arg to `new Dialog(...)`).
+ * Keeping the original `.dialog-message-text` element preserves the dialog's
+ * aria-labelledby wiring to `#monaco-dialog-message-text`.
+ */
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message {
+	margin: 0 0 12px 0;
+	padding: 0;
+}
+
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--vscode-foreground);
 }
 
 /*
@@ -2017,15 +2033,58 @@ body:has(.automation-dialog) .monaco-menu-container {
  *    the prompt is the only payload sent at run time.
  * Other chips in this toolbar use either custom action view items
  * (Model / Mode / Session pickers) or different codicons, so codicon
- * selectors are unique to the chips we want to remove. CSS-hiding is
- * preferred over context-key gating because the natural gate
- * (`ChatContextKeys.lockedToCodingAgent`) also hides several unrelated
- * chips we want to keep visible. Hiding the `.action-item` (not just the
- * `.action-label`) removes the slot from keyboard tab order too.
+ * selectors are unique to the chips we want to remove. The descendant
+ * selector (not `>`) matches even when the action-view-item wraps the
+ * `.action-label` in an extra container (e.g. dropdown variants), which
+ * keeps the rule resilient to view-item refactors. Hiding the
+ * `.action-item` (not just the `.action-label`) removes the slot from
+ * keyboard tab order too.
  */
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(> .action-label.codicon-settings),
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(> .action-label.codicon-add) {
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-settings),
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-add) {
 	display: none;
+}
+
+/*
+ * Suppress every inter-chip divider drawn by chat.css
+ * (`.chat-input-toolbar ... .action-item + .action-item::before`) inside
+ * the dialog. CSS `+` matches by DOM order regardless of `display:none`,
+ * so the divider would otherwise appear as an orphan vertical line on
+ * whichever visible chip follows our hidden `+`/settings items. The
+ * remaining visible chips (Agent, model, mode) already have enough
+ * intrinsic padding to read as separate without the divider; dropping
+ * dividers entirely is simpler and more resilient than per-pair
+ * suppression rules that depend on DOM order.
+ */
+.automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container > .action-item + .action-item::before {
+	display: none;
+}
+
+/*
+ * Cancel the dialog's `<ul>` indent for the chat input toolbars.
+ *
+ * `dialog.css:120` applies `padding-inline-start: 20px` to every `<ul>`
+ * inside `.dialog-message-container` (meant to reduce the excessive
+ * default indent on bulleted lists in dialog body text). The
+ * `monaco-action-bar`'s `.actions-container` is rendered as a `<ul>`, so
+ * the chat input's primary and secondary toolbars inherit that 20px
+ * left indent — pushing the Agent / Copilot CLI chips ~20px right of
+ * the chat input's bottom-left corner.
+ *
+ * `actionbar.css` sets `.actions-container { padding: 0 }`, but the
+ * dialog rule uses a logical property (`padding-inline-start`), which
+ * cascades-after the physical shorthand and wins regardless of selector
+ * specificity. Override the logical property explicitly here.
+ *
+ * Scoped to `.automation-form-prompt-host` so the regular chat panel
+ * (which isn't inside a dialog) is unaffected — and so any `<ul>`
+ * elements in the dialog's actual message body text retain the
+ * intended 20px indent.
+ */
+.automation-form-prompt-host .chat-input-toolbar .monaco-action-bar .actions-container,
+.automation-form-prompt-host .chat-secondary-toolbar .monaco-action-bar .actions-container {
+	padding-inline-start: 0;
+	margin-left: 0;
 }
 
 .automation-form-row {
@@ -2250,6 +2309,89 @@ body:has(.automation-dialog) .monaco-menu-container {
 
 .automation-form-folder-picker-host .codicon {
 	color: var(--vscode-icon-foreground);
+}
+
+/*
+ * Isolation + branch group: parented into the chat input's
+ * `.chat-secondary-toolbar` so it sits at the bottom-right of the chat
+ * input, sharing a row with `Copilot CLI | Default Approvals`.
+ * `margin-left: auto` pushes the group to the right edge within that
+ * flex row.
+ *
+ * Visual styling mirrors the new-session view's
+ * `.new-chat-bottom-container` chip vocabulary (see
+ * `sessions/contrib/chat/browser/media/chatWidget.css` lines 178-209):
+ * 16px tall, 11px font, 12px codicons, icon-foreground color, no
+ * border. The `|` divider between the Folder chip and the branch slot
+ * uses the same `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)`
+ * trick the new-session row uses to draw a 1px vertical separator
+ * without adding a DOM element.
+ *
+ * Communicates *where* the automation will run; presentational only (no
+ * click handler, no keyboard target).
+ */
+.automation-form-prompt-host .chat-secondary-toolbar .automation-form-isolation-group {
+	display: inline-flex;
+	align-items: center;
+	margin-left: auto;
+	min-width: 0;
+	gap: 5px;
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip,
+.automation-form-prompt-host .automation-form-branch-slot {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	font-size: 11px;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	min-width: 0;
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip > .codicon,
+.automation-form-prompt-host .automation-form-branch-slot > .codicon {
+	font-size: 12px;
+	color: var(--vscode-icon-foreground);
+	flex-shrink: 0;
+}
+
+.automation-form-prompt-host .automation-form-isolation-chip-disabled {
+	cursor: default;
+}
+
+.automation-form-prompt-host .automation-form-isolation-label,
+.automation-form-prompt-host .automation-form-branch-name {
+	font-size: 11px;
+}
+
+.automation-form-prompt-host .automation-form-branch-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Mirror the new-session `|` divider between repo-config chips:
+ * `box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border)` paints
+ * a 1px-wide bar in the gap to the chip's left. */
+.automation-form-prompt-host .automation-form-isolation-group > .automation-form-branch-slot {
+	box-shadow: -5px 0 0 -4px var(--vscode-editorWidget-border);
+}
+
+/* Missing-branch state (no folder / no git repo / detached / empty): use
+ * description-foreground + italic so it visually reads as "informational
+ * placeholder, not a real ref name". */
+.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing,
+.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing > .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+.automation-form-prompt-host .automation-form-branch-slot.automation-form-branch-missing .automation-form-branch-name {
+	font-style: italic;
 }
 
 .automations-list-widget .automations-row-folder {

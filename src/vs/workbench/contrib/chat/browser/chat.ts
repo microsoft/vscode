@@ -104,8 +104,11 @@ export interface ISessionTypePickerDelegate {
 	 */
 	hasGitRepository?(): boolean;
 	/**
-	 * Returns whether the given session type should be visible in the picker.
-	 * If not provided, all session types are visible.
+	 * Optional visibility filter for the session-type dropdown. When
+	 * provided, the picker hides any session type for which this returns
+	 * `false`. Use to scope the dropdown to a host-specific subset (e.g.
+	 * the automations dialog, which only supports a handful of session
+	 * types). When omitted, every contributed session type is shown.
 	 */
 	isSessionTypeVisible?(type: AgentSessionTarget): boolean;
 }
