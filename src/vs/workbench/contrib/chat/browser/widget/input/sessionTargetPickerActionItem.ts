@@ -7,7 +7,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,9 +20,10 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { getSessionTypeUpgradeDescription, getSessionTypeUpgradeHover, isSessionTypeLockedForEntitlement } from '../../agentSessions/sessionTypeUpgrade.js';
 import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -73,7 +73,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						continue;
 					}
 
-					const lockedForEntitlement = this._isLockedForEntitlement(sessionTypeItem.type);
+					const lockedForEntitlement = isSessionTypeLockedForEntitlement(this.chatSessionsService, this.chatEntitlementService, sessionTypeItem.type);
 					actions.push({
 						...action,
 						id: sessionTypeItem.commandId,
@@ -82,9 +82,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						icon: this._getSessionIcon(sessionTypeItem),
 						enabled: lockedForEntitlement ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
-						description: lockedForEntitlement ? this._getUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
+						description: lockedForEntitlement ? getSessionTypeUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: lockedForEntitlement ? this._getUpgradeHover(sessionTypeItem) : sessionTypeItem.hoverDescription },
+						hover: { content: lockedForEntitlement ? getSessionTypeUpgradeHover(this.chatSessionsService, sessionTypeItem.type, sessionTypeItem.label) : sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -234,39 +234,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 		// Disable non-local session types when their provider is not registered yet
 		return !!this.chatSessionsService.getChatSessionContribution(type);
-	}
-
-	/**
-	 * Whether the given session type is locked behind a plan upgrade for the
-	 * current user's entitlement. A session type opts in declaratively by
-	 * contributing an `upgradeMessage` (rather than core hardcoding which
-	 * providers are paid-only); when present, Copilot Free or Copilot Student
-	 * (EDU) users see that type greyed out with the message in its hover instead
-	 * of being able to select it.
-	 */
-	protected _isLockedForEntitlement(type: AgentSessionTarget): boolean {
-		if (!this.chatSessionsService.getChatSessionContribution(type)?.upgradeMessage) {
-			return false;
-		}
-		const entitlement = this.chatEntitlementService.entitlement;
-		return entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
-	}
-
-	private _getUpgradeDescription(): IMarkdownString {
-		return new MarkdownString(
-			localize('chat.sessionTarget.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
-			{ isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] } }
-		);
-	}
-
-	private _getUpgradeHover(sessionTypeItem: ISessionTypeItem): MarkdownString {
-		const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
-		// The contributed `upgradeMessage` is what gated this type (see
-		// `_isLockedForEntitlement`); render it (it supports markdown, e.g. its
-		// own upgrade link). The generic fallback is only a safety net.
-		const contributedMessage = this.chatSessionsService.getChatSessionContribution(sessionTypeItem.type)?.upgradeMessage;
-		hover.appendMarkdown(contributedMessage ?? localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to use {0}.", sessionTypeItem.label));
-		return hover;
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
