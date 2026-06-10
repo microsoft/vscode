@@ -34,10 +34,6 @@ export async function runBuild(
 		entryPoints: config.entryPoints,
 		outdir,
 		...(config.additionalOptions || {}),
-		external: [
-			...(baseOptions.external ?? []),
-			...(config.additionalOptions?.external ?? []),
-		],
 	};
 
 	const isWatch = args.indexOf('--watch') >= 0;

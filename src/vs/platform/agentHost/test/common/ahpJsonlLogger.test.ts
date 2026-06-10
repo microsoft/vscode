@@ -208,6 +208,37 @@ suite('AhpJsonlLogger', () => {
 		assert.deepStrictEqual(ids, [1, 2, 3, 4]);
 	});
 
+	test('elides oversized string payloads while keeping the line valid JSONL', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), connectionId: 'conn:1', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+
+		// A normal small message is written verbatim and is not marked truncated.
+		logger.log({ jsonrpc: '2.0', id: 1, method: 'ping' }, 'c2s');
+		// A message carrying a multi-MB string (e.g. a base64 resourceRead) is trimmed.
+		const huge = 'x'.repeat(4 * 1024 * 1024);
+		logger.log({ jsonrpc: '2.0', id: 2, result: { data: huge } }, 's2c');
+		await logger.flush();
+
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const lines = content.split('\n').filter(Boolean);
+		// Both lines must be valid JSON (the trimmed line stays well-formed JSONL).
+		const parsed = lines.map(line => JSON.parse(line));
+
+		assert.strictEqual(parsed[0]._ahpLog.truncated, undefined);
+		assert.strictEqual(parsed[1]._ahpLog.truncated, true);
+		// The huge string was elided rather than written in full.
+		assert.ok(parsed[1].result.data.length < huge.length);
+		assert.ok(parsed[1].result.data.includes('chars elided'));
+		// The whole serialized line stays modest in size.
+		assert.ok(lines[1].length < 1024 * 1024);
+	});
+
 	suite('stringifyAhpLogEntry', () => {
 
 		test('serialises a top-level URI as its string form', () => {

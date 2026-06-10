@@ -12,38 +12,22 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, ChangesetAction, isRootAction, isSessionAction, isChangesetAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, changesetReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, type ChangesetState, type ChangesetSummary, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
+import { ChangesSummary } from '../common/state/protocol/state.js';
+import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 
 export interface IAgentHostStateManagerOptions {
 	readonly changesetStateRetention?: IAgentHostChangesetStateRetentionOptions;
-}
-
-/**
- * Field-level equality for two changeset catalogue arrays. Used by
- * {@link AgentHostStateManager.setSessionChangesets} to skip a redundant
- * dispatch when the catalogue has not changed in any user-visible way.
- */
-function changesetCataloguesEqual(a: readonly ChangesetSummary[] | undefined, b: readonly ChangesetSummary[] | undefined): boolean {
-	if (a === b) { return true; }
-	if (!a || !b) { return false; }
-	if (a.length !== b.length) { return false; }
-	for (let i = 0; i < a.length; i++) {
-		const x = a[i];
-		const y = b[i];
-		if (x.label !== y.label
-			|| x.uriTemplate !== y.uriTemplate
-			|| x.description !== y.description
-			|| x.additions !== y.additions
-			|| x.deletions !== y.deletions
-			|| x.files !== y.files) {
-			return false;
-		}
-	}
-	return true;
+	/**
+	 * Build information about the program hosting the agent host. When
+	 * provided, it is published on {@link RootState._meta} so clients can see
+	 * which build is hosting them.
+	 */
+	readonly hostBuildInfo?: IHostBuildInfo;
 }
 
 /**
@@ -108,6 +92,7 @@ export class AgentHostStateManager extends Disposable {
 					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.USAGE),
 				}),
 			},
+			_meta: withHostBuildInfo(this._rootState._meta, options.hostBuildInfo),
 		};
 	}
 	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
@@ -132,6 +117,10 @@ export class AgentHostStateManager extends Disposable {
 
 	getSessionUris(): string[] {
 		return [...this._sessionStates.keys()];
+	}
+
+	getAnnouncedSessionSummaries(): SessionSummary[] {
+		return [...this._lastNotifiedSummaries.values()];
 	}
 
 	/**
@@ -431,34 +420,65 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	/**
-	 * Replaces the catalogue entries on `summary.changesets` for `session`
-	 * by dispatching a {@link ActionType.SessionChangesetsChanged} action.
-	 * The change is applied through the session reducer so subscribers see
-	 * the mutation in the standard action stream alongside the regular
-	 * `notify/sessionSummaryChanged` notification — the catalogue is not
-	 * its own subscribable resource.
+	 * Updates the aggregate `summary.changes` for a session.
 	 *
-	 * Producers call this after each compute pass to keep the lightweight
-	 * chip-row counts (`additions`, `deletions`, `files`) in sync without
-	 * forcing every observer to subscribe to the full changeset.
+	 * There is no dedicated action for this field: the value is purely
+	 * informational (chip rendering on the session list), so the write
+	 * piggybacks on the existing `sessionSummaryChanged` notification
+	 * path. We mutate `state.summary` in place, mark the session dirty,
+	 * and let {@link _flushSummaryNotificationFor} pick the new value up
+	 * via its `current.changes !== lastNotified.changes` diff.
 	 */
-	setSessionChangesets(session: URI, changesets: readonly ChangesetSummary[] | undefined): void {
+	setSessionSummaryChanges(session: URI, changes: ChangesSummary | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionSummaryChanges: unknown session ${session}`);
+			return;
+		}
+		if (structuralEquals(state.summary.changes, changes)) {
+			return;
+		}
+
+		const newState = {
+			...state,
+			summary: { ...state.summary, changes },
+		};
+
+		this._sessionStates.set(session, newState);
+
+		this._dirtySummaries.add(session);
+		this._summaryNotifyScheduler.schedule();
+	}
+
+	/**
+	 * Replaces the catalogue entries on `state.changesets` for `session` by
+	 * dispatching a {@link ActionType.SessionChangesetsChanged} action.
+	 * Subscribers see the mutation in the standard session action stream —
+	 * the catalogue lives on session state and is not its own subscribable
+	 * resource. Aggregate `summary.changes` counts (additions / deletions /
+	 * files) are propagated separately via {@link setSessionSummaryChanges}.
+	 *
+	 * Producers call this after each compute pass to keep the list of
+	 * available changesets (with their `changeKind`) in sync so observers
+	 * can render the correct entries without subscribing to each one.
+	 */
+	setSessionChangesets(session: URI, changesets: readonly Changeset[] | undefined): void {
 		const state = this._sessionStates.get(session);
 		if (!state) {
 			this._logService.warn(`[AgentHostStateManager] setSessionChangesets: unknown session ${session}`);
 			return;
 		}
-		// Skip dispatch when the catalogue is field-equal to the existing
-		// one. The reducer would otherwise allocate a new summary on every
-		// call, dirtying `_dirtySummaries` and broadcasting a redundant
-		// envelope. Producers call this after every compute pass, so
-		// duplicate calls are common.
-		if (changesetCataloguesEqual(state.summary.changesets, changesets)) {
+
+		// Skip dispatch when the catalogue is field-equal to the existing one.
+		// Producers call this after every compute pass, so duplicate calls
+		// are common and would otherwise broadcast a redundant envelope to
+		// every subscriber.
+		if (arrayEquals(state.changesets ?? [], changesets ?? [], structuralEquals)) {
 			return;
 		}
 		// Take a defensive copy so callers can't mutate the catalogue array
 		// after dispatch; the reducer otherwise stores the reference as-is.
-		const next: ChangesetSummary[] | undefined = changesets ? [...changesets] : undefined;
+		const next = changesets ? changesets.slice() : undefined;
 		this.dispatchServerAction(session, {
 			type: ActionType.SessionChangesetsChanged,
 			changesets: next,
@@ -673,8 +693,8 @@ export class AgentHostStateManager extends Disposable {
 		if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
 		if (current.project !== lastNotified.project) { changes.project = current.project; }
 		if (current.model !== lastNotified.model) { changes.model = current.model; }
+		if (current.changes !== lastNotified.changes) { changes.changes = current.changes; }
 		if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
-		if (current.changesets !== lastNotified.changesets) { changes.changesets = current.changesets; }
 
 		this._lastNotifiedSummaries.set(session, current);
 

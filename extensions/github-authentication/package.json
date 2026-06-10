@@ -84,12 +84,14 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^1.5.1",
+    "node-fetch": "2.6.7",
+    "@vscode/extension-telemetry": "^0.9.8",
     "vscode-tas-client": "^0.1.84"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "24.x"
+    "@types/node": "24.x",
+    "@types/node-fetch": "^2.5.7"
   },
   "repository": {
     "type": "git",
