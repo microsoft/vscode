@@ -6,7 +6,7 @@ import path from 'path';
 import { run } from '../esbuild-webview-common.mts';
 
 const srcDir = path.join(import.meta.dirname, 'markdown-editor-src');
-const outDir = path.join(import.meta.dirname, 'media', 'markdownEditor');
+const outDir = path.join(import.meta.dirname, 'markdown-editor-out');
 
 run({
 	entryPoints: [
