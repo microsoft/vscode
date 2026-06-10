@@ -18,7 +18,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import type { AgentInfo } from '../common/state/protocol/state.js';
+import { ToolCallContributorKind, type AgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, StateAction, type SessionToolCallCompleteAction } from '../common/state/sessionActions.js';
 import {
 	buildSubagentSessionUri,
@@ -702,8 +702,16 @@ export class AgentSideEffects extends Disposable {
 			toolInput: e.state.toolInput,
 		};
 		const autoApproval = this._permissionManager.getAutoApproval(approvalEvent, sessionKey);
+		const part = this._stateManager.getSessionState(sessionKey)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
+		const contributor = e.state.contributor ?? (part?.kind === ResponsePartKind.ToolCall ? part.toolCall.contributor : undefined);
 		let effective = e;
-		if (autoApproval !== undefined) {
+		const clientShouldAutoApprove = autoApproval !== undefined
+			&& contributor?.kind === ToolCallContributorKind.Client
+			&& !!e.state.confirmationTitle;
+		if (clientShouldAutoApprove) {
+			this._toolCallAgents.set(`${sessionKey}:${e.state.toolCallId}`, agent.id);
+			effective = { ...e, state: { ...e.state, _meta: { ...e.state._meta, autoApproveBySetting: true } } };
+		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(`${sessionKey}:${e.state.toolCallId}`);
 			agent.respondToPermissionRequest(e.state.toolCallId, true);
 			// Strip confirmationTitle so createToolReadyAction emits the

@@ -1604,6 +1604,56 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
+		test('marks pending client tool approval for client-side auto-approval in bypass mode', () => {
+			setupSessionWithConfig('autoApprove');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				kind: 'action', session: sessionUri,
+				action: {
+					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
+					toolCallId: 'tc-client-approve-1', toolName: 'runTask', displayName: 'Run Task', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
+				},
+			});
+
+			agent.fireProgress({
+				kind: 'pending_confirmation', session: sessionUri,
+				state: {
+					status: ToolCallStatus.PendingConfirmation,
+					toolCallId: 'tc-client-approve-1', toolName: 'runTask', displayName: 'Run Task',
+					invocationMessage: 'Run task', toolInput: '{"task":"build"}',
+					confirmationTitle: 'Run task', edits: undefined,
+				},
+				permissionKind: 'custom-tool', permissionPath: undefined,
+			});
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const part = state?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-client-approve-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			assert.deepStrictEqual({
+				status: part.toolCall.status,
+				meta: part.toolCall._meta,
+				permissionCalls: agent.respondToPermissionCalls,
+			}, {
+				status: ToolCallStatus.PendingConfirmation,
+				meta: { autoApproveBySetting: true },
+				permissionCalls: [],
+			});
+
+			sideEffects.handleAction(sessionUri.toString(), {
+				type: ActionType.SessionToolCallConfirmed,
+				turnId: 'turn-1',
+				toolCallId: 'tc-client-approve-1',
+				approved: true,
+				confirmed: ToolCallConfirmationReason.Setting,
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-client-approve-1', approved: true },
+			]);
+		});
+
 		test('does NOT auto-approve when autoApprove is default', () => {
 			setupSessionWithConfig('default');
 			startTurn('turn-1');
