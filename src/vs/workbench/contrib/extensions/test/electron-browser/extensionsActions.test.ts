@@ -763,6 +763,64 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test EnableDropDownAction primary is workspace action when extension is disabled in workspace', () => {
+		const local = aLocalExtension('a');
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace)
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
+						testObject.extension = extensions[0];
+						assert.ok(testObject.enabled);
+						assert.strictEqual('Enable (Workspace)', testObject.label);
+					});
+			});
+	});
+
+	test('Test EnableDropDownAction primary is global action when extension is disabled globally', () => {
+		const local = aLocalExtension('a');
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
+						testObject.extension = extensions[0];
+						assert.ok(testObject.enabled);
+						assert.strictEqual('Enable', testObject.label);
+					});
+			});
+	});
+
+	test('Test DisableDropDownAction primary is workspace action when extension is enabled in workspace', () => {
+		const local = aLocalExtension('a');
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally)
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.EnabledWorkspace))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+					.then(extensions => {
+						const testObject: ExtensionsActions.DisableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableDropDownAction));
+						testObject.extension = extensions[0];
+						assert.ok(testObject.enabled);
+						assert.strictEqual('Disable (Workspace)', testObject.label);
+					});
+			});
+	});
+
+	test('Test DisableDropDownAction primary is global action when extension is enabled globally', () => {
+		const local = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
+			.then(extensions => {
+				const testObject: ExtensionsActions.DisableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableDropDownAction));
+				testObject.extension = extensions[0];
+				assert.ok(testObject.enabled);
+				assert.strictEqual('Disable', testObject.label);
+			});
+	});
+
 	test('Test DisableForWorkspaceAction when there is no extension', () => {
 		const testObject: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
 
