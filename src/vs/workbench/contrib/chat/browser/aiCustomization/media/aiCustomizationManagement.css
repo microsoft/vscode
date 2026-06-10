@@ -2120,6 +2120,12 @@ body:has(.automation-dialog) .monaco-menu-container {
  *  - "Attach context" (`workbench.action.chat.attachContext`,
  *    `.codicon-add`, the `+`) — the dialog doesn't support attachments;
  *    the prompt is the only payload sent at run time.
+ *  - "List MCP Servers" (`workbench.mcp.listServer`, `.codicon-server`)
+ *    — MCP server management belongs in the live chat surface, not in
+ *    a one-off prompt definition. The action view item is custom
+ *    (`MenuEntryActionViewItem`) but still renders the standard
+ *    `.action-label.codicon-server` icon, so the same selector pattern
+ *    matches.
  * Other chips in this toolbar use either custom action view items
  * (Model / Mode / Session pickers) or different codicons, so codicon
  * selectors are unique to the chips we want to remove. The descendant
@@ -2130,7 +2136,8 @@ body:has(.automation-dialog) .monaco-menu-container {
  * keyboard tab order too.
  */
 .automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-settings),
-.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-add) {
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-add),
+.automation-form-prompt-host .chat-input-toolbar .action-item:has(.action-label.codicon-server) {
 	display: none;
 }
 
