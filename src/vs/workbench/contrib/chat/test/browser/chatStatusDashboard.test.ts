@@ -631,6 +631,18 @@ suite('ChatStatusDashboard', () => {
 		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
 	});
 
+	test('Callout: Business — shows org-specific wording when quota exhausted with additional usage', () => {
+		const dashboard = createDashboard(createEntitlementService({
+			premiumChat: { percentRemaining: 0, unlimited: false, usageBasedBilling: true },
+			completions: { percentRemaining: 90, unlimited: false },
+			additionalUsageEnabled: true,
+			additionalUsageCount: 5,
+			entitlement: ChatEntitlement.Business,
+		}));
+
+		assert.strictEqual(getCalloutText(dashboard.element), 'Copilot has paused because your limits are reached. Please contact your admin to increase your limits.');
+	});
+
 	// --- LIVE UPDATES ---
 
 	function createMutableEntitlementService(opts: {
