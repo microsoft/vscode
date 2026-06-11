@@ -23,7 +23,6 @@ export interface HeaderProps {
 	readonly onMicDown: (e: MouseEvent) => void;
 	readonly onMicUp: () => void;
 	readonly onConnectClick: (e: MouseEvent) => void;
-	readonly onDisconnectClick: (e: MouseEvent) => void;
 	readonly onCloseClick: (e: MouseEvent) => void;
 	readonly onToggleClick: (e: MouseEvent) => void;
 	readonly onPttKeyClick: (e: MouseEvent) => void;
@@ -87,27 +86,14 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 				@click=${props.onCloseClick}></span>`
 		: nothing;
 
-	const connColor = props.isConnected ? 'var(--vscode-charts-green)' : 'var(--vscode-charts-orange)';
-
-	const connIndicator = html`<span class="voice-conn-indicator"
-		role="button"
-		tabindex="0"
-		aria-label="${localize('agentsVoice.disconnect', "Disconnect")}"
-		title="${localize('agentsVoice.disconnect', "Disconnect")}"
-		@click=${props.onDisconnectClick}
-		style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;flex-shrink:0;padding:2px;">
-		<span class="voice-conn-dot codicon codicon-debug-connected" title="${localize('agentsVoice.disconnect', "Disconnect")}" style="font-size:${FONT_SIZE.iconSm};color:${connColor};"></span>
-		<span class="voice-conn-disconnect codicon codicon-debug-disconnect" title="${localize('agentsVoice.disconnect', "Disconnect")}" style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);display:none;"></span>
-	</span>`;
-
 	const dragStyle = props.draggable ? '-webkit-app-region:drag;' : '';
 
-	// Left section: [icon] [mic] [pttKey] [connIndicator OR connectBtn]
+	// Left section: [icon] [mic] [pttKey] [connectBtn]
 	// Center (only when centerConnectButton): [connectBtn]
 	// Right section: [popout] [close]
-	const showIndicatorLeft = props.isConnected || props.isReconnecting;
-	const showConnBtnLeft = !showIndicatorLeft && !props.centerConnectButton;
-	const showConnBtnCenter = !showIndicatorLeft && props.centerConnectButton;
+	const showConnected = props.isConnected || props.isReconnecting;
+	const showConnBtnLeft = !showConnected && !props.centerConnectButton;
+	const showConnBtnCenter = !showConnected && props.centerConnectButton;
 
 	return html`
 		<div style="display:flex;align-items:center;gap:8px;height:30px;flex-shrink:0;${dragStyle}">
@@ -138,7 +124,6 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; (e.target as HTMLElement).style.borderColor = 'var(--vscode-descriptionForeground)'; }}
 					@click=${props.onPttKeyClick}>${props.pttKeyLabel}</span>`
 			: nothing}
-			${showIndicatorLeft ? connIndicator : nothing}
 			${showConnBtnLeft ? connBtnTemplate : nothing}
 			${showConnBtnCenter
 			? html`<span style="flex:1;display:flex;justify-content:center;gap:8px;">${connBtnTemplate}${popoutTemplate}</span>`
@@ -147,9 +132,5 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 			${!showConnBtnCenter ? popoutTemplate : nothing}
 			${closeTemplate}
 		</div>
-		<style>
-			.voice-conn-indicator:hover .voice-conn-dot { display: none !important; }
-			.voice-conn-indicator:hover .voice-conn-disconnect { display: inline-block !important; color: var(--vscode-errorForeground, #f44) !important; }
-		</style>
 	`;
 }

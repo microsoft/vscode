@@ -322,7 +322,6 @@ export class AgentsVoiceWidget extends Disposable {
 				}
 			},
 			onCloseClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); },
-			onDisconnectClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); },
 			onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.value = !this._expanded.value; },
 			onPttKeyClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
 			onPopoutClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); },

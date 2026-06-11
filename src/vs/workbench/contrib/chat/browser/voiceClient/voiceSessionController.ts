@@ -574,9 +574,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this.micCaptureService.stopCapture();
 				}
 				this.micCaptureService.prepare(window);
-				this.micCaptureService.startCapture(window).catch(() => {
-					// Mic denied — will retry on first pttDown
-				});
+				// Mic is acquired lazily on the first pttDown, not eagerly on
+				// connect. This avoids switching bluetooth headsets into speech
+				// mode and prevents the backend from hearing ambient audio.
 
 				transaction(tx => {
 					this._isConnecting.set(false, tx);
