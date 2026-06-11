@@ -739,7 +739,7 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
-		// Subtract overview/padding within the content container
+		// Subtract the files header height within the content container
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
 		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight);
 		this.tree.layout(treeHeight, this.currentBodyWidth);
