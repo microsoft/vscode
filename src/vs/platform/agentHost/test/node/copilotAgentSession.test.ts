@@ -495,14 +495,14 @@ suite('CopilotAgentSession', () => {
 			cost: 2,
 			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
 			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
-		} as never);
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 		mockSession.fire('assistant.usage', {
 			model: 'claude-sonnet-4.6',
 			inputTokens: 30,
 			outputTokens: 40,
 			cost: 2,
 			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
-		} as never);
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')

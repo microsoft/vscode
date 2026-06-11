@@ -2140,7 +2140,7 @@ export class CopilotAgentSession extends Disposable {
 					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
 				};
 			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${this._turnCopilotUsageTotalNanoAiu || '?'}`);
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,
