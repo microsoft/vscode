@@ -585,7 +585,6 @@ export class AICustomizationListWidget extends Disposable {
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IListEntry>;
 	private emptyStateContainer!: HTMLElement;
-	private emptyStateIcon!: HTMLElement;
 	private emptyStateText!: HTMLElement;
 	private emptyStateSubtext!: HTMLElement;
 
@@ -751,7 +750,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Empty state container
 		this.emptyStateContainer = DOM.append(this.element, $('.list-empty-state'));
 		const emptyStateHeader = DOM.append(this.emptyStateContainer, $('.empty-state-header'));
-		this.emptyStateIcon = DOM.append(emptyStateHeader, $('.empty-state-icon'));
 		this.emptyStateText = DOM.append(emptyStateHeader, $('.empty-state-text'));
 		this.emptyStateSubtext = DOM.append(this.emptyStateContainer, $('.empty-state-subtext'));
 		this.emptyStateContainer.style.display = 'none';
@@ -1440,11 +1438,6 @@ export class AICustomizationListWidget extends Disposable {
 			this.emptyStateContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
-			// Update icon based on section
-			this.emptyStateIcon.className = 'empty-state-icon';
-			const sectionIcon = this.getSectionIcon();
-			this.emptyStateIcon.classList.add(...ThemeIcon.asClassNameArray(sectionIcon));
-
 			if (this.searchQuery.trim()) {
 				// Search with no results
 				this.emptyStateText.textContent = localize('noMatchingItems', "No items match '{0}'", this.searchQuery);
@@ -1458,22 +1451,6 @@ export class AICustomizationListWidget extends Disposable {
 		} else {
 			this.emptyStateContainer.style.display = 'none';
 			this.listContainer.style.display = '';
-		}
-	}
-
-	private getSectionIcon(): ThemeIcon {
-		switch (this.currentSection) {
-			case AICustomizationManagementSection.Agents:
-				return agentIcon;
-			case AICustomizationManagementSection.Skills:
-				return skillIcon;
-			case AICustomizationManagementSection.Instructions:
-				return instructionsIcon;
-			case AICustomizationManagementSection.Hooks:
-				return hookIcon;
-			case AICustomizationManagementSection.Prompts:
-			default:
-				return promptIcon;
 		}
 	}
 
