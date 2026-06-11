@@ -160,8 +160,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		// Authenticate using protectedResources from agent info
-		this._authenticateWithServer(rootState.agents)
+		// Authenticate using protectedResources from agent info. Only auth the
+		// allowed agents so a suppressed provider (e.g. EH-preferred Claude in
+		// this window) doesn't trigger token resolution work for an
+		// implementation we're not going to bridge.
+		this._authenticateWithServer(allowed)
 			.catch(() => { /* best-effort */ });
 
 		// Register new agents and push model updates to existing ones
@@ -272,7 +275,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private _getRootAgents(): readonly AgentInfo[] {
 		const rootState = this._agentHostService.rootState.value;
-		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
+		const agents = (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
+		return agents.filter(a => this._shouldRegisterAgent(a.provider));
 	}
 
 	/**
