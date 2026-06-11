@@ -536,7 +536,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!repoRoot) {
 			return undefined;
 		}
+
 		const repositoryRoot = URI.file(repoRoot);
+
 		// Validate both refs resolve before invoking `git diff` so a missing
 		// ref returns undefined rather than producing a confusing error.
 		const fromOid = (await this._runGit(repositoryRoot, ['rev-parse', '--verify', '--quiet', options.fromRef]))?.trim();
@@ -544,10 +546,12 @@ export class AgentHostGitService implements IAgentHostGitService {
 		if (!fromOid || !toOid) {
 			return undefined;
 		}
+
 		const raw = await this._runGit(repositoryRoot, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', fromOid, toOid, '--']);
 		if (raw === undefined) {
 			return undefined;
 		}
+
 		return parseGitDiffRawNumstat(raw, repositoryRoot, options.sessionUri, fromOid, toOid);
 	}
 
