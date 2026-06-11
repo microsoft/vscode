@@ -201,11 +201,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, var(--vscode-editorWidget-background));
-	color: var(--vscode-editorWarning-foreground);
-}
-
 .agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
 	background: color-mix(in srgb, var(--vscode-editorInfo-foreground) 22%, var(--vscode-editorWidget-background));
 	color: var(--vscode-editorInfo-foreground);
@@ -247,10 +242,6 @@
 	gap: 6px;
 	margin-top: 8px;
 	padding: 0px 8px 4px 12px;
-}
-
-.agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {

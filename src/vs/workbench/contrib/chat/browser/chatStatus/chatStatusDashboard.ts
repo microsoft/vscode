@@ -315,6 +315,28 @@ export class ChatStatusDashboard extends DomWidget {
 				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel, compact ? planName : undefined);
 			}
 
+			// Additional Budget indicator (overage bar, shown when overage_entitlement > 0)
+			let additionalBudgetIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			let additionalBudgetElement: HTMLElement | undefined;
+			const initialOverageEntitlement = this.chatEntitlementService.quotas.additionalUsageEntitlement ?? 0;
+			if (initialOverageEntitlement > 0) {
+				const overageCount = this.chatEntitlementService.quotas.additionalUsageCount ?? 0;
+				const overagePercentRemaining = Math.max(0, Math.min(100, ((initialOverageEntitlement - overageCount) / initialOverageEntitlement) * 100));
+				const overageSnapshot: IQuotaSnapshot = {
+					percentRemaining: overagePercentRemaining,
+					unlimited: false,
+					entitlement: initialOverageEntitlement,
+					quotaRemaining: Math.max(0, initialOverageEntitlement - overageCount),
+				};
+				const additionalBudgetLabel = localize('additionalBudgetLabel', "Additional Budget");
+				additionalBudgetIndicator = this.createQuotaIndicator(container, overageSnapshot, additionalBudgetLabel, resetLabel, compact ? additionalBudgetLabel : undefined);
+				additionalBudgetElement = container.lastElementChild as HTMLElement;
+				const isPremiumExhausted = premiumChatQuota && premiumChatQuota.percentRemaining <= 0;
+				if (!isPremiumExhausted) {
+					additionalBudgetElement.classList.add('muted');
+				}
+			}
+
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
 			const showCompletions = !compact && completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
 				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
@@ -333,6 +355,21 @@ export class ChatStatusDashboard extends DomWidget {
 				}
 				if (completionsQuota) {
 					completionsQuotaIndicator?.(completionsQuota);
+				}
+				if (additionalBudgetIndicator && additionalBudgetElement) {
+					const overageEntitlement = this.chatEntitlementService.quotas.additionalUsageEntitlement ?? 0;
+					const overageCount = this.chatEntitlementService.quotas.additionalUsageCount ?? 0;
+					if (overageEntitlement > 0) {
+						const overagePercentRemaining = Math.max(0, Math.min(100, ((overageEntitlement - overageCount) / overageEntitlement) * 100));
+						additionalBudgetIndicator({
+							percentRemaining: overagePercentRemaining,
+							unlimited: false,
+							entitlement: overageEntitlement,
+							quotaRemaining: Math.max(0, overageEntitlement - overageCount),
+						});
+					}
+					const premiumExhausted = premiumChatQuota && premiumChatQuota.percentRemaining <= 0;
+					additionalBudgetElement.classList.toggle('muted', !premiumExhausted);
 				}
 				const { calloutVisible } = globalCalloutUpdater();
 				if (headerAdditionalSpendButton) {
@@ -840,7 +877,7 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isEnterpriseUser
-					? localize('quotaAdditionalUsageActiveEnterprise', "You've used your included credits. Your organization covers additional usage, so you can keep working.")
+					? localize('quotaAdditionalUsageActiveEnterprise', "Copilot has paused because your limits are reached. Please contact your admin to increase your limits.")
 					: isUsageBasedBilling
 						? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
 						: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
@@ -849,7 +886,7 @@ export class ChatStatusDashboard extends DomWidget {
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
 				calloutText.textContent = isEnterpriseUser
-					? localize('quotaAdditionalUsageApproachingEnterprise', "You're approaching your included credits. Your organization covers additional usage, so there's no interruption.")
+					? localize('quotaAdditionalUsageApproachingEnterprise', "Copilot will pause when your limits are reached. Please contact your admin to increase your limits.")
 					: isUsageBasedBilling
 						? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
 						: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");

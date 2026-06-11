@@ -1075,6 +1075,27 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['Local session']);
 		});
 
+		test('deleteChatSessionItem disposes the corresponding backend session and removes it from the cached items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'session-to-delete'), startTime: 1000, modifiedTime: 2000, summary: 'Doomed' });
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listController.items.length, 1);
+
+			const itemResource = listController.items[0].resource;
+			const removalEvents: URI[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				if (delta.removed) {
+					removalEvents.push(...delta.removed);
+				}
+			}));
+			await listController.deleteChatSessionItem(itemResource, CancellationToken.None);
+
+			assert.deepStrictEqual(agentHostService.disposedSessions.map(s => s.toString()), [AgentSession.uri('copilot', 'session-to-delete').toString()]);
+			assert.strictEqual(listController.items.length, 0);
+			assert.deepStrictEqual(removalEvents.map(r => r.toString()), [itemResource.toString()]);
+		}));
+
 		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -4792,8 +4813,8 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
-		test('dispatches activeClientChanged when restoring a session where another client is active', async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+		test('dispatches activeClientChanged on first turn when restoring a session where another client is active', async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 			const sessionResource = AgentSession.uri('copilot', 'existing-session');
 			const summary: SessionSummary = {
 				resource: sessionResource.toString(),
@@ -4822,16 +4843,30 @@ suite('AgentHostChatContribution', () => {
 				connectionAuthority: 'local',
 			}));
 
+			// Opening the session does NOT claim the active-client slot. The
+			// claim is deferred to the first turn so simply browsing a
+			// session in another window doesn't dispossess a client that's
+			// actively running a turn there.
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
+			assert.strictEqual(
+				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged').length,
+				0,
+				'no dispatch expected on session open',
+			);
+
+			// Starting a turn claims active-client for this connection.
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
 			assert.strictEqual(activeClientActions.length, 1);
 			assert.strictEqual(activeClientActions[0].channel, sessionResource.toString());
 		});
 
-		test('dispatches activeClientChanged when restoring a session where current client customizations are stale', async () => {
-			const { instantiationService, agentHostService, seedActiveClient } = createTestServices(disposables);
+		test('dispatches activeClientChanged on first turn when restoring a session where current client customizations are stale', async () => {
+			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);
 			const customizations = observableValue<ClientPluginCustomization[]>('customizations', [
 				{ type: CustomizationType.Plugin, id: 'file:///plugin-new', uri: 'file:///plugin-new', name: 'Plugin New', enabled: true },
 			]);
@@ -4865,8 +4900,19 @@ suite('AgentHostChatContribution', () => {
 				connectionAuthority: 'local',
 			}));
 
+			// Opening the session does NOT re-claim with fresh customizations.
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => chatSession.dispose()));
+			assert.strictEqual(
+				agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged').length,
+				0,
+				'no dispatch expected on session open',
+			);
+
+			// The fresh customization set is published on first turn.
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
+			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
 			assert.strictEqual(activeClientActions.length, 1);

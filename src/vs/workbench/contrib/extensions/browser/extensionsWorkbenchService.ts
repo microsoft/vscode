@@ -71,7 +71,7 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { hash } from '../../../../base/common/hash.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -1108,6 +1108,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		this.initializeAutoUpdate();
+		this.extensionGalleryManifestService.getExtensionGalleryManifest()
+			.then(manifest => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				this.updateExtensionGalleryManifest(manifest);
+				this._register(this.extensionGalleryManifestService.onDidChangeExtensionGalleryManifest(manifest => this.updateExtensionGalleryManifest(manifest)));
+			})
+			.catch(e => this.logService.error('Error while fetching extension gallery manifest', e));
 		this.updateExtensionsNotificaiton();
 		this.reportInstalledExtensionsTelemetry();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, this._store)(e => this.onDidDismissedNotificationsValueChange()));
@@ -1196,6 +1205,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.registerAutoRestartListener();
 			}
 		}));
+	}
+
+	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
+	private updateExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+		this.extensionGalleryManifest = manifest;
+		this.updateExtensionsNotificaiton();
 	}
 
 	private isAutoUpdateEnabled(): boolean {
@@ -1596,15 +1611,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const privateMarketplaceUrl = this.configurationService.inspect<string>(ExtensionGalleryServiceUrlConfigKey).policyValue;
 		if (privateMarketplaceUrl) {
-			const settingsQuery = `@hasPolicy ${ExtensionGalleryServiceUrlConfigKey}`;
-			const settingsCommandUri = `command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify(settingsQuery))}`;
-			const message = new MarkdownString(nls.localize('privateMarketplace', "This window is connected to a [private extension marketplace]({0}) managed by your organization.", settingsCommandUri));
-			message.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
+			const message = new MarkdownString();
+			let linkUri: string | undefined = this.extensionGalleryManifest ? getExtensionGalleryManifestResourceUri(this.extensionGalleryManifest, ExtensionGalleryResourceType.ContactSupportUri) : undefined;
+			if (!linkUri) {
+				const settingsQuery = `@hasPolicy ${ExtensionGalleryServiceUrlConfigKey}`;
+				linkUri = `command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify(settingsQuery))}`;
+				message.isTrusted = { enabledCommands: ['workbench.action.openSettings'] };
+			}
+			message.appendMarkdown(nls.localize('privateMarketplace', "This window is connected to a [private extension marketplace]({0}) managed by your organization.", linkUri));
 			computedNotificiations.push({
 				message,
 				severity: Severity.Info,
 				extensions: [],
-				key: `privateMarketplace:${hash(privateMarketplaceUrl)}`,
+				key: `privateMarketplace:${hash(privateMarketplaceUrl)}:${hash(linkUri)}`,
 			});
 		}
 

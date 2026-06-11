@@ -24,6 +24,7 @@ import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider
 import { resolveCustomizationRefs } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -67,6 +68,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._customizationsByType = observableValue('agentHostCustomizationsByType', new Map());
@@ -91,7 +93,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		const updateCustomizations = async () => {
 			const seq = ++updateSeq;
 			try {
-				const refs = await resolveCustomizationRefs(this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
+				const refs = await resolveCustomizationRefs(this._fileService, this._promptsService, syncProvider, this._agentPluginService, bundler, sessionType);
 				if (seq !== updateSeq) {
 					return;
 				}

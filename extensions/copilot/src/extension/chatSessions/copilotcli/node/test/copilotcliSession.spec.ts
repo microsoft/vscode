@@ -9,7 +9,8 @@ import type { ChatParticipantToolToken, ChatResponseStream } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
-import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
+import { GenAiAttr, IOTelService, NoopOTelService, resolveOTelConfig, SpanKind } from '../../../../../platform/otel/common/index';
+import { CapturingOTelService } from '../../../../../platform/otel/common/test/capturingOTelService';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/nullTelemetryService';
@@ -254,6 +255,10 @@ describe('CopilotCLISession', () => {
 
 
 	async function createSession(): Promise<CopilotCLISession> {
+		return createSessionWith(new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })));
+	}
+
+	async function createSessionWith(otelService: IOTelService): Promise<CopilotCLISession> {
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
 			_serviceBrand: undefined;
 			async askUserQuestion(question: IQuestion, toolInvocationToken: ChatParticipantToolToken, token: CancellationToken, toolCallId?: string): Promise<IQuestionAnswer | undefined> {
@@ -275,7 +280,7 @@ describe('CopilotCLISession', () => {
 			toolsService,
 			new FakeUserQuestionHandler(),
 			configurationService,
-			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			otelService,
 			new MockGitService(),
 			{ _serviceBrand: undefined } as any,
 			{ _serviceBrand: undefined, resetTurnCredits() { }, getCreditsForTurn() { return undefined; }, setLastCopilotUsage() { } } as any,
@@ -294,6 +299,63 @@ describe('CopilotCLISession', () => {
 		expect(session.status).toBe(ChatSessionStatus.Completed);
 		expect(stream.output.join('\n')).toContain('Echo: Hello');
 		// Listeners are disposed after completion, so we only assert original streamed content.
+	});
+
+	it('synthesizes chat and execute_tool spans for the in-process CLI turn', async () => {
+		sdkSession.send = async ({ prompt }) => {
+			sdkSession.emit('user.message', { content: prompt });
+			sdkSession.emit('assistant.turn_start', {});
+			sdkSession.emit('tool.execution_start', { toolCallId: 'tc1', toolName: 'bash', arguments: { command: 'ls' } });
+			sdkSession.emit('tool.execution_complete', { toolCallId: 'tc1', success: true, result: { content: 'file.txt' } });
+			sdkSession.emit('assistant.usage', { model: 'claude-x', inputTokens: 100, outputTokens: 20, cacheReadTokens: 5 });
+			sdkSession.emit('assistant.message', { messageId: 'm1', content: 'Done!' });
+			sdkSession.emit('assistant.turn_end', {});
+		};
+
+		const otel = new CapturingOTelService();
+		const session = await createSessionWith(otel);
+		session.attachStream(new MockChatResponseStream());
+		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Run ls' }, [], undefined, authInfo, CancellationToken.None);
+
+		const [chatSpan] = otel.findSpans('chat');
+		const [toolSpan] = otel.findSpans('execute_tool');
+		expect({
+			chat: {
+				name: chatSpan?.name,
+				kind: chatSpan?.kind,
+				model: chatSpan?.attributes[GenAiAttr.REQUEST_MODEL],
+				inputTokens: chatSpan?.attributes[GenAiAttr.USAGE_INPUT_TOKENS],
+				outputTokens: chatSpan?.attributes[GenAiAttr.USAGE_OUTPUT_TOKENS],
+				cacheReadTokens: chatSpan?.attributes[GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS],
+				outputMessages: chatSpan?.attributes[GenAiAttr.OUTPUT_MESSAGES],
+				parent: chatSpan?.parentTraceContext !== undefined,
+			},
+			tool: {
+				name: toolSpan?.name,
+				kind: toolSpan?.kind,
+				toolName: toolSpan?.attributes[GenAiAttr.TOOL_NAME],
+				result: toolSpan?.attributes[GenAiAttr.TOOL_CALL_RESULT],
+				parent: toolSpan?.parentTraceContext !== undefined,
+			},
+		}).toEqual({
+			chat: {
+				name: 'chat claude-x',
+				kind: SpanKind.CLIENT,
+				model: 'claude-x',
+				inputTokens: 100,
+				outputTokens: 20,
+				cacheReadTokens: 5,
+				outputMessages: JSON.stringify([{ role: 'assistant', parts: [{ type: 'text', content: 'Done!' }] }]),
+				parent: true,
+			},
+			tool: {
+				name: 'execute_tool bash',
+				kind: SpanKind.INTERNAL,
+				toolName: 'bash',
+				result: 'file.txt',
+				parent: true,
+			},
+		});
 	});
 
 	it('routes in-flight output to the latest attached stream', async () => {
