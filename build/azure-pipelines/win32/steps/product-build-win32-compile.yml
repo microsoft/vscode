@@ -151,6 +151,10 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
 
+  - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: win32
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"

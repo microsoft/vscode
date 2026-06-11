@@ -145,6 +145,10 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
 
+  - template: ../../common/agent-sdk-produce.yml@self
+    parameters:
+      vscodePlatform: darwin
+
   - script: |
       set -e
       npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci

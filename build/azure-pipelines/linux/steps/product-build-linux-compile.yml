@@ -204,6 +204,11 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Download Copilot VSIX
 
+  - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+    - template: ../../common/agent-sdk-produce.yml@self
+      parameters:
+        vscodePlatform: linux
+
   - script: |
       set -e
       npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
