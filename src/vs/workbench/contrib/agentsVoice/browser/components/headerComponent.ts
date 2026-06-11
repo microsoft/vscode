@@ -96,8 +96,8 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 		title="${localize('agentsVoice.disconnect', "Disconnect")}"
 		@click=${props.onDisconnectClick}
 		style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;flex-shrink:0;padding:2px;">
-		<span class="voice-conn-dot codicon codicon-debug-connected" style="font-size:${FONT_SIZE.iconSm};color:${connColor};"></span>
-		<span class="voice-conn-disconnect codicon codicon-debug-disconnect" style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);display:none;"></span>
+		<span class="voice-conn-dot codicon codicon-debug-connected" title="${localize('agentsVoice.disconnect', "Disconnect")}" style="font-size:${FONT_SIZE.iconSm};color:${connColor};"></span>
+		<span class="voice-conn-disconnect codicon codicon-debug-disconnect" title="${localize('agentsVoice.disconnect', "Disconnect")}" style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);display:none;"></span>
 	</span>`;
 
 	const dragStyle = props.draggable ? '-webkit-app-region:drag;' : '';
