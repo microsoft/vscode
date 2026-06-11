@@ -36,10 +36,11 @@ export async function resolveAccountInfo(
 		};
 	}
 
-	for (const provider of [
+	const fallbackGitHubAccountProviders = [
 		{ id: GITHUB_AUTH_PROVIDER_ID, label: localize('github', "GitHub") },
 		{ id: GITHUB_ENTERPRISE_AUTH_PROVIDER_ID, label: localize('githubEnterprise', "GitHub Enterprise") },
-	]) {
+	];
+	for (const provider of fallbackGitHubAccountProviders) {
 		try {
 			const sessions = await authenticationService.getSessions(provider.id);
 			if (sessions.length > 0) {
