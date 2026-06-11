@@ -5,7 +5,7 @@
 
 .action-widget {
 	font-size: 13px;
-	min-width: 100px;
+	min-width: 155px;
 	max-width: 80vw;
 	z-index: 40;
 	display: block;
@@ -413,17 +413,22 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	line-height: 16px;
-	padding: 10px 12px;
+	padding: 8px 10px;
+	margin: 2px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .action-widget .action-list-header .action-list-header-icon {
 	flex-shrink: 0;
 	margin-top: 1px;
 	font-size: 16px;
+	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
 .action-widget .action-list-header .action-list-header-text {
 	flex: 1;
+	font-size: 11px;
 }
 
 /* Anchor for the absolutely-positioned submenu panel */
