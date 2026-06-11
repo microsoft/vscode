@@ -221,7 +221,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
-			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.toggleWindow'),
+			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 		}, {
 			defaultExpanded: true,
@@ -229,7 +229,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		this._windowDisposables.add(widget);
 
 		// PTT key label from keybinding
-		const getPttLabel = () => this.keybindingService.lookupKeybinding('agentsVoice.toggleWindow')?.getLabel() ?? undefined;
+		const getPttLabel = () => this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk')?.getLabel() ?? undefined;
 		widget.setPttKeyLabel(getPttLabel());
 		this._windowDisposables.add(this.keybindingService.onDidUpdateKeybindings(() => {
 			widget.setPttKeyLabel(getPttLabel());

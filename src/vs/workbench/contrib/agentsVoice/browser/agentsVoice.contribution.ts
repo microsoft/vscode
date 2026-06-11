@@ -10,7 +10,7 @@ import './agentsVoiceWindowService.js';
 import '../../chat/browser/voiceClient/micCaptureService.js';
 import '../../chat/browser/voiceClient/ttsPlaybackService.js';
 import '../../chat/browser/voiceClient/voiceClientService.js';
-import '../../chat/browser/voiceClient/voiceSessionController.js';
+import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import '../../chat/browser/voiceClient/voiceToolDispatchService.js';
 import '../../chat/common/voicePlaybackService.js';
 
@@ -132,6 +132,31 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const storageService = accessor.get(IStorageService);
 		storageService.remove(AgentsVoiceStorageKeys.OnboardingCompleted, StorageScope.PROFILE);
+	}
+});
+
+// --- Push-to-Talk Command ---
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentsVoice.pushToTalk',
+			title: nls.localize2('agentsVoicePushToTalk', "Agents Voice: Push to Talk"),
+			f1: true,
+			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		const windowService = accessor.get(IAgentsVoiceWindowService);
+		// Open the voice window if not already open, then toggle PTT
+		if (!windowService.isOpen) {
+			await windowService.toggleWindow();
+		}
+		if (!voiceController.isConnected.get()) {
+			return;
+		}
+		voiceController.pttDown();
 	}
 });
 

@@ -473,7 +473,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 				}
 			},
-			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.toggleWindow'),
+			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.pushToTalk'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 			onOnboardingCompleted: () => {
@@ -502,7 +502,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// PTT key label from keybinding
-		const getPttLabel = () => this.keybindingService2.lookupKeybinding('agentsVoice.toggleWindow')?.getLabel() ?? undefined;
+		const getPttLabel = () => this.keybindingService2.lookupKeybinding('agentsVoice.pushToTalk')?.getLabel() ?? undefined;
 		widget.setPttKeyLabel(getPttLabel());
 		this._voiceBarDisposables.add(this.keybindingService2.onDidUpdateKeybindings(() => {
 			widget.setPttKeyLabel(getPttLabel());
