@@ -550,11 +550,12 @@ export class ChangesViewPane extends ViewPane {
 
 		// Changes statistics
 		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
-			const entries = changesObs.read(reader);
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
 			if (isLoading) {
 				return lastValue;
 			}
+
+			const entries = changesObs.read(reader);
 
 			let added = 0, removed = 0;
 
