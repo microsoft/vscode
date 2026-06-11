@@ -30,7 +30,7 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IProductService } from '../../platform/product/common/productService.js';
-import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
+import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, OKMessage, SignRequest } from '../../platform/remote/common/remoteAgentConnection.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { ExtensionHostConnection } from './extensionHostConnection.js';
@@ -500,12 +500,26 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	}
 
 	private async _createTunnel(protocol: PersistentProtocol, tunnelStartParams: ITunnelConnectionStartParams): Promise<void> {
+		let localSocket: net.Socket;
+		try {
+			localSocket = await this._connectTunnelSocket(tunnelStartParams.host, tunnelStartParams.port);
+		} catch (err) {
+			this._logService.error(`[remote-connection] Failed to connect tunnel to ${tunnelStartParams.host}:${tunnelStartParams.port}:`, err);
+			const reason = (err instanceof Error ? err.message : String(err));
+			const errorMessage: ErrorMessage = { type: 'error', reason };
+			protocol.sendControl(VSBuffer.fromString(JSON.stringify(errorMessage)));
+			const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
+			protocol.dispose();
+			remoteSocket.end();
+			return;
+		}
+
+		const okMessage: OKMessage = { type: 'ok' };
+		protocol.sendControl(VSBuffer.fromString(JSON.stringify(okMessage)));
+
 		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
-
-		remoteSocket.pause();
-		const localSocket = await this._connectTunnelSocket(tunnelStartParams.host, tunnelStartParams.port);
 
 		if (dataChunk.byteLength > 0) {
 			localSocket.write(dataChunk.buffer);
