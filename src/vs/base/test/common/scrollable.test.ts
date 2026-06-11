@@ -119,17 +119,17 @@ suite('SmoothScrollingOperation', () => {
 		]);
 	});
 
-	// Covers the reverse directional boundary (scrolling up), ensuring the 
-    // negative delta interpolation curve handles deceleration smoothly.
-    test('scroll up 25 lines', () => {
-        assertSmoothScroll(500, 0, [
-            [19, 60],
-            [10, 51],
-            [4, 45],
-            [1, 42],
-            [0, 41],
-            [0, 40],
-        ]);
-    });
+	// Covers the reverse directional boundary (scrolling up), ensuring the
+	// negative delta interpolation curve handles deceleration smoothly.
+	test('scroll up 25 lines', () => {
+		assertSmoothScroll(500, 0, [
+			[19, 60],
+			[10, 51],
+			[4, 45],
+			[1, 42],
+			[0, 41],
+			[0, 40],
+		]);
+	});
 
 });
