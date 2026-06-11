@@ -491,7 +491,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			centerConnectButton: false,
 			title: localize('agentsVoice.voiceChatTitle', "Voice Chat"),
 			focusable: true,
-			reshowOnboardingOnDisconnect: true,
+			reshowOnboardingOnDisconnect: false,
 		});
 		this._voiceBarDisposables.add(widget);
 
