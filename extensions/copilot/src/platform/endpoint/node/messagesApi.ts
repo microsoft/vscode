@@ -170,13 +170,19 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	}
 
 	const thinkingEnabled = !!thinkingConfig;
-	let effort: 'low' | 'medium' | 'high' | undefined;
-	if (thinkingConfig && endpoint.supportsReasoningEffort?.length) {
-		const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
-			?? reasoningEffort
-			?? (endpoint.supportsReasoningEffort.length === 1 ? endpoint.supportsReasoningEffort[0] : 'medium');
-		if (candidateEffort === 'low' || candidateEffort === 'medium' || candidateEffort === 'high') {
-			effort = candidateEffort;
+	let effort: string | undefined;
+	if (thinkingConfig) {
+		const declaredLevels = endpoint.supportsReasoningEffort?.length ? endpoint.supportsReasoningEffort : undefined;
+		const defaultEffort = declaredLevels
+			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
+			: endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+		if (defaultEffort !== undefined) {
+			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? reasoningEffort
+				?? defaultEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0 && (!declaredLevels || declaredLevels.includes(candidateEffort))) {
+				effort = candidateEffort;
+			}
 		}
 	}
 
