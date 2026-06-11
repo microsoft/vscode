@@ -16,7 +16,7 @@ export interface IMessage {
 	readonly content: string;
 }
 
-export interface ISampleMetadata {
+export interface ISampleMetadataBase {
 	readonly rowIndex: number;
 	readonly language: string;
 	readonly strategy: string;
@@ -27,20 +27,35 @@ export interface ISampleMetadata {
 	readonly oracleEdits: readonly (readonly [start: number, endEx: number, text: string])[];
 	readonly originalPrompt: unknown[];
 	readonly modelResponse: string;
-	/**
-	 * Which datagen task produced this sample. `CursorBoth` is a CLI dispatch
-	 * mode only — each emitted sample is classified as one of the concrete
-	 * cursor variants, never `CursorBoth`.
-	 */
-	readonly task: Exclude<NesDatagenSampleTask, NesDatagenSampleTask.CursorBoth>;
-	/** Present only when {@link task} is a cursor-* task. */
-	readonly jump?: {
-		readonly fromLine: number;
-		readonly toLine: number;
-		readonly toFilePath?: string;
-		readonly distance: number;
-	};
 }
+
+/**
+ * Per-sample classification + cursor-jump payload. Discriminated on `task`
+ * so xtab samples cannot accidentally carry a `jump` field and cursor-*
+ * samples cannot omit one. `CursorBoth` is a CLI dispatch mode only — each
+ * emitted sample is classified as one of the concrete cursor variants.
+ */
+export type SampleClassification =
+	| { readonly task: NesDatagenSampleTask.Xtab }
+	| {
+		readonly task: NesDatagenSampleTask.CursorSameFile;
+		readonly jump: {
+			readonly fromLine: number;
+			readonly toLine: number;
+			readonly distance: number;
+		};
+	}
+	| {
+		readonly task: NesDatagenSampleTask.CursorCrossFile;
+		readonly jump: {
+			readonly fromLine: number;
+			readonly toLine: number;
+			readonly toFilePath: string;
+			readonly distance: number;
+		};
+	};
+
+export type ISampleMetadata = ISampleMetadataBase & SampleClassification;
 
 export interface ISample {
 	readonly messages: readonly IMessage[];
@@ -68,8 +83,7 @@ export function assembleSample(
 	processedRow: IProcessedRow,
 	strategy: string,
 	modelResponse: string,
-	task: ISampleMetadata['task'] = NesDatagenSampleTask.Xtab,
-	jump?: ISampleMetadata['jump'],
+	classification: SampleClassification = { task: NesDatagenSampleTask.Xtab },
 ): ISample {
 	const messages: IMessage[] = [
 		{ role: 'system', content: prompt.system },
@@ -77,7 +91,7 @@ export function assembleSample(
 		{ role: 'assistant', content: response.assistant },
 	];
 
-	const metadata: ISampleMetadata = {
+	const base: ISampleMetadataBase = {
 		rowIndex: index,
 		language: processedRow.row.activeDocumentLanguageId,
 		strategy,
@@ -88,11 +102,9 @@ export function assembleSample(
 		oracleEdits: processedRow.nextUserEdit?.edit ?? [],
 		originalPrompt: processedRow.row.prompt,
 		modelResponse,
-		task,
-		jump,
 	};
 
-	return { messages, metadata };
+	return { messages, metadata: { ...base, ...classification } };
 }
 
 interface IStructuralValidationResult {

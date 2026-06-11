@@ -17,7 +17,7 @@ import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/sim
 import { detectCrossFileJump, detectSameFileJump } from './cursorJump/detectJump';
 import { generateCursorPromptFromRecording, installCursorJumpCapturingFetcher } from './cursorJump/cursorJumpPromptStep';
 import { generateCrossFileResponse, generateSameFileResponse } from './cursorJump/cursorJumpResponseStep';
-import { assembleSample, ISample, ISampleMetadata, resolveOutputPath, writeSamples } from './output';
+import { assembleSample, ISample, SampleClassification, resolveOutputPath, writeSamples } from './output';
 import { loadAndParseInput } from './parseInput';
 import { generatePromptFromRecording, IGeneratedPrompt } from './promptStep';
 import { IProcessedRow, parseSuggestedEdit, processAllRows } from './replayRecording';
@@ -173,7 +173,7 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 			const modelEdits = suggestedEdit ? [suggestedEdit] as const : undefined;
 			const modelResult = generateResponse(responseFormat, modelEdits, p.activeDocument.value.get().value, p.activeFilePath, prompt.user);
 			const formattedModelResponse = 'error' in modelResult ? '' : modelResult.assistant;
-			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, NesDatagenSampleTask.Xtab));
+			samples.push(assembleSample(index + rowOffset, prompt, response, p, responseFormat, formattedModelResponse, { task: NesDatagenSampleTask.Xtab }));
 		}
 
 		const writeResult = await writeSamples(outputPath, samples);
@@ -257,8 +257,8 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 	// Detect jumps first — many rows will be skipped here, no point capturing
 	// a prompt for them.
 	type DetectedJump =
-		| { readonly kind: 'sameFile'; readonly assistantTask: NesDatagenSampleTask.CursorSameFile; readonly sameFile: ReturnType<typeof detectSameFileJump> }
-		| { readonly kind: 'crossFile'; readonly assistantTask: NesDatagenSampleTask.CursorCrossFile; readonly crossFile: ReturnType<typeof detectCrossFileJump> };
+		| { readonly kind: 'sameFile'; readonly sameFile: ReturnType<typeof detectSameFileJump> }
+		| { readonly kind: 'crossFile'; readonly crossFile: ReturnType<typeof detectCrossFileJump> };
 
 	const jumps = new Map<number, DetectedJump>();
 	const skipReasons = new Map<string, number>();
@@ -277,7 +277,7 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				resolveActiveDocLineAt: buildLineResolver(p),
 			});
 			if (sf.isOk()) {
-				jumps.set(p.originalRowIndex, { kind: 'sameFile', assistantTask: NesDatagenSampleTask.CursorSameFile, sameFile: sf });
+				jumps.set(p.originalRowIndex, { kind: 'sameFile', sameFile: sf });
 				continue;
 			}
 			if (task === NesDatagenSampleTask.CursorSameFile) {
@@ -294,7 +294,7 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				getDocContentAtRequest: (docId) => p.idToContentAtRequest.get(docId),
 			});
 			if (cf.isOk()) {
-				jumps.set(p.originalRowIndex, { kind: 'crossFile', assistantTask: NesDatagenSampleTask.CursorCrossFile, crossFile: cf });
+				jumps.set(p.originalRowIndex, { kind: 'crossFile', crossFile: cf });
 				continue;
 			}
 			skipReasons.set(cf.err, (skipReasons.get(cf.err) ?? 0) + 1);
@@ -379,23 +379,30 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				continue;
 			}
 
-			let assistantOut: { assistant: string; jump: NonNullable<ISampleMetadata['jump']> } | { error: string };
+			let classification: SampleClassification | undefined;
+			let assistant: string;
 			if (detected.kind === 'sameFile' && detected.sameFile.isOk()) {
 				const r = generateSameFileResponse(detected.sameFile.val, promptOut.keptRange);
-				assistantOut = r;
+				if ('error' in r) {
+					responseSkips.set(r.error, (responseSkips.get(r.error) ?? 0) + 1);
+					continue;
+				}
+				assistant = r.assistant;
+				classification = { task: NesDatagenSampleTask.CursorSameFile, jump: r.jump };
 			} else if (detected.kind === 'crossFile' && detected.crossFile.isOk()) {
-				assistantOut = generateCrossFileResponse(detected.crossFile.val, p.cursorAtRequest.lineNumber);
+				const r = generateCrossFileResponse(detected.crossFile.val, p.cursorAtRequest.lineNumber);
+				if ('error' in r) {
+					responseSkips.set(r.error, (responseSkips.get(r.error) ?? 0) + 1);
+					continue;
+				}
+				assistant = r.assistant;
+				classification = { task: NesDatagenSampleTask.CursorCrossFile, jump: r.jump };
 			} else {
 				continue;
 			}
 
-			if ('error' in assistantOut) {
-				responseSkips.set(assistantOut.error, (responseSkips.get(assistantOut.error) ?? 0) + 1);
-				continue;
-			}
-
 			const prompt: IGeneratedPrompt = { system: promptOut.system, user: promptOut.user };
-			const responseAdapter = { assistant: assistantOut.assistant };
+			const responseAdapter = { assistant };
 			samples.push(assembleSample(
 				promptOut.originalRowIndex + rowOffset,
 				prompt,
@@ -403,8 +410,7 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				p,
 				'next-cursor-line-prediction',
 				/* modelResponse */ '',
-				detected.assistantTask,
-				assistantOut.jump,
+				classification,
 			));
 		}
 

@@ -6,12 +6,21 @@
 import { OffsetRange } from '../../../src/util/vs/editor/common/core/ranges/offsetRange';
 import { ICrossFileJump, ISameFileJump, normalizeRelativePathForModel } from './detectJump';
 
-export interface IGeneratedCursorResponse {
+export interface ISameFileGeneratedResponse {
 	readonly assistant: string;
 	readonly jump: {
 		readonly fromLine: number;
 		readonly toLine: number;
-		readonly toFilePath?: string;
+		readonly distance: number;
+	};
+}
+
+export interface ICrossFileGeneratedResponse {
+	readonly assistant: string;
+	readonly jump: {
+		readonly fromLine: number;
+		readonly toLine: number;
+		readonly toFilePath: string;
 		readonly distance: number;
 	};
 }
@@ -25,7 +34,7 @@ export interface IGeneratedCursorResponse {
 export function generateSameFileResponse(
 	jump: ISameFileJump,
 	keptRange: OffsetRange,
-): IGeneratedCursorResponse | { error: string } {
+): ISameFileGeneratedResponse | { error: string } {
 	if (jump.toLine < keptRange.start || jump.toLine >= keptRange.endExclusive) {
 		return { error: `outsideKeptRange (toLine=${jump.toLine}, keptRange=[${keptRange.start}, ${keptRange.endExclusive}))` };
 	}
@@ -46,7 +55,7 @@ export function generateSameFileResponse(
 export function generateCrossFileResponse(
 	jump: ICrossFileJump,
 	cursorAtRequestLine: number,
-): IGeneratedCursorResponse | { error: string } {
+): ICrossFileGeneratedResponse | { error: string } {
 	const normalizedPath = normalizeRelativePathForModel(jump.toRelativePath);
 	if (!normalizedPath) {
 		return { error: 'crossFileEmptyPath' };
