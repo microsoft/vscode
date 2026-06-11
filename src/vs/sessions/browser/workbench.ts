@@ -132,6 +132,17 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
 	setEditorMaximized(maximized: boolean): void;
 
 	readonly onDidChangeEditorMaximized: Event<void>;
+
+	/**
+	 * Suppresses the automatic editor part show/hide that normally fires from
+	 * `editorService.onWillOpenEditor` / `onDidCloseEditor`. Use this around
+	 * programmatic editor operations (e.g. applying a working set) so that the
+	 * editor part visibility is not changed as a side-effect. Dispose the
+	 * returned handle to release the suppression. Calls nest via a counter.
+	 *
+	 * Comment: We should consider movin mximization logic into layoutController
+	 */
+	suppressEditorPartAutoVisibility(): IDisposable;
 }
 
 export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
@@ -295,6 +306,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 	private _editorMaximized = false;
 	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 	private _restoreAttachedEditorMaximizedOnShow = false;
+	private _editorPartAutoVisibilitySuppressionCount = 0;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -1010,8 +1022,13 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Editor opens should only affect the main editor part when
 		// they actually target one of the main editor groups. Modal
-		// opens stay neutral.
+		// opens stay neutral. Programmatic opens that suppress auto
+		// visibility (e.g. working set application) are ignored.
 		this._register(this.editorService.onWillOpenEditor(e => {
+			if (this._editorPartAutoVisibilitySuppressionCount > 0) {
+				return;
+			}
+
 			const targetsMainEditorPart = this.editorGroupService.mainPart.groups.some(group => group.id === e.groupId);
 			if (!targetsMainEditorPart) {
 				return;
@@ -1025,6 +1042,9 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 		// Hide editor part when last editor closes
 		this._register(this.editorService.onDidCloseEditor(() => {
+			if (this._editorPartAutoVisibilitySuppressionCount > 0) {
+				return;
+			}
 			if (this.partVisibility.editor && this.areAllGroupsInMainPartEmpty()) {
 				this.rememberAttachedEditorMaximizedState();
 				this.setEditorHidden(true);
@@ -1051,6 +1071,18 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			}
 		}
 		return true;
+	}
+
+	suppressEditorPartAutoVisibility(): IDisposable {
+		this._editorPartAutoVisibilitySuppressionCount++;
+		let disposed = false;
+		return toDisposable(() => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			this._editorPartAutoVisibilitySuppressionCount--;
+		});
 	}
 
 	private rememberAttachedEditorMaximizedState(): void {
