@@ -18,7 +18,7 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
 /** Internal policy payload carrying raw Copilot managed-settings data from main to workbench. */
-export const COPILOT_MANAGED_SETTINGS_POLICY_NAME = 'CopilotManagedSettings';
+export const COPILOT_MANAGED_SETTINGS_POLICY_NAME = 'CopilotRawManagedSettings';
 
 export function serializeManagedSettings(managedSettings: ManagedSettingsData): string {
 	return JSON.stringify(managedSettings);
