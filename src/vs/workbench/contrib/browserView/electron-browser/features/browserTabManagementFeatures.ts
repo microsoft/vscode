@@ -20,7 +20,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
-import { getBrowserEditorGroup } from '../browserEditorGroup.js';
+import { getBrowserPreferredGroup } from '../browserEditorGroup.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
@@ -120,7 +120,7 @@ class BrowserTabQuickPick extends Disposable {
 				this._quickPick.hide();
 				await this._editorService.openEditor({
 					resource: BrowserViewUri.forId(generateUuid()),
-				}, getBrowserEditorGroup(this._editorGroupsService, this._configurationService));
+				}, getBrowserPreferredGroup(this._editorGroupsService, this._configurationService));
 			} else {
 				await this._editorService.openEditor(selected.editor, selected.groupId);
 			}
@@ -292,7 +292,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 		// Parse arguments
 		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
 		const resource = BrowserViewUri.forId(generateUuid());
-		const group = getBrowserEditorGroup(editorGroupsService, configurationService, options.openToSide ? SIDE_GROUP : undefined);
+		const group = getBrowserPreferredGroup(editorGroupsService, configurationService, options.openToSide ? SIDE_GROUP : undefined);
 
 		if (options.reuseUrlFilter) {
 			const filterUri = URI.parse(options.reuseUrlFilter);
@@ -392,7 +392,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, getBrowserEditorGroup(editorGroupsService, configurationService));
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, getBrowserPreferredGroup(editorGroupsService, configurationService));
 	}
 }
 
@@ -428,7 +428,7 @@ class NewTabAction extends Action2 {
 
 		logBrowserOpen(telemetryService, 'newTabCommand');
 
-		await editorService.openEditor({ resource }, getBrowserEditorGroup(editorGroupsService, configurationService));
+		await editorService.openEditor({ resource }, getBrowserPreferredGroup(editorGroupsService, configurationService));
 	}
 }
 
@@ -619,7 +619,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, getBrowserEditorGroup(this.editorGroupsService, this.configurationService));
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, getBrowserPreferredGroup(this.editorGroupsService, this.configurationService));
 		return true;
 	}
 }

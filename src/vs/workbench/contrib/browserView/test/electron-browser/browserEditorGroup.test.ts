@@ -9,7 +9,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, SIDE_GROUP, USE_MODAL_EDITOR_SETTING } from '../../../../services/editor/common/editorService.js';
-import { getBrowserEditorGroup } from '../../electron-browser/browserEditorGroup.js';
+import { getBrowserPreferredGroup } from '../../electron-browser/browserEditorGroup.js';
 
 suite('BrowserView - getBrowserEditorGroup', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,9 +23,9 @@ suite('BrowserView - getBrowserEditorGroup', () => {
 		await configurationService.setUserConfiguration(USE_MODAL_EDITOR_SETTING, 'all');
 
 		const results = [
-			getBrowserEditorGroup(editorGroupsService, configurationService),
-			getBrowserEditorGroup(editorGroupsService, configurationService, ACTIVE_GROUP),
-			getBrowserEditorGroup(editorGroupsService, configurationService, SIDE_GROUP),
+			getBrowserPreferredGroup(editorGroupsService, configurationService),
+			getBrowserPreferredGroup(editorGroupsService, configurationService, ACTIVE_GROUP),
+			getBrowserPreferredGroup(editorGroupsService, configurationService, SIDE_GROUP),
 		];
 
 		assert.deepStrictEqual(results, [mainActiveGroup, mainActiveGroup, SIDE_GROUP]);
@@ -35,9 +35,9 @@ suite('BrowserView - getBrowserEditorGroup', () => {
 		const configurationService: IConfigurationService = new TestConfigurationService();
 
 		const results = [
-			getBrowserEditorGroup(editorGroupsService, configurationService),
-			getBrowserEditorGroup(editorGroupsService, configurationService, ACTIVE_GROUP),
-			getBrowserEditorGroup(editorGroupsService, configurationService, SIDE_GROUP),
+			getBrowserPreferredGroup(editorGroupsService, configurationService),
+			getBrowserPreferredGroup(editorGroupsService, configurationService, ACTIVE_GROUP),
+			getBrowserPreferredGroup(editorGroupsService, configurationService, SIDE_GROUP),
 		];
 
 		assert.deepStrictEqual(results, [undefined, ACTIVE_GROUP, SIDE_GROUP]);

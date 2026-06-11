@@ -18,7 +18,7 @@ import { ACTIVE_GROUP, PreferredGroup, USE_MODAL_EDITOR_SETTING, UseModalEditorM
  * auxiliary window, a specific group) untouched. Users can still move the
  * browser into a modal explicitly afterwards.
  */
-export function getBrowserEditorGroup(editorGroupsService: IEditorGroupsService, configurationService: IConfigurationService, preferredGroup?: PreferredGroup): PreferredGroup | undefined {
+export function getBrowserPreferredGroup(editorGroupsService: IEditorGroupsService, configurationService: IConfigurationService, preferredGroup?: PreferredGroup): PreferredGroup | undefined {
 	if ((preferredGroup === undefined || preferredGroup === ACTIVE_GROUP) && configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all') {
 		return editorGroupsService.mainPart.activeGroup;
 	}
