@@ -5,7 +5,7 @@
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, PreferredGroup } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, PreferredGroup, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 
 /**
  * Resolves the preferred group for opening an integrated browser editor.
@@ -19,7 +19,7 @@ import { ACTIVE_GROUP, PreferredGroup } from '../../../services/editor/common/ed
  * browser into a modal explicitly afterwards.
  */
 export function getBrowserEditorGroup(editorGroupsService: IEditorGroupsService, configurationService: IConfigurationService, preferredGroup?: PreferredGroup): PreferredGroup | undefined {
-	if ((preferredGroup === undefined || preferredGroup === ACTIVE_GROUP) && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
+	if ((preferredGroup === undefined || preferredGroup === ACTIVE_GROUP) && configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all') {
 		return editorGroupsService.mainPart.activeGroup;
 	}
 
