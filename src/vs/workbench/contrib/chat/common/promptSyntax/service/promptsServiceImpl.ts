@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenPool } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ParseError, parse as parseJSONC } from '../../../../../../base/common/json.js';
@@ -1395,6 +1395,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 class CachedPromise<T> extends Disposable {
 	private cachedPromise: Promise<T> | undefined = undefined;
+	private cachedPool: CancellationTokenPool | undefined = undefined;
 	private readonly onDidUpdatePromiseEmitter: Emitter<void>;
 
 	constructor(private readonly computeFn: (token: CancellationToken) => Promise<T>, private readonly getEvent: () => Event<void>, private readonly delay: number = 0) {
@@ -1412,17 +1413,29 @@ class CachedPromise<T> extends Disposable {
 	}
 
 	public get(token: CancellationToken): Promise<T> {
+		let pool = this.cachedPool;
 		if (this.cachedPromise === undefined) {
-			// Use CancellationToken.None for the shared computation so that one caller
-			// cancelling does not abort the work for other concurrent callers.
-			const promise = this.computeFn(CancellationToken.None).catch(err => {
+			// Aggregate callers' tokens so the shared computation is cancelled
+			// only after every live caller has cancelled. A single caller's
+			// cancellation no longer aborts the work for the others.
+			pool = new CancellationTokenPool();
+			const promise = this.computeFn(pool.token).catch(err => {
 				if (this.cachedPromise === promise) {
 					this.cachedPromise = undefined;
 				}
 				throw err;
 			});
+			// The pool is only meaningful while the computation is in flight.
+			promise.finally(() => {
+				if (this.cachedPool === pool) {
+					this.cachedPool = undefined;
+				}
+				pool!.dispose();
+			});
 			this.cachedPromise = promise;
+			this.cachedPool = pool;
 		}
+		pool?.add(token);
 		return raceCancellationError(this.cachedPromise, token);
 	}
 
