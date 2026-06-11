@@ -15,11 +15,11 @@ importers:
   .:
     dependencies:
       '@github/copilot':
-        specifier: ^1.0.57
-        version: 1.0.59
+        specifier: ^1.0.61
+        version: 1.0.61
       '@github/copilot-sdk':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.1
+        version: 1.0.1
       '@microsoft/1ds-core-js':
         specifier: ^3.2.13
         version: 3.2.18
@@ -72,35 +72,35 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       '@xterm/addon-clipboard':
-        specifier: ^0.3.0-beta.220
-        version: 0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.3.0-beta.285
+        version: 0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-image':
-        specifier: ^0.10.0-beta.220
-        version: 0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.10.0-beta.285
+        version: 0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-ligatures':
-        specifier: ^0.11.0-beta.220
-        version: 0.11.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.11.0-beta.285
+        version: 0.11.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-progress':
-        specifier: ^0.3.0-beta.220
-        version: 0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.3.0-beta.285
+        version: 0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-search':
-        specifier: ^0.17.0-beta.220
-        version: 0.17.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.17.0-beta.285
+        version: 0.17.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-serialize':
-        specifier: ^0.15.0-beta.220
-        version: 0.15.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.15.0-beta.285
+        version: 0.15.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-unicode11':
-        specifier: ^0.10.0-beta.220
-        version: 0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.10.0-beta.285
+        version: 0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-webgl':
-        specifier: ^0.20.0-beta.219
-        version: 0.20.0-beta.275(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.20.0-beta.284
+        version: 0.20.0-beta.284(@xterm/xterm@6.1.0-beta.285)
       '@xterm/headless':
-        specifier: ^6.1.0-beta.220
-        version: 6.1.0-beta.276
+        specifier: ^6.1.0-beta.285
+        version: 6.1.0-beta.285
       '@xterm/xterm':
-        specifier: ^6.1.0-beta.220
-        version: 6.1.0-beta.276
+        specifier: ^6.1.0-beta.285
+        version: 6.1.0-beta.285
       cookie:
         specifier: ^0.7.0
         version: 0.7.2
@@ -131,6 +131,9 @@ importers:
       ssh2:
         specifier: ^1.16.0
         version: 1.17.0
+      tar:
+        specifier: ^7.5.9
+        version: 7.5.16
       tas-client:
         specifier: 0.3.1
         version: 0.3.1
@@ -158,64 +161,64 @@ importers:
 
 packages:
 
-  '@github/copilot-darwin-arm64@1.0.59':
-    resolution: {integrity: sha512-zNbsKhCxzI7HhfUltEoCP43NzZacPQYd41ylixV3iZeO/Tximjkb4KnChH7UYdksDVtdKZGU3BIs+T3hGd9LEw==}
+  '@github/copilot-darwin-arm64@1.0.61':
+    resolution: {integrity: sha512-10prvjHRXB0SD28NsIpzdNDgLquQYUwaH5Ev9KVdIWdBPAvlQsHmQ4JSCyD/UILc/nrrr02CKUgum+mZRKUKIg==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@github/copilot-darwin-x64@1.0.59':
-    resolution: {integrity: sha512-7LsC02bE5nPzPGNr11+ZospnpW7AeHSfzaFlJ9tipMxo9hAoKPJl4vSr7PtDzTsVMukKnT4Ro9ACPisnbkVS/Q==}
+  '@github/copilot-darwin-x64@1.0.61':
+    resolution: {integrity: sha512-NXUjageJ3mxDfHtXGYu//XhJ+dhJFYObT4R3jeWgIHhd+4lX7FlC754nwlBP/ZuVhJ3ND22JK9sua9d2F3Cbwg==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@github/copilot-linux-arm64@1.0.59':
-    resolution: {integrity: sha512-rsiH+qj8hga6a3vdc7LrJLzMXSJHI6a8b4M3zccXYJeAkWKLm7CLmc9Kybtn72qaDTLNLxv+kvQfZ3qLTzFBlA==}
+  '@github/copilot-linux-arm64@1.0.61':
+    resolution: {integrity: sha512-dwB2+QSMr622JkePeK56M7YWXsTT/DQzKfpDq8Lk2kmGU052RZAarRmt8gcNm4anofN7pMSrqc3YHj1TM84MFw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
     hasBin: true
 
-  '@github/copilot-linux-x64@1.0.59':
-    resolution: {integrity: sha512-yxthVdw5Fi4KwuduuJBxuSd7ofDVApaaU5KN97lLMQVklxBaP03/xssu2KEuiavIFD4koSTlUGuueIx0L/i8MQ==}
+  '@github/copilot-linux-x64@1.0.61':
+    resolution: {integrity: sha512-q6n8R8oybvuCmmkP+43w809Wpud/wwRi/fFSZEYJagiNGmYJ00SDkrfJxHbZsAFMpaJC+oTswqzJHjRoZbO74w==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
     hasBin: true
 
-  '@github/copilot-linuxmusl-arm64@1.0.59':
-    resolution: {integrity: sha512-TxcPcHfhj5+bMqUCjuxSPb7hGNnZt8xmRQgQaBaW89/pnsqVvnJfoI/2sE52btbPMp8M1iase9/Uf9na393AXw==}
+  '@github/copilot-linuxmusl-arm64@1.0.61':
+    resolution: {integrity: sha512-yWo7JXnZS11eJpm68E1RWKMR47EwzPKj3V7GX0EMTd8Fw0T2Aurk9wt9p3c9w0v02nTO1DqJhi68KVWJPdVqvA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-linuxmusl-x64@1.0.59':
-    resolution: {integrity: sha512-ml3B/3LqU+NkCKuQW/2sejAgpWw+LtYzll/VDhwcqkOBckoigALqj7UvJOf/M/+O2lcgcy9fLh5lg7cJ4Up0tg==}
+  '@github/copilot-linuxmusl-x64@1.0.61':
+    resolution: {integrity: sha512-nHzx27Ac4B0fpD9CcmvyrGOBEMJ01CPRgVRP0yAl4wpU4cM2I6+9TPyfYThlWDqZqiUKGXC1ZRQ+B8cJREVGmA==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-sdk@1.0.0':
-    resolution: {integrity: sha512-OKjmJMDM+GB2uHr8UA6O0FNs1Gfw/tkoE5vUNlYmKbydc9Yjf6pvuBdseGjAVvzc6f9HIbB5eZKLUrxbOTw+yA==}
-    engines: {node: '>=20.0.0'}
+  '@github/copilot-sdk@1.0.1':
+    resolution: {integrity: sha512-w6AaS0WqqTE/3iyUrZznvgCLQhsUF7ZmEVCneacuHCfOzlH0r6ww9WUmyA0zgqmXO75V0IYrkIcnFke/qJkkDg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
-  '@github/copilot-win32-arm64@1.0.59':
-    resolution: {integrity: sha512-1y7d+ncNBf2rvJcC0Loj3baqzh8JhZz0mQkJjQOL674uyEgQhYqTXPNEqqGUp9lX40BfilEs7aqDbtT323aeMg==}
+  '@github/copilot-win32-arm64@1.0.61':
+    resolution: {integrity: sha512-k6knzI+K5HlZeJDS/yeJAfoYD4xcURWfuqunpTCyk1pDbIFxmrLSqR/TDi7KNlpsf883n5WqpnB06K5kysdHHQ==}
     cpu: [arm64]
     os: [win32]
     hasBin: true
 
-  '@github/copilot-win32-x64@1.0.59':
-    resolution: {integrity: sha512-tjATvZ5+H9iX0mDNjjF7WUGQ300mculzLU6TmzwhyjdlKUYjd9EULpeYre196AbczupLiKQlpt6m67vZjoJRHA==}
+  '@github/copilot-win32-x64@1.0.61':
+    resolution: {integrity: sha512-L6NZ6o73VZFHd7OoRaztV3Prh1PbW9HXqYsAx+XywNALQvE1u489WBUC1ggfYBW5MTBCf8mxSkYQdb3Am2omsw==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@github/copilot@1.0.59':
-    resolution: {integrity: sha512-D8ctn5cwDwYW0drjFhjLeKpEO4cB8G2tQCMfql2BuFsq5n26liLHymw+4JAhmbDxWgD/gEjr6c3u2zVwD0xxzA==}
+  '@github/copilot@1.0.61':
+    resolution: {integrity: sha512-E4f7YXTL2uUZY/ypnfsUruAeSgrHx3AGYEbm5N0DrpzPqoNAZqV6kHEWM4vu+W/nGvydIfPxmOTqaMEhM8r0Uw==}
     hasBin: true
 
   '@isaacs/fs-minipass@4.0.1':
@@ -385,52 +388,52 @@ packages:
   '@vscode/windows-registry@1.2.0':
     resolution: {integrity: sha512-IouvAGIIjPDKsLlBkdjVgfHrE+s4aESXzyQWwEPzbzHumKbCqIL5n54PNX0R4PHkYQlbinVrXn282KGSO4cr9A==}
 
-  '@xterm/addon-clipboard@0.3.0-beta.276':
-    resolution: {integrity: sha512-r/hDib61tAnJHoLRSP46ikbkvY529HOeM8ZevF8kgP71qPxhMk89FsdDF8ptDk0RkzJ3tOuRgiryUpCnE+XGgw==}
+  '@xterm/addon-clipboard@0.3.0-beta.285':
+    resolution: {integrity: sha512-3Sw2VvUqTc8r7OWzizLlbVcbJXUwduWqS7jQzWyIVZiRer+olG1++oyE5tD6VLbt5mFwTEm1jdINYE0HRjF26w==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-image@0.10.0-beta.276':
-    resolution: {integrity: sha512-1JmZc7h8uc20j1RaZRcC8pDfUh6UU9wjVDySrzoEyiV+uv0msmgr8Ig1sp4AXsnrDgTNDa0WpU5SV+r702lhAA==}
+  '@xterm/addon-image@0.10.0-beta.285':
+    resolution: {integrity: sha512-ffpIrUlFj88FVBLdZCThdbwDOAeuKadHNpaJdXbDo5O0ObYyfnXYTL1JmVQxqusJToROnogTPL/MMoqP2oA49g==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-ligatures@0.11.0-beta.276':
-    resolution: {integrity: sha512-Gb2c/qwn/WK9MaK3RGf5FzP9VqYMyYKb6JwV42O62unJie9RZzOwWC3mnslG8PGo2rSwSETuh8JQ2UT4sKLEXQ==}
+  '@xterm/addon-ligatures@0.11.0-beta.285':
+    resolution: {integrity: sha512-ZBqrv60zrIKGspVfv5+m3lRGHeAGDW2U/imu6vER8D2vhxs75FXh/bA+X2/oSdDJQVgpygsN8G3gNQqt16v3eg==}
     engines: {node: '>8.0.0'}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-progress@0.3.0-beta.276':
-    resolution: {integrity: sha512-/Zwa8Rnnm7Z62LQciQwInD9ureStPklDZv5Y6FZ2GANQFA/bJoGCOMz5fcYGbSwNHpgCyJ4oqmsUcn2KYr/Jsw==}
+  '@xterm/addon-progress@0.3.0-beta.285':
+    resolution: {integrity: sha512-5iD2ANyyIgSexa+Hkf4OmMwNxfpLrPuDAQihGoMXMMjALgESBb6JYvob4C6H+4o5uoNSMV33sb+iwlkCqww32A==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-search@0.17.0-beta.276':
-    resolution: {integrity: sha512-vRZx8lorJP79ncm8OwPZTYaOdk3IDqff6l5m/RlRhqtu6rec2Jxo+L/fgCdvdr0mZhMsyU6U3gaDE7dnRwNKEQ==}
+  '@xterm/addon-search@0.17.0-beta.285':
+    resolution: {integrity: sha512-cGjvwxsCnzlLbDWhMaHF9ZxTbYt6foAvUlURe63XyonXR2DVYH6/sr4YoUhM4S5tUMtdIhPxJhtQ8uF6r+ch3g==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-serialize@0.15.0-beta.276':
-    resolution: {integrity: sha512-6vNxkxvhselmVxe+cR9YkCyzhn7gQMCGnf6y3MgbBI23do11f6fueq5jxkLgERuytOs+tDyxOrxI9DjzHN79Jw==}
+  '@xterm/addon-serialize@0.15.0-beta.285':
+    resolution: {integrity: sha512-ae1Fi0Rceby+Ctf39aCjVlJ5+K3OJMEdeU3LIw0Su4z58k6Yz577laM4OJ7CIAUQTCp7K7WliYaTo29vNVCdBw==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-unicode11@0.10.0-beta.276':
-    resolution: {integrity: sha512-tStB36IHILZbO0P9ZM4rYmOmwQLgHlsFO8zaQnMYArP27diJf6eiV1vkRkJPF9fBK31lgqrBtetqnWczjPtVfg==}
+  '@xterm/addon-unicode11@0.10.0-beta.285':
+    resolution: {integrity: sha512-rfijFu7UcYpaFx5wzxvTpQbIyyq/amf2PuS9pktywcFQr4ITxRgid5EVzKLRG1vchkApNcQplWeYxGEtjiw0Cw==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-webgl@0.20.0-beta.275':
-    resolution: {integrity: sha512-v3K5a3LXdimeIbW8of3uQIQQT7uI08mj7XgZKHjTdhgpHarS5pKD92SFm9EeF7EuRYtjIcKJaJ18uKmlcgouBA==}
+  '@xterm/addon-webgl@0.20.0-beta.284':
+    resolution: {integrity: sha512-tzkUiEfdpHCY8mXCbuIaP9V67QDfBJvDr9jdxs5jjxNCIQvw+NCoKD97y5sUrQhrIlr7xrDGniPgPYThQ/1FWg==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/headless@6.1.0-beta.276':
-    resolution: {integrity: sha512-4TgTJjdbDkgY0LuG+/ArKXsmhJHJS3hZneo+aSRa5m5VwhYa6Khq2MW961EuFokN5tNxPP8x/hh5k0kFxJ4B3Q==}
+  '@xterm/headless@6.1.0-beta.285':
+    resolution: {integrity: sha512-NJud+XEUjKMT2LwPqcIh/gazktV+R2AHjEPMQsn/l6+53rgFusuifmJjVkWLwZ228YYsUaN5+lJELeExS26q4A==}
 
-  '@xterm/xterm@6.1.0-beta.276':
-    resolution: {integrity: sha512-H+0HOgbtOnNZ8fO4L5V6U3Q8rNpBD40KhwiSM++BiD+ssOWzP/Q3iLZeczByoEU/6MbwPM6lk4e81hS7jfVWzA==}
+  '@xterm/xterm@6.1.0-beta.285':
+    resolution: {integrity: sha512-S3K58tepMkbpWRBzOGKd0In6AVvt9QPAnNs8DJ8rPUPODYtsCYWAtINHKYtC2OpXcE5EBKM35dl+Dgv03OoE/w==}
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -780,48 +783,48 @@ packages:
 
 snapshots:
 
-  '@github/copilot-darwin-arm64@1.0.59':
+  '@github/copilot-darwin-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-darwin-x64@1.0.59':
+  '@github/copilot-darwin-x64@1.0.61':
     optional: true
 
-  '@github/copilot-linux-arm64@1.0.59':
+  '@github/copilot-linux-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-linux-x64@1.0.59':
+  '@github/copilot-linux-x64@1.0.61':
     optional: true
 
-  '@github/copilot-linuxmusl-arm64@1.0.59':
+  '@github/copilot-linuxmusl-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-linuxmusl-x64@1.0.59':
+  '@github/copilot-linuxmusl-x64@1.0.61':
     optional: true
 
-  '@github/copilot-sdk@1.0.0':
+  '@github/copilot-sdk@1.0.1':
     dependencies:
-      '@github/copilot': 1.0.59
+      '@github/copilot': 1.0.61
       vscode-jsonrpc: 8.2.1
       zod: 4.4.3
 
-  '@github/copilot-win32-arm64@1.0.59':
+  '@github/copilot-win32-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-win32-x64@1.0.59':
+  '@github/copilot-win32-x64@1.0.61':
     optional: true
 
-  '@github/copilot@1.0.59':
+  '@github/copilot@1.0.61':
     dependencies:
       detect-libc: 2.1.2
     optionalDependencies:
-      '@github/copilot-darwin-arm64': 1.0.59
-      '@github/copilot-darwin-x64': 1.0.59
-      '@github/copilot-linux-arm64': 1.0.59
-      '@github/copilot-linux-x64': 1.0.59
-      '@github/copilot-linuxmusl-arm64': 1.0.59
-      '@github/copilot-linuxmusl-x64': 1.0.59
-      '@github/copilot-win32-arm64': 1.0.59
-      '@github/copilot-win32-x64': 1.0.59
+      '@github/copilot-darwin-arm64': 1.0.61
+      '@github/copilot-darwin-x64': 1.0.61
+      '@github/copilot-linux-arm64': 1.0.61
+      '@github/copilot-linux-x64': 1.0.61
+      '@github/copilot-linuxmusl-arm64': 1.0.61
+      '@github/copilot-linuxmusl-x64': 1.0.61
+      '@github/copilot-win32-arm64': 1.0.61
+      '@github/copilot-win32-x64': 1.0.61
 
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
@@ -981,43 +984,43 @@ snapshots:
 
   '@vscode/windows-registry@1.2.0': {}
 
-  '@xterm/addon-clipboard@0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-clipboard@0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-image@0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-image@0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-ligatures@0.11.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-ligatures@0.11.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
       lru-cache: 11.5.1
       opentype.js: 2.0.0
 
-  '@xterm/addon-progress@0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-progress@0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-search@0.17.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-search@0.17.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-serialize@0.15.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-serialize@0.15.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-unicode11@0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-unicode11@0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-webgl@0.20.0-beta.275(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-webgl@0.20.0-beta.284(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/headless@6.1.0-beta.276': {}
+  '@xterm/headless@6.1.0-beta.285': {}
 
-  '@xterm/xterm@6.1.0-beta.276': {}
+  '@xterm/xterm@6.1.0-beta.285': {}
 
   agent-base@7.1.4: {}
 

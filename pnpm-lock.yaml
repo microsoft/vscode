@@ -20,11 +20,11 @@ importers:
         specifier: ^0.82.0
         version: 0.82.0(zod@3.25.76)
       '@github/copilot':
-        specifier: ^1.0.57
-        version: 1.0.59
+        specifier: ^1.0.61
+        version: 1.0.61
       '@github/copilot-sdk':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.1
+        version: 1.0.1
       '@microsoft/1ds-core-js':
         specifier: ^3.2.13
         version: 3.2.18(tslib@2.8.1)
@@ -56,8 +56,8 @@ importers:
         specifier: ^7.5.8
         version: 7.7.1
       '@vscode/codicons':
-        specifier: ^0.0.46-15
-        version: 0.0.46-15
+        specifier: ^0.0.46-16
+        version: 0.0.46-16
       '@vscode/copilot-api':
         specifier: ^0.4.2
         version: 0.4.3
@@ -110,35 +110,35 @@ importers:
         specifier: ^1.2.0
         version: 1.2.0
       '@xterm/addon-clipboard':
-        specifier: ^0.3.0-beta.220
-        version: 0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.3.0-beta.285
+        version: 0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-image':
-        specifier: ^0.10.0-beta.220
-        version: 0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.10.0-beta.285
+        version: 0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-ligatures':
-        specifier: ^0.11.0-beta.220
-        version: 0.11.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.11.0-beta.285
+        version: 0.11.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-progress':
-        specifier: ^0.3.0-beta.220
-        version: 0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.3.0-beta.285
+        version: 0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-search':
-        specifier: ^0.17.0-beta.220
-        version: 0.17.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.17.0-beta.285
+        version: 0.17.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-serialize':
-        specifier: ^0.15.0-beta.220
-        version: 0.15.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.15.0-beta.285
+        version: 0.15.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-unicode11':
-        specifier: ^0.10.0-beta.220
-        version: 0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.10.0-beta.285
+        version: 0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)
       '@xterm/addon-webgl':
-        specifier: ^0.20.0-beta.219
-        version: 0.20.0-beta.275(@xterm/xterm@6.1.0-beta.276)
+        specifier: ^0.20.0-beta.284
+        version: 0.20.0-beta.284(@xterm/xterm@6.1.0-beta.285)
       '@xterm/headless':
-        specifier: ^6.1.0-beta.220
-        version: 6.1.0-beta.276
+        specifier: ^6.1.0-beta.285
+        version: 6.1.0-beta.285
       '@xterm/xterm':
-        specifier: ^6.1.0-beta.220
-        version: 6.1.0-beta.276
+        specifier: ^6.1.0-beta.285
+        version: 6.1.0-beta.285
       chrome-remote-interface:
         specifier: ^0.33.0
         version: 0.33.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -210,8 +210,8 @@ importers:
         version: 3.25.76
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
-        specifier: 0.2.128
-        version: 0.2.128(zod@3.25.76)
+        specifier: 0.3.168
+        version: 0.3.168(@anthropic-ai/sdk@0.82.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)
       '@openai/codex':
         specifier: ^0.134.0
         version: 0.134.0
@@ -294,8 +294,8 @@ importers:
         specifier: ^8.45.0
         version: 8.60.1(eslint@9.39.4(jiti@1.21.7))(typescript@6.0.3)
       '@typescript/native-preview':
-        specifier: ^7.0.0-dev.20260527
-        version: 7.0.0-dev.20260605.1
+        specifier: ^7.0.0-dev.20260609
+        version: 7.0.0-dev.20260611.2
       '@vscode/component-explorer':
         specifier: ^0.2.1-27
         version: 0.2.1-49
@@ -640,8 +640,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0
       '@github/copilot':
-        specifier: ^1.0.57
-        version: 1.0.59
+        specifier: ^1.0.61
+        version: 1.0.61
       '@google/genai':
         specifier: ^1.22.0
         version: 1.52.0(@modelcontextprotocol/sdk@1.26.0)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -729,9 +729,6 @@ importers:
       diff:
         specifier: ^8.0.3
         version: 8.0.4
-      dompurify:
-        specifier: ^3.4.8
-        version: 3.4.8
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -1324,15 +1321,24 @@ importers:
       '@vscode/extension-telemetry':
         specifier: ^0.9.8
         version: 0.9.9(tslib@2.8.1)
+      '@vscode/markdown-editor':
+        specifier: ^0.0.2-1
+        version: 0.0.2-1
       dompurify:
         specifier: ^3.4.8
         version: 3.4.8
       highlight.js:
         specifier: ^11.8.0
         version: 11.11.1
+      katex:
+        specifier: ^0.16.33
+        version: 0.16.47
       markdown-it:
         specifier: ^12.3.2
         version: 12.3.2
+      mermaid:
+        specifier: ^11.15.0
+        version: 11.15.0
       morphdom:
         specifier: ^2.7.7
         version: 2.7.8
@@ -1849,47 +1855,47 @@ packages:
   '@antfu/install-pkg@1.1.0':
     resolution: {integrity: sha512-MGQsmw10ZyI+EJo45CdSER4zEb+p31LpDAFp2Z3gkSd1yqVZGi0Ebx++YTEMonJy4oChEMLsxZ64j8FH6sSqtQ==}
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.2.128':
-    resolution: {integrity: sha512-RAzmB1ls+GWA/YiyfZLWdFYmj3md5emk7mCEeiKSKl2UN4i+tDWy2m/hjIvMFIzBqJJeGmZZSMnf3S0sL/GbhQ==}
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.168':
+    resolution: {integrity: sha512-tvFGCGVX9tesGBzfpK008nRmv91pd3ToapDpJbjdwiFSLGWT9n+dc/qurwgxgv9VwWRvV8nWTc3zLRSFI8Lf2g==}
     cpu: [arm64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.2.128':
-    resolution: {integrity: sha512-dDPJHxUhL2sgIB8Q2AnBi4xsApImeW0zf1nbL7gBNSc9RWhGoGQAbPm0KaQ7/03jdom30z1VT5VMhQ5KeEYOIw==}
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.168':
+    resolution: {integrity: sha512-J5dZUCrwjz4+gY2dAds2rMDWWSdcMl9jEDpZIzKNCx0f0KlJfE1C7/+stOJaBv6tGj8d/mmzcfBCeNBS1KScgA==}
     cpu: [x64]
     os: [darwin]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.2.128':
-    resolution: {integrity: sha512-ZCZEg42St0SCMMZFCvEtkF1LBFMYBxJRXzRno+12vOYYhC6R0l8jPjlgA2ZkN2Lb+TCEOO3fjeWJdZLL/NDM4w==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.168':
+    resolution: {integrity: sha512-uOFtBJjntrYkXlHPRK+cTx1pCc37XxGQ/kN3KBK/KoIDcIrmU8DcX2WUw5IJHJqpG2Qjb7gZ5xAbcw3WTmduwQ==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.2.128':
-    resolution: {integrity: sha512-+GbB33eJSlZUWs84nsibY2nyAFQT96WYLGCteVn62Vv6ZK90NrZsm7lwurjw7oYNnvpzXorhZ2/XpQnWvOK6aQ==}
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.168':
+    resolution: {integrity: sha512-K9fltcI0VJBr21z4t0iJ4aArFtiS9UwhmMGkxl1jAIM0jatGqiHHbbk+qaCB04va3U6vaflukgtmbpogSB36yQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.2.128':
-    resolution: {integrity: sha512-sUSJEtvEt2iiMvgUuBGmBJjLhwHxDKOxVBSsXZaY46KAv3ZwLtLuc5xv2XFHId1B5+nMh7b7mr+HAiBmbMUODA==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.168':
+    resolution: {integrity: sha512-JwYD7oxYlIVYDFhgj+QVHgWbJUVGMXsiecB6WQ5VS5u4OqUorivJPFYPaP469otMj4HFtkDupESB+7Zp4jMmUw==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.2.128':
-    resolution: {integrity: sha512-aBBXD6OLN/lq9S1p+BNjuEml0lYIoHunFdzFl49B0fsxEAnz1RfJDrpSNpIUAaL5FMZIaFvLqXtbFRy41N2fxg==}
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.168':
+    resolution: {integrity: sha512-0Fw4ICZopwKbqNQo64HqkpJw5cqxOxFOV/w8GCS2hDsJ+0aogmK/B78t4iV6rFHIkC076Nm5UH14FP1eOIJ3OA==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.2.128':
-    resolution: {integrity: sha512-9Ao2J5KgfkfKxUZK3dbQEGonPYcbUyn7Cn7ykZuP91FN/5ux3Tz90YRJW6UtZdWHoDkmFF0FS8P/jiZuyWPLfw==}
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.168':
+    resolution: {integrity: sha512-NREaLXAxl23pEzoU7bmX6u8MibAYEY2t8XP5xtj/vMO6UwxFjT3YgGsTuQcnFP+1qsjWaOBCia2ZQnqI68Y0Ng==}
     cpu: [arm64]
     os: [win32]
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.2.128':
-    resolution: {integrity: sha512-7oxPkgjw1vPZbx6+Qwt9mGouqfpRz5jDcuQ37koayzMdTVzmgCsKAqqbJSpOQfkFGv6gTjcrLWBlk3oapZfBYA==}
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.168':
+    resolution: {integrity: sha512-Ha3eivz2Wm4y3BR+Xpn/r+CBM8ARC6knYDLbjLqH/DxjKahr6WB60xQkBD1U6wchT6w7zfIQqQGbucuUOTTuew==}
     cpu: [x64]
     os: [win32]
 
@@ -1899,10 +1905,12 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  '@anthropic-ai/claude-agent-sdk@0.2.128':
-    resolution: {integrity: sha512-KI7H9bocPahGDrrQGME5Eh5a4RTqGrN1fQ69uLs6Ik4icXBZXouCx4Ecum450jMVy58myeh9ahYYLlpDAbQXPA==}
+  '@anthropic-ai/claude-agent-sdk@0.3.168':
+    resolution: {integrity: sha512-C7n9uS1fsAt9lFKw/ovsFNAlPI7UXE2uPQbOzzKLpDNjfFR5spthALhV49b01PtYWEzTo3W3OJfgCv6wooXtYg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
+      '@anthropic-ai/sdk': '>=0.93.0'
+      '@modelcontextprotocol/sdk': ^1.29.0
       zod: ^4.0.0
 
   '@anthropic-ai/sdk@0.81.0':
@@ -3167,64 +3175,64 @@ packages:
   '@github/blackbird-external-ingest-utils@0.3.0':
     resolution: {integrity: sha512-cEpp6NEZtslanQsx937aHYAfVJ3lQyHSsqpQxc6EuUyRXG+8DGzGOdZwZK/6ZxpZjVYEMkZ4vQ8RkxnvGkWg8g==}
 
-  '@github/copilot-darwin-arm64@1.0.59':
-    resolution: {integrity: sha512-zNbsKhCxzI7HhfUltEoCP43NzZacPQYd41ylixV3iZeO/Tximjkb4KnChH7UYdksDVtdKZGU3BIs+T3hGd9LEw==}
+  '@github/copilot-darwin-arm64@1.0.61':
+    resolution: {integrity: sha512-10prvjHRXB0SD28NsIpzdNDgLquQYUwaH5Ev9KVdIWdBPAvlQsHmQ4JSCyD/UILc/nrrr02CKUgum+mZRKUKIg==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@github/copilot-darwin-x64@1.0.59':
-    resolution: {integrity: sha512-7LsC02bE5nPzPGNr11+ZospnpW7AeHSfzaFlJ9tipMxo9hAoKPJl4vSr7PtDzTsVMukKnT4Ro9ACPisnbkVS/Q==}
+  '@github/copilot-darwin-x64@1.0.61':
+    resolution: {integrity: sha512-NXUjageJ3mxDfHtXGYu//XhJ+dhJFYObT4R3jeWgIHhd+4lX7FlC754nwlBP/ZuVhJ3ND22JK9sua9d2F3Cbwg==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@github/copilot-linux-arm64@1.0.59':
-    resolution: {integrity: sha512-rsiH+qj8hga6a3vdc7LrJLzMXSJHI6a8b4M3zccXYJeAkWKLm7CLmc9Kybtn72qaDTLNLxv+kvQfZ3qLTzFBlA==}
+  '@github/copilot-linux-arm64@1.0.61':
+    resolution: {integrity: sha512-dwB2+QSMr622JkePeK56M7YWXsTT/DQzKfpDq8Lk2kmGU052RZAarRmt8gcNm4anofN7pMSrqc3YHj1TM84MFw==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
     hasBin: true
 
-  '@github/copilot-linux-x64@1.0.59':
-    resolution: {integrity: sha512-yxthVdw5Fi4KwuduuJBxuSd7ofDVApaaU5KN97lLMQVklxBaP03/xssu2KEuiavIFD4koSTlUGuueIx0L/i8MQ==}
+  '@github/copilot-linux-x64@1.0.61':
+    resolution: {integrity: sha512-q6n8R8oybvuCmmkP+43w809Wpud/wwRi/fFSZEYJagiNGmYJ00SDkrfJxHbZsAFMpaJC+oTswqzJHjRoZbO74w==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
     hasBin: true
 
-  '@github/copilot-linuxmusl-arm64@1.0.59':
-    resolution: {integrity: sha512-TxcPcHfhj5+bMqUCjuxSPb7hGNnZt8xmRQgQaBaW89/pnsqVvnJfoI/2sE52btbPMp8M1iase9/Uf9na393AXw==}
+  '@github/copilot-linuxmusl-arm64@1.0.61':
+    resolution: {integrity: sha512-yWo7JXnZS11eJpm68E1RWKMR47EwzPKj3V7GX0EMTd8Fw0T2Aurk9wt9p3c9w0v02nTO1DqJhi68KVWJPdVqvA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-linuxmusl-x64@1.0.59':
-    resolution: {integrity: sha512-ml3B/3LqU+NkCKuQW/2sejAgpWw+LtYzll/VDhwcqkOBckoigALqj7UvJOf/M/+O2lcgcy9fLh5lg7cJ4Up0tg==}
+  '@github/copilot-linuxmusl-x64@1.0.61':
+    resolution: {integrity: sha512-nHzx27Ac4B0fpD9CcmvyrGOBEMJ01CPRgVRP0yAl4wpU4cM2I6+9TPyfYThlWDqZqiUKGXC1ZRQ+B8cJREVGmA==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-sdk@1.0.0':
-    resolution: {integrity: sha512-OKjmJMDM+GB2uHr8UA6O0FNs1Gfw/tkoE5vUNlYmKbydc9Yjf6pvuBdseGjAVvzc6f9HIbB5eZKLUrxbOTw+yA==}
-    engines: {node: '>=20.0.0'}
+  '@github/copilot-sdk@1.0.1':
+    resolution: {integrity: sha512-w6AaS0WqqTE/3iyUrZznvgCLQhsUF7ZmEVCneacuHCfOzlH0r6ww9WUmyA0zgqmXO75V0IYrkIcnFke/qJkkDg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
 
-  '@github/copilot-win32-arm64@1.0.59':
-    resolution: {integrity: sha512-1y7d+ncNBf2rvJcC0Loj3baqzh8JhZz0mQkJjQOL674uyEgQhYqTXPNEqqGUp9lX40BfilEs7aqDbtT323aeMg==}
+  '@github/copilot-win32-arm64@1.0.61':
+    resolution: {integrity: sha512-k6knzI+K5HlZeJDS/yeJAfoYD4xcURWfuqunpTCyk1pDbIFxmrLSqR/TDi7KNlpsf883n5WqpnB06K5kysdHHQ==}
     cpu: [arm64]
     os: [win32]
     hasBin: true
 
-  '@github/copilot-win32-x64@1.0.59':
-    resolution: {integrity: sha512-tjATvZ5+H9iX0mDNjjF7WUGQ300mculzLU6TmzwhyjdlKUYjd9EULpeYre196AbczupLiKQlpt6m67vZjoJRHA==}
+  '@github/copilot-win32-x64@1.0.61':
+    resolution: {integrity: sha512-L6NZ6o73VZFHd7OoRaztV3Prh1PbW9HXqYsAx+XywNALQvE1u489WBUC1ggfYBW5MTBCf8mxSkYQdb3Am2omsw==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@github/copilot@1.0.59':
-    resolution: {integrity: sha512-D8ctn5cwDwYW0drjFhjLeKpEO4cB8G2tQCMfql2BuFsq5n26liLHymw+4JAhmbDxWgD/gEjr6c3u2zVwD0xxzA==}
+  '@github/copilot@1.0.61':
+    resolution: {integrity: sha512-E4f7YXTL2uUZY/ypnfsUruAeSgrHx3AGYEbm5N0DrpzPqoNAZqV6kHEWM4vu+W/nGvydIfPxmOTqaMEhM8r0Uw==}
     hasBin: true
 
   '@google/genai@1.52.0':
@@ -5215,6 +5223,9 @@ packages:
   '@types/junit-report-builder@3.0.2':
     resolution: {integrity: sha512-R5M+SYhMbwBeQcNXYWNCZkl09vkVfAtcPIaCGdzIkkbeaTrVbGQ7HVgi4s+EmM/M1K4ZuWQH0jGcvMvNePfxYA==}
 
+  '@types/katex@0.16.8':
+    resolution: {integrity: sha512-trgaNyfU+Xh2Tc+ABIb44a5AYUpicB3uwirOioeOkNPPbmgRNtcWyDeeFRzjPZENO9Vq8gvVqfhaaXWLlevVwg==}
+
   '@types/kerberos@1.1.5':
     resolution: {integrity: sha512-eljovuC0f1+6a4R8CSGwlP8P7OGygDoYJ4Yo0PtKYN4NOQEOkLH7tCQ3humCMz3lsGd0hOTyyjxHP+S3N/KtFg==}
 
@@ -5502,8 +5513,20 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-X6NqNmoTnO1vtcsE4qP571BByPi+i16Ynrp6fffcQ38pbRuy4mwECxA9nKb273gscG0wvcIcGM81B+vy1F4nDw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [darwin]
+
   '@typescript/native-preview-darwin-x64@7.0.0-dev.20260605.1':
     resolution: {integrity: sha512-vkqJpLeVN5RTtl/ibzasCubv4bQn45KDZRt8hHhneeibw9mZzm+vuvMvH/z/F5Sg/t/nz5kXKdDfhT+CV7aHAA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-VeguHC/F7EbxNPCrcwCRH2wif6PZKcdUg2DtMyjxohtcVK3vOoVCYqhJBgJVWQ2gbXk+bXcIz8L2/uNYDksN0w==}
     engines: {node: '>=16.20.0'}
     cpu: [x64]
     os: [darwin]
@@ -5514,8 +5537,20 @@ packages:
     cpu: [arm64]
     os: [linux]
 
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-19TXmRxxPUNNDAP/4xBwDNud1NvuNgQJhRm87t7/CSh4FGhWeeEm7AuyEvrCB+vzeeI/ExT+J58U1HOo+kYKzg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+
   '@typescript/native-preview-linux-arm@7.0.0-dev.20260605.1':
     resolution: {integrity: sha512-gBsGhto81phtQHoQczJenb2aY2y4JVrgZDb7LPHQIEiFSEYe0uT6E1DR/ZT0XXdkLXn6wFBwcmoDLlDjo/uW2g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm]
+    os: [linux]
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-szcSb7sSn3OQZ5UWtToG2RTQeDlokd05pXM+rGctBIctDj6E4j9bvAfp6xLZCzqyDuZJhi3cXCJBdSlBD0NjHw==}
     engines: {node: '>=16.20.0'}
     cpu: [arm]
     os: [linux]
@@ -5526,8 +5561,20 @@ packages:
     cpu: [x64]
     os: [linux]
 
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-h5Etd2Kc6lvvc+X4MU/EFeYDUZAS4hOqB18piWuy2INHfRvJMOo8jZOwUJRix3NQu75tPbltFCkwFOGqB0fd2Q==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+
   '@typescript/native-preview-win32-arm64@7.0.0-dev.20260605.1':
     resolution: {integrity: sha512-fBvmDKqL10ST+FnryPLTD1lY8XbEiOYGSa6hi17jYJwCMZA6mLbYPre06lysOB1eO9oRM7N0zUsEQu57YiFWTw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-JUUFHNi3asye8iOlVmFEra34LuQ8bw8qvYWp+cW7EXg3mrMxtac/u5chhi8BmICEav2Ff3UFd8ZFL0n+F5EvBA==}
     engines: {node: '>=16.20.0'}
     cpu: [arm64]
     os: [win32]
@@ -5538,8 +5585,19 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-1ZPtOctecgkUHBIEoTefE34t4CewqxwdzIkRx22fDEC9bHhN8xO4JSfQyL+OSWDxiZaJKuqR9BnfWSl2eAFtmg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [win32]
+
   '@typescript/native-preview@7.0.0-dev.20260605.1':
     resolution: {integrity: sha512-JWqt9yAOq2BTh6u6nXiEAfdJVO7akc2bD23OuEwdCcc5sANhp5T3Hgci85NVs9rIQwDh59lqU23phGIUvkc0CA==}
+    engines: {node: '>=16.20.0'}
+    hasBin: true
+
+  '@typescript/native-preview@7.0.0-dev.20260611.2':
+    resolution: {integrity: sha512-nP/OrQRFTRKHeQiXzMVhQlxSrOPeuDgeGGd9KMlmOFTc/bbQ8Zd6Ep5izsdTkFljd26QUfpm98crp5E5bYAvJg==}
     engines: {node: '>=16.20.0'}
     hasBin: true
 
@@ -5594,8 +5652,8 @@ packages:
   '@vscode/codicons@0.0.36':
     resolution: {integrity: sha512-wsNOvNMMJ2BY8rC2N2MNBG7yOowV3ov8KlvUE/AiVUlHKTfWsw3OgAOQduX7h0Un6GssKD3aoTVH+TF3DSQwKQ==}
 
-  '@vscode/codicons@0.0.46-15':
-    resolution: {integrity: sha512-yC2AdGcCoJQR0fgrUJLBRo/KfZzz+aM7z+3LYw9/9IwUuKC8goUxnlWd1rcZzDQXSfj1xwtVyUn0fTzTCAhdJg==}
+  '@vscode/codicons@0.0.46-16':
+    resolution: {integrity: sha512-pjgpzU5fMIuI3atUdpbWiaUxZtpTak57vjp1hIEvmmmd1dSOTB++5DoKeQCtRLapbB9DU24EHk31njP2ayPvmA==}
 
   '@vscode/component-explorer-cli@0.2.1-50':
     resolution: {integrity: sha512-DhNr6AqMol0Iw6M6yum8arOutpdYH2CvdmVH235wWN+FoGqhannEcEiywQTdM8XuOpu+s2e3R/2ELtKmaIE5Yw==}
@@ -5682,6 +5740,9 @@ packages:
   '@vscode/lsif-protocol@0.6.0-next.9':
     resolution: {integrity: sha512-+0GpE8QzbfiwgIQ7kY1D8BO+TPZB0OwYIk03B1ByNV7VrxD+P923Mxp8uag2H2fvAs9GVGpmeewPczheOT1S6w==}
     engines: {node: '>=20.9.0'}
+
+  '@vscode/markdown-editor@0.0.2-1':
+    resolution: {integrity: sha512-E3qGXHLtqKI9okTFXGE3cIHR3UIXa4X+PSv6rdiLiOt7moKu1C/Bd7UtKWjPm5a3NloZlyJ7211O4X9R1bDjbA==}
 
   '@vscode/markdown-it-katex@1.1.2':
     resolution: {integrity: sha512-+4IIv5PgrmhKvW/3LpkpkGg257OViEhXkOOgCyj5KMsjsOfnRXkni8XAuuF9Ui5p3B8WnUovlDXAQNb8RJ/RaQ==}
@@ -5994,55 +6055,55 @@ packages:
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
     engines: {node: '>=14.6'}
 
-  '@xterm/addon-clipboard@0.3.0-beta.276':
-    resolution: {integrity: sha512-r/hDib61tAnJHoLRSP46ikbkvY529HOeM8ZevF8kgP71qPxhMk89FsdDF8ptDk0RkzJ3tOuRgiryUpCnE+XGgw==}
+  '@xterm/addon-clipboard@0.3.0-beta.285':
+    resolution: {integrity: sha512-3Sw2VvUqTc8r7OWzizLlbVcbJXUwduWqS7jQzWyIVZiRer+olG1++oyE5tD6VLbt5mFwTEm1jdINYE0HRjF26w==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-image@0.10.0-beta.276':
-    resolution: {integrity: sha512-1JmZc7h8uc20j1RaZRcC8pDfUh6UU9wjVDySrzoEyiV+uv0msmgr8Ig1sp4AXsnrDgTNDa0WpU5SV+r702lhAA==}
+  '@xterm/addon-image@0.10.0-beta.285':
+    resolution: {integrity: sha512-ffpIrUlFj88FVBLdZCThdbwDOAeuKadHNpaJdXbDo5O0ObYyfnXYTL1JmVQxqusJToROnogTPL/MMoqP2oA49g==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-ligatures@0.11.0-beta.276':
-    resolution: {integrity: sha512-Gb2c/qwn/WK9MaK3RGf5FzP9VqYMyYKb6JwV42O62unJie9RZzOwWC3mnslG8PGo2rSwSETuh8JQ2UT4sKLEXQ==}
+  '@xterm/addon-ligatures@0.11.0-beta.285':
+    resolution: {integrity: sha512-ZBqrv60zrIKGspVfv5+m3lRGHeAGDW2U/imu6vER8D2vhxs75FXh/bA+X2/oSdDJQVgpygsN8G3gNQqt16v3eg==}
     engines: {node: '>8.0.0'}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-progress@0.3.0-beta.276':
-    resolution: {integrity: sha512-/Zwa8Rnnm7Z62LQciQwInD9ureStPklDZv5Y6FZ2GANQFA/bJoGCOMz5fcYGbSwNHpgCyJ4oqmsUcn2KYr/Jsw==}
+  '@xterm/addon-progress@0.3.0-beta.285':
+    resolution: {integrity: sha512-5iD2ANyyIgSexa+Hkf4OmMwNxfpLrPuDAQihGoMXMMjALgESBb6JYvob4C6H+4o5uoNSMV33sb+iwlkCqww32A==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-search@0.17.0-beta.276':
-    resolution: {integrity: sha512-vRZx8lorJP79ncm8OwPZTYaOdk3IDqff6l5m/RlRhqtu6rec2Jxo+L/fgCdvdr0mZhMsyU6U3gaDE7dnRwNKEQ==}
+  '@xterm/addon-search@0.17.0-beta.285':
+    resolution: {integrity: sha512-cGjvwxsCnzlLbDWhMaHF9ZxTbYt6foAvUlURe63XyonXR2DVYH6/sr4YoUhM4S5tUMtdIhPxJhtQ8uF6r+ch3g==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-serialize@0.15.0-beta.276':
-    resolution: {integrity: sha512-6vNxkxvhselmVxe+cR9YkCyzhn7gQMCGnf6y3MgbBI23do11f6fueq5jxkLgERuytOs+tDyxOrxI9DjzHN79Jw==}
+  '@xterm/addon-serialize@0.15.0-beta.285':
+    resolution: {integrity: sha512-ae1Fi0Rceby+Ctf39aCjVlJ5+K3OJMEdeU3LIw0Su4z58k6Yz577laM4OJ7CIAUQTCp7K7WliYaTo29vNVCdBw==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-unicode11@0.10.0-beta.276':
-    resolution: {integrity: sha512-tStB36IHILZbO0P9ZM4rYmOmwQLgHlsFO8zaQnMYArP27diJf6eiV1vkRkJPF9fBK31lgqrBtetqnWczjPtVfg==}
+  '@xterm/addon-unicode11@0.10.0-beta.285':
+    resolution: {integrity: sha512-rfijFu7UcYpaFx5wzxvTpQbIyyq/amf2PuS9pktywcFQr4ITxRgid5EVzKLRG1vchkApNcQplWeYxGEtjiw0Cw==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
-  '@xterm/addon-webgl@0.20.0-beta.275':
-    resolution: {integrity: sha512-v3K5a3LXdimeIbW8of3uQIQQT7uI08mj7XgZKHjTdhgpHarS5pKD92SFm9EeF7EuRYtjIcKJaJ18uKmlcgouBA==}
+  '@xterm/addon-webgl@0.20.0-beta.284':
+    resolution: {integrity: sha512-tzkUiEfdpHCY8mXCbuIaP9V67QDfBJvDr9jdxs5jjxNCIQvw+NCoKD97y5sUrQhrIlr7xrDGniPgPYThQ/1FWg==}
     peerDependencies:
-      '@xterm/xterm': ^6.1.0-beta.276
+      '@xterm/xterm': ^6.1.0-beta.285
 
   '@xterm/headless@5.5.0':
     resolution: {integrity: sha512-5xXB7kdQlFBP82ViMJTwwEc3gKCLGKR/eoxQm4zge7GPBl86tCdI0IdPJjoKd8mUSFXz5V7i/25sfsEkP4j46g==}
 
-  '@xterm/headless@6.1.0-beta.276':
-    resolution: {integrity: sha512-4TgTJjdbDkgY0LuG+/ArKXsmhJHJS3hZneo+aSRa5m5VwhYa6Khq2MW961EuFokN5tNxPP8x/hh5k0kFxJ4B3Q==}
+  '@xterm/headless@6.1.0-beta.285':
+    resolution: {integrity: sha512-NJud+XEUjKMT2LwPqcIh/gazktV+R2AHjEPMQsn/l6+53rgFusuifmJjVkWLwZ228YYsUaN5+lJELeExS26q4A==}
 
-  '@xterm/xterm@6.1.0-beta.276':
-    resolution: {integrity: sha512-H+0HOgbtOnNZ8fO4L5V6U3Q8rNpBD40KhwiSM++BiD+ssOWzP/Q3iLZeczByoEU/6MbwPM6lk4e81hS7jfVWzA==}
+  '@xterm/xterm@6.1.0-beta.285':
+    resolution: {integrity: sha512-S3K58tepMkbpWRBzOGKd0In6AVvt9QPAnNs8DJ8rPUPODYtsCYWAtINHKYtC2OpXcE5EBKM35dl+Dgv03OoE/w==}
 
   '@xtuc/ieee754@1.2.0':
     resolution: {integrity: sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA==}
@@ -6761,6 +6822,9 @@ packages:
     resolution: {integrity: sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA==}
     engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
+  character-entities@2.0.2:
+    resolution: {integrity: sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ==}
+
   charenc@0.0.2:
     resolution: {integrity: sha512-yrLQ/yVUFXkzg7EDQsPieE/53+0RlaWTs+wBrvW36cyilJ2SaDWfl4Yj7MtLTXleV9uEKefbAGUPv2/iWSooRA==}
 
@@ -7386,6 +7450,9 @@ packages:
   decimal.js@10.6.0:
     resolution: {integrity: sha512-YpgQiITW3JXGntzdUmyUR1V812Hn8T1YVXhCu+wO3OpS4eU9l4YdD3qjyiKdV6mvV29zapkMeD390UVEf2lkUg==}
 
+  decode-named-character-reference@1.3.0:
+    resolution: {integrity: sha512-GtpQYB283KrPp6nRw50q3U9/VfOutZOe103qlN7BPP6Ad27xYnOIWv4lPzo8HCAL+mMZofJ9KEy30fq6MfaK6Q==}
+
   decode-uri-component@0.2.2:
     resolution: {integrity: sha512-FqUYQ+8o158GyGTrMFJms9qh3CqTKvAqgqsTnkLI8sKu0028orqBhxNMFkFen0zGyg6epACD32pjVk58ngIErQ==}
     engines: {node: '>=0.10'}
@@ -7498,6 +7565,10 @@ packages:
   deprecation@2.3.1:
     resolution: {integrity: sha512-xmHIy4F3scKVwMsQ4WnVaS8bHOx0DmVwRywosKhaILI0ywMDWPtBSku2HNxRvF7jtwDRsoEwYQSfbxj8b7RlJQ==}
 
+  dequal@2.0.3:
+    resolution: {integrity: sha512-0je+qPKHEMohvfRTCEo3CrPG6cAzAYgmzKyxRiYSSDkS6eGJdyVJm7WaYA5ECaAD9wLB2T4EEeymA5aFVcYXCA==}
+    engines: {node: '>=6'}
+
   destroy@1.2.0:
     resolution: {integrity: sha512-2sJGJTaXIIaR1w4iJSNoN0hnMY7Gpc/n8D4qSCJw8QqFWXf7cuAgnEHxBpweaVcPevC2l3KpjYCx3NypQQgaJg==}
     engines: {node: '>= 0.8', npm: 1.2.8000 || >= 1.4.16}
@@ -7520,6 +7591,9 @@ packages:
 
   detect-node@2.1.0:
     resolution: {integrity: sha512-T0NIuQpnTvFDATNuHN5roPwSBG83rFsuO+MXXH9/3N1eFbn4wcPjttvjMLEPWJ0RGUYgQE7cGgS3tNxbqCGM7g==}
+
+  devlop@1.1.0:
+    resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
   devtools-protocol@0.0.1173815:
     resolution: {integrity: sha512-CmsjkudmgCMeae8FSJB4GV8COZwOk6dJKyE9HS2F/ih/sA8uTdbPKHg5F7DsrOYLEET/QKK00LJCU4YoyG+uHg==}
@@ -9826,6 +9900,90 @@ packages:
   methods@1.1.2:
     resolution: {integrity: sha512-iclAHeNqNm68zFtnZ0e+1L2yUIdvzNoauKU4WBA3VvH/vPFieF7qfRlwUZU+DA9P9bPXIS90ulxoUoCH23sV2w==}
     engines: {node: '>= 0.6'}
+
+  micromark-core-commonmark@2.0.3:
+    resolution: {integrity: sha512-RDBrHEMSxVFLg6xvnXmb1Ayr2WzLAWjeSATAoxwKYJV94TeNavgoIdA0a9ytzDSVzBy2YKFK+emCPOEibLeCrg==}
+
+  micromark-extension-gfm-autolink-literal@2.1.0:
+    resolution: {integrity: sha512-oOg7knzhicgQ3t4QCjCWgTmfNhvQbDDnJeVu9v81r7NltNCVmhPy1fJRX27pISafdjL+SVc4d3l48Gb6pbRypw==}
+
+  micromark-extension-gfm-footnote@2.1.0:
+    resolution: {integrity: sha512-/yPhxI1ntnDNsiHtzLKYnE3vf9JZ6cAisqVDauhp4CEHxlb4uoOTxOCJ+9s51bIB8U1N1FJ1RXOKTIlD5B/gqw==}
+
+  micromark-extension-gfm-strikethrough@2.1.0:
+    resolution: {integrity: sha512-ADVjpOOkjz1hhkZLlBiYA9cR2Anf8F4HqZUO6e5eDcPQd0Txw5fxLzzxnEkSkfnD0wziSGiv7sYhk/ktvbf1uw==}
+
+  micromark-extension-gfm-table@2.1.1:
+    resolution: {integrity: sha512-t2OU/dXXioARrC6yWfJ4hqB7rct14e8f7m0cbI5hUmDyyIlwv5vEtooptH8INkbLzOatzKuVbQmAYcbWoyz6Dg==}
+
+  micromark-extension-gfm-tagfilter@2.0.0:
+    resolution: {integrity: sha512-xHlTOmuCSotIA8TW1mDIM6X2O1SiX5P9IuDtqGonFhEK0qgRI4yeC6vMxEV2dgyr2TiD+2PQ10o+cOhdVAcwfg==}
+
+  micromark-extension-gfm-task-list-item@2.1.0:
+    resolution: {integrity: sha512-qIBZhqxqI6fjLDYFTBIa4eivDMnP+OZqsNwmQ3xNLE4Cxwc+zfQEfbs6tzAo2Hjq+bh6q5F+Z8/cksrLFYWQQw==}
+
+  micromark-extension-gfm@3.0.0:
+    resolution: {integrity: sha512-vsKArQsicm7t0z2GugkCKtZehqUm31oeGBV/KVSorWSy8ZlNAv7ytjFhvaryUiCUJYqs+NoE6AFhpQvBTM6Q4w==}
+
+  micromark-extension-math@3.1.0:
+    resolution: {integrity: sha512-lvEqd+fHjATVs+2v/8kg9i5Q0AP2k85H0WUOwpIVvUML8BapsMvh1XAogmQjOCsLpoKRCVQqEkQBB3NhVBcsOg==}
+
+  micromark-factory-destination@2.0.1:
+    resolution: {integrity: sha512-Xe6rDdJlkmbFRExpTOmRj9N3MaWmbAgdpSrBQvCFqhezUn4AHqJHbaEnfbVYYiexVSs//tqOdY/DxhjdCiJnIA==}
+
+  micromark-factory-label@2.0.1:
+    resolution: {integrity: sha512-VFMekyQExqIW7xIChcXn4ok29YE3rnuyveW3wZQWWqF4Nv9Wk5rgJ99KzPvHjkmPXF93FXIbBp6YdW3t71/7Vg==}
+
+  micromark-factory-space@2.0.1:
+    resolution: {integrity: sha512-zRkxjtBxxLd2Sc0d+fbnEunsTj46SWXgXciZmHq0kDYGnck/ZSGj9/wULTV95uoeYiK5hRXP2mJ98Uo4cq/LQg==}
+
+  micromark-factory-title@2.0.1:
+    resolution: {integrity: sha512-5bZ+3CjhAd9eChYTHsjy6TGxpOFSKgKKJPJxr293jTbfry2KDoWkhBb6TcPVB4NmzaPhMs1Frm9AZH7OD4Cjzw==}
+
+  micromark-factory-whitespace@2.0.1:
+    resolution: {integrity: sha512-Ob0nuZ3PKt/n0hORHyvoD9uZhr+Za8sFoP+OnMcnWK5lngSzALgQYKMr9RJVOWLqQYuyn6ulqGWSXdwf6F80lQ==}
+
+  micromark-util-character@2.1.1:
+    resolution: {integrity: sha512-wv8tdUTJ3thSFFFJKtpYKOYiGP2+v96Hvk4Tu8KpCAsTMs6yi+nVmGh1syvSCsaxz45J6Jbw+9DD6g97+NV67Q==}
+
+  micromark-util-chunked@2.0.1:
+    resolution: {integrity: sha512-QUNFEOPELfmvv+4xiNg2sRYeS/P84pTW0TCgP5zc9FpXetHY0ab7SxKyAQCNCc1eK0459uoLI1y5oO5Vc1dbhA==}
+
+  micromark-util-classify-character@2.0.1:
+    resolution: {integrity: sha512-K0kHzM6afW/MbeWYWLjoHQv1sgg2Q9EccHEDzSkxiP/EaagNzCm7T/WMKZ3rjMbvIpvBiZgwR3dKMygtA4mG1Q==}
+
+  micromark-util-combine-extensions@2.0.1:
+    resolution: {integrity: sha512-OnAnH8Ujmy59JcyZw8JSbK9cGpdVY44NKgSM7E9Eh7DiLS2E9RNQf0dONaGDzEG9yjEl5hcqeIsj4hfRkLH/Bg==}
+
+  micromark-util-decode-numeric-character-reference@2.0.2:
+    resolution: {integrity: sha512-ccUbYk6CwVdkmCQMyr64dXz42EfHGkPQlBj5p7YVGzq8I7CtjXZJrubAYezf7Rp+bjPseiROqe7G6foFd+lEuw==}
+
+  micromark-util-encode@2.0.1:
+    resolution: {integrity: sha512-c3cVx2y4KqUnwopcO9b/SCdo2O67LwJJ/UyqGfbigahfegL9myoEFoDYZgkT7f36T0bLrM9hZTAaAyH+PCAXjw==}
+
+  micromark-util-html-tag-name@2.0.1:
+    resolution: {integrity: sha512-2cNEiYDhCWKI+Gs9T0Tiysk136SnR13hhO8yW6BGNyhOC4qYFnwF1nKfD3HFAIXA5c45RrIG1ub11GiXeYd1xA==}
+
+  micromark-util-normalize-identifier@2.0.1:
+    resolution: {integrity: sha512-sxPqmo70LyARJs0w2UclACPUUEqltCkJ6PhKdMIDuJ3gSf/Q+/GIe3WKl0Ijb/GyH9lOpUkRAO2wp0GVkLvS9Q==}
+
+  micromark-util-resolve-all@2.0.1:
+    resolution: {integrity: sha512-VdQyxFWFT2/FGJgwQnJYbe1jjQoNTS4RjglmSjTUlpUMa95Htx9NHeYW4rGDJzbjvCsl9eLjMQwGeElsqmzcHg==}
+
+  micromark-util-sanitize-uri@2.0.1:
+    resolution: {integrity: sha512-9N9IomZ/YuGGZZmQec1MbgxtlgougxTodVwDzzEouPKo3qFWvymFHWcnDi2vzV1ff6kas9ucW+o3yzJK9YB1AQ==}
+
+  micromark-util-subtokenize@2.1.0:
+    resolution: {integrity: sha512-XQLu552iSctvnEcgXw6+Sx75GflAPNED1qx7eBJ+wydBb2KCbRZe+NwvIEEMM83uml1+2WSXpBAcp9IUCgCYWA==}
+
+  micromark-util-symbol@2.0.1:
+    resolution: {integrity: sha512-vs5t8Apaud9N28kgCrRUdEed4UJ+wWNvicHLPxCa9ENlYuAY31M0ETy5y1vA33YoNPDFTghEbnh6efaE8h4x0Q==}
+
+  micromark-util-types@2.0.2:
+    resolution: {integrity: sha512-Yw0ECSpJoViF1qTU4DC6NwtC4aWGt1EkzaQB8KPPyCRR8z9TWeV0HbEFGTO+ZY1wB22zmxnJqhPyTpOVCpeHTA==}
+
+  micromark@4.0.2:
+    resolution: {integrity: sha512-zpe98Q6kvavpCr1NPVSCMebCKfD7CA2NqZ+rykeNhONIJBpc1tFKt9hucLGwha3jNTNI8lHpctWJWoimVF4PfA==}
 
   micromatch@3.1.10:
     resolution: {integrity: sha512-MWikgl9n9M3w+bpsY3He8L+w9eF9338xRl8IAO5viDizwSzziFEyUzo2xrrloB64ADbTf8uA8vRqqttDTOmccg==}
@@ -13064,28 +13222,28 @@ snapshots:
       package-manager-detector: 1.6.0
       tinyexec: 1.2.4
 
-  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-linux-x64@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.168':
     optional: true
 
-  '@anthropic-ai/claude-agent-sdk-win32-x64@0.2.128':
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.3.168':
     optional: true
 
   '@anthropic-ai/claude-agent-sdk@0.2.112(zod@3.25.76)':
@@ -13107,23 +13265,20 @@ snapshots:
       - '@cfworker/json-schema'
       - supports-color
 
-  '@anthropic-ai/claude-agent-sdk@0.2.128(zod@3.25.76)':
+  '@anthropic-ai/claude-agent-sdk@0.3.168(@anthropic-ai/sdk@0.82.0(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))(zod@3.25.76)':
     dependencies:
-      '@anthropic-ai/sdk': 0.81.0(zod@3.25.76)
+      '@anthropic-ai/sdk': 0.82.0(zod@3.25.76)
       '@modelcontextprotocol/sdk': 1.29.0(zod@3.25.76)
       zod: 3.25.76
     optionalDependencies:
-      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.2.128
-      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.2.128
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - supports-color
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.3.168
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.3.168
 
   '@anthropic-ai/sdk@0.81.0(zod@3.25.76)':
     dependencies:
@@ -15047,48 +15202,48 @@ snapshots:
 
   '@github/blackbird-external-ingest-utils@0.3.0': {}
 
-  '@github/copilot-darwin-arm64@1.0.59':
+  '@github/copilot-darwin-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-darwin-x64@1.0.59':
+  '@github/copilot-darwin-x64@1.0.61':
     optional: true
 
-  '@github/copilot-linux-arm64@1.0.59':
+  '@github/copilot-linux-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-linux-x64@1.0.59':
+  '@github/copilot-linux-x64@1.0.61':
     optional: true
 
-  '@github/copilot-linuxmusl-arm64@1.0.59':
+  '@github/copilot-linuxmusl-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-linuxmusl-x64@1.0.59':
+  '@github/copilot-linuxmusl-x64@1.0.61':
     optional: true
 
-  '@github/copilot-sdk@1.0.0':
+  '@github/copilot-sdk@1.0.1':
     dependencies:
-      '@github/copilot': 1.0.59
+      '@github/copilot': 1.0.61
       vscode-jsonrpc: 8.2.1
       zod: 4.4.3
 
-  '@github/copilot-win32-arm64@1.0.59':
+  '@github/copilot-win32-arm64@1.0.61':
     optional: true
 
-  '@github/copilot-win32-x64@1.0.59':
+  '@github/copilot-win32-x64@1.0.61':
     optional: true
 
-  '@github/copilot@1.0.59':
+  '@github/copilot@1.0.61':
     dependencies:
       detect-libc: 2.1.2
     optionalDependencies:
-      '@github/copilot-darwin-arm64': 1.0.59
-      '@github/copilot-darwin-x64': 1.0.59
-      '@github/copilot-linux-arm64': 1.0.59
-      '@github/copilot-linux-x64': 1.0.59
-      '@github/copilot-linuxmusl-arm64': 1.0.59
-      '@github/copilot-linuxmusl-x64': 1.0.59
-      '@github/copilot-win32-arm64': 1.0.59
-      '@github/copilot-win32-x64': 1.0.59
+      '@github/copilot-darwin-arm64': 1.0.61
+      '@github/copilot-darwin-x64': 1.0.61
+      '@github/copilot-linux-arm64': 1.0.61
+      '@github/copilot-linux-x64': 1.0.61
+      '@github/copilot-linuxmusl-arm64': 1.0.61
+      '@github/copilot-linuxmusl-x64': 1.0.61
+      '@github/copilot-win32-arm64': 1.0.61
+      '@github/copilot-win32-x64': 1.0.61
 
   '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.26.0)(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
     dependencies:
@@ -17202,6 +17357,8 @@ snapshots:
 
   '@types/junit-report-builder@3.0.2': {}
 
+  '@types/katex@0.16.8': {}
+
   '@types/kerberos@1.1.5': {}
 
   '@types/keyv@3.1.4':
@@ -17601,22 +17758,43 @@ snapshots:
   '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260605.1':
     optional: true
 
+  '@typescript/native-preview-darwin-arm64@7.0.0-dev.20260611.2':
+    optional: true
+
   '@typescript/native-preview-darwin-x64@7.0.0-dev.20260605.1':
+    optional: true
+
+  '@typescript/native-preview-darwin-x64@7.0.0-dev.20260611.2':
     optional: true
 
   '@typescript/native-preview-linux-arm64@7.0.0-dev.20260605.1':
     optional: true
 
+  '@typescript/native-preview-linux-arm64@7.0.0-dev.20260611.2':
+    optional: true
+
   '@typescript/native-preview-linux-arm@7.0.0-dev.20260605.1':
+    optional: true
+
+  '@typescript/native-preview-linux-arm@7.0.0-dev.20260611.2':
     optional: true
 
   '@typescript/native-preview-linux-x64@7.0.0-dev.20260605.1':
     optional: true
 
+  '@typescript/native-preview-linux-x64@7.0.0-dev.20260611.2':
+    optional: true
+
   '@typescript/native-preview-win32-arm64@7.0.0-dev.20260605.1':
     optional: true
 
+  '@typescript/native-preview-win32-arm64@7.0.0-dev.20260611.2':
+    optional: true
+
   '@typescript/native-preview-win32-x64@7.0.0-dev.20260605.1':
+    optional: true
+
+  '@typescript/native-preview-win32-x64@7.0.0-dev.20260611.2':
     optional: true
 
   '@typescript/native-preview@7.0.0-dev.20260605.1':
@@ -17628,6 +17806,16 @@ snapshots:
       '@typescript/native-preview-linux-x64': 7.0.0-dev.20260605.1
       '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260605.1
       '@typescript/native-preview-win32-x64': 7.0.0-dev.20260605.1
+
+  '@typescript/native-preview@7.0.0-dev.20260611.2':
+    optionalDependencies:
+      '@typescript/native-preview-darwin-arm64': 7.0.0-dev.20260611.2
+      '@typescript/native-preview-darwin-x64': 7.0.0-dev.20260611.2
+      '@typescript/native-preview-linux-arm': 7.0.0-dev.20260611.2
+      '@typescript/native-preview-linux-arm64': 7.0.0-dev.20260611.2
+      '@typescript/native-preview-linux-x64': 7.0.0-dev.20260611.2
+      '@typescript/native-preview-win32-arm64': 7.0.0-dev.20260611.2
+      '@typescript/native-preview-win32-x64': 7.0.0-dev.20260611.2
 
   '@typespec/ts-http-runtime@0.3.6':
     dependencies:
@@ -17711,7 +17899,7 @@ snapshots:
 
   '@vscode/codicons@0.0.36': {}
 
-  '@vscode/codicons@0.0.46-15': {}
+  '@vscode/codicons@0.0.46-16': {}
 
   '@vscode/component-explorer-cli@0.2.1-50(playwright@1.61.0-alpha-1778188671000)(vite@7.3.5(@types/node@24.13.0)(jiti@1.21.7)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))':
     dependencies:
@@ -17855,6 +18043,18 @@ snapshots:
   '@vscode/lsif-protocol@0.6.0-next.9':
     dependencies:
       vscode-languageserver-types: 3.18.0
+
+  '@vscode/markdown-editor@0.0.2-1':
+    dependencies:
+      katex: 0.16.47
+      micromark: 4.0.2
+      micromark-extension-gfm: 3.0.0
+      micromark-extension-gfm-strikethrough: 2.1.0
+      micromark-extension-gfm-table: 2.1.1
+      micromark-extension-gfm-task-list-item: 2.1.0
+      micromark-extension-math: 3.1.0
+    transitivePeerDependencies:
+      - supports-color
 
   '@vscode/markdown-it-katex@1.1.2':
     dependencies:
@@ -18275,45 +18475,45 @@ snapshots:
 
   '@xmldom/xmldom@0.9.10': {}
 
-  '@xterm/addon-clipboard@0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-clipboard@0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-image@0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-image@0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-ligatures@0.11.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-ligatures@0.11.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
       lru-cache: 11.5.1
       opentype.js: 2.0.0
 
-  '@xterm/addon-progress@0.3.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-progress@0.3.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-search@0.17.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-search@0.17.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-serialize@0.15.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-serialize@0.15.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-unicode11@0.10.0-beta.276(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-unicode11@0.10.0-beta.285(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
-  '@xterm/addon-webgl@0.20.0-beta.275(@xterm/xterm@6.1.0-beta.276)':
+  '@xterm/addon-webgl@0.20.0-beta.284(@xterm/xterm@6.1.0-beta.285)':
     dependencies:
-      '@xterm/xterm': 6.1.0-beta.276
+      '@xterm/xterm': 6.1.0-beta.285
 
   '@xterm/headless@5.5.0': {}
 
-  '@xterm/headless@6.1.0-beta.276': {}
+  '@xterm/headless@6.1.0-beta.285': {}
 
-  '@xterm/xterm@6.1.0-beta.276': {}
+  '@xterm/xterm@6.1.0-beta.285': {}
 
   '@xtuc/ieee754@1.2.0': {}
 
@@ -19106,6 +19306,8 @@ snapshots:
 
   chalk@5.6.2: {}
 
+  character-entities@2.0.2: {}
+
   charenc@0.0.2: {}
 
   check-error@1.0.3:
@@ -19807,6 +20009,10 @@ snapshots:
 
   decimal.js@10.6.0: {}
 
+  decode-named-character-reference@1.3.0:
+    dependencies:
+      character-entities: 2.0.2
+
   decode-uri-component@0.2.2: {}
 
   decompress-response@10.0.0:
@@ -19896,6 +20102,8 @@ snapshots:
 
   deprecation@2.3.1: {}
 
+  dequal@2.0.3: {}
+
   destroy@1.2.0: {}
 
   detect-file@1.0.0: {}
@@ -19907,6 +20115,10 @@ snapshots:
   detect-newline@2.1.0: {}
 
   detect-node@2.1.0: {}
+
+  devlop@1.1.0:
+    dependencies:
+      dequal: 2.0.3
 
   devtools-protocol@0.0.1173815: {}
 
@@ -22627,6 +22839,200 @@ snapshots:
       uuid: 14.0.0
 
   methods@1.1.2: {}
+
+  micromark-core-commonmark@2.0.3:
+    dependencies:
+      decode-named-character-reference: 1.3.0
+      devlop: 1.1.0
+      micromark-factory-destination: 2.0.1
+      micromark-factory-label: 2.0.1
+      micromark-factory-space: 2.0.1
+      micromark-factory-title: 2.0.1
+      micromark-factory-whitespace: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-chunked: 2.0.1
+      micromark-util-classify-character: 2.0.1
+      micromark-util-html-tag-name: 2.0.1
+      micromark-util-normalize-identifier: 2.0.1
+      micromark-util-resolve-all: 2.0.1
+      micromark-util-subtokenize: 2.1.0
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm-autolink-literal@2.1.0:
+    dependencies:
+      micromark-util-character: 2.1.1
+      micromark-util-sanitize-uri: 2.0.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm-footnote@2.1.0:
+    dependencies:
+      devlop: 1.1.0
+      micromark-core-commonmark: 2.0.3
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-normalize-identifier: 2.0.1
+      micromark-util-sanitize-uri: 2.0.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm-strikethrough@2.1.0:
+    dependencies:
+      devlop: 1.1.0
+      micromark-util-chunked: 2.0.1
+      micromark-util-classify-character: 2.0.1
+      micromark-util-resolve-all: 2.0.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm-table@2.1.1:
+    dependencies:
+      devlop: 1.1.0
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm-tagfilter@2.0.0:
+    dependencies:
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm-task-list-item@2.1.0:
+    dependencies:
+      devlop: 1.1.0
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-gfm@3.0.0:
+    dependencies:
+      micromark-extension-gfm-autolink-literal: 2.1.0
+      micromark-extension-gfm-footnote: 2.1.0
+      micromark-extension-gfm-strikethrough: 2.1.0
+      micromark-extension-gfm-table: 2.1.1
+      micromark-extension-gfm-tagfilter: 2.0.0
+      micromark-extension-gfm-task-list-item: 2.1.0
+      micromark-util-combine-extensions: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-extension-math@3.1.0:
+    dependencies:
+      '@types/katex': 0.16.8
+      devlop: 1.1.0
+      katex: 0.16.47
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-factory-destination@2.0.1:
+    dependencies:
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-factory-label@2.0.1:
+    dependencies:
+      devlop: 1.1.0
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-factory-space@2.0.1:
+    dependencies:
+      micromark-util-character: 2.1.1
+      micromark-util-types: 2.0.2
+
+  micromark-factory-title@2.0.1:
+    dependencies:
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-factory-whitespace@2.0.1:
+    dependencies:
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-util-character@2.1.1:
+    dependencies:
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-util-chunked@2.0.1:
+    dependencies:
+      micromark-util-symbol: 2.0.1
+
+  micromark-util-classify-character@2.0.1:
+    dependencies:
+      micromark-util-character: 2.1.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-util-combine-extensions@2.0.1:
+    dependencies:
+      micromark-util-chunked: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-util-decode-numeric-character-reference@2.0.2:
+    dependencies:
+      micromark-util-symbol: 2.0.1
+
+  micromark-util-encode@2.0.1: {}
+
+  micromark-util-html-tag-name@2.0.1: {}
+
+  micromark-util-normalize-identifier@2.0.1:
+    dependencies:
+      micromark-util-symbol: 2.0.1
+
+  micromark-util-resolve-all@2.0.1:
+    dependencies:
+      micromark-util-types: 2.0.2
+
+  micromark-util-sanitize-uri@2.0.1:
+    dependencies:
+      micromark-util-character: 2.1.1
+      micromark-util-encode: 2.0.1
+      micromark-util-symbol: 2.0.1
+
+  micromark-util-subtokenize@2.1.0:
+    dependencies:
+      devlop: 1.1.0
+      micromark-util-chunked: 2.0.1
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+
+  micromark-util-symbol@2.0.1: {}
+
+  micromark-util-types@2.0.2: {}
+
+  micromark@4.0.2:
+    dependencies:
+      '@types/debug': 4.1.13
+      debug: 4.4.3(supports-color@8.1.1)
+      decode-named-character-reference: 1.3.0
+      devlop: 1.1.0
+      micromark-core-commonmark: 2.0.3
+      micromark-factory-space: 2.0.1
+      micromark-util-character: 2.1.1
+      micromark-util-chunked: 2.0.1
+      micromark-util-combine-extensions: 2.0.1
+      micromark-util-decode-numeric-character-reference: 2.0.2
+      micromark-util-encode: 2.0.1
+      micromark-util-normalize-identifier: 2.0.1
+      micromark-util-resolve-all: 2.0.1
+      micromark-util-sanitize-uri: 2.0.1
+      micromark-util-subtokenize: 2.1.0
+      micromark-util-symbol: 2.0.1
+      micromark-util-types: 2.0.2
+    transitivePeerDependencies:
+      - supports-color
 
   micromatch@3.1.10:
     dependencies:
