@@ -8,8 +8,8 @@ import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../.
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
@@ -359,12 +359,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return;
 		}
 
-		try {
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			this.logService.debug('[DefaultAccount] Installed extensions registered.');
-		} catch (error) {
-			this.logService.error('[DefaultAccount] Error while waiting for installed extensions to be registered', getErrorMessage(error));
-		}
+		// Wait until the default account authentication provider is available instead of
+		// waiting for all installed extensions to be registered. In desktop remote
+		// connections extensions are only registered after the connection is established,
+		// so waiting for `whenInstalledExtensionsRegistered` can deadlock initialization.
+		await this.whenDefaultAccountAuthenticationProviderAvailable();
 
 		this.logService.debug('[DefaultAccount] Starting initialization');
 		await this.doUpdateDefaultAccount();
@@ -419,6 +418,51 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.refetchDefaultAccount();
 			}
 		}));
+	}
+
+	private async whenDefaultAccountAuthenticationProviderAvailable(): Promise<void> {
+		const provider = this.getDefaultAccountAuthenticationProvider();
+		const isAvailable = () => {
+			return this.authenticationService.declaredProviders.some(p => p.id === provider.id)
+				|| this.authenticationService.isAuthenticationProviderRegistered(provider.id);
+		};
+
+		if (isAvailable()) {
+			this.logService.debug('[DefaultAccount] Default account authentication provider is already available.');
+			return;
+		}
+
+		// Resolve as soon as the default account authentication provider is declared or
+		// registered, but wait no longer than installed extensions being registered.
+		this.logService.debug('[DefaultAccount] Waiting for default account authentication provider to be available.');
+		const disposables = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				disposables.add(Event.any(this.authenticationService.onDidChangeDeclaredProviders, this.authenticationService.onDidRegisterAuthenticationProvider)(() => {
+					if (isAvailable()) {
+						disposables.dispose();
+						this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
+						resolve();
+					}
+				}));
+
+				// Explicitly activate the provider's extension so that the authentication
+				// provider gets registered. In desktop remote connections extensions are only
+				// registered after the connection is established, so without this the provider
+				// would never become available.
+				if (this.environmentService.remoteAuthority) {
+					this.authenticationService.getSessions(provider.id, undefined, {}, true);
+				}
+
+				this.extensionService.whenInstalledExtensionsRegistered().finally(() => {
+					disposables.dispose();
+					this.logService.debug('[DefaultAccount] Installed extensions registered.');
+					resolve();
+				});
+			});
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
