@@ -10,8 +10,6 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import * as path from '../../../base/common/path.js';
-import { isLinux } from '../../../base/common/platform.js';
-import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
@@ -26,9 +24,7 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
 /**
  * One agent-SDK package the downloader can fetch. Holds the per-package
  * knowledge that varies between Claude, Codex, and any future provider —
- * the env var that acts as a dev override, and whether this SDK ships
- * separate `*-musl` Linux packages so the downloader knows whether to
- * append the suffix on musl hosts.
+ * just the package id and the env var that acts as a dev override.
  *
  * The downloader itself is package-agnostic: it consumes this interface and
  * never branches on `id`. Concrete `IAgentSdkPackage` instances live in
@@ -37,56 +33,16 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
  * `codex/codexAgent.ts`) so Claude-specific / Codex-specific knowledge
  * stays in those modules — the downloader doesn't name the providers it
  * serves.
+ *
+ * Platform discrimination is done at packaging time: the build patches
+ * `product.agentSdks[pkg]` with the single per-platform entry for the
+ * platform being packaged, so there is no per-target lookup at runtime.
  */
 export interface IAgentSdkPackage {
 	/** Key under `product.agentSdks` — e.g. `'claude'`, `'codex'`. */
 	readonly id: string;
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */
 	readonly devOverrideEnvVar: string;
-	/**
-	 * True iff this SDK ships separate `*-musl` Linux packages alongside the
-	 * regular `linux-*` ones (Claude does; Codex's Linux binaries are already
-	 * statically musl-linked so it ships a single `linux-*` SKU for both
-	 * libc families).
-	 */
-	readonly hasSeparateMuslLinuxPackage: boolean;
-}
-
-/**
- * `${platform}-${arch}`, optionally suffixed with `-musl` on Linux. Matches
- * the suffix npm uses for the platform `optionalDependencies` packages
- * (`@anthropic-ai/claude-agent-sdk-${target}`, `@openai/codex-${target}`).
- */
-function resolvePlatformArch(pkg: IAgentSdkPackage): string | undefined {
-	const platform = process.platform;
-	const arch = process.arch;
-	if (platform !== 'linux' && platform !== 'darwin' && platform !== 'win32') {
-		return undefined;
-	}
-	if (arch !== 'x64' && arch !== 'arm64') {
-		return undefined;
-	}
-	const base = `${platform}-${arch}`;
-	if (pkg.hasSeparateMuslLinuxPackage && isLinux && isMusl()) {
-		return `${base}-musl`;
-	}
-	return base;
-}
-
-let _muslCached: boolean | undefined;
-/** Linux-only — Node sets `glibcVersionRuntime` only when linked against glibc. */
-function isMusl(): boolean {
-	if (_muslCached !== undefined) {
-		return _muslCached;
-	}
-	try {
-		const report = process.report?.getReport?.();
-		const header = report && (report as { header?: { glibcVersionRuntime?: string } }).header;
-		_muslCached = !header?.glibcVersionRuntime;
-	} catch {
-		_muslCached = false;
-	}
-	return _muslCached;
 }
 
 // #endregion
@@ -116,20 +72,10 @@ export interface IAgentSdkDownloader {
 	/**
 	 * Cheap, synchronous gate used at startup to decide whether to register
 	 * the corresponding agent provider. True iff the dev override is set, OR
-	 * `product.agentSdks?.[pkg.id]` declares a sha256 for the current
-	 * platform. Does NOT trigger a download.
+	 * `product.agentSdks?.[pkg.id]` is populated (which it only is on the
+	 * platform that build packaged for). Does NOT trigger a download.
 	 */
 	isAvailable(pkg: IAgentSdkPackage): boolean;
-
-	/**
-	 * Returns the npm-style `${platform}-${arch}` suffix used by `pkg`'s
-	 * platform `optionalDependencies`, or undefined for unsupported
-	 * (platform, arch) combinations. Honors {@link IAgentSdkPackage.hasSeparateMuslLinuxPackage}
-	 * on Linux musl hosts. Callers that need to locate the platform package
-	 * directory (e.g. to spawn a binary inside it) share this resolution
-	 * with the downloader's internal one.
-	 */
-	resolveSdkTarget(pkg: IAgentSdkPackage): string | undefined;
 }
 
 // #endregion
@@ -143,7 +89,7 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	declare readonly _serviceBrand: undefined;
 
 	/**
-	 * In-flight downloads keyed by `<pkg>/<sdkVersion>/<sdkTarget>`. Concurrent
+	 * In-flight downloads keyed by `<pkg>/<sdkVersion>`. Concurrent
 	 * `loadSdkRoot` calls in the same process share the same promise so we
 	 * never download the same tarball twice.
 	 */
@@ -167,19 +113,7 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	) { }
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
-		if (process.env[pkg.devOverrideEnvVar]) {
-			return true;
-		}
-		const config = this._productService.agentSdks?.[pkg.id];
-		if (!config) {
-			return false;
-		}
-		const target = this.resolveSdkTarget(pkg);
-		return target !== undefined && config.sha256[target] !== undefined;
-	}
-
-	resolveSdkTarget(pkg: IAgentSdkPackage): string | undefined {
-		return resolvePlatformArch(pkg);
+		return !!process.env[pkg.devOverrideEnvVar] || !!this._productService.agentSdks?.[pkg.id];
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -222,22 +156,9 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 				`no ${pkg.devOverrideEnvVar} dev override set.`,
 			);
 		}
-		const target = this.resolveSdkTarget(pkg);
-		if (!target) {
-			throw new Error(
-				`Cannot load ${pkg.id} SDK: platform ${process.platform}-${process.arch} is not supported.`,
-			);
-		}
-		const expectedSha = config.sha256[target];
-		if (!expectedSha) {
-			const available = Object.keys(config.sha256).sort().join(', ');
-			throw new Error(
-				`Cannot load ${pkg.id} SDK: target \`${target}\` is not in the supported set ` +
-				`[${available}]. Set ${pkg.devOverrideEnvVar} to override.`,
-			);
-		}
+		const expectedSha = config.sha256;
 
-		const cacheDir = this._cacheDir(pkg.id, config.version, target);
+		const cacheDir = this._cacheDir(pkg.id, config.version);
 		const sentinel = URI.joinPath(URI.file(cacheDir), '.complete');
 
 		// Cache hit (always re-verify against product.json sha256).
@@ -252,11 +173,10 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		}
 
 		// Download (deduped across concurrent callers in the same process).
-		const key = `${pkg.id}/${config.version}/${target}`;
+		const key = `${pkg.id}/${config.version}`;
 		let pending = this._pendingDownloads.get(key);
 		if (!pending) {
-			const url = format2(config.urlTemplate, { sdkVersion: config.version, sdkTarget: target });
-			pending = this._download(pkg, url, expectedSha, cacheDir, sentinel, token).finally(() => {
+			pending = this._download(pkg, config.url, expectedSha, cacheDir, sentinel, token).finally(() => {
 				this._pendingDownloads.delete(key);
 			});
 			this._pendingDownloads.set(key, pending);
@@ -264,14 +184,13 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		return pending;
 	}
 
-	private _cacheDir(packageId: string, sdkVersion: string, sdkTarget: string): string {
+	private _cacheDir(packageId: string, sdkVersion: string): string {
 		return path.join(
 			this._environmentService.userDataPath,
 			'agent-host',
 			'sdk-cache',
 			packageId,
 			sdkVersion,
-			sdkTarget,
 		);
 	}
 

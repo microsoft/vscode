@@ -93,7 +93,7 @@ function makeEnvService(userDataPath: string): INativeEnvironmentService {
 	return { userDataPath, args: { 'force-disable-user-env': true } as never } as unknown as INativeEnvironmentService;
 }
 
-function makeProductService(config: { version: string; urlTemplate: string; sha256: Record<string, string> } | undefined): IProductService {
+function makeProductService(config: { version: string; url: string; sha256: string } | undefined): IProductService {
 	return {
 		agentSdks: config ? { claude: config } : undefined,
 	} as unknown as IProductService;
@@ -157,13 +157,11 @@ suite('AgentSdkDownloader', () => {
 		}
 	});
 
-	function makeDownloader(productConfig?: { version?: string; sha256?: string; urlTemplate?: string }) {
+	function makeDownloader(productConfig?: { version?: string; sha256?: string; url?: string }) {
 		const config = {
 			version: productConfig?.version ?? '1.0.0',
-			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/{sdkVersion}/{sdkTarget}.tgz`,
-			sha256: productConfig?.sha256
-				? { [`${process.platform}-${process.arch}`]: productConfig.sha256 }
-				: { [`${process.platform}-${process.arch}`]: fixture.tarballSha },
+			url: productConfig?.url ?? `http://127.0.0.1:${server.port}/sdk.tgz`,
+			sha256: productConfig?.sha256 ?? fixture.tarballSha,
 		};
 		return new AgentSdkDownloader(
 			makeEnvService(userDataPath),
@@ -197,25 +195,9 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), true);
 	});
 
-	test('isAvailable: true when product config has sha for current target', () => {
+	test('isAvailable: true when product config is populated', () => {
 		const downloader = makeDownloader();
 		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), true);
-	});
-
-	test('isAvailable: false when product config has no sha for current target', () => {
-		const cfg = {
-			version: '1.0.0',
-			urlTemplate: `http://127.0.0.1:${server.port}/{sdkVersion}/{sdkTarget}.tgz`,
-			sha256: { 'unsupported-platform-arch': 'deadbeef' },
-		};
-		const downloader = new AgentSdkDownloader(
-			makeEnvService(userDataPath),
-			makeProductService(cfg),
-			makeRequestService(disposables),
-			makeFileService(disposables),
-			new NullLogService(),
-		);
-		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), false);
 	});
 
 	test('loadSdkRoot: dev override returns the path unchanged', async () => {
@@ -272,7 +254,7 @@ suite('AgentSdkDownloader', () => {
 			/sha256 mismatch|Failed to download/,
 		);
 		// Cache dir absent — only its parent might exist.
-		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0', `${process.platform}-${process.arch}`);
+		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0');
 		assert.strictEqual(fs.existsSync(target), false);
 	});
 
@@ -287,25 +269,6 @@ suite('AgentSdkDownloader', () => {
 		await assert.rejects(
 			() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
 			/no `product\.agentSdks\.claude` configured/,
-		);
-	});
-
-	test('loadSdkRoot: unsupported target throws with supported list', async () => {
-		const cfg = {
-			version: '1.0.0',
-			urlTemplate: `http://127.0.0.1:${server.port}/{sdkVersion}/{sdkTarget}.tgz`,
-			sha256: { 'unsupported-platform-arch': 'deadbeef' },
-		};
-		const downloader = new AgentSdkDownloader(
-			makeEnvService(userDataPath),
-			makeProductService(cfg),
-			makeRequestService(disposables),
-			makeFileService(disposables),
-			new NullLogService(),
-		);
-		await assert.rejects(
-			() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
-			/is not in the supported set/,
 		);
 	});
 
@@ -326,8 +289,8 @@ suite('AgentSdkDownloader', () => {
 				makeEnvService(userDataPath),
 				makeProductService({
 					version: '1.0.0',
-					urlTemplate: `http://127.0.0.1:${port}/{sdkVersion}/{sdkTarget}.tgz`,
-					sha256: { [`${process.platform}-${process.arch}`]: fixture.tarballSha },
+					url: `http://127.0.0.1:${port}/sdk.tgz`,
+					sha256: fixture.tarballSha,
 				}),
 				makeRequestService(disposables),
 				makeFileService(disposables),
@@ -340,7 +303,7 @@ suite('AgentSdkDownloader', () => {
 			cts.cancel();
 			await assert.rejects(() => promise, /Cancel|cancel|Failed to download/);
 			// No half-extracted dir left around.
-			const targetParent = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0');
+			const targetParent = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude');
 			const leftover = fs.existsSync(targetParent)
 				? (await fsp.readdir(targetParent)).filter(f => f.includes('.tmp.'))
 				: [];
@@ -370,7 +333,7 @@ suite('AgentSdkDownloader', () => {
 
 	test('loadSdkRoot: rename-loser path returns existing cache when winner already published', async () => {
 		const downloader = makeDownloader();
-		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0', `${process.platform}-${process.arch}`);
+		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0');
 
 		// Pre-populate the cache as if a "winner" already extracted it.
 		await fsp.mkdir(target, { recursive: true });
