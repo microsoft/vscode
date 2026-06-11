@@ -11,6 +11,7 @@ import { createExtensionUnitTestingServices } from '../../src/extension/test/nod
 import { ConfigKey, IConfigurationService } from '../../src/platform/configuration/common/configurationService';
 import { ResponseFormat } from '../../src/platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { Limiter } from '../../src/util/vs/base/common/async';
+import { OffsetRange } from '../../src/util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { applyConfigFile, loadConfigFile } from '../base/simulationContext';
 import { NesDatagen, NesDatagenSampleTask, SimulationOptions } from '../base/simulationOptions';
@@ -38,6 +39,20 @@ function formatElapsed(startTime: number): string {
 	return `${elapsed}s`;
 }
 
+/**
+ * Apply the user-supplied config file and force-disable all interactive
+ * debounces / cache delays that don't make sense in batch mode. Both
+ * pipelines (xtab and cursor-jump) need this exact setup before invoking
+ * the production NES code path.
+ */
+async function applyBatchModeConfig(configService: IConfigurationService, configs: ReturnType<typeof loadConfigFile>): Promise<void> {
+	await applyConfigFile(configService, configs);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 0);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
+	await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
+}
+
 export type RunPipelineOptions = {
 	readonly nesDatagen: NesDatagen | undefined;
 	/**
@@ -48,6 +63,20 @@ export type RunPipelineOptions = {
 	readonly parallelism: number;
 };
 
+/**
+ * Single-process pipeline entry point. Dispatches to the xtab or cursor-jump
+ * pipeline based on the configured sample task.
+ *
+ * For multi-process parallelism (large inputs, multi-core boxes), the caller
+ * should invoke `runInputPipelineParallel` instead — it forks N children,
+ * each running this function on a chunk, and works for cursor-jump tasks too
+ * (`--sample-task` is propagated to every worker).
+ *
+ * Memory: this function calls `loadAndParseInput`, which reads the entire
+ * input chunk into memory. That is intentional within a worker (chunks are
+ * sized by `runInputPipelineParallel`), but means single-process runs on
+ * unsharded multi-GB inputs can OOM — use `--parallelism > 1` to shard.
+ */
 export async function runInputPipeline(opts: RunPipelineOptions, log = console.log.bind(console)): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
 	if (nesDatagenOpts.sampleTask !== NesDatagenSampleTask.Xtab) {
@@ -90,13 +119,7 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 	try {
 		const configService = testAccessor.get(IConfigurationService);
 
-		await applyConfigFile(configService, configs);
-
-		// Disable interactive debounce for batch mode
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
+		await applyBatchModeConfig(configService, configs);
 
 		const modelConfig = configService.getConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration);
 		const responseFormat = ResponseFormat.fromPromptingStrategy(modelConfig?.promptingStrategy);
@@ -201,31 +224,6 @@ async function runXtabPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => 
 	}
 }
 
-/**
- * Build a per-row line-offset resolver for the same-file detector. For a
- * candidate event at `entryIndex`, the resolver replays the `changed`
- * events strictly before it against a copy of the active doc content and
- * returns the 0-based line number for the requested offset against that
- * snapshot. The strict-less-than bound matters when `entryIndex` itself is
- * a `changed` event — its own edit offsets are pre-edit and must not be
- * applied first.
- */
-function buildLineResolver(p: IProcessedRow): (entryIndex: number, offset: number) => number {
-	return (entryIndex: number, offset: number): number => {
-		let c = p.activeDocument.value.get().value;
-		for (let i = 0; i < entryIndex; i++) {
-			const e = p.recordingAfterRequest[i];
-			if (e?.kind === 'changed' && e.id === p.activeDocLogId) {
-				// Apply offset-descending so multi-replacement events don't
-				// shift later original offsets within the same event.
-				c = applyEditsToContent(c, e.edit);
-			}
-		}
-		const transformer = new StringText(c).getTransformer();
-		return transformer.getPosition(Math.min(offset, c.length)).lineNumber - 1;
-	};
-}
-
 async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) => void): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;
 	const inputPath = nesDatagenOpts.input;
@@ -314,13 +312,9 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 
 	try {
 		const configService = testAccessor.get(IConfigurationService);
-		await applyConfigFile(configService, configs);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsDebounce, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCacheDelay, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, 0);
-		await configService.setConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceInlineSuggestion, 0);
+		await applyBatchModeConfig(configService, configs);
 
-		type PromptOut = { originalRowIndex: number; system: string; user: string; keptRange: import('../../src/util/vs/editor/common/core/ranges/offsetRange').OffsetRange };
+		type PromptOut = { originalRowIndex: number; system: string; user: string; keptRange: OffsetRange };
 		const prompts: PromptOut[] = [];
 		const promptErrors: { originalRowIndex: number; error: string }[] = [];
 		let completed = 0;
@@ -332,11 +326,20 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 		await Promise.all(qualifying.map(p =>
 			limiter.queue(async () => {
 				const globalIdx = p.originalRowIndex + rowOffset;
-				const result = await generateCursorPromptFromRecording(testAccessor, p.recordingInfo);
-				if ('error' in result) {
-					promptErrors.push({ originalRowIndex: p.originalRowIndex, error: `[sample ${globalIdx}, ${p.row.activeDocumentLanguageId}, ${p.activeFilePath}] ${result.error}` });
-				} else {
-					prompts.push({ originalRowIndex: p.originalRowIndex, ...result });
+				try {
+					const result = await generateCursorPromptFromRecording(testAccessor, p.recordingInfo);
+					if ('error' in result) {
+						promptErrors.push({ originalRowIndex: p.originalRowIndex, error: `[sample ${globalIdx}, ${p.row.activeDocumentLanguageId}, ${p.activeFilePath}] ${result.error}` });
+					} else {
+						prompts.push({ originalRowIndex: p.originalRowIndex, ...result });
+					}
+				} catch (err) {
+					// Catch per-row so one unexpected throw doesn't abort the whole
+					// batch via Promise.all's first-rejection semantics. The row
+					// fails, every other row still gets a chance to produce a
+					// sample.
+					const msg = err instanceof Error ? err.stack ?? err.message : String(err);
+					promptErrors.push({ originalRowIndex: p.originalRowIndex, error: `[sample ${globalIdx}, ${p.row.activeDocumentLanguageId}, ${p.activeFilePath}] unexpected: ${msg}` });
 				}
 				completed++;
 				if (verbose && (completed % 50 === 0 || completed === qualifying.length)) {
@@ -409,7 +412,7 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 				responseAdapter,
 				p,
 				'next-cursor-line-prediction',
-				/* modelResponse */ '',
+				/* modelResponse: expected output mirrors assistant content */ assistant,
 				classification,
 			));
 		}
@@ -432,6 +435,31 @@ async function runCursorPipeline(opts: RunPipelineOptions, log: (...ps: any[]) =
 		}
 		testAccessor.dispose();
 	}
+}
+
+/**
+ * Build a per-row line-offset resolver for the same-file detector. For a
+ * candidate event at `entryIndex`, the resolver replays the `changed`
+ * events strictly before it against a copy of the active doc content and
+ * returns the 0-based line number for the requested offset against that
+ * snapshot. The strict-less-than bound matters when `entryIndex` itself is
+ * a `changed` event — its own edit offsets are pre-edit and must not be
+ * applied first.
+ */
+function buildLineResolver(p: IProcessedRow): (entryIndex: number, offset: number) => number {
+	return (entryIndex: number, offset: number): number => {
+		let c = p.activeDocument.value.get().value;
+		for (let i = 0; i < entryIndex; i++) {
+			const e = p.recordingAfterRequest[i];
+			if (e?.kind === 'changed' && e.id === p.activeDocLogId) {
+				// Apply offset-descending so multi-replacement events don't
+				// shift later original offsets within the same event.
+				c = applyEditsToContent(c, e.edit);
+			}
+		}
+		const transformer = new StringText(c).getTransformer();
+		return transformer.getPosition(Math.min(offset, c.length)).lineNumber - 1;
+	};
 }
 
 /**
