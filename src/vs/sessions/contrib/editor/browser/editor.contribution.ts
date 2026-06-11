@@ -9,12 +9,13 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
@@ -22,6 +23,9 @@ import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/edit
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
@@ -331,3 +335,50 @@ class OpenModalEditorInEditorAction extends Action2 {
 }
 
 registerAction2(OpenModalEditorInEditorAction);
+
+class AddFileAsContextAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.addFileAsContext';
+
+	constructor() {
+		super({
+			id: AddFileAsContextAction.ID,
+			title: localize2('addFileAsContext', "Add File as Context"),
+			icon: Codicon.attach,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					IsAuxiliaryWindowContext.toNegated(),
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID))
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const sessionResource = sessionManagementService.activeSession.get()?.resource;
+		if (!sessionResource) {
+			return;
+		}
+
+		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (!widget) {
+			return;
+		}
+
+		await widget.attachmentModel.addFile(resource);
+	}
+}
+
+registerAction2(AddFileAsContextAction);
