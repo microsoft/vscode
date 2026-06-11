@@ -57,9 +57,8 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		// must honour that update rather than locking in the earlier selection.
 		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
 		if (previouslyActiveSignature && context.isRetrigger) {
-			const existingIndex = signatures.findIndex(other => other.label === previouslyActiveSignature?.label);
-			if (existingIndex >= 0 && existingIndex === info.selectedItemIndex) {
-				return existingIndex;
+			if (signatures[info.selectedItemIndex]?.label === previouslyActiveSignature.label) {
+				return info.selectedItemIndex;
 			}
 		}
 
