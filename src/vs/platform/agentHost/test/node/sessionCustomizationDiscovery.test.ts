@@ -671,6 +671,10 @@ flakySuite('SessionCustomizationDiscovery (real filesystem)', () => {
 		await Promises.rm(testDir).catch(() => undefined);
 	});
 
+	// Registered last so the leak check runs after the suite teardown's
+	// disposables.clear().
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	// Confirms the OS-level watcher for `dirPath` is live by writing throwaway
 	// sentinel files as direct children of it until we observe a corresponding
 	// onDidChange event. Works for both recursive and non-recursive watchers.
