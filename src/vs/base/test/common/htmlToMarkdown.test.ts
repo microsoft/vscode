@@ -51,6 +51,18 @@ suite('htmlToMarkdown', () => {
 		assert.strictEqual(convertHtmlToMarkdown('<code>foo()</code>'), '`foo()`');
 	});
 
+	test('preserves HTML tag names inside inline code', () => {
+		assert.strictEqual(convertHtmlToMarkdown('<code>&lt;aside&gt;</code>'), '`<aside>`');
+		assert.strictEqual(convertHtmlToMarkdown('<code>&lt;details&gt;</code>'), '`<details>`');
+	});
+
+	test('preserves HTML tag names inside code blocks', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<pre><code>&lt;aside&gt;</code></pre>'),
+			'```\n<aside>\n```'
+		);
+	});
+
 	test('converts code blocks', () => {
 		assert.strictEqual(
 			convertHtmlToMarkdown('<pre><code>const x = 1;</code></pre>'),

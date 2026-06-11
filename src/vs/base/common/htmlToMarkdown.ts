@@ -89,8 +89,9 @@ export function convertHtmlToMarkdown(html: string): string {
 	// Italic / emphasis
 	md = md.replace(/<(em|i)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `*${inlineClean(inner)}*`);
 
-	// Inline code
-	md = md.replace(/<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_m, _attrs, inner) => `\`${decodeEntities(inner)}\``);
+	// Inline code - strip real HTML tags but keep entities so the tag-strip
+	// cleanup below does not swallow decoded angle brackets (e.g. `<aside>`).
+	md = md.replace(/<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_m, _attrs, inner) => `\`${inner.replace(/<[^>]+>/g, '')}\``);
 
 	// Strikethrough
 	md = md.replace(/<(del|s|strike)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `~~${inlineClean(inner)}~~`);
@@ -116,11 +117,15 @@ function inlineClean(html: string): string {
 	result = result.replace(/<a\s[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => sanitizeLink(href, inlineClean(text).trim()));
 	result = result.replace(/<(strong|b)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `**${inlineClean(inner)}**`);
 	result = result.replace(/<(em|i)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `*${inlineClean(inner)}*`);
-	result = result.replace(/<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_m, _attrs, inner) => `\`${decodeEntities(inner)}\``);
+	result = result.replace(/<code(\s[^>]*)?>([\s\S]*?)<\/code>/gi, (_m, _attrs, inner) => `\`${inner.replace(/<[^>]+>/g, '')}\``);
 	result = result.replace(/<(del|s|strike)(\s[^>]*)?>([\s\S]*?)<\/\1>/gi, (_m, _tag, _attrs, inner) => `~~${inlineClean(inner)}~~`);
 	result = result.replace(/<br\s*\/?>/gi, '\n');
 	result = result.replace(/<[^>]+>/g, '');
-	return decodeEntities(result);
+	// Do NOT decode entities here — the caller's result flows back into the
+	// main convertHtmlToMarkdown string, which still has a tag-strip pass
+	// ahead. Decoded angle brackets (e.g. from code spans) would be wrongly
+	// removed. The final decodeEntities() in convertHtmlToMarkdown handles it.
+	return result;
 }
 
 /** Strip tags, normalise <br>, and decode entities inside a code block while preserving indentation. */
@@ -130,7 +135,9 @@ function cleanCodeBlock(html: string): string {
 	result = result.replace(/<br\s*\/?>/gi, '\n');
 	// Strip all HTML tags (e.g. syntax-highlighting <span>s)
 	result = result.replace(/<[^>]+>/g, '');
-	result = decodeEntities(result);
+	// Do NOT decode entities here — the caller wraps the result in a fenced
+	// code block and the final decodeEntities() pass in convertHtmlToMarkdown
+	// will handle it after the tag-stripping step.
 	// Trim only leading/trailing newlines, preserving indentation
 	result = result.replace(/^\n+|\n+$/g, '');
 	return result;
