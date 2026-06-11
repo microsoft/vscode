@@ -1,0 +1,797 @@
+<!--
+	Copyright (c) Microsoft Corporation. All rights reserved.
+	Licensed under the MIT License. See License.txt in the project root for license information.
+
+	Policy Inspector — a local-first inspector for the Copilot ENTERPRISE policy
+	pipeline (managed_settings → IPolicyData → locked chat.plugins.*), inspired by
+	ahp-inspector. Zero-dependency vanilla JS; a pure CLIENT of the copilot-api-mock
+	control-plane API.
+
+	The PRIMARY input is the editable managed_settings payload (the real
+	.github/copilot/settings.json artifact). Delivery conditions (gate, HTTP
+	status) are an orthogonal axis. Examples are starting points, not the model.
+	"Policy" here means Copilot enterprise policy — NOT OS Group Policy / MDM.
+-->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Policy Inspector</title>
+	<style>
+		:root {
+			/* surfaces — three levels of elevation */
+			--bg:      #0d0f10;
+			--panel:   #161a1d;
+			--panel-2: #1d2226;
+			--panel-3: #242a2f;
+			--border:  #2a3038;
+			--border-2: #374047;
+
+			/* text */
+			--fg:    #e2e8f0;
+			--muted: #7a8896;
+			--dim:   #4a5568;
+
+			/* accent — blue with presence */
+			--accent:    #3b9edd;
+			--accent-dim: rgba(59,158,221,0.12);
+			--accent-fg: #ffffff;
+
+			/* semantic */
+			--ok:   #56d4b2;
+			--warn: #e2b96a;
+			--err:  #f47174;
+			--ok-dim:  rgba(86,212,178,0.12);
+			--err-dim: rgba(244,113,116,0.12);
+
+			/* tokens */
+			--radius-sm: 6px;
+			--radius-md: 8px;
+			--radius-pill: 999px;
+			--mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+		}
+
+		* { box-sizing: border-box; }
+
+		body {
+			margin: 0;
+			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+			background: var(--bg);
+			color: var(--fg);
+			font-size: 13px;
+			line-height: 1.5;
+		}
+
+		/* ─── HEADER ─────────────────────────────────────── */
+		header {
+			display: flex;
+			align-items: center;
+			gap: 14px;
+			padding: 0 20px;
+			height: 52px;
+			border-bottom: 1px solid var(--border);
+			background: var(--panel);
+			position: sticky;
+			top: 0;
+			z-index: 10;
+		}
+		header h1 {
+			font-size: 14px;
+			margin: 0;
+			font-weight: 600;
+			letter-spacing: 0.01em;
+			color: var(--fg);
+		}
+		header .sub {
+			color: var(--muted);
+			font-size: 12px;
+			margin-left: -6px;
+		}
+		header .spacer { flex: 1; }
+		header .meta {
+			color: var(--dim);
+			font-family: var(--mono);
+			font-size: 11px;
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-pill);
+			padding: 3px 10px;
+		}
+		.header-copy { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+		.subnote { color: var(--muted); font-size: 11px; font-weight: 400; }
+
+		/* status dot */
+		.dot {
+			width: 8px; height: 8px; border-radius: 50%;
+			display: inline-block; flex: none;
+			background: var(--err);
+			box-shadow: 0 0 0 2px var(--err-dim);
+		}
+		.dot.ok {
+			background: var(--ok);
+			box-shadow: 0 0 0 2px var(--ok-dim);
+		}
+
+		/* ─── LAYOUT ──────────────────────────────────────── */
+		main {
+			display: flex;
+			flex-direction: column;
+			height: calc(100vh - 52px);
+		}
+
+		/* ─── SECTION HEADERS ─────────────────────────────── */
+		h2.section {
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--fg);
+			margin: 0;
+			padding: 10px 16px 9px;
+			border-bottom: 1px solid var(--border);
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			background: var(--panel);
+		}
+		h2.section .sub {
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 400;
+			font-family: var(--mono);
+		}
+
+		/* ─── DELIVERY CONDITIONS ─────────────────────────── */
+		.conditions-wrap { border-bottom: 1px solid var(--border); background: var(--panel); }
+		.conditions-wrap summary {
+			list-style: none;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 10px 16px;
+			cursor: pointer;
+			font-size: 12px;
+			font-weight: 600;
+			color: var(--muted);
+			-webkit-user-select: none;
+			user-select: none;
+			border-bottom: 1px solid transparent;
+		}
+		.conditions-wrap[open] summary { border-bottom-color: var(--border); }
+		.conditions-wrap summary::-webkit-details-marker { display: none; }
+		.conditions-wrap summary .arrow {
+			font-size: 9px;
+			transition: transform 0.15s ease;
+			opacity: 0.6;
+		}
+		.conditions-wrap[open] summary .arrow { transform: rotate(90deg); }
+		.conditions-wrap summary:hover { color: var(--fg); }
+
+		.cond-grid {
+			display: flex;
+			gap: 20px;
+			align-items: center;
+			padding: 12px 18px 14px;
+			flex-wrap: wrap;
+			background: var(--panel-2);
+		}
+		.cond { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+		.cond label { color: var(--muted); }
+		.cond select, .cond input[type="checkbox"] { accent-color: var(--accent); }
+		.cond select {
+			background: var(--panel-3);
+			border: 1px solid var(--border-2);
+			color: var(--fg);
+			border-radius: var(--radius-sm);
+			padding: 5px 8px;
+			font-family: var(--mono);
+			font-size: 12px;
+			outline: none;
+		}
+		.cond select:focus { border-color: var(--accent); }
+		.cond.note { color: var(--dim); font-size: 11px; flex-basis: 100%; padding-top: 2px; }
+
+		/* ─── SCHEMA BAR ──────────────────────────────────── */
+		.schema-bar { border-bottom: 1px solid var(--border); background: var(--bg); }
+		.schema-input-row {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 16px;
+		}
+		.schema-input-row input {
+			flex: 1;
+			background: var(--panel);
+			border: 1px solid var(--border);
+			color: var(--fg);
+			border-radius: var(--radius-sm);
+			padding: 6px 12px;
+			font-size: 12px;
+			outline: none;
+			transition: border-color 0.15s;
+		}
+		.schema-input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+		.schema-input-row input::placeholder { color: var(--dim); }
+		.schema-input-row .load-btn {
+			background: transparent;
+			color: var(--muted);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-sm);
+			padding: 6px 14px;
+			cursor: pointer;
+			font-size: 12px;
+			white-space: nowrap;
+			transition: all 0.15s;
+		}
+		.schema-input-row .load-btn:hover { color: var(--fg); border-color: var(--border-2); }
+		.schema-input-row .load-status { font-size: 11px; font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+
+		.schema-info {
+			padding: 0 16px 10px;
+			font-size: 11px;
+			color: var(--muted);
+			line-height: 1.5;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 6px;
+			align-items: baseline;
+		}
+		.schema-info .schema-title { color: var(--accent); font-weight: 600; }
+		.schema-info .schema-props { font-family: var(--mono); }
+		.schema-info .schema-prop-unknown { color: var(--err); font-style: italic; }
+
+		/* ─── EDITOR ──────────────────────────────────────── */
+		.editor-wrap { display: flex; flex-direction: column; border-bottom: 1px solid var(--border); }
+		.editor {
+			width: 100%;
+			min-height: 130px;
+			resize: vertical;
+			border: none;
+			outline: none;
+			background: var(--bg);
+			color: var(--fg);
+			font-family: var(--mono);
+			font-size: 12.5px;
+			line-height: 1.65;
+			padding: 14px 18px;
+			tab-size: 2;
+		}
+		.editor-status {
+			padding: 7px 18px;
+			font-size: 11px;
+			font-family: var(--mono);
+			border-top: 1px solid var(--border);
+			color: var(--dim);
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			background: var(--panel);
+			min-height: 30px;
+		}
+		.editor-status.ok { color: var(--ok); }
+		.editor-status.err { color: var(--err); }
+
+		/* ─── EFFECTIVE POLICY CARD ───────────────────────── */
+		.policy {
+			padding: 10px 18px;
+			border-bottom: 1px solid var(--border);
+			background: var(--panel-2);
+			display: flex;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+		.policy .stats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+		.stat {
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-pill);
+			padding: 4px 10px;
+			font-size: 12px;
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+		}
+		.stat .k { color: var(--muted); }
+		.stat .v { font-family: var(--mono); font-weight: 700; }
+		.stat.on { border-color: rgba(86,212,178,0.30); }
+		.stat.on .v { color: var(--ok); }
+		.stat.off .v { color: var(--dim); }
+		.stat.warn { border-color: rgba(226,185,106,0.30); }
+		.stat.warn .v { color: var(--warn); }
+		.policy .map { color: var(--dim); font-size: 11px; }
+		.policy .map code { color: var(--muted); }
+		.policy .hint { color: var(--warn); font-size: 11px; }
+
+		/* ─── TIMELINE FILTERS ────────────────────────────── */
+		.filters {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			padding: 7px 14px;
+			border-bottom: 1px solid var(--border);
+			flex-wrap: wrap;
+			background: var(--bg);
+		}
+		.filters select,
+		.filters input[type="text"] {
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			color: var(--fg);
+			border-radius: var(--radius-pill);
+			padding: 5px 12px;
+			font-size: 11px;
+			font-family: var(--mono);
+			outline: none;
+			transition: border-color 0.15s;
+		}
+		.filters select:focus,
+		.filters input[type="text"]:focus { border-color: var(--accent); }
+		.filters select { min-width: 126px; }
+		.filters input[type="text"] { margin-left: auto; min-width: 140px; }
+		.filters input[type="text"]::placeholder { color: var(--dim); }
+
+		/* ─── TIMELINE ROWS ───────────────────────────────── */
+		.timeline { overflow-y: auto; flex: 1; min-height: 120px; }
+		.row {
+			display: grid;
+			grid-template-columns: minmax(0, 1fr) auto auto;
+			gap: 4px 14px;
+			align-items: center;
+			padding: 10px 16px 10px 18px;
+			border-bottom: 1px solid var(--panel-2);
+			border-left: 3px solid transparent;
+			cursor: pointer;
+			font-family: var(--mono);
+			font-size: 12px;
+			transition: background 0.1s, border-color 0.1s;
+		}
+		.row:hover { background: var(--panel-2); }
+		.row.active {
+			background: var(--panel-2);
+			border-left-color: var(--accent);
+		}
+		.row .ep { color: var(--fg); font-weight: 600; font-size: 12.5px; }
+		.row .meta-line {
+			grid-column: 1 / -1;
+			color: var(--dim);
+			font-size: 11px;
+			display: flex;
+			gap: 12px;
+			flex-wrap: wrap;
+		}
+		.row .st-2 { color: var(--ok); font-weight: 700; }
+		.row .st-4, .row .st-5 { color: var(--err); font-weight: 700; }
+		.row .lat, .row .time, .row .auth { color: var(--dim); }
+		.row .auth.yes { color: var(--ok); }
+		.row .warnpip { color: var(--warn); }
+
+		/* ─── FETCH DETAIL ────────────────────────────────── */
+		.detail-shell { border-top: 1px solid var(--border); background: var(--panel); }
+		.detail { overflow-y: auto; background: var(--bg); max-height: 34vh; }
+
+		.detail .meta-grid {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: 6px 16px;
+			padding: 14px 18px;
+			font-size: 12px;
+			border-bottom: 1px solid var(--border);
+		}
+		.detail .meta-grid .k { color: var(--muted); }
+		.detail .meta-grid .v { font-family: var(--mono); word-break: break-all; color: var(--fg); }
+
+		.tabs { display: flex; gap: 6px; padding: 12px 18px 0; }
+		.tab {
+			background: transparent;
+			border: 1px solid var(--border);
+			color: var(--muted);
+			padding: 4px 12px;
+			cursor: pointer;
+			border-radius: var(--radius-pill);
+			font-size: 11px;
+			font-weight: 500;
+			transition: all 0.1s;
+		}
+		.tab:hover { color: var(--fg); border-color: var(--border-2); }
+		.tab.active { background: var(--panel-3); color: var(--fg); border-color: var(--border-2); }
+
+		.subhead {
+			font-size: 10px;
+			text-transform: uppercase;
+			letter-spacing: 0.07em;
+			color: var(--dim);
+			padding: 14px 18px 6px;
+			font-weight: 700;
+		}
+		pre.json {
+			margin: 0;
+			padding: 10px 18px 16px;
+			overflow: auto;
+			font-family: var(--mono);
+			font-size: 12px;
+			line-height: 1.65;
+			white-space: pre-wrap;
+			word-break: break-word;
+			color: var(--fg);
+		}
+		pre.json.warn-text { color: var(--warn); }
+
+		.warns { padding: 0 18px 16px; }
+		.warns .w {
+			color: var(--warn);
+			font-size: 11px;
+			font-family: var(--mono);
+			line-height: 1.7;
+			padding: 2px 0;
+		}
+
+		/* ─── EMPTY STATES ────────────────────────────────── */
+		.empty {
+			color: var(--muted);
+			padding: 24px 18px;
+			line-height: 1.7;
+			max-width: 58ch;
+		}
+		.empty.compact { padding: 14px 18px; max-width: none; }
+		.empty code {
+			color: var(--fg);
+			background: var(--panel-2);
+			border: 1px solid var(--border);
+			padding: 1px 6px;
+			border-radius: 4px;
+		}
+
+		/* ─── MISC ────────────────────────────────────────── */
+		.btn {
+			background: transparent;
+			color: var(--muted);
+			border: 1px solid var(--border);
+			border-radius: var(--radius-pill);
+			padding: 4px 10px;
+			cursor: pointer;
+			font-size: 11px;
+			transition: all 0.1s;
+		}
+		.btn:hover { color: var(--fg); border-color: var(--border-2); }
+		.right { margin-left: auto; }
+
+		/* ─── SCROLLBARS ──────────────────────────────────── */
+		::-webkit-scrollbar { width: 6px; height: 6px; }
+		::-webkit-scrollbar-track { background: transparent; }
+		::-webkit-scrollbar-thumb { background: var(--panel-3); border-radius: 3px; }
+		::-webkit-scrollbar-thumb:hover { background: var(--border-2); }
+
+		/* ─── RESPONSIVE ──────────────────────────────────── */
+		@media (max-width: 860px) {
+			header { flex-wrap: wrap; height: auto; padding: 12px 16px; }
+			main { height: auto; }
+			.cond-grid { flex-direction: column; align-items: flex-start; gap: 10px; }
+			.filters input[type="text"] { margin-left: 0; width: 100%; }
+		}
+	</style>
+</head>
+
+<body>
+	<header>
+		<span class="dot" id="health-dot"></span>
+		<div class="header-copy">
+			<h1>Policy Inspector</h1>
+			<div class="sub">Inspect the managed policy payload and the effective policy Code OSS computes from it.</div>
+		</div>
+		<span class="spacer"></span>
+		<span class="meta" id="base-url"></span>
+	</header>
+
+	<main>
+		<!-- delivery conditions (collapsible) -->
+		<details class="conditions-wrap" id="conditions-wrap">
+			<summary><span class="arrow">▶</span> Delivery conditions</summary>
+			<div class="cond-grid" id="conditions"></div>
+		</details>
+
+		<!-- editor + url loader + adapted + timeline -->
+		<h2 class="section">managed_settings <span class="sub">· .github/copilot/settings.json</span></h2>
+		<div class="schema-bar">
+			<div class="schema-input-row">
+				<input id="schema-url" type="url" placeholder="JSON Schema URL — paste and press Enter to validate the editor against a schema" />
+				<button class="load-btn" id="schema-load-btn">Load schema</button>
+				<span class="load-status" id="schema-status"></span>
+			</div>
+			<div class="schema-info" id="schema-info" hidden></div>
+		</div>
+		<div class="editor-wrap">
+			<textarea class="editor" id="editor" aria-label="managed_settings JSON editor" spellcheck="false" autocorrect="off"></textarea>
+			<div class="editor-status" id="editor-status">—</div>
+		</div>
+		<div id="policy-card" class="policy"></div>
+		<div class="filters" id="filters"></div>
+		<div class="timeline" id="timeline">
+			<div class="empty">No policy fetches yet. Point Code OSS at this server (<code>npm run apply-overrides</code>) and launch it; the fetches Code OSS makes land here.</div>
+		</div>
+		<div class="detail-shell">
+			<h2 class="section">Fetch detail <button class="btn right" id="copy-btn" hidden>copy response</button></h2>
+			<div class="detail" id="detail"><div class="empty compact">Select a fetch to inspect its request, response, and adapted policy.</div></div>
+		</div>
+	</main>
+
+	<script>
+		const $ = sel => document.querySelector(sel);
+		const EP_LABEL = { user: 'entitlements', token: 'token', mcp_registry: 'mcp registry', managed_settings: 'managed settings' };
+
+		const state = {
+			conditions: { chatEnabled: true, managedSettingsStatus: 200, retryAfterSeconds: 3 },
+			log: [], byId: new Map(), selectedId: null,
+			filterEp: 'all', filterStatus: 'all', q: '', detailTab: 'pretty',
+			editorDirty: false,
+			schema: null, // loaded JSON Schema
+		};
+
+		async function getJSON(url, opts) { const r = await fetch(url, opts); return r.json(); }
+		function postJSON(url, obj) { return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }); }
+		function escapeHtml(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+		async function refreshHeader() {
+			try { const h = await getJSON('/__health'); $('#health-dot').classList.toggle('ok', !!h.ok); $('#base-url').textContent = `http://localhost:${h.port}`; }
+			catch { $('#health-dot').classList.remove('ok'); }
+		}
+
+		// --- the editable settings.json (primary input) ---
+		function setEditor(text) { $('#editor').value = text; state.editorDirty = false; }
+		function setStatus(kind, text) { const el = $('#editor-status'); el.className = 'editor-status ' + kind; el.textContent = text; }
+
+		async function applyEditor() {
+			const text = $('#editor').value;
+			let parsed;
+			try { parsed = JSON.parse(text || '{}'); }
+			catch (e) { setStatus('err', 'invalid JSON: ' + e.message); return; }
+			if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) { setStatus('err', 'managed_settings must be a JSON object'); return; }
+			const res = await postJSON('/__settings', parsed);
+			if (!res.ok) { const b = await res.json().catch(() => ({})); setStatus('err', b.error || ('HTTP ' + res.status)); return; }
+			state.editorDirty = false;
+			setStatus('ok', 'applied — Code OSS now serves this on its next managed_settings fetch');
+			validateEditorSchema();
+			await refreshPolicyCard();
+		}
+
+		let editTimer;
+		function onEditorInput() {
+			state.editorDirty = true;
+			setStatus('', 'editing…');
+			clearTimeout(editTimer);
+			editTimer = setTimeout(applyEditor, 400);
+		}
+
+		// --- delivery conditions (orthogonal axis) ---
+		function renderConditions() {
+			const c = state.conditions;
+			$('#conditions').innerHTML = `
+				<div class="cond">
+					<input type="checkbox" id="cond-gate" ${c.chatEnabled ? 'checked' : ''} />
+					<label for="cond-gate">chat_enabled</label>
+				</div>
+				<div class="cond">
+					<label for="cond-status">managed_settings status</label>
+					<select id="cond-status">
+						<option value="200" ${c.managedSettingsStatus === 200 ? 'selected' : ''}>200 OK</option>
+						<option value="429" ${c.managedSettingsStatus === 429 ? 'selected' : ''}>429 Rate limited</option>
+						<option value="500" ${c.managedSettingsStatus === 500 ? 'selected' : ''}>500 Server error</option>
+					</select>
+				</div>
+				<div class="cond note">Non-2xx: Code OSS ignores the fetched payload.</div>`;
+			$('#cond-gate').onchange = e => setCondition({ chatEnabled: e.target.checked });
+			$('#cond-status').onchange = e => setCondition({ managedSettingsStatus: Number(e.target.value) });
+		}
+
+		// --- schema loader ---
+		async function loadSchema(url) {
+			const statusEl = $('#schema-status');
+			const infoEl = $('#schema-info');
+			if (!url) return;
+			statusEl.style.color = 'var(--muted)';
+			statusEl.textContent = 'fetching…';
+			try {
+				const r = await fetch(url);
+				if (!r.ok) throw new Error(`HTTP ${r.status}`);
+				const schema = await r.json();
+				if (typeof schema !== 'object' || schema === null) throw new Error('not a JSON object');
+				state.schema = schema;
+				statusEl.style.color = 'var(--ok)';
+				statusEl.textContent = 'loaded';
+				renderSchemaInfo();
+				validateEditorSchema();
+			} catch (e) {
+				state.schema = null;
+				statusEl.style.color = 'var(--err)';
+				statusEl.textContent = e.message;
+				infoEl.hidden = true;
+			}
+		}
+
+		function renderSchemaInfo() {
+			const s = state.schema;
+			const infoEl = $('#schema-info');
+			if (!s) { infoEl.hidden = true; return; }
+			const props = Object.keys(s.properties || {});
+			const title = s.title || s.$id || 'Schema';
+			const desc = s.description ? ` — ${s.description}` : '';
+			infoEl.hidden = false;
+			infoEl.innerHTML = `<span class="schema-title">${escapeHtml(title)}</span><span>${escapeHtml(desc)}</span>` +
+				(props.length ? `<span class="schema-props">${props.length} known properties: ${props.map(p => `<code>${escapeHtml(p)}</code>`).join(', ')}</span>` : '');
+		}
+
+		function validateEditorSchema() {
+			const s = state.schema;
+			if (!s || !s.properties) return;
+			let parsed;
+			try { parsed = JSON.parse($('#editor').value || '{}'); } catch { return; }
+			if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+			const known = new Set(Object.keys(s.properties));
+			const unknown = Object.keys(parsed).filter(k => !known.has(k));
+			if (unknown.length) {
+				setStatus('err', `unknown key${unknown.length > 1 ? 's' : ''} (not in schema): ${unknown.join(', ')}`);
+			}
+		}
+		async function setCondition(patch) {
+			const res = await postJSON('/__conditions', patch);
+			if (res.ok) { state.conditions = (await res.json()).conditions; renderConditions(); }
+		}
+
+		// --- effective policy card ---
+		// DESIGN INVARIANT — auto-tracks core; never hardcode policy keys. One chip
+		// per key in the adapted IPolicyData (produced by core's real adapter), so a
+		// new managed-settings key appears here automatically.
+		function describePolicyValue(value) {
+			if (Array.isArray(value)) { return { text: String(value.length), on: value.length > 0 }; }
+			if (value && typeof value === 'object') {
+				const vals = Object.values(value); const keys = Object.keys(value).length;
+				if (vals.length && vals.every(v => typeof v === 'boolean')) { const allow = vals.filter(v => v === true).length; return { text: `${keys}`, suffix: `(${allow}✓ / ${keys - allow}✗)`, on: keys > 0 }; }
+				return { text: `${keys}`, suffix: 'keys', on: keys > 0 };
+			}
+			if (typeof value === 'boolean') { return { text: value ? 'on' : 'off', on: value }; }
+			return { text: String(value), on: value !== null && value !== '' };
+		}
+		async function refreshPolicyCard() {
+			const card = $('#policy-card');
+			let a; try { a = await getJSON('/__adapted'); } catch { return; }
+			if (a.available === false) {
+				card.innerHTML = `<div class="stats"><span class="stat"><span class="k">effective policy</span></span></div><div class="hint">Adapted preview needs Code OSS built: ${escapeHtml(a.reason || '')}</div>`;
+				return;
+			}
+			const adapted = a.adapted || {};
+			const entries = Object.entries(adapted).filter(([, v]) => v !== undefined);
+			const chips = entries.map(([key, value]) => {
+				const d = describePolicyValue(value);
+				return `<span class="stat ${d.on ? 'on' : 'off'}"><span class="k">${escapeHtml(key)} </span><span class="v">${escapeHtml(d.text)}</span>${d.suffix ? ` <span class="k">${escapeHtml(d.suffix)}</span>` : ''}</span>`;
+			});
+			const warns = (a.warnings || []).length;
+			chips.push(`<span class="stat ${warns ? 'warn' : 'off'}"><span class="k">warnings </span><span class="v">${warns}</span></span>`);
+			if (!entries.length) { chips.unshift(`<span class="stat off"><span class="k">effective policy </span><span class="v">empty</span></span>`); }
+			card.innerHTML = `<div class="stats">${chips.join('')}</div><div class="map">Current effective policy, as computed by core's real adapter.</div>`;
+		}
+
+		// --- filters + timeline ---
+		function renderFilters() {
+			const eps = [['all', 'all endpoints'], ['user', 'entitlements'], ['token', 'token'], ['mcp_registry', 'mcp registry'], ['managed_settings', 'managed settings']];
+			const statuses = [['all', 'all statuses'], ['ok', '2xx'], ['err', 'errors']];
+			const f = $('#filters'); f.innerHTML = '';
+			const epSelect = document.createElement('select');
+			for (const [value, label] of eps) {
+				const option = document.createElement('option');
+				option.value = value;
+				option.textContent = label;
+				option.selected = state.filterEp === value;
+				epSelect.appendChild(option);
+			}
+			epSelect.onchange = e => { state.filterEp = e.target.value; renderTimeline(); };
+			f.appendChild(epSelect);
+			const statusSelect = document.createElement('select');
+			for (const [value, label] of statuses) {
+				const option = document.createElement('option');
+				option.value = value;
+				option.textContent = label;
+				option.selected = state.filterStatus === value;
+				statusSelect.appendChild(option);
+			}
+			statusSelect.onchange = e => { state.filterStatus = e.target.value; renderTimeline(); };
+			f.appendChild(statusSelect);
+			const input = document.createElement('input');
+			input.placeholder = 'search…'; input.value = state.q;
+			input.oninput = e => { state.q = e.target.value; renderTimeline(); };
+			f.appendChild(input);
+		}
+		function visibleRows() {
+			return state.log.filter(r => {
+				if (state.filterEp !== 'all' && r.endpoint !== state.filterEp) { return false; }
+				if (state.filterStatus === 'ok' && !(r.status >= 200 && r.status < 300)) { return false; }
+				if (state.filterStatus === 'err' && r.status < 400) { return false; }
+				if (state.q) {
+					const hay = (r.url + ' ' + (r.endpoint || '') + ' ' + JSON.stringify(r.body ?? '')).toLowerCase();
+					if (!hay.includes(state.q.toLowerCase())) { return false; }
+				}
+				return true;
+			}).reverse();
+		}
+		async function refreshLog() {
+			let log; try { log = await getJSON('/__log'); } catch { return; }
+			state.log = log; state.byId = new Map(log.map(r => [r.id, r]));
+			renderTimeline();
+			if (state.selectedId != null) { renderDetail(); }
+		}
+		function renderTimeline() {
+			const rows = visibleRows(); const tl = $('#timeline');
+			if (!state.log.length) { tl.innerHTML = `<div class="empty">No policy fetches yet. Point Code OSS at this server (<code>npm run apply-overrides</code>) and launch it; the fetches Code OSS makes land here.</div>`; return; }
+			if (!rows.length) { tl.innerHTML = `<div class="empty">No fetches match the current filters.</div>`; return; }
+			tl.innerHTML = '';
+			for (const r of rows) {
+				const el = document.createElement('div');
+				el.className = 'row' + (r.id === state.selectedId ? ' active' : '');
+				const epLabel = r.endpoint ? (EP_LABEL[r.endpoint] || r.endpoint) : 'unmapped';
+				const warnPip = (r.warnings && r.warnings.length) ? ` <span class="warnpip" title="${r.warnings.length} adapter warning(s)">⚠${r.warnings.length}</span>` : '';
+				const time = new Date(r.at).toLocaleTimeString();
+				el.innerHTML = `
+					<span class="ep">${escapeHtml(epLabel)}${warnPip}</span>
+					<span class="st-${String(r.status)[0]}">${r.status}</span>
+					<span class="auth ${r.authorized ? 'yes' : ''}">${r.authorized ? 'bearer' : 'no auth'}</span>
+					<div class="meta-line"><span class="time">${time}</span><span class="lat">${r.durationMs}ms</span><span>${escapeHtml(r.url)}</span></div>`;
+				el.onclick = () => { state.selectedId = r.id; renderTimeline(); renderDetail(); };
+				tl.appendChild(el);
+			}
+		}
+
+		// --- detail ---
+		function renderDetail() {
+			const r = state.byId.get(state.selectedId);
+			const host = $('#detail'); const copyBtn = $('#copy-btn');
+			if (!r) { host.innerHTML = `<div class="empty">Select a fetch in the timeline to inspect it.</div>`; copyBtn.hidden = true; return; }
+			copyBtn.hidden = false;
+			copyBtn.onclick = () => navigator.clipboard?.writeText(JSON.stringify(r.body ?? null, null, 2));
+			const isMs = r.endpoint === 'managed_settings';
+			const bodyStr = state.detailTab === 'raw' ? JSON.stringify(r.body ?? null) : JSON.stringify(r.body ?? null, null, 2);
+			const cond = r.conditions ? `gate ${r.conditions.chatEnabled ? 'on' : 'off'} · managed_settings ${r.conditions.managedSettingsStatus}` : '—';
+			let html = `
+				<div class="meta-grid">
+					<span class="k">endpoint</span><span class="v">${escapeHtml(r.endpoint ? (EP_LABEL[r.endpoint] || r.endpoint) : 'unmapped')}</span>
+					<span class="k">request</span><span class="v">${escapeHtml(r.method)} ${escapeHtml(r.url)}</span>
+					<span class="k">status</span><span class="v">${r.status} · ${r.durationMs}ms</span>
+					<span class="k">authorization</span><span class="v">${r.authorized ? 'Bearer …' : '—'}</span>
+					<span class="k">conditions</span><span class="v">${escapeHtml(cond)}</span>
+					<span class="k">at</span><span class="v">${escapeHtml(r.at)}</span>
+				</div>
+				<div class="tabs">
+					<button class="tab ${state.detailTab === 'pretty' ? 'active' : ''}" data-tab="pretty">Pretty</button>
+					<button class="tab ${state.detailTab === 'raw' ? 'active' : ''}" data-tab="raw">Raw</button>
+				</div>
+				<pre class="json">${escapeHtml(bodyStr)}</pre>`;
+			if (isMs) {
+				html += `<div class="subhead">Adapted → IPolicyData · core adaptManagedSettings()</div>`;
+				if (r.adapted === undefined) { html += `<pre class="json warn-text">unavailable (Code OSS not built — out/ adapter missing)</pre>`; }
+				else { html += `<pre class="json">${escapeHtml(JSON.stringify(r.adapted, null, 2))}</pre>`; }
+				if (r.warnings && r.warnings.length) { html += `<div class="warns">` + r.warnings.map(w => `<div class="w">⚠ ${escapeHtml(w)}</div>`).join('') + `</div>`; }
+			}
+			host.innerHTML = html;
+			host.querySelectorAll('.tab').forEach(t => { t.onclick = () => { state.detailTab = t.dataset.tab; renderDetail(); }; });
+		}
+
+		// --- poll loop ---
+		async function tick() { await refreshHeader(); await refreshLog(); }
+
+		(async function init() {
+			$('#editor').addEventListener('input', onEditorInput);
+			$('#schema-load-btn').onclick = () => loadSchema($('#schema-url').value.trim());
+			$('#schema-url').addEventListener('keydown', e => { if (e.key === 'Enter') loadSchema($('#schema-url').value.trim()); });
+			renderFilters();
+			await refreshHeader();
+			const st = await getJSON('/__state');
+			state.conditions = st.conditions;
+			renderConditions();
+			setEditor(JSON.stringify(st.settings ?? {}, null, 2));
+			setStatus('', 'edit to change the policy Code OSS will fetch');
+			await refreshPolicyCard();
+			await refreshLog();
+			setInterval(tick, 1500);
+		})();
+	</script>
+</body>
+
+</html>

@@ -128,4 +128,52 @@ suite('adaptManagedSettings', () => {
 		// Array is not an object-record — treated as missing, so yields undefined
 		assert.strictEqual(result.extraKnownMarketplaces, undefined);
 	});
+
+	test('current contract: enabledPlugins values pass through without boolean coercion', () => {
+		// adaptManagedSettings validates the SHAPE (must be an object) but NOT value
+		// types — a non-boolean value survives as-is. Downstream, discovery treats any
+		// non-`false` value as enabled while the policy gate treats any non-`true`
+		// value as blocked, so off-spec values are interpreted inconsistently. This
+		// test pins the current behaviour.
+		const result = adaptManagedSettings({
+			enabledPlugins: { 'p@m': 'yes' } as unknown as Record<string, boolean>,
+		});
+		assert.deepStrictEqual(result.enabledPlugins, { 'p@m': 'yes' });
+	});
+
+	test('current contract: an explicit empty enabledPlugins object is preserved (distinct from omitted)', () => {
+		// `{}` is a valid object, so it is preserved rather than coerced to undefined.
+		// The omitted case (see "empty response") yields undefined instead.
+		assert.deepStrictEqual(adaptManagedSettings({ enabledPlugins: {} }).enabledPlugins, {});
+	});
+
+	test('warns and skips a github source missing its repo', () => {
+		const warnings: string[] = [];
+		const result = adaptManagedSettings({
+			extraKnownMarketplaces: { 'gh': { source: { source: 'github' } } },
+		} as unknown as IManagedSettingsResponse, msg => warnings.push(msg));
+		assert.deepStrictEqual(result.extraKnownMarketplaces, []);
+		assert.strictEqual(warnings.length, 1);
+		assert.ok(warnings[0].includes('"repo"'), warnings[0]);
+	});
+
+	test('warns and skips a git source missing its url', () => {
+		const warnings: string[] = [];
+		const result = adaptManagedSettings({
+			extraKnownMarketplaces: { 'g': { source: { source: 'git' } } },
+		} as unknown as IManagedSettingsResponse, msg => warnings.push(msg));
+		assert.deepStrictEqual(result.extraKnownMarketplaces, []);
+		assert.strictEqual(warnings.length, 1);
+		assert.ok(warnings[0].includes('"url"'), warnings[0]);
+	});
+
+	test('does not invoke onWarn for a fully valid response', () => {
+		const warnings: string[] = [];
+		adaptManagedSettings({
+			enabledPlugins: { 'p@m': true },
+			extraKnownMarketplaces: { 'a': { source: { source: 'github', repo: 'a/b' } } },
+			strictKnownMarketplaces: true,
+		}, msg => warnings.push(msg));
+		assert.strictEqual(warnings.length, 0);
+	});
 });

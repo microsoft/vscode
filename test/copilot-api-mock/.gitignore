@@ -1,0 +1,3 @@
+# Local backup written by scripts/apply-overrides.mjs
+.overrides-backup.json
+node_modules/
