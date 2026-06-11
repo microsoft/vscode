@@ -961,6 +961,15 @@ export class ModelPickerWidget extends Disposable {
 		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
 			this._renderLabel();
 		}));
+
+		// Also refresh the label when the per-editor config layer (if any) reports
+		// a change. The global service path is already covered above via
+		// `onDidChangeLanguageModels` which fires from `setModelConfiguration`.
+		if (this._delegate.modelConfiguration?.onDidChange) {
+			this._register(this._delegate.modelConfiguration.onDidChange(() => {
+				this._renderLabel();
+			}));
+		}
 	}
 
 	setCompact(compact: IObservable<boolean>): void {

@@ -10,6 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
@@ -30,6 +31,12 @@ export interface IModelConfigurationAccess {
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
 	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
 	getModelConfigurationActions(modelId: string): IAction[];
+	/**
+	 * Fires when this access layer's configuration changes (e.g. user picks a
+	 * new context size). Implementations that always read the global value can
+	 * omit this and rely on `ILanguageModelsService.onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<string /* modelId */>;
 }
 
 export interface IModelPickerDelegate {

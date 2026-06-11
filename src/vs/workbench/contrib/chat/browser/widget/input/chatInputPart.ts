@@ -454,6 +454,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * editors keep their own snapshot. See issue #320393.
 	 */
 	private readonly _modelConfigurationOverrides = new Map<string, IStringDictionary<unknown>>();
+	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<string>());
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
@@ -1034,6 +1035,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						(key, value) => this._setModelConfigurationOverride(modelId, { [key]: value })
 					);
 				},
+				onDidChange: this._onDidChangeModelConfiguration.event,
 			},
 		};
 	}
@@ -1096,6 +1098,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			bucket[modelId] = stripped;
 		}
 		this._writeModelConfigurationBucket(bucket);
+
+		this._onDidChangeModelConfiguration.fire(modelId);
 	}
 
 	private _getModelSchemaDefaults(modelId: string): IStringDictionary<unknown> {
@@ -2711,6 +2715,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
+		this.contextUsageWidget.setModelConfigurationResolver(
+			modelId => this.getModelConfiguration(modelId),
+			this._onDidChangeModelConfiguration.event,
+		);
 		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
