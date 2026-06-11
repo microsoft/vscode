@@ -6,6 +6,7 @@
 import { Barrier } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IChannelServer } from '../../../base/parts/ipc/common/ipc.js';
+import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from './extensionGalleryManifestService.js';
@@ -29,7 +30,8 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 
 	constructor(
 		server: IChannelServer<unknown>,
-		@IProductService productService: IProductService
+		@ILogService private readonly logService: ILogService,
+		@IProductService productService: IProductService,
 	) {
 		super(productService);
 		server.registerChannel('extensionGalleryManifest', {
@@ -45,7 +47,9 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	}
 
 	override async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
+		this.logService.debug('ExtensionGalleryManifestIPCService#getExtensionGalleryManifest waiting for manifest to be set');
 		await this.barrier.wait();
+		this.logService.debug('ExtensionGalleryManifestIPCService#getExtensionGalleryManifest manifest is set, returning manifest');
 		return this._extensionGalleryManifest ?? null;
 	}
 

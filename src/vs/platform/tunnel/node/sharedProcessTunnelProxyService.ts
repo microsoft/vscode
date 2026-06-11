@@ -27,13 +27,25 @@ class AddressProvider implements IAddressProvider {
 		return this._pending.p;
 	}
 
-	setAddress(address: IAddress): void {
+	/**
+	 * @returns `true` when this replaces a previously-known address with
+	 * a different endpoint (a genuine change consumers must react to);
+	 * `false` for the initial address or a no-op repeat.
+	 */
+	setAddress(address: IAddress): boolean {
+		const previous = this._address;
 		this._address = address;
 		if (this._pending) {
 			this._pending.complete(address);
 			this._pending = null;
 		}
+		return previous !== null && !addressesEqual(previous, address);
 	}
+}
+
+function addressesEqual(a: IAddress, b: IAddress): boolean {
+	return a.connectionToken === b.connectionToken
+		&& a.connectTo.toString() === b.connectTo.toString();
 }
 
 class ProxyEntry {
@@ -131,7 +143,13 @@ export class SharedProcessTunnelProxyService extends Disposable implements IShar
 	}
 
 	async setAddress(id: string, address: IAddress): Promise<void> {
-		this._getOrCreateAddressProvider(id).setAddress(address);
+		const changed = this._getOrCreateAddressProvider(id).setAddress(address);
+		if (changed) {
+			// The upstream tunnel endpoint moved. Drop pooled sockets that
+			// still dial the previous endpoint so they don't get reset en
+			// masse once it goes away.
+			this._entries.get(id)?.proxy?.drainConnectionPool();
+		}
 	}
 
 	async stop(id: string): Promise<void> {

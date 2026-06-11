@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { ExitPlanModeRequest, MessageOptions, PermissionRequestResult, SessionConfig, Tool, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -25,7 +25,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -44,8 +44,10 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
+import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 
 /**
  * The full set of agent modes the Copilot SDK accepts. Wider than the
@@ -293,6 +295,14 @@ export interface ICopilotAgentSessionOptions {
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
 	/**
+	 * Looks up the AHP id of an existing child MCP customization by
+	 * server name, so SDK MCP state events can target plugin-derived
+	 * entries narrowly. Returns `undefined` for SDK servers that have
+	 * no corresponding plugin entry — the session surfaces those as
+	 * bare top-level customizations via {@link CopilotAgentSession.topLevelMcpCustomizations}.
+	 */
+	readonly resolveMcpChildId: (serverName: string) => string | undefined;
+	/**
 	 * Live holder of the owning client's identity, shared by reference with
 	 * the agent's per-session {@link ActiveClient}. Read at tool-call stamp
 	 * time so a window reload (new `clientId`, identical tools) stamps with
@@ -396,6 +406,26 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
+	/** Bridges SDK-reported MCP server state into AHP customization actions. */
+	private readonly _mcpCustomizations: McpCustomizationController;
+
+	/**
+	 * Fans MCP server notifications (today: `notifications/tools/list_changed`)
+	 * up to the agent and on to the protocol server. Fired by the
+	 * `onToolsUpdated` listener once per ready MCP channel.
+	 */
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
+
+	/**
+	 * Pending MCP `sampling/createMessage` requests received over the
+	 * AHP `mcp://` channel, keyed by the cancellation handle we passed
+	 * into {@link rpc.mcp.executeSampling}. Tracked so that session
+	 * teardown can issue a best-effort
+	 * {@link rpc.mcp.cancelSamplingExecution} for each one instead of
+	 * leaving the SDK-side promise (and the upstream App) hanging.
+	 */
+	private readonly _pendingMcpSamplings = new Set<string>();
 
 	/**
 	 * Current markdown response part IDs for the active turn, keyed by
@@ -447,12 +477,20 @@ export class CopilotAgentSession extends Disposable {
 
 		this._editTracker = this._instantiationService.createInstance(FileEditTracker, options.sessionUri.toString(), this._databaseRef.object);
 
+		this._mcpCustomizations = this._register(new McpCustomizationController({
+			providerId: this.sessionUri.scheme,
+			sessionId: this.sessionId,
+			resolveChildId: options.resolveMcpChildId,
+			emit: action => this._emitAction(action),
+		}));
+
 		this._register(toDisposable(() => this._denyPendingPermissions()));
 		this._register(toDisposable(() => this._shellManager?.dispose()));
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
 		this._register(toDisposable(() => this._cancelPendingElicitations()));
 		this._register(toDisposable(() => this._cancelPendingPlanReviews()));
 		this._register(toDisposable(() => this._drainPendingSteeringFlips()));
+		this._register(toDisposable(() => this._cancelPendingMcpSamplings()));
 
 		// When a shell tool associates a terminal with a tool call, fire a
 		// tool_content_changed event so the UI can connect to the terminal
@@ -1095,6 +1133,92 @@ export class CopilotAgentSession extends Disposable {
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
 		await this._wrapper.session.setModel(model, { reasoningEffort });
+	}
+
+	/**
+	 * Dispatches an MCP JSON-RPC method received on the `mcp://` side
+	 * channel to the Copilot SDK's `session.rpc.mcp.*` surface.
+	 *
+	 * Mapping:
+	 *  - `tools/list` → `rpc.mcp.apps.listTools`
+	 *  - `tools/call` → `rpc.mcp.apps.callTool`
+	 *  - `resources/read` → `rpc.mcp.apps.readResource`
+	 *  - `resources/list` → `rpc.mcp.apps.listResources` (empty list fallback)
+	 *  - `resources/templates/list` → `rpc.mcp.apps.listResourceTemplates` (empty list fallback)
+	 *  - `sampling/createMessage` → `rpc.mcp.executeSampling`
+	 *
+	 * Other MCP methods are rejected with `Method not found` (the caller
+	 * translates that into a JSON-RPC `-32601`).
+	 */
+	async handleMcpRequest(serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const apps = this._wrapper.session.rpc.mcp.apps;
+		switch (method) {
+			case 'tools/list':
+				return apps.listTools({ serverName, originServerName: serverName });
+			case 'tools/call': {
+				const name = params && typeof params['name'] === 'string' ? params['name'] : undefined;
+				if (!name) {
+					throw new Error(`tools/call missing 'name' parameter`);
+				}
+				const rawArgs = params ? params['arguments'] : undefined;
+				const args = isObject(rawArgs) ? rawArgs as Record<string, unknown> : undefined;
+				return apps.callTool({ serverName, toolName: name, arguments: args, originServerName: serverName });
+			}
+			case 'resources/read': {
+				const uri = params && typeof params['uri'] === 'string' ? params['uri'] : undefined;
+				if (!uri) {
+					throw new Error(`resources/read missing 'uri' parameter`);
+				}
+				return apps.readResource({ serverName, uri });
+			}
+			case 'resources/list': {
+				// Not implemented in the SDK yet
+				return { resources: [] };
+			}
+			case 'resources/templates/list': {
+				// Not implemented in the SDK yet
+				return { resourceTemplates: [] };
+			}
+			case 'sampling/createMessage':
+				return this._handleSamplingCreateMessage(serverName, params);
+			default:
+				throw new Error(`Method not found: ${method}`);
+		}
+	}
+
+	/**
+	 * Forwards an App→host `sampling/createMessage` request received
+	 * over the AHP `mcp://` channel to `rpc.mcp.executeSampling`. The
+	 * Copilot runtime owns the MCP→chat-completion conversion and the
+	 * sampling response shape, so we pass the raw MCP params through
+	 * untouched and return the SDK's result directly.
+	 *
+	 * Resolves the JSON-RPC request with the `CreateMessageResult` on
+	 * success and rejects on failure/cancellation, mirroring the
+	 * `sampling/createMessage` MCP contract.
+	 */
+	private async _handleSamplingCreateMessage(serverName: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		if (!params) {
+			throw new Error(`sampling/createMessage missing params`);
+		}
+
+		const requestId = generateUuid();
+		const mcpRequestId = generateUuid();
+		this._pendingMcpSamplings.add(requestId);
+		try {
+			const result = await this._wrapper.session.rpc.mcp.executeSampling({
+				requestId,
+				serverName,
+				mcpRequestId,
+				request: params,
+			});
+			if (result.action === 'success') {
+				return result.result ?? null;
+			}
+			throw new Error(`sampling/createMessage ${result.action}${result.error ? `: ${result.error}` : ''}`);
+		} finally {
+			this._pendingMcpSamplings.delete(requestId);
+		}
 	}
 
 	/**
@@ -2123,6 +2247,127 @@ export class CopilotAgentSession extends Disposable {
 			this._lastAppliedMode = newMode;
 			this._syncAhpConfigFromSdkMode(newMode);
 		}));
+
+		// Translate SDK-reported MCP server lifecycle into AHP customization
+		// actions. The controller decides whether each server is a
+		// plugin-derived child (narrow `SessionMcpServerStateChanged`) or a
+		// bare top-level entry (`SessionCustomizationUpdated`).
+		this._register(wrapper.onMcpServersLoaded(e => {
+			this._applyMcpServerList(e.data.servers);
+		}));
+		this._register(wrapper.onMcpServerStatusChanged(e => {
+			const server = this._toSdkMcpServer(e.data.serverName, e.data.status, e.data.error);
+			if (!server) {
+				this._mcpCustomizations.remove(e.data.serverName);
+				return;
+			}
+			this._mcpCustomizations.applyOne(server);
+		}));
+
+		this._register(wrapper.onToolsUpdated(() => {
+			this._fireMcpToolsListChanged();
+		}));
+
+		// Seed the inventory with any servers the SDK has already loaded by
+		// the time we attach. The `session.mcp_servers_loaded` event may
+		// have fired before our subscription (e.g. for restored sessions or
+		// when servers are configured at session-creation time), and there
+		// is no replay. Subsequent `applyAll` calls from the event are
+		// idempotent, so this safely converges either way.
+		this._seedMcpServersFromRpc();
+	}
+
+	/**
+	 * One-shot fetch of `rpc.mcp.list` at subscription time. Best-effort:
+	 * any failure is logged and the inventory simply stays empty until the
+	 * next live event arrives.
+	 */
+	private _seedMcpServersFromRpc(): void {
+		const mcpRpc = this._wrapper.session.rpc?.mcp;
+		if (!mcpRpc) {
+			// Older SDKs (and test mocks) may not expose the MCP RPC surface.
+			return;
+		}
+		mcpRpc.list().then(result => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._applyMcpServerList(result.servers);
+		}, err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to seed MCP server inventory`, err);
+		});
+	}
+
+	private _applyMcpServerList(servers: readonly { readonly name: string; readonly status: SdkMcpServerStatus; readonly error?: string }[]): void {
+		const sdkServers = servers
+			.map(s => this._toSdkMcpServer(s.name, s.status, s.error))
+			.filter(isDefined);
+		this._mcpCustomizations.applyAll(sdkServers);
+	}
+
+	/**
+	 * Broadcasts `notifications/tools/list_changed` for every MCP server
+	 * currently in the `Ready` state. The SDK's `session.tools_updated`
+	 * event is a coarse "tools refreshed" hint that doesn't identify
+	 * which server changed, so we fan out to all ready channels. Clients
+	 * are expected to refetch `tools/list` on each notification.
+	 */
+	private _fireMcpToolsListChanged(): void {
+		for (const { channel } of this._mcpCustomizations.readyChannels()) {
+			this._onMcpNotification.fire({
+				channel,
+				method: 'notifications/tools/list_changed',
+			});
+		}
+	}
+
+	/** Snapshot of MCP servers that have no plugin-derived child entry. */
+	topLevelMcpCustomizations() {
+		return this._mcpCustomizations.topLevelCustomizations();
+	}
+
+	/**
+	 * Translates the SDK's flat MCP status string into AHP's discriminated
+	 * {@link McpServerState} union. Returns `undefined` for
+	 * `not_configured`, which has no AHP equivalent — the server is
+	 * dropped from the inventory.
+	 *
+	 * V1 maps `needs-auth` to {@link McpServerStatus.Starting}: OAuth
+	 * handling is intentionally out of scope, so authRequired transitions
+	 * are masked as "still connecting" until the auth pipeline lands.
+	 */
+	private _toSdkMcpServer(name: string, status: SdkMcpServerStatus, error?: string): ISdkMcpServer | undefined {
+		const state = this._translateSdkMcpStatus(status, error);
+		if (!state) {
+			return undefined;
+		}
+		return { name, state };
+	}
+
+	private _translateSdkMcpStatus(status: SdkMcpServerStatus, error?: string): McpServerState | undefined {
+		switch (status) {
+			case 'connected':
+				return { kind: McpServerStatus.Ready };
+			case 'failed':
+				return {
+					kind: McpServerStatus.Error,
+					error: {
+						errorType: 'mcp-server-failed',
+						message: error ?? 'MCP server failed to start',
+					},
+				};
+			case 'pending':
+			case 'needs-auth':
+				// TODO: surface `needs-auth` as McpServerStatus.AuthRequired
+				// once OAuth wiring is in place.
+				return { kind: McpServerStatus.Starting };
+			case 'disabled':
+				return { kind: McpServerStatus.Stopped };
+			case 'not_configured':
+				return undefined;
+			default:
+				return undefined;
+		}
 	}
 
 	/**
@@ -2476,6 +2721,16 @@ export class CopilotAgentSession extends Disposable {
 			pending.deferred.complete({ approved: false });
 		}
 		this._pendingPlanReviews.clear();
+	}
+
+	private _cancelPendingMcpSamplings(): void {
+		const pending = Array.from(this._pendingMcpSamplings);
+		this._pendingMcpSamplings.clear();
+		for (const requestId of pending) {
+			this._wrapper.session.rpc.mcp.cancelSamplingExecution({ requestId }).catch(() => {
+				// Best-effort: SDK may have already torn down.
+			});
+		}
 	}
 
 	private _cancelPendingClientToolCalls(): void {

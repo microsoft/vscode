@@ -42,12 +42,9 @@ export function areDiscoveredDirectoriesEqual(a: readonly IDiscoveredDirectory[]
 		return false;
 	}
 
-	const sortedA = [...a].sort(compareDiscoveredDirectory);
-	const sortedB = [...b].sort(compareDiscoveredDirectory);
-
-	for (let i = 0; i < sortedA.length; i++) {
-		const left = sortedA[i];
-		const right = sortedB[i];
+	for (let i = 0; i < a.length; i++) {
+		const left = a[i];
+		const right = b[i];
 		if (left.type !== right.type || left.uri.toString() !== right.uri.toString() || !areDiscoveredFilesEqual(left.files, right.files)) {
 			return false;
 		}
@@ -69,12 +66,9 @@ function areDiscoveredFilesEqual(a: readonly IDiscoveredFile[], b: readonly IDis
 		return false;
 	}
 
-	const sortedA = [...a].sort(compareDiscoveredFile);
-	const sortedB = [...b].sort(compareDiscoveredFile);
-
-	for (let i = 0; i < sortedA.length; i++) {
-		const left = sortedA[i];
-		const right = sortedB[i];
+	for (let i = 0; i < a.length; i++) {
+		const left = a[i];
+		const right = b[i];
 		if (left.uri.toString() !== right.uri.toString() || left.etag !== right.etag) {
 			return false;
 		}
@@ -186,8 +180,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._watchRootUris.clear();
 		this._register(this._fileService.onDidFilesChange(e => {
-			for (const rootUri of this._watchRootUris.keys()) {
-				if (e.affects(rootUri)) {
+			for (const [uri, recursive] of this._watchRootUris.entries()) {
+				if (recursive ? e.affects(uri) : e.contains(uri)) {
 					this._scheduleRefresh();
 					break;
 				}
@@ -195,6 +189,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}));
 	}
 
+	/**
+	 * Returns the list of discovered customization directories and files in a sorted way.
+	 * The result is cached until a change is detected on disk or until {@link refresh} is called.
+	 */
 	directories(): Promise<readonly IDiscoveredDirectory[]> {
 		if (!this._cached) {
 			this._cached = this._scan();
@@ -232,7 +230,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 		]);
 
 		this._reconcileWatchers(nextWatchRootUris);
-		return result;
+		return result.sort(compareDiscoveredDirectory);
 	}
 
 	private _reconcileWatchers(nextWatchRootUris: ResourceMap<boolean>): void {
@@ -301,7 +299,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 		if (files.length > 0) {
-			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files });
+			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files: files.sort(compareDiscoveredFile) });
 		}
 	}
 
@@ -337,7 +335,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 		} else if (root.type === DiscoveredType.Agent) {
 			const files: IDiscoveredFile[] = [];
 			// agents are markdown files directly under the root (no subdirectory scanning),
@@ -351,7 +349,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 
 		} else if (root.type === DiscoveredType.Instruction) {
 			const files: IDiscoveredFile[] = [];
@@ -378,7 +376,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				}
 			};
 			await findInstructions(stat, 0);
-			result.push({ uri: rootUri, type: root.type, files });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 		} else {
 			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}

@@ -374,6 +374,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 						invocationMessage: action.invocationMessage,
 						toolInput: action.toolInput,
 						confirmed: action.confirmed,
+						_meta: action._meta ?? base._meta,
 					};
 				}
 				return {
@@ -384,6 +385,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 					confirmationTitle: action.confirmationTitle,
 					edits: action.edits,
 					editable: action.editable,
+					_meta: action._meta ?? base._meta,
 					...(action.options ? { options: action.options } : {}),
 				};
 			}));

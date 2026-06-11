@@ -264,6 +264,40 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(service.activeSession.get()?.sessionId, 'original');
 	});
 
+	test('getSessionForChatResource returns the session that owns the chat', () => {
+		const chatA: IChat = { ...stubChat, resource: URI.parse('test:///chat-a') };
+		const chatB: IChat = { ...stubChat, resource: URI.parse('test:///CHAT-B') };
+		const sessionA = stubSession({
+			sessionId: 'a',
+			providerId: 'test',
+			chats: constObservable([chatA]),
+			mainChat: constObservable(chatA),
+		});
+		const sessionB = stubSession({
+			sessionId: 'b',
+			providerId: 'test',
+			chats: constObservable([chatB]),
+			mainChat: constObservable(chatB),
+		});
+		const provider = new class extends TestSessionsProvider {
+			constructor() { super(sessionA); }
+			override getSessions(): ISession[] { return [sessionA, sessionB]; }
+		};
+		const { service } = createSessionsManagementService(sessionA, disposables, provider);
+
+		const ownedChat = service.getSessionForChatResource(URI.parse('test:///chat-b'));
+
+		assert.deepStrictEqual({
+			sessionId: ownedChat?.session.sessionId,
+			chat: ownedChat?.chat,
+			missing: service.getSessionForChatResource(URI.parse('test:///missing')),
+		}, {
+			sessionId: 'b',
+			chat: chatB,
+			missing: undefined,
+		});
+	});
+
 	test('restoreVisibleSessions waits for session to appear via onDidChangeSessions', async () => {
 		const targetSession = stubSession({ sessionId: 'target', providerId: 'test' });
 		const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
