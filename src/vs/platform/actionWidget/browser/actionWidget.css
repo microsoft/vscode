@@ -405,6 +405,36 @@
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
+/* Header banner */
+.action-widget .action-list-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 16px;
+	padding: 8px 10px;
+	margin: 2px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Give widgets with a header banner more room so the banner text reads well. */
+.action-widget:has(.action-list-header) {
+	min-width: 155px;
+}
+
+.action-widget .action-list-header .action-list-header-icon {
+	flex-shrink: 0;
+	font-size: 16px;
+	color: var(--vscode-notificationsInfoIcon-foreground);
+}
+
+.action-widget .action-list-header .action-list-header-text {
+	flex: 1;
+	font-size: 11px;
+}
+
 /* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;
