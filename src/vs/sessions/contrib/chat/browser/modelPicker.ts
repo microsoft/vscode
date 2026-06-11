@@ -48,6 +48,24 @@ function getModelPickerOptionsForSession(session: ISession | undefined, sessions
 	return provider?.getModelPickerOptions(session!.sessionId) ?? DEFAULT_MODEL_PICKER_OPTIONS;
 }
 
+/**
+ * Whether the session cannot currently produce a request because it has no
+ * selectable model and cannot fall back to Auto (its provider reports
+ * {@link ISessionModelPickerOptions.autoModelUnavailable}). Used to disable
+ * sending — e.g. the Claude agent for a Copilot Free / Student user shows
+ * "No models available" and must not send. Not reactive on its own; callers
+ * should re-evaluate when the language model registry changes.
+ */
+export function sessionHasNoSelectableModel(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): boolean {
+	if (!session) {
+		return false;
+	}
+	if (getModelsForSession(session, sessionsProvidersService).length > 0) {
+		return false;
+	}
+	return !!getModelPickerOptionsForSession(session, sessionsProvidersService).autoModelUnavailable;
+}
+
 const DEFAULT_MODEL_PICKER_OPTIONS: ISessionModelPickerOptions = {
 	useGroupedModelPicker: true,
 	showFeatured: true,
@@ -161,19 +179,26 @@ export class ModelPicker extends Disposable {
 		}
 
 		const models = getModelsForSession(session, this._sessionsProvidersService);
-		// When the Auto model is unavailable for this session type but it has no
-		// models (e.g. the Claude agent host for a Copilot Free / Student user),
-		// keep the picker visible so it can show a "No models available" state
-		// instead of disappearing.
-		const autoModelUnavailable = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).autoModelUnavailable;
-		const showPicker = models.length > 0 || autoModelUnavailable;
-		this._modelPicker.setEnabled(showPicker);
-		// Drive the picker's visibility directly from the provider's model
-		// list rather than mirroring this state into a context key. The picker
-		// hides itself when the active session's provider offers no models and
-		// does not require an explicit selection.
-		this._updateVisibility(showPicker);
+		// Always keep the model picker present in the input area. When there are
+		// no models, the shared widget renders a "No models available" state
+		// (with an upgrade prompt for Copilot Free / Student users on session
+		// types where Auto is unavailable) — so the picker must stay visible and
+		// clickable rather than disappearing.
+		this._modelPicker.setEnabled(true);
+		this._updateVisibility(true);
 		if (models.length === 0) {
+			// Clear any stale selection so the shared picker widget re-renders
+			// its label (it refreshes on `currentModel` changes). Without this a
+			// carried-over "Auto" selection would keep showing instead of the
+			// "No models available" empty state.
+			if (this._currentModel.get() !== undefined) {
+				this._settingModelInternally = true;
+				try {
+					this._currentModel.set(undefined, undefined);
+				} finally {
+					this._settingModelInternally = false;
+				}
+			}
 			return;
 		}
 
@@ -230,10 +255,7 @@ export class ModelPicker extends Disposable {
 	render(container: HTMLElement): void {
 		this._container = container;
 		this._modelPicker.render(container);
-		const session = this._session.get();
-		const hasModels = getModelsForSession(session, this._sessionsProvidersService).length > 0;
-		const autoModelUnavailable = !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).autoModelUnavailable;
-		this._updateVisibility(hasModels || autoModelUnavailable);
+		this._updateVisibility(true);
 	}
 
 	private _updateVisibility(hasModels: boolean): void {

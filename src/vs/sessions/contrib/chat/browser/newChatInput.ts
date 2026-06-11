@@ -594,6 +594,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
+		// Respect the same gate as the send button (e.g. a session with no
+		// usable model). The Enter keybinding and slash-command paths reach
+		// here directly, bypassing the button's disabled state.
+		if (!this.options.canSendRequest.get()) {
+			return;
+		}
+
 		// Check for slash commands first
 		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');

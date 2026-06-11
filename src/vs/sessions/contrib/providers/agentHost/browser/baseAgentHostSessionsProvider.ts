@@ -1801,28 +1801,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires custom models cannot fall back to Auto.
+		// When it has no models (e.g. the Claude agent host for a Copilot Free /
+		// Student user), the picker shows a "No models available" state instead of
+		// Auto. Derive this from the contribution's declarative `requiresCustomModels`
+		// flag (keyed by the session's resource scheme, which is the registered
+		// `agent-host-<provider>` chat session type) rather than hardcoding names.
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
+		const autoModelUnavailable = !!resourceScheme && this._chatSessionsService.requiresCustomModelsForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
-			// The Claude agent host serves Copilot-provided Anthropic models, which
-			// require a paid Copilot plan and cannot run on Auto. When the model
-			// list is empty (e.g. for a Copilot Free / Student user), keep the
-			// picker visible with a "No models available" state plus an upgrade
-			// prompt instead of hiding it.
-			autoModelUnavailable: this._resolveAgentProvider(sessionId) === 'claude',
+			autoModelUnavailable,
 		};
-	}
-
-	private _resolveAgentProvider(sessionId: string): string | undefined {
-		const newSession = this._getNewSession(sessionId);
-		if (newSession) {
-			return newSession.session.agentProvider;
-		}
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		return cached?.agentProvider;
 	}
 
 	private _resolveSessionResourceScheme(sessionId: string): string | undefined {

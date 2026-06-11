@@ -6,7 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -21,6 +21,9 @@ import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { sessionHasNoSelectableModel } from './modelPicker.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -64,6 +67,8 @@ export class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
@@ -84,12 +89,21 @@ export class NewChatWidget extends Disposable {
 			return activeSession;
 		});
 
+		// Recomputes when the language model registry changes so the
+		// no-available-model gate below re-evaluates as agent-host models
+		// (un)register.
+		const languageModelsChanged = observableFromEvent(this, this.languageModelsService.onDidChangeLanguageModels, () => undefined);
+
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
 				return false;
 			}
-			return !session.loading.read(reader);
+			if (session.loading.read(reader)) {
+				return false;
+			}
+			languageModelsChanged.read(reader);
+			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
 		});
 
 		const loading = derived(reader => {
