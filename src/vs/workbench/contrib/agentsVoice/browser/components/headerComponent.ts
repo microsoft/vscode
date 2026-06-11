@@ -105,8 +105,8 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 					class="codicon codicon-mic"
 					role="button"
 					tabindex="0"
-					aria-label="${localize('agentsVoice.pushToTalk', "Push to talk")}"
-					title="${localize('agentsVoice.pushToTalk', "Push to talk")}"
+					aria-label="${localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)")}"
+					title="${localize('agentsVoice.pushToTalkSpace', "Push to talk (Space)")}"
 					style="font-size:${FONT_SIZE.iconMd};color:${micColor};cursor:pointer;-webkit-app-region:no-drag;border-radius:4px;padding:2px;"
 					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
 					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = micColor; }}
