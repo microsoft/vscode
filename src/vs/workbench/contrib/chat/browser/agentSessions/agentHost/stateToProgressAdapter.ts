@@ -19,6 +19,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
 import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
@@ -116,7 +117,7 @@ export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
 }
 
-function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string | undefined): IChatProgress | undefined {
+function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string): IChatProgress | undefined {
 	if (!content) {
 		return undefined;
 	}
@@ -407,7 +408,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string | undefined): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage);
 	if (usage) {
@@ -559,7 +560,7 @@ function buildTerminalToolSpecificData(
 	};
 }
 
-function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined): IToolResultInputOutputDetails | undefined {
+function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined, includeMcpOutput: boolean, connectionAuthority: string): IToolResultInputOutputDetails | undefined {
 	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : tc.toolInput;
 	if (!toolInput) {
 		return undefined;
@@ -576,7 +577,7 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 					output.push({ type: 'embed', value: block.data, mimeType: block.contentType });
 					break;
 				case ToolResultContentType.Resource:
-					output.push({ type: 'ref', uri: URI.parse(block.uri), mimeType: block.contentType });
+					output.push({ type: 'ref', uri: wrapResourceUri(block.uri, connectionAuthority), mimeType: block.contentType });
 					break;
 			}
 		}
@@ -591,7 +592,84 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		inputLanguage: 'json',
 		output,
 		isError,
+		mcpOutput: includeMcpOutput ? toMcpCallToolResult(tc, isError, connectionAuthority) : undefined,
 	};
+}
+
+/**
+ * Builds a minimal {@link MCP.CallToolResult} from an agent-host tool call's
+ * content blocks so the chat MCP App webview can receive a
+ * `ui/notifications/tool-result` notification with the real tool output
+ * (see {@link chatMcpAppModel}). Agent-host tool completions only carry our
+ * own abstracted content shape (the raw MCP result is consumed by the
+ * Copilot CLI's MCP host and never surfaces back over the AHP), so we
+ * translate each AHP content block into the closest MCP content block:
+ *  - `Text` → `MCP.TextContent`
+ *  - `EmbeddedResource` with an image/audio MIME → `ImageContent`/`AudioContent`
+ *  - `EmbeddedResource` (other) → `EmbeddedResource` wrapping a synthetic
+ *    `data:` URI so MCP's resource shape is honored
+ *  - `Resource` (content ref) → `ResourceLink` to the referenced URI
+ */
+function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuthority: string): MCP.CallToolResult | undefined {
+	if (tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.Running) {
+		return undefined;
+	}
+	const content: MCP.ContentBlock[] = [];
+	for (const block of tc.content ?? []) {
+		const mcpBlock = toMcpContentBlock(block, connectionAuthority);
+		if (mcpBlock) {
+			content.push(mcpBlock);
+		}
+	}
+	if (content.length === 0 && !isError) {
+		return undefined;
+	}
+	return { content, isError: isError || undefined };
+}
+
+function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string): MCP.ContentBlock | undefined {
+	switch (block.type) {
+		case ToolResultContentType.Text:
+			return { type: 'text', text: block.text };
+		case ToolResultContentType.EmbeddedResource: {
+			if (block.contentType.startsWith('image/')) {
+				return { type: 'image', data: block.data, mimeType: block.contentType };
+			}
+			if (block.contentType.startsWith('audio/')) {
+				return { type: 'audio', data: block.data, mimeType: block.contentType };
+			}
+			return {
+				type: 'resource',
+				resource: {
+					uri: `data:${block.contentType};base64,${block.data}`,
+					mimeType: block.contentType,
+					blob: block.data,
+				},
+			};
+		}
+		case ToolResultContentType.Resource: {
+			const wrapped = wrapResourceUri(block.uri, connectionAuthority);
+			return {
+				type: 'resource_link',
+				name: basename(wrapped) || wrapped.toString(),
+				uri: wrapped.toString(),
+				mimeType: block.contentType,
+			};
+		}
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Wraps a tool-result resource URI (string) via {@link toAgentHostUri} so it
+ * resolves through the agent host filesystem provider on the client when the
+ * session is backed by a remote agent host. When there's no connection
+ * authority (local agent host), the URI is returned as-parsed.
+ */
+function wrapResourceUri(uri: string, connectionAuthority: string): URI {
+	const parsed = URI.parse(uri);
+	return connectionAuthority ? toAgentHostUri(parsed, connectionAuthority) : parsed;
 }
 
 function getToolErrorString(tc: ToolCallState): string | undefined {
@@ -608,7 +686,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
  */
-export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): IChatToolInvocationSerialized {
+export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
@@ -664,8 +742,9 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	const pastTenseMsg = isSuccess
 		? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg;
-	const resultDetails = !toolSpecificData && (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
-		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc))
+	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'input' && toolSpecificData.mcpAppData)
+		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
+		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
 
 	return {
@@ -901,7 +980,7 @@ function isSkillFileUri(uri: URI): boolean {
  * link URIs through {@link rewriteMarkdownLinks} when a connection authority
  * is provided.
  */
-export function rawMarkdownToString(content: string, connectionAuthority: string | undefined): MarkdownString {
+export function rawMarkdownToString(content: string, connectionAuthority: string): MarkdownString {
 	const rewritten = connectionAuthority ? rewriteMarkdownLinks(content, connectionAuthority) : content;
 	return new MarkdownString(rewritten);
 }
@@ -913,9 +992,9 @@ export function rawMarkdownToString(content: string, connectionAuthority: string
  * through {@link rewriteMarkdownLinks} so that remote resources resolve
  * through the agent host filesystem provider.
  */
-export function stringOrMarkdownToString(value: StringOrMarkdown, connectionAuthority: string | undefined): string | IMarkdownString;
-export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, connectionAuthority: string | undefined): string | IMarkdownString | undefined;
-export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, connectionAuthority: string | undefined): string | IMarkdownString | undefined {
+export function stringOrMarkdownToString(value: StringOrMarkdown, connectionAuthority: string): string | IMarkdownString;
+export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, connectionAuthority: string): string | IMarkdownString | undefined;
+export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, connectionAuthority: string): string | IMarkdownString | undefined {
 	if (value === undefined) {
 		return undefined;
 	}
@@ -933,7 +1012,7 @@ export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, co
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -1044,7 +1123,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
  * Called from the session handler when a tool transitions to Running state
  * to set the initial `toolSpecificData`, or when content changes arrive.
  */
-export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, sessionResource: URI, connectionAuthority: string | undefined): void {
+export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, sessionResource: URI, connectionAuthority: string): void {
 	if (tc.status !== ToolCallStatus.Running) {
 		return;
 	}
@@ -1125,7 +1204,7 @@ export interface IToolCallFileEdit {
  * Returns file edits that the caller should route through the editing
  * session's external edits pipeline.
  */
-export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolCallState, backendSession: URI, connectionAuthority: string | undefined): IToolCallFileEdit[] {
+export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolCallState, backendSession: URI, connectionAuthority: string): IToolCallFileEdit[] {
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
@@ -1191,11 +1270,12 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 
+	const hasMcpAppData = invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.mcpAppData;
 	const resultDetails = !isTerminal
 		&& invocation.toolSpecificData?.kind !== 'subagent'
 		&& getToolKind(tc) !== 'search'
 		&& fileEdits.length === 0
-		? getToolInputOutputDetails(tc, isFailure, errorString)
+		? getToolInputOutputDetails(tc, isFailure, errorString, hasMcpAppData, connectionAuthority)
 		: undefined;
 	const result: IToolResult | undefined = isFailure || resultDetails
 		? { content: [], toolResultError: isFailure ? errorString : undefined, toolResultDetails: resultDetails }

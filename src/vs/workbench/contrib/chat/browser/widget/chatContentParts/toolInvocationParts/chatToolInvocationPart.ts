@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -43,7 +43,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
 		if (this.mcpAppPart) {
-			codeblocks.push(...this.mcpAppPart.codeblocks);
+			codeblocks.push(...this.mcpAppPart.value?.codeblocks ?? []);
 		}
 		return codeblocks;
 	}
@@ -53,7 +53,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	}
 
 	private subPart!: BaseChatToolInvocationSubPart;
-	private mcpAppPart: ChatMcpAppSubPart | undefined;
+	private readonly mcpAppPart = this._register(new MutableDisposable<ChatMcpAppSubPart>());
 
 	private readonly _onDidRemount = this._register(new Emitter<void>());
 
@@ -103,15 +103,16 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				}
 			}));
 
-			appData = toolInvocation.toolSpecificDataKind.map((_, reader) => {
-				const data = this.getMcpAppRenderData();
-				if (!data) {
-					return undefined;
-				}
+			appData = toolInvocation.toolSpecificDataKind
+				.map(() => this.getMcpAppRenderData())
+				.map((data, reader) => {
+					if (!data) {
+						return undefined;
+					}
 
-				const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
-				return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
-			});
+					const outcome = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation, reader);
+					return !!outcome && outcome.type !== ToolConfirmKind.Denied && outcome.type !== ToolConfirmKind.Skipped ? data : undefined;
+				});
 		}
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
@@ -153,12 +154,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		this._register(autorun(r => {
 			const data = appData.read(r);
 			if (!data) {
-				this.mcpAppPart = undefined;
+				this.mcpAppPart.clear();
 				dom.clearNode(appDomNode);
 				return;
 			}
 
-			this.mcpAppPart = r.store.add(this.instantiationService.createInstance(
+			this.mcpAppPart.value = r.store.add(this.instantiationService.createInstance(
 				ChatMcpAppSubPart,
 				this.toolInvocation,
 				this._onDidRemount.event,
@@ -166,8 +167,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				data,
 			));
 
-			appDomNode.replaceWith(this.mcpAppPart.domNode);
-			appDomNode = this.mcpAppPart.domNode;
+			appDomNode.replaceWith(this.mcpAppPart.value.domNode);
+			appDomNode = this.mcpAppPart.value.domNode;
 		}));
 
 		render();
