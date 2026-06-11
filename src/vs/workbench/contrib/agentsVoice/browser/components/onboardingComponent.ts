@@ -46,7 +46,7 @@ export function renderOnboarding(props: OnboardingProps): TemplateResult {
 				</div>
 				<div style="display:flex;gap:10px;align-items:center;">
 					<span style="display:flex;justify-content:center;align-items:center;width:24px;flex-shrink:0;">
-						<span style="font-size:${FONT_SIZE.micro};padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;"
+						<span role="button" tabindex="0" aria-label="${localize('agentsVoice.changePttKey', "Change push-to-talk key")}" style="font-size:${FONT_SIZE.micro};padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;"
 							@click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPttKeySettings(e); }}>${pttKey}</span>
 					</span>
 					<span><strong>${pttDesc}</strong> ${pttHoldDesc} <a href="#" @click=${(e: MouseEvent) => { e.preventDefault(); props.onOpenPttKeySettings(e); }} style="color:var(--vscode-textLink-foreground);cursor:pointer;text-decoration:none;">${changeHotkey}</a> ${changeHotkeySuffix}</span>

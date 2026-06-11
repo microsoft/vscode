@@ -46,6 +46,9 @@ export function renderVoiceBar(props: VoiceBarProps): TemplateResult | typeof no
 			${isSpeaking ? html`
 				<span
 					class="codicon codicon-debug-stop"
+					role="button"
+					tabindex="0"
+					aria-label="${localize('agentsVoice.stopSpeech', "Stop speech")}"
 					style="font-size:${FONT_SIZE.body};color:var(--vscode-editorError-foreground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;"
 					@click=${(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); props.onStopSpeech(); }}></span>
 			` : nothing}

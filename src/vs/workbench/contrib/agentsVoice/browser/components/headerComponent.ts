@@ -53,6 +53,9 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 	const popoutTemplate = props.showPopout
 		? html`<span
 				class="codicon codicon-link-external"
+				role="button"
+				tabindex="0"
+				aria-label="${localize('agentsVoice.openMiniView', "Open mini-view")}"
 				title="${localize('agentsVoice.openMiniView', "Open mini-view")}"
 				style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;"
 				@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
@@ -62,6 +65,9 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 
 	const feedbackTemplate = html`<span
 			class="codicon codicon-feedback"
+			role="button"
+			tabindex="0"
+			aria-label="${localize('agentsVoice.sendFeedback', "Send feedback")}"
 			title="${localize('agentsVoice.sendFeedback', "Send feedback")}"
 			style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;"
 			@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
@@ -71,6 +77,9 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 	const closeTemplate = props.showClose
 		? html`<span
 				class="codicon codicon-chrome-minimize"
+				role="button"
+				tabindex="0"
+				aria-label="${localize('agentsVoice.minimize', "Minimize")}"
 				title="${localize('agentsVoice.minimize', "Minimize")}"
 				style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;"
 				@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
@@ -80,7 +89,11 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 
 	const connColor = props.isConnected ? 'var(--vscode-charts-green)' : 'var(--vscode-charts-orange)';
 
-	const connIndicator = html`<span class="voice-conn-indicator" title="${localize('agentsVoice.disconnect', "Disconnect")}"
+	const connIndicator = html`<span class="voice-conn-indicator"
+		role="button"
+		tabindex="0"
+		aria-label="${localize('agentsVoice.disconnect', "Disconnect")}"
+		title="${localize('agentsVoice.disconnect', "Disconnect")}"
 		@click=${props.onDisconnectClick}
 		style="display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;flex-shrink:0;padding:2px;">
 		<span class="voice-conn-dot codicon codicon-debug-connected" style="font-size:${FONT_SIZE.iconSm};color:${connColor};"></span>
@@ -104,6 +117,9 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 			${props.isConnected
 			? html`<span
 					class="codicon codicon-mic"
+					role="button"
+					tabindex="0"
+					aria-label="${localize('agentsVoice.pushToTalk', "Push to talk")}"
 					title="${localize('agentsVoice.pushToTalk', "Push to talk")}"
 					style="font-size:${FONT_SIZE.iconMd};color:${micColor};cursor:pointer;-webkit-app-region:no-drag;border-radius:4px;padding:2px;"
 					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
@@ -113,6 +129,9 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 			: nothing}
 			${props.isConnected && props.pttKeyLabel
 			? html`<span
+					role="button"
+					tabindex="0"
+					aria-label="${localize('agentsVoice.changePttKey', "Change push-to-talk key")}"
 					title="${localize('agentsVoice.changePttKey', "Change push-to-talk key")}"
 					style="font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;"
 					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; (e.target as HTMLElement).style.borderColor = 'var(--vscode-foreground)'; }}

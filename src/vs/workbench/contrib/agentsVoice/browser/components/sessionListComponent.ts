@@ -55,6 +55,10 @@ function renderSessionRow(session: SessionRowData, props: SessionListProps): Tem
 
 	return html`
 		<div
+			role="option"
+			tabindex="0"
+			aria-label="${session.label || 'Untitled session'}"
+			aria-selected="${isSelected}"
 			style="display:flex;align-items:center;gap:6px;height:28px;padding:0 4px;border-bottom:1px solid var(--vscode-editorGroup-border);flex-shrink:0;cursor:pointer;${rowBg}"
 			@click=${(e: MouseEvent) => {
 			e.preventDefault();
@@ -93,6 +97,9 @@ function renderSessionRow(session: SessionRowData, props: SessionListProps): Tem
 				<span data-role="actions" style="display:none;gap:4px;align-items:center;">
 					<span
 						class="codicon codicon-link-external"
+						role="button"
+						tabindex="0"
+						aria-label="${localize('agentsVoice.openSessionAction', "Open session")}"
 						style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px;"
 						@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
 						@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; }}
@@ -100,6 +107,9 @@ function renderSessionRow(session: SessionRowData, props: SessionListProps): Tem
 					${!session.isIdle ? html`
 						<span
 							class="codicon codicon-debug-stop"
+							role="button"
+							tabindex="0"
+							aria-label="${localize('agentsVoice.stopSessionAction', "Stop session")}"
 							style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px;"
 							@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-editorError-foreground)'; }}
 							@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; }}
@@ -138,6 +148,9 @@ export function renderSessionList(props: SessionListProps): TemplateResult {
 			<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-disabledForeground);text-transform:uppercase;letter-spacing:0.5px;font-weight:500;">${props.selectedTarget ? localize('agentsVoice.sendTo', "Send to") : localize('agentsVoice.sendToActive', "Send to (active)")}</span>
 			<span
 				class="codicon codicon-add"
+				role="button"
+				tabindex="0"
+				aria-label="${localize('agentsVoice.newSession', "New session")}"
 				style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px 2px;"
 				title="${localize('agentsVoice.newSession', "New session")}"
 				@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
