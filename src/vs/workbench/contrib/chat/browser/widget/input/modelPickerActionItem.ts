@@ -9,6 +9,7 @@ import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hov
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
@@ -18,6 +19,18 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ModelPickerWidget } from './chatModelPicker.js';
+
+/**
+ * Read/write access to a model's configuration (e.g. context size, thinking
+ * effort). Implemented either by the global {@link ILanguageModelsService} or by
+ * a per-editor override layer so that one editor's changes do not sync to other
+ * already-open editors. Structurally satisfied by `ILanguageModelsService`.
+ */
+export interface IModelConfigurationAccess {
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	getModelConfigurationActions(modelId: string): IAction[];
+}
 
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
@@ -34,6 +47,11 @@ export interface IModelPickerDelegate {
 	 * Free / Student users) instead of an Auto entry.
 	 */
 	autoModelUnavailable?(): boolean;
+	/**
+	 * Per-editor model configuration access. When omitted, the picker reads and
+	 * writes configuration through the global {@link ILanguageModelsService}.
+	 */
+	readonly modelConfiguration?: IModelConfigurationAccess;
 }
 
 /**
