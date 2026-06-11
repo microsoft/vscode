@@ -141,6 +141,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	// --- Internal state ---
 	private _pttHeld = false;
+	private _pttToggleMode = false;
 	private _pttCurrentTurnId = '';
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
@@ -149,6 +150,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _transcriptFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttMaxDurationTimer: ReturnType<typeof setTimeout> | undefined;
 	private static readonly _PTT_MAX_DURATION_MS = 5 * 60 * 1000;
+	/** Short-tap threshold: if the key is held for less than this, enter
+	 *  toggle mode where a second tap finishes the recording. */
+	private static readonly _PTT_TOGGLE_THRESHOLD_MS = 300;
 	private _delayedMicStopTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttWaitingForPlayback = false;
 
@@ -978,6 +982,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this.micCaptureService.stopCapture();
 		this.voiceClientService.disconnect();
 		this._pttHeld = false;
+		this._pttToggleMode = false;
 		this._isConnected.set(false, undefined);
 		this._voiceState.set('idle', undefined);
 		this._statusText.set('Tap to start', undefined);
@@ -1008,6 +1013,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// when the WS comes back, or fully stopped on terminal `disconnect()`.
 		this.ttsPlaybackService.closeContext();
 		this._pttHeld = false;
+		this._pttToggleMode = false;
 		this._isConnected.set(false, undefined);
 		this._isReconnecting.set(true, undefined);
 		this._voiceState.set('idle', undefined);
@@ -1016,6 +1022,14 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	pttDown(): void {
 		if (!this._isConnected.get()) { return; }
+
+		// Toggle mode: second tap finishes recording
+		if (this._pttToggleMode) {
+			this._pttToggleMode = false;
+			this._finishPtt();
+			return;
+		}
+
 		if (this._pttHeld) { return; }
 		this._pttHeld = true;
 		this._pttCurrentTurnId = generateUuid();
@@ -1068,6 +1082,19 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	pttUp(): void {
+		if (!this._pttHeld) { return; }
+
+		// Short tap: enter toggle mode — keep recording until next tap
+		const holdMs = this._telemetryPttDownMs ? Date.now() - this._telemetryPttDownMs : Infinity;
+		if (holdMs < VoiceSessionController._PTT_TOGGLE_THRESHOLD_MS) {
+			this._pttToggleMode = true;
+			return;
+		}
+
+		this._finishPtt();
+	}
+
+	private _finishPtt(): void {
 		if (!this._pttHeld) { return; }
 		this._pttHeld = false;
 		this._telemetryPttUpMs = Date.now();
