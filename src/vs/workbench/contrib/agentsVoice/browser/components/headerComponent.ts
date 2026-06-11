@@ -37,18 +37,7 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 		: props.voiceState === 'speaking' ? 'var(--vscode-agentsVoice-speakingForeground)'
 			: 'var(--vscode-descriptionForeground)';
 
-	const connBtnTemplate = props.isConnected
-		? nothing
-		: props.isConnecting
-			? html`<button
-				style="-webkit-app-region:no-drag;background:var(--vscode-scrollbarSlider-background);border:none;outline:none;color:var(--vscode-foreground);font-weight:500;cursor:default;font-size:${FONT_SIZE.body};padding:2px 10px;border-radius:3px;flex-shrink:0;line-height:1;"
-				>${localize('agentsVoice.connecting', "Connecting...")}</button>`
-			: html`<button
-				style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;outline:none;color:var(--vscode-button-foreground);font-weight:500;cursor:pointer;font-size:${FONT_SIZE.body};padding:2px 10px;border-radius:3px;flex-shrink:0;line-height:1;"
-				title="${localize('agentsVoice.connectTitle', "Connect to voice server")}"
-				@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.background = 'var(--vscode-button-hoverBackground)'; }}
-				@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.background = 'var(--vscode-button-background)'; }}
-				@click=${props.onConnectClick}>${localize('agentsVoice.connect', "Connect")}</button>`;
+	const connBtnTemplate = nothing;
 
 	const popoutTemplate = props.showPopout
 		? html`<span
@@ -101,8 +90,7 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 			${props.showCopilotIcon
 			? html`<img src=${props.copilotIconSrc} style="width:18px;height:18px;margin-right:4px;" />`
 			: nothing}
-			${props.isConnected
-			? html`<span
+			${html`<span
 					class="codicon codicon-mic"
 					role="button"
 					tabindex="0"
@@ -112,8 +100,7 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
 					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = micColor; }}
 					@mousedown=${props.onMicDown}
-					@mouseup=${props.onMicUp}></span>`
-			: nothing}
+					@mouseup=${props.onMicUp}></span>`}
 			${props.isConnected
 			? html`<span
 					class="codicon codicon-gear"

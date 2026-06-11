@@ -500,7 +500,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			showStatusCounters: false,
 			showCopilotIcon: false,
 			centerConnectButton: false,
-			title: localize('agentsVoice.voiceChatTitle', "Voice Chat"),
+			title: localize('agentsVoice.voiceChatTitle', "Voice Mode"),
 			focusable: true,
 			reshowOnboardingOnDisconnect: false,
 		});
