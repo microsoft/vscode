@@ -1827,7 +1827,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		const cts = new CancellationTokenSource();
 		this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token, 'VoiceSessionController#eagerLoad').then(ref => {
 			if (ref) {
-				this._eagerModelRefs.set(key, ref);
+				if (!this._isConnected.get()) {
+					ref.dispose();
+				} else {
+					this._eagerModelRefs.set(key, ref);
+				}
 			}
 			cts.dispose();
 		}, () => { cts.dispose(); });
