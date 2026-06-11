@@ -151,7 +151,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 }
 
 /**
- * Pure helper for building the dropdown actions shown by the **Add Models...** button.
+ * Pure helper for building the dropdown actions shown by the **Add Models** button.
  *
  * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
  * regardless of the other inputs so that the existing entitlement/managed-by-organization
@@ -160,7 +160,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 export function buildAddModelsDropdownActions(
 	configurableVendors: ILanguageModelProviderDescriptor[],
 	supportsAddingModels: boolean,
-	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => unknown,
+	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
 ): IAction[] {
 	if (!supportsAddingModels) {
 		return [];
