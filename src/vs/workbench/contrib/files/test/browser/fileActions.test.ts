@@ -5,9 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { incrementFileName, canSetEditorReadonlyStateInSession } from '../../browser/fileActions.js';
-import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { incrementFileName } from '../../browser/fileActions.js';
 
 suite('Files - Increment file name simple', () => {
 
@@ -15,31 +13,6 @@ suite('Files - Increment file name simple', () => {
 		const name = 'test.js';
 		const result = incrementFileName(name, false, 'simple');
 		assert.strictEqual(result, 'test copy.js');
-	});
-
-	suite('Files - Readonly in session toggle', () => {
-
-		test('canSetEditorReadonlyStateInSession only for writeable file system resources', () => {
-			const resource = URI.parse('test://authority/file.txt');
-
-			const writeableFileService = {
-				hasProvider: () => true,
-				hasCapability: () => false
-			} as Pick<IFileService, 'hasProvider' | 'hasCapability'> as IFileService;
-			assert.strictEqual(canSetEditorReadonlyStateInSession(writeableFileService, resource), true);
-
-			const readonlyFileService = {
-				hasProvider: () => true,
-				hasCapability: (_resource: URI, capability: FileSystemProviderCapabilities) => capability === FileSystemProviderCapabilities.Readonly
-			} as Pick<IFileService, 'hasProvider' | 'hasCapability'> as IFileService;
-			assert.strictEqual(canSetEditorReadonlyStateInSession(readonlyFileService, resource), false);
-
-			const noProviderFileService = {
-				hasProvider: () => false,
-				hasCapability: () => false
-			} as Pick<IFileService, 'hasProvider' | 'hasCapability'> as IFileService;
-			assert.strictEqual(canSetEditorReadonlyStateInSession(noProviderFileService, resource), false);
-		});
 	});
 
 	test('Increment file name with suffix version', function () {

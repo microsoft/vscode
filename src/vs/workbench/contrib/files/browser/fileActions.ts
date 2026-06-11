@@ -12,7 +12,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Action } from '../../../../base/common/actions.js';
 import { dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from '../common/files.js';
-import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
 import { IQuickInputService, ItemActivation } from '../../../../platform/quickinput/common/quickInput.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -1349,19 +1349,14 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const filesConfigurationService = accessor.get(IFilesConfigurationService);
-		const fileService = accessor.get(IFileService);
 
 		const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!fileResource || !canSetEditorReadonlyStateInSession(fileService, fileResource)) {
+		if (!fileResource) {
 			return;
 		}
 
 		await filesConfigurationService.updateReadonly(fileResource, this.newReadonlyState);
 	}
-}
-
-export function canSetEditorReadonlyStateInSession(fileService: IFileService, resource: URI): boolean {
-	return fileService.hasProvider(resource) && !fileService.hasCapability(resource, FileSystemProviderCapabilities.Readonly);
 }
 
 export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
