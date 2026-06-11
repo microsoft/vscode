@@ -113,6 +113,7 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
+		autoModelUnavailable?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -139,6 +140,7 @@ function callBuild(
 		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
+		opts.autoModelUnavailable ?? false,
 	);
 }
 
@@ -198,6 +200,40 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
+	});
+
+	test('autoModelUnavailable shows a disabled no-models entry instead of auto', () => {
+		const items = callBuild([], { autoModelUnavailable: true });
+		const actions = getActionItems(items);
+		// Exactly one entry: the early return must suppress Auto and the
+		// standalone "Manage Models" action (the helper always passes one).
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions[0].item?.id, 'noModels');
+		assert.strictEqual(actions[0].item?.enabled, false);
+	});
+
+	test('autoModelUnavailable attaches inline upgrade link for Free users', () => {
+		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Free });
+		const actions = getActionItems(items);
+		const noModels = actions.find(a => a.item?.id === 'noModels');
+		assert.ok(noModels, 'expected a no-models entry');
+		assert.ok(noModels!.description, 'expected an upgrade description for Free users');
+	});
+
+	test('autoModelUnavailable omits upgrade link for paid users', () => {
+		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Pro });
+		const actions = getActionItems(items);
+		const noModels = actions.find(a => a.item?.id === 'noModels');
+		assert.ok(noModels, 'expected a no-models entry');
+		assert.strictEqual(noModels!.description, undefined);
+	});
+
+	test('autoModelUnavailable with available models shows the models, not the empty state', () => {
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { autoModelUnavailable: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
+		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), true);
 	});
 
 	test('only auto model produces auto and manage models with separator', () => {

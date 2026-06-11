@@ -1800,12 +1800,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires custom models cannot fall back to Auto.
+		// When it has no models (e.g. the Claude agent host for a Copilot Free /
+		// Student user), the picker shows a "No models available" state instead of
+		// Auto. Derive this from the contribution's declarative `requiresCustomModels`
+		// flag (keyed by the session's resource scheme, which is the registered
+		// `agent-host-<provider>` chat session type) rather than hardcoding names.
+		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
+		const autoModelUnavailable = !!resourceScheme && this._chatSessionsService.requiresCustomModelsForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
+			autoModelUnavailable,
 		};
 	}
 
