@@ -312,6 +312,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getRootValue: () => undefined,
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
+		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
 	const environmentService = {
