@@ -88,6 +88,7 @@ import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatS
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, createModelConfigurationActions } from '../../../common/languageModels.js';
+import { computeStoredConfiguration, extractSchemaDefaults, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -1044,10 +1045,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Returns this editor's snapshot of the given model's configuration. The
 	 * resolution order, in line with how model selection is persisted, is:
 	 *   1. In-memory snapshot (this editor's live value).
-	 *   2. Scoped storage bucket keyed by `(location, sessionType)`.
+	 *   2. Scoped storage bucket keyed by `(location, sessionType)`. A present
+	 *      entry wins even when empty, since an empty entry records an explicit
+	 *      reset-to-default.
 	 *   3. The profile-global default from {@link ILanguageModelsService}
-	 *      (legacy/migration fallback for users who set a value before this
-	 *      scoping existed).
+	 *      (legacy/migration fallback, only used when there is no scoped entry).
 	 * The merged result (schema defaults + user overrides) is cached in
 	 * {@link _modelConfigurationOverrides} so subsequent reads are O(1).
 	 * See issue #320393.
@@ -1056,18 +1058,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let override = this._modelConfigurationOverrides.get(modelId);
 		if (!override) {
 			const bucket = this._readModelConfigurationBucket();
-			const stored = bucket[modelId];
-			if (stored) {
-				// Storage holds raw user values (defaults stripped); merge schema
-				// defaults back in so the result matches what the service returns.
-				const defaults = this._getModelSchemaDefaults(modelId);
-				override = { ...defaults, ...stored };
-			} else {
-				// Migration: no scoped value yet — seed from the profile-global
-				// default so existing setups carry over to this editor.
-				const seeded = this.languageModelsService.getModelConfiguration(modelId);
-				override = seeded ? { ...seeded } : {};
-			}
+			override = resolveModelConfiguration(
+				bucket[modelId],
+				this._getModelSchemaDefaults(modelId),
+				this.languageModelsService.getModelConfiguration(modelId),
+			);
 			this._modelConfigurationOverrides.set(modelId, override);
 		}
 		return Object.keys(override).length > 0 ? override : undefined;
@@ -1075,44 +1070,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private async _setModelConfigurationOverride(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
 		const current = this.getModelConfiguration(modelId) ?? {};
-		const merged = { ...current, ...values };
-		this._modelConfigurationOverrides.set(modelId, merged);
+		const schemaDefaults = this._getModelSchemaDefaults(modelId);
+		const stored = computeStoredConfiguration(current, values, schemaDefaults);
+
+		// In-memory snapshot keeps the full effective config (defaults + overrides).
+		this._modelConfigurationOverrides.set(modelId, { ...schemaDefaults, ...stored });
 
 		// Persist as the (location, sessionType)-scoped default for newly opened
-		// editors. Already-open editors in other (location, sessionType) buckets
-		// — or in this one — keep their own in-memory snapshot and are unaffected
-		// because nothing listens to storage changes for this key (mirrors how
-		// `setCurrentLanguageModel` persists the selected model).
-		const schemaDefaults = this._getModelSchemaDefaults(modelId);
-		const stripped: IStringDictionary<unknown> = {};
-		for (const [key, value] of Object.entries(merged)) {
-			if (schemaDefaults[key] !== value) {
-				stripped[key] = value;
-			}
-		}
-
+		// editors. The entry is stored even when empty so that an explicit
+		// reset-to-default is remembered and does not fall back to the
+		// profile-global value on the next read (see issue #320393). Already-open
+		// editors in other (location, sessionType) buckets — or in this one — keep
+		// their own in-memory snapshot and are unaffected because nothing listens
+		// to storage changes for this key (mirrors how `setCurrentLanguageModel`
+		// persists the selected model).
 		const bucket = this._readModelConfigurationBucket();
-		if (Object.keys(stripped).length === 0) {
-			delete bucket[modelId];
-		} else {
-			bucket[modelId] = stripped;
-		}
+		bucket[modelId] = stored;
 		this._writeModelConfigurationBucket(bucket);
 
 		this._onDidChangeModelConfiguration.fire(modelId);
 	}
 
 	private _getModelSchemaDefaults(modelId: string): IStringDictionary<unknown> {
-		const schema = this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema;
-		const defaults: IStringDictionary<unknown> = {};
-		if (schema?.properties) {
-			for (const [key, propSchema] of Object.entries(schema.properties)) {
-				if (propSchema.default !== undefined) {
-					defaults[key] = propSchema.default;
-				}
-			}
-		}
-		return defaults;
+		return extractSchemaDefaults(this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
 	}
 
 	private getModelConfigurationStorageKey(): string {
