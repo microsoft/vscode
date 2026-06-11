@@ -1104,16 +1104,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _readModelConfigurationBucket(): { [modelId: string]: IStringDictionary<unknown> } {
+		// Use a null-prototype dictionary: model identifiers originate from
+		// (extension-contributed) providers, so a key like `__proto__` or
+		// `constructor` must not be read as an inherited member or mutate the
+		// bucket's prototype on write.
+		const result: { [modelId: string]: IStringDictionary<unknown> } = Object.create(null);
 		const raw = this.storageService.get(this.getModelConfigurationStorageKey(), StorageScope.APPLICATION);
 		if (!raw) {
-			return {};
+			return result;
 		}
 		try {
 			const parsed = JSON.parse(raw);
-			return (parsed && typeof parsed === 'object') ? parsed : {};
+			if (parsed && typeof parsed === 'object') {
+				for (const [modelId, entry] of Object.entries(parsed)) {
+					// Only accept plain-object per-model entries.
+					if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+						result[modelId] = entry as IStringDictionary<unknown>;
+					}
+				}
+			}
 		} catch {
-			return {};
+			// Ignore malformed JSON and fall back to an empty bucket.
 		}
+		return result;
 	}
 
 	private _writeModelConfigurationBucket(bucket: { [modelId: string]: IStringDictionary<unknown> }): void {
