@@ -24,8 +24,8 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../.
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { IActiveSession, ISessionReplaceEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -105,6 +105,7 @@ suite('LayoutController', () => {
 	const store = new DisposableStore();
 	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
 	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
+	let onWillReplaceSession: Emitter<ISessionReplaceEvent>;
 	let onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	let onDidSubmitRequest: Emitter<{ chatSessionResource: URI }>;
 	let storageService: TestStorageService;
@@ -113,6 +114,8 @@ suite('LayoutController', () => {
 	let openedViews: string[];
 	let setPartHiddenCalls: { hidden: boolean; part: Parts }[];
 	let activePaneCompositeId: string | undefined;
+	let visibleEditorsRef: { value: number };
+	let appliedWorkingSets: (IEditorWorkingSet | 'empty')[];
 
 	interface ICreateOptions {
 		readonly useModal?: 'off' | 'some' | 'all';
@@ -135,10 +138,12 @@ suite('LayoutController', () => {
 
 		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		onWillReplaceSession = store.add(new Emitter<ISessionReplaceEvent>());
 
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override readonly onWillReplaceSession = onWillReplaceSession.event;
 			override getSessions() { return []; }
 		});
 		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {
@@ -199,13 +204,18 @@ suite('LayoutController', () => {
 			}
 		});
 
+		visibleEditorsRef = { value: 0 };
 		instaService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override get visibleEditors() { return []; }
+			override get visibleEditors() { return new Array(visibleEditorsRef.value); }
 		});
 
+		appliedWorkingSets = [];
 		instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override saveWorkingSet(name: string): IEditorWorkingSet { return { id: name, name }; }
-			override async applyWorkingSet() { return true; }
+			override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
+				appliedWorkingSets.push(workingSet);
+				return true;
+			}
 			override deleteWorkingSet() { }
 		});
 
@@ -450,6 +460,48 @@ suite('LayoutController', () => {
 		});
 	});
 
+	// --- Editor working sets ---
+
+	test('keeps editors open across an untitled→committed session replacement', async () => {
+		createLayoutController({ useModal: 'some' });
+
+		// User opens an untitled session and pins a couple of editors (e.g. the
+		// AI customizations editor) into the main editor area.
+		const noWorkspace = { uri: URI.file('/x'), label: 't', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+		const untitled = makeSession(URI.parse('untitled-session:1'), { status: SessionStatus.Untitled, workspace: noWorkspace });
+		activeSessionObs.set(untitled, undefined);
+		visibleEditorsRef.value = 2;
+
+		// Provider commits the untitled session to a real backend session:
+		// `onWillReplaceSession` fires synchronously, then the active session
+		// observable swaps to the committed session (mirrors the production
+		// `SessionsManagementService.onDidReplaceSession` ordering).
+		const committed = makeSession(URI.parse('committed-session:abc'), { workspace: noWorkspace });
+		appliedWorkingSets = [];
+		onWillReplaceSession.fire({ from: untitled, to: committed });
+		activeSessionObs.set(committed, undefined);
+
+		// `applyWorkingSet('empty')` would have closed the editors — the fix
+		// makes the replacement-driven swap a no-op for working sets.
+		assert.deepStrictEqual(appliedWorkingSets, [], 'no working set should be applied on replacement');
+	});
+
+	test('applies working set on user-initiated session switch', async () => {
+		createLayoutController({ useModal: 'some' });
+
+		const noWorkspace = { uri: URI.file('/x'), label: 't', icon: Codicon.repo, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+		const session1 = makeSession(URI.parse('session:1'), { workspace: noWorkspace });
+		const session2 = makeSession(URI.parse('session:2'), { workspace: noWorkspace });
+
+		activeSessionObs.set(session1, undefined);
+		appliedWorkingSets = [];
+		activeSessionObs.set(session2, undefined);
+
+		// Sanity check: a regular session switch should still drive an
+		// applyWorkingSet call (the fix must not regress this path).
+		assert.strictEqual(appliedWorkingSets.length, 1, 'applyWorkingSet should be called on normal session switch');
+	});
+
 	test('migrates legacy sessions.workingSets key', () => {
 		const legacyData = JSON.stringify([{
 			sessionResource: 'session:legacy',
@@ -468,6 +520,7 @@ suite('LayoutController', () => {
 		instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSession;
 			override readonly onDidChangeSessions = Event.None;
+			override readonly onWillReplaceSession = Event.None;
 			override getSessions() { return []; }
 		});
 		instaService.stub(ISessionsViewService, new class extends mock<ISessionsViewService>() {

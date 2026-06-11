@@ -22,8 +22,8 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { IActiveSession, ISessionReplaceEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
@@ -63,6 +63,15 @@ export class LayoutController extends Disposable {
 	private readonly _panelVisibilityBySession = new ResourceMap<boolean>();
 	private readonly _viewStateBySession: ResourceMap<ISessionViewState>;
 	private readonly _workingSets: ResourceMap<IEditorWorkingSet>;
+	/**
+	 * In-flight session replacements (e.g. an untitled session being committed
+	 * to a real backend session). Populated by the `onWillReplaceSession`
+	 * subscription and consumed by the working-set `runOnChange` callback so
+	 * the active-session swap that follows a replace does not get treated as
+	 * a user-initiated session navigation. Keys are the `from.resource` of
+	 * the replace; values are the `to.resource`.
+	 */
+	private readonly _pendingReplacements = new ResourceMap<URI>();
 	private readonly _workingSetSequencer = new Sequencer();
 	private readonly _useModalConfigObs;
 
@@ -290,8 +299,27 @@ export class LayoutController extends Disposable {
 
 			// Session changed (save, apply)
 			reader.store.add(runOnChange(activeSessionForWorkingSet, (session, previousSession) => {
-				// Save working set for previous session (skip for untitled sessions)
-				if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
+				// Skip both save and apply for in-place session replacements
+				// (e.g. an untitled session being committed to a real backend
+				// session after its first turn). The `onWillReplaceSession`
+				// handler in the constructor already migrated the resource-
+				// keyed state from `from.resource` to `to.resource`, and the
+				// workbench editors that were open under the untitled session
+				// should remain in place — saving here would persist them
+				// under the now-orphan untitled URI, and applying here would
+				// (when no working set is present) call `applyWorkingSet
+				// ('empty')` and close every editor, including any AI
+				// customizations editor the user had open.
+				if (previousSession && session) {
+					const expectedTo = this._pendingReplacements.get(previousSession.resource);
+					if (expectedTo && isEqual(expectedTo, session.resource)) {
+						this._pendingReplacements.delete(previousSession.resource);
+						return;
+					}
+				}
+
+				// Save working set for previous session.
+				if (previousSession) {
 					this._saveWorkingSet(previousSession.resource);
 				}
 
@@ -311,6 +339,35 @@ export class LayoutController extends Disposable {
 				}
 			}));
 		}));
+
+		// Session replacements (e.g. untitled→committed) must remap all
+		// resource-keyed per-session state from `from.resource` to
+		// `to.resource` BEFORE the `activeSession` observable swaps —
+		// `onWillReplaceSession` fires synchronously before the swap so this
+		// listener runs first. Registered outside the `useModal` autorun so
+		// the state stays consistent across `useModal` toggles.
+		this._register(this._sessionManagementService.onWillReplaceSession(e => this._onWillReplaceSession(e)));
+	}
+
+	private _onWillReplaceSession({ from, to }: ISessionReplaceEvent): void {
+		if (isEqual(from.resource, to.resource)) {
+			return;
+		}
+
+		this._pendingReplacements.set(from.resource, to.resource);
+		this._remapResourceKey(this._workingSets, from.resource, to.resource);
+		this._remapResourceKey(this._viewStateBySession, from.resource, to.resource);
+		this._remapResourceKey(this._panelVisibilityBySession, from.resource, to.resource);
+		this._remapResourceKey(this._pendingTurnStateByResource, from.resource, to.resource);
+	}
+
+	private _remapResourceKey<T>(map: ResourceMap<T>, from: URI, to: URI): void {
+		const value = map.get(from);
+		if (value === undefined) {
+			return;
+		}
+		map.delete(from);
+		map.set(to, value);
 	}
 
 	// --- Auxiliary bar ---

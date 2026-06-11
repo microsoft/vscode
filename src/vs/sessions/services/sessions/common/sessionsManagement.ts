@@ -88,6 +88,20 @@ export interface IToggleSessionStickinessEvent {
 }
 
 /**
+ * Payload for {@link ISessionsManagementService.onWillReplaceSession}.
+ *
+ * Fired when an existing session is replaced in-place by another (e.g. an
+ * untitled session being replaced by its committed backend session after the
+ * first turn). The `from` and `to` sessions typically have different
+ * {@link ISession.resource} (and possibly different {@link ISession.sessionId})
+ * values.
+ */
+export interface ISessionReplaceEvent {
+	readonly from: ISession;
+	readonly to: ISession;
+}
+
+/**
  * An active session extends {@link ISession} with the currently focused chat.
  */
 export interface IActiveSession extends ISession {
@@ -165,6 +179,18 @@ export interface ISessionsManagementService {
 	 * Fires when sessions change across any provider.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+
+	/**
+	 * Fires synchronously immediately before an existing session is replaced
+	 * by another (e.g. an untitled session being replaced by its committed
+	 * backend session). Listeners run BEFORE the {@link activeSession}
+	 * observable swaps to the new session, so they can migrate any
+	 * resource-keyed state from {@link ISessionReplaceEvent.from} to
+	 * {@link ISessionReplaceEvent.to} before downstream observers react to
+	 * the swap.
+	 */
+	readonly onWillReplaceSession: Event<ISessionReplaceEvent>;
+
 	/**
 	 * Fires when a brand-new session is started by this window via
 	 * {@link sendNewChatRequest}.
