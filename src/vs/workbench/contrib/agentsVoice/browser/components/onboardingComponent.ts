@@ -19,7 +19,7 @@ const ONBOARDING_FONT = '13px';
 const ONBOARDING_ICON_LG = '18px';
 
 export function renderOnboarding(props: OnboardingProps): TemplateResult {
-	const pttKey = props.pttKeyLabel ?? localize('agentsVoice.configureKeybinding', "Configure keybinding");
+	const pttKey = props.pttKeyLabel ?? 'Space';
 	const buttonLabel = props.isConnecting ? localize('agentsVoice.connecting', "Connecting…") : localize('agentsVoice.getStarted', "Get Started");
 	const buttonDisabled = props.isConnecting;
 
@@ -27,7 +27,7 @@ export function renderOnboarding(props: OnboardingProps): TemplateResult {
 	const welcomeDesc = localize('agentsVoice.welcomeDesc', "Speak to an assistant that controls multiple coding agents at once. Get notified when work is done or input is needed.");
 	const pttDesc = localize('agentsVoice.pttDesc', "Push-to-talk");
 	const pttHoldDesc = localize('agentsVoice.pttHoldDesc', "— hold the key while speaking, release when done.");
-	const changeHotkey = localize('agentsVoice.changeHotkey', "Change the hotkey");
+	const changeHotkey = localize('agentsVoice.configureHotkey', "Configure a keybinding");
 	const changeHotkeySuffix = localize('agentsVoice.changeHotkeySuffix', "to use it from any app.");
 	const feedbackDesc = localize('agentsVoice.feedbackDesc', "Use the feedback icon to help us improve your experience.");
 	const miniViewLink = localize('agentsVoice.openMiniView', "Open the mini-view");
