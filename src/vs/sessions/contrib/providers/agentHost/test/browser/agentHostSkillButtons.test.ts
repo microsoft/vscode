@@ -62,8 +62,10 @@ function makeActiveSession(providerId: string): IActiveSession {
 		description: chat.description,
 		chats: observableValue('chats', [chat]),
 		activeChat: observableValue('ac', chat),
-		mainChat: chat,
+		mainChat: constObservable(chat),
 		capabilities: { supportsMultipleChats: false },
+		isCreated: observableValue('isCreated', true),
+		sticky: observableValue('sticky', false),
 	} satisfies IActiveSession;
 }
 
@@ -80,7 +82,7 @@ class FakeNonAgentHostProvider {
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() {
 	declare readonly _serviceBrand: undefined;
 	override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-	setActive(s: IActiveSession | undefined): void {
+	override setActiveSession(s: IActiveSession | undefined): void {
 		this.activeSession.set(s, undefined);
 	}
 }
@@ -126,20 +128,20 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 	test('is true when active session comes from an agent-host provider', () => {
 		const { contextKeyService, sessions, providers } = setup();
 		providers.register(new FakeAgentHostProvider('local-agent-host'));
-		sessions.setActive(makeActiveSession('local-agent-host'));
+		sessions.setActiveSession(makeActiveSession('local-agent-host'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(IsAgentHostSession.key), true);
 	});
 
 	test('is false when active session comes from a non agent-host provider', () => {
 		const { contextKeyService, sessions, providers } = setup();
 		providers.register(new FakeNonAgentHostProvider('copilot-cloud-agent'));
-		sessions.setActive(makeActiveSession('copilot-cloud-agent'));
+		sessions.setActiveSession(makeActiveSession('copilot-cloud-agent'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(IsAgentHostSession.key), false);
 	});
 
 	test('is false when active session references an unknown provider', () => {
 		const { contextKeyService, sessions } = setup();
-		sessions.setActive(makeActiveSession('no-such-provider'));
+		sessions.setActiveSession(makeActiveSession('no-such-provider'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(IsAgentHostSession.key), false);
 	});
 
@@ -148,13 +150,13 @@ suite('agentHostSkillButtons - IsAgentHostSession context key', () => {
 		providers.register(new FakeAgentHostProvider('local-agent-host'));
 		providers.register(new FakeNonAgentHostProvider('copilot-cloud-agent'));
 
-		sessions.setActive(makeActiveSession('local-agent-host'));
+		sessions.setActiveSession(makeActiveSession('local-agent-host'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(IsAgentHostSession.key), true);
 
-		sessions.setActive(makeActiveSession('copilot-cloud-agent'));
+		sessions.setActiveSession(makeActiveSession('copilot-cloud-agent'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(IsAgentHostSession.key), false);
 
-		sessions.setActive(undefined);
+		sessions.setActiveSession(undefined);
 		assert.strictEqual(contextKeyService.getContextKeyValue(IsAgentHostSession.key), false);
 	});
 });

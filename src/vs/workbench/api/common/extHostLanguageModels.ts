@@ -225,6 +225,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					inputCost: m.inputCost,
 					outputCost: m.outputCost,
 					cacheCost: m.cacheCost,
+					longContextInputCost: m.longContextInputCost,
+					longContextOutputCost: m.longContextOutputCost,
+					longContextCacheCost: m.longContextCacheCost,
 					priceCategory: m.priceCategory,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
@@ -385,21 +388,29 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return undefined;
 		}
 
-		let model = this._localModels.get(modelId);
-		if (!model) {
+		if (!this._localModels.has(modelId)) {
 			// model gone? is this an error on us? Try to resolve model again
-			this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache. Trying to resolve model again.`);
 			const vendor = this.getVendorFromModelIdentifier(modelId);
 			if (!vendor) {
 				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not extract vendor from model identifier '${modelId}'.`);
 				return undefined;
 			}
-			await this.selectLanguageModels(extension, { vendor });
-			model = this._localModels.get(modelId);
-			if (!model) {
+			this._logService.trace(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache. Trying to resolve model again.`);
+			// Call proxy directly: routing through `selectLanguageModels` would recurse here for every identifier and blow up when the cache stays empty (provider in another ext host).
+			await this._proxy.$selectChatModels({ vendor, extension: extension.identifier });
+			if (!this._localModels.has(modelId)) {
 				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache after re-resolving models.`);
 				return undefined;
 			}
+		}
+
+		return this._createLanguageModelChatApi(extension, modelId);
+	}
+
+	private async _createLanguageModelChatApi(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
+		const model = this._localModels.get(modelId);
+		if (!model) {
+			return undefined;
 		}
 
 		// make sure auth information is correct
@@ -407,43 +418,42 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			await this._fakeAuthPopulate(model.metadata);
 		}
 
-		let apiObject: vscode.LanguageModelChat | undefined;
-		if (!apiObject) {
-			const that = this;
-			apiObject = {
-				id: model.info.id,
-				vendor: model.metadata.vendor,
-				family: model.info.family,
-				version: model.info.version,
-				name: model.info.name,
-				pricing: model.metadata.pricing,
-				inputCost: model.metadata.inputCost,
-				outputCost: model.metadata.outputCost,
-				cacheCost: model.metadata.cacheCost,
-				priceCategory: model.metadata.priceCategory,
-				capabilities: {
-					supportsImageToText: model.metadata.capabilities?.vision ?? false,
-					supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
-					editToolsHint: model.metadata.capabilities?.editTools,
-				},
-				maxInputTokens: model.metadata.maxInputTokens,
-				countTokens(text, token) {
-					if (!that._localModels.has(modelId)) {
-						throw extHostTypes.LanguageModelError.NotFound(modelId);
-					}
-					return that._computeTokenLength(modelId, text, token ?? CancellationToken.None);
-				},
-				sendRequest(messages, options, token) {
-					if (!that._localModels.has(modelId)) {
-						throw extHostTypes.LanguageModelError.NotFound(modelId);
-					}
-					return that._sendChatRequest(extension, modelId, messages, options ?? {}, token ?? CancellationToken.None);
+		const that = this;
+		const apiObject: vscode.LanguageModelChat = {
+			id: model.info.id,
+			vendor: model.metadata.vendor,
+			family: model.info.family,
+			version: model.info.version,
+			name: model.info.name,
+			pricing: model.metadata.pricing,
+			inputCost: model.metadata.inputCost,
+			outputCost: model.metadata.outputCost,
+			cacheCost: model.metadata.cacheCost,
+			longContextInputCost: model.metadata.longContextInputCost,
+			longContextOutputCost: model.metadata.longContextOutputCost,
+			longContextCacheCost: model.metadata.longContextCacheCost,
+			priceCategory: model.metadata.priceCategory,
+			capabilities: {
+				supportsImageToText: model.metadata.capabilities?.vision ?? false,
+				supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
+				editToolsHint: model.metadata.capabilities?.editTools,
+			},
+			maxInputTokens: model.metadata.maxInputTokens,
+			countTokens(text, token) {
+				if (!that._localModels.has(modelId)) {
+					throw extHostTypes.LanguageModelError.NotFound(modelId);
 				}
-			};
+				return that._computeTokenLength(modelId, text, token ?? CancellationToken.None);
+			},
+			sendRequest(messages, options, token) {
+				if (!that._localModels.has(modelId)) {
+					throw extHostTypes.LanguageModelError.NotFound(modelId);
+				}
+				return that._sendChatRequest(extension, modelId, messages, options ?? {}, token ?? CancellationToken.None);
+			}
+		};
 
-			Object.freeze(apiObject);
-		}
-
+		Object.freeze(apiObject);
 		return apiObject;
 	}
 
@@ -452,17 +462,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		// this triggers extension activation
 		const models = await this._proxy.$selectChatModels({ ...selector, extension: extension.identifier });
 
-		const result: vscode.LanguageModelChat[] = [];
-
-		const modelPromises = models.map(identifier => this.getLanguageModelByIdentifier(extension, identifier));
-		const modelResults = await Promise.all(modelPromises);
-		for (const model of modelResults) {
-			if (model) {
-				result.push(model);
-			}
-		}
-
-		return result;
+		// Skip the warn/retry path in `getLanguageModelByIdentifier`: identifiers are fresh, so a missing local entry means the provider lives in another ext host and re-resolving will not help.
+		const modelResults = await Promise.all(models.map(identifier => this._createLanguageModelChatApi(extension, identifier)));
+		return modelResults.filter((m): m is vscode.LanguageModelChat => !!m);
 	}
 
 	private async _sendChatRequest(extension: IExtensionDescription, languageModelId: string, messages: vscode.LanguageModelChatMessage2[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken) {
@@ -517,6 +519,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (data) {
 			data.res.handleResponsePart(chunk.value);
 		}
+	}
+
+	$onChatModelsChange(): void {
+		this._onDidChangeProviders.fire();
 	}
 
 	async $acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void> {

@@ -6,14 +6,17 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { AICustomizationPromptsStorage, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
+import { CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../../common/enablement.js';
 import type { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -35,13 +38,13 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 	PromptsStorage.plugin,
-	PromptsStorage.extension,
+	PromptsStorage.extension
 ];
 
 export interface ILocalCustomizationFile {
 	readonly uri: URI;
 	readonly type: PromptsType;
-	readonly storage: AICustomizationPromptsStorage;
+	readonly source: AICustomizationSource;
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
@@ -73,13 +76,13 @@ export async function enumerateLocalCustomizationsForHarness(
 			SYNCABLE_STORAGE_SOURCES.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
-			const storage = SYNCABLE_STORAGE_SOURCES[i];
+			const source = SYNCABLE_STORAGE_SOURCES[i];
 			for (const file of lists[i]) {
 				if (matchesSessionType(file.sessionTypes, sessionType)) {
 					result.push({
 						uri: file.uri,
 						type,
-						storage,
+						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
 						disabled: syncProvider.isDisabled(file.uri),
@@ -110,7 +113,7 @@ export async function enumerateLocalCustomizationsForHarness(
 			result.push({
 				uri: file.uri,
 				type: PromptsType.skill,
-				storage: BUILTIN_STORAGE,
+				source: BUILTIN_STORAGE,
 				disabled: syncProvider.isDisabled(file.uri),
 			});
 		}
@@ -128,24 +131,46 @@ export async function enumerateLocalCustomizationsForHarness(
  * remaining loose files are bundled into a synthetic Open Plugin.
  */
 export async function resolveCustomizationRefs(
+	fileService: IFileService,
 	promptsService: IPromptsService,
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
 	bundler: SyncedCustomizationBundler,
 	sessionType: string,
-): Promise<CustomizationRef[]> {
+): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
 	const enabled = enumerated.filter(e => !e.disabled);
-	if (enabled.length === 0) {
-		return [];
-	}
 
 	const plugins = agentPluginService.plugins.get();
-	const pluginRefs = new Map<string, CustomizationRef>();
+	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
 	const looseFiles: { uri: URI; type: PromptsType }[] = [];
 
+	const addPluginRef = (plugin: IAgentPlugin) => {
+		const key = plugin.uri.toString();
+		if (!pluginRefs.has(key)) {
+			const promise = (async (): Promise<ClientPluginCustomization> => {
+				let nonce: number | undefined;
+				try {
+					nonce = (await fileService.stat(plugin.uri)).mtime;
+				} catch {
+					// ignored, sync will probably fail later though...
+				}
+
+				return {
+					type: CustomizationType.Plugin,
+					id: customizationId(key),
+					uri: key as ProtocolURI,
+					name: plugin.label,
+					nonce: nonce?.toString(16),
+					enabled: true,
+				};
+			})();
+			pluginRefs.set(key, promise);
+		}
+	};
+
 	for (const entry of enabled) {
-		if (entry.storage === PromptsStorage.plugin) {
+		if (entry.source === AICustomizationSources.plugin) {
 			const plugin = plugins.find(p => isEqualOrParent(entry.uri, p.uri));
 			if (!plugin) {
 				continue;
@@ -153,21 +178,34 @@ export async function resolveCustomizationRefs(
 			if (syncProvider.isDisabled(plugin.uri)) {
 				continue;
 			}
-			const key = plugin.uri.toString();
-			if (!pluginRefs.has(key)) {
-				pluginRefs.set(key, { uri: key as ProtocolURI, displayName: plugin.label });
-			}
+			addPluginRef(plugin);
 		} else {
 			looseFiles.push({ uri: entry.uri, type: entry.type });
 		}
 	}
 
-	const refs: CustomizationRef[] = [...pluginRefs.values()];
-	if (looseFiles.length > 0) {
-		const result = await bundler.bundle(looseFiles);
-		if (result) {
-			refs.push(result.ref);
+	// Plugins that only contribute MCP servers have no prompt files, so they
+	// are never surfaced by enumeration above. Include them explicitly so
+	// their servers are still synced to the harness.
+	for (const plugin of plugins) {
+		if (pluginRefs.has(plugin.uri.toString())) {
+			continue;
 		}
+		if (syncProvider.isDisabled(plugin.uri)) {
+			continue;
+		}
+		if (!isContributionEnabled(plugin.enablement.get())) {
+			continue;
+		}
+		if (plugin.mcpServerDefinitions.get().length === 0) {
+			continue;
+		}
+		addPluginRef(plugin);
 	}
-	return refs;
+
+	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
+	if (looseFiles.length > 0) {
+		refs.push(bundler.bundle(looseFiles).then(r => r?.ref));
+	}
+	return await Promise.all(refs).then(r => r.filter(isDefined));
 }

@@ -27,6 +27,13 @@ export interface IModelPickerDelegate {
 	showManageModelsAction(): boolean;
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
+	/**
+	 * Whether the Auto model is unavailable for the current session, so it cannot
+	 * fall back to Auto. When true and {@link getModels} is empty, the picker
+	 * shows a "No models available" entry (and an upgrade prompt for Copilot
+	 * Free / Student users) instead of an Auto entry.
+	 */
+	autoModelUnavailable?(): boolean;
 }
 
 /**
@@ -51,7 +58,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
-		this._pickerWidget.setHideChevrons(pickerOptions.hideChevrons);
+		this._pickerWidget.setCompact(pickerOptions.compact);
 
 		// Sync delegate → widget when model list or selection changes externally
 		this._register(autorun(t => {

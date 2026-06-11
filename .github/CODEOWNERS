@@ -10,9 +10,6 @@
 .github/workflows/pr.yml @lszomoru @alexdima @joaomoreno @TylerLeonhardt @rzhao271 @Yoyokrazy
 .github/workflows/telemetry.yml @lramos15 @lszomoru @alexdima @joaomoreno
 
-# Ensure those that manage generated policy are aware of changes
-build/lib/policies/policyData.jsonc @joshspicer @rebornix @alexdima @joaomoreno @pwang347 @sandy081
-
 # VS Code API
 # Ensure the API team is aware of changes to the vscode-dts file
 # this is only about the final API, not about proposed API changes

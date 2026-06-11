@@ -85,9 +85,17 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				enumItemLabels: property.enumLabels,
 				enumDescriptions: property.enumDescriptions,
 				readOnly: property.readOnly,
-				group: key === 'thinkingLevel' ? 'navigation' : undefined,
+				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
 			}])),
 		};
+	}
+
+	private static _groupForConfigKey(key: string): string | undefined {
+		switch (key) {
+			case 'thinkingLevel': return 'navigation';
+			case 'contextTier': return 'tokens';
+			default: return undefined;
+		}
 	}
 
 	async sendChatRequest(): Promise<never> {

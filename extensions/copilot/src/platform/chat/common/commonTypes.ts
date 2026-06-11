@@ -386,6 +386,8 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 			args: ['https://support.github.com/contact'],
 			comment: [`{Locked=']({'}`]
 		});
+	} else if (fetchResult.capiError?.code === 'additional_spend_limit_reached') {
+		return l10n.t(`You've reached your additional usage limit for your plan. Upgrade your plan to keep going.`);
 	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
 		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
@@ -422,14 +424,15 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 		case ChatFetchResponseType.QuotaExceeded:
 			details = {
 				message: getQuotaHitMessage(fetchResult, copilotPlan, isUsageBasedBilling, quotaResetDate),
-				isQuotaExceeded: true
+				isQuotaExceeded: true,
+				...(fetchResult.capiError?.code && { code: fetchResult.capiError.code }),
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
 		case ChatFetchResponseType.Failed:
 			details = fetchResult.serverRequestId
-				? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nCopilot Request id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
-				: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nCopilot Request id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
+				? { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nGH Request Id: {1}\n\nReason: {2}`, fetchResult.requestId, fetchResult.serverRequestId, fetchResult.reason) }
+				: { message: l10n.t(`Sorry, your request failed. Please try again.\n\nClient Request Id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };
 			break;
 		case ChatFetchResponseType.NetworkError:
 			details = { message: l10n.t(`Sorry, there was a network error. Please try again later. Request id: {0}\n\nReason: {1}`, fetchResult.requestId, fetchResult.reason) };

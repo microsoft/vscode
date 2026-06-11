@@ -148,6 +148,7 @@ export class GhostTextComputer {
 		parentLogger: ILogger,
 	): Promise<GhostTextResultWithTelemetry<[CompletionResult[], ResultType]>> {
 		const id = generateUuid();
+		telemetryBuilder.setHeaderRequestId(id);
 		const logger = parentLogger.createSubLogger(['GhostTextComputer#getGhostText']);
 		this.currentGhostText.currentRequestId = id;
 		const telemetryData = await this.instantiationService.invokeFunction(createTelemetryWithExp, completionState.textDocument, id, options);
@@ -644,6 +645,11 @@ export class GhostTextComputer {
 				// Update the current ghost text with the new response before returning for the "typing as suggested" UX
 				this.currentGhostText.setGhostText(prefix, prompt.prompt.suffix, postProcessedChoicesArray, resultType);
 			}
+
+			// Overwrite the early fallback `headerRequestId` (set to `id` at the top) with the
+			// winning choice's actual `headerRequestId`. They differ when the result came from
+			// a local cache hit or an in-flight async request produced by a different invocation.
+			telemetryBuilder.setHeaderRequestId(postProcessedChoicesArray[0]?.requestId.headerRequestId ?? ourRequestId);
 
 			recordPerformance('complete');
 			logger.trace(`Ghost text computation complete, returning ${results.length} results`);

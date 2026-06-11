@@ -193,6 +193,13 @@ export interface IChatEntitlementService {
 	readonly anonymous: boolean;
 	readonly anonymousObs: IObservable<boolean>;
 
+	acceptQuotas(quotas: IQuotas): void;
+
+	/**
+	 * Clear all quota state.
+	 */
+	clearQuotas(): void;
+
 	markAnonymousRateLimited(): void;
 
 	/**
@@ -567,7 +574,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+		const sessionRateLimitChanged = oldQuota.sessionRateLimit?.percentRemaining !== quotas.sessionRateLimit?.percentRemaining;
+		const weeklyRateLimitChanged = oldQuota.weeklyRateLimit?.percentRemaining !== quotas.weeklyRateLimit?.percentRemaining;
+
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || sessionRateLimitChanged || weeklyRateLimitChanged || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
@@ -613,8 +623,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			? this._quotas.premiumChat.hasQuota === false
 			: this._quotas.premiumChat?.percentRemaining === 0;
 		const additionalUsageEnabled = this._quotas.additionalUsageEnabled ?? false;
+		const isManagedPlan = this.entitlement === ChatEntitlement.Business || this.entitlement === ChatEntitlement.Enterprise;
 
-		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && !additionalUsageEnabled));
+		// For Business/Enterprise users, hasQuota === false is the authoritative signal
+		// that the org has blocked usage, regardless of additionalUsageEnabled.
+		this.chatQuotaExceededContextKey.set(chatExhausted || (premiumChatExhausted && (isManagedPlan || !additionalUsageEnabled)));
 		this.completionsQuotaExceededContextKey.set(this._quotas.completions?.percentRemaining === 0);
 	}
 
@@ -691,7 +704,6 @@ type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
 	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
-	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The percentage of chat requests remaining for the user' };
 	quotaChatUnlimited: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user has unlimited chat requests' };
 	quotaChatHasQuota: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user currently has chat quota available' };
 	quotaChatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The raw chat quota entitlement count' };
@@ -716,7 +728,6 @@ type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
 	sku: string | undefined;
-	quotaChat: number | undefined;
 	quotaChatUnlimited: boolean | undefined;
 	quotaChatHasQuota: boolean | undefined;
 	quotaChatEntitlement: number | undefined;
@@ -750,6 +761,13 @@ export interface IQuotaSnapshot {
 	readonly resetAt?: number;
 	readonly usageBasedBilling?: boolean;
 	readonly entitlement?: number;
+	readonly quotaRemaining?: number;
+}
+
+export interface IRateLimitSnapshot {
+	readonly percentRemaining: number;
+	readonly unlimited: boolean;
+	readonly resetDate?: string;
 }
 
 interface IQuotas {
@@ -764,6 +782,10 @@ interface IQuotas {
 	readonly premiumChat?: IQuotaSnapshot;
 	readonly additionalUsageEnabled?: boolean;
 	readonly additionalUsageCount?: number;
+	readonly additionalUsageEntitlement?: number;
+
+	readonly sessionRateLimit?: IRateLimitSnapshot;
+	readonly weeklyRateLimit?: IRateLimitSnapshot;
 }
 
 export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
@@ -806,13 +828,15 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 				continue;
 			}
 
+			const parsedQuotaRemaining = rawQuotaSnapshot.quota_remaining !== undefined ? Number(rawQuotaSnapshot.quota_remaining) : undefined;
 			const quotaSnapshot: IQuotaSnapshot = {
 				percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 				unlimited: rawQuotaSnapshot.unlimited,
 				hasQuota: rawQuotaSnapshot.has_quota,
 				usageBasedBilling: entitlementsData.token_based_billing,
 				resetAt: rawQuotaSnapshot.quota_reset_at || undefined,
-				entitlement: parsedEntitlement !== undefined && Number.isSafeInteger(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				entitlement: parsedEntitlement !== undefined && Number.isFinite(parsedEntitlement) && parsedEntitlement >= 0 ? parsedEntitlement : undefined,
+				quotaRemaining: parsedQuotaRemaining !== undefined && Number.isFinite(parsedQuotaRemaining) && parsedQuotaRemaining >= 0 ? parsedQuotaRemaining : undefined,
 			};
 
 			switch (quotaType) {
@@ -831,6 +855,7 @@ export function parseQuotas(entitlementsData: IEntitlementsData): IQuotas {
 		const overageSource = entitlementsData.quota_snapshots['premium_interactions'];
 		quotas.additionalUsageEnabled = overageSource?.overage_permitted ?? false;
 		quotas.additionalUsageCount = overageSource?.overage_count ?? 0;
+		quotas.additionalUsageEntitlement = overageSource?.overage_entitlement ?? 0;
 	}
 	return quotas;
 }
@@ -960,7 +985,6 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsData.analytics_tracking_id,
 			sku: entitlements.sku,
-			quotaChat: entitlements.quotas?.chat?.percentRemaining,
 			quotaChatUnlimited: entitlements.quotas?.chat?.unlimited,
 			quotaChatHasQuota: entitlements.quotas?.chat?.hasQuota,
 			quotaChatEntitlement: entitlements.quotas?.chat?.entitlement,

@@ -58,6 +58,8 @@ import { IUserDataProfileService } from '../services/userDataProfile/common/user
 import { BrowserSocketFactory } from '../../platform/remote/browser/browserSocketFactory.js';
 import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from '../../platform/remote/common/remoteSocketFactoryService.js';
 import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-browser/electronRemoteResourceLoader.js';
+import { RemoteFileSystemProxyServer } from '../../platform/files/electron-browser/remoteFileSystemProxyServer.js';
+import { RemoteFileSystemProxyClient } from '../../platform/files/electron-browser/remoteFileSystemProxyClient.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
@@ -215,10 +217,10 @@ export class DesktopMain extends Disposable {
 
 		// Policies
 		let policyService: IPolicyService;
-		const policyChannel = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : undefined;
-		const accountPolicy = new AccountPolicyService(logService, defaultAccountService, policyChannel);
+		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
+		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel));
 		if (policyChannel) {
-			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
+			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {
 			policyService = accountPolicy;
 		}
@@ -282,6 +284,12 @@ export class DesktopMain extends Disposable {
 
 		// Remote Files
 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
+
+		// Remote File System Proxy
+		// Server: allows other windows to read remote files from this window's providers
+		this._register(new RemoteFileSystemProxyServer(mainProcessService, fileService));
+		// Client: allows this window to read remote files from other windows' providers
+		this._register(RemoteFileSystemProxyClient.register(fileService, mainProcessService, logService, environmentService.remoteAuthority));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//

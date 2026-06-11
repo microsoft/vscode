@@ -8,6 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import {
 	ChangesetKind,
 	buildChangesetUri,
+	buildCompareTurnsChangesetUri,
+	buildCompareTurnsChangesetUriTemplate,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
@@ -16,6 +18,7 @@ import {
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
 	parseChangesetUri,
+	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
 } from '../../common/changesetUri.js';
 
@@ -30,6 +33,8 @@ suite('changesetUri', () => {
 		assert.strictEqual(buildUncommittedChangesetUri(sessionUri), 'copilot:/abc-123/changeset/uncommitted');
 		assert.strictEqual(buildTurnChangesetUri(sessionUri, 't1'), 'copilot:/abc-123/changeset/turn/t1');
 		assert.strictEqual(buildTurnChangesetUriTemplate(sessionUri), 'copilot:/abc-123/changeset/turn/{turnId}');
+		assert.strictEqual(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2'), 'copilot:/abc-123/changeset/compare/t1/t2');
+		assert.strictEqual(buildCompareTurnsChangesetUriTemplate(sessionUri), 'copilot:/abc-123/changeset/compare/{originalTurnId}/{modifiedTurnId}');
 		assert.strictEqual(buildChangesetUri(sessionUri, 'session'), `${sessionUri}/changeset/session`);
 	});
 
@@ -38,6 +43,10 @@ suite('changesetUri', () => {
 		assert.throws(() => buildChangesetUri(sessionUri, 'with/slash'));
 		assert.throws(() => buildTurnChangesetUri(sessionUri, ''));
 		assert.throws(() => buildTurnChangesetUri(sessionUri, 'a/b'));
+		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, '', 't2'));
+		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', ''));
+		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 'a/b', 't2'));
+		assert.throws(() => buildCompareTurnsChangesetUri(sessionUri, 't1', 'a/b'));
 	});
 
 	test('parseChangesetUri identifies the well-known kinds', () => {
@@ -47,6 +56,8 @@ suite('changesetUri', () => {
 			{ sessionUri, changesetId: 'uncommitted', kind: ChangesetKind.Uncommitted });
 		assert.deepStrictEqual(parseChangesetUri(buildTurnChangesetUri(sessionUri, 't1')),
 			{ sessionUri, changesetId: 'turn/t1', kind: ChangesetKind.Turn, turnId: 't1' });
+		assert.deepStrictEqual(parseChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')),
+			{ sessionUri, changesetId: 'compare/t1/t2', kind: ChangesetKind.Compare, originalTurnId: 't1', modifiedTurnId: 't2' });
 		assert.deepStrictEqual(parseChangesetUri(buildChangesetUri(sessionUri, 'staged')),
 			{ sessionUri, changesetId: 'staged', kind: ChangesetKind.Unknown });
 	});
@@ -58,6 +69,11 @@ suite('changesetUri', () => {
 		assert.strictEqual(parseChangesetUri(buildTurnChangesetUriTemplate(sessionUri)), undefined);
 		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/turn/`), undefined);
 		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/turn/a/b`), undefined);
+		assert.strictEqual(parseChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
+		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/compare/t1`), undefined);
+		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/compare/t1/t2/t3`), undefined);
+		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/compare/{originalTurnId}/t2`), undefined);
+		assert.strictEqual(parseChangesetUri(`${sessionUri}/changeset/compare/t1/{modifiedTurnId}`), undefined);
 	});
 
 	test('parseTurnChangesetUri only matches expanded turn URIs', () => {
@@ -65,6 +81,15 @@ suite('changesetUri', () => {
 			{ sessionUri, turnId: 't42' });
 		assert.strictEqual(parseTurnChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseTurnChangesetUri(buildTurnChangesetUriTemplate(sessionUri)), undefined);
+		assert.strictEqual(parseTurnChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')), undefined);
+	});
+
+	test('parseCompareTurnsChangesetUri only matches expanded compare URIs', () => {
+		assert.deepStrictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')),
+			{ sessionUri, originalTurnId: 't1', modifiedTurnId: 't2' });
+		assert.strictEqual(parseCompareTurnsChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
+		assert.strictEqual(parseCompareTurnsChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), undefined);
+		assert.strictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
 	});
 
 	test('predicates match the parser semantics', () => {

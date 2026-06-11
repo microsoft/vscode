@@ -13,7 +13,7 @@ import { InMemoryConfigurationService } from '../../../../platform/configuration
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -162,8 +162,12 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased,
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
+		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
+		PromptingStrategy.Xtab275Aggressiveness,
+		PromptingStrategy.Xtab275AggressivenessHighLow,
 		PromptingStrategy.Xtab275EditIntent,
 		PromptingStrategy.Xtab275EditIntentShort,
 	])('returns xtab275SystemPrompt for %s', (strategy) => {
@@ -450,8 +454,22 @@ describe('getPredictionContents', () => {
 	const editWindowLines = ['const x = 1;', 'const y = 2;'];
 	const doc = makeActiveDocument(['line0', ...editWindowLines, 'line3']);
 
+	// Defaults for response formats that ignore the cursor/patch args.
+	const call = (
+		lines: readonly string[],
+		format: ResponseFormat,
+		opts?: { cursorLineOffset?: number; cursorLineInEditWindowOffset?: number; patchModelPredictionKind?: PatchModelPrediction; doc?: StatelessNextEditDocument },
+	) => getPredictionContents(
+		opts?.doc ?? doc,
+		opts?.cursorLineOffset ?? 0,
+		lines,
+		opts?.cursorLineInEditWindowOffset ?? 0,
+		format,
+		opts?.patchModelPredictionKind ?? PatchModelPrediction.FilePath,
+	);
+
 	it('returns correct content for UnifiedWithXml', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.UnifiedWithXml)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.UnifiedWithXml)).toMatchInlineSnapshot(`
 			"<EDIT>
 			const x = 1;
 			const y = 2;
@@ -460,14 +478,14 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for EditWindowOnly', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowOnly)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowOnly)).toMatchInlineSnapshot(`
 			"const x = 1;
 			const y = 2;"
 		`);
 	});
 
 	it('returns correct content for EditWindowWithEditIntent', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowWithEditIntent)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowWithEditIntent)).toMatchInlineSnapshot(`
 			"<|edit_intent|>high<|/edit_intent|>
 			const x = 1;
 			const y = 2;"
@@ -475,7 +493,7 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for EditWindowWithEditIntentShort', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.EditWindowWithEditIntentShort)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.EditWindowWithEditIntentShort)).toMatchInlineSnapshot(`
 			"H
 			const x = 1;
 			const y = 2;"
@@ -483,7 +501,7 @@ describe('getPredictionContents', () => {
 	});
 
 	it('returns correct content for CodeBlock', () => {
-		expect(getPredictionContents(doc, editWindowLines, ResponseFormat.CodeBlock)).toMatchInlineSnapshot(`
+		expect(call(editWindowLines, ResponseFormat.CodeBlock)).toMatchInlineSnapshot(`
 			"\`\`\`
 			const x = 1;
 			const y = 2;
@@ -496,21 +514,66 @@ describe('getPredictionContents', () => {
 			['line0', 'line1'],
 			{ workspaceRoot: URI.file('/workspace/project') },
 		);
-		const result = getPredictionContents(docWithRoot, ['line0'], ResponseFormat.CustomDiffPatch);
+		const result = call(['line0'], ResponseFormat.CustomDiffPatch, { doc: docWithRoot });
 		expect(result.endsWith(':')).toBe(true);
 	});
 
 	it('returns correct content for CustomDiffPatch without workspace root', () => {
-		const result = getPredictionContents(doc, editWindowLines, ResponseFormat.CustomDiffPatch);
+		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch);
 		expect(result.endsWith(':')).toBe(true);
 	});
 
+	it('CustomDiffPatch / CurrentLine emits path:line and a `-` deletion', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLine,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;"
+		`);
+	});
+
+	it('CustomDiffPatch / CurrentLineReplaced emits a deletion plus an empty `+`', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineReplaced,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;
+			+"
+		`);
+	});
+
+	it('CustomDiffPatch / CurrentLineCompleted echoes the line as a `+`', () => {
+		expect(call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 7,
+			cursorLineInEditWindowOffset: 1,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLineCompleted,
+		})).toMatchInlineSnapshot(`
+			"/test/file.ts:7
+			-const y = 2;
+			+const y = 2;"
+		`);
+	});
+
+	it('CustomDiffPatch falls back to path-only when the cursor is past the edit window', () => {
+		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch, {
+			cursorLineOffset: 99,
+			cursorLineInEditWindowOffset: 99,
+			patchModelPredictionKind: PatchModelPrediction.CurrentLine,
+		});
+		expect(result.endsWith(':')).toBe(true);
+		expect(result.includes('undefined')).toBe(false);
+	});
+
 	it('handles empty editWindowLines', () => {
-		expect(getPredictionContents(doc, [], ResponseFormat.EditWindowOnly)).toBe('');
+		expect(call([], ResponseFormat.EditWindowOnly)).toBe('');
 	});
 
 	it('handles single-line editWindowLines', () => {
-		expect(getPredictionContents(doc, ['only line'], ResponseFormat.EditWindowOnly)).toBe('only line');
+		expect(call(['only line'], ResponseFormat.EditWindowOnly)).toBe('only line');
 	});
 });
 
@@ -2227,7 +2290,7 @@ describe('XtabProvider integration', () => {
 			//  Doc at request time: "const a = 1;\nfunction fi\n}"
 			//  Offsets: "const a = 1;" = 0..11, \n = 12, "function fi" = 13..23, \n = 24, "}" = 25
 			//  Cursor on line 1 (0-based), insertionOffset 23 = last 'i' of "function fi"
-			//  Edit window: all 3 lines, cursorOriginalLinesOffset = 1
+			//  Edit window: all 3 lines, cursorLineInEditWindowOffset = 1
 			//
 			//  User typed "x" at offset 24 (end of "function fi") → "function fix"
 			//  Model responds with "function fibonacci(n): number"
@@ -2391,7 +2454,7 @@ describe('XtabProvider integration', () => {
 			const provider = createProvider();
 
 			//  Doc: "const a = 1;\nfunction fi\n}"
-			//  Cursor on line 1 (0-indexed), cursorOriginalLinesOffset = 1
+			//  Cursor on line 1 (0-indexed), cursorLineInEditWindowOffset = 1
 			//  Lines before cursor (line 0) should be yielded normally.
 			//  Cursor line should trigger divergence cancellation.
 			const request = createDivergenceRequest(

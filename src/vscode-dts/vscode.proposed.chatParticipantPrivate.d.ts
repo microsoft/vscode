@@ -468,4 +468,55 @@ declare module 'vscode' {
 		 */
 		readonly fullReferenceName?: string;
 	}
+
+	// #region Quota Sync
+
+	/**
+	 * A snapshot of quota usage for a single category (chat, completions, premium chat).
+	 */
+	export interface ChatQuotaSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly hasQuota?: boolean;
+		readonly resetAt?: number;
+		readonly usageBasedBilling?: boolean;
+		readonly entitlement?: number;
+		readonly quotaRemaining?: number;
+	}
+
+	/**
+	 * A snapshot of rate limit usage for a category (session or weekly).
+	 */
+	export interface ChatRateLimitSnapshot {
+		readonly percentRemaining: number;
+		readonly unlimited: boolean;
+		readonly resetDate?: string;
+	}
+
+	/**
+	 * Quota snapshot data covering all categories.
+	 * Accepted by {@link chat.updateQuotas} for extension-to-core sync.
+	 */
+	export interface ChatQuotaSnapshots {
+		readonly resetDate?: string;
+		readonly resetDateHasTime?: boolean;
+		readonly usageBasedBilling?: boolean;
+		readonly canUpgradePlan?: boolean;
+		readonly chat?: ChatQuotaSnapshot;
+		readonly completions?: ChatQuotaSnapshot;
+		readonly premiumChat?: ChatQuotaSnapshot;
+		readonly additionalUsageEnabled?: boolean;
+		readonly additionalUsageCount?: number;
+		readonly sessionRateLimit?: ChatRateLimitSnapshot;
+		readonly weeklyRateLimit?: ChatRateLimitSnapshot;
+	}
+
+	export namespace chat {
+		/**
+		 * Push quota snapshot data from the extension to the core workbench.
+		 */
+		export function updateQuotas(quotas: ChatQuotaSnapshots): void;
+	}
+
+	// #endregion
 }

@@ -89,12 +89,14 @@ export class TelemetryService extends BaseTelemetryService {
 						"owner": "lramos15",
 						"comment": "Telemetry about fetch requests made by the extension, tracking request counts and latency per call site.",
 						"callSite": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The call site identifier for the fetch request." },
+						"cacheStatus": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Cache outcome for callers that opted in: 'hit', 'stale-hit', 'revalidated', 'miss', 'bypass'. Empty string when caching was not requested." },
 						"latencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The latency of the fetch request in milliseconds." },
 						"statusCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The HTTP status code returned by the fetch request." }
 					}
 				*/
 				this.sendMSFTTelemetryEvent('fetchTelemetry', {
 					callSite: new TelemetryTrustedValue(event.callSite),
+					cacheStatus: event.cacheStatus ?? '',
 				}, {
 					latencyMs: event.latencyMs,
 					statusCode: event.statusCode,

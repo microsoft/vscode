@@ -105,7 +105,7 @@ suite.skip('from csv to input rows to pipeline', () => {
 		await runInputPipeline({
 			nesDatagen: {
 				input: inputRowsFilePath,
-				output: path.join(fixtures, 'output.json'),
+				output: path.join(fixtures, 'output.jsonl'),
 				rowOffset: 0,
 				workerMode: false
 			},

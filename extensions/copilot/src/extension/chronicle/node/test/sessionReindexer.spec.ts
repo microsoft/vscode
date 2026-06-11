@@ -363,7 +363,7 @@ function createMockCloudClient(overrides: Partial<CloudSessionApiClient> = {}): 
 			ok: true,
 			response: { id: 'cloud-session-1', task_id: 'task-1' },
 		}),
-		submitSessionEvents: vi.fn().mockResolvedValue(true),
+		submitSessionEvents: vi.fn().mockResolvedValue({ ok: true }),
 		backfillAnalytics: vi.fn().mockResolvedValue({ ok: true, sessionsQueued: 5 }),
 		listSessions: vi.fn().mockResolvedValue([]),
 		getSession: vi.fn().mockResolvedValue(undefined),

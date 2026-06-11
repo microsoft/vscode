@@ -67,7 +67,7 @@ import { NativeMenubarControl } from '../../workbench/electron-browser/parts/tit
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
 import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
-import { getWorkspaceIdentifier } from '../../workbench/services/workspaces/browser/workspaces.js';
+import { getWorkspaceIdentifier } from '../../platform/workspaces/common/workspaceIdentifier.js';
 
 export class SessionsMain extends Disposable {
 
@@ -216,10 +216,10 @@ export class SessionsMain extends Disposable {
 
 		// Policies
 		let policyService: IPolicyService;
-		const policyChannel = this.configuration.policiesData ? new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy')) : undefined;
-		const accountPolicy = new AccountPolicyService(logService, defaultAccountService, policyChannel);
+		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
+		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel));
 		if (policyChannel) {
-			policyService = new MultiplexPolicyService([policyChannel, accountPolicy], logService);
+			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {
 			policyService = accountPolicy;
 		}

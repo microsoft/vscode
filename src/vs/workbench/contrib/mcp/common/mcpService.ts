@@ -16,11 +16,11 @@ import { IStorageService, StorageScope } from '../../../../platform/storage/comm
 import { ContributionEnablementState, EnablementModel, IEnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from './mcpConfiguration.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
+import { McpPrefixGenerator, McpServer, McpServerMetadataCache } from './mcpServer.js';
+import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
 
-type IMcpServerRec = { object: IMcpServer; toolPrefix: string };
+type IMcpServerRec = { object: IMcpServer };
 
 export class McpService extends Disposable implements IMcpService {
 
@@ -29,6 +29,8 @@ export class McpService extends Disposable implements IMcpService {
 	private readonly _currentAutoStarts = new Set<CancellationTokenSource>();
 	private readonly _servers = observableValue<readonly IMcpServerRec[]>(this, []);
 	public readonly servers: IObservable<readonly IMcpServer[]> = this._servers.map(servers => servers.map(s => s.object));
+
+	private readonly _prefixGenerator = new McpPrefixGenerator();
 
 	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
@@ -174,11 +176,9 @@ export class McpService extends Disposable implements IMcpService {
 	}
 
 	public updateCollectedServers() {
-		const prefixGenerator = new McpPrefixGenerator();
 		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
 			collectionDefinition.serverDefinitions.get().map(serverDefinition => {
-				const toolPrefix = prefixGenerator.generate(serverDefinition.label);
-				return { serverDefinition, collectionDefinition, toolPrefix };
+				return { serverDefinition, collectionDefinition };
 			})
 		);
 
@@ -198,7 +198,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		// Transfer over any servers that are still valid.
 		for (const server of currentServers) {
-			const match = definitions.find(d => defsEqual(server.object, d) && server.toolPrefix === d.toolPrefix);
+			const match = definitions.find(d => defsEqual(server.object, d));
 			if (match) {
 				pushMatch(match, server);
 			} else {
@@ -215,11 +215,11 @@ export class McpService extends Disposable implements IMcpService {
 				def.serverDefinition.roots,
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
-				def.toolPrefix,
+				this._prefixGenerator,
 				this.enablementModel,
 			);
 
-			nextServers.push({ object, toolPrefix: def.toolPrefix });
+			nextServers.push({ object });
 		}
 
 		transaction(tx => {
@@ -235,21 +235,6 @@ export class McpService extends Disposable implements IMcpService {
 
 function defsEqual(server: IMcpServer, def: { serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition }) {
 	return server.collection.id === def.collectionDefinition.id && server.definition.id === def.serverDefinition.id;
-}
-
-// Helper class for generating unique MCP tool prefixes
-class McpPrefixGenerator {
-	private readonly seenPrefixes = new Set<string>();
-
-	generate(label: string): string {
-		const baseToolPrefix = McpToolName.Prefix + label.toLowerCase().replace(/[^a-z0-9_.-]+/g, '_').slice(0, McpToolName.MaxPrefixLen - McpToolName.Prefix.length - 1);
-		let toolPrefix = baseToolPrefix + '_';
-		for (let i = 2; this.seenPrefixes.has(toolPrefix); i++) {
-			toolPrefix = baseToolPrefix + i + '_';
-		}
-		this.seenPrefixes.add(toolPrefix);
-		return toolPrefix;
-	}
 }
 
 /**

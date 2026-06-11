@@ -11,10 +11,10 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, formatTokenCount, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
@@ -113,6 +113,7 @@ function callBuild(
 		showFeatured?: boolean;
 		isUBB?: boolean;
 		languageModelsService?: ILanguageModelsService;
+		autoModelUnavailable?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -139,7 +140,19 @@ function callBuild(
 		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
+		opts.autoModelUnavailable ?? false,
 	);
+}
+
+function createControlManifest(): IModelsControlManifest {
+	return {
+		free: {
+			'free-model': { label: 'Free Model', featured: true, exists: true },
+		},
+		paid: {
+			'paid-model': { label: 'Paid Model', featured: true, exists: true },
+		},
+	};
 }
 
 suite('buildModelPickerItems', () => {
@@ -187,6 +200,40 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions.length, 2);
 		assert.strictEqual(actions[0].label, 'Auto');
 		assert.strictEqual(actions[1].item?.id, 'manageModels');
+	});
+
+	test('autoModelUnavailable shows a disabled no-models entry instead of auto', () => {
+		const items = callBuild([], { autoModelUnavailable: true });
+		const actions = getActionItems(items);
+		// Exactly one entry: the early return must suppress Auto and the
+		// standalone "Manage Models" action (the helper always passes one).
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
+		assert.strictEqual(actions[0].item?.id, 'noModels');
+		assert.strictEqual(actions[0].item?.enabled, false);
+	});
+
+	test('autoModelUnavailable attaches inline upgrade link for Free users', () => {
+		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Free });
+		const actions = getActionItems(items);
+		const noModels = actions.find(a => a.item?.id === 'noModels');
+		assert.ok(noModels, 'expected a no-models entry');
+		assert.ok(noModels!.description, 'expected an upgrade description for Free users');
+	});
+
+	test('autoModelUnavailable omits upgrade link for paid users', () => {
+		const items = callBuild([], { autoModelUnavailable: true, entitlement: ChatEntitlement.Pro });
+		const actions = getActionItems(items);
+		const noModels = actions.find(a => a.item?.id === 'noModels');
+		assert.ok(noModels, 'expected a no-models entry');
+		assert.strictEqual(noModels!.description, undefined);
+	});
+
+	test('autoModelUnavailable with available models shows the models, not the empty state', () => {
+		const items = callBuild([createModel('gpt-4o', 'GPT-4o')], { autoModelUnavailable: true });
+		const actions = getActionItems(items);
+		assert.strictEqual(actions.some(a => a.item?.id === 'noModels'), false);
+		assert.strictEqual(actions.some(a => a.label === 'GPT-4o'), true);
 	});
 
 	test('only auto model produces auto and manage models with separator', () => {
@@ -301,6 +348,11 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(actions[0].label, 'Auto');
 		// GPT-4o should be in promoted due to featured
 		assert.strictEqual(actions[1].label, 'GPT-4o');
+	});
+
+	test('edu entitlement uses free featured control manifest', () => {
+		const manifest = createControlManifest();
+		assert.strictEqual(getControlModelsForEntitlement(manifest, ChatEntitlement.EDU), manifest.free);
 	});
 
 	test('featured model not in models list shows as unavailable for free users (upgrade)', () => {
@@ -1056,29 +1108,6 @@ suite('buildModelPickerItems', () => {
 		});
 		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
 		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
-	});
-});
-
-suite('formatTokenCount', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns M for counts above 900K', () => {
-		assert.strictEqual(formatTokenCount(1_000_000), '1M');
-		assert.strictEqual(formatTokenCount(935_997), '1M');
-		assert.strictEqual(formatTokenCount(1_500_000), '2M');
-		assert.strictEqual(formatTokenCount(2_000_000), '2M');
-	});
-
-	test('returns K for counts between 1000 and 900K', () => {
-		assert.strictEqual(formatTokenCount(200_000), '200K');
-		assert.strictEqual(formatTokenCount(128_000), '128K');
-		assert.strictEqual(formatTokenCount(1_000), '1K');
-		assert.strictEqual(formatTokenCount(900_000), '900K');
-	});
-
-	test('returns raw number for counts below 1000', () => {
-		assert.strictEqual(formatTokenCount(500), '500');
-		assert.strictEqual(formatTokenCount(0), '0');
 	});
 });
 

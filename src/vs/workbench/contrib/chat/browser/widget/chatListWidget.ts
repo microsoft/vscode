@@ -816,6 +816,33 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
+	 * Update the list/tree color overrides. Re-applies the same fan-out from
+	 * `listBackground`/`listForeground` to all interaction states that was
+	 * originally configured at construction time.
+	 */
+	setStyles(styles: IChatListWidgetStyles): void {
+		this._tree.updateOptions({
+			overrideStyles: {
+				listFocusBackground: styles.listBackground,
+				listInactiveFocusBackground: styles.listBackground,
+				listActiveSelectionBackground: styles.listBackground,
+				listFocusAndSelectionBackground: styles.listBackground,
+				listInactiveSelectionBackground: styles.listBackground,
+				listHoverBackground: styles.listBackground,
+				listBackground: styles.listBackground,
+				listFocusForeground: styles.listForeground,
+				listHoverForeground: styles.listForeground,
+				listInactiveFocusForeground: styles.listForeground,
+				listInactiveSelectionForeground: styles.listForeground,
+				listActiveSelectionForeground: styles.listForeground,
+				listFocusAndSelectionForeground: styles.listForeground,
+				listActiveSelectionIconForeground: undefined,
+				listInactiveSelectionIconForeground: undefined,
+			}
+		});
+	}
+
+	/**
 	 * Set the visibility of the list.
 	 */
 	setVisible(visible: boolean): void {

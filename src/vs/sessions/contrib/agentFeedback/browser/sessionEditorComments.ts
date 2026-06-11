@@ -5,12 +5,11 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentFeedback } from './agentFeedbackService.js';
-import { CodeReviewStateKind, ICodeReviewComment, ICodeReviewState, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from './agentFeedbackService.js';
+import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
-	CodeReview = 'codeReview',
 	PRReview = 'prReview',
 }
 
@@ -18,17 +17,24 @@ export interface ISessionEditorComment {
 	readonly id: string;
 	readonly sourceId: string;
 	readonly source: SessionEditorCommentSource;
+	/** Origin of this comment, used to render its type label. */
+	readonly kind: AgentFeedbackKind;
 	readonly sessionResource: URI;
 	readonly resourceUri: URI;
 	readonly range: IRange;
 	readonly text: string;
 	readonly suggestion?: ICodeReviewSuggestion;
-	readonly severity?: string;
 	readonly canConvertToAgentFeedback: boolean;
-}
-
-export function getCodeReviewComments(reviewState: ICodeReviewState): readonly ICodeReviewComment[] {
-	return reviewState.kind === CodeReviewStateKind.Result ? reviewState.comments : [];
+	/**
+	 * Replies that belong to the same comment thread as this comment. They
+	 * talk about the same code region as {@link text}. Only set for agent
+	 * feedback comments today.
+	 */
+	readonly replies?: readonly string[];
+	/**
+	 * Lifecycle state of this comment. Only set for agent feedback comments.
+	 */
+	readonly state?: AgentFeedbackState;
 }
 
 export function getPRReviewComments(prReviewState: IPRReviewState | undefined): readonly IPRReviewComment[] {
@@ -38,37 +44,28 @@ export function getPRReviewComments(prReviewState: IPRReviewState | undefined): 
 export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
-	reviewState: ICodeReviewState,
 	prReviewState?: IPRReviewState,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
 	for (const item of agentFeedbackItems) {
+		// Resolved feedback is hidden from the editor UI.
+		if (item.state === AgentFeedbackState.Resolved) {
+			continue;
+		}
 		comments.push({
 			id: toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, item.id),
 			sourceId: item.id,
 			source: SessionEditorCommentSource.AgentFeedback,
+			kind: item.kind,
 			sessionResource,
 			resourceUri: item.resourceUri,
 			range: item.range,
 			text: item.text,
 			suggestion: item.suggestion,
 			canConvertToAgentFeedback: false,
-		});
-	}
-
-	for (const item of getCodeReviewComments(reviewState)) {
-		comments.push({
-			id: toSessionEditorCommentId(SessionEditorCommentSource.CodeReview, item.id),
-			sourceId: item.id,
-			source: SessionEditorCommentSource.CodeReview,
-			sessionResource,
-			resourceUri: item.uri,
-			range: item.range,
-			text: item.body,
-			suggestion: item.suggestion,
-			severity: item.severity,
-			canConvertToAgentFeedback: true,
+			replies: item.replies,
+			state: item.state,
 		});
 	}
 
@@ -77,6 +74,7 @@ export function getSessionEditorComments(
 			id: toSessionEditorCommentId(SessionEditorCommentSource.PRReview, item.id),
 			sourceId: item.id,
 			source: SessionEditorCommentSource.PRReview,
+			kind: AgentFeedbackKind.PRReview,
 			sessionResource,
 			resourceUri: item.uri,
 			range: item.range,
@@ -114,7 +112,13 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 			suggestionLines += 2 + Math.max(1, edit.newText.split('\n').length);
 		}
 	}
-	return textLines + 1 + suggestionLines;
+	let replyLines = 0;
+	if (comment.replies?.length) {
+		for (const reply of comment.replies) {
+			replyLines += Math.ceil(Math.max(1, reply.length) / charsPerLine);
+		}
+	}
+	return textLines + 1 + suggestionLines + replyLines;
 }
 
 export function groupNearbySessionEditorComments(items: readonly ISessionEditorComment[], lineThreshold: number = 5): ISessionEditorComment[][] {
@@ -160,6 +164,6 @@ export function toSessionEditorCommentId(source: SessionEditorCommentSource, sou
 	return `${source}:${sourceId}`;
 }
 
-export function hasAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
-	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback);
+export function hasAcceptedAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
+	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted);
 }

@@ -363,6 +363,36 @@ export interface IChatWorkspaceEdit {
 	edits: IChatWorkspaceFileEdit[];
 }
 
+/**
+ * The kind of file operation an {@link IChatExternalEdit} represents.
+ */
+export type ChatExternalEditKind = 'create' | 'delete' | 'rename' | 'edit';
+
+/**
+ * A summary of a file edit that has been performed externally (i.e. by an
+ * agent or tool outside of chat's own editing pipeline). Carries everything
+ * needed to render a static "edit pill" without round-tripping through
+ * {@link IChatEditingSession} for diff computation: the producer already
+ * knows the URIs and diff stats up-front.
+ */
+export interface IChatExternalEdit {
+	kind: 'externalEdit';
+	/** The resulting file URI (after-URI for create/edit/rename, before-URI for delete). */
+	uri: URI;
+	/** The kind of file operation. */
+	editKind: ChatExternalEditKind;
+	/** For renames, the file URI before the operation. */
+	originalUri?: URI;
+	/** URI from which the "before" content can be read (for diff viewing). Absent for creates. */
+	beforeContentUri?: URI;
+	/** URI from which the "after" content can be read (for diff viewing). Absent for deletes. */
+	afterContentUri?: URI;
+	/** Pre-computed diff display metadata. */
+	diff?: { added: number; removed: number };
+	/** Optional undo-stop id (typically the tool call id) for grouping. */
+	undoStopId?: string;
+}
+
 export interface IChatConfirmation {
 	title: string;
 	message: string | IMarkdownString;
@@ -556,6 +586,10 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
+	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
+	requestAllowNetwork?: boolean;
+	/** The model-provided reason for requesting unrestricted network access within the sandbox */
+	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -580,6 +614,10 @@ export interface IChatTerminalToolInvocationData {
 	autoApproveInfo?: IMarkdownString;
 	/** Names of missing sandbox dependencies that the user may choose to install */
 	missingSandboxDependencies?: string[];
+	/** Approved repair actions that may make an installed but unusable sandbox dependency work. */
+	sandboxRemediations?: string[];
+	/** User-visible reason a sandbox prerequisite cannot be repaired automatically. */
+	sandboxPrerequisiteFailure?: string;
 }
 
 /**
@@ -596,19 +634,51 @@ export function isLegacyChatTerminalToolInvocationData(data: unknown): data is I
 	return !!data && typeof data === 'object' && 'command' in data && 'language' in data;
 }
 
-export interface IChatToolInputInvocationData {
-	kind: 'input';
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	rawInput: any;
-	/** Optional MCP App UI metadata for rendering during and after tool execution */
-	mcpAppData?: {
+/**
+ * Routing information for an MCP App's webview sub-RPCs. The kind
+ * determines where `tools/call`, `resources/read`,
+ * `sampling/createMessage`, etc. are sent:
+ *
+ * - `local`: resolves the MCP server via {@link IMcpService} from a
+ *   `serverDefinitionId` + `collectionId`. Used for locally-configured
+ *   MCP servers whose state lives in the workbench.
+ * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
+ *   on an AHP `mcp://` side channel. Used for MCP servers owned by an
+ *   agent host (e.g. Copilot CLI).
+ */
+export type ChatMcpAppData =
+	| {
+		kind: 'local';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		resourceUri: string;
 		/** Reference to the server definition for reconnection */
 		serverDefinitionId: string;
 		/** Reference to the collection containing the server */
 		collectionId: string;
+	}
+	| {
+		kind: 'agentHost';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		resourceUri: string;
+		/** AHP `mcp://` channel URI for the originating server. */
+		channel: string;
+		/**
+		 * Stable identifier for the originating server, used as the
+		 * additional key when computing the webview origin. Typically the
+		 * AHP customization id. For top-level (bare) MCP servers this id
+		 * is currently session-scoped, so see {@link ChatMcpAppModel} for
+		 * how it avoids growing persistent application storage on every
+		 * new session.
+		 */
+		serverId: string;
 	};
+
+export interface IChatToolInputInvocationData {
+	kind: 'input';
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	rawInput: any;
+	/** Optional MCP App UI metadata for rendering during and after tool execution */
+	mcpAppData?: ChatMcpAppData;
 }
 
 export const enum ToolConfirmKind {
@@ -1148,6 +1218,7 @@ export type IChatProgress =
 	| IChatTextEdit
 	| IChatNotebookEdit
 	| IChatWorkspaceEdit
+	| IChatExternalEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation

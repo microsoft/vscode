@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -13,6 +14,11 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
+import {
+	BrowserHistoryStore,
+	ISerializedBrowserFaviconsSnapshot,
+	ISerializedBrowserHistoryEntriesSnapshot,
+} from '../../../../platform/browserView/common/browserHistory.js';
 import type { BrowserEditorInput } from './browserEditorInput.js';
 import {
 	IBrowserViewBounds,
@@ -33,9 +39,11 @@ import {
 	IBrowserViewCertificateError,
 	IElementData,
 	IBrowserViewOwner,
+	IBrowserViewRect,
 	browserZoomDefaultIndex,
 	browserZoomFactors,
-	IBrowserViewState
+	IBrowserViewState,
+	IBrowserDeviceProfile
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -61,10 +69,42 @@ function parseZoomHost(url: string): string | undefined {
 	return parsed.host;
 }
 
+function parseHistorySnapshot<T>(raw: string | undefined): T | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(raw) as T;
+		if (!parsed || typeof parsed !== 'object') {
+			return undefined;
+		}
+		return parsed;
+	} catch {
+		return undefined;
+	}
+}
+
 type IntegratedBrowserNavigationEvent = {
-	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
+	navigationType: 'urlInput' | 'searchInput' | 'goBack' | 'goForward' | 'reload';
 	isLocalhost: boolean;
 };
+
+/**
+ * To be used in telemetry. This is the  source for an address-bar-initiated navigation:
+ * whether the user typed a URL or ran a web search. Defaults to `'urlInput'` when omitted.
+ */
+export type BrowserNavigationSource = 'urlInput' | 'searchInput';
+
+/**
+ * Options for a navigation initiated via {@link IBrowserViewModel.loadURL}
+ * (and {@link BrowserEditorInput.navigate}).
+ */
+export interface INavigateOptions {
+	/**
+	 * Source of the navigation, for telemetry purposes. Defaults to `'urlInput'` when omitted.
+	 */
+	readonly source?: BrowserNavigationSource;
+}
 
 type IntegratedBrowserNavigationClassification = {
 	navigationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the navigation was triggered' };
@@ -118,6 +158,9 @@ export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenc
  */
 export interface IBrowserViewWorkbenchService {
 	readonly _serviceBrand: undefined;
+
+	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace and the setting is enabled. */
+	willUseRemoteProxy(): boolean;
 
 	/**
 	 * Fires when the set of known browser views changes, or a model is created for an existing input.
@@ -208,14 +251,19 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly error: IBrowserViewLoadError | undefined;
 	readonly certificateError: IBrowserViewCertificateError | undefined;
 	readonly storageScope: BrowserViewStorageScope;
+	readonly history: BrowserHistoryStore;
 	readonly sharingState: BrowserViewSharingState;
+	readonly isRemoteSession: boolean;
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
 	readonly isElementSelectionActive: boolean;
+	readonly isAreaSelectionActive: boolean;
+	readonly device: IBrowserDeviceProfile | undefined;
 
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState>;
 	readonly onDidChangeZoom: Event<void>;
+	readonly onWillNavigate: Event<string>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -229,10 +277,13 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 	readonly onDidSelectElement: Event<IElementData>;
 	readonly onDidChangeElementSelectionActive: Event<boolean>;
+	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
+	readonly onDidChangeAreaSelectionActive: Event<boolean>;
+	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
-	loadURL(url: string): Promise<void>;
+	loadURL(url: string, options?: INavigateOptions): Promise<void>;
 	goBack(): Promise<void>;
 	goForward(): Promise<void>;
 	reload(hard?: boolean): Promise<void>;
@@ -246,11 +297,14 @@ export interface IBrowserViewModel extends IDisposable {
 	setSharedWithAgent(shared: boolean): Promise<boolean>;
 	trustCertificate(host: string, fingerprint: string): Promise<void>;
 	untrustCertificate(host: string, fingerprint: string): Promise<void>;
+	deleteHistory(entryIds?: readonly number[]): Promise<void>;
 	zoomIn(): Promise<void>;
 	zoomOut(): Promise<void>;
 	resetZoom(): Promise<void>;
 	getConsoleLogs(): Promise<string>;
 	toggleElementSelection(enabled?: boolean): Promise<void>;
+	toggleAreaSelection(enabled?: boolean): Promise<void>;
+	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -267,11 +321,19 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
+	private _isRemoteSession: boolean = false;
 	private _isEphemeral: boolean = false;
 	private _zoomHost: string | undefined = undefined;
 	private _sharedWithAgent: boolean = false;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 	private _isElementSelectionActive: boolean = false;
+	private _isAreaSelectionActive: boolean = false;
+	private _device: IBrowserDeviceProfile | undefined;
+
+	readonly history = this._register(new BrowserHistoryStore());
+
+	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
+	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
 
 	private readonly _onDidChangeSharingState = this._register(new Emitter<BrowserViewSharingState>());
 	readonly onDidChangeSharingState: Event<BrowserViewSharingState> = this._onDidChangeSharingState.event;
@@ -281,6 +343,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
+
+	private readonly _onWillNavigate = this._register(new Emitter<string>());
+	readonly onWillNavigate: Event<string> = this._onWillNavigate.event;
 
 	constructor(
 		readonly id: string,
@@ -312,10 +377,27 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._error = initialState.lastError;
 		this._certificateError = initialState.certificateError;
 		this._storageScope = initialState.storageScope;
+		this._isRemoteSession = initialState.isRemoteSession;
 		this._browserZoomIndex = initialState.browserZoomIndex;
 		this._isElementSelectionActive = initialState.isElementSelectionActive;
+		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
+		this._device = initialState.device;
 		this._isEphemeral = this._storageScope === BrowserViewStorageScope.Ephemeral;
 		this._zoomHost = parseZoomHost(this._url);
+
+		const { history: entriesKey, favicons: faviconsKey } = initialState.storageKeys;
+		if (entriesKey) {
+			this._reloadHistoryEntries(entriesKey);
+			this._register(this.storageService.onDidChangeValue(
+				StorageScope.APPLICATION, entriesKey, this._store,
+			)(() => this._reloadHistoryEntries(entriesKey)));
+		}
+		if (faviconsKey) {
+			this._reloadHistoryFavicons(faviconsKey);
+			this._register(this.storageService.onDidChangeValue(
+				StorageScope.APPLICATION, faviconsKey, this._store,
+			)(() => this._reloadHistoryFavicons(faviconsKey)));
+		}
 
 		// Sync initial zoom and sharing state (async, but emits events)
 		const effectiveZoomIndex = this.zoomService.getEffectiveZoomIndex(this._zoomHost, this._isEphemeral);
@@ -387,11 +469,22 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._visible = visible;
 		}));
 
+		this._register(this.browserViewService.onDynamicDidChangeDeviceEmulation(this.id)(device => {
+			if (!structuralEquals(this._device, device)) {
+				this._device = device;
+				this._onDidChangeDevice.fire(device);
+			}
+		}));
+
 		this._register(this.onDidChangeElementSelectionActive(active => {
 			if (active) {
 				this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 			}
 			this._isElementSelectionActive = active;
+		}));
+
+		this._register(this.onDidChangeAreaSelectionActive(active => {
+			this._isAreaSelectionActive = active;
 		}));
 
 		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
@@ -416,6 +509,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get certificateError(): IBrowserViewCertificateError | undefined { return this._certificateError; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
+	get isRemoteSession(): boolean { return this._isRemoteSession; }
 	get sharingState(): BrowserViewSharingState {
 		if (!this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
@@ -425,6 +519,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
 	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
+	get isElementSelectionActive(): boolean { return this._isElementSelectionActive; }
+	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
+	get device(): IBrowserDeviceProfile | undefined { return this._device; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -475,8 +572,18 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.setVisible(this.id, visible);
 	}
 
-	async loadURL(url: string): Promise<void> {
-		this.logNavigationTelemetry('urlInput', url);
+	async loadURL(url: string, options?: INavigateOptions): Promise<void> {
+		this.logNavigationTelemetry(options?.source ?? 'urlInput', url);
+		this._onWillNavigate.fire(url);
+
+		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
+		if (/^localhost(:|\/|$)/i.test(url)) {
+			url = 'http://' + url;
+		} else if (!URL.parse(url)?.protocol) {
+			// No scheme — default to http://; sites typically upgrade to https://.
+			url = 'http://' + url;
+		}
+
 		return this.browserViewService.loadURL(this.id, url);
 	}
 
@@ -502,7 +609,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
 		const result = await this.browserViewService.captureScreenshot(this.id, options);
 		// Store full-page screenshots for display in UI as placeholders
-		if (!options?.screenRect && !options?.pageRect) {
+		if (!options?.screenRect && !options?.pageRect && !options?.fullPage) {
 			this._screenshot = result;
 		}
 		return result;
@@ -534,6 +641,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async untrustCertificate(host: string, fingerprint: string): Promise<void> {
 		return this.browserViewService.untrustCertificate(this.id, host, fingerprint);
+	}
+
+	async deleteHistory(entryIds?: readonly number[]): Promise<void> {
+		// Mirror locally so the workbench updates immediately; the eventual
+		// storage change event from the main-process flush will re-hydrate to
+		// the same content.
+		if (entryIds === undefined) {
+			this.history.clear();
+		} else {
+			for (const id of entryIds) {
+				this.history.entries.delete(id);
+			}
+		}
+		return this.browserViewService.deleteBrowserHistory(this.id, entryIds);
 	}
 
 	/**
@@ -583,12 +704,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.getConsoleLogs(this.id);
 	}
 
-	get isElementSelectionActive(): boolean {
-		return this._isElementSelectionActive;
-	}
-
 	async toggleElementSelection(enabled?: boolean): Promise<void> {
 		return this.browserViewService.toggleElementSelection(this.id, enabled);
+	}
+
+	async toggleAreaSelection(enabled?: boolean): Promise<void> {
+		return this.browserViewService.toggleAreaSelection(this.id, enabled);
 	}
 
 	get onDidSelectElement(): Event<IElementData> {
@@ -597,6 +718,24 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeElementSelectionActive(): Event<boolean> {
 		return this.browserViewService.onDynamicDidChangeElementSelectionActive(this.id);
+	}
+
+	get onDidPickArea(): Event<IBrowserViewRect | undefined> {
+		return this.browserViewService.onDynamicDidPickArea(this.id);
+	}
+
+	get onDidChangeAreaSelectionActive(): Event<boolean> {
+		return this.browserViewService.onDynamicDidChangeAreaSelectionActive(this.id);
+	}
+
+	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
+		// Update model state optimistically so dependent UI reacts immediately;
+		// the echo from the main process is filtered by deep comparison.
+		if (!structuralEquals(this._device, device)) {
+			this._device = device;
+			this._onDidChangeDevice.fire(device);
+		}
+		return this.browserViewService.setDeviceEmulation(this.id, device);
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
@@ -675,6 +814,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._sharedWithAgent = isShared;
 			this._onDidChangeSharingState.fire(this.sharingState);
 		}
+	}
+
+	private _reloadHistoryEntries(key: string): void {
+		const raw = this.storageService.get(key, StorageScope.APPLICATION);
+		this.history.entries.hydrate(parseHistorySnapshot<ISerializedBrowserHistoryEntriesSnapshot>(raw));
+	}
+
+	private _reloadHistoryFavicons(key: string): void {
+		const raw = this.storageService.get(key, StorageScope.APPLICATION);
+		this.history.favicons.hydrate(parseHistorySnapshot<ISerializedBrowserFaviconsSnapshot>(raw));
 	}
 
 	/**
