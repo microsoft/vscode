@@ -59,10 +59,6 @@
 				"command": "github.copilot.chat.updateCopilotCLIAgentSessionChanges.update",
 				"title": "Update",
 				"icon": "$(cloud-upload)"
-			},
-			{
-				"command": "github.copilot.chat.codeReview.run",
-				"title": "Run Code Review"
 			}
 		],
 		"menus": {

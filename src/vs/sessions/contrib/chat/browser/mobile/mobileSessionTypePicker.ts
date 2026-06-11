@@ -10,6 +10,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { SessionTypePicker } from '../sessionTypePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -28,6 +30,7 @@ import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../brows
 export class MobileSessionTypePicker extends SessionTypePicker {
 
 	constructor(
+		session: IObservable<ISession | undefined>,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -35,7 +38,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService);
+		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {

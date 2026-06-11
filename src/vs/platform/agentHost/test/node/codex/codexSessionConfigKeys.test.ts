@@ -13,6 +13,7 @@ import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
+import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
@@ -21,6 +22,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, { _serviceBrand: undefined });
+	instantiationService.stub(IAgentSdkDownloader, { _serviceBrand: undefined });
 	instantiationService.stub(ILogService, new NullLogService());
 	return disposables.add(instantiationService.createInstance(CodexAgent));
 }

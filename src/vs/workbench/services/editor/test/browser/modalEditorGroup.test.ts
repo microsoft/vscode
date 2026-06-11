@@ -768,11 +768,32 @@ suite('Modal Editor Group', () => {
 
 	suite('RequiresModal capability', () => {
 
-		test('findGroup opens modal for editor with RequiresModal even when setting is off', async () => {
+		test('findGroup respects useModal: off for editor with RequiresModal', async () => {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
 			await configurationService.setUserConfiguration('workbench.editor.useModal', 'off');
+			instantiationService.stub(IConfigurationService, configurationService);
+			const parts = await createEditorParts(instantiationService, disposables);
+			instantiationService.stub(IEditorGroupsService, parts);
+
+			const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+			input.capabilities = EditorInputCapabilities.RequiresModal;
+
+			const result = instantiationService.invokeFunction(accessor => findGroup(accessor, { editor: input, options: {} }, undefined));
+
+			const [group] = result instanceof Promise ? await result : result;
+
+			// With useModal: off, the user preference wins and no modal part is created
+			assert.strictEqual(parts.activeModalEditorPart, undefined);
+			assert.strictEqual(group.id, parts.mainPart.activeGroup.id);
+		});
+
+		test('findGroup opens modal for editor with RequiresModal when useModal is some', async () => {
+			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'some');
 			instantiationService.stub(IConfigurationService, configurationService);
 			const parts = await createEditorParts(instantiationService, disposables);
 			instantiationService.stub(IEditorGroupsService, parts);

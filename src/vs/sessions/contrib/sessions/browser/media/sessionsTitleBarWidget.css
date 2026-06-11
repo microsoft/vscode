@@ -30,6 +30,7 @@
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
+	font-size: var(--vscode-agents-fontSize-label1);
 	gap: 6px;
 	cursor: default;
 	opacity: 1;
@@ -125,10 +126,10 @@
 	padding: 0 3px;
 	box-sizing: border-box;
 	font-size: 9px;
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	text-align: center;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background-color: var(--vscode-agentsUnreadBadge-background);
 	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;

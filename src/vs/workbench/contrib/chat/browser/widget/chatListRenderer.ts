@@ -114,7 +114,7 @@ import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
 const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
-const WORKING_CAUGHT_UP_DEBOUNCE_MS = 50;
+const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -1152,14 +1152,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Find the last meaningful part (skipping empty markdown).
-		let lastPart: IChatRendererContent | undefined;
-		for (let i = partsToRender.length - 1; i >= 0; i--) {
-			const part = partsToRender[i];
-			if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
-				lastPart = part;
-				break;
-			}
-		}
+		const lastPart = this.findLastMeaningfulPart(partsToRender);
 
 		if (showProgressDetails) {
 			// When the thinking section is actively streaming with its own inline
@@ -1357,6 +1350,40 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 		return (Date.now() - lastRenderTime) >= WORKING_CAUGHT_UP_DEBOUNCE_MS;
+	}
+
+	/**
+	 * Returns the last part that visually contributes to the response, skipping
+	 * empty markdown placeholders.
+	 */
+	private findLastMeaningfulPart(partsToRender: readonly IChatRendererContent[]): IChatRendererContent | undefined {
+		for (let i = partsToRender.length - 1; i >= 0; i--) {
+			const part = partsToRender[i];
+			if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
+				return part;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * True while we have caught up to streamed markdown but are still within the
+	 * {@link WORKING_CAUGHT_UP_DEBOUNCE_MS} window before the working indicator
+	 * should appear. The progressive render loop keeps polling in this state so
+	 * the indicator can still surface after a genuine pause, instead of being
+	 * dropped when the loop would otherwise stop (the debounce itself avoids
+	 * flicker during normal token streaming).
+	 */
+	private isWorkingProgressDebouncePending(element: IChatResponseViewModel, partsToRender: readonly IChatRendererContent[]): boolean {
+		if (element.isComplete) {
+			return false;
+		}
+		// The indicator is already showing, so there is nothing pending.
+		if (partsToRender.some(part => part.kind === 'working')) {
+			return false;
+		}
+		// Only the streamed-markdown "caught up" case is gated behind the debounce.
+		return this.findLastMeaningfulPart(partsToRender)?.kind === 'markdownContent' && !this.hasBeenCaughtUpLongEnough(element);
 	}
 
 	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
@@ -1649,9 +1676,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element.renderData = undefined;
 				this.renderChatResponseBasic(element, index, templateData);
 				return true;
+			} else if (this.isWorkingProgressDebouncePending(element, contentForThisTurn.content)) {
+				// Caught up to the streamed markdown, but still within the working
+				// indicator debounce window. Keep the render loop alive so the
+				// indicator can appear after a genuine pause instead of being dropped
+				// when the loop would otherwise stop here.
+				return false;
 			} else {
 				// Nothing new to render, stop rendering until next model update
-				this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
 				return true;
 			}
 		}

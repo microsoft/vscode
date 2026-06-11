@@ -15,7 +15,9 @@ export const ActiveSessionWorkspaceIsVirtualContext = new RawContextKey<boolean>
 export const IsActiveSessionArchivedContext = new RawContextKey<boolean>('isActiveSessionArchived', false, localize('isActiveSessionArchived', "Whether the active session is archived (marked as done)"));
 export const ActiveSessionHasGitRepositoryContext = new RawContextKey<boolean>('activeSessionHasGitRepository', false, localize('activeSessionHasGitRepository', "Whether the active session has an associated git repository"));
 export const ActiveSessionHasGitSyncActionRunningContext = new RawContextKey<boolean>('activeSessionHasGitSyncActionRunning', false, localize('activeSessionHasGitSyncActionRunning', "Whether the active session has a git sync action currently running"));
+export const ActiveSessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('activeSessionUsesCombinedConfigPicker', false, localize('activeSessionUsesCombinedConfigPicker', "Whether the active session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
 export const ChatSessionProviderIdContext = new RawContextKey<string>('chatSessionProviderId', '', localize('chatSessionProviderId', "The provider ID of a session in context menu overlays"));
+export const ChatSessionTypeContext = new RawContextKey<string>('chatSessionType', '', localize('chatSessionType', "The session type of a session in context menu overlays"));
 
 //#endregion
 
@@ -25,6 +27,8 @@ export const SessionIsCreatedContext = new RawContextKey<boolean>('sessionIsCrea
 export const SessionIsStickyContext = new RawContextKey<boolean>('sessionIsSticky', false, localize('sessionIsSticky', "Whether the session view's session is sticky in the grid"));
 export const SessionIsMaximizedContext = new RawContextKey<boolean>('sessionIsMaximized', false, localize('sessionIsMaximized', "Whether the session view is currently maximized in the sessions part's grid"));
 export const SessionSupportsMultipleChatsContext = new RawContextKey<boolean>('sessionSupportsMultipleChats', false, localize('sessionSupportsMultipleChats', "Whether the session view's session supports multiple chats"));
+export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
+export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session is archived (marked as done)"));
 
 //#endregion
 
