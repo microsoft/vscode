@@ -50,19 +50,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	}
 
 	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		// On retrigger, prefer the previously-shown overload to avoid flicker — but only
-		// when TypeScript still selects the same one. TypeScript updates selectedItemIndex
-		// when typed arguments narrow the overload set (e.g. a string first argument
-		// eliminates number overloads on the next trigger-character retrigger), and we
-		// must honour that update rather than locking in the earlier selection.
-		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-		if (previouslyActiveSignature && context.isRetrigger) {
-			if (signatures[info.selectedItemIndex]?.label === previouslyActiveSignature.label) {
-				return info.selectedItemIndex;
-			}
-		}
-
-		return info.selectedItemIndex;
+		return getActiveSignature(context, info.selectedItemIndex, signatures);
 	}
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
@@ -101,6 +89,28 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		signature.label += Previewer.asPlainTextWithLinks(item.suffixDisplayParts, this.client);
 		return signature;
 	}
+}
+
+export function getActiveSignature(
+	context: {
+		isRetrigger: boolean;
+		activeSignatureHelp?: {
+			signatures: ReadonlyArray<{ label: string }>;
+			activeSignature: number;
+		};
+	},
+	tsSelectedItemIndex: number,
+	signatures: ReadonlyArray<{ label: string }>,
+): number {
+	// On retrigger, only keep the previous overload if TypeScript still selects it —
+	// typed arguments may have narrowed the overload set, in which case we follow TS.
+	const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
+	if (previouslyActiveSignature && context.isRetrigger) {
+		if (signatures[tsSelectedItemIndex]?.label === previouslyActiveSignature.label) {
+			return context.activeSignatureHelp!.activeSignature;
+		}
+	}
+	return tsSelectedItemIndex;
 }
 
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
