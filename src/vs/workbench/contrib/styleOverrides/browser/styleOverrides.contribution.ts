@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
@@ -40,6 +41,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IPathService private readonly pathService: IPathService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -62,6 +64,8 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 
 	private update(): void {
 		const uris = this.resolveUris();
+
+		this.logService.info(`[styleOverrides] Setting '${SETTING_ID}' resolved to ${uris.length} file(s): ${uris.map(u => u.toString(true)).join(', ')}`);
 
 		// Refresh the set of watched files
 		this.fileWatchers.clear();
@@ -94,6 +98,17 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 	}
 
 	private toUri(entry: string): URI | undefined {
+		// Home directory: ~ or ~/relative/path
+		if (entry === '~' || entry.startsWith('~/')) {
+			const home = this.pathService.resolvedUserHome;
+			if (!home) {
+				this.logService.warn(`[styleOverrides] Cannot resolve '~' before the user home is known: ${entry}`);
+				return undefined;
+			}
+			const rest = entry.slice(1).replace(/^\/+/, '');
+			return rest ? URI.joinPath(home, rest) : home;
+		}
+
 		// Full URI with a scheme (e.g. file:///, vscode-userdata:/)
 		if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(entry) && !this.looksLikeWindowsPath(entry)) {
 			try {
@@ -134,6 +149,7 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 			try {
 				const content = await this.fileService.readFile(uri);
 				sections.push(`/* ${uri.toString(true)} */\n${content.value.toString()}`);
+				this.logService.info(`[styleOverrides] Loaded CSS override: ${uri.toString(true)}`);
 			} catch (error) {
 				this.logService.warn(`[styleOverrides] Failed to read CSS override file ${uri.toString(true)}: ${error}`);
 			}
@@ -146,6 +162,8 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 		const store = new DisposableStore();
 		createStyleSheet(undefined, style => style.textContent = css, store);
 		this.styleElement.value = store;
+
+		this.logService.info(`[styleOverrides] Applied ${sections.length} CSS override file(s), ${css.length} bytes.`);
 	}
 }
 
@@ -158,9 +176,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				type: 'string'
 			},
 			default: [],
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.MACHINE_OVERRIDABLE,
 			tags: ['experimental'],
-			markdownDescription: localize('styleOverrides', "A list of CSS files whose contents are injected into the workbench to override the built-in product styles. Useful for prototyping style ideas. Entries can be absolute paths, URIs, or paths relative to the first workspace folder. Files are applied in order (later files override earlier ones) and are watched for live changes. This is an experimental, development-only setting.")
+			markdownDescription: localize('styleOverrides', "A list of CSS files whose contents are injected into the workbench to override the built-in product styles. Useful for prototyping style ideas. Entries can be absolute paths, home-relative paths (starting with `~/`), URIs, or paths relative to the first workspace folder. Files are applied in order (later files override earlier ones) and are watched for live changes. This is an experimental, development-only setting.")
 		}
 	}
 });
