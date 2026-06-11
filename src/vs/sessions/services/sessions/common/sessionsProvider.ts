@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
@@ -26,6 +27,31 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
+}
+
+/**
+ * Presentation options for the sessions-core model picker. A provider returns
+ * these from {@link ISessionsProvider.getModelPickerOptions} so it controls how
+ * its models are displayed, rather than the core picker inferring behavior from
+ * the provider or session type.
+ */
+export interface ISessionModelPickerOptions {
+	/** Whether to group models by vendor/family in the picker. */
+	readonly useGroupedModelPicker: boolean;
+	/** Whether to surface featured models. */
+	readonly showFeatured: boolean;
+	/** Whether to surface featured models that are currently unavailable. */
+	readonly showUnavailableFeatured: boolean;
+	/** Whether to offer the "Manage Models" action in the picker. */
+	readonly showManageModelsAction: boolean;
+	/**
+	 * Whether the Auto model is unavailable for this session type, so it cannot
+	 * fall back to Auto. When true and the provider offers no models, the core
+	 * picker stays visible and shows a "No models available" state (with an
+	 * upgrade prompt for Copilot Free / Student users) instead of hiding the
+	 * picker or offering Auto.
+	 */
+	readonly autoModelUnavailable?: boolean;
 }
 
 /**
@@ -139,6 +165,37 @@ export interface ISessionsProvider {
 	 * @param title The new title for the chat.
 	 */
 	renameChat(sessionId: string, chatUri: URI, title: string): Promise<void>;
+
+	/**
+	 * Get the language models that can be selected for a session. The sessions
+	 * core renders these in a single {@link ModelPickerActionItem}-based picker
+	 * and persists the user's choice per provider per session type. Returns an
+	 * empty array when the session has no selectable models (e.g. the underlying
+	 * runtime does not expose model selection).
+	 *
+	 * Providers backed by registered language models return them directly;
+	 * providers whose models come from another source (e.g. extension-host
+	 * option groups for cloud sessions) synthesize equivalent metadata.
+	 * @param sessionId The ID of the session.
+	 */
+	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[];
+
+	/**
+	 * Get the presentation options for the sessions-core model picker for the
+	 * given session. The provider — not the core picker — decides how its models
+	 * are presented (grouping, featured models, whether the manage-models action
+	 * is offered), so provider-specific behavior is not hardcoded in core.
+	 * @param sessionId The ID of the session.
+	 */
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions;
+
+	/**
+	 * Event that fires when the set of models returned by {@link getModels}
+	 * may have changed (e.g. language models finished loading, or the backend
+	 * advertised a new option group). The core model picker re-reads the model
+	 * list when this fires. Has no payload — consumers re-query per session.
+	 */
+	readonly onDidChangeModels: Event<void>;
 
 	/**
 	 * Set the model for a session.

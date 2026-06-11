@@ -26,16 +26,17 @@ import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGrou
 import { ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, ISessionChangeset, IChatCheckpoints } from '../../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionModelPickerOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { isBuiltinChatMode, IChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IGitService, IGitRepository } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1578,10 +1579,103 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
 	}
 
+	get onDidChangeModels(): Event<void> {
+		// Models can change because language models are (un)registered or because
+		// the extension host updates a cloud session's `models` option group.
+		return Event.signal(Event.any(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.chatSessionsService.onDidChangeOptionGroups
+		));
+	}
+
+	getModels(sessionId: string): readonly ILanguageModelChatMetadataAndIdentifier[] {
+		const session = this.getSession(sessionId);
+		if (session instanceof RemoteNewSession) {
+			// Cloud sessions: models come from the extension-host `models` option
+			// group rather than from registered language models. Synthesize
+			// language-model metadata from each option item so the shared model
+			// picker widget can render them like regular language models.
+			const modelOption = session.getModelOptionGroup();
+			return modelOption?.group.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
+		}
+
+		// CLI / Claude sessions: language models registered against the session's
+		// `targetChatSessionType`.
+		const sessionType = session?.sessionType;
+		if (!sessionType) {
+			return [];
+		}
+		return this.languageModelsService.getLanguageModelIds()
+			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
+				const metadata = this.languageModelsService.lookupLanguageModel(id);
+				return metadata && metadata.targetChatSessionType === sessionType ? { identifier: id, metadata } : undefined;
+			})
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
+	}
+
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires custom models cannot fall back to Auto.
+		// When it has no models (e.g. the Claude agent for a Copilot Free /
+		// Student user), the picker shows a "No models available" state instead
+		// of Auto. Derive this from the contribution's declarative
+		// `requiresCustomModels` flag rather than hardcoding session-type names.
+		const sessionType = this.getSession(sessionId)?.sessionType;
+		const autoModelUnavailable = !!sessionType && this.chatSessionsService.requiresCustomModelsForSessionType(sessionType);
+		return {
+			useGroupedModelPicker: true,
+			showFeatured: true,
+			showUnavailableFeatured: false,
+			showManageModelsAction: false,
+			autoModelUnavailable,
+		};
+	}
+
+	private _toSyntheticModel(item: IChatSessionProviderOptionItem): ILanguageModelChatMetadataAndIdentifier {
+		const modelMetadata = item.modelMetadata;
+		return {
+			identifier: item.id,
+			metadata: {
+				extension: new ExtensionIdentifier(''),
+				name: modelMetadata?.name ?? item.name,
+				id: modelMetadata?.id ?? item.id,
+				vendor: modelMetadata?.vendor ?? '',
+				version: modelMetadata?.version ?? '',
+				family: modelMetadata?.family ?? '',
+				tooltip: modelMetadata?.tooltip ?? item.tooltip,
+				pricing: modelMetadata?.pricing,
+				multiplierNumeric: modelMetadata?.multiplierNumeric,
+				inputCost: modelMetadata?.inputCost,
+				outputCost: modelMetadata?.outputCost,
+				cacheCost: modelMetadata?.cacheCost,
+				longContextInputCost: modelMetadata?.longContextInputCost,
+				longContextOutputCost: modelMetadata?.longContextOutputCost,
+				longContextCacheCost: modelMetadata?.longContextCacheCost,
+				priceCategory: modelMetadata?.priceCategory,
+				maxInputTokens: modelMetadata?.maxInputTokens ?? 0,
+				maxOutputTokens: modelMetadata?.maxOutputTokens ?? 0,
+				capabilities: modelMetadata?.capabilities ? {
+					vision: modelMetadata.capabilities.vision,
+					toolCalling: modelMetadata.capabilities.toolCalling,
+				} : undefined,
+				isUserSelectable: true,
+				isDefaultForLocation: {},
+			},
+		};
+	}
+
 	setModel(sessionId: string, modelId: string): void {
 		const newSession = this._newSessions.get(sessionId);
 		if (newSession) {
 			newSession.setModelId(modelId);
+			// Cloud sessions additionally persist the selection as the value of
+			// the `models` option group so the extension host honours it.
+			if (newSession instanceof RemoteNewSession) {
+				const modelOption = newSession.getModelOptionGroup();
+				const item = modelOption?.group.items.find(i => i.id === modelId);
+				if (item) {
+					newSession.setOptionValue(modelOption!.group.id, item);
+				}
+			}
 			return;
 		}
 
@@ -1592,34 +1686,38 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	// -- Session Actions --
 
 	async archiveSession(sessionId: string): Promise<void> {
-		const agentSession = this._findAgentSession(sessionId);
-		if (agentSession) {
-			agentSession.setArchived(true);
-			return;
-		}
-
-		// Temp session that hasn't been committed — archive it in-place
-		// so the user can still review whatever content was produced.
+		// Uncommitted (NEW) sessions — including those that were cancelled mid-flight —
+		// must be archived via their chat-adapter directly. Their agent-host entry
+		// (if any, from `getOrCreateChatSession`) has providerType `Local`, which
+		// is filtered out by `_refreshSessionCache`, so changes made through
+		// `agentSession.setArchived(true)` would never propagate to the chat
+		// adapter's `_isArchived` observable. The result would be a no-op tick
+		// in the UI even though the agent-host model thinks the session is archived.
 		const chatSession = this._findChatSession(sessionId);
 		if (chatSession && isNewSession(chatSession)) {
 			chatSession.setArchived(true);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(chatSession)] });
 			return;
 		}
+
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			agentSession.setArchived(true);
+		}
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
-		const agentSession = this._findAgentSession(sessionId);
-		if (agentSession) {
-			agentSession.setArchived(false);
-			return;
-		}
-
-		// Temp session that hasn't been committed — unarchive it in-place
+		// See `archiveSession` for why NEW sessions take a separate path.
 		const chatSession = this._findChatSession(sessionId);
 		if (chatSession && isNewSession(chatSession)) {
 			chatSession.setArchived(false);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(chatSession)] });
+			return;
+		}
+
+		const agentSession = this._findAgentSession(sessionId);
+		if (agentSession) {
+			agentSession.setArchived(false);
 		}
 	}
 
@@ -1901,7 +1999,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				kind: modeKind,
 				isBuiltin: modeIsBuiltin,
 				modeInstructions,
-				modeId,
+				telemetryModeId: modeId,
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel,
 			},
@@ -2034,7 +2132,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
 				modeInstructions: undefined,
-				modeId: 'agent',
+				telemetryModeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: newChatSession.permissionLevel.get(),
 			},

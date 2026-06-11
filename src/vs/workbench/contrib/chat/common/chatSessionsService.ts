@@ -249,18 +249,31 @@ export namespace SessionType {
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Returns whether the given session type is a local agent host target.
+ */
+export function isLocalAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-');
+}
+
+/**
+ * Returns whether the given session type is a remote agent host target.
  *
  * Note: The `remote-` prefix convention is established by
  * `RemoteAgentHostContribution` which generates session types as
  * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
+export function isRemoteAgentHostTarget(target: string): boolean {
+	return target.startsWith('remote-');
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ */
 export function isAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
@@ -473,6 +486,13 @@ export interface IChatSessionItemController {
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	resolveChatSessionItem?(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Permanently delete the session identified by `resource`. Implementations should tear down any backend state for
+	 * the session. The controller is expected to fire an `onDidChangeChatSessionItems` event with the removed resource
+	 * as a result of the deletion.
+	 */
+	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -719,6 +739,12 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Permanently deletes a chat session item by delegating to the registered controller's `deleteChatSessionItem`
+	 * handler. Throws if the controller does not implement `deleteChatSessionItem`.
+	 */
+	deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Registers an alias so that session-option lookups by the real resource

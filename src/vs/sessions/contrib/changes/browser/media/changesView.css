@@ -35,12 +35,6 @@
 	gap: 8px;
 }
 
-.changes-view-body .changes-welcome-icon.codicon {
-	font-size: 32px !important;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.4;
-}
-
 .changes-view-body .changes-welcome-message {
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
@@ -100,38 +94,6 @@
 	font-size: 12px;
 	font-weight: 500;
 	padding: 2px 4px;
-}
-
-/* Overview section (header) - hidden since actions moved outside card */
-.changes-view-body .chat-editing-session-overview {
-	display: none;
-}
-
-/* Summary container */
-.changes-view-body .changes-summary {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 6px;
-	padding: 0 6px;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Line counts in header */
-.changes-view-body .changes-summary .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-	font-size: 11px;
-	font-weight: 500;
-}
-
-.changes-view-body .changes-summary .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
-	font-size: 11px;
-	font-weight: 500;
 }
 
 .changes-view-body .changes-files-header-right-toolbar .working-set-lines-added {
@@ -205,7 +167,7 @@
 	padding: 4px;
 	width: auto;
 	min-width: 0;
-	border-radius: 0px 4px 4px 0px;
+	border-radius: 0px var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0px;
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
@@ -222,17 +184,18 @@
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
 	padding: 2px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	display: inline-flex;
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	color: var(--vscode-button-secondaryForeground);
+	border-color: var(--vscode-button-secondaryBorder);
 }
 
 .changes-view-body .chat-editing-session-actions.outside-card .monaco-button-dropdown > .monaco-button.secondary.monaco-text-button {
-	border-radius: 4px 0px 0px 4px;
+	border-radius: var(--vscode-cornerRadius-small) 0px 0px var(--vscode-cornerRadius-small);
 }
 
 .changes-view-body .chat-editing-session-actions .monaco-button.secondary:hover {
@@ -277,7 +240,7 @@
 }
 
 .changes-view-body .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 /* Action bar in list rows */
@@ -389,10 +352,4 @@
 
 .changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
-}
-
-.changes-view-body .chat-editing-session-actions .monaco-button.code-review-comments,
-.changes-view-body .chat-editing-session-actions .monaco-button.code-review-loading {
-	padding-left: 4px;
-	padding-right: 4px;
 }

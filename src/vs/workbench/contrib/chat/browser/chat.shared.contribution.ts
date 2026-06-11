@@ -11,7 +11,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -64,6 +64,7 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatToolRiskAssessmentService, IChatToolRiskAssessmentService } from './tools/chatToolRiskAssessmentService.js';
+import { ChatGoalSummaryService, IChatGoalSummaryService } from './chatGoalSummaryService.js';
 import { agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { isTildePath, PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -447,6 +448,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental', 'advanced'],
+		},
+		[ChatConfiguration.AutopilotAdvancedEnabled]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.autopilot.advanced.enabled', "Enables **Advanced Autopilot**, a single switch that turns on all advanced Autopilot behaviors that delegate more of the loop to the agent. Currently, after each Autopilot turn a small, fast model evaluates whether your original request is complete; if not, Autopilot keeps working using that evaluation as guidance for the next turn, instead of relying on the agent to signal completion itself."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.PlanReviewInlineEditorEnabled]: {
 			type: 'boolean',
@@ -1114,12 +1121,34 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental', 'advanced'],
 		},
+		[ChatConfiguration.AgentHostDefaultChatProvider]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: nls.localize('chat.agentHost.defaultChatProvider', "When enabled, the local agent host is used as the default provider in the VS Code chat session-target picker. Requires `#{0}#`.", AgentHostEnabledSettingId),
+		},
+		[AgentHostSdkSandboxEnabledSettingId]: {
+			type: 'string',
+			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On, AgentSandboxEnabledValue.AllowNetwork],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.sdkSandbox.enabled.off', "No sandbox policy is forwarded for the SDK's built-in shell tool — commands run unsandboxed."),
+				nls.localize('chat.agentHost.sdkSandbox.enabled.on', "The SDK's built-in shell tool runs inside a sandbox using the configured filesystem policy and host-list-restricted network."),
+				nls.localize('chat.agentHost.sdkSandbox.enabled.allowNetwork', "The SDK's built-in shell tool runs inside a sandbox with unrestricted outbound network access."),
+			],
+			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled', "Sandbox mode for the Copilot SDK's built-in shell tool. Only takes effect when `#chat.agentHost.customTerminalTool.enabled#` is `false`; when the Agent Host's own terminal tool is enabled, the engine sandbox is controlled by `#chat.agent.sandbox.enabled#`."),
+			default: AgentSandboxEnabledValue.Off,
+			tags: ['experimental', 'advanced'],
+			experiment: {
+				mode: 'auto'
+			},
+		},
 		[ChatConfiguration.AgentHostClientTools]: {
 			type: 'array',
 			items: { type: 'string' },
 			description: nls.localize('chat.agentHost.clientTools', "Tool reference names to expose as client-provided tools in agent host sessions."),
 			default: [
-				'runTask', 'getTaskOutput', 'problems', 'runTests',
+				'runTask', 'getTaskOutput', 'problems', 'runTests', 'addComment', 'listComments', 'deleteComments', 'resolveComments',
 				// These are always present in the {@link ChatConfiguration.AgentHostClientTools} default but
 				// out of these, only the tools that are actually registered/enabled are seen by the agent.
 				...browserChatToolReferenceNames,
@@ -1133,7 +1162,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, terminal tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
+			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
 			default: true,
 			experiment: {
 				mode: 'auto'
@@ -1962,18 +1991,22 @@ class CopilotTelemetryContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this.updateCopilotTrackingId();
+		this.updateCommonProperties();
 
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			this.updateCopilotTrackingId();
+			this.updateCommonProperties();
 		}));
 	}
 
-	private updateCopilotTrackingId(): void {
+	private updateCommonProperties(): void {
 		const copilotTrackingId = this.chatEntitlementService.copilotTrackingId;
 		if (copilotTrackingId) {
 			// __GDPR__COMMON__ "common.copilotTrackingId" : { "endPoint": "GoogleAnalyticsID", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "The anonymized Copilot analytics tracking ID from the entitlement API." }
 			this.telemetryService.setCommonProperty('common.copilotTrackingId', copilotTrackingId);
+		}
+
+		if (this.chatEntitlementService.isInternal) {
+			this.telemetryService.setCommonProperty('common.msftInternal', true);
 		}
 	}
 }
@@ -2426,6 +2459,7 @@ registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, Instant
 registerSingleton(IToolResultCompressor, ToolResultCompressorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
 registerSingleton(IChatToolRiskAssessmentService, ChatToolRiskAssessmentService, InstantiationType.Delayed);
+registerSingleton(IChatGoalSummaryService, ChatGoalSummaryService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);

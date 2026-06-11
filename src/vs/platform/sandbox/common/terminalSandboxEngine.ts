@@ -20,7 +20,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
-import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck } from './terminalSandboxService.js';
+import { ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from './terminalSandboxService.js';
 
 interface ITerminalSandboxFileSystemSetting {
 	denyRead?: string[];
@@ -315,11 +315,21 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
+			const missingDependencies = await this.getMissingSandboxDependencies();
+			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
+				return {
+					enabled: true,
+					sandboxConfigPath,
+					failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+					remediations: this._getBubblewrapRemediations(),
+					detail: this._sandboxDependencyStatus.bubblewrapError,
+				};
+			}
 			return {
 				enabled: true,
 				sandboxConfigPath,
 				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
-				missingDependencies: await this.getMissingSandboxDependencies(),
+				missingDependencies,
 			};
 		}
 
@@ -348,7 +358,7 @@ export class TerminalSandboxEngine extends Disposable {
 			return [];
 		}
 
-		if (!this._sandboxDependencyStatus || !this._sandboxDependencyStatus.bubblewrapInstalled || !this._sandboxDependencyStatus.socatInstalled) {
+		if (!this._sandboxDependencyStatus) {
 			this._sandboxDependencyStatus = await this._host.checkSandboxDependencies();
 		}
 
@@ -388,7 +398,7 @@ export class TerminalSandboxEngine extends Disposable {
 		}
 
 		if (!forceRefresh && this._sandboxDependencyStatus) {
-			return this._sandboxDependencyStatus.bubblewrapInstalled && this._sandboxDependencyStatus.socatInstalled;
+			return this._sandboxDependencyStatus.bubblewrapInstalled && this._sandboxDependencyStatus.bubblewrapUsable && this._sandboxDependencyStatus.socatInstalled;
 		}
 
 		const status = await this._host.checkSandboxDependencies();
@@ -396,12 +406,18 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (status && !status.bubblewrapInstalled) {
 			this._logService.warn('TerminalSandboxEngine: bubblewrap (bwrap) is not installed');
+		} else if (status && !status.bubblewrapUsable) {
+			this._logService.warn('TerminalSandboxEngine: bubblewrap (bwrap) is installed but failed its capability check', status.bubblewrapError);
 		}
 		if (status && !status.socatInstalled) {
 			this._logService.warn('TerminalSandboxEngine: socat is not installed');
 		}
 
-		return status ? status.bubblewrapInstalled && status.socatInstalled : true;
+		return status ? status.bubblewrapInstalled && status.bubblewrapUsable && status.socatInstalled : true;
+	}
+
+	private _getBubblewrapRemediations(): readonly TerminalSandboxPreCheckRemediation[] | undefined {
+		return [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction];
 	}
 
 	private _quoteShellArgument(value: string): string {
@@ -747,21 +763,23 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
 		const resolvedPaths = await Promise.all((paths ?? []).map(path => this._resolveFileSystemPath(path)));
-		return [...new Set(resolvedPaths)];
+		return [...new Set(resolvedPaths.flat())];
 	}
 
-	private async _resolveFileSystemPath(path: string): Promise<string> {
+	private async _resolveFileSystemPath(path: string): Promise<string[]> {
 		const expandedPath = this._os === OperatingSystem.Linux ? this._expandHomePath(path) : path;
 		if (!this._isAbsoluteFileSystemPath(expandedPath)) {
-			return expandedPath;
+			return [expandedPath];
 		}
 
 		try {
 			const realpath = await this._fileService.realpath(this._toFileSystemResource(expandedPath));
 			const resolvedPath = realpath ? this._getUriPath(realpath) : undefined;
-			return resolvedPath && resolvedPath !== expandedPath ? resolvedPath : expandedPath;
+			// Keep the expanded path (the configured path after home expansion) so permissions apply when accessed through the symlink.
+			// Also include the resolved path (the canonical symlink target) so the same permissions apply when accessed directly.
+			return resolvedPath && resolvedPath !== expandedPath ? [expandedPath, resolvedPath] : [expandedPath];
 		} catch {
-			return expandedPath;
+			return [expandedPath];
 		}
 	}
 

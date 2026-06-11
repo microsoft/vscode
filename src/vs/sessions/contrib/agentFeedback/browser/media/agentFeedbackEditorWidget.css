@@ -10,7 +10,7 @@
 	min-width: 180px;
 	background-color: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
 	font-size: 12px;
 	line-height: 1.4;
@@ -71,7 +71,7 @@
 	align-items: center;
 	padding: 4px 4px 4px 8px;
 	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
-	border-radius: 8px 8px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	overflow: hidden;
 	cursor: pointer;
 	gap: 6px;
@@ -79,7 +79,7 @@
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-header {
 	border-bottom: none;
-	border-radius: 8px 8px 8px 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .agent-feedback-widget-header:hover {
@@ -193,17 +193,12 @@
 	display: inline-flex;
 	align-items: center;
 	padding: 1px 6px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	font-size: 10px;
 	font-weight: 600;
 	letter-spacing: 0.2px;
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 	color: var(--vscode-descriptionForeground);
-}
-
-.agent-feedback-widget-item-codeReview .agent-feedback-widget-item-type {
-	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, var(--vscode-editorWidget-background));
-	color: var(--vscode-editorWarning-foreground);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-item-type {
@@ -237,7 +232,7 @@
 	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	padding: 1px 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
 
@@ -247,10 +242,6 @@
 	gap: 6px;
 	margin-top: 8px;
 	padding: 0px 8px 4px 12px;
-}
-
-.agent-feedback-widget-item-codeReview .agent-feedback-widget-suggestion {
-	border-left: 1px solid color-mix(in srgb, var(--vscode-editorWarning-foreground) 50%, transparent);
 }
 
 .agent-feedback-widget-item-prReview .agent-feedback-widget-suggestion {
@@ -274,7 +265,7 @@
 .agent-feedback-widget-suggestion-text {
 	margin: 0;
 	padding: 6px 8px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	overflow-x: auto;
 	white-space: pre-wrap;
 	font-family: var(--monaco-monospace-font);
@@ -303,7 +294,7 @@
 	min-height: 22px;
 	padding: 4px 6px;
 	border: 1px solid var(--vscode-focusBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	font: inherit;
@@ -347,7 +338,7 @@
 	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	padding: 1px 4px;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
 

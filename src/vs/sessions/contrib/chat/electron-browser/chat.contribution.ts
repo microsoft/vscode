@@ -10,13 +10,14 @@ import { autorun } from '../../../../base/common/observable.js';
 import { timeout } from '../../../../base/common/async.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { writeStoredSessionTypePref } from '../browser/sessionTypePicker.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -27,6 +28,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -68,7 +70,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 				// so the session-type picker re-reads the freshly stored
 				// preference from storage.
 				this.lifecycleService.when(LifecyclePhase.Eventually)
-					.then(() => this.sessionsManagementService.unsetNewSession())
+					.then(() => this.sessionsViewService.unsetNewSession())
 					.catch(err => this.logService.error('[AgentsHandoff] preferred-only unsetNewSession failed', err));
 			}
 		};
@@ -122,7 +124,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		const targetKey = sessionResource.toString();
 		for (let attempt = 0; attempt < 6; attempt++) {
 			try {
-				await this.sessionsManagementService.openSession(sessionResource);
+				await this.sessionsViewService.openSession(sessionResource);
 				const active = this.sessionsManagementService.activeSession.get();
 				if (active && active.resource.toString() === targetKey) {
 					this.logService.info('[AgentsHandoff] openSession succeeded');
@@ -245,7 +247,7 @@ class SelectAgentsFolderContribution extends Disposable implements IWorkbenchCon
 		// Wait for the welcome/setup flow to complete before selecting the folder
 		await this.sessionsSetUpService.whenWelcomeDone();
 
-		this.sessionsManagementService.openNewSessionView();
+		this.sessionsViewService.openNewSession();
 
 		// Tell the sessions list this folder is the open-window source folder
 		// so it ranks the matching folder section first. Get the view if it

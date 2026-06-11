@@ -1049,6 +1049,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return controllerData.controller.newChatSessionItem?.(request, token);
 	}
 
+	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		const controllerData = this._itemControllers.get(resolvedType);
+		if (!controllerData?.controller.deleteChatSessionItem) {
+			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
+		}
+
+		await controllerData.initialRefresh;
+		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
@@ -1378,7 +1390,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.widget.clear();
+					await view.startNewLocalSession();
 				} else {
 					await view.loadSession(sessionResource);
 				}

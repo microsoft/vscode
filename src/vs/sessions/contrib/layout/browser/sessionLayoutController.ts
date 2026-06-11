@@ -23,6 +23,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
@@ -65,9 +66,18 @@ export class LayoutController extends Disposable {
 	private readonly _workingSetSequencer = new Sequencer();
 	private readonly _useModalConfigObs;
 
+	/**
+	 * Set while a working set is being restored on session switch. The editor
+	 * part is revealed programmatically in this case, so the "editor implies
+	 * auxiliary bar" invariant is suppressed to honor the session's saved
+	 * auxiliary bar visibility (e.g. the user hid it for this session).
+	 */
+	private _suppressAuxiliaryBarEnforcement = false;
+
 	constructor(
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
+		@ISessionsViewService private readonly _sessionsViewService: ISessionsViewService,
 		@IChatService private readonly _chatService: IChatService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IPaneCompositePartService private readonly _paneCompositePartService: IPaneCompositePartService,
@@ -114,7 +124,7 @@ export class LayoutController extends Disposable {
 		});
 
 		const multipleSessionsVisibleObs = derived<boolean>(reader => {
-			return this._sessionManagementService.visibleSessions.read(reader).length > 1;
+			return this._sessionsViewService.visibleSessions.read(reader).length > 1;
 		});
 
 		// When multiple sessions are visible, drop per-session view/panel state
@@ -122,7 +132,7 @@ export class LayoutController extends Disposable {
 		// This will ensure the default visibility logic will be used again after
 		// closing all visible session and opening an existing one
 		this._register(autorun(reader => {
-			const visibleSessions = this._sessionManagementService.visibleSessions.read(reader);
+			const visibleSessions = this._sessionsViewService.visibleSessions.read(reader);
 			if (visibleSessions.length <= 1) {
 				return;
 			}
@@ -306,11 +316,28 @@ export class LayoutController extends Disposable {
 	// --- Auxiliary bar ---
 
 	private _enforceAuxiliaryBarWhenEditorVisible(): void {
+		if (this._suppressAuxiliaryBarEnforcement) {
+			return;
+		}
 		if (
 			this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) &&
 			!this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 		) {
 			this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		}
+	}
+
+	/**
+	 * Reveals the editor part without triggering the "editor implies auxiliary
+	 * bar" invariant. Used when restoring a session's working set so the
+	 * session's saved auxiliary bar visibility is respected.
+	 */
+	private _revealEditorPartForWorkingSet(): void {
+		this._suppressAuxiliaryBarEnforcement = true;
+		try {
+			this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		} finally {
+			this._suppressAuxiliaryBarEnforcement = false;
 		}
 	}
 
@@ -401,7 +428,7 @@ export class LayoutController extends Disposable {
 
 	private _saveState(): void {
 		const activeSession = this._sessionManagementService.activeSession.get();
-		const multipleVisible = this._sessionManagementService.visibleSessions.get().length > 1;
+		const multipleVisible = this._sessionsViewService.visibleSessions.get().length > 1;
 
 		// Capture current state for the active session (skip when multiple sessions are visible)
 		if (activeSession && !multipleVisible) {
@@ -468,12 +495,12 @@ export class LayoutController extends Disposable {
 			}
 
 			if (!isModal && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				this._revealEditorPartForWorkingSet();
 			}
 
 			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
 			if (!isModal && result && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				this._revealEditorPartForWorkingSet();
 			}
 		});
 	}

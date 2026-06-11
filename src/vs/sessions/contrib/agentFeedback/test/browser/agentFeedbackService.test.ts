@@ -11,9 +11,8 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AgentFeedbackService, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -42,7 +41,6 @@ suite('AgentFeedbackService - Ordering', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = Event.None;
@@ -299,7 +297,6 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() { });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override onDidVisibleEditorsChange = visibleEditorsEmitter.event;
@@ -398,5 +395,74 @@ suite('AgentFeedbackService - getSessionForFile', () => {
 		setActiveSession(undefined);
 
 		assert.strictEqual(service.getSessionForFile(fileA), undefined);
+	});
+});
+
+suite('AgentFeedbackService - State', () => {
+
+	const store = new DisposableStore();
+	let service: IAgentFeedbackService;
+	let session: URI;
+	let fileA: URI;
+
+	setup(() => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() { });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override onDidVisibleEditorsChange = Event.None;
+			override visibleEditorPanes = [];
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		});
+
+		service = store.add(instantiationService.createInstance(AgentFeedbackService));
+		session = URI.parse('test://session/1');
+		fileA = URI.parse('file:///a.ts');
+	});
+
+	teardown(() => store.clear());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('feedback defaults to the accepted state', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'hello');
+		assert.strictEqual(feedback.state, AgentFeedbackState.Accepted);
+	});
+
+	test('created feedback transitions to accepted on acceptFeedback', () => {
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
+		assert.strictEqual(created.state, AgentFeedbackState.Created);
+
+		service.acceptFeedback(session, created.id);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Accepted);
+	});
+
+	test('markFeedbackSubmitted only submits accepted items', () => {
+		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
+		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
+
+		service.markFeedbackSubmitted(session);
+
+		const stateById = new Map(service.getFeedback(session).map(item => [item.id, item.state]));
+		assert.deepStrictEqual({
+			accepted: stateById.get(accepted.id),
+			created: stateById.get(created.id),
+		}, {
+			accepted: AgentFeedbackState.Submitted,
+			created: AgentFeedbackState.Created,
+		});
+	});
+
+	test('resolving and un-resolving moves between resolved and submitted', () => {
+		const feedback = service.addFeedback(session, fileA, r(10), 'feedback');
+		service.markFeedbackSubmitted(session);
+
+		service.setFeedbackResolved(session, feedback.id, true);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Resolved);
+
+		service.setFeedbackResolved(session, feedback.id, false);
+		assert.strictEqual(service.getFeedback(session)[0].state, AgentFeedbackState.Submitted);
 	});
 });

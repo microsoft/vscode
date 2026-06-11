@@ -9,7 +9,6 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	overflow: hidden;
 	font-size: var(--vscode-agents-fontSize-label1, 12px);
 }
 
@@ -19,21 +18,31 @@
 	display: flex;
 	align-items: center;
 	padding: 4px;
-	margin-top: 4px;
-	border-radius: 6px;
-	min-height: 22px;
-	font-weight: var(--vscode-agents-fontWeight-medium, 500);
+	margin-top: 6px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	min-height: 20px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	cursor: pointer;
 	user-select: none;
 }
 
 .ci-status-widget-header:hover {
-	background-color: var(--vscode-list-hoverBackground);
 	padding-right: 26px;
 }
 
-.ci-status-widget-header:focus {
+.ci-status-widget-header:focus-visible {
 	padding-right: 26px;
+}
+
+.ci-status-widget-header.collapsed {
+	padding-right: 26px;
+}
+
+/* Hover/keyboard focus promote the title to the strong foreground instead of
+	painting a row background — matches the sessions list section labels. */
+.ci-status-widget-header:hover .ci-status-widget-title,
+.ci-status-widget-header:focus-visible .ci-status-widget-title {
+	color: var(--vscode-strongForeground);
 }
 
 .ci-status-widget-header:focus-visible {
@@ -41,7 +50,12 @@
 	outline-offset: -1px;
 }
 
-/* Chevron — right-aligned, visible on hover only */
+/* Suppress the outline for mouse-driven focus — keyboard navigation only */
+.ci-status-widget-header:focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+/* Chevron — right-aligned, visible on hover, keyboard focus, or when collapsed */
 .ci-status-widget-header .group-chevron {
 	position: absolute;
 	right: 8px;
@@ -58,7 +72,8 @@
 }
 
 .ci-status-widget-header:hover .group-chevron,
-.ci-status-widget-header:focus-within .group-chevron {
+.ci-status-widget-header:focus-visible .group-chevron,
+.ci-status-widget-header.collapsed .group-chevron {
 	visibility: visible;
 	opacity: 0.7;
 }
@@ -89,7 +104,9 @@
 	padding-right: 8px;
 }
 
-.ci-status-widget-header:hover .ci-status-widget-counts, .ci-status-widget-header:focus .ci-status-widget-counts {
+.ci-status-widget-header:hover .ci-status-widget-counts,
+.ci-status-widget-header:focus-visible .ci-status-widget-counts,
+.ci-status-widget-header.collapsed .ci-status-widget-counts {
 	visibility: hidden;
 }
 
@@ -160,7 +177,7 @@
 
 /* Individual check row */
 .ci-status-widget .ci-status-widget-list .monaco-list-row {
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .ci-status-widget-check {
