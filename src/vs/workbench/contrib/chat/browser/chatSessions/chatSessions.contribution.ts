@@ -219,6 +219,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
+				autoModelUnavailable: {
+					description: localize('chatSessionsExtPoint.autoModelUnavailable', 'When set, the chat session cannot fall back to the "Auto" model. When no models are available, the picker shows a "No models available" state instead of "Auto".'),
+					type: 'boolean',
+					default: false
+				},
 				autoAttachReferences: {
 					description: localize('chatSessionsExtPoint.autoAttachReferences', 'Whether to automatically attach instruction files to chat requests for this session type.'),
 					type: 'boolean',
@@ -1259,6 +1264,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public requiresCustomModelsForSessionType(chatSessionType: string): boolean {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return !!contribution?.requiresCustomModels;
+	}
+
+	public autoModelUnavailableForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.autoModelUnavailable;
 	}
 
 	public supportsDelegationForSessionType(chatSessionType: string): boolean {
