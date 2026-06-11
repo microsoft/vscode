@@ -710,7 +710,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 
 					if (isString(element.tooltip)) {
-						return treeMenus.getResourceActions([element]).length > 0 ? `${element.tooltip}, ${localize('treeAriaLabelHasActions', "has actions")}` : element.tooltip;
+						return treeMenus.getResourceActions([element]).length > 0 ? localize('treeAriaLabelHasActionsTooltip', "{0}, has actions", element.tooltip) : element.tooltip;
 					} else {
 						if (element.resourceUri && !element.label) {
 							// The custom tree has no good information on what should be used for the aria label.
