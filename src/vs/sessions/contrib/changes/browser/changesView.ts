@@ -18,7 +18,6 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
@@ -415,8 +414,6 @@ export class ChangesViewPane extends ViewPane {
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
 		this.welcomeContainer.style.display = 'none';
 
-		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
 		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
