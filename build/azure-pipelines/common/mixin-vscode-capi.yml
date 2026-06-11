@@ -15,7 +15,7 @@ steps:
       }
 
       try {
-        Invoke-CheckedCommand { git clone https://github.com/microsoft/vscode-capi.git --depth 1 $CapiPath }
+        Invoke-CheckedCommand { git clone https://github.com/microsoft/vscode-capi.git --depth 1 --branch don/pale-lungfish $CapiPath }
         Push-Location $CapiPath
 
         try {
