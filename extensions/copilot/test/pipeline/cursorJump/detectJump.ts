@@ -28,8 +28,6 @@ export interface ICrossFileJump {
 	readonly toLine: number;
 }
 
-export type JumpDetectionResult<T> = Result<T, string>;
-
 export interface ISameFileDetectorOptions {
 	readonly activeDocLogId: LogDocumentId;
 	readonly cursorAtRequest: { readonly offset: number; readonly lineNumber: number };
@@ -61,7 +59,7 @@ export interface ISameFileDetectorOptions {
 export function detectSameFileJump(
 	recordingAfterRequest: readonly LogEntry[],
 	opts: ISameFileDetectorOptions,
-): JumpDetectionResult<ISameFileJump> {
+): Result<ISameFileJump, string> {
 	if (recordingAfterRequest.length === 0) {
 		return Result.error('noPostRequestActivity');
 	}
@@ -129,7 +127,7 @@ export interface ICrossFileDetectorOptions {
 export function detectCrossFileJump(
 	recordingAfterRequest: readonly LogEntry[],
 	opts: ICrossFileDetectorOptions,
-): JumpDetectionResult<ICrossFileJump> {
+): Result<ICrossFileJump, string> {
 	if (recordingAfterRequest.length === 0) {
 		return Result.error('noPostRequestActivity');
 	}
