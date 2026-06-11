@@ -17,6 +17,7 @@ import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
@@ -29,6 +30,8 @@ import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiD
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatMultiDiffInnerData } from '../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -60,6 +63,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -234,15 +238,17 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					return;
 				}
 
-				if (e.element.diff) {
+				const openInDiffEditor = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+				if (e.element.diff && openInDiffEditor) {
 					this.editorService.openEditor({
 						original: { resource: e.element.diff.originalURI },
 						modified: { resource: e.element.diff.modifiedURI },
 						options: { preserveFocus: true }
 					});
 				} else {
+					const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(e.element.uri) ?? e.element.uri;
 					this.editorService.openEditor({
-						resource: e.element.uri,
+						resource: fileURI,
 						options: { preserveFocus: true }
 					});
 				}

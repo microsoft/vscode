@@ -348,6 +348,11 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.revealNextChangeOnResolve', "Controls whether the editor automatically reveals the next change after keeping or undoing a chat edit."),
 			default: true,
 		},
+		[ChatConfiguration.OpenChangedFileInDiffEditor]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.editing.openChangedFileInDiffEditor', "Controls what happens when selecting a file in the changed files list of a chat response. When enabled, the file opens in a diff editor showing the changes made by chat. When disabled, the file opens in a regular editor."),
+			default: true,
+		},
 		'chat.tips.enabled': {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
