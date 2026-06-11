@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall, type ITypedPermissionRequest } from '../../node/copilot/copilotToolDisplay.js';
 
 suite('copilotToolDisplay — friendly tool names', () => {
 
@@ -95,6 +95,32 @@ suite('copilotToolDisplay — edit tool classification', () => {
 		assert.strictEqual(isEditTool('str_replace_editor', 'view'), false);
 		assert.strictEqual(isEditTool('str_replace_editor', 'unknown'), false);
 		assert.strictEqual(isEditTool('str_replace_editor'), false);
+	});
+});
+
+suite('copilotToolDisplay — markdown-rendered tools', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('task_complete renders as markdown, other tools do not', () => {
+		assert.strictEqual(isMarkdownRenderedTool('task_complete'), true);
+		assert.strictEqual(isMarkdownRenderedTool('bash'), false);
+		assert.strictEqual(isMarkdownRenderedTool('report_intent'), false);
+	});
+
+	test('getToolMarkdownContent returns the task_complete summary when present', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task complete:** All tests pass.');
+	});
+
+	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', {}), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', undefined), undefined);
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 42 }), undefined);
+	});
+
+	test('getToolMarkdownContent returns undefined for non-markdown tools', () => {
+		assert.strictEqual(getToolMarkdownContent('bash', { summary: 'ignored' }), undefined);
 	});
 });
 
