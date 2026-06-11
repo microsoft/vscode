@@ -70,7 +70,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 			channels.push(remoteConnection.getChannel('extensionGalleryManifest'));
 		}
 		this.getExtensionGalleryManifest().then(manifest => {
-			this.logService.trace('[WorkbenchExtensionGalleryManifestService] Initializing channels with manifest', manifest);
+			this.logService.trace(`[Marketplace] Initializing channels with manifest ${manifest ? 'available' : 'unavailable'}`);
 			channels.forEach(channel => channel.call('setExtensionGalleryManifest', [manifest]));
 		});
 	}
@@ -92,7 +92,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
-			this.logService.trace('[WorkbenchExtensionGalleryManifestService] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
+			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
 			await this.handleDefaultAccountAccess(configuredServiceUrl);
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
 		} else {
@@ -135,7 +135,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 	}
 
 	private update(manifest: IExtensionGalleryManifest | null, status?: ExtensionGalleryManifestStatus): void {
-		this.logService.debug('WorkbenchExtensionGalleryManifestService# Updating manifest');
+		this.logService.debug(`[Marketplace] Updating manifest ${manifest ? 'available' : 'unavailable'}`);
 		if (this.extensionGalleryManifest !== manifest) {
 			this.extensionGalleryManifest = manifest;
 			this._onDidChangeExtensionGalleryManifest.fire(manifest);
