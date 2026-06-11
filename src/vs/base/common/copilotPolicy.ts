@@ -80,10 +80,15 @@ export const MANAGED_SETTINGS_RAW_POLICY_NAME = '__managedSettingsRawData';
  * Converts flat dot-separated key-value pairs (from the MDM native watcher)
  * back into the nested {@link IManagedSettingsData} structure.
  */
+const PROTOTYPE_POISON_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 export function unflattenManagedSettings(flat: ReadonlyMap<string, string | number | boolean>): IManagedSettingsData {
 	const result: Record<string, unknown> = {};
 	for (const [path, value] of flat) {
 		const parts = path.split('.');
+		if (parts.some(p => PROTOTYPE_POISON_KEYS.has(p))) {
+			continue;
+		}
 		let current: Record<string, unknown> = result;
 		for (let i = 0; i < parts.length - 1; i++) {
 			current[parts[i]] ??= {};
