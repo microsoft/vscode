@@ -49,6 +49,7 @@ import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientState } from '../../node/activeClientState.js';
+import { IProductService } from '../../../product/common/productService.js';
 
 class TestAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
@@ -270,8 +271,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
+		@IProductService productService: IProductService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, productService);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
@@ -292,8 +294,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IAgentHostGitService gitService: IAgentHostGitService,
 		@IAgentConfigurationService configurationService: IAgentConfigurationService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
+		@IProductService productService: IProductService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, new MockAgentHostOTelService(), completions, NULL_CHECKPOINT_SERVICE, productService);
 		this._enablePlanModeOnClient(this._copilotClient as CopilotClient);
 	}
 
