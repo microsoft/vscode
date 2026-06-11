@@ -52,6 +52,7 @@ import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, g
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
+import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
@@ -561,6 +562,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
+
+			// Identify VS Code's agent host traffic in CAPI
+			env['GITHUB_COPILOT_INTEGRATION_ID'] = COPILOT_INTEGRATION_ID;
 
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for

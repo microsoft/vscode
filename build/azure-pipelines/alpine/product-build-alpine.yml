@@ -180,6 +180,8 @@ jobs:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX (background)
 
+      - template: ../common/mixin-vscode-capi.yml@self
+
       - script: npm run gulp core-ci
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"

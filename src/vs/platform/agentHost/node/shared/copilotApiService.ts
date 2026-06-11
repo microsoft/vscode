@@ -10,6 +10,7 @@ import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { COPILOT_INTEGRATION_ID, COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 
 // #region Types
 
@@ -800,14 +801,14 @@ export class CopilotApiService implements ICopilotApiService {
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
-		const capiClient = new CAPIClient(extensionInfo, undefined, {
+		const capiClient = new CAPIClient(extensionInfo, COPILOT_LICENSE_AGREEMENT, {
 			fetch: (url, options) => fetch(url, {
 				method: options.method ?? 'GET',
 				headers: options.headers,
 				body: options.body,
 				signal: options.signal as AbortSignal | undefined,
 			}),
-		});
+		}, undefined, COPILOT_INTEGRATION_ID);
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
 

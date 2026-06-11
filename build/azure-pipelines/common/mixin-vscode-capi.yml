@@ -1,0 +1,33 @@
+steps:
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+
+      function Invoke-CheckedCommand([scriptblock] $Command) {
+        & $Command
+        if ($LASTEXITCODE -ne 0) {
+          throw "Command failed with exit code $LASTEXITCODE`: $Command"
+        }
+      }
+
+      $CapiPath = Join-Path '$(Agent.BuildDirectory)' 'vscode-capi'
+      if (Test-Path $CapiPath) {
+        Remove-Item -Recurse -Force $CapiPath
+      }
+
+      try {
+        Invoke-CheckedCommand { git clone https://github.com/microsoft/vscode-capi.git --depth 1 $CapiPath }
+        Push-Location $CapiPath
+
+        try {
+          Invoke-CheckedCommand { npm ci }
+          $env:BUILD_SOURCESDIRECTORY = '$(Build.SourcesDirectory)'
+          Invoke-CheckedCommand { npm run mixin_vscode }
+        } finally {
+          Pop-Location
+        }
+      } finally {
+        if (Test-Path $CapiPath) {
+          Remove-Item -Recurse -Force $CapiPath
+        }
+      }
+    displayName: Mixin vscode-capi
