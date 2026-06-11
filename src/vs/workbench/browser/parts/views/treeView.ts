@@ -726,7 +726,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 							buildAriaLabel += element.description;
 						}
 						if (treeMenus.getResourceActions([element]).length > 0) {
-							buildAriaLabel += `, ${localize('treeAriaLabelHasActions', "has actions")}`;
+							buildAriaLabel = buildAriaLabel ? localize('treeAriaLabelHasActionsSuffix', "{0}, has actions", buildAriaLabel.trim()) : localize('treeAriaLabelHasActions', "has actions");
 						}
 						return buildAriaLabel;
 					}
