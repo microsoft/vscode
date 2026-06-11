@@ -16,7 +16,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
-import { AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 
 suite('AgentFeedbackAttachmentContribution', () => {
 	const store = new DisposableStore();
@@ -32,7 +32,7 @@ suite('AgentFeedbackAttachmentContribution', () => {
 			resourceUri: URI.file('/workspace/a.ts'),
 			range: new Range(1, 1, 1, 5),
 			sessionResource,
-			kind: 'user',
+			kind: AgentFeedbackKind.UserReview,
 			state: AgentFeedbackState.Accepted,
 		};
 		let getWidgetCallCount = 0;

@@ -266,15 +266,15 @@ interface IConnectionReady {
 
 /**
  * `@openai/codex` distribution descriptor. Lives in this file because it
- * encodes Codex-specific knowledge — the env-var name and the fact that
- * Codex's Linux binaries are statically musl-linked, so it ships a single
- * `linux-*` SKU that runs on both glibc and musl hosts. The downloader
- * consumes this through `IAgentSdkPackage` and never names Codex directly.
+ * encodes Codex-specific knowledge — the env-var name. Codex's Linux
+ * binaries are statically musl-linked so a single `linux-*` SKU runs on
+ * both glibc and musl hosts; the runtime never needs to know that — the
+ * build picks the right SKU per platform. The downloader consumes this
+ * through `IAgentSdkPackage` and never names Codex directly.
  */
 export const CodexSdkPackage: IAgentSdkPackage = {
 	id: 'codex',
 	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
-	hasSeparateMuslLinuxPackage: false,
 };
 
 export class CodexAgent extends Disposable implements IAgent {
@@ -542,7 +542,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// `ELECTRON_RUN_AS_NODE` round-trip when the agent host runs as an
 		// Electron utility process.
 		const root = await this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
-		const codexTarget = this._agentSdkDownloader.resolveSdkTarget(CodexSdkPackage);
+		const codexTarget = codexPackageSuffix(process.platform, process.arch);
 		if (!codexTarget) {
 			throw new Error(`Codex: unsupported platform ${process.platform}-${process.arch}`);
 		}
@@ -1503,11 +1503,28 @@ function parseBinaryArgs(json: string | undefined): string[] {
 }
 
 /**
+ * The suffix Codex uses for its platform `optionalDependencies` packages
+ * (`@openai/codex-${suffix}`). Codex's Linux binaries are statically
+ * musl-linked and ship under the same `linux-<arch>` package regardless of
+ * host libc, so this never returns a `-musl` suffix.
+ *
+ * Returns undefined for unsupported `(platform, arch)` combinations — the
+ * caller surfaces the error.
+ */
+export function codexPackageSuffix(platform: NodeJS.Platform, arch: string): string | undefined {
+	if ((platform !== 'linux' && platform !== 'darwin' && platform !== 'win32') ||
+		(arch !== 'x64' && arch !== 'arm64')) {
+		return undefined;
+	}
+	return `${platform}-${arch}`;
+}
+
+/**
  * Mirrors the triple table inside `@openai/codex/bin/codex.js` so we can spawn
  * the native binary at `vendor/<triple>/bin/codex` directly without going
  * through the JS shim launcher.
  */
-function codexBinaryTriple(sdkTarget: string): string | undefined {
+export function codexBinaryTriple(sdkTarget: string): string | undefined {
 	switch (sdkTarget) {
 		case 'linux-x64': return 'x86_64-unknown-linux-musl';
 		case 'linux-arm64': return 'aarch64-unknown-linux-musl';
