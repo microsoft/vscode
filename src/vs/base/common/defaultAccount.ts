@@ -7,6 +7,7 @@ import { IExtraKnownMarketplaceEntry } from './managedSettings.js';
 
 export interface IQuotaSnapshotData {
 	readonly overage_count: number;
+	readonly overage_entitlement: number;
 	readonly overage_permitted: boolean;
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
