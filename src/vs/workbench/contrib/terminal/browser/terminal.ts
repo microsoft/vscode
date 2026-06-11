@@ -786,6 +786,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	setActiveGroupByIndex(index: number): void;
 	setActiveGroupToNext(): void;
 	setActiveGroupToPrevious(): void;
+	moveActiveGroupDown(): void;
+	moveActiveGroupUp(): void;
 
 	setActiveInstanceByIndex(terminalIndex: number): void;
 

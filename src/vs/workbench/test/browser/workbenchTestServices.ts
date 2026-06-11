@@ -1864,6 +1864,8 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	setActiveGroupByIndex(index: number): void { throw new Error('Method not implemented.'); }
 	setActiveGroupToNext(): void { throw new Error('Method not implemented.'); }
 	setActiveGroupToPrevious(): void { throw new Error('Method not implemented.'); }
+	moveActiveGroupDown(): void { throw new Error('Method not implemented.'); }
+	moveActiveGroupUp(): void { throw new Error('Method not implemented.'); }
 	setActiveInstanceByIndex(terminalIndex: number): void { throw new Error('Method not implemented.'); }
 	setContainer(container: HTMLElement): void { throw new Error('Method not implemented.'); }
 	showPanel(focus?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
