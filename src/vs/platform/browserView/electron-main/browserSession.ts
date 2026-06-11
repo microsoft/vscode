@@ -281,7 +281,7 @@ export class BrowserSession {
 		});
 		this.electronSession.protocol.handle(Schemas.file, request => {
 			const filePath = normalize(URI.parse(request.url).fsPath);
-			if (!BrowserSession._trustedFileRoots.findSubstr(filePath)) {
+			if (!BrowserSession._trustedFileRoots.findSubstr(filePath) && !BrowserSession._trustedFileRoots.has('/')) {
 				return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 			}
 			return this.electronSession.fetch(request, { bypassCustomProtocolHandlers: true });
