@@ -63,21 +63,21 @@ function createActiveSessionSubscriptionObs<T>(
 	isActiveSessionObs: IObservable<boolean>,
 	component: StateComponents,
 	resourceObs: IObservable<URI | undefined>,
-): IObservable<IObservable<T | Error | undefined>> {
+): IObservable<IObservable<T | Error | undefined | null>> {
 	return derived(reader => {
 		const connection = options.getConnection();
 		if (!connection) {
-			return constObservable(undefined);
+			return constObservable(null);
 		}
 
 		const resource = resourceObs.read(reader);
 		if (!resource) {
-			return constObservable(undefined);
+			return constObservable(null);
 		}
 
 		const isActiveSession = isActiveSessionObs.read(reader);
 		if (!isActiveSession) {
-			return constObservable(undefined);
+			return constObservable(null);
 		}
 
 		const subscriptionRef = connection.getSubscription(component, resource, 'AgentHostSessionChangesets');
@@ -101,23 +101,34 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 
 	readonly isLoadingChanges: IObservable<boolean>;
 	readonly changes: IObservable<readonly ISessionFileChange[]>;
-	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
+	protected abstract readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(options: IAgentHostAdapterOptions) {
 		this.isLoadingChanges = derived(reader => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			if (!changesetState || changesetState instanceof Error) {
+
+			// If the changeset state is `undefined`, it means that the first snapshot
+			// has not yet arrived, so in order to avoid any flickering in the Changes
+			// view, we consider this temporary state as if the changes are still being
+			// computed.
+			if (changesetState === undefined) {
+				return true;
+			}
+
+			if (changesetState === null || changesetState instanceof Error) {
 				return false;
 			}
+
 			return changesetState.status === ChangesetStatus.Computing;
 		});
 
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
 			const changesetState = this.changesetStateObs.read(reader).read(reader);
-			if (!changesetState || changesetState instanceof Error) {
+			if (changesetState === null || changesetState instanceof Error) {
 				return [];
 			}
-			if (changesetState.status !== ChangesetStatus.Ready) {
+
+			if (changesetState === undefined || changesetState.status !== ChangesetStatus.Ready) {
 				return lastValue;
 			}
 
@@ -150,7 +161,7 @@ class AgentHostChangeset extends AbstractAgentHostChangeset {
 	readonly isEnabled = constObservable(true);
 	readonly isDefault: IObservable<boolean>;
 
-	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
+	protected override readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
 		options: IAgentHostAdapterOptions,
@@ -186,7 +197,7 @@ class AgentHostLastTurnChangeset extends AbstractAgentHostChangeset {
 
 	readonly isDefault = observableValue(this, false);
 	readonly isEnabled: IObservable<boolean>;
-	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined>>;
+	protected readonly changesetStateObs: IObservable<IObservable<ChangesetState | Error | undefined | null>>;
 
 	constructor(
 		sessionUri: URI,

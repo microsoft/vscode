@@ -15,15 +15,13 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 
 /**
  * `@anthropic-ai/claude-agent-sdk` distribution descriptor. Lives in this
- * file because it encodes Claude-specific knowledge — the env-var name and
- * the fact that Claude ships separate `linux-*-musl` packages alongside
- * the regular `linux-*` ones. The downloader consumes this through
- * `IAgentSdkPackage` and never names Claude directly.
+ * file because it encodes Claude-specific knowledge — the env-var name.
+ * The downloader consumes this through `IAgentSdkPackage` and never names
+ * Claude directly.
  */
 export const ClaudeSdkPackage: IAgentSdkPackage = {
 	id: 'claude',
 	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
-	hasSeparateMuslLinuxPackage: true,
 };
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');

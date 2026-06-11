@@ -1111,7 +1111,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 	test('defaults to high effort (the provider default) when adaptive model declares no supportsReasoningEffort and none is requested', () => {
 		const endpoint = createMockEndpoint({
 			supportsAdaptiveThinking: true,
-			supportsReasoningEffort: [],
+			// supportsReasoningEffort is absent — the capability is not declared
 		});
 		const options = createMinimalOptions({
 			modelCapabilities: { enableThinking: true },
@@ -1121,6 +1121,24 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toEqual({ effort: 'high' });
+	});
+
+	test('omits effort when supportsReasoningEffort is explicitly empty', () => {
+		// An empty list is a declaration that the model supports no effort
+		// levels — distinct from the capability being absent, which falls
+		// back to the adaptive default.
+		const endpoint = createMockEndpoint({
+			supportsAdaptiveThinking: true,
+			supportsReasoningEffort: [],
+		});
+		const options = createMinimalOptions({
+			modelCapabilities: { enableThinking: true, reasoningEffort: 'high' },
+		});
+
+		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
+
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+		expect(body.output_config).toBeUndefined();
 	});
 
 	test('omits effort when model is not adaptive and declares no supportsReasoningEffort', () => {

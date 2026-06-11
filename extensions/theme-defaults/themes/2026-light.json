@@ -359,7 +359,7 @@
 				"meta.embedded.expression"
 			],
 			"settings": {
-				"foreground": "#1f2328"
+				"foreground": "#953800"
 			}
 		},
 		{
@@ -432,7 +432,17 @@
 		{
 			"scope": "variable.other",
 			"settings": {
-				"foreground": "#1f2328"
+				"foreground": "#953800"
+			}
+		},
+		{
+			"scope": [
+				"variable.other.readwrite.alias",
+				"meta.import variable.other",
+				"meta.export variable.other"
+			],
+			"settings": {
+				"foreground": "#0550ae"
 			}
 		},
 		{
@@ -600,8 +610,8 @@
 				"punctuation.definition.deleted"
 			],
 			"settings": {
-				"background": "#ffebe9",
-				"foreground": "#82071e"
+				"background": "#ad070726",
+				"foreground": "#ad0707"
 			}
 		},
 		{
@@ -619,8 +629,8 @@
 				"punctuation.definition.inserted"
 			],
 			"settings": {
-				"background": "#dafbe1",
-				"foreground": "#116329"
+				"background": "#587c0c26",
+				"foreground": "#587c0c"
 			}
 		},
 		{
@@ -629,8 +639,8 @@
 				"punctuation.definition.changed"
 			],
 			"settings": {
-				"background": "#ffd8b5",
-				"foreground": "#953800"
+				"background": "#66730926",
+				"foreground": "#667309"
 			}
 		},
 		{
