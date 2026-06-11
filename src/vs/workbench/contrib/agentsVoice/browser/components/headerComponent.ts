@@ -113,7 +113,7 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 					@mousedown=${props.onMicDown}
 					@mouseup=${props.onMicUp}></span>`
 			: nothing}
-			${props.isConnected && props.pttKeyLabel
+			${props.isConnected
 			? html`<span
 					role="button"
 					tabindex="0"
@@ -122,7 +122,7 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 					style="font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;"
 					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; (e.target as HTMLElement).style.borderColor = 'var(--vscode-foreground)'; }}
 					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; (e.target as HTMLElement).style.borderColor = 'var(--vscode-descriptionForeground)'; }}
-					@click=${props.onPttKeyClick}>${props.pttKeyLabel}</span>`
+					@click=${props.onPttKeyClick}>${props.pttKeyLabel ?? localize('agentsVoice.configureKeybinding', "Configure keybinding")}</span>`
 			: nothing}
 			${showConnBtnLeft ? connBtnTemplate : nothing}
 			${showConnBtnCenter

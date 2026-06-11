@@ -116,7 +116,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService2: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -148,7 +148,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IVoicePlaybackService private readonly voicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically,
 		// but some other strictly per-model state will require a separate memento.
@@ -473,7 +473,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 				}
 			},
-			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
+			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.toggleWindow'),
 			openPopout: () => this.commandService.executeCommand('agentsVoice.toggleWindow'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 			onOnboardingCompleted: () => {
@@ -501,13 +501,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			widget.setPopoutAvailable(!isOpen);
 		}));
 
-		// PTT key label from settings
-		const pttKey = this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18';
-		widget.setPttKeyLabel(pttKey);
-		this._voiceBarDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.voice.pushToTalkKey')) {
-				widget.setPttKeyLabel(this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18');
-			}
+		// PTT key label from keybinding
+		const getPttLabel = () => this.keybindingService2.lookupKeybinding('agentsVoice.toggleWindow')?.getLabel() ?? undefined;
+		widget.setPttKeyLabel(getPttLabel());
+		this._voiceBarDisposables.add(this.keybindingService2.onDidUpdateKeybindings(() => {
+			widget.setPttKeyLabel(getPttLabel());
 		}));
 
 		// Shared controller→widget binding (also used by the floating window)

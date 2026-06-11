@@ -22,6 +22,7 @@ import { ITtsPlaybackService } from '../../chat/browser/voiceClient/ttsPlaybackS
 import { IVoiceSessionController } from '../../chat/browser/voiceClient/voiceSessionController.js';
 import { IVoicePlaybackService } from '../../chat/common/voicePlaybackService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -85,6 +86,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -219,20 +221,18 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
-			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openSettings', 'chat.voice.pushToTalkKey'),
+			openPttKeySettings: () => this.commandService.executeCommand('workbench.action.openGlobalKeybindings', 'agentsVoice.toggleWindow'),
 			submitFeedback: (text) => this.voiceSessionController.submitFeedback(text),
 		}, {
 			defaultExpanded: true,
 		});
 		this._windowDisposables.add(widget);
 
-		// PTT key label from settings
-		const pttKey = this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18';
-		widget.setPttKeyLabel(pttKey);
-		this._windowDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.voice.pushToTalkKey')) {
-				widget.setPttKeyLabel(this.configurationService.getValue<string>('chat.voice.pushToTalkKey') || 'F18');
-			}
+		// PTT key label from keybinding
+		const getPttLabel = () => this.keybindingService.lookupKeybinding('agentsVoice.toggleWindow')?.getLabel() ?? undefined;
+		widget.setPttKeyLabel(getPttLabel());
+		this._windowDisposables.add(this.keybindingService.onDidUpdateKeybindings(() => {
+			widget.setPttKeyLabel(getPttLabel());
 		}));
 
 		// Shared controller→widget binding (also used by chatViewPane)

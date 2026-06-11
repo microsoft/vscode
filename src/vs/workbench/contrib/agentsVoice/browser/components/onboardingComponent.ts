@@ -19,7 +19,7 @@ const ONBOARDING_FONT = '13px';
 const ONBOARDING_ICON_LG = '18px';
 
 export function renderOnboarding(props: OnboardingProps): TemplateResult {
-	const pttKey = props.pttKeyLabel ?? 'F18';
+	const pttKey = props.pttKeyLabel ?? localize('agentsVoice.configureKeybinding', "Configure keybinding");
 	const buttonLabel = props.isConnecting ? localize('agentsVoice.connecting', "Connecting…") : localize('agentsVoice.getStarted', "Get Started");
 	const buttonDisabled = props.isConnecting;
 
