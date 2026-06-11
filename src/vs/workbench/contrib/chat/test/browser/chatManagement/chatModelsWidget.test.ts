@@ -139,32 +139,26 @@ suite('ChatModelsWidget', () => {
 
 	suite('buildAddModelsDropdownActions', () => {
 
-		const INSTALL_ACTION_ID = 'workbench.models.installProviderExtensions';
-
 		test('returns no actions when adding models is not supported', () => {
 			const vendors = [createVendor('acme', 'Acme')];
 			let vendorRunCount = 0;
-			let discoveryRunCount = 0;
 
 			const actions = buildAddModelsDropdownActions(
 				vendors,
 				false,
 				() => { vendorRunCount++; },
-				() => { discoveryRunCount++; }
 			);
 
 			assert.deepStrictEqual({
 				ids: actions.map(a => a.id),
 				vendorRunCount,
-				discoveryRunCount,
 			}, {
 				ids: [],
 				vendorRunCount: 0,
-				discoveryRunCount: 0,
 			});
 		});
 
-		test('returns configurable vendor actions before the install/discovery action', async () => {
+		test('returns configurable vendor actions sorted with custom vendors pinned at the end', async () => {
 			const vendors = [
 				createVendor('zebra', 'Zebra'),
 				createVendor('acme', 'Acme'),
@@ -172,13 +166,11 @@ suite('ChatModelsWidget', () => {
 				createVendor('customendpoint', 'Custom Endpoint'),
 			];
 			const ran: string[] = [];
-			let discoveryRunCount = 0;
 
 			const actions = buildAddModelsDropdownActions(
 				vendors,
 				true,
 				v => { ran.push(v.vendor); },
-				() => { discoveryRunCount++; }
 			);
 
 			// Execute every non-separator action to capture which path each one runs.
@@ -191,51 +183,36 @@ suite('ChatModelsWidget', () => {
 			assert.deepStrictEqual({
 				shape: actions.map(a => a instanceof Separator ? 'separator' : a.id),
 				ran,
-				discoveryRunCount,
 			}, {
-				shape: ['enable-acme', 'enable-zebra', 'enable-customoai', 'separator', 'enable-customendpoint', 'separator', INSTALL_ACTION_ID],
+				shape: ['enable-acme', 'enable-zebra', 'enable-customoai', 'separator', 'enable-customendpoint'],
 				ran: ['acme', 'zebra', 'customoai', 'customendpoint'],
-				discoveryRunCount: 1,
 			});
 		});
 
-		test('with no configurable vendors: only the install/discovery action is returned', async () => {
-			let discoveryRunCount = 0;
-
+		test('with no configurable vendors: no actions are returned', async () => {
 			const actions = buildAddModelsDropdownActions(
 				[],
 				true,
 				() => assert.fail('vendor run should not be called'),
-				() => { discoveryRunCount++; }
 			);
-			for (const action of actions) {
-				if (!(action instanceof Separator)) {
-					await action.run();
-				}
-			}
 
-			assert.deepStrictEqual({
-				shape: actions.map(a => a instanceof Separator ? 'separator' : a.id),
-				discoveryRunCount,
-			}, {
-				shape: [INSTALL_ACTION_ID],
-				discoveryRunCount: 1,
-			});
+			assert.deepStrictEqual(
+				actions.map(a => a instanceof Separator ? 'separator' : a.id),
+				[],
+			);
 		});
 
-		test('with configurable vendors: vendor actions come first followed by a separator and the install/discovery action', async () => {
+		test('with configurable vendors: vendor actions are separated from the pinned custom endpoint vendor', async () => {
 			const vendors = [
 				createVendor('acme', 'Acme'),
 				createVendor('customendpoint', 'Custom Endpoint'),
 			];
 			const ran: string[] = [];
-			let discoveryRunCount = 0;
 
 			const actions = buildAddModelsDropdownActions(
 				vendors,
 				true,
 				v => { ran.push(v.vendor); },
-				() => { discoveryRunCount++; }
 			);
 			for (const action of actions) {
 				if (!(action instanceof Separator)) {
@@ -246,11 +223,9 @@ suite('ChatModelsWidget', () => {
 			assert.deepStrictEqual({
 				shape: actions.map(a => a instanceof Separator ? 'separator' : a.id),
 				ran,
-				discoveryRunCount,
 			}, {
-				shape: ['enable-acme', 'separator', 'enable-customendpoint', 'separator', INSTALL_ACTION_ID],
+				shape: ['enable-acme', 'separator', 'enable-customendpoint'],
 				ran: ['acme', 'customendpoint'],
-				discoveryRunCount: 1,
 			});
 		});
 	});

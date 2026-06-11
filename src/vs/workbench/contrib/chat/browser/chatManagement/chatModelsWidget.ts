@@ -160,7 +160,6 @@ export function buildAddModelsDropdownActions(
 	configurableVendors: ILanguageModelProviderDescriptor[],
 	supportsAddingModels: boolean,
 	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => unknown,
-	runExtensionDiscoveryAction: () => unknown,
 ): IAction[] {
 	if (!supportsAddingModels) {
 		return [];
@@ -192,18 +191,6 @@ export function buildAddModelsDropdownActions(
 		}
 		actions.push(toVendorAction(customEndpointVendor));
 	}
-
-	if (actions.length > 0) {
-		actions.push(new Separator());
-	}
-	actions.push(toAction({
-		id: 'workbench.models.installProviderExtensions',
-		label: localize('models.installProviderExtensions', "Browse Marketplace for Model Providers..."),
-		class: ThemeIcon.asClassName(Codicon.extensions),
-		run: async () => {
-			await runExtensionDiscoveryAction();
-		}
-	}));
 
 	return actions;
 }
@@ -1069,6 +1056,7 @@ export class ChatModelsWidget extends Disposable {
 	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
+	private browseMarketplaceButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
@@ -1194,8 +1182,9 @@ export class ChatModelsWidget extends Disposable {
 			...defaultButtonStyles,
 			supportIcons: true,
 		};
+
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
+		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1206,6 +1195,14 @@ export class ChatModelsWidget extends Disposable {
 				});
 			}
 		}));
+
+		this.browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
+			...buttonOptions,
+			secondary: true,
+		}));
+		this.browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+		this.browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
+		this._register(this.browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
 
 		// Table container
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
@@ -1552,7 +1549,6 @@ export class ChatModelsWidget extends Disposable {
 			configurableVendors,
 			supportsAddingModels,
 			vendor => this.addModelsForVendor(vendor),
-			() => this.openLanguageModelProviderExtensionsSearch()
 		);
 
 		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
