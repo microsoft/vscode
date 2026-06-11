@@ -52,8 +52,11 @@ export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, run
 	const productJson = es.through(function (file: VinylFile) {
 		const product = JSON.parse(file.contents!.toString('utf8'));
 
-		if (product.extensionsGallery) {
-			console.error(`product.json: Contains 'extensionsGallery'`);
+		// Kin fork: an extensionsGallery pointing at Open VSX is intentional;
+		// still reject any other gallery (e.g. Microsoft's marketplace, which
+		// forks are not licensed to use).
+		if (product.extensionsGallery && !/^https:\/\/open-vsx\.org\//.test(product.extensionsGallery.serviceUrl ?? '')) {
+			console.error(`product.json: Contains non-Open-VSX 'extensionsGallery'`);
 			errorCount++;
 		}
 
