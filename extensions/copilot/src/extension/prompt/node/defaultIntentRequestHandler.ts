@@ -454,13 +454,13 @@ export class DefaultIntentRequestHandler {
 			requestId,
 			this.documentContext?.document,
 			baseModelTelemetry,
-			this.getModeNameForTelemetry()
+			this.resolveModeNameForTelemetry()
 		);
 
 		return chatResult;
 	}
 
-	private getModeNameForTelemetry(): string {
+	private resolveModeNameForTelemetry(): string {
 		const modeName = getModeNameForTelemetry(this.request.modeInstructions2);
 		if (modeName !== undefined) {
 			return modeName;
