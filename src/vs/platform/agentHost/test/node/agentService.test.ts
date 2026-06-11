@@ -176,6 +176,10 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				assert.ok(persisted, 'should persist the root config change');
+
+				// Drain any in-flight root-config write so its file handle is
+				// closed before we delete the temp directory.
+				await svc.configurationService.whenIdle();
 			} finally {
 				localDisposables.dispose();
 				rmSync(tempDir.fsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
