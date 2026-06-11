@@ -770,7 +770,29 @@ function renderForm(
 	// clauses read, and feeding that scope to {@link ChatInputPart} via a
 	// child instantiation service so its internal {@link MenuWorkbenchToolBar}s
 	// resolve `@IContextKeyService` to the scoped instance.
-	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(promptHost));
+	// The dialog is a body-level modal so it must outlive any transient
+	// editor scope. The {@link IContextKeyService} we are injected with
+	// is whichever scope the caller happened to live in
+	// (`AutomationsListWidget` is hosted inside the AI Customization
+	// editor, so we are handed the editor's scoped service). If we
+	// `createScoped` on that, our scope's `_parent` is the editor's
+	// scope, and when the editor's scope is disposed - which happens
+	// during the chat session response cascade via
+	// `SessionLayoutController._applyWorkingSet` -> `closeAllEditors`
+	// -> editor group context-key fanout - our scope survives but
+	// `_parent.getContextValuesContainer(myCtxId)` returns
+	// `NullContext`, which makes every `getContextKeyValue` call
+	// return `undefined`. The result: every chip whose `when` clause
+	// reads any key (e.g. `chatLocation === Chat`, `chatIsEnabled`)
+	// evaluates false and the picker chips silently disappear.
+	//
+	// Walk up to the root context-key service so the dialog's scope is
+	// parented to a service whose lifetime exceeds the dialog.
+	let rootContextKeyService = contextKeyService;
+	while ((rootContextKeyService as { _parent?: IContextKeyService })._parent) {
+		rootContextKeyService = (rootContextKeyService as unknown as { _parent: IContextKeyService })._parent;
+	}
+	const scopedContextKeyService = disposables.add(rootContextKeyService.createScoped(promptHost));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	// Gate the toolbar workspace picker chip's menu contribution: the
