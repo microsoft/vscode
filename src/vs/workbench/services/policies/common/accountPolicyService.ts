@@ -6,11 +6,12 @@
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { COPILOT_MANAGED_SETTINGS_POLICY_NAME, parseManagedSettingsPolicyValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { ICopilotManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -71,15 +72,18 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
 	private readonly managedPolicyReader?: IPolicyService;
+	private readonly copilotManagedSettingsService?: ICopilotManagedSettingsService;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		managedPolicyService?: IPolicyService,
+		copilotManagedSettingsService?: ICopilotManagedSettingsService,
 	) {
 		super();
 
 		this.managedPolicyReader = managedPolicyService;
+		this.copilotManagedSettingsService = copilotManagedSettingsService;
 
 		this._updatePolicyDefinitions(this.policyDefinitions);
 		this._register(this.defaultAccountService.onDidChangePolicyData(() => {
@@ -90,9 +94,14 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}));
 		if (this.managedPolicyReader) {
 			this._register(this.managedPolicyReader.onDidChange(names => {
-				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME) || names.includes(COPILOT_MANAGED_SETTINGS_POLICY_NAME)) {
+				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME)) {
 					this._updatePolicyDefinitions(this.policyDefinitions);
 				}
+			}));
+		}
+		if (this.copilotManagedSettingsService) {
+			this._register(this.copilotManagedSettingsService.onDidChangeManagedSettings(() => {
+				this._updatePolicyDefinitions(this.policyDefinitions);
 			}));
 		}
 
@@ -106,9 +115,10 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
+		const managedSettings = await this.updateCopilotManagedSettingDefinitions(policyDefinitions);
 
 		const updated: string[] = [];
-		const policyData = this.getPolicyData();
+		const policyData = this.getPolicyData(managedSettings);
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
@@ -159,10 +169,19 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}
 	}
 
-	private getPolicyData(): IPolicyData | undefined {
+	private async updateCopilotManagedSettingDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData | undefined> {
+		if (!this.copilotManagedSettingsService || !hasManagedSettingsPolicyDefinitions(policyDefinitions)) {
+			return this.copilotManagedSettingsService?.managedSettings;
+		}
+
+		return this.copilotManagedSettingsService.updatePolicyDefinitions(policyDefinitions);
+	}
+
+	private getPolicyData(managedSettings?: ManagedSettingsData): IPolicyData | undefined {
 		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
-		const managedPolicyData = parseManagedSettingsPolicyValue(this.managedPolicyReader?.getPolicyValue(COPILOT_MANAGED_SETTINGS_POLICY_NAME));
-		if (!accountPolicyData && !managedPolicyData) {
+		const managedPolicyData = managedSettings ?? this.copilotManagedSettingsService?.managedSettings;
+		const hasManagedPolicyData = managedPolicyData && Object.keys(managedPolicyData).length > 0;
+		if (!accountPolicyData && !hasManagedPolicyData) {
 			return undefined;
 		}
 
@@ -214,6 +233,16 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		return { state: AccountPolicyGateState.Satisfied, approvedOrganizations: approvedOrgs };
 	}
+}
+
+function hasManagedSettingsPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
+	for (const policyName in policyDefinitions) {
+		if (policyDefinitions[policyName].managedSettings) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 function parseApprovedOrganizations(raw: PolicyValue | undefined): string[] {

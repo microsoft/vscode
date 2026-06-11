@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ManagedSettingsData, PolicyValue } from '../../../base/common/policy.js';
+import { Event } from '../../../base/common/event.js';
+import { ManagedSettingsData } from '../../../base/common/policy.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { PolicyDefinition } from './policy.js';
+
+export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
@@ -17,24 +23,21 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
-/** Internal policy payload carrying raw Copilot managed-settings data from main to workbench. */
-export const COPILOT_MANAGED_SETTINGS_POLICY_NAME = 'CopilotRawManagedSettings';
+export const ICopilotManagedSettingsService = createDecorator<ICopilotManagedSettingsService>('copilotManagedSettingsService');
 
-export function serializeManagedSettings(managedSettings: ManagedSettingsData): string {
-	return JSON.stringify(managedSettings);
+export interface ICopilotManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly managedSettings: ManagedSettingsData;
+	readonly onDidChangeManagedSettings: Event<ManagedSettingsData>;
+	updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData>;
 }
 
-export function parseManagedSettingsPolicyValue(value: PolicyValue | undefined): ManagedSettingsData | undefined {
-	if (typeof value !== 'string') {
-		return undefined;
-	}
+export class NullCopilotManagedSettingsService implements ICopilotManagedSettingsService {
+	readonly _serviceBrand: undefined;
+	readonly managedSettings: ManagedSettingsData = {};
+	readonly onDidChangeManagedSettings = Event.None;
 
-	try {
-		const parsed = JSON.parse(value);
-		return flattenManagedSettings(parsed);
-	} catch {
-		return undefined;
-	}
+	async updatePolicyDefinitions(): Promise<ManagedSettingsData> { return this.managedSettings; }
 }
 
 export function flattenManagedSettings(object: unknown): Record<string, string | number | boolean> {
