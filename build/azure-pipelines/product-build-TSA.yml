@@ -1,0 +1,25 @@
+pr: none
+
+schedules:
+  - cron: "0 18 * * *"
+    displayName: Daily at 18:00 UTC (Pacific Time)
+    branches:
+      include:
+        - main
+    always: true
+
+trigger: none
+
+parameters:
+  - name: VSCODE_RUN_TSA
+    displayName: "Run TSA checks"
+    type: boolean
+    default: true
+
+extends:
+  template: product-build-template.yml
+  parameters:
+    VSCODE_RUN_TSA: ${{ parameters.VSCODE_RUN_TSA }}
+    VSCODE_RUN_APISCAN: ${{ parameters.VSCODE_RUN_TSA }}
+    VSCODE_PUBLISH: false
+    VSCODE_RELEASE: false
