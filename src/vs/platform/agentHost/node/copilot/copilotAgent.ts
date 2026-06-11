@@ -277,12 +277,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
 
-	/**
-	 * Parsed from the `rt=1` field on the GitHub Copilot bearer token, the
-	 * same way `BaseGHTelemetrySender._processToken` does in the extension-host
-	 * path. Read by the AHP-side IGHTelemetryService before sending events
-	 * via `sendEnhancedGHTelemetryEvent`.
-	 */
+	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
 	private _restrictedTelemetryEnabled = false;
 	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
 	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
