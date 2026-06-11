@@ -1278,10 +1278,12 @@ Exit criteria: ready to enable for external preview.
 
 ### Phase 15 — SDK distribution via `product.json` + main.vscode-cdn.net
 
-**Status as of 2026-06-09:** Phase 15 has landed in the agent host. The Claude
-and Codex SDK distributions are now declared in `product.json` and downloaded
-on demand by [`agentSdkDownloader.ts`](../agentSdkDownloader.ts) into
-`<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/<sdkTarget>/`. The
+**Status as of 2026-06-10:** Runtime shape simplified to per-platform
+`product.json` patching (see
+[`phase15-per-platform-plan.md`](./phase15-per-platform-plan.md)). The
+Claude and Codex SDK distributions are declared in `product.json` and
+downloaded on demand by [`agentSdkDownloader.ts`](../agentSdkDownloader.ts)
+into `<userDataPath>/agent-host/sdk-cache/<pkg>/<sdkVersion>/`. The
 hand-supplied paths (`chat.agentHost.claudeAgent.path` →
 `AgentHostClaudeSdkRootEnvVar`, see
 [`claudeAgentSdkService.ts:148`](./claudeAgentSdkService.ts#L148), and the
@@ -1290,39 +1292,49 @@ the download.
 
 **Shape:**
 
-- `product.agentSdks.{claude,codex}` ships a `version`, a `urlTemplate`
-  with `{sdkVersion}` / `{sdkTarget}` placeholders, and a per-target
-  `sha256` map. `{sdkTarget}` matches the npm `optionalDependencies`
-  suffix (`darwin-arm64`, `linux-x64-musl`, …). Codex's Linux entries
-  never carry the `-musl` suffix because the Codex shim always loads the
-  musl binary regardless of host libc.
-- `vscode-distro` is where `product.agentSdks` is populated; OSS
-  `product.json` does not have it.
+- `product.agentSdks.{claude,codex}` ships a `version`, a `url`, and a
+  single `sha256` string. There is no per-target map at runtime: the
+  build pipeline patches `agentSdks` per-platform during packaging, so
+  a `darwin-arm64` build's `product.json` contains the URL/sha for the
+  `darwin-arm64` SDK tarball, while a `linux-x64` build contains the
+  URL/sha for the `linux-x64` tarball. The shape on disk is always
+  `{ version, url, sha256 }` — the platform suffix appears in the URL,
+  not in the key. Codex's Linux entries never carry the `-musl` suffix
+  in their URL because the Codex binary is statically musl-linked.
+- `vscode-distro` no longer carries an `agentSdks` fragment — the
+  build IS the distribution. OSS `product.json` does not have it either.
 - Tarballs ship as the full `node_modules/` subtree extracted into the
   cache directory above. `ClaudeAgentSdkService._loadSdk` and
   `CodexAgent._startConnection` know the package-internal entrypoints
   (`@anthropic-ai/claude-agent-sdk/sdk.mjs`, `@openai/codex/bin/codex.js`)
-  and resolve them off the returned root.
+  and resolve them off the returned root. Codex derives its own
+  `${platform}-${arch}` suffix locally via `codexPackageSuffix()` to
+  construct the binary path; it does NOT read the suffix from
+  `product.json`.
 - Trust: the sha256 in `product.json` (itself inside the signed
   application bundle and covered by `product.checksums`) is the trust
   anchor — CDN tampering fails verification. No separate signed
   manifest.
 - Provider registration is gated on
   `IAgentSdkDownloader.isAvailable(pkg)` — true iff the dev-override
-  env var is set, OR product config has a sha for the current target.
-  If neither, the provider is not registered and never appears in the
+  env var is set, OR `product.agentSdks?.[pkg.id]` is populated. If
+  neither, the provider is not registered and never appears in the
   agent picker (matches the pre-CDN UX).
 
-**Exit criteria (met):**
+**Exit criteria (met for runtime; build is a follow-up PR):**
 - Fresh insiders install can use Claude/Codex without manually
   installing the SDK or setting any path.
-- SDK version bumps are now `vscode-distro` changes that re-pin
-  `product.agentSdks[pkg].version` and the per-target sha256 entries.
+- SDK version bumps are now build-pipeline changes that re-pin
+  `product.agentSdks[pkg]` per platform during packaging.
 - Dev override keeps working for SDK development.
 
 **Build pipeline** — see `build/agent-sdk/` for the tarball production
 and CDN upload tooling, including the deterministic-tar setup that
-makes `verify-determinism.ts` enforceable in CI.
+makes `verify-determinism.ts` enforceable in CI. The inline integration
+into each `packageTask(platform, arch, ...)` so that the gulpfile patches
+`product.json` directly (no `AgentSDK` pipeline stage, no
+`aggregate.ts`) ships in a follow-up PR per
+[`phase15-per-platform-plan.md`](./phase15-per-platform-plan.md) §PR 2.
 
 ### Phase 16 — Eager session materialization at create time
 
