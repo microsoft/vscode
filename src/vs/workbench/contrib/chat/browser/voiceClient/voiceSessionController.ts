@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -146,7 +146,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _pttCurrentTurnId = '';
 	private _window: (Window & typeof globalThis) | undefined;
 	private readonly _voiceEventDisposables = this._register(new DisposableStore());
-	private _voiceAutorunDisposable: { dispose(): void } | undefined;
+	private readonly _voiceAutorunDisposable = this._register(new MutableDisposable());
 	private readonly _autoApprovedSessions = new Set<string>();
 	private _transcriptFadeTimer: ReturnType<typeof setTimeout> | undefined;
 	private _pttMaxDurationTimer: ReturnType<typeof setTimeout> | undefined;
@@ -809,7 +809,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// to catch transitions missed when the chat model isn't loaded
 				// (e.g. remote agent host sessions that haven't been opened).
 				const periodicCheck = mainWindow.setInterval(() => this._checkSessionStateChanges(), 5000);
-				this._voiceAutorunDisposable = {
+				this._voiceAutorunDisposable.value = {
 					dispose: () => {
 						sessionChangeListener.dispose();
 						autorunDisposable.dispose();
@@ -977,8 +977,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		this._isConnecting.set(false, undefined);
 		this._isReconnecting.set(false, undefined);
-		this._voiceAutorunDisposable?.dispose();
-		this._voiceAutorunDisposable = undefined;
+		this._voiceAutorunDisposable.clear();
 		this._voiceEventDisposables.clear();
 		this.ttsPlaybackService.closeContext();
 		this.micCaptureService.stopCapture();
