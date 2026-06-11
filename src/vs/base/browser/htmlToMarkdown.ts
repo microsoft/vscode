@@ -21,7 +21,7 @@ const ttPolicy = createTrustedTypesPolicy('htmlToMarkdown', { createHTML: value 
 export function convertHtmlToMarkdown(html: string): string {
 	// Bail out on very large inputs to limit DOM parsing cost
 	if (html.length > maxInputLength) {
-		return html;
+		return html.replace(/<[^>]+>/g, '');
 	}
 
 	const trustedHtml = ttPolicy?.createHTML(html) ?? html;
