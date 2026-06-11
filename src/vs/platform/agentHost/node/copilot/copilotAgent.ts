@@ -574,7 +574,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
-			const cliPath = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot', 'index.js').fsPath;
+			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
+			const cliPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+
+			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
+			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
+			// at `node_modules/@microsoft/mxc-sdk/bin/<arch>/`, so point `MXC_BIN_DIR` there.
+			// The @github/copilot package's own `mxc-bin/` is excluded from the product build
+			// (see build/.moduleignore), mirroring `CopilotCLISDK.getPackage` in the extension.
+			env['MXC_BIN_DIR'] = URI.joinPath(nodeModulesUri, '@microsoft', 'mxc-sdk', 'bin').fsPath;
 
 			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
 			const resolvedRgDiskPath = await rgDiskPath();

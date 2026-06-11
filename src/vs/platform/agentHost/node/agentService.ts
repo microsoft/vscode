@@ -452,18 +452,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		});
 
-		// Overlay any session that has been announced via `sessionAdded`
-		// but is missing from the providers' `listSessions` snapshot.
-		// Providers can briefly drop a just-materialized session (e.g.
-		// between firing `sessionAdded` and the SDK's session DB becoming
-		// visible to the next `listSessions` call), and immediately after
-		// `session/turnComplete` we've observed `CopilotAgent.listSessions`
-		// return an empty array transiently. Without this overlay,
-		// renderer-side session caches evict the live session, which
-		// closes the chat view holding the in-flight response bubble.
+		// Overlay any session known to state but missing from the providers'
+		// `listSessions` snapshot, so renderer-side caches don't evict a
+		// live/active session (which would close the chat view holding the
+		// in-flight response bubble). Two cases need this: a provider can
+		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
+		// an empty array right after `session/turnComplete`), and a
+		// provisional session (created but not yet materialized — see
+		// `createSession`) is absent for its entire provisional window. We use
+		// *all* tracked summaries (not just announced ones) to cover the latter.
 		const known = new Set(withStatus.map(s => s.session.toString()));
 		const additions: IAgentSessionMetadata[] = [];
-		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
+		for (const summary of this._stateManager.getAllSessionSummaries()) {
 			if (known.has(summary.resource)) {
 				continue;
 			}
