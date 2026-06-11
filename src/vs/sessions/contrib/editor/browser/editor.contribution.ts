@@ -340,19 +340,23 @@ class AddFileAsContextAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.addFileAsContext';
 
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			IsAuxiliaryWindowContext.toNegated(),
+			ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+		);
+
 		super({
 			id: AddFileAsContextAction.ID,
 			title: localize2('addFileAsContext', "Add File as Context"),
 			icon: Codicon.attach,
 			f1: true,
+			precondition,
 			menu: {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID))
+				when: precondition
 			}
 		});
 	}
