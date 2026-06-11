@@ -8,24 +8,14 @@ import type { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import type { TelemetryData } from './telemetryData';
 
-/**
- * Local copy of the shape of `vscode.TelemetrySender`. Defined here so that
- * code in this folder does not need a type-only `import { TelemetrySender }
- * from 'vscode'`, which would prevent reuse from outside the extension host
- * (e.g. the agent host utility process). Structurally compatible with
- * `vscode.TelemetrySender`, so an instance of either can be assigned to
- * either type.
- */
+/** Structural copy of `vscode.TelemetrySender` so this module can be reused outside the extension host (e.g. the agent host utility process). */
 export interface ITelemetrySenderApi {
 	sendEventData(eventName: string, data?: Record<string, any>): void;
 	sendErrorData(error: Error, data?: Record<string, any>): void;
 	flush?(): void | Thenable<void>;
 }
 
-/**
- * Local copy of the subset of `vscode.TelemetryLogger` we use. See
- * {@link ITelemetrySenderApi} for the rationale.
- */
+/** Structural copy of the subset of `vscode.TelemetryLogger` we use. */
 export interface ITelemetryLoggerApi {
 	logUsage(eventName: string, data?: Record<string, any>): void;
 	logError(eventName: string, data?: Record<string, any>): void;
