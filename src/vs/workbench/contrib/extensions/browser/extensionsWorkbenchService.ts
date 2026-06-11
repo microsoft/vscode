@@ -1208,7 +1208,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private extensionGalleryManifest: IExtensionGalleryManifest | null = null;
-	private async updateExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): Promise<void> {
+	private updateExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
 		this.extensionGalleryManifest = manifest;
 		this.updateExtensionsNotificaiton();
 	}
