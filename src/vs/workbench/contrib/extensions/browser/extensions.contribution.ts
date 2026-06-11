@@ -158,7 +158,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						description: {
 							key: 'extensions.autoUpdate',
 							value: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
-						}
+						},
+						enumDescriptions: [
+							{
+								key: 'extensions.autoUpdate.on',
+								value: localize('extensions.autoUpdate.on', 'Download and install updates automatically only for enabled extensions.'),
+							},
+							{
+								key: 'extensions.autoUpdate.off',
+								value: localize('extensions.autoUpdate.off', 'Extensions are not automatically updated.'),
+							},
+						]
 					}
 				}
 			},
@@ -758,7 +768,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'off');
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
+			title: localize2('enableAutoUpdate', 'Enable Auto Update for Extensions'),
 			category: ExtensionsLocalizedLabel,
 			precondition: enableAutoUpdateWhenCondition,
 			menu: [{
@@ -775,7 +785,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'off');
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
+			title: localize2('disableAutoUpdate', 'Disable Auto Update for Extensions'),
 			precondition: disableAutoUpdateWhenCondition,
 			category: ExtensionsLocalizedLabel,
 			menu: [{

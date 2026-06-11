@@ -23,8 +23,9 @@ import { IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceSe
  * were never auto-updated (see microsoft/vscode#308563).
  *
  * When the signal becomes `true` and `extensions.autoUpdate` is `on`, we
- * silently update all installed plugins. When auto-update is `off`
- * (internally `false`), plugins are not auto-updated.
+ * silently update all installed plugins. When auto-update is `off`, plugins
+ * are not auto-updated. (`getAutoUpdateValue()` normalizes the setting to
+ * `'on' | 'off'`, migrating any legacy stored values such as `false`.)
  *
  * The flag is cleared after every attempt — including failures — so the
  * next periodic check's `false → true` transition can always re-trigger the

@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import assert from 'assert';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -1792,6 +1792,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
 		const values: any = {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
+			[AutoUpdateDelayConfigurationKey]: 2,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
 		};
 		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());

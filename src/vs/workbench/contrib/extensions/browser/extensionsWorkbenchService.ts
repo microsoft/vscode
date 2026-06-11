@@ -1135,6 +1135,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// The auto update value affects whether an extension is shown as delayed
 				this._onChange.fire(undefined);
 			}
+			if (e.affectsConfiguration(AutoUpdateDelayConfigurationKey)) {
+				// The delay affects when delayed updates are applied — cancel any pending
+				// delayed re-check and re-run the scheduling path with the new delay.
+				this.delayedAutoUpdateCheckTimer.value = undefined;
+				if (this.isAutoUpdateEnabled()) {
+					this.eventuallyAutoUpdateExtensions();
+				}
+				// The delay affects whether an extension is shown as delayed
+				this._onChange.fire(undefined);
+			}
 			if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
 				if (this.isAutoCheckUpdatesEnabled()) {
 					this.checkForUpdates(`Enabled auto check updates`);
@@ -1259,8 +1269,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const result = await this.dialogService.confirm({
 			title: nls.localize('confirmEnableDisableAutoUpdate', "Auto Update Extensions"),
 			message: isAutoUpdateEnabled
-				? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
-				: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
+				? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for extensions?")
+				: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for extensions?"),
 			detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
 		});
 		if (!result.confirmed) {
