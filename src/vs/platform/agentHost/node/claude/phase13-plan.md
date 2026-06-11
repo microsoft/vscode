@@ -32,7 +32,7 @@ Fork support (Phase 6.5) is explicitly *not* a Phase 13 concern. The earlier pla
 ## Prerequisites
 
 - Phase 4 (provider scaffold) ✅, Phase 5 (lifecycle + SDK service) ✅, Phase 6 (live message pipeline + `ClaudeMapperState`) ✅, Phase 9 (abort/steering polish) ✅.
-- SDK is loaded via `AgentHostClaudeSdkPathEnvVar` (current dev mechanism) and matches whatever version is on disk; long-term distribution is Phase 15's marketplace-extension story. Phase 13 binds against the SDK shape currently exposed by [`claudeAgentSdkService.ts`](./claudeAgentSdkService.ts) and does not assume a specific package version.
+- SDK is loaded via `AgentHostClaudeSdkRootEnvVar` (current dev mechanism) and matches whatever version is on disk; long-term distribution is Phase 15's marketplace-extension story. Phase 13 binds against the SDK shape currently exposed by [`claudeAgentSdkService.ts`](./claudeAgentSdkService.ts) and does not assume a specific package version.
 
 ## Approach
 
@@ -113,7 +113,7 @@ Fork support (Phase 6.5) is explicitly *not* a Phase 13 concern. The earlier pla
 - **Wrong-id-class returned to fork.** Phase 13 does not return any id mapping; the risk lives entirely in Phase 6.5. The id-correctness note above documents the trap (`SessionMessage.uuid` is the envelope uuid `forkSession({ upToMessageId })` accepts; `message.id` is the Anthropic `msg_…` id, which fork does *not* accept) so Phase 6.5 picks the right id class when it consumes `SessionMessage` itself.
 - **Subagent allowlist drift.** New SDK versions might introduce additional subagent-spawning tools. Mitigation: `claudeToolDisplay.ts` is the single source of truth for tool kinds — add new entries there and the replay mapper picks them up via the same lookup.
 - **System-message noise.** `includeSystemMessages: true` adds many subtypes. Mitigation: explicit allowlist from [CONTEXT M7](./CONTEXT.md) (only `compact_boundary` and a few notification subtypes become response parts; everything else drops). Test fixture for a non-allowlisted subtype to assert it's dropped.
-- **SDK version mismatch.** ~~See Open Questions Q1.~~ Resolved during grilling: SDK is loaded from `AgentHostClaudeSdkPathEnvVar` and Phase 13 binds against whatever shape `claudeAgentSdkService.ts` currently exposes; long-term version distribution is Phase 15's marketplace-extension problem (see [roadmap.md §Phase 15](./roadmap.md)).
+- **SDK version mismatch.** ~~See Open Questions Q1.~~ Resolved during grilling: SDK is loaded from `AgentHostClaudeSdkRootEnvVar` and Phase 13 binds against whatever shape `claudeAgentSdkService.ts` currently exposes; long-term version distribution is Phase 15's marketplace-extension problem (see [roadmap.md §Phase 15](./roadmap.md)).
 
 ## Verification
 

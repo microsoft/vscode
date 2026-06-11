@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -11,10 +12,11 @@ import { ActionListItemKind, IActionListItem } from '../../../../../platform/act
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownClaudePermissionModeSchema } from './agentHostPermissionPickerDelegate.js';
 
@@ -38,13 +40,14 @@ export class AgentHostClaudePermissionModePicker extends AgentHostSessionEnumPic
 	protected readonly _telemetryId = 'NewChatAgentHostClaudePermissionModePicker';
 
 	constructor(
+		session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
-		super(actionWidgetService, sessionsManagementService, sessionsProvidersService, telemetryService);
+		super(session, actionWidgetService, sessionsProvidersService, telemetryService, hoverService);
 	}
 
 	protected _isWellKnownSchema(schema: SessionConfigPropertySchema): boolean {

@@ -8,9 +8,11 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 
 export const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
 
@@ -29,13 +31,22 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 	constructor(
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(e => {
+			if (this._isAgentHostSession(e.sessionResource)) {
+				return;
+			}
 			this._updateAttachment(e.sessionResource);
 			this._ensureAcceptListener(e.sessionResource);
 		}));
+	}
+
+	private _isAgentHostSession(sessionResource: URI): boolean {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		return session ? isAgentHostProviderId(session.providerId) : false;
 	}
 
 	private async _updateAttachment(sessionResource: URI): Promise<void> {
@@ -44,7 +55,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 			return;
 		}
 
-		const feedbackItems = this._agentFeedbackService.getFeedback(sessionResource);
+		const feedbackItems = this._agentFeedbackService.getFeedback(sessionResource).filter(item => item.state === AgentFeedbackState.Accepted);
 		const attachmentId = ATTACHMENT_ID_PREFIX + sessionResource.toString();
 
 		if (feedbackItems.length === 0) {
@@ -129,7 +140,7 @@ export class AgentFeedbackAttachmentContribution extends Disposable {
 		}
 
 		this._widgetListeners.set(key, widget.onDidSubmitAgent(() => {
-			this._agentFeedbackService.clearFeedback(sessionResource);
+			this._agentFeedbackService.markFeedbackSubmitted(sessionResource);
 			this._widgetListeners.deleteAndDispose(key);
 		}));
 	}

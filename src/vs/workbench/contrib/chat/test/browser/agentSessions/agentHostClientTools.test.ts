@@ -238,7 +238,7 @@ suite('AgentHostClientTools', () => {
 
 	suite('client tools registration', () => {
 
-		function createMockToolsService(disposables: DisposableStore, tools: IToolData[]) {
+		function createMockToolsService(disposables: DisposableStore, tools: IToolData[], options?: { requireConfirmation?: boolean }) {
 			const onDidChangeTools = disposables.add(new Emitter<void>());
 			const pendingToolCalls = new Map<string, ChatToolInvocation>();
 			const begunToolCalls: ChatToolInvocation[] = [];
@@ -257,7 +257,18 @@ suite('AgentHostClientTools', () => {
 					invokedToolCalls.push(invocation);
 					const toolInvocation = pendingToolCalls.get(invocation.chatStreamToolCallId ?? invocation.callId);
 					pendingToolCalls.delete(invocation.chatStreamToolCallId ?? invocation.callId);
-					toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
+					if (options?.requireConfirmation && toolInvocation) {
+						toolInvocation.transitionFromStreaming({
+							invocationMessage: 'Run Task',
+							confirmationMessages: {
+								title: 'Confirm tool execution',
+								message: 'Run the task?',
+							},
+						}, invocation.parameters, undefined);
+						await IChatToolInvocation.awaitConfirmation(toolInvocation, CancellationToken.None);
+					} else {
+						toolInvocation?.transitionFromStreaming(undefined, invocation.parameters, { type: ToolConfirmKind.ConfirmationNotNeeded });
+					}
 					const result: IToolResult = { content: [{ kind: 'text', value: 'done' }] };
 					await toolInvocation?.didExecuteTool(result);
 					return result;
@@ -386,11 +397,12 @@ suite('AgentHostClientTools', () => {
 			disposables: DisposableStore,
 			tools: IToolData[],
 			configOverrides?: { clientTools?: string[] },
+			toolServiceOptions?: { requireConfirmation?: boolean },
 		) {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const connection = new MockAgentHostConnection();
 
-			const toolsService = createMockToolsService(disposables, tools);
+			const toolsService = createMockToolsService(disposables, tools, toolServiceOptions);
 			const configValues: Record<string, unknown> = {
 				'chat.agentHost.clientTools': configOverrides?.clientTools ?? ['runTask', 'runTests'],
 			};
@@ -616,6 +628,77 @@ suite('AgentHostClientTools', () => {
 			assert.ok(connection.dispatchedActions.some(entry => isSessionAction(entry.action)
 				&& entry.action.type === ActionType.SessionToolCallComplete
 				&& entry.action.toolCallId === 'tool-call-1'));
+		});
+
+		test('auto-approves client tool confirmation as a setting when the agent host marks the call', async () => {
+			const { handler, connection } = createHandlerWithMocks(disposables, [testRunTaskTool], undefined, { requireConfirmation: true });
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
+
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.SessionTurnStarted,
+				turnId: 'turn-1',
+				message: { text: 'run the task', origin: { kind: MessageKind.User } },
+			} as SessionAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.SessionToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				toolName: 'runTask',
+				displayName: 'Run Task',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+			} as SessionAction);
+			connection.applySessionAction(URI.parse(backendSession), {
+				type: ActionType.SessionToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tool-call-1',
+				invocationMessage: 'Run Task',
+				toolInput: '{"task":"build"}',
+				confirmationTitle: 'Run Task',
+				_meta: { autoApproveBySetting: true },
+			} as SessionAction);
+
+			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+			await timeout(0);
+			await timeout(0);
+
+			assert.deepStrictEqual(connection.dispatchedActions
+				.filter(entry => isSessionAction(entry.action)
+					&& (entry.action.type === ActionType.SessionToolCallConfirmed || entry.action.type === ActionType.SessionToolCallComplete)
+					&& entry.action.toolCallId === 'tool-call-1')
+				.map(entry => {
+					if (entry.action.type === ActionType.SessionToolCallConfirmed) {
+						return {
+							type: entry.action.type,
+							approved: entry.action.approved,
+							confirmed: entry.action.approved ? entry.action.confirmed : undefined,
+							success: undefined,
+						};
+					}
+					if (entry.action.type === ActionType.SessionToolCallComplete) {
+						return {
+							type: entry.action.type,
+							approved: undefined,
+							confirmed: undefined,
+							success: entry.action.result.success,
+						};
+					}
+					throw new Error(`Unexpected action type: ${entry.action.type}`);
+				}), [
+				{
+					type: ActionType.SessionToolCallConfirmed,
+					approved: true,
+					confirmed: ToolCallConfirmationReason.Setting,
+					success: undefined,
+				},
+				{
+					type: ActionType.SessionToolCallComplete,
+					approved: undefined,
+					confirmed: undefined,
+					success: true,
+				},
+			]);
 		});
 
 		test('reconnecting to an active turn with owned client tool completes the initial snapshot invocation', async () => {

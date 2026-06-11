@@ -17,7 +17,7 @@ import { IChatModelReference, IChatService } from '../../../../workbench/contrib
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { AbstractChatView, ChatViewKind } from '../../../browser/parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { NewChatWidget } from './newChatWidget.js';
@@ -41,13 +41,16 @@ export class NewChatView extends AbstractChatView {
 
 	constructor(
 		isNewChatInSession: boolean,
+		options: IChatViewOptions,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.element.classList.add('chat-view-new');
 		this.kind = isNewChatInSession ? 'newChatInSession' : 'newSession';
-		this._widget = this._register(instantiationService.createInstance(isNewChatInSession ? NewChatInSessionWidget : NewChatWidget));
+		this._widget = this._register(isNewChatInSession
+			? instantiationService.createInstance(NewChatInSessionWidget, options)
+			: instantiationService.createInstance(NewChatWidget, options));
 		this._widget.render(this.element);
 	}
 
@@ -262,8 +265,8 @@ export class ChatViewFactory implements IChatViewFactory {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	createNewChatView(isNewChatInSession: boolean): AbstractChatView {
-		return this.instantiationService.createInstance(NewChatView, isNewChatInSession);
+	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions): AbstractChatView {
+		return this.instantiationService.createInstance(NewChatView, isNewChatInSession, options);
 	}
 
 	createChatView(): AbstractChatView {

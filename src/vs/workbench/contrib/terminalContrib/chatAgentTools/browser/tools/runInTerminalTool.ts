@@ -26,7 +26,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { ICommandDetectionCapability, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile, TerminalExitReason } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
@@ -389,7 +389,7 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					description: 'Optional hard cap in milliseconds on how long the tool tracks the command before returning. Omit to let the command run to completion (recommended for package installs, builds, and long-running scripts). Use 0 to explicitly indicate no timeout.',
+					description: 'Optional. Hard cap in milliseconds before the tool returns. If you set a timeout, use a generous value (e.g. 600000 = 10 min for installs, 900000 = 15 min for big builds). Too-short timeouts cause the command to continue in the background, which wastes turns on unnecessary polling. Omit entirely to let the command run to completion. Use 0 to explicitly indicate no timeout.',
 				},
 			},
 			required: ['command', 'explanation', 'goal', 'mode']
@@ -613,6 +613,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
 	private static readonly _activeExecutions = new Map<string, IActiveTerminalExecution & { dispose(): void }>();
+
+	/**
+	 * Per-instance disposables that unregister `_activeExecutions` entries from the
+	 * `ITerminalChatService` execution-id map. Keyed by the same `termId` as `_activeExecutions`
+	 * so registrations and active executions share a lifecycle.
+	 */
+	private readonly _executionRegistrations = this._register(new DisposableMap<string, IDisposable>());
+
+	private _setActiveExecution(termId: string, execution: IActiveTerminalExecution & { dispose(): void }): void {
+		RunInTerminalTool._activeExecutions.set(termId, execution);
+		this._executionRegistrations.set(termId, this._terminalChatService.registerTerminalInstanceWithExecutionId(termId, execution.instance));
+	}
+
+	private _deleteActiveExecution(termId: string): boolean {
+		this._executionRegistrations.deleteAndDispose(termId);
+		return RunInTerminalTool._activeExecutions.delete(termId);
+	}
 
 	/**
 	 * Terminal IDs being programmatically disposed (by `kill_terminal` or
@@ -1917,7 +1934,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			);
 			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
-			RunInTerminalTool._activeExecutions.set(termId, execution);
+			this._setActiveExecution(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
 			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
@@ -2219,7 +2236,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				// Clean up the execution on error
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				toolTerminal.instance.dispose();
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
@@ -2250,7 +2267,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} else {
 				// Foreground completed or error - clean up execution and output monitor
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				outputMonitor?.dispose();
 			}
 			store.dispose();
@@ -2625,7 +2642,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._addSessionTerminalAssociation(chatSessionResource, toolTerminal);
 						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);
 						if (association.id) {
-							RunInTerminalTool._activeExecutions.set(association.id, this._register(new RestoredTerminalExecution(instance)));
+							this._setActiveExecution(association.id, this._register(new RestoredTerminalExecution(instance)));
 						}
 
 						// Listen for terminal disposal to clean up storage
@@ -2724,7 +2741,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		for (const termId of terminalToRemove) {
-			RunInTerminalTool._activeExecutions.delete(termId);
+			this._deleteActiveExecution(termId);
 		}
 	}
 
@@ -2790,7 +2807,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		for (const termId of executionIdsToRemove) {
-			RunInTerminalTool._activeExecutions.delete(termId);
+			this._deleteActiveExecution(termId);
 		}
 	}
 
@@ -2830,13 +2847,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture model/mode/tools from the last request so the steering message
-		// uses the same settings as the original conversation (not defaults).
+		// Capture agent/model/mode/tools so the notification resumes the same
+		// agent context that started the background terminal command. The
+		// notification message starts a full agent turn, so it must run on a
+		// real conversation model — a weaker utility model cannot reliably
+		// assess the command output or continue the agentic tool loop, which
+		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
+		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
+			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
@@ -3042,7 +3064,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// send a redundant "terminal exited" steering message.
 				RunInTerminalTool._killedByTool.add(termId);
 				execution.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				terminalInstance.dispose();
 			});
 		}));
@@ -3069,6 +3091,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// normal cleanup. Suppress notifications so they don't persist
 			// as undeliverable steering messages after restart (#314791).
 			if (this._isShuttingDown) {
+				disposeNotification();
+				return;
+			}
+			// Skip steering message when user manually closed the terminal (#317059).
+			if (terminalInstance.exitReason === TerminalExitReason.User) {
+				this._logService.debug(`RunInTerminalTool: Background terminal ${termId} closed by user, suppressing steering message`);
 				disposeNotification();
 				return;
 			}
@@ -3100,7 +3128,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (e.kind === 'removeRequest') {
 				this._logService.debug(`RunInTerminalTool: Request removed from session, cleaning up background terminal ${termId}`);
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				disposeNotification();
 				terminalInstance.dispose();
 			}

@@ -34,7 +34,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/workbenchTestServices.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
@@ -60,6 +60,7 @@ import { ChatAgentToolsContribution } from '../../browser/terminal.chatAgentTool
 import { TerminalToolId } from '../../browser/tools/toolIds.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -85,7 +86,7 @@ suite('RunInTerminalTool', () => {
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResources: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
-	let capturedSteeringRequests: { sessionResource: URI; message: string }[];
+	let capturedSteeringRequests: { sessionResource: URI; message: string; options?: IChatSendRequestOptions }[];
 	let sandboxEnabled: boolean;
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
@@ -160,8 +161,8 @@ suite('RunInTerminalTool', () => {
 		const chatServiceStub = {
 			onDidDisposeSession: chatServiceDisposeEmitter.event,
 			getSession: (sessionResource: URI) => chatSessions.get(sessionResource.toString()),
-			sendRequest: async (sessionResource: URI, message: string) => {
-				capturedSteeringRequests.push({ sessionResource, message });
+			sendRequest: async (sessionResource: URI, message: string, options?: IChatSendRequestOptions) => {
+				capturedSteeringRequests.push({ sessionResource, message, options });
 				return { kind: 'rejected', reason: 'test' };
 			},
 			acquireExistingSession: () => ({
@@ -233,6 +234,9 @@ suite('RunInTerminalTool', () => {
 				return [];
 			},
 		});
+		instantiationService.stub(ILanguageModelsService, {
+			selectLanguageModels: async () => ['copilot/copilot-utility-small'],
+		} as unknown as ILanguageModelsService);
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultProfile: async () => ({ path: 'bash' } as ITerminalProfile)
 		});
@@ -2582,6 +2586,56 @@ suite('RunInTerminalTool', () => {
 			const wouldReuse = cachedTerminal !== undefined && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed;
 			strictEqual(wouldReuse, false, 'Should not reuse a disposed cached terminal');
 		});
+	});
+
+	test('should use the conversation model and preserve previous agent for background completion notifications', async () => {
+		const termId = 'test-completion-model-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-completion-model-session');
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
+
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			dispose: () => { },
+			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
+		} as unknown as ITerminalInstance;
+
+		const previousModelId = 'claude-opus-4-8';
+		const previousAgentId = 'local-agent';
+		const previousRequest = { modelId: previousModelId, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const chatService = instantiationService.get(IChatService) as unknown as {
+			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
+		};
+		chatService.acquireExistingSession = () => ({
+			object: {
+				lastRequest: previousRequest,
+				lastRequestObs: constObservable(previousRequest),
+				onDidChange: Event.None,
+			},
+			dispose: () => { },
+		}) as unknown as NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string; dispose(): void; instance: ITerminalInstance }> })._activeExecutions.set(termId, {
+			getOutput: () => 'done',
+			dispose: () => { },
+			instance: terminalInstance,
+		});
+
+		const toolSpecificData = { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' } as IChatTerminalToolInvocationData;
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, toolSpecificData: IChatTerminalToolInvocationData) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm test', toolSpecificData);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		commandFinishedEmitter.fire({ exitCode: 0 });
+
+		strictEqual(capturedSteeringRequests.length, 1, 'Expected a completion steering notification');
+		strictEqual(capturedSteeringRequests[0].options?.userSelectedModelId, previousModelId, 'Completion notification should use the conversation model');
+		strictEqual(capturedSteeringRequests[0].options?.agentIdSilent, previousAgentId, 'Completion notification should continue with the previous request agent');
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {
