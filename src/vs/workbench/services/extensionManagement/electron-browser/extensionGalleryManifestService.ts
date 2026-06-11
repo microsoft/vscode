@@ -92,7 +92,11 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 		const configuredServiceUrl = this.configurationService.getValue<string>(ExtensionGalleryServiceUrlConfigKey);
 		if (configuredServiceUrl) {
+<<<<<<< HEAD
 			this.logService.trace('[Marketplace] Private marketplace configured, checking access and fetching manifest', configuredServiceUrl);
+=======
+			this.logService.trace(`[Marketplace] Private marketplace configured, checking access and fetching manifest`, configuredServiceUrl);
+>>>>>>> 72a3942a178 (show private marketplace notification and add some logging (#320836))
 			await this.handleDefaultAccountAccess(configuredServiceUrl);
 			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.handleDefaultAccountAccess(configuredServiceUrl)));
 		} else {
