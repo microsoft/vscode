@@ -5,8 +5,8 @@
 
 import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
-import { Limiter, SequencerByKey, Throttler } from '../../../../base/common/async.js';
-import { CancellationTokenSource, type CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
+import { type CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
@@ -545,9 +545,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
-
-			// Identify VS Code's agent host traffic in CAPI
-			env['GITHUB_COPILOT_INTEGRATION_ID'] = 'vscode-agent-host';
 
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for
@@ -1936,6 +1933,8 @@ interface IResolvedCustomization {
 	readonly input?: ClientPluginCustomization;
 }
 
+const REFRESH_DEBOUNCE_MS = 100;
+
 /**
  * A per-working-directory bundle of customizations the agent host
  * discovered itself from disk (workspace + user-home conventions).
@@ -1952,12 +1951,13 @@ interface IResolvedCustomization {
  */
 class SessionDiscoveredEntry extends Disposable {
 
+
 	private readonly _discovery: SessionCustomizationDiscovery;
-	private readonly _refreshThrottler = this._register(new Throttler());
-	private _refreshCancellationSource: CancellationTokenSource | undefined;
+	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
+	private _refreshPromise: CancelablePromise<void> | null = null;
+	private _pendingRefreshNotify = false;
 
 	private _customizations: readonly DirectoryCustomization[] = [];
-	private _plugin: IParsedPlugin | undefined;
 	private _directories: readonly IDiscoveredDirectory[] | undefined;
 	private _settled: Promise<void>;
 	private readonly _fileService: IFileService;
@@ -1979,8 +1979,8 @@ class SessionDiscoveredEntry extends Disposable {
 	}
 
 	override dispose(): void {
-		this._refreshCancellationSource?.dispose(true);
-		this._refreshCancellationSource = undefined;
+		this._refreshPromise?.cancel();
+		this._refreshPromise = null;
 		super.dispose();
 	}
 
@@ -1992,32 +1992,41 @@ class SessionDiscoveredEntry extends Disposable {
 		return this._customizations;
 	}
 
-	currentPlugin(): IParsedPlugin | undefined {
-		return this._plugin;
-	}
-
 	private _queueRefresh(notify: boolean): Promise<void> {
-		this._refreshCancellationSource?.cancel();
-		return this._refreshThrottler.queue(async throttlerToken => {
-			const refreshCancellationSource = new CancellationTokenSource(throttlerToken);
-			this._refreshCancellationSource = refreshCancellationSource;
-			try {
-				const didRefresh = await this._refresh(refreshCancellationSource.token);
-				if (didRefresh && notify && !refreshCancellationSource.token.isCancellationRequested) {
+		this._refreshPromise?.cancel();
+		this._refreshPromise = null;
+		this._pendingRefreshNotify = this._pendingRefreshNotify || notify;
+
+		return this._refreshDelayer.trigger(() => {
+			const shouldNotify = this._pendingRefreshNotify;
+			this._pendingRefreshNotify = false;
+
+			const refreshPromise = this._refreshPromise = createCancelablePromise(async token => {
+				const didRefresh = await this._refresh(token);
+				if (didRefresh && shouldNotify) {
 					this._onDidRefresh();
 				}
-			} finally {
-				if (this._refreshCancellationSource === refreshCancellationSource) {
-					this._refreshCancellationSource = undefined;
+			});
+
+			return refreshPromise.then(() => {
+				if (this._refreshPromise === refreshPromise) {
+					this._refreshPromise = null;
 				}
-				refreshCancellationSource.dispose();
-			}
+			}, err => {
+				if (this._refreshPromise === refreshPromise) {
+					this._refreshPromise = null;
+				}
+				if (err instanceof CancellationError) {
+					return;
+				}
+				throw err;
+			});
 		});
 	}
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
 		try {
-			const directories = await this._discovery.directories();
+			const directories = await this._discovery.scan(token);
 			if (token.isCancellationRequested) {
 				return false;
 			}
@@ -2031,27 +2040,20 @@ class SessionDiscoveredEntry extends Disposable {
 				return false;
 			}
 
-			const plugin = mapToParsedPlugin(customizations);
-			if (token.isCancellationRequested) {
-				return false;
-			}
-
-			// Don't update `_customizations` / `_plugin` / `_directories` when cancelled.
+			// Don't update `_customizations` / `_directories` when cancelled.
 			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
 			this._customizations = customizations;
-			this._plugin = plugin;
 			this._directories = directories;
 			return true;
 		} catch (err) {
-			// Don't update `_customizations` / `_plugin` when cancelled.
+			// Don't update `_customizations` / `_directories` when cancelled.
 			// Otherwise a cancelled refresh could temporarily clear them and cause callers to see empty customizations.
 			if (token.isCancellationRequested) {
 				return false;
 			}
 			this._logService.warn(`[Copilot:SessionDiscoveredEntry] Discovery/bundle failed: ${err instanceof Error ? err.message : String(err)}`);
-			const hadState = this._customizations.length > 0 || this._plugin !== undefined || this._directories !== undefined;
+			const hadState = this._customizations.length > 0 || this._directories !== undefined;
 			this._customizations = [];
-			this._plugin = undefined;
 			this._directories = undefined;
 			return hadState;
 		}
@@ -2470,7 +2472,7 @@ class SessionPluginController extends Disposable {
 		]);
 
 		const discovered = entry?.currentCustomizations() ?? [];
-		const sessionPlugin = discovered.some(customization => this._isEnabled(customization)) ? entry?.currentPlugin() : undefined;
+		const sessionPlugin = discovered.some(customization => this._isEnabled(customization)) ? mapToParsedPlugin(discovered) : undefined;
 		const sessionPlugins: IParsedPlugin[] = sessionPlugin ? [sessionPlugin] : [];
 
 		return [

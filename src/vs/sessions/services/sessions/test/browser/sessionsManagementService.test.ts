@@ -28,8 +28,8 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelPickerOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { SessionsViewService } from '../../../../browser/sessionsViewService.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { SessionsViewService } from '../../browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 

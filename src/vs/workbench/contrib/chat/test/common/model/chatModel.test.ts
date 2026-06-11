@@ -302,7 +302,7 @@ suite('ChatModel', () => {
 		const modeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
 			isBuiltin: false,
-			modeId: 'custom',
+			telemetryModeId: 'custom',
 			modeInstructions: {
 				name: 'plan',
 				content: 'You are a planning agent',

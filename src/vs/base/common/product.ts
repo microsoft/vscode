@@ -65,24 +65,22 @@ export type ExtensionVirtualWorkspaceSupport = {
 };
 
 /**
- * Per-package configuration for downloading an agent SDK on demand. When
- * `IProductConfiguration.agentSdks?.[pkg]` is set, the agent host fetches the
- * per-platform tarball at `format2(urlTemplate, { sdkVersion, sdkTarget })`,
- * verifies its sha256 against `sha256[sdkTarget]`, and caches it under
- * `userDataPath/agent-host/sdk-cache/`.
+ * Per-platform configuration for downloading an agent SDK on demand. When
+ * `IProductConfiguration.agentSdks?.[pkg]` is set, the agent host GETs
+ * `url`, verifies sha256 against `sha256`, and caches the extracted root
+ * under `userDataPath/agent-host/sdk-cache/`.
  *
- * `{sdkTarget}` is `${platform}-${arch}`, plus `-musl` on Linux when musl is
- * detected — same suffixes npm uses for the platform `optionalDependencies`
- * (`@anthropic-ai/claude-agent-sdk-${sdkTarget}`, `@openai/codex-${sdkTarget}`).
+ * The build pipeline patches `agentSdks` per-platform during packaging, so
+ * each shipped product.json carries only the entry appropriate for the
+ * platform it targets — there is no per-target sha lookup at runtime.
  *
- * The `sha256` map's keys define the supported platforms: a `currentSdkTarget()`
- * not present in the map is treated as unsupported and the provider is not
- * registered.
+ * The trust anchor for `sha256` is product.json's own integrity coverage
+ * via `product.checksums` (computed in the same packaging step).
  */
 export interface IAgentSdkProductConfig {
 	readonly version: string;
-	readonly urlTemplate: string;
-	readonly sha256: { readonly [sdkTarget: string]: string };
+	readonly url: string;
+	readonly sha256: string;
 }
 
 export interface IProductConfiguration {
