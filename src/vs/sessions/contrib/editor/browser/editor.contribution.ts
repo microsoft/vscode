@@ -344,7 +344,7 @@ class AddFileAsContextAction extends Action2 {
 			id: AddFileAsContextAction.ID,
 			title: localize2('addFileAsContext', "Add File as Context"),
 			icon: Codicon.attach,
-			f1: false,
+			f1: true,
 			menu: {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
