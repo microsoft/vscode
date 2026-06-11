@@ -84,8 +84,20 @@ export function bindWidgetToController(widget: AgentsVoiceWidget, services: IWid
 	store.add(agentTitleBarStatusService.onDidChangeSessionInfo(updateAll));
 	store.add(autorun(reader => {
 		voicePlaybackService.speakingSession.read(reader);
-		// Also track chatModels changes to pick up new/removed chat sessions
-		services.chatService?.chatModels.read(reader);
+		// Track chatModels changes to pick up new/removed chat sessions,
+		// AND subscribe to each model's state so we re-fire on confirmations,
+		// completions, and question carousels.
+		if (services.chatService) {
+			for (const model of services.chatService.chatModels.read(reader)) {
+				model.hasActiveRequest.read(reader);
+				model.requestNeedsInput.read(reader);
+				const lastReq = model.lastRequestObs.read(reader);
+				if (lastReq?.response) {
+					lastReq.response.isIncomplete.read(reader);
+					lastReq.response.isPendingConfirmation.read(reader);
+				}
+			}
+		}
 		_updateSessionData(widget, services);
 	}));
 
@@ -163,6 +175,8 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 
 	// Also include regular chat sessions (from IChatService) so the voice panel
 	// can target them for transcription even when there are no agent sessions.
+	// Show their actual state (active/needsInput/idle) so the voice UI reflects
+	// confirmations, question carousels, and response completion in real time.
 	if (chatService) {
 		const agentResources = new Set(sessionRows.map(r => r.resource.toString()));
 		const chatModels = chatService.chatModels.get();
@@ -170,16 +184,21 @@ function _updateSessionData(widget: AgentsVoiceWidget, services: IWidgetBindingS
 			if (agentResources.has(model.sessionResource.toString())) { continue; }
 			const requests = model.getRequests();
 			if (requests.length === 0) { continue; }
+
+			const isActive = model.hasActiveRequest.get();
+			const needsInput = !!model.requestNeedsInput.get();
+			const tc = toolConfirmations.find(c => c.sessionResource.toString() === model.sessionResource.toString());
+
 			sessionRows.push({
 				resource: model.sessionResource,
 				label: model.title || localize('agentsVoice.chat', "Chat"),
-				isActive: false,
-				needsInput: false,
-				isIdle: true,
+				isActive: isActive && !needsInput,
+				needsInput,
+				isIdle: !isActive && !needsInput,
 				isSpeaking: speakingSession?.toString() === model.sessionResource.toString(),
 				insertions: 0,
 				deletions: 0,
-				toolConfirmation: undefined,
+				toolConfirmation: tc,
 			});
 		}
 	}

@@ -294,72 +294,91 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		});
 
 		// Always-on autorun to track pending tool confirmations across all sessions
+		// (both agent sessions AND regular chat sessions).
 		this._register(autorun(reader => {
-			const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
+			const agentSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 			const toolConfirmations: IPendingToolConfirmation[] = [];
-			for (const s of sessions) {
+			const processedResources = new Set<string>();
+
+			// Collect chat models from agent sessions
+			const modelsToCheck: { model: IChatModel; resource: URI; label: string }[] = [];
+			for (const s of agentSessions) {
+				processedResources.add(s.resource.toString());
 				const model = this.chatService.getSession(s.resource);
 				if (model) {
-					const lastReq = model.lastRequestObs.read(reader);
-					if (lastReq?.response) {
-						const pending = lastReq.response.isPendingConfirmation.read(reader);
-						if (pending && !this._autoApprovedSessions.has(s.resource.toString())) {
-							const confirmType = this._classifyPendingType(lastReq.response);
-							const desc = this._getConfirmationDescription(lastReq.response);
-							toolConfirmations.push({
-								type: confirmType,
-								sessionLabel: s.label || 'Untitled session',
-								sessionResource: s.resource,
-								description: desc || pending.detail || (confirmType === 'input' ? 'Needs your input' : 'Needs approval'),
-								approve: () => {
-									if (lastReq.response) {
-										for (const part of lastReq.response.response.value) {
-											if (part.kind === 'toolInvocation') {
-												IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
-											}
-										}
-									}
-								},
-								deny: () => {
-									if (lastReq.response) {
-										for (const part of lastReq.response.response.value) {
-											if (part.kind === 'toolInvocation') {
-												IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
-											}
-										}
-									}
-								},
-							});
-						}
+					modelsToCheck.push({ model, resource: s.resource, label: s.label || 'Untitled session' });
+				}
+			}
 
-						// Fallback: detect WaitingForConfirmation without confirmationMessages
-						// (e.g. askQuestions). Read tool states reactively so the autorun
-						// re-fires when a tool enters WaitingForConfirmation.
-						if (!pending && !this._autoApprovedSessions.has(s.resource.toString())) {
-							for (const part of lastReq.response.response.value) {
-								if (part.kind === 'toolInvocation') {
-									const toolState = (part as IChatToolInvocation).state.read(reader);
-									if (toolState.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-										const params = toolState.parameters as Record<string, unknown> | undefined;
-										const questions = params?.['questions'];
-										let desc = '';
-										if (Array.isArray(questions) && questions.length > 0) {
-											desc = questions.map((q: Record<string, unknown>) => q['header'] || q['question']).filter(Boolean).join(', ');
+			// Also collect regular (non-agent) chat sessions reactively
+			for (const chatModel of this.chatService.chatModels.read(reader)) {
+				const key = chatModel.sessionResource.toString();
+				if (processedResources.has(key)) { continue; }
+				if (chatModel.getRequests().length === 0) { continue; }
+				processedResources.add(key);
+				modelsToCheck.push({ model: chatModel, resource: chatModel.sessionResource, label: chatModel.title || 'Chat' });
+			}
+
+			for (const { model, resource, label } of modelsToCheck) {
+				const lastReq = model.lastRequestObs.read(reader);
+				if (lastReq?.response) {
+					const pending = lastReq.response.isPendingConfirmation.read(reader);
+					if (pending && !this._autoApprovedSessions.has(resource.toString())) {
+						const confirmType = this._classifyPendingType(lastReq.response);
+						const desc = this._getConfirmationDescription(lastReq.response);
+						toolConfirmations.push({
+							type: confirmType,
+							sessionLabel: label,
+							sessionResource: resource,
+							description: desc || pending.detail || (confirmType === 'input' ? 'Needs your input' : 'Needs approval'),
+							approve: () => {
+								if (lastReq.response) {
+									for (const part of lastReq.response.response.value) {
+										if (part.kind === 'toolInvocation') {
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
 										}
-										toolConfirmations.push({
-											type: 'input',
-											sessionLabel: s.label || 'Untitled session',
-											sessionResource: s.resource,
-											description: desc || 'Needs your input',
-											approve: () => {
-												IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
-											},
-											deny: () => {
-												IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
-											},
-										});
-										break;
 									}
+								}
+							},
+							deny: () => {
+								if (lastReq.response) {
+									for (const part of lastReq.response.response.value) {
+										if (part.kind === 'toolInvocation') {
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+										}
+									}
+								}
+							},
+						});
+					}
+
+					// Fallback: detect WaitingForConfirmation without confirmationMessages
+					// (e.g. askQuestions). Read tool states reactively so the autorun
+					// re-fires when a tool enters WaitingForConfirmation.
+					if (!pending && !this._autoApprovedSessions.has(resource.toString())) {
+						for (const part of lastReq.response.response.value) {
+							if (part.kind === 'toolInvocation') {
+								const toolState = (part as IChatToolInvocation).state.read(reader);
+								if (toolState.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+									const params = toolState.parameters as Record<string, unknown> | undefined;
+									const questions = params?.['questions'];
+									let desc = '';
+									if (Array.isArray(questions) && questions.length > 0) {
+										desc = questions.map((q: Record<string, unknown>) => q['header'] || q['question']).filter(Boolean).join(', ');
+									}
+									toolConfirmations.push({
+										type: 'input',
+										sessionLabel: label,
+										sessionResource: resource,
+										description: desc || 'Needs your input',
+										approve: () => {
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
+										},
+										deny: () => {
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+										},
+									});
+									break;
 								}
 							}
 						}
@@ -566,7 +585,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				});
 
 				// Seed previous session states so existing sessions don't trigger false transitions
+				const seededResources = new Set<string>();
 				for (const s of this.agentSessionsService.model.sessions.filter(ss => !ss.isArchived())) {
+					seededResources.add(s.resource.toString());
 					const model = this.chatService.getSession(s.resource);
 					const info = model ? this._getAgentStateInfo(model) : undefined;
 					const currentState = info?.state
@@ -578,6 +599,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						this._prevSessionStates.set(s.resource.toString(), { state: currentState, detail: info?.detail ?? '' });
 					}
 				}
+				// Also seed regular chat sessions so the autorun doesn't trigger false transitions
+				for (const chatModel of this.chatService.chatModels.get()) {
+					const key = chatModel.sessionResource.toString();
+					if (seededResources.has(key)) { continue; }
+					if (chatModel.getRequests().length === 0) { continue; }
+					const info = this._getAgentStateInfo(chatModel);
+					if (info.state !== 'unknown') {
+						this._prevSessionStates.set(key, { state: info.state, detail: info.detail ?? '' });
+					}
+				}
 
 				// Reactive session context autorun
 				const sessionChangeListener = this.agentSessionsService.model.onDidChangeSessions(() => {
@@ -586,59 +617,43 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._checkSessionStateChanges();
 				});
 				const autorunDisposable = autorun(reader => {
-					const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
+					const agentSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 					let needsRecheck = false;
 					const stateChanges: { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string; detailOnly?: boolean }[] = [];
 					const waitingForConfirmationSessions: { sessionId: string; label: string; detail?: string; transition: boolean }[] = [];
-					for (const s of sessions) {
-						const model = this.chatService.getSession(s.resource);
-						if (model) {
-							const lastReq = model.lastRequestObs.read(reader);
-							if (lastReq?.response) {
-								lastReq.response.isIncomplete.read(reader);
-								const pending = lastReq.response.isPendingConfirmation.read(reader);
+					const processedResources = new Set<string>();
 
-								if (pending && this._autoApprovedSessions.has(s.resource.toString())) {
-									for (const part of lastReq.response.response.value) {
-										if (part.kind === 'toolInvocation') {
-											if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })) {
-												needsRecheck = true;
-											}
+					// --- Helper: subscribe to a chat model's observables and detect state changes ---
+					const processModel = (model: IChatModel, resource: URI, label: string) => {
+						const sessionId = resource.toString();
+						const lastReq = model.lastRequestObs.read(reader);
+						if (lastReq?.response) {
+							lastReq.response.isIncomplete.read(reader);
+							const pending = lastReq.response.isPendingConfirmation.read(reader);
+
+							if (pending && this._autoApprovedSessions.has(sessionId)) {
+								for (const part of lastReq.response.response.value) {
+									if (part.kind === 'toolInvocation') {
+										if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })) {
+											needsRecheck = true;
 										}
 									}
 								}
-
-								// Always subscribe to response changes so the autorun
-								// re-fires when tool parts change (new confirmations,
-								// questions added, or existing ones resolved). Without
-								// this, a pending→pending detail change is invisible.
-								const responseSignal = observableSignalFromEvent(lastReq.response, lastReq.response.onDidChange);
-								responseSignal.read(reader);
 							}
+
+							// Always subscribe to response changes so the autorun
+							// re-fires when tool parts change (new confirmations,
+							// questions added, or existing ones resolved). Without
+							// this, a pending→pending detail change is invisible.
+							const responseSignal = observableSignalFromEvent(lastReq.response, lastReq.response.onDidChange);
+							responseSignal.read(reader);
 						}
 
-						// Detect state changes — use chat model if available, fall back to agent session status
-						const sessionId = s.resource.toString();
-						let currentState: string;
-						let detail: string | undefined;
-						let lastResponseSummary: string | undefined;
-						if (model) {
-							const info = this._getAgentStateInfo(model);
-							currentState = info.state;
-							detail = info.detail;
-							lastResponseSummary = info.last_response_summary;
-						} else {
-							currentState = s.status === AgentSessionStatus.InProgress ? 'thinking'
-								: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
-									: s.status === AgentSessionStatus.Completed ? 'idle'
-										: 'unknown';
-							// Eagerly load the chat model for sessions awaiting input so the
-							// autorun re-fires with full confirmation detail (tool name,
-							// parameters, etc.) and the backend can narrate it properly.
-							if (s.status === AgentSessionStatus.NeedsInput) {
-								this._ensureModelLoaded(s.resource);
-							}
-						}
+						// Detect state changes
+						const info = this._getAgentStateInfo(model);
+						const currentState = info.state;
+						const detail = info.detail;
+						const lastResponseSummary = info.last_response_summary;
 
 						const prev = this._prevSessionStates.get(sessionId);
 						const isStateTransition = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
@@ -646,17 +661,13 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						const isTransition = isStateTransition || isDetailTransition;
 						if (isTransition) {
 							this.logService.info(`[voice] autorun transition id=${sessionId.slice(-32)} ${prev?.state}→${currentState} detailChanged=${isDetailTransition} hasDetail=${!!detail}`);
-							// User just hit Stop on this session — swallow this one state
-							// change (typically the chat model transitioning to `idle`) so
-							// the backend doesn't proactively narrate a status update the
-							// user already triggered themselves.
 							const cancelExpiry = this._userCancelledSessions.get(sessionId);
 							if (cancelExpiry) {
 								this.logService.info(`[voice] autorun swallowing transition (user-cancelled) id=${sessionId.slice(-32)}`);
 								clearTimeout(cancelExpiry);
 								this._userCancelledSessions.delete(sessionId);
 							} else {
-								stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session', detail, lastResponseSummary, detailOnly: isDetailTransition });
+								stateChanges.push({ sessionId, currentState, label, detail, lastResponseSummary, detailOnly: isDetailTransition });
 							}
 						}
 						if (currentState !== 'unknown') {
@@ -664,9 +675,56 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 						}
 
 						if (currentState === 'waiting_for_confirmation') {
-							waitingForConfirmationSessions.push({ sessionId, label: s.label || 'Untitled session', detail, transition: isTransition });
+							waitingForConfirmationSessions.push({ sessionId, label, detail, transition: isTransition });
+						}
+					};
+
+					// --- Process agent sessions ---
+					for (const s of agentSessions) {
+						processedResources.add(s.resource.toString());
+						const model = this.chatService.getSession(s.resource);
+						if (model) {
+							processModel(model, s.resource, s.label || 'Untitled session');
+						} else {
+							// No model loaded — fall back to agent session status
+							const sessionId = s.resource.toString();
+							const currentState = s.status === AgentSessionStatus.InProgress ? 'thinking'
+								: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
+									: s.status === AgentSessionStatus.Completed ? 'idle'
+										: 'unknown';
+							if (s.status === AgentSessionStatus.NeedsInput) {
+								this._ensureModelLoaded(s.resource);
+							}
+
+							const prev = this._prevSessionStates.get(sessionId);
+							const isStateTransition = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
+							if (isStateTransition) {
+								const cancelExpiry = this._userCancelledSessions.get(sessionId);
+								if (cancelExpiry) {
+									clearTimeout(cancelExpiry);
+									this._userCancelledSessions.delete(sessionId);
+								} else {
+									stateChanges.push({ sessionId, currentState, label: s.label || 'Untitled session' });
+								}
+							}
+							if (currentState !== 'unknown') {
+								this._prevSessionStates.set(sessionId, { state: currentState, detail: '' });
+							}
+							if (currentState === 'waiting_for_confirmation') {
+								waitingForConfirmationSessions.push({ sessionId, label: s.label || 'Untitled session', detail: undefined, transition: isStateTransition });
+							}
 						}
 					}
+
+					// --- Process regular (non-agent) chat sessions reactively ---
+					for (const chatModel of this.chatService.chatModels.read(reader)) {
+						const key = chatModel.sessionResource.toString();
+						if (processedResources.has(key)) { continue; }
+						if (chatModel.getRequests().length === 0) { continue; }
+						processedResources.add(key);
+						processModel(chatModel, chatModel.sessionResource, chatModel.title || 'Chat');
+					}
+
 					if (needsRecheck) {
 						setTimeout(() => this._autoApproveCheck(), 500);
 					}
@@ -1542,13 +1600,16 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	/**
 	 * Check all sessions for state changes and send notifications to backend.
 	 * This catches state transitions for sessions without a loaded chat model
-	 * (which the autorun can't track via observables).
+	 * (which the autorun can't track via observables), and also regular chat
+	 * sessions that are not agent sessions.
 	 */
 	private _checkSessionStateChanges(): void {
 		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 		const stateChanges: { sessionId: string; currentState: string; label: string; detail?: string; lastResponseSummary?: string }[] = [];
+		const processedResources = new Set<string>();
 
 		for (const s of sessions) {
+			processedResources.add(s.resource.toString());
 			const sessionId = s.resource.toString();
 			const model = this.chatService.getSession(s.resource);
 			let currentState: string;
@@ -1586,6 +1647,31 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			if (currentState !== 'unknown') {
 				this._prevSessionStates.set(sessionId, { state: currentState, detail: detail ?? '' });
+			}
+		}
+
+		// Also check regular (non-agent) chat sessions
+		for (const chatModel of this.chatService.chatModels.get()) {
+			const key = chatModel.sessionResource.toString();
+			if (processedResources.has(key)) { continue; }
+			if (chatModel.getRequests().length === 0) { continue; }
+
+			const info = this._getAgentStateInfo(chatModel);
+			const currentState = info.state;
+			const detail = info.detail;
+			const lastResponseSummary = info.last_response_summary;
+
+			const prev = this._prevSessionStates.get(key);
+			const isStateChange = prev !== undefined && prev.state !== currentState && currentState !== 'unknown';
+			const isDetailChange = !isStateChange && prev !== undefined && currentState === 'waiting_for_confirmation' && (detail ?? '') !== prev.detail;
+			if (isStateChange || isDetailChange) {
+				if (isDetailChange) {
+					this.voiceClientService.invalidateSessionCache(key);
+				}
+				stateChanges.push({ sessionId: key, currentState, label: chatModel.title || 'Chat', detail, lastResponseSummary });
+			}
+			if (currentState !== 'unknown') {
+				this._prevSessionStates.set(key, { state: currentState, detail: detail ?? '' });
 			}
 		}
 
@@ -1649,6 +1735,29 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
 			};
 		});
+
+		// Also include regular (non-agent) chat sessions with requests so the
+		// backend can track their state (confirmations, completions, etc.)
+		const agentResources = new Set(this.agentSessionsService.model.sessions.map(s => s.resource.toString()));
+		for (const chatModel of this.chatService.chatModels.get()) {
+			const key = chatModel.sessionResource.toString();
+			if (agentResources.has(key)) { continue; }
+			if (chatModel.getRequests().length === 0) { continue; }
+			const stateInfo = this._getAgentStateInfo(chatModel);
+			// Include active/waiting sessions always, idle only if recent
+			if (stateInfo.state === 'idle') {
+				const lastActive = chatModel.lastMessageDate;
+				if (lastActive < oneHourAgo) { continue; }
+			}
+			sessionList.push({
+				id: key,
+				label: chatModel.title || 'Chat',
+				is_active: false,
+				agent_state: stateInfo.state,
+				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
+				...(stateInfo.last_response_summary ? { last_response_summary: stateInfo.last_response_summary } : {}),
+			});
+		}
 
 		// Try to get active session from chatViewPane via command
 		let activeSession: { id: string; label: string; last_message: string | null } | undefined;
