@@ -59,6 +59,7 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
+import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -86,6 +87,12 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IProductService, TestProductService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
+		instantiationService.stub(IExtensionGalleryManifestService, {
+			onDidChangeExtensionGalleryManifest: Event.None,
+			onDidChangeExtensionGalleryManifestStatus: Event.None,
+			extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Unavailable,
+			async getExtensionGalleryManifest() { return null; }
+		});
 		instantiationService.stub(IURLService, NativeURLService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
