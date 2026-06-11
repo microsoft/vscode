@@ -304,13 +304,19 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.deepStrictEqual(
 			{
 				agentUri: plugin.agents[0].uri.toString(),
+				agentDescription: plugin.agents[0].description,
 				skillUri: plugin.skills[0].uri.toString(),
+				skillDescription: plugin.skills[0].description,
 				ruleUri: plugin.instructions[0].uri.toString(),
+				ruleDescription: plugin.instructions[0].description,
 			},
 			{
 				agentUri: agent.toString(),
+				agentDescription: 'Agent description',
 				skillUri: skill.toString(),
+				skillDescription: 'Skill description',
 				ruleUri: instruction.toString(),
+				ruleDescription: 'Rule description',
 			}
 		);
 	});
