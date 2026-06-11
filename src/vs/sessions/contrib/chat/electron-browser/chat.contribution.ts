@@ -9,6 +9,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
@@ -19,6 +20,7 @@ class OpenAgentsSessionContribution extends Disposable implements IWorkbenchCont
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -53,6 +55,13 @@ class OpenAgentsSessionContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
+		// Show the sessions part's progress bar while we wait for the session to
+		// appear in the providers and open it, so the window doesn't just sit on
+		// its restored state until the target session pops in.
+		await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSession(sessionResource));
+	}
+
+	private async resolveAndOpenSession(sessionResource: URI): Promise<void> {
 		// The Copilot Chat Sessions Provider lists sessions asynchronously
 		// via an RPC; the target session may not yet be in the providers'
 		// `getSessions()` map. Poll until it shows up.
