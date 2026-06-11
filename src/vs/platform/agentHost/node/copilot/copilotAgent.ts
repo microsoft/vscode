@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type ModelInfo } from '@github/copilot-sdk';
 import * as fs from 'fs/promises';
 import { CancelablePromise, createCancelablePromise, Delayer, Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { type CancellationToken } from '../../../../base/common/cancellation.js';
@@ -13,6 +13,7 @@ import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlCon
 import { Disposable, DisposableMap, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import { formatTokenCount } from '../../../../base/common/numbers.js';
 import { equals } from '../../../../base/common/objects.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
@@ -35,7 +36,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
-import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type ChildCustomizationType, type ConfigPropertySchema, type ConfigSchema, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentCustomization, CustomizationLoadStatus, CustomizationType, ResponsePartKind, RuleCustomization, SessionInputResponseKind, SkillCustomization, customizationId, parseSubagentSessionUri, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ResponsePart, type SessionInputAnswer, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
@@ -47,7 +48,7 @@ import { findMcpChildId } from '../shared/mcpCustomizationController.js';
 import { CopilotAgentSession, type CopilotSdkMode } from './copilotAgentSession.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
-import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
@@ -121,8 +122,23 @@ interface ISerializedModelSelection {
 }
 
 /**
- * Subset of the JSON-RPC `MessageConnection` we reach into via the SDK's
- * private `connection` field to wire plan mode. See {@link CopilotAgent._enablePlanModeOnClient}.
+ * Augments the published `@vscode/copilot-api` `ModelBilling` with the `tokenPrices` field the runtime CAPI `/models`
+ * payload already carries but the SDK type doesn't yet declare. Mirror of `IClaudeModelSupports` in `claudeAgent.ts`.
+ */
+interface ICopilotModelBilling {
+	readonly tokenPrices?: {
+		readonly contextMax?: number;
+		readonly longContext?: {
+			readonly contextMax?: number;
+			readonly inputPrice?: number;
+			readonly outputPrice?: number;
+		};
+	};
+}
+
+/**
+ * Subset of the JSON-RPC `MessageConnection` we reach into via the SDK's private `connection` field to wire plan mode.
+ * See {@link CopilotAgent._enablePlanModeOnClient}.
  */
 interface IExitPlanModeConnection {
 	sendRequest(method: string, params: unknown): Promise<unknown>;
@@ -558,7 +574,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Resolve the CLI entry point from node_modules. We can't use require.resolve()
 			// because @github/copilot's exports map blocks direct subpath access.
 			// FileAccess.asFileUri('') points to the `out/` directory; node_modules is one level up.
-			const cliPath = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules', '@github', 'copilot', 'index.js').fsPath;
+			const nodeModulesUri = URI.joinPath(FileAccess.asFileUri(''), '..', 'node_modules');
+			const cliPath = URI.joinPath(nodeModulesUri, '@github', 'copilot', 'index.js').fsPath;
+
+			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
+			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
+			// at `node_modules/@microsoft/mxc-sdk/bin/<arch>/`, so point `MXC_BIN_DIR` there.
+			// The @github/copilot package's own `mxc-bin/` is excluded from the product build
+			// (see build/.moduleignore), mirroring `CopilotCLISDK.getPackage` in the extension.
+			env['MXC_BIN_DIR'] = URI.joinPath(nodeModulesUri, '@microsoft', 'mxc-sdk', 'bin').fsPath;
 
 			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
 			const resolvedRgDiskPath = await rgDiskPath();
@@ -606,7 +630,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- session management -------------------------------------------------
 
-	private _createThinkingLevelConfigSchema(supportedReasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined): ConfigSchema | undefined {
+	private _createThinkingLevelConfigSchemaProperty(supportedReasoningEfforts: readonly string[] | undefined, defaultReasoningEffort: string | undefined): ConfigPropertySchema | undefined {
 		if (!supportedReasoningEfforts?.length) {
 			return undefined;
 		}
@@ -622,18 +646,64 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 
 		return {
-			type: 'object',
-			properties: {
-				[ThinkingLevelConfigKey]: {
-					type: 'string',
-					title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
-					description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
-					default: defaultReasoningEffort,
-					enum: [...supportedReasoningEfforts],
-					enumLabels,
-				},
-			},
+			type: 'string',
+			title: localize('copilot.modelThinkingLevel.title', "Thinking Level"),
+			description: localize('copilot.modelThinkingLevel.description', "Controls how much reasoning effort the model uses."),
+			default: defaultReasoningEffort,
+			enum: [...supportedReasoningEfforts],
+			enumLabels,
 		};
+	}
+
+	/**
+	 * Synthesize a `contextTier` config property when the model exposes a `long_context` pricing tier with a distinct
+	 * context-max. Picker surfaces this as the "Context Size" button. Mirrors `getContextSizeOptions` in
+	 * `extensions/copilot/src/extension/conversation/vscode-node/languageModelAccess.ts`.
+	 *
+	 * `billing.tokenPrices` is present on the runtime CAPI `/models` payload but not yet declared on the published SDK
+	 * `ModelBilling` type — narrow through {@link ICopilotModelBilling} until the SDK catches up.
+	 */
+	private _createContextTierConfigSchemaProperty(billing: ModelInfo['billing'] | undefined): ConfigPropertySchema | undefined {
+		const tokenPrices = (billing as ICopilotModelBilling | undefined)?.tokenPrices;
+		const defaultMax = tokenPrices?.contextMax;
+		const longContextMax = tokenPrices?.longContext?.contextMax;
+		if (!defaultMax || !longContextMax || defaultMax >= longContextMax) {
+			return undefined;
+		}
+
+		const hasLongContextSurcharge = typeof tokenPrices?.longContext?.inputPrice === 'number'
+			|| typeof tokenPrices?.longContext?.outputPrice === 'number';
+
+		return {
+			type: 'string',
+			title: localize('copilot.modelContextTier.title', "Context Size"),
+			description: localize('copilot.modelContextTier.description', "Selects the context window size for this model."),
+			default: 'default',
+			enum: ['default', 'long_context'],
+			enumLabels: [formatTokenCount(defaultMax), formatTokenCount(longContextMax)],
+			enumDescriptions: [
+				localize('copilot.modelContextTier.default', "Default"),
+				hasLongContextSurcharge
+					? localize('copilot.modelContextTier.longerSessions', "Longer sessions")
+					: localize('copilot.modelContextTier.longerSessionsNoCompaction', "Longer sessions without compaction"),
+			],
+		};
+	}
+
+	private _createModelConfigSchema(m: ModelInfo): ConfigSchema | undefined {
+		const properties: ConfigSchema['properties'] = {};
+		const thinkingLevel = this._createThinkingLevelConfigSchemaProperty(m.supportedReasoningEfforts, m.defaultReasoningEffort);
+		if (thinkingLevel) {
+			properties[ThinkingLevelConfigKey] = thinkingLevel;
+		}
+		const contextTier = this._createContextTierConfigSchemaProperty(m.billing);
+		if (contextTier) {
+			properties[ContextTierConfigKey] = contextTier;
+		}
+		if (Object.keys(properties).length === 0) {
+			return undefined;
+		}
+		return { type: 'object', properties };
 	}
 
 	private _serializeModelSelection(model: ModelSelection): string {
@@ -791,7 +861,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// no fixed context window — surface them with maxContextWindow undefined.
 			maxContextWindow: m.capabilities?.limits?.max_context_window_tokens,
 			supportsVision: !!m.capabilities?.supports?.vision,
-			configSchema: this._createThinkingLevelConfigSchema(m.supportedReasoningEfforts, m.defaultReasoningEffort),
+			configSchema: this._createModelConfigSchema(m),
 			policyState: m.policy?.state as PolicyState | undefined,
 			_meta: typeof m.billing?.multiplier === 'number' ? {
 				multiplierNumeric: m.billing.multiplier,
@@ -1305,6 +1375,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async disposeSession(session: URI): Promise<void> {
 		const sessionId = AgentSession.id(session);
 		await this._sessionSequencer.queue(sessionId, async () => {
+			// Remove the session from the SDK's on-disk store first so it doesn't reappear in `listSessions()` after a
+			// restart, and so that any final persist triggered by in-memory teardown can't recreate it. Provisional
+			// sessions were never persisted, so there is nothing to delete on the SDK side.
+			if (!this._provisionalSessions.has(sessionId)) {
+				const client = await this._ensureClient();
+				await client.deleteSession(sessionId);
+			}
 			await this._destroyAndDisposeSession(sessionId);
 		});
 	}
@@ -1445,7 +1522,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
-			await entry.setModel(model.id, getCopilotReasoningEffort(model));
+			await entry.setModel(model.id, getCopilotReasoningEffort(model), getCopilotContextTier(model));
 		}
 		await this._storeSessionMetadata(session, model, undefined, undefined, undefined);
 	}

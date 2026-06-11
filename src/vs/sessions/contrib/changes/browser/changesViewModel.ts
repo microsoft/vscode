@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionChangeset, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
 
@@ -248,7 +248,7 @@ export class ChangesViewModel extends Disposable {
 			const feedbackItems = this.agentFeedbackService.getFeedback(sessionResource);
 			const result = new Map<string, number>();
 			for (const item of feedbackItems) {
-				if (!item.sourcePRReviewCommentId) {
+				if (!item.sourcePRReviewCommentId && item.state !== AgentFeedbackState.Resolved) {
 					const uriKey = item.resourceUri.fsPath;
 					result.set(uriKey, (result.get(uriKey) ?? 0) + 1);
 				}

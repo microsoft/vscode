@@ -11,7 +11,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -432,7 +432,7 @@ suite('AgentFeedbackService - State', () => {
 	});
 
 	test('created feedback transitions to accepted on acceptFeedback', () => {
-		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, undefined, 'codeReview', AgentFeedbackState.Created);
+		const created = service.addFeedback(session, fileA, r(10), 'pending', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
 		assert.strictEqual(created.state, AgentFeedbackState.Created);
 
 		service.acceptFeedback(session, created.id);
@@ -441,7 +441,7 @@ suite('AgentFeedbackService - State', () => {
 
 	test('markFeedbackSubmitted only submits accepted items', () => {
 		const accepted = service.addFeedback(session, fileA, r(10), 'accepted');
-		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, 'codeReview', AgentFeedbackState.Created);
+		const created = service.addFeedback(session, fileA, r(20), 'created', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
 
 		service.markFeedbackSubmitted(session);
 

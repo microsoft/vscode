@@ -42,7 +42,7 @@ import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { formatTokenCount } from '../widget/input/chatModelPicker.js';
+import { formatTokenCount } from '../../../../../base/common/numbers.js';
 
 const $ = DOM.$;
 

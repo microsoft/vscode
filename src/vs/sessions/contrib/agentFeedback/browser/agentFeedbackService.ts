@@ -29,8 +29,18 @@ import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider
  * The origin of an agent feedback item. Used to classify how the feedback
  * entered the session so that telemetry can distinguish user-authored
  * feedback from feedback converted out of an existing review comment.
+ *
+ * The string values are kept stable as they are surfaced to the agent (via
+ * the `listComments` tool) and in telemetry.
  */
-export type AgentFeedbackKind = 'user' | 'codeReview' | 'prReview';
+export const enum AgentFeedbackKind {
+	/** Authored by the user. */
+	UserReview = 'user',
+	/** Converted from an in-product (agent) code review comment. */
+	AgentReview = 'codeReview',
+	/** Converted from a pull request review comment. */
+	PRReview = 'prReview',
+}
 
 /**
  * Lifecycle state of an agent feedback item. An item is in exactly one state
@@ -103,7 +113,7 @@ export interface IAgentFeedbackAddedEvent {
 export interface IAgentFeedbackConvertedEvent {
 	readonly sessionResource: URI;
 	readonly feedback: IAgentFeedback;
-	readonly kind: 'codeReview' | 'prReview';
+	readonly kind: AgentFeedbackKind.AgentReview | AgentFeedbackKind.PRReview;
 	readonly hasExistingFeedbackForFile: boolean;
 }
 
@@ -145,7 +155,8 @@ export interface IAgentFeedbackService {
 
 	/**
 	 * Add a feedback item for the given session. {@link kind} (defaults to
-	 * `'user'`) classifies the origin of the feedback. {@link state} (defaults
+	 * {@link AgentFeedbackKind.UserReview}) classifies the origin of the
+	 * feedback. {@link state} (defaults
 	 * to {@link AgentFeedbackState.Accepted}) sets the initial lifecycle state
 	 * and selects which lifecycle event is fired.
 	 */
@@ -313,7 +324,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
-	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = 'user', state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
+	addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, suggestion?: ICodeReviewSuggestion, context?: IAgentFeedbackContext, sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
 		const key = sessionResource.toString();
 		let feedbackItems = this._feedbackBySession.get(key);
 		if (!feedbackItems) {
@@ -322,7 +333,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		// A sourcePRReviewCommentId implies the feedback originated from a PR review.
-		const effectiveKind: AgentFeedbackKind = sourcePRReviewCommentId ? 'prReview' : kind;
+		const effectiveKind: AgentFeedbackKind = sourcePRReviewCommentId ? AgentFeedbackKind.PRReview : kind;
 
 		const feedback: IAgentFeedback = {
 			id: generateUuid(),
@@ -374,7 +385,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// Created items are added by a system and are not yet user-accepted, so
 		// they do not contribute add/convert telemetry until acceptance.
 		if (state === AgentFeedbackState.Accepted) {
-			if (effectiveKind === 'user') {
+			if (effectiveKind === AgentFeedbackKind.UserReview) {
 				this._onDidAddFeedback.fire({ sessionResource, feedback, hasExistingFeedbackForFile: hasExistingForFile });
 			} else {
 				this._onDidConvertFeedback.fire({ sessionResource, feedback, kind: effectiveKind, hasExistingFeedbackForFile: hasExistingForFile });
@@ -402,7 +413,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
 		this._onDidChangeNavigation.fire(sessionResource);
 
-		if (accepted.kind !== 'user') {
+		if (accepted.kind !== AgentFeedbackKind.UserReview) {
 			const resourceStr = accepted.resourceUri.toString();
 			const hasExistingFeedbackForFile = feedbackItems.some(f => f.id !== accepted.id && f.resourceUri.toString() === resourceStr);
 			this._onDidConvertFeedback.fire({ sessionResource, feedback: accepted, kind: accepted.kind, hasExistingFeedbackForFile });
@@ -751,9 +762,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				continue;
 			}
 			switch (item.kind) {
-				case 'user': userCount++; break;
-				case 'codeReview': codeReviewCount++; break;
-				case 'prReview': prReviewCount++; break;
+				case AgentFeedbackKind.UserReview: userCount++; break;
+				case AgentFeedbackKind.AgentReview: codeReviewCount++; break;
+				case AgentFeedbackKind.PRReview: prReviewCount++; break;
 			}
 			replyCount += item.replies?.length ?? 0;
 			feedbackItems[i] = { ...item, state: AgentFeedbackState.Submitted };
