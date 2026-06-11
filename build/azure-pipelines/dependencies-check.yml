@@ -18,7 +18,11 @@ jobs:
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 1300
+    # The GitHub App installation token handed off from the queueing GitHub Action has a
+    # 1-hour lifetime. The job must finish (including the final `condition: always()`
+    # cleanup step that PATCHes the GitHub check run) within that window, otherwise the
+    # PATCH 401s and the Dependencies Check stays IN_PROGRESS forever.
+    timeoutInMinutes: 50
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -77,26 +81,31 @@ jobs:
       - script: |
           set -e
 
-          for attempt in {1..120}; do
+          # Bounded retries with per-attempt timeouts so a hung `npm i` cannot block
+          # the pipeline (and by extension the GitHub Dependencies Check) indefinitely.
+          # Worst case: 3 * (20m npm i + 5m postinstall) + 2 * 30s sleep = 76 minutes
+          # of work cap, but `timeoutInMinutes` on the job will cut us off well before
+          # that — and the always() cleanup step will still PATCH the check run.
+          for attempt in 1 2 3; do
             if [ $attempt -gt 1 ]; then
-              echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
-              sleep 600
+              echo "Attempt $attempt: Waiting for 30 seconds before retrying..."
+              sleep 30
             fi
 
-            echo "Attempt $attempt: Running npm ci"
-            if npm i --ignore-scripts; then
-              if node build/npm/postinstall.ts; then
+            echo "Attempt $attempt: Running npm i"
+            if timeout 20m npm i --ignore-scripts; then
+              if timeout 5m node build/npm/postinstall.ts; then
                 echo "npm i succeeded on attempt $attempt"
                 exit 0
               else
-                echo "node build/npm/postinstall.ts failed on attempt $attempt"
+                echo "node build/npm/postinstall.ts failed (or timed out) on attempt $attempt"
               fi
             else
-              echo "npm i failed on attempt $attempt"
+              echo "npm i failed (or timed out) on attempt $attempt"
             fi
           done
 
-          echo "giving up after 120 attempts (20 hours)"
+          echo "giving up after 3 attempts"
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -104,7 +113,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 1300
+        timeoutInMinutes: 45
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: |
