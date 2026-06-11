@@ -115,14 +115,15 @@ export function renderHeader(props: HeaderProps): TemplateResult {
 			: nothing}
 			${props.isConnected
 			? html`<span
+					class="codicon codicon-gear"
 					role="button"
 					tabindex="0"
 					aria-label="${localize('agentsVoice.configureKeybinding', "Configure keybinding")}"
 					title="${localize('agentsVoice.configureKeybinding', "Configure keybinding")}"
-					style="font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;"
-					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; (e.target as HTMLElement).style.borderColor = 'var(--vscode-foreground)'; }}
-					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; (e.target as HTMLElement).style.borderColor = 'var(--vscode-descriptionForeground)'; }}
-					@click=${props.onPttKeyClick}>${props.pttKeyLabel ?? 'Space'}</span>`
+					style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;"
+					@mouseenter=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-foreground)'; }}
+					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.color = 'var(--vscode-descriptionForeground)'; }}
+					@click=${props.onPttKeyClick}></span>`
 			: nothing}
 			${showConnBtnLeft ? connBtnTemplate : nothing}
 			${showConnBtnCenter
