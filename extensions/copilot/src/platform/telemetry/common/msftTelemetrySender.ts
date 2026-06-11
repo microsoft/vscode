@@ -46,7 +46,7 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 		if (!this._internalTelemetryReporter || !this._isInternal) {
 			return;
 		}
-		properties = { ...properties, 'common.tid': this._tid, 'common.userName': this._username ?? 'undefined' };
+		properties = { ...properties, 'common.tid': this._tid, 'common.userName': this._username ?? 'undefined', 'copilot_tracking_id': this._tid ?? '' };
 		measurements = { ...measurements, 'common.isVscodeTeamMember': this._vscodeTeamMember ? 1 : 0 };
 		this._internalTelemetryReporter.sendRawTelemetryEvent(eventName, properties, measurements);
 	}
