@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -18,7 +19,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
+import { resolveMarketplaceHeaders, resolveNetrcAuthorizationHeader } from '../../../externalServices/common/marketplace.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
@@ -31,6 +32,17 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 		super();
 		this.serviceMachineIdResource = serviceMachineIdResource;
 		this.isBuilt = true;
+	}
+}
+
+class EnvironmentServiceWithHomeMock extends mock<IEnvironmentService>() {
+	override readonly serviceMachineIdResource: URI;
+	readonly userHome: URI; // accessed via duck-type cast in resolveNetrcAuthorizationHeader; not part of IEnvironmentService
+	constructor(serviceMachineIdResource: URI, userHome: URI) {
+		super();
+		this.serviceMachineIdResource = serviceMachineIdResource;
+		this.isBuilt = true;
+		this.userHome = userHome;
 	}
 }
 
@@ -457,6 +469,88 @@ suite('Extension Gallery Service', () => {
 			assert.ok(result.includes(versions[1])); // 0.14.0 universal (release)
 		});
 
+	});
+});
+
+suite('resolveNetrcAuthorizationHeader', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const homeScheme = 'vscode-tests-netrc';
+	const homeUri = URI.file('/home/testuser').with({ scheme: homeScheme });
+	const serviceUrl = 'https://registry.example.com/vsix';
+
+	let fileService: IFileService;
+	let environmentService: IEnvironmentService;
+	let configurationService: TestConfigurationService;
+
+	setup(() => {
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(homeScheme, disposables.add(new InMemoryFileSystemProvider())));
+		environmentService = new EnvironmentServiceWithHomeMock(homeUri, homeUri);
+		configurationService = new TestConfigurationService({ 'extensions.gallery.useNetrcAuth': true });
+	});
+
+	async function writeNetrc(content: string): Promise<void> {
+		await fileService.writeFile(URI.joinPath(homeUri, '.netrc'), VSBuffer.fromString(content));
+	}
+
+	test('returns undefined when setting is disabled', async () => {
+		const config = new TestConfigurationService({ 'extensions.gallery.useNetrcAuth': false });
+		await writeNetrc('machine registry.example.com login user password token');
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, config);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns undefined when userHome is unavailable (web context)', async () => {
+		const envWithoutHome = new EnvironmentServiceMock(homeUri);
+		await writeNetrc('machine registry.example.com login user password token');
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, envWithoutHome, fileService, configurationService);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns undefined when .netrc does not exist', async () => {
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns undefined when no matching machine entry exists', async () => {
+		await writeNetrc('machine other.example.com login user password token');
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('returns correct Basic header for matching machine entry', async () => {
+		await writeNetrc('machine registry.example.com login myuser password mytoken');
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+		assert.strictEqual(result, 'Basic ' + encodeBase64(VSBuffer.fromString('myuser:mytoken')));
+	});
+
+	test('picks correct entry from multi-machine .netrc', async () => {
+		await writeNetrc([
+			'machine other.example.com login otheruser password othertoken',
+			'machine registry.example.com login myuser password correcttoken',
+			'machine another.example.com login anotheruser password anothertoken',
+		].join('\n'));
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+		assert.strictEqual(result, 'Basic ' + encodeBase64(VSBuffer.fromString('myuser:correcttoken')));
+	});
+
+	test('does not fall back to default entry', async () => {
+		await writeNetrc('default login defaultuser password defaulttoken');
+		const result = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('reads fresh credentials on each call without caching', async () => {
+		await writeNetrc('machine registry.example.com login myuser password firsttoken');
+		const first = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+
+		await writeNetrc('machine registry.example.com login myuser password rotatedtoken');
+		const second = await resolveNetrcAuthorizationHeader(serviceUrl, environmentService, fileService, configurationService);
+
+		assert.strictEqual(first, 'Basic ' + encodeBase64(VSBuffer.fromString('myuser:firsttoken')));
+		assert.strictEqual(second, 'Basic ' + encodeBase64(VSBuffer.fromString('myuser:rotatedtoken')));
+		assert.notStrictEqual(first, second);
 	});
 });
 
