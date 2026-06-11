@@ -134,6 +134,11 @@ export class TerminalViewPane extends ViewPane {
 
 	private _updateForShellIntegration(container: HTMLElement) {
 		container.classList.toggle('shell-integration', this._gutterDecorationsEnabled());
+
+		const decorationsEnabled = this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+		if (decorationsEnabled === 'never') {
+			container.style.paddingLeft = '0px';
+		}
 	}
 
 	private _gutterDecorationsEnabled(): boolean {
