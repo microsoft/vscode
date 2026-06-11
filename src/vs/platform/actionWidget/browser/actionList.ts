@@ -1805,6 +1805,10 @@ export class ActionList<T> extends Disposable {
 		return this._widget.footerContainer;
 	}
 
+	get headerContainer(): HTMLElement | undefined {
+		return this._widget.headerContainer;
+	}
+
 	get filterInput(): HTMLInputElement | undefined {
 		return this._widget.filterInput;
 	}
@@ -1910,7 +1914,8 @@ export class ActionList<T> extends Disposable {
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
-		const chromeHeight = filterHeight + footerHeight;
+		const headerHeight = this._widget.headerContainer ? this._widget.headerContainer.offsetHeight || 36 : 0;
+		const chromeHeight = filterHeight + footerHeight + headerHeight;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
