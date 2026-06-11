@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ChatReferenceBinaryData, ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { formatModelDetails } from '../../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSession, ISubagentSession, StoredMessage, SYNTHETIC_MODEL_ID } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { buildChatHistory } from '../chatHistoryBuilder';
 
@@ -208,6 +209,42 @@ describe('buildChatHistory', () => {
 			expect(result[1]).toBeInstanceOf(ChatResponseTurn2);
 			expect(result[2]).toBeInstanceOf(ChatRequestTurn2);
 			expect(result[3]).toBeInstanceOf(ChatResponseTurn2);
+		});
+	});
+
+	// #endregion
+
+	// #region Per-Turn Response Details (credits)
+
+	describe('per-turn response details', () => {
+		it('populates response footer with per-request credits keyed by request id', () => {
+			const u1 = userMsg('First');
+			const u2 = userMsg('Second');
+			const credits = new Map<string, number>([[u1.uuid, 16.3], [u2.uuid, 1]]);
+			const getResponseDetails = (_modelId: string | undefined, requestId: string | undefined): string | undefined =>
+				formatModelDetails('Claude', 2, requestId ? credits.get(requestId) : undefined);
+
+			const result = buildChatHistory(session([
+				u1,
+				assistantMsg([{ type: 'text', text: 'First answer' }]),
+				u2,
+				assistantMsg([{ type: 'text', text: 'Second answer' }]),
+			]), getResponseDetails);
+
+			expect((result[1] as ChatResponseTurn2).result.details).toBe('Claude \u2022 16.3 credits');
+			expect((result[3] as ChatResponseTurn2).result.details).toBe('Claude \u2022 1 credit');
+		});
+
+		it('falls back to the multiplier footer when no credits are persisted for a request', () => {
+			const getResponseDetails = (_modelId: string | undefined, _requestId: string | undefined): string | undefined =>
+				formatModelDetails('Claude', 2, undefined);
+
+			const result = buildChatHistory(session([
+				userMsg('First'),
+				assistantMsg([{ type: 'text', text: 'First answer' }]),
+			]), getResponseDetails);
+
+			expect((result[1] as ChatResponseTurn2).result.details).toBe('Claude \u2022 2x');
 		});
 	});
 

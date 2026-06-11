@@ -9,6 +9,7 @@ import type * as vscode from 'vscode';
 // eslint-disable-next-line no-duplicate-imports
 import * as vscodeShim from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { IGitService, RepoContext } from '../../../../platform/git/common/gitService';
 import { Change, Repository } from '../../../../platform/git/vscode/git';
 import { MockGitService } from '../../../../platform/ignore/node/test/mockGitService';
@@ -36,6 +37,7 @@ import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claud
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
 import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
+import { IChatSessionMetadataStore, RequestDetails } from '../../common/chatSessionMetadataStore';
 import { IClaudeWorkspaceFolderService } from '../../common/claudeWorkspaceFolderService';
 import { builtinSlashCommands } from '../../common/builtinSlashCommands';
 import { ClaudeChatSessionContentProvider, ClaudeChatSessionItemController } from '../claudeChatSessionContentProvider';
@@ -131,6 +133,33 @@ class MockChatFolderMruService implements IChatFolderMruService {
 	}
 
 	async deleteRecentlyUsedFolder(): Promise<void> { }
+}
+
+/**
+ * Minimal in-memory metadata store that supports the per-request details API used
+ * for persisting and recovering per-turn credit usage across reloads.
+ */
+class InMemoryChatSessionMetadataStore implements Partial<IChatSessionMetadataStore> {
+	declare _serviceBrand: undefined;
+
+	private readonly _requestDetails = new Map<string, RequestDetails[]>();
+
+	async getRequestDetails(sessionId: string): Promise<RequestDetails[]> {
+		return this._requestDetails.get(sessionId) ?? [];
+	}
+
+	async updateRequestDetails(sessionId: string, details: (Partial<RequestDetails> & { vscodeRequestId: string })[]): Promise<void> {
+		const existing = this._requestDetails.get(sessionId) ?? [];
+		for (const update of details) {
+			const found = existing.find(d => d.vscodeRequestId === update.vscodeRequestId);
+			if (found) {
+				Object.assign(found, update);
+			} else {
+				existing.push({ toolIdEditMap: {}, ...update });
+			}
+		}
+		this._requestDetails.set(sessionId, existing);
+	}
 }
 
 function createDefaultMocks() {
@@ -278,6 +307,8 @@ function createProviderWithServices(
 		getWorkspaceChanges: vi.fn().mockResolvedValue([]),
 	});
 
+	serviceCollection.define(IChatSessionMetadataStore, new InMemoryChatSessionMetadataStore());
+
 	serviceCollection.define(IClaudeAgentSdkLoaderService, sdkLoaderOverride ?? {
 		_serviceBrand: undefined,
 		isAvailable: true,
@@ -394,6 +425,73 @@ describe('ChatSessionContentProvider', () => {
 
 			expect(result.history).toEqual([]);
 			expect(mockSessionService.getSession).toHaveBeenCalledWith(sessionUri, CancellationToken.None);
+		});
+	});
+
+	// #endregion
+
+	// #region Per-Turn Credit Persistence
+
+	describe('per-turn credit persistence', () => {
+		it('persists creditsUsed keyed by the request id so it survives reloads', async () => {
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
+			const sessionId = 'credit-session';
+			seedSessionItem(sessionId);
+
+			// Simulate the quota service having accumulated credits for this turn.
+			const quotaService = accessor.get(IChatQuotaService);
+			vi.spyOn(quotaService, 'getCreditsForTurn').mockReturnValue(16.3);
+
+			const handler = provider.createHandler();
+			const request = createTestRequest('hello');
+			const context: vscode.ChatContext = {
+				history: [],
+				yieldRequested: false,
+				chatSessionContext: {
+					isUntitled: false,
+					chatSessionItem: {
+						resource: ClaudeSessionUri.forSessionId(sessionId),
+						label: 'Test Session',
+					},
+					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
+				},
+			} as vscode.ChatContext;
+
+			await handler(request, context, new MockChatResponseStream(), CancellationToken.None);
+
+			const metadataStore = accessor.get(IChatSessionMetadataStore) as unknown as InMemoryChatSessionMetadataStore;
+			const details = await metadataStore.getRequestDetails(sessionId);
+			expect(details).toEqual([{ toolIdEditMap: {}, vscodeRequestId: request.id, creditsUsed: 16.3 }]);
+		});
+
+		it('does not persist when no credits were consumed for the turn', async () => {
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
+			const sessionId = 'no-credit-session';
+			seedSessionItem(sessionId);
+
+			const quotaService = accessor.get(IChatQuotaService);
+			vi.spyOn(quotaService, 'getCreditsForTurn').mockReturnValue(undefined);
+
+			const handler = provider.createHandler();
+			const request = createTestRequest('hello');
+			const context: vscode.ChatContext = {
+				history: [],
+				yieldRequested: false,
+				chatSessionContext: {
+					isUntitled: false,
+					chatSessionItem: {
+						resource: ClaudeSessionUri.forSessionId(sessionId),
+						label: 'Test Session',
+					},
+					inputState: { groups: buildInputStateGroups(), sessionResource: undefined, onDidChange: Event.None, onDidDispose: Event.None },
+				},
+			} as vscode.ChatContext;
+
+			await handler(request, context, new MockChatResponseStream(), CancellationToken.None);
+
+			const metadataStore = accessor.get(IChatSessionMetadataStore) as unknown as InMemoryChatSessionMetadataStore;
+			const details = await metadataStore.getRequestDetails(sessionId);
+			expect(details).toEqual([]);
 		});
 	});
 

@@ -31,10 +31,11 @@ import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { formatModelDetails, formatModelDetailsWithMultiplier } from '../../../platform/chat/common/chatModelDetails';
+import { formatModelDetails, ModelDetailsInfo } from '../../../platform/chat/common/chatModelDetails';
 import { IClaudeCodeSessionInfo, IClaudeCodeSession, SYNTHETIC_MODEL_ID } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
+import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { builtinSlashCommands } from '../common/builtinSlashCommands';
 import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
 import { buildChatHistory } from './chatHistoryBuilder';
@@ -90,6 +91,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatQuotaService private readonly _chatQuotaService: IChatQuotaService,
 		@IClaudeAgentSdkLoaderService private readonly _sdkLoader: IClaudeAgentSdkLoaderService,
+		@IChatSessionMetadataStore private readonly _metadataStore: IChatSessionMetadataStore,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
@@ -201,6 +204,19 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				this._chatQuotaService.resetTurnCredits(request.id);
 			}
 
+			// Persist the per-turn credit usage keyed by the VS Code request id so the
+			// response footer can be reconstructed after a window reload (the in-memory
+			// quota service is wiped on reload). The persisted Claude transcript stores
+			// the request id as the user message uuid, which is the join key used when
+			// rebuilding history in `provideChatSessionContent`.
+			if (creditsUsed !== undefined) {
+				try {
+					await this._metadataStore.updateRequestDetails(effectiveSessionId, [{ vscodeRequestId: request.id, creditsUsed }]);
+				} catch (err) {
+					this._logService.error(err as Error, '[ClaudeChatSession] Failed to persist per-turn credits');
+				}
+			}
+
 			const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 			let details: string | undefined;
 			if (modelDetailsEnabled && endpoint) {
@@ -220,8 +236,18 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		const existingSession = await this.sessionService.getSession(sessionResource, token);
 		const modelDetailsEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIModelDetailsEnabled);
 		const detailsByModelId = existingSession && modelDetailsEnabled ? await this._buildModelDetailsLookup(existingSession, token) : undefined;
+		const creditsByRequestId = detailsByModelId ? await this._buildCreditsLookup(sessionResource) : undefined;
 		const history = existingSession ?
-			buildChatHistory(existingSession, detailsByModelId ? id => detailsByModelId.get(id) : undefined) :
+			buildChatHistory(existingSession, detailsByModelId
+				? (modelId, requestId) => {
+					const info = modelId ? detailsByModelId.get(modelId) : undefined;
+					if (!info) {
+						return undefined;
+					}
+					const credits = requestId ? creditsByRequestId?.get(requestId) : undefined;
+					return formatModelDetails(info.name, info.multiplier, credits);
+				}
+				: undefined) :
 			[];
 
 		const options: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
@@ -251,7 +277,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	 * ids are present, when the caller has cancelled, or when no ids resolve to known
 	 * endpoints — so callers can skip the per-turn details work entirely.
 	 */
-	private async _buildModelDetailsLookup(session: IClaudeCodeSession, token: vscode.CancellationToken): Promise<Map<string, string> | undefined> {
+	private async _buildModelDetailsLookup(session: IClaudeCodeSession, token: vscode.CancellationToken): Promise<Map<string, ModelDetailsInfo> | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -267,20 +293,43 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		if (modelIds.size === 0) {
 			return undefined;
 		}
-		const detailsByModelId = new Map<string, string>();
+		const detailsByModelId = new Map<string, ModelDetailsInfo>();
 		await Promise.all([...modelIds].map(async modelId => {
 			if (token.isCancellationRequested) {
 				return;
 			}
 			const endpoint = await this.claudeModels.resolveEndpoint(modelId, undefined);
 			if (endpoint) {
-				detailsByModelId.set(modelId, formatModelDetailsWithMultiplier(endpoint.name, endpoint.multiplier));
+				detailsByModelId.set(modelId, { name: endpoint.name, multiplier: endpoint.multiplier });
 			}
 		}));
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 		return detailsByModelId.size > 0 ? detailsByModelId : undefined;
+	}
+
+	/**
+	 * Loads the per-turn credit usage persisted during live requests, keyed by the VS Code
+	 * request id (which equals the persisted user message uuid). Returns `undefined` when
+	 * nothing is persisted so callers can fall back to the multiplier-only footer.
+	 */
+	private async _buildCreditsLookup(sessionResource: vscode.Uri): Promise<Map<string, number> | undefined> {
+		const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
+		let requestDetails;
+		try {
+			requestDetails = await this._metadataStore.getRequestDetails(sessionId);
+		} catch (err) {
+			this._logService.error(err as Error, '[ClaudeChatSession] Failed to load persisted per-turn credits');
+			return undefined;
+		}
+		const creditsByRequestId = new Map<string, number>();
+		for (const detail of requestDetails) {
+			if (detail.creditsUsed !== undefined) {
+				creditsByRequestId.set(detail.vscodeRequestId, detail.creditsUsed);
+			}
+		}
+		return creditsByRequestId.size > 0 ? creditsByRequestId : undefined;
 	}
 }
 

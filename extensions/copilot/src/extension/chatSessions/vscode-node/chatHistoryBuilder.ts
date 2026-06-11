@@ -384,7 +384,7 @@ function findModelIdForRequest(
  * @param getModelDetails Optional lookup that returns the display string for a Claude
  * model id (as it appears on stored assistant messages).
  */
-export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: (modelId: string) => string | undefined): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
+export function buildChatHistory(session: IClaudeCodeSession, getResponseDetails?: (modelId: string | undefined, requestId: string | undefined) => string | undefined): (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] {
 	const result: (vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2)[] = [];
 	const toolContext: ToolContext = {
 		unprocessedToolCalls: new Map(),
@@ -396,11 +396,12 @@ export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: 
 	// Tracks the most recent assistant model id observed in the current pending response
 	// group so we can populate `ChatResponseTurn2.result.details` when finalizing it.
 	let pendingResponseModelId: string | undefined;
-	const makeResponseResult = (modelId: string | undefined): vscode.ChatResult => {
-		if (!modelId || !getModelDetails) {
-			return {};
-		}
-		const details = getModelDetails(modelId);
+	// Tracks the request id (the user message uuid, which equals the VS Code request id)
+	// that started the current pending response group, so we can recover persisted per-turn
+	// details such as credit usage when finalizing it.
+	let pendingResponseRequestId: string | undefined;
+	const makeResponseResult = (modelId: string | undefined, requestId: string | undefined): vscode.ChatResult => {
+		const details = getResponseDetails?.(modelId, requestId);
 		return details ? { details } : {};
 	};
 
@@ -449,12 +450,14 @@ export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: 
 			if (commandInfo) {
 				// Finalize any pending response first
 				if (pendingResponseParts.length > 0) {
-					result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
+					result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId, pendingResponseRequestId), ''));
 					pendingResponseParts = [];
 					pendingResponseModelId = undefined;
+					pendingResponseRequestId = undefined;
 				}
 				// Emit the command as a request turn
 				result.push(new ChatRequestTurn2(commandInfo.commandName, undefined, [], '', [], undefined, currentMessageId, modelId, undefined));
+				pendingResponseRequestId = currentMessageId;
 				// Emit stdout as a response turn if present
 				if (commandInfo.stdout) {
 					result.push(new vscode.ChatResponseTurn2(
@@ -469,11 +472,13 @@ export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: 
 				if (requestTurn) {
 					// Real user message — finalize any pending response first
 					if (pendingResponseParts.length > 0) {
-						result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
+						result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId, pendingResponseRequestId), ''));
 						pendingResponseParts = [];
 						pendingResponseModelId = undefined;
+						pendingResponseRequestId = undefined;
 					}
 					result.push(requestTurn);
+					pendingResponseRequestId = currentMessageId;
 				}
 				// Otherwise this was a tool-result-only message — don't break the response grouping
 			}
@@ -517,7 +522,7 @@ export function buildChatHistory(session: IClaudeCodeSession, getModelDetails?: 
 
 	// Finalize any remaining pending response
 	if (pendingResponseParts.length > 0) {
-		result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId), ''));
+		result.push(new vscode.ChatResponseTurn2(pendingResponseParts, makeResponseResult(pendingResponseModelId, pendingResponseRequestId), ''));
 	}
 
 	return result;
