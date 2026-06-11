@@ -34,7 +34,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -52,7 +52,7 @@ import { FileAccess } from '../../../../base/common/network.js';
 import { IIgnoredExtensionsManagementService } from '../../../../platform/userDataSync/common/ignoredExtensions.js';
 import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { isBoolean, isDefined, isString, isUndefined } from '../../../../base/common/types.js';
+import { isDefined, isString, isUndefined } from '../../../../base/common/types.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService, IExtensionsStatus as IExtensionRuntimeStatus, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { isWeb, language } from '../../../../base/common/platform.js';
@@ -80,8 +80,6 @@ import { IMeteredConnectionService } from '../../../../platform/meteredConnectio
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
 }
-
-const DELAYED_AUTO_UPDATE_PERIOD = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
 interface InstalledExtensionsEvent {
 	readonly extensionIds: TelemetryTrustedValue<string>;
@@ -1144,7 +1142,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}));
 		this._register(this.extensionEnablementService.onEnablementChanged(platformExtensions => {
-			if (this.isAutoCheckUpdatesEnabled() && this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+			if (this.isAutoCheckUpdatesEnabled() && this.getAutoUpdateValue() === 'on' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
 				this.checkForUpdates('Extension enablement changed');
 			}
 		}));
@@ -1202,18 +1200,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.meteredConnectionService.isConnectionMetered) {
 			return false;
 		}
-		return this.getAutoUpdateValue() !== false;
+		return this.getAutoUpdateValue() !== 'off';
 	}
 
 	getAutoUpdateValue(): AutoUpdateConfigurationValue {
-		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue | 'on' | 'off' | 'delayed'>(AutoUpdateConfigurationKey);
-		if (autoUpdate === 'onlySelectedExtensions' || autoUpdate === 'off') {
-			return false;
+		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue | boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions' | 'delayed'>(AutoUpdateConfigurationKey);
+		if (autoUpdate === 'off' || autoUpdate === false || autoUpdate === 'onlySelectedExtensions') {
+			return 'off';
 		}
-		if (autoUpdate === 'on' || autoUpdate === 'delayed') {
-			return true;
-		}
-		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+		return 'on';
 	}
 
 	isAutoUpdateDelayed(extension: IExtension): boolean {
@@ -1240,7 +1235,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Future timestamp (clock skew) — treat as not delayed
 			return 0;
 		}
-		return Math.max(0, DELAYED_AUTO_UPDATE_PERIOD - elapsed);
+		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 2;
+		const delayPeriod = delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
+		return Math.max(0, delayPeriod - elapsed);
 	}
 
 	private isFromTrustedPublisher(extension: IExtension): boolean {
@@ -1273,7 +1270,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Reset extensions enabled for auto update first to prevent them from being updated
 		this.setEnabledAutoUpdateExtensions([]);
 
-		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled);
+		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled ? 'on' : 'off');
 
 		this.setDisabledAutoUpdateExtensions([]);
 		await this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
@@ -2329,7 +2326,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const autoUpdateValue = this.getAutoUpdateValue();
 
-		if (autoUpdateValue === false) {
+		if (autoUpdateValue === 'off') {
 			const extensionsToAutoUpdate = this.getEnabledAutoUpdateExtensions();
 			const extensionId = extension.identifier.id.toLowerCase();
 			if (extensionsToAutoUpdate.includes(extensionId)) {
@@ -2350,15 +2347,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (autoUpdateValue === true) {
-			return true;
-		}
-
-		if (autoUpdateValue === 'onlyEnabledExtensions') {
-			return extension.enablementState !== EnablementState.DisabledGlobally && extension.enablementState !== EnablementState.DisabledWorkspace;
-		}
-
-		return false;
+		// Auto-update is on; only update enabled extensions.
+		return extension.enablementState !== EnablementState.DisabledGlobally && extension.enablementState !== EnablementState.DisabledWorkspace;
 	}
 
 	async shouldRequireConsentToUpdate(extension: IExtension): Promise<string | undefined> {

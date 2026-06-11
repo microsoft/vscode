@@ -741,7 +741,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 	// --- Periodic update check ------------------------------------------------
 
 	private _isAutoUpdateEnabled(): boolean {
-		return this._extensionsWorkbenchService.getAutoUpdateValue() === true;
+		return this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
 	}
 
 	/**

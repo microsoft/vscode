@@ -489,15 +489,15 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(testObject.isAutoUpdateDelayed(testObject.local[0]), false);
 	});
 
-	test('test getAutoUpdateValue normalizes legacy insiders values', async () => {
+	test('test getAutoUpdateValue normalizes legacy and migrated values', async () => {
 		const expected = new Map<unknown, AutoUpdateConfigurationValue>([
-			['on', true],
-			['delayed', true],
-			['off', false],
-			['onlySelectedExtensions', false],
-			[true, true],
-			[false, false],
-			['onlyEnabledExtensions', 'onlyEnabledExtensions'],
+			['on', 'on'],
+			['off', 'off'],
+			['delayed', 'on'],
+			['onlySelectedExtensions', 'off'],
+			[true, 'on'],
+			[false, 'off'],
+			['onlyEnabledExtensions', 'on'],
 		]);
 		for (const [configured, normalized] of expected) {
 			stubConfiguration(configured);
