@@ -6,12 +6,6 @@
 /**
  * DOM-based HTML-to-Markdown converter.
  *
- * Uses DOMParser to build a proper DOM tree from the input HTML, then
- * recursively walks the tree to emit Markdown. This approach naturally
- * handles nested elements, entity decoding, and malformed HTML — unlike
- * a regex-based approach which requires careful ordering and
- * special-case workarounds.
- *
  * Handles common inline and block elements so that content pasted from
  * web pages keeps its basic structure (headings, links, bold, italic,
  * code, lists) when inserted into a Markdown-aware surface such as the
