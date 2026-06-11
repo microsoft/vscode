@@ -56,6 +56,13 @@ suite('htmlToMarkdown', () => {
 		assert.strictEqual(convertHtmlToMarkdown('<code>&lt;details&gt;</code>'), '`<details>`');
 	});
 
+	test('preserves HTML tag names inside inline code with nested tags', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<code><span class="hl">&lt;aside&gt;</span></code>'),
+			'`<aside>`'
+		);
+	});
+
 	test('preserves HTML tag names inside code blocks', () => {
 		assert.strictEqual(
 			convertHtmlToMarkdown('<pre><code>&lt;aside&gt;</code></pre>'),

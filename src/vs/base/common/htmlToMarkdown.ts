@@ -128,7 +128,7 @@ function inlineClean(html: string): string {
 	return result;
 }
 
-/** Strip tags, normalise <br>, and decode entities inside a code block while preserving indentation. */
+/** Strip tags and normalise <br> inside a code block while preserving indentation. */
 function cleanCodeBlock(html: string): string {
 	let result = html;
 	// Normalise <br> to newlines
