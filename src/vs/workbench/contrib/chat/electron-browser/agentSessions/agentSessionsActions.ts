@@ -21,7 +21,6 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
@@ -38,12 +37,6 @@ import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDI
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-
-// Provider id for the local agent host. Duplicated from
-// `vs/sessions/common/agentHostSessionsProvider.LOCAL_AGENT_HOST_PROVIDER_ID`
-// because the workbench layer cannot import from `vs/sessions`. The string is
-// part of the handoff IPC wire protocol so both sides must keep it in sync.
-const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
 
 export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 	constructor() {
@@ -72,9 +65,7 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const nativeHostService = accessor.get(INativeHostService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
-		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
-		await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined });
+		await nativeHostService.openAgentsWindow();
 	}
 }
 
@@ -112,7 +103,7 @@ export class OpenAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; initialQuery?: string; sessionResource?: UriComponents }) {
+	async run(accessor: ServicesAccessor, args?: { sessionResource?: UriComponents }) {
 		const nativeHostService = accessor.get(INativeHostService);
 		await nativeHostService.openAgentsWindow(args);
 	}
@@ -152,7 +143,6 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...rest: unknown[]): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const nativeHostService = accessor.get(INativeHostService);
-		const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 		let sessionResource: URI | undefined;
 		const arg = rest[0];
@@ -168,21 +158,13 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 		}
 
-		// No real session URI to hand off (empty-workspace path triggered
-		// from the input tip): pre-seed the agents window's session-type
-		// picker so it lands on Copilot CLI.
-		let preferredSessionType: { providerId?: string; sessionTypeId: string } | undefined;
+		// Only hand off a real (persisted, non-untitled) session so the agents
+		// window opens that same session. Opening it establishes its own
+		// workspace, so nothing else is forwarded; otherwise just open the window.
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
-		if (!hasRealSession) {
-			preferredSessionType = { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: SessionType.CopilotCLI };
-		}
-
-		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
-		await nativeHostService.openAgentsWindow({
-			folderUri: folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
-			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
-			preferredSessionType,
-		});
+		await nativeHostService.openAgentsWindow(hasRealSession
+			? { sessionResource: sessionResource?.toJSON() }
+			: undefined);
 	}
 }
 
