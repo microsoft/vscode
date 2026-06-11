@@ -17,6 +17,42 @@ export type LocalizedValue = {
 	value: string;
 };
 
+export type PolicyValue = string | number | boolean;
+export type ManagedSettingValue = PolicyValue;
+export type ManagedSettingsData = Readonly<Record<string, ManagedSettingValue>>;
+
+export interface IManagedSettingsPolicyRule {
+	readonly type: 'string' | 'number' | 'boolean';
+	readonly value: PolicyValue;
+	readonly policyValue: PolicyValue;
+}
+
+export type IManagedSettingsPolicyRules = Readonly<Record<string, IManagedSettingsPolicyRule>>;
+
+export function getPolicyValueFromManagedSettings(rules: IManagedSettingsPolicyRules | undefined, managedSettings: ManagedSettingsData | undefined): PolicyValue | undefined {
+	if (!rules || !managedSettings) {
+		return undefined;
+	}
+
+	for (const key in rules) {
+		const rule = rules[key];
+		const value = managedSettings[key];
+		if (isManagedSettingValueOfType(value, rule.type) && value === rule.value) {
+			return rule.policyValue;
+		}
+	}
+
+	return undefined;
+}
+
+function isManagedSettingValueOfType(value: ManagedSettingValue | undefined, type: IManagedSettingsPolicyRule['type']): value is ManagedSettingValue {
+	switch (type) {
+		case 'string': return typeof value === 'string';
+		case 'number': return typeof value === 'number';
+		case 'boolean': return typeof value === 'boolean';
+	}
+}
+
 export enum PolicyCategory {
 	Extensions = 'Extensions',
 	IntegratedTerminal = 'IntegratedTerminal',
@@ -97,6 +133,13 @@ export interface IPolicy {
 	 * If `undefined`, the feature's setting is not locked and can be overridden by other means.
 	 */
 	readonly value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+
+	/**
+	 * Maps Copilot managed-settings values to this policy's effective value.
+	 * Keys are dot-separated managed-settings paths, for example
+	 * `permissions.disableBypassPermissionsMode`.
+	 */
+	readonly managedSettings?: IManagedSettingsPolicyRules;
 
 	/**
 	 * The most-restrictive value that should be applied when the user is subject to the

@@ -5,6 +5,7 @@
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { getPolicyValueFromManagedSettings } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -133,8 +134,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				// MDM-only policies (no `value`, no `restrictedValue`) — including the policy
 				// that DRIVES the gate itself — are left untouched so the admin remains in control.
 				policyValue = getRestrictedPolicyValue(policy);
-			} else if (policyData && policy.value) {
-				policyValue = policy.value(policyData);
+			} else if (policyData) {
+				policyValue = getPolicyValueFromManagedSettings(policy.managedSettings, policyData.managedSettings);
+				if (policyValue === undefined && policy.value) {
+					policyValue = policy.value(policyData);
+				}
 			}
 
 			if (policyValue !== undefined) {

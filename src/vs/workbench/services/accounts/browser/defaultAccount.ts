@@ -826,6 +826,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this._managedSettingsFetchStatus = 'ok';
 			return {
 				data: {
+					managedSettings: accountPolicyData.policyData.managedSettings,
 					enabledPlugins: accountPolicyData.policyData.enabledPlugins,
 					extraKnownMarketplaces: accountPolicyData.policyData.extraKnownMarketplaces,
 					strictKnownMarketplaces: accountPolicyData.policyData.strictKnownMarketplaces,
@@ -871,7 +872,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
 			const marketplaceCount = adapted.extraKnownMarketplaces?.length ?? 0;
 			const strictSet = adapted.strictKnownMarketplaces !== undefined;
-			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet) {
+			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;
+			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet && managedSettingsCount === 0) {
 				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
 			} else {
 				this.logService.info('[DefaultAccount] Managed settings applied');
