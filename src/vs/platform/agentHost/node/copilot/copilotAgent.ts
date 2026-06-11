@@ -51,7 +51,7 @@ import { CopilotSessionLauncher, ThinkingLevelConfigKey, getCopilotReasoningEffo
 import { ShellManager } from './copilotShellTools.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
-
+import { IProductService } from '../../../product/common/productService.js';
 /**
  * Maps a VS Code {@link LogLevel} to the Copilot CLI runtime's `logLevel`
  * option so the spawned CLI logs (written to `~/.copilot/logs/process-*.log`)
@@ -235,9 +235,13 @@ function prependAnnouncementToFirstTurn(
 	return result;
 }
 
-function initializeIntegrationId() {
+function initializeIntegrationId(isCodeOSS: boolean) {
 	// Initialize integration id
-	process.env.GITHUB_COPILOT_INTEGRATION_ID = 'code-oss';
+	if (isCodeOSS) {
+		process.env.GITHUB_COPILOT_INTEGRATION_ID = 'code-oss';
+	} else {
+		process.env.GITHUB_COPILOT_INTEGRATION_ID = 'vsode-chat';
+	}
 }
 
 /**
@@ -315,9 +319,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostCompletions completions: IAgentHostCompletions,
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
+		@IProductService _productService: IProductService,
 	) {
 		super();
-		initializeIntegrationId();
+		initializeIntegrationId(_productService.quality === 'code-oss');
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
