@@ -256,6 +256,9 @@ suite.skip('AgentHostChangesetService', () => {
 			}));
 
 			// Trigger a turn-complete (which fires the immediate diff path).
+			// Enable the uncommitted probe so the on-turn-complete uncommitted
+			// compute fires alongside the session-wide one.
+			localChangesets.setUncommittedSubscriberProbe(() => true);
 			localChangesets.onTurnComplete(sessionUri.toString(), 'turn-1');
 
 			// Turn-complete recomputes both the uncommitted and the
@@ -749,9 +752,14 @@ suite.skip('AgentHostChangesetService', () => {
 		// production path would emit still flows through normally.
 		class CountingChangesetService extends AgentHostChangesetService {
 			readonly turnComputeCalls: { session: string; turnId: string }[] = [];
+			readonly uncommittedComputeCalls: string[] = [];
 			override async computeTurnChangeset(session: string, turnId: string): Promise<string> {
 				this.turnComputeCalls.push({ session, turnId });
 				return super.computeTurnChangeset(session, turnId);
+			}
+			override async computeUncommittedChangeset(session: string): Promise<string> {
+				this.uncommittedComputeCalls.push(session);
+				return super.computeUncommittedChangeset(session);
 			}
 		}
 
@@ -794,6 +802,36 @@ suite.skip('AgentHostChangesetService', () => {
 			// call must remain absent throughout.
 			await timeout(20);
 			assert.deepStrictEqual(svc.turnComputeCalls, [], 'no per-turn compute when nothing observes the turn URI');
+		});
+
+		test('onTurnComplete schedules an uncommitted recompute when the uncommitted probe says someone is subscribed', async () => {
+			setupSession();
+			const svc = makeService();
+			svc.setUncommittedSubscriberProbe(() => true);
+
+			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
+
+			for (let i = 0; i < 50 && svc.uncommittedComputeCalls.length === 0; i++) {
+				await timeout(2);
+			}
+			assert.deepStrictEqual(
+				svc.uncommittedComputeCalls,
+				[sessionUri.toString()],
+				'expected exactly one uncommitted compute for the completed turn',
+			);
+		});
+
+		test('onTurnComplete does NOT schedule an uncommitted recompute when the uncommitted probe says nobody is subscribed', async () => {
+			setupSession();
+			const svc = makeService();
+			svc.setUncommittedSubscriberProbe(() => false);
+
+			svc.onTurnComplete(sessionUri.toString(), 'turn-1');
+
+			// Give the static computes a chance to drain — the uncommitted
+			// call must remain absent throughout.
+			await timeout(20);
+			assert.deepStrictEqual(svc.uncommittedComputeCalls, [], 'no uncommitted compute when nothing observes the uncommitted URI');
 		});
 
 		test('onToolCallEditsApplied fires the per-turn debounce only when subscribers exist; cancelled by onTurnComplete', () => {

@@ -98,6 +98,16 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * pure waste).
 	 */
 	private readonly _subscribedTurns = new Map<string, Set<string>>();
+	/**
+	 * Sessions that have at least one live subscriber to
+	 * `<sessionUri>/changeset/uncommitted`. Drives the uncommitted recompute
+	 * gating: the changeset service skips the on-turn-complete uncommitted
+	 * recompute when this set says no client is watching, and the
+	 * coordinator skips the on-git-state-changed refresh in the same case.
+	 * The uncommitted URI carries no catalogue-chip aggregate, so the next
+	 * subscriber gets a fresh snapshot from `_triggerUncommittedRefresh`.
+	 */
+	private readonly _subscribedUncommittedSessions = new Set<string>();
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
 
 	constructor(
@@ -111,6 +121,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		super();
 		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
 		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
+		this._changesets.setUncommittedSubscriberProbe(session => this.hasUncommittedSubscribers(session));
 	}
 
 	/**
@@ -120,6 +131,17 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	hasTurnSubscribers(session: string, turnId: string): boolean {
 		return this._subscribedTurns.get(session)?.has(turnId) ?? false;
+	}
+
+	/**
+	 * Returns `true` when at least one client is subscribed to
+	 * `<session>/changeset/uncommitted`. Consulted by the changeset
+	 * service via the probe installed in the constructor, and by
+	 * {@link onSessionGitStateChanged} before re-triggering an uncommitted
+	 * refresh.
+	 */
+	hasUncommittedSubscribers(session: string): boolean {
+		return this._subscribedUncommittedSessions.has(session);
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -179,7 +201,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onSessionGitStateChanged(sessionStr: string): void {
 		this._logService.debug(`[ChangesetSessionCoordinator] Git state changed for ${sessionStr}; refreshing static changesets. hasWorkingDirectory=${!!this._configurationService.getEffectiveWorkingDirectory(sessionStr)}`);
 		this._triggerSessionRefresh(sessionStr);
-		this._triggerUncommittedRefresh(sessionStr);
+		if (this.hasUncommittedSubscribers(sessionStr)) {
+			this._triggerUncommittedRefresh(sessionStr);
+		}
 	}
 
 	/**
@@ -191,6 +215,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._pendingSessionRefreshes.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
+		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 	}
 
@@ -218,6 +243,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
+			this._subscribedUncommittedSessions.add(parsed.sessionUri);
 			this._triggerUncommittedRefresh(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
@@ -270,6 +296,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
+			this._subscribedUncommittedSessions.delete(parsed.sessionUri);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}

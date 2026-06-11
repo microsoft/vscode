@@ -402,6 +402,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
 	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
+	setUncommittedSubscriberProbe(_probe: (session: string) => boolean): void { }
 
 	clearRefreshes(): void {
 		this.branchRefreshes.length = 0;

@@ -336,6 +336,20 @@ export interface IAgentHostChangesetService {
 	 * `onLastSubscriber`. Called exactly once at coordinator construction.
 	 */
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
+
+	/**
+	 * Installs a predicate the service consults before scheduling an
+	 * uncommitted-changeset recompute on turn complete. Owned by
+	 * {@link ChangesetSessionCoordinator}, which tracks per-session
+	 * uncommitted subscribers via `onFirstSubscriber` / `onLastSubscriber`.
+	 * Called exactly once at coordinator construction.
+	 *
+	 * Uncommitted computes hit git on every recompute and produce no
+	 * catalogue-chip aggregate, so the cost of recomputing for an
+	 * unobserved session has no upside; the next subscriber will get a
+	 * fresh snapshot from the coordinator's `_triggerUncommittedRefresh`.
+	 */
+	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void;
 }
 
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
@@ -366,6 +380,21 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _hasTurnSubscribers: (session: ProtocolURI, turnId: string) => boolean = () => false;
 
+	/**
+	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
+	 * `true` when at least one client is subscribed to
+	 * `<session>/changeset/uncommitted`. Uncommitted computes hit git on
+	 * every recompute and produce no catalogue-chip aggregate, so the
+	 * service consults this probe in {@link onTurnComplete} before
+	 * triggering one — the next subscriber will get a fresh snapshot from
+	 * the coordinator's `_triggerUncommittedRefresh`.
+	 *
+	 * Defaults to `() => false` so unwired test instances don't accidentally
+	 * fire uncommitted computes; the coordinator overrides this in its
+	 * constructor.
+	 */
+	private _hasUncommittedSubscribers: (session: ProtocolURI) => boolean = () => false;
+
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		@ILogService private readonly _logService: ILogService,
@@ -379,6 +408,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void {
 		this._hasTurnSubscribers = probe;
+	}
+
+	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void {
+		this._hasUncommittedSubscribers = probe;
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -682,7 +715,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 		this._scheduleStaticRecompute(session, 'session', turnId);
-		void this.computeUncommittedChangeset(session);
+		if (this._hasUncommittedSubscribers(session)) {
+			void this.computeUncommittedChangeset(session);
+		}
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
