@@ -167,7 +167,12 @@ interface ITestCopilotModelInfo {
 		readonly limits?: { readonly max_context_window_tokens?: number };
 	};
 	readonly policy?: { readonly state?: NonNullable<ModelInfo['policy']>['state'] };
-	readonly billing?: ModelInfo['billing'];
+	readonly billing?: ModelInfo['billing'] & {
+		readonly tokenPrices?: {
+			readonly contextMax?: number;
+			readonly longContext?: { readonly contextMax?: number; readonly inputPrice?: number; readonly outputPrice?: number };
+		};
+	};
 	readonly supportedReasoningEfforts?: ModelInfo['supportedReasoningEfforts'];
 	readonly defaultReasoningEffort?: ModelInfo['defaultReasoningEffort'];
 }
@@ -589,6 +594,86 @@ suite('CopilotAgent', () => {
 				policyState: undefined,
 				_meta: { multiplierNumeric: 1.5 },
 			}]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema emits a thinkingLevel property when the model advertises reasoning efforts', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'o3',
+				name: 'o3',
+				capabilities: { limits: { max_context_window_tokens: 128000 } },
+				supportedReasoningEfforts: ['low', 'medium', 'high'],
+				defaultReasoningEffort: 'medium',
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			const schema = models[0].configSchema;
+			assert.deepStrictEqual(schema?.properties.thinkingLevel?.enum, ['low', 'medium', 'high']);
+			assert.strictEqual(schema?.properties.thinkingLevel?.default, 'medium');
+			assert.strictEqual(schema?.properties.contextTier, undefined);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema emits a contextTier property when long_context tier exceeds default', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [{
+				id: 'claude-sonnet',
+				name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: {
+					multiplier: 1,
+					tokenPrices: {
+						contextMax: 200_000,
+						longContext: { contextMax: 1_000_000, inputPrice: 2 },
+					},
+				},
+			}]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			const contextTier = models[0].configSchema?.properties.contextTier;
+			assert.deepStrictEqual(contextTier?.enum, ['default', 'long_context']);
+			assert.strictEqual(contextTier?.default, 'default');
+			assert.deepStrictEqual(contextTier?.enumLabels, ['200K', '1M']);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('configSchema omits contextTier when long_context tier is missing or not larger', async () => {
+		const agent = createTestAgent(disposables, {
+			copilotClient: new TestCopilotClient([], [
+				{
+					id: 'no-long-context',
+					name: 'No Long Context',
+					billing: { multiplier: 1, tokenPrices: { contextMax: 200_000 } },
+				},
+				{
+					id: 'equal-long-context',
+					name: 'Equal Long Context',
+					billing: {
+						multiplier: 1,
+						tokenPrices: { contextMax: 200_000, longContext: { contextMax: 200_000 } },
+					},
+				},
+			]),
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			const models = await waitForState(agent.models, models => models.length > 0);
+
+			assert.strictEqual(models[0].configSchema, undefined);
+			assert.strictEqual(models[1].configSchema, undefined);
 		} finally {
 			await disposeAgent(agent);
 		}

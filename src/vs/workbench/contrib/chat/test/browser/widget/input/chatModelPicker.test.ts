@@ -11,7 +11,7 @@ import { MarkdownString } from '../../../../../../../base/common/htmlContent.js'
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems, formatTokenCount, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getControlModelsForEntitlement, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { filterModelsForSession } from '../../../../browser/widget/input/chatModelSelectionLogic.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../common/languageModels.js';
@@ -1072,33 +1072,6 @@ suite('buildModelPickerItems', () => {
 		});
 		const pinnedSep = items.find(i => i.kind === ActionListItemKind.Separator && i.label === 'Pinned');
 		assert.strictEqual(pinnedSep, undefined, 'No pinned separator when there are no pinned models');
-	});
-});
-
-suite('formatTokenCount', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('returns M for counts above 900K', () => {
-		assert.strictEqual(formatTokenCount(1_000_000), '1M');
-		assert.strictEqual(formatTokenCount(935_997), '1M');
-		assert.strictEqual(formatTokenCount(1_050_000), '1M');
-		assert.strictEqual(formatTokenCount(1_100_000), '1.1M');
-		assert.strictEqual(formatTokenCount(1_500_000), '1.5M');
-		assert.strictEqual(formatTokenCount(1_990_000), '1.9M');
-		assert.strictEqual(formatTokenCount(2_000_000), '2M');
-		assert.strictEqual(formatTokenCount(2_500_000), '2.5M');
-	});
-
-	test('returns K for counts between 1000 and 900K', () => {
-		assert.strictEqual(formatTokenCount(200_000), '200K');
-		assert.strictEqual(formatTokenCount(128_000), '128K');
-		assert.strictEqual(formatTokenCount(1_000), '1K');
-		assert.strictEqual(formatTokenCount(900_000), '900K');
-	});
-
-	test('returns raw number for counts below 1000', () => {
-		assert.strictEqual(formatTokenCount(500), '500');
-		assert.strictEqual(formatTokenCount(0), '0');
 	});
 });
 
