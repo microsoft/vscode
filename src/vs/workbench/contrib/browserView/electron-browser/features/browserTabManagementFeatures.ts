@@ -322,7 +322,10 @@ class OpenIntegratedBrowserAction extends Action2 {
 				if (options.url) {
 					matchingEditor.navigate(options.url);
 				}
-				await editorService.openEditor(matchingEditor, group);
+				// Reveal the existing browser tab where it already lives rather than
+				// relocating it into the docked group (which would move a tab out of a
+				// modal group when `workbench.editor.useModal: 'all'`).
+				await editorService.openEditor(matchingEditor);
 				return;
 			}
 		}
