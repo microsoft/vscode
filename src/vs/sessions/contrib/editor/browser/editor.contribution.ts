@@ -25,7 +25,8 @@ import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/brow
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { SessionsCategories } from '../../../common/categories.js';
 
 const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
@@ -349,6 +350,7 @@ class AddFileAsContextAction extends Action2 {
 		super({
 			id: AddFileAsContextAction.ID,
 			title: localize2('addFileAsContext', "Add File as Context"),
+			category: SessionsCategories.Sessions,
 			icon: Codicon.attach,
 			f1: true,
 			precondition,
@@ -361,27 +363,22 @@ class AddFileAsContextAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor): void {
 		const editorService = accessor.get(IEditorService);
 		const sessionManagementService = accessor.get(ISessionsManagementService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resource = editorService.activeEditor?.resource;
 		if (!resource) {
 			return;
 		}
 
-		const sessionResource = sessionManagementService.activeSession.get()?.resource;
-		if (!sessionResource) {
+		const activeSession = sessionManagementService.activeSession.get();
+		if (!activeSession) {
 			return;
 		}
 
-		const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-		if (!widget) {
-			return;
-		}
-
-		await widget.attachmentModel.addFile(resource);
+		sessionsPartService.getSessionView(activeSession.sessionId)?.attach(resource);
 	}
 }
 
