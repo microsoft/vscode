@@ -166,16 +166,40 @@ suite('CopilotManagedSettingsService', () => {
 
 		assert.deepStrictEqual(client.managedSettings, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 	});
+
+	test('channel client updatePolicyDefinitions updates cache without firing change event', async () => {
+		const channel = disposables.add(new DeferredManagedSettingsChannel());
+		const client = disposables.add(new CopilotManagedSettingsChannelClient(channel));
+		channel.resolveInitialSnapshot({});
+		await channel.initialSnapshot;
+
+		let eventCount = 0;
+		disposables.add(client.onDidChangeManagedSettings(() => eventCount++));
+
+		channel.updatePolicyDefinitionsResult = { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' };
+		const result = await client.updatePolicyDefinitions({});
+
+		assert.deepStrictEqual({ result, managedSettings: client.managedSettings, eventCount }, {
+			result: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' },
+			managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' },
+			eventCount: 0,
+		});
+	});
 });
 
 class DeferredManagedSettingsChannel extends Disposable implements IChannel {
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	private resolveInitialSnapshotPromise!: (managedSettings: ManagedSettingsData) => void;
 	readonly initialSnapshot = new Promise<ManagedSettingsData>(resolve => this.resolveInitialSnapshotPromise = resolve);
+	updatePolicyDefinitionsResult: ManagedSettingsData = {};
 
 	call<T>(command: string): Promise<T> {
-		assert.strictEqual(command, 'getManagedSettings');
-		return this.initialSnapshot as Promise<T>;
+		switch (command) {
+			case 'getManagedSettings': return this.initialSnapshot as Promise<T>;
+			case 'updatePolicyDefinitions': return Promise.resolve(this.updatePolicyDefinitionsResult as T);
+		}
+
+		throw new Error(`Call not found: ${command}`);
 	}
 
 	listen<T>(event: string): Event<T> {

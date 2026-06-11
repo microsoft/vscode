@@ -51,22 +51,38 @@ export class CopilotManagedSettingsChannelClient extends Disposable implements I
 
 	constructor(private readonly channel: IChannel) {
 		super();
-		this._register(this.channel.listen<ManagedSettingsData>('onDidChangeManagedSettings')(managedSettings => this.updateManagedSettings(managedSettings)));
+		this._register(this.channel.listen<ManagedSettingsData>('onDidChangeManagedSettings')(managedSettings => this.updateManagedSettings(managedSettings, true)));
 		this.channel.call<ManagedSettingsData>('getManagedSettings').then(managedSettings => {
 			if (!this.hasReceivedManagedSettings) {
-				this.updateManagedSettings(managedSettings);
+				this.updateManagedSettings(managedSettings, true);
 			}
 		});
 	}
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData> {
-		this.updateManagedSettings(await this.channel.call<ManagedSettingsData>('updatePolicyDefinitions', policyDefinitions));
+		this.updateManagedSettings(await this.channel.call<ManagedSettingsData>('updatePolicyDefinitions', policyDefinitions), false);
 		return this._managedSettings;
 	}
 
-	private updateManagedSettings(managedSettings: ManagedSettingsData): void {
+	private updateManagedSettings(managedSettings: ManagedSettingsData, fireEvent: boolean): void {
 		this.hasReceivedManagedSettings = true;
+		if (areManagedSettingsEqual(this._managedSettings, managedSettings)) {
+			return;
+		}
+
 		this._managedSettings = managedSettings;
-		this._onDidChangeManagedSettings.fire(this._managedSettings);
+		if (fireEvent) {
+			this._onDidChangeManagedSettings.fire(this._managedSettings);
+		}
 	}
+}
+
+function areManagedSettingsEqual(a: ManagedSettingsData, b: ManagedSettingsData): boolean {
+	const aKeys = Object.keys(a);
+	const bKeys = Object.keys(b);
+	if (aKeys.length !== bKeys.length) {
+		return false;
+	}
+
+	return aKeys.every(key => a[key] === b[key]);
 }
