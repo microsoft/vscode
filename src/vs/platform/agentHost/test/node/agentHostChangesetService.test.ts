@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, SessionStatus, withSessionGitState, type Changeset } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -421,90 +421,6 @@ suite.skip('AgentHostChangesetService', () => {
 				.find(a => a.type === ActionType.ChangesetStatusChanged);
 			assert.ok(statusAction, 'expected a changeset/statusChanged envelope from the fallback path');
 		});
-
-		test('uncommitted compute does NOT fall back to edit-tracker and preserves restored snapshot when git is unavailable', async () => {
-			// Regression: previously, when the git path returned undefined
-			// (e.g. session restored before its working directory was known),
-			// the uncommitted slot would fall through to the edit-tracker
-			// aggregator. The aggregator answers a different question
-			// (SDK-tracked tool edits, not `git status`) and silently
-			// overwrote the legitimate persisted snapshot. The fix gates
-			// the fallback on `kind === 'session'`, so an unavailable git
-			// path leaves the uncommitted state untouched.
-			const sessionDb = new SessionDatabase(':memory:');
-			disposables.add(toDisposable(() => sessionDb.close()));
-			const sessionDataService = createSessionDataService(sessionDb);
-			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-
-			const stubGit = {
-				computeSessionFileDiffs: async () => undefined,
-			} as unknown as IAgentHostGitService;
-
-			const localChangesets = disposables.add(new AgentHostChangesetService(
-				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
-
-			const sessionStr = sessionUri.toString();
-			localStateManager.createSession({
-				resource: sessionStr,
-				provider: 'mock',
-				title: 'Test',
-				status: SessionStatus.Idle,
-				createdAt: Date.now(),
-				modifiedAt: Date.now(),
-				workingDirectory: 'file:///wd',
-			});
-
-			// Seed a "persisted" uncommitted snapshot of 3 files into live
-			// state, mirroring what `listSessions` overlay does on startup.
-			const persistedDiffs = [
-				{ after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 1, removed: 0 } },
-				{ after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 1, removed: 0 } },
-				{ after: { uri: 'file:///wd/c.ts', content: { uri: 'file:///wd/c.ts' } }, diff: { added: 1, removed: 0 } },
-			];
-			localChangesets.restoreStaticChangeset(sessionStr, 'uncommitted', persistedDiffs);
-
-			const envelopes: ActionEnvelope[] = [];
-			disposables.add(localStateManager.onDidEmitEnvelope(e => { envelopes.push(e); }));
-			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
-
-			// Trigger the recompute of the uncommitted changeset.
-			localChangesets.refreshUncommittedChangeset(sessionStr);
-			const refreshing = localStateManager.getSnapshot(uncommittedUri)?.state as { status: string; files: Array<{ id: string }> } | undefined;
-			assert.deepStrictEqual({
-				status: refreshing?.status,
-				files: refreshing?.files.map(f => f.id).sort(),
-			}, {
-				status: ChangesetStatus.Computing,
-				files: ['file:///wd/a.ts', 'file:///wd/b.ts', 'file:///wd/c.ts'],
-			});
-
-			// Wait long enough for the sequencer to drain the uncommitted compute.
-			for (let i = 0; i < 50; i++) {
-				await timeout(2);
-			}
-
-			// 1) The persisted snapshot must still be in live state — no
-			//    `ChangesetFileRemoved` envelopes for the uncommitted URI
-			//    were emitted.
-			const removed = envelopes
-				.filter(e => e.action.type === ActionType.ChangesetFileRemoved && e.channel === uncommittedUri);
-			assert.deepStrictEqual(removed, [], 'no files should be removed when the git path is unavailable');
-
-			// 2) The persisted DB blob is unchanged (compute did not overwrite it).
-			const persistedAfter = await sessionDb.getMetadata('agentHost.changeset.uncommitted');
-			assert.strictEqual(persistedAfter, undefined, 'compute must not persist anything when git is unavailable');
-
-			// 3) Live state still reports the 3 seeded files.
-			const snapshot = localStateManager.getSnapshot(uncommittedUri);
-			const state = snapshot?.state as { status: string; files: Array<{ id: string }> } | undefined;
-			assert.deepStrictEqual({
-				status: state?.status,
-				files: state?.files.map(f => f.id).sort(),
-			}, {
-				status: ChangesetStatus.Ready,
-				files: ['file:///wd/a.ts', 'file:///wd/b.ts', 'file:///wd/c.ts'],
-			});
-		});
 	});
 
 	suite('computeUncommittedChangeset', () => {
@@ -639,19 +555,14 @@ suite.skip('AgentHostChangesetService', () => {
 			changesetService.registerStaticChangesets(sessionStr);
 
 			const result = changesetService.parsePersistedStaticChangesets(sessionStr, {
-				uncommittedRaw: JSON.stringify([aDiff]),
 				sessionRaw: JSON.stringify([bDiff]),
 			});
 
 			assert.deepStrictEqual({
-				uncommitted: result.uncommitted?.map(d => d.after?.uri),
 				session: result.session?.map(d => d.after?.uri),
-				uncommittedState: stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr)),
 				sessionState: stateManager.getChangesetState(buildSessionChangesetUri(sessionStr)),
 			}, {
-				uncommitted: ['file:///wd/a.ts'],
 				session: ['file:///wd/b.ts'],
-				uncommittedState: { status: 'computing', files: [] },
 				sessionState: { status: 'computing', files: [] },
 			});
 		});
@@ -660,39 +571,16 @@ suite.skip('AgentHostChangesetService', () => {
 			setupSession();
 			changesetService.registerStaticChangesets(sessionStr);
 			const parsed = changesetService.parsePersistedStaticChangesets(sessionStr, {
-				uncommittedRaw: JSON.stringify([aDiff]),
 				sessionRaw: JSON.stringify([bDiff]),
 			});
 
 			changesetService.applyPersistedStaticChangesets(sessionStr, parsed);
 
-			const uncommitted = stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
 			const session = stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-			assert.deepStrictEqual({
-				uncommitted: uncommitted && { status: uncommitted.status, files: uncommitted.files.map(f => f.id) },
-				session: session && { status: session.status, files: session.files.map(f => f.id) },
-			}, {
-				uncommitted: { status: 'ready', files: ['file:///wd/a.ts'] },
-				session: { status: 'ready', files: ['file:///wd/b.ts'] },
-			});
-		});
-
-		test('new uncommitted key restores only uncommitted state', () => {
-			setupSession();
-			changesetService.registerStaticChangesets(sessionStr);
-
-			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				uncommittedRaw: JSON.stringify([aDiff]),
-			});
-
-			assert.deepStrictEqual(result.uncommitted?.map(d => d.after?.uri), ['file:///wd/a.ts']);
-			assert.strictEqual(result.session, undefined);
-
-			const uncommitted = stateManager.getSnapshot(`${sessionStr}/changeset/uncommitted`);
-			const session = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
-			assert.strictEqual((uncommitted?.state as { status: string }).status, 'ready');
-			// Session-state remains in `computing` because nothing was applied.
-			assert.strictEqual((session?.state as { status: string }).status, 'computing');
+			assert.deepStrictEqual(
+				session && { status: session.status, files: session.files.map(f => f.id) },
+				{ status: 'ready', files: ['file:///wd/b.ts'] },
+			);
 		});
 
 		test('new sessionRaw beats legacyRaw when both are present', () => {
@@ -723,34 +611,32 @@ suite.skip('AgentHostChangesetService', () => {
 			changesetService.registerStaticChangesets(sessionStr);
 
 			const result = changesetService.restorePersistedStaticChangesets(sessionStr, {
-				uncommittedRaw: '{ not valid json',
-				sessionRaw: JSON.stringify([aDiff]),
+				sessionRaw: '{ not valid json',
 			});
 
-			assert.strictEqual(result.uncommitted, undefined, 'malformed slot returns undefined');
-			assert.deepStrictEqual(result.session?.map(d => d.after?.uri), ['file:///wd/a.ts'], 'valid slot still parses');
-			// Uncommitted snapshot stayed in `computing` because malformed
-			// input was discarded — not seeded with garbage.
-			const uncommitted = stateManager.getSnapshot(`${sessionStr}/changeset/uncommitted`);
-			assert.strictEqual((uncommitted?.state as { status: string }).status, 'computing');
+			assert.strictEqual(result.session, undefined, 'malformed slot returns undefined');
+			// Session snapshot stayed in `computing` because malformed input
+			// was discarded — not seeded with garbage.
+			const session = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
+			assert.strictEqual((session?.state as { status: string }).status, 'computing');
 		});
 
 		test('seedIfEmpty honoured: live state with files is not overwritten', () => {
 			setupSession();
 
-			// Seed live uncommitted state via restoreStaticChangeset to mimic
+			// Seed live session state via restoreStaticChangeset to mimic
 			// a fresh refresh that landed before the persisted-overlay call.
-			changesetService.restoreStaticChangeset(sessionStr, 'uncommitted', [aDiff]);
-			const before = stateManager.getSnapshot(`${sessionStr}/changeset/uncommitted`);
+			changesetService.restoreStaticChangeset(sessionStr, 'session', [aDiff]);
+			const before = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
 			assert.deepStrictEqual((before?.state as { files: Array<{ id: string }> }).files.map(f => f.id), ['file:///wd/a.ts']);
 
 			// Persisted blob points at a DIFFERENT file; without the guard it
 			// would clobber the live state.
 			changesetService.restorePersistedStaticChangesets(sessionStr, {
-				uncommittedRaw: JSON.stringify([bDiff]),
+				sessionRaw: JSON.stringify([bDiff]),
 			});
 
-			const after = stateManager.getSnapshot(`${sessionStr}/changeset/uncommitted`);
+			const after = stateManager.getSnapshot(`${sessionStr}/changeset/session`);
 			assert.deepStrictEqual(
 				(after?.state as { files: Array<{ id: string }> }).files.map(f => f.id),
 				['file:///wd/a.ts'],

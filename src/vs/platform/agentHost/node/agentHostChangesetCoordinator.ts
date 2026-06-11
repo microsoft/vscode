@@ -25,14 +25,13 @@ import {
 	META_CHANGES_SUMMARY,
 	META_CHANGESET_BRANCH,
 	META_CHANGESET_SESSION,
-	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
 } from './agentHostChangesetService.js';
 import { ChangesSummary } from '../common/state/protocol/state.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
- * Keys are the changeset-specific metadata keys ({@link META_CHANGESET_UNCOMMITTED}
+ * Keys are the changeset-specific metadata keys ({@link META_CHANGESET_BRANCH}
  * etc.); values are the raw `string | undefined` payloads as returned by
  * `ISessionDatabase.getMetadataObject`.
  */
@@ -47,7 +46,6 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  */
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 	[META_CHANGESET_BRANCH]: true,
-	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
 	[META_CHANGES_SUMMARY]: true,
 	[META_LEGACY_DIFFS]: true,
@@ -152,7 +150,6 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
-			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
 		});
