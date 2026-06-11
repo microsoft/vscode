@@ -27,6 +27,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import {
 	VoiceFirstConnectClassification, VoiceFirstConnectEvent,
 	VoiceSessionStartedClassification, VoiceSessionStartedEvent,
@@ -248,6 +249,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -1499,12 +1501,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _playChunk(sessionId: string | undefined, audio: string, isFirstChunk: boolean, isFinal: boolean, transcript: string | undefined): void {
 		this._currentPlaybackSessionId = sessionId;
 
-		if (audio) {
-			this.micCaptureService.suppressUntil(Date.now() + 800);
-			this._voiceState.set('speaking', undefined);
-			this._statusText.set('Speaking...', undefined);
-		}
-
 		// Streaming pipeline sends a monotonically-growing transcript on every
 		// chunk. On the FIRST chunk of a response we push a fresh assistant
 		// turn into the rolling buffer; on subsequent chunks we REPLACE that
@@ -1521,7 +1517,21 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.voicePlaybackService.notifyPlaybackStart(sessionResource, transcript);
 		}
 
-		this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+		const ttsEnabled = this.configurationService.getValue<boolean>('agents.voice.textToSpeech') !== false;
+		if (ttsEnabled && audio) {
+			this.micCaptureService.suppressUntil(Date.now() + 800);
+			this._voiceState.set('speaking', undefined);
+			this._statusText.set('Speaking...', undefined);
+			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+		} else if (!ttsEnabled) {
+			// TTS disabled — skip audio but still complete the playback cycle
+			if (isFinal) {
+				this._currentPlaybackSessionId = null;
+				this._processQueue();
+			}
+		} else {
+			this.ttsPlaybackService.playAudioChunk(audio, isFinal, this._window!);
+		}
 	}
 
 	private _processQueue(): void {

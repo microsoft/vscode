@@ -107,7 +107,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.toggleWindow',
-			title: nls.localize2('toggleAgentsVoiceWindow', "Agents Voice"),
+			title: nls.localize2('toggleAgentsVoiceWindow', "Voice Mode"),
 			menu: {
 				id: MenuId.MenubarViewMenu,
 				group: '5_copilot',
@@ -145,7 +145,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentsVoice.pushToTalk',
-			title: nls.localize2('agentsVoicePushToTalk', "Agents Voice: Push to Talk"),
+			title: nls.localize2('agentsVoicePushToTalk', "Voice Mode: Push to Talk"),
 			f1: true,
 			precondition: ContextKeyExpr.equals('config.agents.voice.enabled', true),
 			keybinding: {
@@ -181,12 +181,12 @@ registerAction2(class extends Action2 {
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'agentsVoice',
-	title: nls.localize('agentsVoiceConfigurationTitle', "Agents Voice"),
+	title: nls.localize('agentsVoiceConfigurationTitle', "Voice Mode"),
 	type: 'object',
 	properties: {
 		'agents.voice.enabled': {
 			type: 'boolean',
-			description: nls.localize('agents.voice.enabled', "Enable the Agents Voice panel in the chat view for voice-driven coding conversations."),
+			description: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
@@ -194,7 +194,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'agents.voice.alwaysOnTop': {
 			type: 'boolean',
-			description: nls.localize('agents.voice.alwaysOnTop', "Keep the Agents Voice window always on top of other windows."),
+			description: nls.localize('agents.voice.alwaysOnTop', "Keep the Voice Mode window always on top of other windows."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
@@ -203,6 +203,13 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('agents.voice.backendUrl', "Voice backend WebSocket URL. Leave empty to use the default hosted backend. Set to e.g. `ws://localhost:8000/api/v1/realtime/voice` to point at a backend running on your machine."),
 			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			included: false,
+		},
+		'agents.voice.textToSpeech': {
+			type: 'boolean',
+			description: nls.localize('agents.voice.textToSpeech', "When enabled, the assistant reads responses aloud. When disabled, responses appear as text transcripts only."),
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			included: false,
 		},
