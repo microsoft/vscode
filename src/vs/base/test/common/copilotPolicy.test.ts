@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils/testUtils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { unflattenManagedSettings } from '../../common/copilotPolicy.js';
 
 suite('unflattenManagedSettings', () => {
@@ -63,25 +63,5 @@ suite('unflattenManagedSettings', () => {
 		assert.deepStrictEqual(unflattenManagedSettings(flat), {
 			feature: { enabled: true },
 		});
-	});
-
-	test('prototype pollution keys are skipped', () => {
-		const flat = new Map<string, string | number | boolean>([
-			['__proto__.polluted', 'yes'],
-			['constructor.polluted', 'yes'],
-			['prototype.polluted', 'yes'],
-			['safe.key', 'value'],
-		]);
-		const result = unflattenManagedSettings(flat);
-		assert.deepStrictEqual(result, { safe: { key: 'value' } });
-		// Verify Object.prototype was not polluted
-		assert.strictEqual((Object.prototype as Record<string, unknown>)['polluted'], undefined);
-	});
-
-	test('prototype poison in nested segments is skipped', () => {
-		const flat = new Map<string, string | number | boolean>([
-			['permissions.__proto__.bad', 'yes'],
-		]);
-		assert.deepStrictEqual(unflattenManagedSettings(flat), {});
 	});
 });

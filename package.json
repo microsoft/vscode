@@ -111,7 +111,7 @@
     "@vscode/diff": "0.0.2-7",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
-    "@vscode/policy-watcher": "^1.3.2",
+    "@vscode/policy-watcher": "file:../vscode-policy-watcher",
     "@vscode/proxy-agent": "^0.42.0",
     "@vscode/ripgrep-universal": "^1.18.0",
     "@vscode/sandbox-runtime": "0.0.1",
