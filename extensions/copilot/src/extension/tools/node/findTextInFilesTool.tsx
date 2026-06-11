@@ -248,46 +248,73 @@ Then if you want to include those files you can call the tool again by setting "
 		let totalElided = 0;
 		let filesElided = 0;
 		if (totalMatches > maxResults) {
-			const allowedMatches: { index: number; allowed: number }[] = [];
-			let overflow: number = 0;
-			fileMatches.forEach((fileMatch, index) => {
-				const weight = fileMatch.matches.length / totalMatches;
-				let allowed = Math.floor(weight * maxResults);
-				if (allowed === 0 && fileMatch.matches.length > 0) {
-					allowed = 1;
-					overflow++;
-				}
-				allowedMatches.push({ index, allowed });
+			// Every file we keep must show at least one match, so we can show at most
+			// `maxResults` files. When there are more files than that, drop the extra
+			// files entirely (keeping the alphabetically-first ones) and count them.
+			const shownFileCount = Math.min(fileMatches.length, maxResults);
+			for (let i = shownFileCount; i < fileMatches.length; i++) {
+				totalElided += fileMatches[i].matches.length;
+			}
+			filesElided = fileMatches.length - shownFileCount;
+			fileMatches = fileMatches.slice(0, shownFileCount);
+
+			// Distribute the `maxResults` budget across the kept files proportionally to
+			// their number of matches, guaranteeing at least one match per file (largest
+			// remainder method).
+			const shownTotal = fileMatches.reduce((sum, fileMatch) => sum + fileMatch.matches.length, 0);
+			const allocations = fileMatches.map((fileMatch, index) => {
+				const exact = (fileMatch.matches.length / shownTotal) * maxResults;
+				const floor = Math.floor(exact);
+				return { index, allowed: Math.max(1, floor), remainder: exact - floor };
 			});
-			if (overflow > 0) {
-				let changed = false;
-				allowedMatches.sort((a, b) => b.allowed - a.allowed);
-				do {
-					for (const allowedMatch of allowedMatches) {
-						if (allowedMatch.allowed > 1) {
-							allowedMatch.allowed--;
-							overflow--;
-							changed = true;
-						}
-						if (overflow === 0) {
+			let allocated = allocations.reduce((sum, allocation) => sum + allocation.allowed, 0);
+
+			if (allocated < maxResults) {
+				// Hand out the remaining budget to the files with the largest remainder,
+				// never allocating more matches than a file actually has.
+				const byRemainder = allocations.slice().sort((a, b) => b.remainder - a.remainder);
+				let progressed = true;
+				while (allocated < maxResults && progressed) {
+					progressed = false;
+					for (const allocation of byRemainder) {
+						if (allocated >= maxResults) {
 							break;
 						}
+						if (allocation.allowed < fileMatches[allocation.index].matches.length) {
+							allocation.allowed++;
+							allocated++;
+							progressed = true;
+						}
 					}
-				} while (overflow > 0 && changed);
-			}
-			for (const allowedMatch of allowedMatches) {
-				const fileMatch = fileMatches[allowedMatch.index];
-				if (fileMatch.matches.length > allowedMatch.allowed) {
-					const elided = fileMatch.matches.length - allowedMatch.allowed;
-					fileMatch.elidedMatches = elided;
-					totalElided += elided;
-					fileMatch.matches = fileMatch.matches.slice(0, allowedMatch.allowed);
+				}
+			} else if (allocated > maxResults) {
+				// The minimum-one-per-file rule pushed us over budget; reclaim slots from
+				// the files with the smallest remainder without dropping below one match.
+				const byRemainder = allocations.slice().sort((a, b) => a.remainder - b.remainder);
+				let progressed = true;
+				while (allocated > maxResults && progressed) {
+					progressed = false;
+					for (const allocation of byRemainder) {
+						if (allocated <= maxResults) {
+							break;
+						}
+						if (allocation.allowed > 1) {
+							allocation.allowed--;
+							allocated--;
+							progressed = true;
+						}
+					}
 				}
 			}
-			if (overflow > 0 && maxResults < fileMatches.length) {
-				filesElided = fileMatches.length - maxResults;
-				// If we hit this then all match groups had only 1 match but we still had more matches than maxResults, so we need to just cut off the rest
-				fileMatches = fileMatches.slice(0, maxResults);
+
+			for (const allocation of allocations) {
+				const fileMatch = fileMatches[allocation.index];
+				if (fileMatch.matches.length > allocation.allowed) {
+					const elided = fileMatch.matches.length - allocation.allowed;
+					fileMatch.elidedMatches = elided;
+					totalElided += elided;
+					fileMatch.matches = fileMatch.matches.slice(0, allocation.allowed);
+				}
 			}
 		}
 		return {
