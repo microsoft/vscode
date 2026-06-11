@@ -1293,11 +1293,14 @@ the download.
 **Shape:**
 
 - `product.agentSdks.{claude,codex}` ships a `version`, a `url`, and a
-  single `sha256` string. There is no per-target lookup at runtime: the
-  build pipeline patches `agentSdks` per-platform during packaging, so a
-  `darwin-arm64` build's `product.json` carries only the `darwin-arm64`
-  entry. Codex's Linux entries never carry the `-musl` suffix in their
-  URL because the Codex binary is statically musl-linked.
+  single `sha256` string. There is no per-target map at runtime: the
+  build pipeline patches `agentSdks` per-platform during packaging, so
+  a `darwin-arm64` build's `product.json` contains the URL/sha for the
+  `darwin-arm64` SDK tarball, while a `linux-x64` build contains the
+  URL/sha for the `linux-x64` tarball. The shape on disk is always
+  `{ version, url, sha256 }` — the platform suffix appears in the URL,
+  not in the key. Codex's Linux entries never carry the `-musl` suffix
+  in their URL because the Codex binary is statically musl-linked.
 - `vscode-distro` no longer carries an `agentSdks` fragment — the
   build IS the distribution. OSS `product.json` does not have it either.
 - Tarballs ship as the full `node_modules/` subtree extracted into the

@@ -34,9 +34,10 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
  * stays in those modules — the downloader doesn't name the providers it
  * serves.
  *
- * Platform discrimination is done at packaging time: the build patches
- * `product.agentSdks[pkg]` with the single per-platform entry for the
- * platform being packaged, so there is no per-target lookup at runtime.
+ * Platform discrimination is done at packaging time: the build sets
+ * `product.agentSdks[pkg]` to the `{ version, url, sha256 }` appropriate
+ * for the platform being packaged, so there is no per-target lookup at
+ * runtime.
  */
 export interface IAgentSdkPackage {
 	/** Key under `product.agentSdks` — e.g. `'claude'`, `'codex'`. */

@@ -70,10 +70,9 @@ export type ExtensionVirtualWorkspaceSupport = {
  * `url`, verifies sha256 against `sha256`, and caches the extracted root
  * under `userDataPath/agent-host/sdk-cache/`.
  *
- * The build pipeline patches `agentSdks` per-platform during packaging
- * (see build/gulpfile.vscode.ts / build/gulpfile.reh.ts), so each shipped
- * product.json carries only the entry for the platform it targets — there
- * is no per-target sha lookup at runtime.
+ * The build pipeline patches `agentSdks` per-platform during packaging, so
+ * each shipped product.json carries only the entry appropriate for the
+ * platform it targets — there is no per-target sha lookup at runtime.
  *
  * The trust anchor for `sha256` is product.json's own integrity coverage
  * via `product.checksums` (computed in the same packaging step).
