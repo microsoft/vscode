@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../base/common/cancellation.js';
-import { Emitter, Event } from '../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../base/common/lifecycle.js';
-import { ResourceMap } from '../../base/common/map.js';
-import { IObservable, autorun } from '../../base/common/observable.js';
-import { URI } from '../../base/common/uri.js';
-import { createDecorator, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../platform/instantiation/common/extensions.js';
-import { ILogService } from '../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
-import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
-import { IChat, ISession, SessionStatus } from '../services/sessions/common/session.js';
-import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
-import { SessionsNavigation } from '../services/sessions/browser/sessionNavigation.js';
-import { SessionsRecencyHistory } from '../services/sessions/browser/sessionsRecencyHistory.js';
-import { VisibleSessions } from '../services/sessions/browser/visibleSessions.js';
-import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { ISessionsPartService } from './parts/sessionsPartService.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IObservable, autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IChat, ISession, SessionStatus } from '../common/session.js';
+import { IActiveSession, ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
+import { SessionsNavigation } from './sessionNavigation.js';
+import { SessionsRecencyHistory } from './sessionsRecencyHistory.js';
+import { VisibleSessions } from './visibleSessions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ISessionsPartService } from './sessionsPartService.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 

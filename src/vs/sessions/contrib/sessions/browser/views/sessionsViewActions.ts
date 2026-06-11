@@ -30,8 +30,8 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 
 //  Constants
 

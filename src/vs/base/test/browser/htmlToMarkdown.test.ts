@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { convertHtmlToMarkdown } from '../../common/htmlToMarkdown.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { convertHtmlToMarkdown } from '../../browser/htmlToMarkdown.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('htmlToMarkdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +49,25 @@ suite('htmlToMarkdown', () => {
 
 	test('converts inline code', () => {
 		assert.strictEqual(convertHtmlToMarkdown('<code>foo()</code>'), '`foo()`');
+	});
+
+	test('preserves HTML tag names inside inline code', () => {
+		assert.strictEqual(convertHtmlToMarkdown('<code>&lt;aside&gt;</code>'), '`<aside>`');
+		assert.strictEqual(convertHtmlToMarkdown('<code>&lt;details&gt;</code>'), '`<details>`');
+	});
+
+	test('preserves HTML tag names inside inline code with nested tags', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<code><span class="hl">&lt;aside&gt;</span></code>'),
+			'`<aside>`'
+		);
+	});
+
+	test('preserves HTML tag names inside code blocks', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<pre><code>&lt;aside&gt;</code></pre>'),
+			'```\n<aside>\n```'
+		);
 	});
 
 	test('converts code blocks', () => {
