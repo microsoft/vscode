@@ -463,6 +463,14 @@ import product from '../../platform/product/common/product.js';
 			'js-flags': {
 				type: 'string',
 				description: localize('argv.jsFlags', "Specifies V8 JavaScript engine flags to pass (e.g. \"--max-old-space-size=4096\"). These flags are applied to the main process, renderer and utility processes.")
+			},
+			'enable-features': {
+				type: 'string',
+				description: localize('argv.enableFeatures', "Enables Chromium runtime features for troubleshooting. Only change this when requested by the VS Code team.")
+			},
+			'disable-features': {
+				type: 'string',
+				description: localize('argv.disableFeatures', "Disables Chromium runtime features for troubleshooting. Only change this when requested by the VS Code team.")
 			}
 		}
 	};

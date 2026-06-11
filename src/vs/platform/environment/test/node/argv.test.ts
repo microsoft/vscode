@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from '../../node/argv.js';
+import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter, OPTIONS } from '../../node/argv.js';
 import { addArg } from '../../node/argvHelper.js';
 
 function o(description: string, type: 'boolean' | 'string' | 'string[]' = 'string'): Option<any> {
@@ -181,6 +181,16 @@ suite('parseArgs', () => {
 			{ testcmd: { testArg: 'foo', testX: true, '_': [] }, '_': [] },
 			[]
 		);
+	});
+
+	test('recognizes Chromium feature switches', () => {
+		const errorReporter = newErrorReporter();
+
+		const args = parseArgs(['--disable-features', 'UiaProvider', '--enable-features=AccessibilityHitTestPointCopy'], OPTIONS, errorReporter);
+
+		assert.strictEqual(args['disable-features'], 'UiaProvider');
+		assert.strictEqual(args['enable-features'], 'AccessibilityHitTestPointCopy');
+		assert.deepStrictEqual(errorReporter.result, []);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
