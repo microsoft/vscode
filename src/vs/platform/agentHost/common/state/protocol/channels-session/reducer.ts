@@ -24,6 +24,13 @@ function tcBase(tc: ToolCallState) {
 	};
 }
 
+function tcBaseWithMeta(tc: ToolCallState, meta: Record<string, unknown> | undefined) {
+	return {
+		...tcBase(tc),
+		_meta: meta ?? tc._meta,
+	};
+}
+
 /** Resolves a selected option from the confirmation options array by ID. */
 function resolveSelectedOption(options: ConfirmationOption[] | undefined, id: string | undefined): ConfirmationOption | undefined {
 	if (!id || !options) {
@@ -366,7 +373,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				if (tc.status !== ToolCallStatus.Streaming && tc.status !== ToolCallStatus.Running) {
 					return tc;
 				}
-				const base = tcBase(tc);
+				const base = tcBaseWithMeta(tc, action._meta);
 				if (action.confirmed) {
 					return {
 						status: ToolCallStatus.Running,
@@ -395,7 +402,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				if (tc.status !== ToolCallStatus.PendingConfirmation) {
 					return tc;
 				}
-				const base = tcBase(tc);
+				const base = tcBaseWithMeta(tc, action._meta);
 				const selectedOption = resolveSelectedOption(tc.options, action.selectedOptionId);
 				if (action.approved) {
 					return {
@@ -424,7 +431,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				if (tc.status !== ToolCallStatus.Running && tc.status !== ToolCallStatus.PendingConfirmation) {
 					return tc;
 				}
-				const base = tcBase(tc);
+				const base = tcBaseWithMeta(tc, action._meta);
 				const confirmed = tc.status === ToolCallStatus.Running
 					? tc.confirmed
 					: ToolCallConfirmationReason.NotNeeded;
@@ -458,7 +465,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 				if (tc.status !== ToolCallStatus.PendingResultConfirmation) {
 					return tc;
 				}
-				const base = tcBase(tc);
+				const base = tcBaseWithMeta(tc, action._meta);
 				if (action.approved) {
 					return {
 						status: ToolCallStatus.Completed,
