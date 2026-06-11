@@ -47,13 +47,12 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	}
 
 	override async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
-		this.logService.debug('ExtensionGalleryManifestIPCService#getExtensionGalleryManifest waiting for manifest to be set');
 		await this.barrier.wait();
-		this.logService.debug('ExtensionGalleryManifestIPCService#getExtensionGalleryManifest manifest is set, returning manifest');
 		return this._extensionGalleryManifest ?? null;
 	}
 
 	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
+		this.logService.trace('ExtensionGalleryManifestIPCService#setExtensionGalleryManifest setting manifest', manifest);
 		this._extensionGalleryManifest = manifest;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
 		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);
