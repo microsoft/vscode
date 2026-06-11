@@ -63,134 +63,190 @@ suite('platform/agentHost - AgentHostSpanTelemetryConsumer', () => {
 		return { consumer, events };
 	}
 
-	test('emits a per-turn summary when the root invoke_agent span ends', () => {
+	test('emits agentHost.invokeAgentCompleted for a root invoke_agent span using SDK-rolled-up attributes', () => {
+		// Attribute values lifted from a real trace dump (see plan.md): the SDK
+		// pre-aggregates token totals onto the invoke_agent span itself, so the
+		// consumer is a direct passthrough — no client-side summing.
 		const { consumer, events } = createConsumer();
-		const traceId = 'aabbccddeeff00112233445566778899';
-		const rootStart = 1_000;
-		const rootEnd = 5_000;
-
-		// Chat spans arrive in a different order than they started. The first
-		// chat by startTime is c6 (start 1_100), but it ends late (2_500).
-		// A short later-started call (c1) ends early. The consumer must pick
-		// c6 as "first chat" by startTime, not c1 by arrival order.
 		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c1', parentSpanId: 'root', name: 'chat gpt-4o',
-			startTime: 2_000, endTime: 2_100, // late start, short
-			attributes: {
-				'gen_ai.operation.name': 'chat',
-				'gen_ai.usage.input_tokens': 200,
-				'gen_ai.usage.output_tokens': 75,
-				'gen_ai.usage.cache_read.input_tokens': 150,
-				'gen_ai.response.time_to_first_chunk': 0.007, // misleadingly tiny — must NOT be picked
-				'gen_ai.response.finish_reasons': ['stop'],
-			},
-		}));
-		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c2', parentSpanId: 'root', name: 'execute_tool readFile',
-			startTime: 1_600, endTime: 1_700,
-			attributes: { 'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': 'readFile' },
-		}));
-		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c3', parentSpanId: 'root', name: 'execute_tool runCommand',
-			startTime: 1_700, endTime: 1_900,
-			attributes: { 'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': 'runCommand' },
-			status: SpanStatusCode.ERROR,
-		}));
-		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c4', parentSpanId: 'c3', name: 'permission',
-			startTime: 1_750, endTime: 1_760,
-			attributes: { 'gen_ai.operation.name': 'permission' },
-		}));
-		// Subagent (non-root invoke_agent).
-		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c5', parentSpanId: 'c2', name: 'invoke_agent task',
-			startTime: 1_800, endTime: 1_850,
-			attributes: { 'gen_ai.operation.name': 'invoke_agent', 'gen_ai.agent.name': 'task' },
-		}));
-		// True first chat by startTime, late arrival, late end.
-		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c6', parentSpanId: 'root', name: 'chat gpt-4o',
-			startTime: 1_100, endTime: 2_500,
-			attributes: {
-				'gen_ai.operation.name': 'chat',
-				'gen_ai.usage.input_tokens': 120,
-				'gen_ai.usage.output_tokens': 60,
-				'gen_ai.usage.cache_read.input_tokens': 80,
-				'gen_ai.usage.cache_creation.input_tokens': 30,
-				'gen_ai.usage.reasoning_tokens': 10,
-				'gen_ai.response.model': 'gpt-4o',
-				'gen_ai.response.time_to_first_chunk': 0.412, // realistic TTFT — must be picked
-				'gen_ai.response.finish_reasons': ['tool_calls'],
-			},
-		}));
-		// Root span ends — should trigger emission.
-		strictEqual(events.length, 0, 'no emission before root ends');
-		consumer.onSpan(makeSpan({
-			traceId, spanId: 'root', name: 'invoke_agent copilotcli',
-			startTime: rootStart, endTime: rootEnd,
+			traceId: '7efbc0476aada2359175bd3db6f11b21',
+			spanId: 'd4193c4d2dc0d54d',
+			// no parentSpanId — this is the root
+			name: 'invoke_agent',
+			startTime: 1_000,
+			endTime: 68_064,
 			attributes: {
 				'gen_ai.operation.name': 'invoke_agent',
-				'gen_ai.provider.name': 'github.copilot',
-				'gen_ai.agent.name': 'copilotcli',
-				'gen_ai.request.model': 'gpt-4o',
+				'gen_ai.provider.name': 'github',
+				'gen_ai.agent.id': 'github.copilot.default',
+				'gen_ai.request.model': 'claude-sonnet-4.5',
+				'gen_ai.response.finish_reasons': ['stop'],
+				'gen_ai.usage.input_tokens': 141_746,
+				'gen_ai.usage.output_tokens': 1_121,
+				'gen_ai.usage.cache_read.input_tokens': 119_637,
+				'gen_ai.usage.cache_creation.input_tokens': 22_055,
+				'gen_ai.usage.reasoning.output_tokens': 428,
+				'github.copilot.agent.type': 'builtin',
+				'github.copilot.aiu': 13_557_435_000,
+				'github.copilot.cost': 7,
+				'github.copilot.turn_count': 7,
 			},
 		}));
 
 		strictEqual(events.length, 1);
-		strictEqual(events[0].eventName, 'agentHost.invokeAgentCompleted');
-		deepStrictEqual(events[0].data, {
-			provider: 'github.copilot',
-			agent: 'copilotcli',
-			model: 'gpt-4o',
-			totalDurationMs: rootEnd - rootStart,
-			ttftMs: 412,                          // from earliest chat by startTime
-			finishReason: 'tool_calls',           // finish reason from latest-ending chat (c6 ends at 2_500)
-			spanCount: 7,
-			llmCallCount: 2,
-			toolCallCount: 2,
-			subagentCallCount: 1,
-			permissionCount: 1,
-			errorCount: 1,
-			inputTokensTotal: 320,
-			outputTokensTotal: 135,
-			cacheReadTokensTotal: 230,
-			cacheCreationTokensTotal: 30,
-			reasoningTokensTotal: 10,
-			distinctToolCount: 2,
+		deepStrictEqual(events[0], {
+			eventName: 'agentHost.invokeAgentCompleted',
+			data: {
+				traceId: '7efbc0476aada2359175bd3db6f11b21',
+				spanId: 'd4193c4d2dc0d54d',
+				parentSpanId: '',
+				isRoot: true,
+				provider: 'github',
+				agentId: 'github.copilot.default',
+				agentName: undefined,
+				agentType: 'builtin',
+				model: 'claude-sonnet-4.5',
+				totalDurationMs: 67_064,
+				finishReason: 'stop',
+				inputTokensTotal: 141_746,
+				outputTokensTotal: 1_121,
+				cacheReadTokensTotal: 119_637,
+				cacheCreationTokensTotal: 22_055,
+				reasoningTokensTotal: 428,
+				cost: 7,
+				aiu: 13_557_435_000,
+				turnCount: 7,
+				hasError: false,
+			},
 		});
 	});
 
-	test('does not emit until the root span actually ends', () => {
+	test('emits agentHost.invokeAgentCompleted for a subagent with isRoot=false, parentSpanId set, and its own scoped totals', () => {
 		const { consumer, events } = createConsumer();
-		const traceId = '11111111111111112222222222222222';
 		consumer.onSpan(makeSpan({
-			traceId, spanId: 'c1', parentSpanId: 'root', name: 'chat gpt-4o',
-			startTime: 100, endTime: 200,
-			attributes: { 'gen_ai.operation.name': 'chat' },
+			traceId: '7efbc0476aada2359175bd3db6f11b21',
+			spanId: '748ca10e1387477a',
+			parentSpanId: 'b995d63ca4cdbd87', // execute_tool task span that invoked this subagent
+			name: 'invoke_agent explore',
+			startTime: 2_000,
+			endTime: 15_039,
+			attributes: {
+				'gen_ai.operation.name': 'invoke_agent',
+				'gen_ai.provider.name': 'github',
+				'gen_ai.agent.id': 'builtin:explore',
+				'gen_ai.agent.name': 'explore',
+				'gen_ai.request.model': 'claude-sonnet-4.5',
+				'gen_ai.response.finish_reasons': ['stop'],
+				'gen_ai.usage.input_tokens': 35_624,
+				'gen_ai.usage.output_tokens': 793,
+				'gen_ai.usage.cache_read.input_tokens': 28_457,
+				'gen_ai.usage.cache_creation.input_tokens': 6_651,
+				'gen_ai.usage.reasoning.output_tokens': 671,
+				'github.copilot.agent.type': 'builtin',
+			},
+			status: SpanStatusCode.OK,
 		}));
-		strictEqual(events.length, 0, 'no emission for an orphan child');
+
+		strictEqual(events.length, 1);
+		strictEqual(events[0].eventName, 'agentHost.invokeAgentCompleted');
+		const data = events[0].data!;
+		strictEqual(data.isRoot, false);
+		strictEqual(data.parentSpanId, 'b995d63ca4cdbd87');
+		strictEqual(data.agentName, 'explore');
+		strictEqual(data.agentId, 'builtin:explore');
+		strictEqual(data.inputTokensTotal, 35_624);
+		strictEqual(data.cost, undefined); // subagent spans don't carry cost/aiu/turnCount in observed traces
+		strictEqual(data.turnCount, undefined);
 	});
 
-	test('multiple traces are tracked independently', () => {
+	test('emits agentHost.chatCompleted for a chat span with ttft, response model differing from request model, and per-call tokens', () => {
+		// The "explore" subagent in the captured trace requested claude-sonnet-4.5
+		// but the chat actually returned claude-haiku-4.5 — exercise that here so
+		// we surface fallback routing.
 		const { consumer, events } = createConsumer();
-		const traceA = 'a'.repeat(32);
-		const traceB = 'b'.repeat(32);
-
 		consumer.onSpan(makeSpan({
-			traceId: traceA, spanId: 'rootA', name: 'invoke_agent copilotcli',
-			startTime: 0, endTime: 1_000,
-			attributes: { 'gen_ai.operation.name': 'invoke_agent', 'gen_ai.agent.name': 'a' },
+			traceId: '7efbc0476aada2359175bd3db6f11b21',
+			spanId: '0beb8ae83c001b57',
+			parentSpanId: '748ca10e1387477a',
+			name: 'chat claude-sonnet-4.5',
+			startTime: 5_000,
+			endTime: 18_039,
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.provider.name': 'github',
+				'gen_ai.request.model': 'claude-sonnet-4.5',
+				'gen_ai.response.model': 'claude-haiku-4.5',
+				'gen_ai.response.time_to_first_chunk': 0.412,
+				'gen_ai.response.finish_reasons': ['stop'],
+				'gen_ai.usage.input_tokens': 35_624,
+				'gen_ai.usage.output_tokens': 793,
+				'gen_ai.usage.cache_read.input_tokens': 28_457,
+				'gen_ai.usage.cache_creation.input_tokens': 6_651,
+				'gen_ai.usage.reasoning.output_tokens': 671,
+				'github.copilot.server_duration': 13_000,
+				'github.copilot.aiu': 8_101_125_000,
+				'github.copilot.cost': 1,
+				'github.copilot.initiator': 'agent',
+				'github.copilot.interaction_id': 'd571e841-2f5c-4bd9-b625-2f02c936b609',
+			},
+		}));
+
+		strictEqual(events.length, 1);
+		deepStrictEqual(events[0], {
+			eventName: 'agentHost.chatCompleted',
+			data: {
+				traceId: '7efbc0476aada2359175bd3db6f11b21',
+				spanId: '0beb8ae83c001b57',
+				parentSpanId: '748ca10e1387477a',
+				provider: 'github',
+				requestModel: 'claude-sonnet-4.5',
+				responseModel: 'claude-haiku-4.5',
+				totalDurationMs: 13_039,
+				serverDurationMs: 13_000,
+				ttftMs: 412,
+				finishReason: 'stop',
+				inputTokens: 35_624,
+				outputTokens: 793,
+				cacheReadTokens: 28_457,
+				cacheCreationTokens: 6_651,
+				reasoningTokens: 671,
+				cost: 1,
+				aiu: 8_101_125_000,
+				initiator: 'agent',
+				interactionId: 'd571e841-2f5c-4bd9-b625-2f02c936b609',
+				hasError: false,
+			},
+		});
+	});
+
+	test('ignores execute_tool and permission spans (no events emitted)', () => {
+		const { consumer, events } = createConsumer();
+		const traceId = 'a'.repeat(32);
+		consumer.onSpan(makeSpan({
+			traceId, spanId: 't1', parentSpanId: 'root', name: 'execute_tool grep',
+			startTime: 0, endTime: 50,
+			attributes: { 'gen_ai.operation.name': 'execute_tool', 'gen_ai.tool.name': 'grep' },
 		}));
 		consumer.onSpan(makeSpan({
-			traceId: traceB, spanId: 'rootB', name: 'invoke_agent copilotcli',
-			startTime: 0, endTime: 2_000,
-			attributes: { 'gen_ai.operation.name': 'invoke_agent', 'gen_ai.agent.name': 'b' },
+			traceId, spanId: 'p1', parentSpanId: 't1', name: 'permission',
+			startTime: 10, endTime: 12,
+			attributes: { 'github.copilot.permission.kind': 'read' },
 		}));
+		strictEqual(events.length, 0);
+	});
 
-		strictEqual(events.length, 2);
-		strictEqual(events[0].data?.agent, 'a');
-		strictEqual(events[0].data?.totalDurationMs, 1_000);
-		strictEqual(events[1].data?.agent, 'b');
-		strictEqual(events[1].data?.totalDurationMs, 2_000);
+	test('flags hasError when span status is ERROR', () => {
+		const { consumer, events } = createConsumer();
+		consumer.onSpan(makeSpan({
+			traceId: 'b'.repeat(32),
+			spanId: 'errchat',
+			parentSpanId: 'root',
+			name: 'chat gpt-4o',
+			startTime: 0, endTime: 100,
+			status: SpanStatusCode.ERROR,
+			attributes: { 'gen_ai.operation.name': 'chat' },
+		}));
+		strictEqual(events.length, 1);
+		strictEqual(events[0].data?.hasError, true);
 	});
 });

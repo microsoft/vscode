@@ -94,32 +94,85 @@ Metrics give you "200 chat calls happened today". Traces give you "this specific
 
 ## Span Routing to VS Code Telemetry
 
-`AgentHostSpanTelemetryConsumer` ([node/otel/agentHostSpanTelemetryConsumer.ts](node/otel/agentHostSpanTelemetryConsumer.ts)) is registered unconditionally in `agentHostMain.ts` / `agentHostServerMain.ts`. It:
+`AgentHostSpanTelemetryConsumer` ([node/otel/agentHostSpanTelemetryConsumer.ts](node/otel/agentHostSpanTelemetryConsumer.ts)) is registered in `agentHostMain.ts` / `agentHostServerMain.ts` whenever VS Code telemetry is enabled. It is a stateless per-span passthrough:
 
-1. Aggregates spans **per `traceId`** in memory using `gen_ai.operation.name` to classify them (`invoke_agent`, `chat`, `execute_tool`, `permission`).
-2. When the root `invoke_agent` span ends (no `parentSpanId`), emits a single `agentHost.invokeAgentCompleted` event via `ITelemetryService.publicLog2`, then drops the aggregator. Event name mirrors `agentHost.turnCompleted` (also emitted on completion) so the naming convention is consistent.
-3. Caps in-flight trace aggregators at 256 to avoid memory growth from orphan traces (traces whose root never ends — typically from a crashed turn).
+- Every `invoke_agent` span end → one `agentHost.invokeAgentCompleted` event. Fires for the user-initiated root invocation **and** for each subagent invocation in the same trace. The SDK already pre-aggregates token totals onto the `invoke_agent` span itself (each invocation's totals cover only its direct `chat` children, not subagent work), so no client-side aggregation is needed.
+- Every `chat` span end → one `agentHost.chatCompleted` event. Mirrors the chat extension's `response.success` granularity (one event per HTTP round-trip to a model). Carries TTFT, per-call tokens, and the actually-run `responseModel` — which can differ from `requestModel` under fallback routing.
+- `execute_tool` and `permission` spans are not emitted as telemetry events. They're cheap, and queries can join chat events back to their owning `invoke_agent` via `parentSpanId` without per-tool events. The full span tree remains available in the OTel SQLite store when DB mode is on.
 
 ### `agentHost.invokeAgentCompleted` event fields
 
+Emitted once per `invoke_agent` span end. All values come directly off span attributes (no client-side rollup).
+
 | Field | Source |
 |---|---|
-| `provider` / `agent` / `model` | `gen_ai.provider.name` / `gen_ai.agent.name` / `gen_ai.request.model` on the root span |
-| `totalDurationMs` | Root span end − start (server-measured) |
-| `ttftMs` | `gen_ai.response.time_to_first_chunk` (seconds → ms) on the earliest `chat` span (picked by `startTime`, not arrival order) |
-| `finishReason` | First entry of `gen_ai.response.finish_reasons` on the latest-ending `chat` span (e.g. `stop`, `tool_calls`, `length`) |
-| `spanCount`, `llmCallCount`, `toolCallCount`, `subagentCallCount`, `permissionCount`, `errorCount` | Counters maintained as spans arrive |
-| `inputTokensTotal`, `outputTokensTotal` | Sum of `gen_ai.usage.input_tokens` / `output_tokens` across chat spans |
-| `cacheReadTokensTotal`, `cacheCreationTokensTotal`, `reasoningTokensTotal` | Sum of the corresponding `gen_ai.usage.*` attributes across chat spans |
-| `distinctToolCount` | Distinct `gen_ai.tool.name` values across `execute_tool` spans |
+| `traceId`, `spanId`, `parentSpanId` | OTel identity. `parentSpanId` is empty for the root; for subagents it's the invoking `execute_tool` span. |
+| `isRoot` | `true` iff the span has no parent (= user-initiated turn). |
+| `provider`, `agentId`, `agentName`, `agentType`, `model` | `gen_ai.provider.name`, `gen_ai.agent.id`, `gen_ai.agent.name`, `github.copilot.agent.type`, `gen_ai.request.model`. `agentName` is undefined on the root in current SDKs. |
+| `totalDurationMs` | Span end − start. |
+| `finishReason` | First entry of `gen_ai.response.finish_reasons`. |
+| `inputTokensTotal`, `outputTokensTotal`, `cacheReadTokensTotal`, `cacheCreationTokensTotal`, `reasoningTokensTotal` | The corresponding `gen_ai.usage.*` attributes on the span — already summed by the SDK across the invocation's direct chat children. |
+| `cost`, `aiu` | `github.copilot.cost` (integer billing units, opaque denomination), `github.copilot.aiu` (AI Usage Units). |
+| `turnCount` | `github.copilot.turn_count` — LLM round-trips inside this invocation. Typically only present on the root. |
+| `hasError` | `true` iff span status was ERROR. |
+
+### `agentHost.chatCompleted` event fields
+
+Emitted once per `chat` span end.
+
+| Field | Source |
+|---|---|
+| `traceId`, `spanId`, `parentSpanId` | OTel identity. `parentSpanId` points to the owning `invoke_agent` — join key for per-invocation rollups in Kusto. |
+| `provider`, `requestModel`, `responseModel` | `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.model`. `responseModel` reveals fallback routing (e.g. sonnet requested, haiku actually ran). |
+| `totalDurationMs`, `serverDurationMs` | Wall-clock span duration; SDK-reported server-side duration (`github.copilot.server_duration`). |
+| `ttftMs` | `gen_ai.response.time_to_first_chunk` × 1000 — server-measured TTFT. |
+| `finishReason` | First entry of `gen_ai.response.finish_reasons`. |
+| `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `reasoningTokens` | Per-call `gen_ai.usage.*`. |
+| `cost`, `aiu` | Per-call `github.copilot.cost`, `github.copilot.aiu`. |
+| `initiator`, `interactionId` | `github.copilot.initiator` (`user` / `agent`), `github.copilot.interaction_id` (joins retries). |
+| `hasError` | `true` iff span status was ERROR. |
+
+### Subagent accounting
+
+Each subagent invocation gets its own `agentHost.invokeAgentCompleted` with `isRoot=false`. Token totals on the parent (root) `invoke_agent` cover only its **direct** `chat` children — subagent token usage lives on the subagent's own event. To compute the total cost of a turn including subagents, join in Kusto:
+
+```kusto
+agentHost_invokeAgentCompleted
+| summarize
+    rootInput = sumif(inputTokensTotal, isRoot == true),
+    subagentInput = sumif(inputTokensTotal, isRoot == false),
+    totalCost = sum(cost)
+  by traceId
+```
+
+To compare requested vs actually-run models, join chat events back to their invocation:
+
+```kusto
+agentHost_chatCompleted
+| where requestModel != responseModel
+| join kind=leftouter agentHost_invokeAgentCompleted on $left.parentSpanId == $right.spanId
+| project traceId, agentName, requestModel, responseModel, ttftMs
+```
 
 ### Relationship to `agentHost.turnCompleted`
 
-`AgentHostTelemetryReporter` emits `agentHost.turnCompleted` per turn with `timeToFirstProgress` and `totalTime` measured from **the VS Code side** (turn dispatch → first stream event; turn dispatch → completion). The `agentHost.invokeAgentCompleted` event uses the **SDK's** server-measured timings — `totalDurationMs` (root span duration) and `ttftMs` (`gen_ai.response.time_to_first_chunk` on the earliest chat span) — and adds token counts the workbench-side event doesn't have.
+`AgentHostTelemetryReporter` emits `agentHost.turnCompleted` per turn with `timeToFirstProgress` and `totalTime` measured from **the VS Code side** (turn dispatch → first stream event; turn dispatch → completion). The events here use the **SDK's** server-measured timings (`totalDurationMs`, `ttftMs`) and add the per-invocation and per-call structure the workbench-side event doesn't have.
 
-Both events run in parallel intentionally so we can compare workbench-perceived vs SDK-measured timings in Kusto. If they agree closely we can consolidate on the OTel-derived numbers and drop the workbench-side stopwatches; if they diverge meaningfully the gap itself is informative (e.g. measures the cost of cross-process plumbing between the agent host and the workbench, or — historically — surfaces SDK bugs in `gen_ai.response.time_to_first_chunk`).
+Both event families run in parallel so we can compare workbench-perceived vs SDK-measured timings in Kusto. If they agree closely we can consolidate on the OTel-derived numbers; if they diverge meaningfully the gap is informative (cross-process plumbing cost, or historically SDK bugs in `gen_ai.response.time_to_first_chunk`).
 
-The per-chat TTFT and finish reason for every chat span in a turn are also dumped at log level `trace` as `[agentHost.otel] trace=… root=…ms chats=…` lines, which is the easiest way to audit whether the SDK's TTFT values look plausible.
+### Diagnostic logging
+
+At log level `debug`, every span observed by the consumer is dumped with its full attribute set:
+
+```
+[debug] [agentHost.otel] span op=invoke_agent name="invoke_agent explore" span=748ca10e1387477a parent=b995d63ca4cdbd87 trace=… dur=13039ms status=0
+    gen_ai.agent.id=builtin:explore
+    gen_ai.agent.name=explore
+    gen_ai.usage.input_tokens=35624
+    …
+```
+
+This is the easiest way to audit which SDK attributes are present on a given span family. Set the agent host log level to **Debug** via *Developer: Set Log Level…* → Agent Host.
 
 **Privacy**: the consumer only reads attributes that are counters, IDs, or short enums — never prompt/response content. It is safe to run regardless of `chat.agentHost.otel.captureContent`.
 
