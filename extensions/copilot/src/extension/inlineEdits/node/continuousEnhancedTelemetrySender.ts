@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
-import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
 import { LogEntry } from '../../../platform/workspaceRecorder/common/workspaceLog';
 import { RunOnceScheduler } from '../../../util/vs/base/common/async';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
-import { autorun, autorunWithStore } from '../../../util/vs/base/common/observable';
+import { autorun } from '../../../util/vs/base/common/observable';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { DebugRecorder } from './debugRecorder';
 
@@ -68,18 +66,13 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		private readonly _debugRecorder: DebugRecorder,
 		private readonly _workspace: ObservableWorkspace | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExperimentationService experimentationService: IExperimentationService,
 		@IGitExtensionService private readonly _gitExtensionService: IGitExtensionService,
 	) {
 		super();
 
-		const enabled = configurationService.getExperimentBasedConfigObservable(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, experimentationService);
-
-		this._register(autorunWithStore((reader, store) => {
-			if (!enabled.read(reader)) { return; }
-			this._runLoop(store);
-		}));
+		const store = new DisposableStore();
+		this._register(store);
+		this._runLoop(store);
 	}
 
 	private _runLoop(store: DisposableStore): void {
@@ -97,7 +90,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		if (loopStore.isDisposed) { return; }
 
 		const idleStore = new DisposableStore();
-		loopStore.add(idleStore); // tear down with the loop if config toggles off mid-wait
+		loopStore.add(idleStore); // tear down with the loop on dispose
 
 		let fired = false;
 		const fireAndReset = () => {

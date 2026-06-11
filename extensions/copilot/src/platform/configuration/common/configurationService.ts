@@ -612,8 +612,6 @@ export namespace ConfigKey {
 		export const TerminalToDebuggerPatterns = defineAndMigrateSetting<string[]>('chat.advanced.debugTerminalCommandPatterns', 'chat.debugTerminalCommandPatterns', []);
 		export const WorkspaceRecordingEnabled = defineAndMigrateSetting('chat.advanced.localWorkspaceRecording.enabled', 'chat.localWorkspaceRecording.enabled', false);
 		export const EditRecordingEnabled = defineAndMigrateSetting('chat.advanced.editRecording.enabled', 'chat.editRecording.enabled', false);
-		/** Periodically ship a 5-minute slice of `DebugRecorder` activity as enhanced telemetry (continuous=true), for NES context analysis. Off by default; experiment-gated. */
-		export const ContinuousEnhancedTelemetryEnabled = defineSetting<boolean>('chat.nes.continuousEnhancedTelemetry.enabled', ConfigType.ExperimentBased, false);
 		export const CodeSearchAgentEnabled = defineAndMigrateSetting<boolean | undefined>('chat.advanced.codesearch.agent.enabled', 'chat.codesearch.agent.enabled', true);
 		export const AgentTemperature = defineAndMigrateSetting<number | undefined>('chat.advanced.agent.temperature', 'chat.agent.temperature', undefined);
 		export const EnableUserPreferences = defineAndMigrateSetting<boolean>('chat.advanced.enableUserPreferences', 'chat.enableUserPreferences', false);

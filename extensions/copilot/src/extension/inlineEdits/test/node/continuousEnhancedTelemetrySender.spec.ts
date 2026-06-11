@@ -4,13 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ConfigKey } from '../../../../platform/configuration/common/configurationService';
-import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
-import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { NullGitExtensionService } from '../../../../platform/git/common/nullGitExtensionService';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { MutableObservableWorkspace } from '../../../../platform/inlineEdits/common/observableWorkspace';
-import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TelemetryEventMeasurements, TelemetryEventProperties } from '../../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -41,7 +37,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 	let telemetry: RecordingTelemetryService;
 	let workspace: MutableObservableWorkspace;
 	let recorder: DebugRecorder;
-	let config: InMemoryConfigurationService;
 	let sender: ContinuousEnhancedTelemetrySender | undefined;
 
 	beforeEach(() => {
@@ -50,7 +45,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		telemetry = new RecordingTelemetryService();
 		workspace = new MutableObservableWorkspace();
 		recorder = new DebugRecorder(workspace, () => Date.now());
-		config = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 	});
 
 	afterEach(() => {
@@ -66,8 +60,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 			recorder,
 			workspace,
 			telemetry,
-			config,
-			new NullExperimentationService(),
 			new NullGitExtensionService(),
 		);
 	}
@@ -89,16 +81,7 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		doc.applyEdit(new StringEdit([StringReplacement.replace(new OffsetRange(cur.length, cur.length), 'y')]));
 	}
 
-	test('does not fire when disabled', async () => {
-		sender = makeSender();
-		// Even with edits, no events fire while disabled
-		addDocAndEdit('hello');
-		await vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS + HARD_CAP_MS);
-		expect(telemetry.enhancedEvents).toHaveLength(0);
-	});
-
 	test('skips empty slices (no edits)', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
 		sender = makeSender();
 
 		// No edits at all — after a full tick + idle wait, nothing should be sent
@@ -107,7 +90,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 	});
 
 	test('sends after interval + idle when user pauses', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
 		sender = makeSender();
 
 		addDocAndEdit('hello');
@@ -130,7 +112,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 	});
 
 	test('hard cap forces a send even while user keeps typing', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
 		sender = makeSender();
 
 		addDocAndEdit('initial');
@@ -148,7 +129,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 	});
 
 	test('two consecutive slices overlap by at least 30 s (under steady idle behaviour)', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
 		sender = makeSender();
 
 		addDocAndEdit('a');
@@ -177,7 +157,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 	});
 
 	test('caps entries when serialised payload exceeds 200 KB', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
 		sender = makeSender();
 
 		// Add an edit large enough to push the serialised payload past the cap
@@ -195,7 +174,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 	});
 
 	test('dispose during idle wait cancels the pending send', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
 		sender = makeSender();
 
 		addDocAndEdit('hello');
@@ -209,19 +187,6 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 
 		// Past idle + hard cap — still nothing
 		await vi.advanceTimersByTimeAsync(IDLE_MS + HARD_CAP_MS);
-		expect(telemetry.enhancedEvents).toHaveLength(0);
-	});
-
-	test('disabling after start cancels the loop', async () => {
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, true);
-		sender = makeSender();
-
-		addDocAndEdit('hello');
-		await vi.advanceTimersByTimeAsync(INTERVAL_MS / 2);
-
-		await config.setConfig(ConfigKey.Advanced.ContinuousEnhancedTelemetryEnabled, false);
-
-		await vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS + HARD_CAP_MS);
 		expect(telemetry.enhancedEvents).toHaveLength(0);
 	});
 });

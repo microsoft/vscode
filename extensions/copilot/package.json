@@ -4628,16 +4628,6 @@
               "experimental"
             ]
           },
-          "github.copilot.chat.nes.continuousEnhancedTelemetry.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%github.copilot.config.nes.continuousEnhancedTelemetry.enabled%",
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ]
-          },
           "github.copilot.chat.inlineChat.reasoningEffort": {
             "type": "string",
             "default": "low",
