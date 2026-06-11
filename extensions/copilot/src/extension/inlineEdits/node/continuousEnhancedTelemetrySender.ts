@@ -128,7 +128,10 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 	}
 
 	private _sendNow(): void {
-		const now = Date.now();
+		// Use the recorder's clock for the window end so that edits which were just bumped past
+		// `Date.now()` by `DebugRecorder.getTimestamp()` (to enforce total ordering on events) are
+		// still included in the slice.
+		const now = this._debugRecorder.getTimestamp();
 		const windowStart = now - ContinuousEnhancedTelemetrySender.WINDOW_MS;
 		const entries = this._debugRecorder.getLogInRange(windowStart, now);
 

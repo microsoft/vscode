@@ -228,7 +228,7 @@ suite('Debug recorder', () => {
 			const workspaceRoot = URI.parse('file:///workspace');
 			const doc = workspace.addDocument({ id: DocumentId.create('file:///workspace/a.ts'), workspaceRoot, initialValue: 'hello' });
 
-			function insertEdit(at: number, text: string): void {
+			function insertEdit(text: string): void {
 				const cur = doc.value.get().value;
 				doc.applyEdit(new StringEdit([StringReplacement.replace(new OffsetRange(cur.length, cur.length), text)]));
 			}
@@ -239,10 +239,10 @@ suite('Debug recorder', () => {
 		test('filters entries outside [from, to]', () => {
 			const { recorder, setNow, insertEdit } = setup();
 
-			setNow(1000); insertEdit(1000, 'a'); // before range
-			setNow(2000); insertEdit(2000, 'b'); // in range
-			setNow(3000); insertEdit(3000, 'c'); // in range
-			setNow(4000); insertEdit(4000, 'd'); // after range
+			setNow(1000); insertEdit('a'); // before range
+			setNow(2000); insertEdit('b'); // in range
+			setNow(3000); insertEdit('c'); // in range
+			setNow(4000); insertEdit('d'); // after range
 
 			setNow(5000);
 			const log = recorder.getLogInRange(1500, 3500);
@@ -255,8 +255,8 @@ suite('Debug recorder', () => {
 		test('returns empty when no edits in range', () => {
 			const { recorder, setNow, insertEdit } = setup();
 
-			setNow(1000); insertEdit(1000, 'a');
-			setNow(2000); insertEdit(2000, 'b');
+			setNow(1000); insertEdit('a');
+			setNow(2000); insertEdit('b');
 
 			setNow(5000);
 			const log = recorder.getLogInRange(3000, 4000);
@@ -270,9 +270,9 @@ suite('Debug recorder', () => {
 			const { recorder, setNow, insertEdit } = setup();
 
 			// Base value is 'hello' at creation (~1000)
-			setNow(1500); insertEdit(1500, ' world');
-			setNow(2000); insertEdit(2000, '!');
-			setNow(3000); insertEdit(3000, '?');
+			setNow(1500); insertEdit(' world');
+			setNow(2000); insertEdit('!');
+			setNow(3000); insertEdit('?');
 
 			// Slice covers [2500, 3500]: the 'hello world!' state at 2000 should be the setContent
 			setNow(3500);
