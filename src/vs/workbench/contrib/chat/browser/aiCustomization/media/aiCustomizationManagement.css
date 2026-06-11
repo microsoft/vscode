@@ -1922,6 +1922,23 @@ pane is first mounted. View switches inside the modal are not animated. */
 	padding: 0;
 	background-color: var(--vscode-quickInput-background);
 	color: var(--vscode-quickInput-foreground);
+	/* Anchor for the absolutely-positioned close-X (see below). */
+	position: relative;
+}
+
+/*
+ * Float the close-X over the titlebar so the title text sits flush
+ * with the top edge of the modal (QuickInput-style). Without this,
+ * `.dialog-toolbar-row` reserves ~24px of dead space above the title.
+ * `z-index` keeps the X above the sticky titlebar.
+ */
+.monaco-dialog-box.automation-dialog .dialog-toolbar-row {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: auto;
+	padding: 4px 6px 0 0;
+	z-index: 2;
 }
 
 .automation-dialog-body {
@@ -1973,10 +1990,11 @@ pane is first mounted. View switches inside the modal are not animated. */
 	position: sticky;
 	top: 0;
 	z-index: 1;
-	padding: 8px 14px;
+	/* Right padding reserves room for the floating close-X chip. */
+	padding: 8px 36px 8px 14px;
 	text-align: left;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	font-size: var(--vscode-agents-fontSize-body1, 13px);
+	font-size: var(--vscode-agents-fontSize-heading2);
 	color: var(--vscode-quickInput-foreground);
 	background-color: var(--vscode-quickInputTitle-background);
 }
