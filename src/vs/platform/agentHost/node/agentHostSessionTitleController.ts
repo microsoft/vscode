@@ -35,7 +35,7 @@ export class AgentHostSessionTitleController extends Disposable {
 
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string): void {
 		const state = this._stateManager.getSessionState(channel);
-		const fallbackTitle = userPrompt.trim().replace(/\s+/g, ' ').slice(0, 200);
+		const fallbackTitle = userPrompt.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
 		if (!state || state.turns.length !== 0 || state.summary.title || fallbackTitle.length === 0) {
 			return;
 		}
