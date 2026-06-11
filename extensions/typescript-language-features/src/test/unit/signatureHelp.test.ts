@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { getActiveSignature } from '../../languageFeatures/signatureHelp';
+import { computeActiveSignatureIndex } from '../../languageFeatures/signatureHelp';
 
 const numberSig = { label: 'foo(a: number): number' };
 const stringSig = { label: 'foo(a: string): string' };
@@ -90,24 +90,24 @@ suite('getActiveSignature — BEFORE fix (#268728)', () => {
 	});
 });
 
-suite('getActiveSignature — AFTER fix (#268728)', () => {
+suite('computeActiveSignatureIndex — AFTER fix (#268728)', () => {
 	test('non-retrigger returns TypeScript selectedItemIndex', () => {
 		assert.strictEqual(
-			getActiveSignature(makeContext({ isRetrigger: false }), 0, overloads),
+			computeActiveSignatureIndex(makeContext({ isRetrigger: false }), 0, overloads),
 			0,
 		);
 	});
 
 	test('retrigger with no previous context returns TypeScript selectedItemIndex', () => {
 		assert.strictEqual(
-			getActiveSignature(makeContext({ isRetrigger: true }), 1, overloads),
+			computeActiveSignatureIndex(makeContext({ isRetrigger: true }), 1, overloads),
 			1,
 		);
 	});
 
 	test('retrigger preserves previously-shown overload when TypeScript selection is unchanged', () => {
 		assert.strictEqual(
-			getActiveSignature(
+			computeActiveSignatureIndex(
 				makeContext({ isRetrigger: true, activeSignature: 0 }),
 				0,
 				overloads,
@@ -121,12 +121,28 @@ suite('getActiveSignature — AFTER fix (#268728)', () => {
 		// TS updates selectedItemIndex from 0 to 1 on the comma retrigger.
 		// Fixed code honours that update instead of locking in the earlier selection.
 		assert.strictEqual(
-			getActiveSignature(
+			computeActiveSignatureIndex(
 				makeContext({ isRetrigger: true, activeSignature: 0 }),
 				1,
 				overloads,
 			),
 			1, // FIX: correctly returns 1 (string overload)
+		);
+	});
+
+	test('retrigger returns correct index after signature list reorders', () => {
+		// Previous list: [number=0, string=1], previously active index was 1 (string).
+		// New list after retrigger: [string=0, number=1] (reordered).
+		// TS still selects string, now at index 0. Should return 0, not the stale index 1.
+		const previousSignatures = [numberSig, stringSig];
+		const currentSignatures = [stringSig, numberSig];
+		assert.strictEqual(
+			computeActiveSignatureIndex(
+				makeContext({ isRetrigger: true, activeSignature: 1, signatures: previousSignatures }),
+				0, // TS selects stringSig, now at index 0 in the current list
+				currentSignatures,
+			),
+			0, // must follow tsSelectedItemIndex, not the stale activeSignature=1
 		);
 	});
 });

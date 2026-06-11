@@ -50,7 +50,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	}
 
 	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		return getActiveSignature(context, info.selectedItemIndex, signatures);
+		return computeActiveSignatureIndex(context, info.selectedItemIndex, signatures);
 	}
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
@@ -91,8 +91,8 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	}
 }
 
-export function getActiveSignature(
-	context: {
+export function computeActiveSignatureIndex(
+	_context: {
 		isRetrigger: boolean;
 		activeSignatureHelp?: {
 			signatures: ReadonlyArray<{ label: string }>;
@@ -100,16 +100,8 @@ export function getActiveSignature(
 		};
 	},
 	tsSelectedItemIndex: number,
-	signatures: ReadonlyArray<{ label: string }>,
+	_signatures: ReadonlyArray<{ label: string }>,
 ): number {
-	// On retrigger, only keep the previous overload if TypeScript still selects it —
-	// typed arguments may have narrowed the overload set, in which case we follow TS.
-	const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-	if (previouslyActiveSignature && context.isRetrigger) {
-		if (signatures[tsSelectedItemIndex]?.label === previouslyActiveSignature.label) {
-			return context.activeSignatureHelp!.activeSignature;
-		}
-	}
 	return tsSelectedItemIndex;
 }
 
