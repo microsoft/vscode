@@ -580,10 +580,10 @@
 	box-sizing: border-box;
 }
 
-/* make sure when editing we don't give unnecessary padding */
+/* Make sure when editing we don't give unnecessary padding. */
 .agent-sessions-workbench .part.sessionspart .interactive-session .chat-edit-input-container .interactive-input-part,
 .agent-sessions-workbench .chat-editor-relative .interactive-session .chat-edit-input-container .interactive-input-part {
-	padding: 4px 0px;
+	padding: 4px 0;
 }
 
 /* Hide shared chat-session option-group pickers in the sessions app active chat UI.
