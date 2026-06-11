@@ -38,8 +38,7 @@ type LanguageModelProviderData = {
 	readonly provider: vscode.LanguageModelChatProvider;
 };
 
-type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart;
-
+type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart | vscode.LanguageModelUsagePart;
 
 class LanguageModelResponse {
 
@@ -88,6 +87,8 @@ class LanguageModelResponse {
 
 			} else if (part.type === 'data') {
 				out = new extHostTypes.LanguageModelDataPart(part.data.buffer, part.mimeType, part.audience);
+			} else if (part.type === 'usage') {
+				out = new extHostTypes.LanguageModelUsagePart(part.promptTokens, part.completionTokens, part.totalTokens, part.cachedInputTokens);
 			} else {
 				out = new extHostTypes.LanguageModelToolCallPart(part.toolCallId, part.name, part.parameters);
 			}
@@ -295,7 +296,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		};
 
-		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart>(async fragment => {
+		const progress = new Progress<LMResponsePart>(async fragment => {
 			if (token.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.identifier.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
@@ -306,6 +307,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				part = { type: 'tool_use', name: fragment.name, parameters: fragment.input, toolCallId: fragment.callId };
 			} else if (fragment instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.value, audience: fragment.audience };
+			} else if (fragment instanceof extHostTypes.LanguageModelUsagePart) {
+				part = {
+					type: 'usage',
+					promptTokens: fragment.promptTokens,
+					completionTokens: fragment.completionTokens,
+					totalTokens: fragment.totalTokens,
+					...(fragment.cachedInputTokens !== undefined ? { cachedInputTokens: fragment.cachedInputTokens } : {}),
+				};
 			} else if (fragment instanceof extHostTypes.LanguageModelDataPart) {
 				part = { type: 'data', mimeType: fragment.mimeType, data: VSBuffer.wrap(fragment.data), audience: fragment.audience };
 			} else if (fragment instanceof extHostTypes.LanguageModelThinkingPart) {

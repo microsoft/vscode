@@ -163,6 +163,14 @@ export interface IChatResponseThinkingPart {
 	metadata?: { readonly [key: string]: any };
 }
 
+export interface IChatResponseUsagePart {
+	type: 'usage';
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+	cachedInputTokens?: number;
+}
+
 export interface IChatResponsePullRequestPart {
 	type: 'pullRequest';
 	uri: URI;
@@ -172,7 +180,7 @@ export interface IChatResponsePullRequestPart {
 	linkTag: string;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart;
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart | IChatResponseDataPart | IChatResponseThinkingPart | IChatResponseUsagePart;
 
 export type IExtendedChatResponsePart = IChatResponsePullRequestPart;
 

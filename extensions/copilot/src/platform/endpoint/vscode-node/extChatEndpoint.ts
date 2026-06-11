@@ -227,6 +227,8 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						numToolsCalled++;
 						await streamRecorder.callback(text, 0, { text: '', copilotToolCalls: functionCalls });
 					}
+				} else if (chunk instanceof vscode.LanguageModelUsagePart) {
+					reportedUsage = apiUsageFromLanguageModelUsagePart(chunk);
 				} else if (chunk instanceof vscode.LanguageModelDataPart) {
 					if (chunk.mimeType === CustomDataPartMimeTypes.StatefulMarker) {
 						const decoded = decodeStatefulMarker(chunk.data);
@@ -236,20 +238,10 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 						await streamRecorder.callback?.(text, 0, { text: '', contextManagement });
 					} else if (chunk.mimeType === CustomDataPartMimeTypes.Usage) {
 						try {
-							const parsed = JSON.parse(new TextDecoder().decode(chunk.data)) as APIUsage;
-							if (isApiUsage(parsed)) {
-								// Clamp sentinel negative values that some BYOK providers emit
-								// when the API hasn't reported a count yet (e.g. -1).
-								reportedUsage = {
-									...parsed,
-									prompt_tokens: Math.max(0, parsed.prompt_tokens),
-									completion_tokens: Math.max(0, parsed.completion_tokens),
-									total_tokens: Math.max(0, parsed.total_tokens),
-									prompt_tokens_details: {
-										...parsed.prompt_tokens_details,
-										cached_tokens: Math.max(0, parsed.prompt_tokens_details?.cached_tokens ?? 0)
-									}
-								};
+							const parsed: unknown = JSON.parse(new TextDecoder().decode(chunk.data));
+							const normalized = normalizeApiUsage(parsed);
+							if (normalized) {
+								reportedUsage = normalized;
 							}
 						} catch {
 							// ignore malformed usage payload
@@ -321,6 +313,52 @@ function getTelemetryTurnFromProperties(telemetryProperties: IMakeChatRequestOpt
 
 	const turn = Number.parseInt(telemetryProperties.turnIndex, 10);
 	return Number.isSafeInteger(turn) ? turn : undefined;
+}
+
+function normalizeApiUsageTotal(prompt: number, completion: number, total: number): number {
+	if (total < 0) {
+		return prompt + completion;
+	}
+	return Math.max(total, prompt + completion);
+}
+
+function normalizeApiUsage(parsed: unknown): APIUsage | undefined {
+	if (!isApiUsage(parsed)) {
+		return undefined;
+	}
+	// Clamp sentinel negative values that some BYOK providers emit
+	// when the API hasn't reported a count yet (e.g. -1).
+	const prompt_tokens = Math.max(0, parsed.prompt_tokens);
+	const completion_tokens = Math.max(0, parsed.completion_tokens);
+	const cached = parsed.prompt_tokens_details?.cached_tokens;
+	return {
+		...parsed,
+		prompt_tokens,
+		completion_tokens,
+		total_tokens: normalizeApiUsageTotal(prompt_tokens, completion_tokens, parsed.total_tokens),
+		...(cached !== undefined && cached >= 0
+			? {
+				prompt_tokens_details: {
+					...parsed.prompt_tokens_details,
+					cached_tokens: cached,
+				},
+			}
+			: {}),
+	};
+}
+
+function apiUsageFromLanguageModelUsagePart(usage: vscode.LanguageModelUsagePart): APIUsage {
+	const prompt_tokens = Math.max(0, usage.promptTokens);
+	const completion_tokens = Math.max(0, usage.completionTokens);
+	const cached = usage.cachedInputTokens;
+	return {
+		prompt_tokens,
+		completion_tokens,
+		total_tokens: normalizeApiUsageTotal(prompt_tokens, completion_tokens, usage.totalTokens),
+		...(cached !== undefined
+			? { prompt_tokens_details: { cached_tokens: Math.max(0, cached) } }
+			: {}),
+	};
 }
 
 export function convertToApiChatMessage(messages: Raw.ChatMessage[]): Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2> {

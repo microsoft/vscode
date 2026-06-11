@@ -2260,6 +2260,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,
 			LanguageModelDataPart: extHostTypes.LanguageModelDataPart,
 			LanguageModelDataPart2: extHostTypes.LanguageModelDataPart,
+			LanguageModelUsagePart: extHostTypes.LanguageModelUsagePart,
 			LanguageModelToolExtensionSource: extHostTypes.LanguageModelToolExtensionSource,
 			LanguageModelToolMCPSource: extHostTypes.LanguageModelToolMCPSource,
 			ExtendedLanguageModelToolResult: extHostTypes.ExtendedLanguageModelToolResult,

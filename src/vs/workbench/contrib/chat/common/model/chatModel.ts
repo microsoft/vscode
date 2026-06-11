@@ -1547,6 +1547,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			timestamp: this._timestamp,
 			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
 			completionTokens: this.completionTokenCount,
+			promptTokens: this.usage?.promptTokens,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<ISerializableChatResponseData>;
 	}
@@ -1642,6 +1643,7 @@ interface ISerializableChatResponseData {
 	codeCitations?: ReadonlyArray<IChatCodeCitation>;
 	timeSpentWaiting?: number;
 	completionTokens?: number;
+	promptTokens?: number;
 	elapsedMs?: number;
 }
 
@@ -2605,8 +2607,8 @@ export class ChatModel extends Disposable implements IChatModel {
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 			});
 			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-			if (typeof raw.completionTokens === 'number') {
-				request.response.setUsage({ kind: 'usage', promptTokens: 0, completionTokens: raw.completionTokens });
+			if (typeof raw.completionTokens === 'number' || typeof raw.promptTokens === 'number') {
+				request.response.setUsage({ kind: 'usage', promptTokens: raw.promptTokens ?? 0, completionTokens: raw.completionTokens ?? 0 });
 			}
 			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 				request.response.applyReference(revive(raw.usedContext));
