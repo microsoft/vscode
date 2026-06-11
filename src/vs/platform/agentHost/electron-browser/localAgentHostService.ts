@@ -240,6 +240,9 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._proxy.invokeChangesetOperation(params);
 	}
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		return this._proxy.handleMcpRequest(channel, method, params);
+	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
