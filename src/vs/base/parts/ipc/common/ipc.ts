@@ -543,7 +543,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 	private isDisposed = false;
 	private state: State = State.Uninitialized;
-	private activeRequests = new Set<IDisposable>();
+	/** Pending promise-style requests. Disposing an entry rejects the promise. */
+	private activePromiseRequests = new Set<IDisposable>();
+	/** Live event subscriptions. Indexed by request id so they can be re-sent on transport replacement. */
+	private activeEventSubscriptions = new Map<number, { emitter: Emitter<any>; request: IRawRequest }>();
 	private handlers = new Map<number, IHandler>();
 	private lastRequestId = 0;
 	private protocolListener: IDisposable | null;
@@ -662,12 +665,12 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				})
 			};
 
-			this.activeRequests.add(disposableWithRequestCancel);
+			this.activePromiseRequests.add(disposableWithRequestCancel);
 		});
 
 		return result.finally(() => {
 			disposable?.dispose(); // Seen as undefined in tests.
-			this.activeRequests.delete(disposableWithRequestCancel);
+			this.activePromiseRequests.delete(disposableWithRequestCancel);
 		});
 	}
 
@@ -681,7 +684,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const emitter = new Emitter<any>({
 			onWillAddFirstListener: () => {
 				const doRequest = () => {
-					this.activeRequests.add(emitter);
+					this.activeEventSubscriptions.set(id, { emitter, request });
 					this.sendRequest(request);
 				};
 				if (this.state === State.Idle) {
@@ -699,7 +702,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					uninitializedPromise.cancel();
 					uninitializedPromise = null;
 				} else {
-					this.activeRequests.delete(emitter);
+					this.activeEventSubscriptions.delete(id);
 					this.sendRequest({ id, type: RequestType.EventDispose });
 				}
 				this.handlers.delete(id);
@@ -796,14 +799,37 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 	}
 
+	/** Reject pending promise-style requests and drop their handlers. Event subscriptions are left alive. */
+	public cancelPendingPromiseRequests(): void {
+		dispose(this.activePromiseRequests.values());
+		this.activePromiseRequests.clear();
+		// Promise handlers self-remove on response; sweep the ones whose responses will never arrive.
+		for (const id of [...this.handlers.keys()]) {
+			if (!this.activeEventSubscriptions.has(id)) {
+				this.handlers.delete(id);
+			}
+		}
+	}
+
+	/** Re-send EventListen for every live subscription so a replaced server can register them. Ids are preserved so existing client-side handlers continue to route correctly. */
+	public replayEventSubscriptions(): void {
+		for (const { request } of this.activeEventSubscriptions.values()) {
+			this.sendRequest(request);
+		}
+	}
+
 	dispose(): void {
 		this.isDisposed = true;
 		if (this.protocolListener) {
 			this.protocolListener.dispose();
 			this.protocolListener = null;
 		}
-		dispose(this.activeRequests.values());
-		this.activeRequests.clear();
+		this.cancelPendingPromiseRequests();
+		for (const { emitter } of this.activeEventSubscriptions.values()) {
+			emitter.dispose();
+		}
+		this.activeEventSubscriptions.clear();
+		this.handlers.clear();
 		this._onDidInitialize.dispose();
 	}
 }
@@ -1018,17 +1044,21 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 	private channelClient: ChannelClient;
 	private channelServer: ChannelServer<TContext>;
 
-	constructor(protocol: IMessagePassingProtocol, ctx: TContext, ipcLogger: IIPCLogger | null = null) {
+	constructor(private readonly _protocol: IMessagePassingProtocol, private readonly _ctx: TContext, ipcLogger: IIPCLogger | null = null) {
+		this.sendInitialContext();
+		this.channelClient = new ChannelClient(_protocol, ipcLogger);
+		this.channelServer = new ChannelServer(_protocol, _ctx, ipcLogger);
+	}
+
+	/** Send the connection context as the first protocol message; the server reads it to identify this client. */
+	private sendInitialContext(): void {
 		const writer = new BufferWriter();
 		try {
-			serialize(writer, ctx);
-			protocol.send(writer.buffer);
+			serialize(writer, this._ctx);
+			this._protocol.send(writer.buffer);
 		} finally {
 			writer.dispose();
 		}
-
-		this.channelClient = new ChannelClient(protocol, ipcLogger);
-		this.channelServer = new ChannelServer(protocol, ctx, ipcLogger);
 	}
 
 	getChannel<T extends IChannel>(channelName: string): T {
@@ -1037,6 +1067,17 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channelServer.registerChannel(channelName, channel);
+	}
+
+	/** Reject pending channel calls so they don't hang after a transport-level recovery. Event subscriptions are left intact. */
+	public cancelPendingCalls(): void {
+		this.channelClient.cancelPendingPromiseRequests();
+	}
+
+	/** After a session reset for a replaced server, re-send the connection context (message #1) and replay live event subscriptions (ids preserved so existing handlers keep routing). */
+	public resendInitialContextAndReplay(): void {
+		this.sendInitialContext();
+		this.channelClient.replayEventSubscriptions();
 	}
 
 	dispose(): void {
