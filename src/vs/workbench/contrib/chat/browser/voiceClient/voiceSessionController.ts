@@ -1747,7 +1747,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							: 'unknown';
 				return {
 					id: s.resource.toString(),
-					label: s.label || 'Untitled session',
 					is_active: false,
 					agent_state: fallbackState,
 				};
@@ -1755,7 +1754,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const stateInfo = this._getAgentStateInfo(model);
 			return {
 				id: s.resource.toString(),
-				label: s.label || 'Untitled session',
 				is_active: false,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
@@ -1778,7 +1776,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			sessionList.push({
 				id: key,
-				label: chatModel.title || 'Chat',
 				is_active: false,
 				agent_state: stateInfo.state,
 				...(stateInfo.detail ? { agent_state_detail: stateInfo.detail } : {}),
@@ -1787,7 +1784,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 
 		// Try to get active session from chatViewPane via command
-		let activeSession: { id: string; label: string; last_message: string | null } | undefined;
+		let activeSession: { id: string; last_message: string | null } | undefined;
 		try {
 			// This is fire-and-forget; the sync command bridge populates active_session
 			// For now, we omit active_session when called from controller

@@ -317,7 +317,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 			return {
 				id: session.resource.toString(),
-				label: session.label || 'Untitled session',
 				state: statusLabel,
 				is_active: isActive,
 				insertions: changes?.insertions ?? 0,
@@ -389,7 +388,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 		return JSON.stringify({
 			session_id: session.resource.toString(),
-			session_label: session.label || 'Untitled session',
 			total_files: totalFiles,
 			total_insertions: totalInsertions,
 			total_deletions: totalDeletions,
@@ -412,7 +410,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (!model) {
 			return JSON.stringify({
 				session_id: session.resource.toString(),
-				session_label: session.label,
 				turns: [],
 				note: 'chat_model_not_loaded',
 			});
@@ -434,7 +431,6 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 
 		return JSON.stringify({
 			session_id: session.resource.toString(),
-			session_label: session.label || 'Untitled session',
 			turn_count: turns.length,
 			turns,
 		});

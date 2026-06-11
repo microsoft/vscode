@@ -469,9 +469,9 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		}
 	}
 
-	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void {
+	sendSessionStateChange(sessionId: string, newState: string, _label: string, detail?: string, lastResponseSummary?: string): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
-			const payload: Record<string, unknown> = { type: 'session_state_change', session_id: sessionId, new_state: newState, label };
+			const payload: Record<string, unknown> = { type: 'session_state_change', session_id: sessionId, new_state: newState };
 			if (detail) { payload.detail = detail; }
 			if (lastResponseSummary) { payload.last_response_summary = lastResponseSummary; }
 			this._ws.send(JSON.stringify(payload));

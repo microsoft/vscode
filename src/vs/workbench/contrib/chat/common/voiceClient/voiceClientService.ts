@@ -12,7 +12,6 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 export interface IVoiceSessionContext {
 	sessions: {
 		id: string;
-		label: string;
 		is_active: boolean;
 		agent_state: string;
 		agent_state_detail?: string;
@@ -20,7 +19,6 @@ export interface IVoiceSessionContext {
 	}[];
 	active_session?: {
 		id: string;
-		label: string;
 		last_message: string | null;
 	};
 	display_locale?: string;
