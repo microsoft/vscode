@@ -32,6 +32,13 @@ suite('copilotTokenFields', () => {
 			assert.strictEqual(fields.get('tid'), 'abc');
 			assert.strictEqual(fields.get('rt'), '1');
 		});
+
+		test('skips segments without a value separator', () => {
+			const fields = parseCopilotTokenFields('tid=abc;rt;exp=123:HMAC');
+			assert.strictEqual(fields.has('rt'), false);
+			assert.strictEqual(fields.get('tid'), 'abc');
+			assert.strictEqual(fields.get('exp'), '123');
+		});
 	});
 
 	suite('isRestrictedTelemetryEnabled', () => {
@@ -63,7 +70,7 @@ suite('copilotTokenFields', () => {
 			assert.strictEqual(isRestrictedTelemetryEnabled('tid=abc;exp=123;rt=1:HMAC'), true);
 		});
 
-		test('true for malformed token with no colon separator', () => {
+		test('true when token has no colon-delimited signature segment', () => {
 			assert.strictEqual(isRestrictedTelemetryEnabled('tid=abc;rt=1'), true);
 		});
 	});

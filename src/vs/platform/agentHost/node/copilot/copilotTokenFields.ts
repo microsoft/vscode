@@ -9,12 +9,14 @@ export function parseCopilotTokenFields(token: string | undefined): ReadonlyMap<
 	if (!token) {
 		return result;
 	}
-	const firstPart = token.split(':')[0];
-	for (const field of firstPart.split(';')) {
-		const [key, value] = field.split('=');
-		if (key) {
-			result.set(key, value);
+	const colonIdx = token.indexOf(':');
+	const header = colonIdx === -1 ? token : token.substring(0, colonIdx);
+	for (const field of header.split(';')) {
+		const eqIdx = field.indexOf('=');
+		if (eqIdx <= 0) {
+			continue;
 		}
+		result.set(field.substring(0, eqIdx), field.substring(eqIdx + 1));
 	}
 	return result;
 }
