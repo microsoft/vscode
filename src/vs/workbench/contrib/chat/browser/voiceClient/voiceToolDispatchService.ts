@@ -99,7 +99,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
 				modeInstructions: undefined,
-				modeId: 'agent',
+				telemetryModeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
 			},
 			instructionContext: {

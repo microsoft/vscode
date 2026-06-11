@@ -6,7 +6,7 @@
 import { html, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
 import { localize } from '../../../../../nls.js';
 import type { IPendingToolConfirmation } from '../../../chat/browser/voiceClient/voiceSessionController.js';
-import { FONT_SIZE } from './tokens.js';
+import { FONT_SIZE, FONT_WEIGHT } from './tokens.js';
 
 export interface ToolConfirmationsProps {
 	readonly confirmations: readonly IPendingToolConfirmation[];
@@ -21,7 +21,7 @@ export function renderToolConfirmations(props: ToolConfirmationsProps): Template
 		<div style="display:flex;flex-direction:column;gap:4px;padding:6px 2px 2px;border-top:1px solid var(--vscode-editorWidget-background);margin-top:4px;">
 			${props.confirmations.map(tc => tc.type === 'approval' ? html`
 				<div style="display:flex;flex-direction:column;gap:3px;">
-					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-editorWarning-foreground);font-weight:500;">${tc.sessionLabel}</span>
+					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-editorWarning-foreground);font-weight:${FONT_WEIGHT.medium};">${tc.sessionLabel}</span>
 					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tc.description}</span>
 					<div style="display:flex;gap:6px;">
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-charts-green);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"
@@ -32,7 +32,7 @@ export function renderToolConfirmations(props: ToolConfirmationsProps): Template
 				</div>
 			` : html`
 				<div style="display:flex;flex-direction:column;gap:3px;">
-					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-editorWarning-foreground);font-weight:500;">${tc.sessionLabel}</span>
+					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-editorWarning-foreground);font-weight:${FONT_WEIGHT.medium};">${tc.sessionLabel}</span>
 					<span style="font-size:${FONT_SIZE.body};color:var(--vscode-descriptionForeground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tc.description}</span>
 					<div style="display:flex;gap:6px;">
 						<button style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:2px 8px;border-radius:3px;cursor:pointer;"

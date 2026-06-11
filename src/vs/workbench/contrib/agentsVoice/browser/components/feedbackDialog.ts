@@ -5,6 +5,8 @@
 
 import { html, render, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
 import { localize } from '../../../../../nls.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { FONT_SIZE } from './tokens.js';
 
 export interface FeedbackDialogProps {
@@ -85,7 +87,7 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
  * Mount the feedback dialog into a container, returning a controller to
  * update state and unmount.
  */
-export class FeedbackDialogController {
+export class FeedbackDialogController extends Disposable {
 	private _state: FeedbackDialogState = { isSubmitting: false, submitted: false };
 
 	constructor(
@@ -93,6 +95,7 @@ export class FeedbackDialogController {
 		private readonly _onSubmit: (feedbackText: string) => Promise<{ ok: boolean; error?: string }>,
 		private readonly _onClose: () => void,
 	) {
+		super();
 		this._render();
 	}
 
@@ -111,14 +114,15 @@ export class FeedbackDialogController {
 		if (result.ok) {
 			this._state = { isSubmitting: false, submitted: true };
 			this._render();
-			setTimeout(() => this._onClose(), 3000);
+			this._register(disposableTimeout(() => this._onClose(), 3000));
 		} else {
 			this._state = { isSubmitting: false, submitted: false, error: result.error ?? localize('agentsVoice.feedbackError', "Failed to submit feedback") };
 			this._render();
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		render(nothing, this._container);
+		super.dispose();
 	}
 }

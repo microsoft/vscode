@@ -245,7 +245,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.titleBarOverlay = undefined;
 		options.minWidth = undefined;
 		options.minHeight = undefined;
-		delete (options as unknown as Record<string, unknown>).titleBarStyle;
 	}
 
 	if (overrides?.backgroundColor) {

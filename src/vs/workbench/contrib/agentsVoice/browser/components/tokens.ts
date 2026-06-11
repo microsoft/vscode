@@ -16,6 +16,13 @@ export const FONT_SIZE = {
 	iconMd: '16px', // mic icon
 } as const;
 
+export const FONT_WEIGHT = {
+	normal: '400',
+	medium: '500',
+	semibold: '600',
+	bold: '700',
+} as const;
+
 export const COLOR = {
 	// Match the waveform/glow colors from agentsVoiceWidget._view()
 	userTranscript: 'rgb(88,166,255)',       // listening / user voice
