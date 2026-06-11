@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { getPolicyValueFromManagedSettings } from '../../../../base/common/policy.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { COPILOT_MANAGED_SETTINGS_POLICY_NAME, parseManagedSettingsPolicyValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
@@ -89,7 +90,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		}));
 		if (this.managedPolicyReader) {
 			this._register(this.managedPolicyReader.onDidChange(names => {
-				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME)) {
+				if (names.includes(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME) || names.includes(COPILOT_MANAGED_SETTINGS_POLICY_NAME)) {
 					this._updatePolicyDefinitions(this.policyDefinitions);
 				}
 			}));
@@ -107,7 +108,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
 
 		const updated: string[] = [];
-		const policyData = this.defaultAccountService.policyData;
+		const policyData = this.getPolicyData();
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
@@ -134,11 +135,8 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 				// MDM-only policies (no `value`, no `restrictedValue`) — including the policy
 				// that DRIVES the gate itself — are left untouched so the admin remains in control.
 				policyValue = getRestrictedPolicyValue(policy);
-			} else if (policyData) {
-				policyValue = getPolicyValueFromManagedSettings(policy.managedSettings, policyData.managedSettings);
-				if (policyValue === undefined && policy.value) {
-					policyValue = policy.value(policyData);
-				}
+			} else if (policyData && policy.value) {
+				policyValue = policy.value(policyData);
 			}
 
 			if (policyValue !== undefined) {
@@ -159,6 +157,22 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		if (gateInfoChanged) {
 			this._onDidChangeGateInfo.fire(this._gateInfo);
 		}
+	}
+
+	private getPolicyData(): IPolicyData | undefined {
+		const accountPolicyData = this.defaultAccountService.policyData ?? undefined;
+		const managedPolicyData = parseManagedSettingsPolicyValue(this.managedPolicyReader?.getPolicyValue(COPILOT_MANAGED_SETTINGS_POLICY_NAME));
+		if (!accountPolicyData && !managedPolicyData) {
+			return undefined;
+		}
+
+		return {
+			...accountPolicyData,
+			managedSettings: {
+				...accountPolicyData?.managedSettings,
+				...managedPolicyData,
+			}
+		};
 	}
 
 	private computeGateInfo(): IAccountPolicyGateInfo {

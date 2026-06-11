@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_MANAGED_SETTINGS_POLICY_NAME } from '../../common/copilotManagedSettings.js';
 import { PolicyValue } from '../../common/policy.js';
 import { CopilotManagedSettingsPolicyService, CopilotPolicyWatcherFactory } from '../../node/copilotManagedSettingsPolicyService.js';
 
@@ -16,7 +16,7 @@ suite('CopilotManagedSettingsPolicyService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const policyName = 'ChatToolsAutoApprove';
 
-	test('watches managed-settings keys from policy definitions and maps matching values', async () => {
+	test('watches managed-settings keys from policy definitions and publishes raw managed settings', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		const watcherFactory: CopilotPolicyWatcherFactory = (_productName, policies, callback) => {
 			assert.deepStrictEqual(policies, { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' } });
@@ -30,16 +30,16 @@ suite('CopilotManagedSettingsPolicyService', () => {
 			[policyName]: {
 				type: 'boolean',
 				managedSettings: {
-					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string', value: 'disable', policyValue: false },
+					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				}
 			}
 		});
 
 		onDidChange?.({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
-		assert.strictEqual(service.getPolicyValue(policyName), false);
+		assert.strictEqual(service.getPolicyValue(COPILOT_MANAGED_SETTINGS_POLICY_NAME), '{"permissions.disableBypassPermissionsMode":"disable"}');
 
 		onDidChange?.({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' });
-		assert.strictEqual(service.getPolicyValue(policyName), undefined);
+		assert.strictEqual(service.getPolicyValue(COPILOT_MANAGED_SETTINGS_POLICY_NAME), '{"permissions.disableBypassPermissionsMode":"enable"}');
 	});
 
 	test('does not create the watcher until a managed-settings policy definition is registered', async () => {
@@ -69,7 +69,7 @@ suite('CopilotManagedSettingsPolicyService', () => {
 			[policyName]: {
 				type: 'boolean',
 				managedSettings: {
-					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string', value: 'disable', policyValue: false },
+					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				}
 			}
 		});
@@ -77,10 +77,10 @@ suite('CopilotManagedSettingsPolicyService', () => {
 		onDidChange?.({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
 		await service.updatePolicyDefinitions({});
 
-		assert.deepStrictEqual({ value: service.getPolicyValue(policyName), disposeCount }, { value: undefined, disposeCount: 1 });
+		assert.deepStrictEqual({ value: service.getPolicyValue(COPILOT_MANAGED_SETTINGS_POLICY_NAME), disposeCount }, { value: undefined, disposeCount: 1 });
 	});
 
-	test('clears stale policy values when one managed-settings definition is removed', async () => {
+	test('keeps raw managed settings while at least one managed-settings definition remains', async () => {
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		const watcherFactory: CopilotPolicyWatcherFactory = (_productName, _policies, callback) => {
 			onDidChange = callback;
@@ -93,13 +93,13 @@ suite('CopilotManagedSettingsPolicyService', () => {
 			[policyName]: {
 				type: 'boolean',
 				managedSettings: {
-					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string', value: 'disable', policyValue: false },
+					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				}
 			},
 			OtherPolicy: {
 				type: 'boolean',
 				managedSettings: {
-					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string', value: 'disable', policyValue: false },
+					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				}
 			}
 		});
@@ -109,17 +109,11 @@ suite('CopilotManagedSettingsPolicyService', () => {
 			[policyName]: {
 				type: 'boolean',
 				managedSettings: {
-					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string', value: 'disable', policyValue: false },
+					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 				}
 			}
 		});
 
-		assert.deepStrictEqual({
-			kept: service.getPolicyValue(policyName),
-			removed: service.getPolicyValue('OtherPolicy'),
-		}, {
-			kept: false,
-			removed: undefined,
-		});
+		assert.strictEqual(service.getPolicyValue(COPILOT_MANAGED_SETTINGS_POLICY_NAME), '{"permissions.disableBypassPermissionsMode":"disable"}');
 	});
 });

@@ -12,7 +12,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_MANAGED_SETTINGS_POLICY_NAME, serializeManagedSettings } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyValue } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
@@ -133,8 +133,9 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable' ? false : undefined,
 					managedSettings: {
-						[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string', value: 'disable', policyValue: false },
+						[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 					}
 				}
 			}
@@ -228,6 +229,28 @@ suite('AccountPolicyService', () => {
 	test('should apply managed-settings policy data from default account', async () => {
 		const policyData: IPolicyData = { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' } };
 		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.deepStrictEqual({
+			policy: policyService.getPolicyValue('PolicySettingF'),
+			configuration: policyConfiguration.configurationModel.getValue('setting.F'),
+		}, {
+			policy: false,
+			configuration: false,
+		});
+	});
+
+	test('should apply managed-settings policy data from managed policy reader', async () => {
+		const managedPolicyService = disposables.add(new FakeManagedPolicyService());
+		managedPolicyService.setPolicy(COPILOT_MANAGED_SETTINGS_POLICY_NAME, serializeManagedSettings({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, managedPolicyService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, {}));
 		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();

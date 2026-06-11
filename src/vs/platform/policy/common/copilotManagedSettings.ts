@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ManagedSettingsData, PolicyValue } from '../../../base/common/policy.js';
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -14,6 +16,26 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
+
+/** Internal policy payload carrying raw Copilot managed-settings data from main to workbench. */
+export const COPILOT_MANAGED_SETTINGS_POLICY_NAME = 'CopilotManagedSettings';
+
+export function serializeManagedSettings(managedSettings: ManagedSettingsData): string {
+	return JSON.stringify(managedSettings);
+}
+
+export function parseManagedSettingsPolicyValue(value: PolicyValue | undefined): ManagedSettingsData | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+
+	try {
+		const parsed = JSON.parse(value);
+		return flattenManagedSettings(parsed);
+	} catch {
+		return undefined;
+	}
+}
 
 export function flattenManagedSettings(object: unknown): Record<string, string | number | boolean> {
 	const result: Record<string, string | number | boolean> = {};

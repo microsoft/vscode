@@ -7,8 +7,8 @@ import { Throttler } from '../../../base/common/async.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { MutableDisposable } from '../../../base/common/lifecycle.js';
-import { getPolicyValueFromManagedSettings } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
+import { COPILOT_MANAGED_SETTINGS_POLICY_NAME, serializeManagedSettings } from '../common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../common/policy.js';
 import type { Watcher } from '@vscode/policy-watcher';
 
@@ -45,6 +45,9 @@ export class CopilotManagedSettingsPolicyService extends AbstractPolicyService i
 				managedPolicyDefinitions[policyName] = policyDefinitions[policyName];
 			}
 		}
+		if (Object.keys(managedPolicyDefinitions).length > 0) {
+			managedPolicyDefinitions[COPILOT_MANAGED_SETTINGS_POLICY_NAME] = { type: 'string' };
+		}
 
 		this.policyDefinitions = managedPolicyDefinitions;
 		await this._updatePolicyDefinitions(this.policyDefinitions);
@@ -70,8 +73,7 @@ export class CopilotManagedSettingsPolicyService extends AbstractPolicyService i
 				this.policyDefinitions[policyName] = policyDefinitions[policyName];
 			}
 		}
-		const removed = this.clearRemovedPolicyValues(policyDefinitions);
-		this.updatePolicyValues(removed);
+		this.updateManagedSettingsPolicyValue();
 
 		const { createWatcher } = this.watcherFactory ? { createWatcher: this.watcherFactory } : (await import('@vscode/policy-watcher') as { createWatcher: CopilotPolicyWatcherFactory });
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
@@ -112,44 +114,14 @@ export class CopilotManagedSettingsPolicyService extends AbstractPolicyService i
 				this.managedSettingsValues.set(key, value);
 			}
 		}
-		this.updatePolicyValues();
+		this.updateManagedSettingsPolicyValue();
 	}
 
-	private clearRemovedPolicyValues(policyDefinitions: IStringDictionary<PolicyDefinition>): string[] {
-		const removed: string[] = [];
-		for (const policyName of this.policies.keys()) {
-			if (!policyDefinitions[policyName]) {
-				this.policies.delete(policyName);
-				removed.push(policyName);
-			}
-		}
-		return removed;
-	}
-
-	private updatePolicyValues(updated: string[] = []): void {
-		for (const policyName in this.policyDefinitions) {
-			const managedSettings = this.policyDefinitions[policyName].managedSettings;
-			if (!managedSettings) {
-				continue;
-			}
-
-			const policyValue = getPolicyValueFromManagedSettings(managedSettings, Object.fromEntries(this.managedSettingsValues));
-
-			if (policyValue === undefined) {
-				if (this.policies.delete(policyName)) {
-					updated.push(policyName);
-				}
-				continue;
-			}
-
-			if (this.policies.get(policyName) !== policyValue) {
-				this.policies.set(policyName, policyValue);
-				updated.push(policyName);
-			}
-		}
-
-		if (updated.length > 0) {
-			this._onDidChange.fire(updated);
+	private updateManagedSettingsPolicyValue(): void {
+		const value = serializeManagedSettings(Object.fromEntries(this.managedSettingsValues));
+		if (this.policies.get(COPILOT_MANAGED_SETTINGS_POLICY_NAME) !== value) {
+			this.policies.set(COPILOT_MANAGED_SETTINGS_POLICY_NAME, value);
+			this._onDidChange.fire([COPILOT_MANAGED_SETTINGS_POLICY_NAME]);
 		}
 	}
 }
