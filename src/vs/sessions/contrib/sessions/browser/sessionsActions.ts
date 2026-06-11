@@ -20,9 +20,9 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, ChatSessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 
 // -- Show Sessions Picker --
