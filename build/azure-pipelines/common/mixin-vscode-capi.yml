@@ -5,7 +5,8 @@ steps:
       function Invoke-CheckedCommand([scriptblock] $Command) {
         & $Command
         if ($LASTEXITCODE -ne 0) {
-          throw "Command failed with exit code $LASTEXITCODE`: $Command"
+          $commandText = $Command.ToString().Trim()
+          throw "Command failed with exit code ${LASTEXITCODE}: ${commandText}"
         }
       }
 
