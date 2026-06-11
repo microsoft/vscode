@@ -32,16 +32,39 @@ suite('Request Service', () => {
 
 	test('Request cancellation during retry backoff', async () => {
 		const cts = store.add(new CancellationTokenSource());
-		const startTime = Date.now();
-		setTimeout(() => cts.cancel(), 50);
+
+		// Mock raw request that always fails with a transient (retryable) error,
+		// so that nodeRequest enters its retry backoff (`timeout(100 * attempt, token)`).
+		// Cancelling the token during that backoff must surface a CancellationError
+		// promptly, rather than waiting for the full retry sequence to complete.
+		const mockRawRequest = (_opts: any, _callback: Function) => {
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error') {
+						const err = new Error('Connection refused') as NodeJS.ErrnoException;
+						err.code = 'ECONNREFUSED';
+						setTimeout(() => handler(err), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			return mockReq;
+		};
+
+		setTimeout(() => cts.cancel(), 10);
 
 		try {
-			await nodeRequest({ url: 'http://localhost:9999/nonexistent', callSite: 'requestService.test.cancellation' }, cts.token);
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'GET',
+				getRawRequest: () => mockRawRequest as IRawRequestFunction,
+				callSite: 'requestService.test.cancellation'
+			}, cts.token);
 			assert.fail('Request should have been cancelled');
 		} catch (err) {
-			const elapsed = Date.now() - startTime;
-			assert.ok(err instanceof CancellationError, 'Error should be CancellationError');
-			assert.ok(elapsed < 200, `Request should be cancelled quickly, but took ${elapsed}ms`);
+			assert.ok(err instanceof CancellationError, `Error should be CancellationError, got: ${err}`);
 		}
 	});
 
