@@ -308,6 +308,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		return {
 			clientName: 'vscode',
+			enableMcpApps: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
