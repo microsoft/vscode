@@ -216,25 +216,24 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	/**
 	 * The default session type for the picker when no session is yet active.
-	 * Defaults to {@link AgentSessionProviders.Local} but is overridden to
-	 * {@link AgentSessionProviders.AgentHostCopilot} when the experimental
-	 * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting is enabled
-	 * and that provider is registered.
+	 * Defaults to {@link AgentSessionProviders.Local} but is overridden based on
+	 * the experimental {@link ChatConfiguration.EditorDefaultProvider} setting
+	 * when the selected provider is registered.
 	 */
 	protected _getDefaultSessionType(): AgentSessionTarget {
 		return getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService) as AgentSessionTarget;
 	}
 
-	protected _isVisible(_type: AgentSessionTarget): boolean {
-		// Check if we should hide the Extension Host Copilot CLI in editor
+	protected _isVisible(type: AgentSessionTarget): boolean {
+		// Hide the Extension Host Copilot CLI in the editor picker when configured.
 		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
-		if (hideEhCopilotCli && _type === AgentSessionProviders.Background) {  // Background = EH Copilot CLI
+		if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
 			return false;
 		}
 
-		// Check if we should hide the Extension Host Claude in editor
+		// Preferring the Agent Host Claude hides the Extension Host Claude entry.
 		const preferAhClaude = this.configurationService.getValue<boolean>(ChatConfiguration.ClaudePreferAgentHostEditor) ?? false;
-		if (preferAhClaude && _type === AgentSessionProviders.Claude) {  // Claude = EH Claude Code
+		if (preferAhClaude && type === AgentSessionProviders.Claude) {
 			return false;
 		}
 

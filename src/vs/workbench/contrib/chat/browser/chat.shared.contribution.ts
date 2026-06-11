@@ -11,7 +11,7 @@ import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import '../../../../platform/agentHost/common/agentHost.config.contribution.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostCustomTerminalToolEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
@@ -1120,13 +1120,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior."),
 			default: false,
 			tags: ['experimental', 'advanced'],
-		},
-		[ChatConfiguration.AgentHostDefaultChatProvider]: {
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			markdownDescription: nls.localize('chat.agentHost.defaultChatProvider', "When enabled, the local agent host is used as the default provider in the VS Code chat session-target picker. Requires `#{0}#`.", AgentHostEnabledSettingId),
 		},
 		[ChatConfiguration.AgentHostClientTools]: {
 			type: 'array',

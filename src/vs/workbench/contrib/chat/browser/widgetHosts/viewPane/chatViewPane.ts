@@ -729,10 +729,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/**
-	 * When the experimental `chat.agentHost.defaultChatProvider` setting is
-	 * enabled and an agent-host contribution is registered, return a new
-	 * session reference for the agent host instead of the built-in local
-	 * provider. Returns `undefined` to fall back to `startNewLocalSession`.
+	 * When the experimental `chat.editor.defaultProvider` setting selects a
+	 * provider other than local and that contribution is registered, return a
+	 * new session reference for it instead of the built-in local provider.
+	 * Returns `undefined` to fall back to `startNewLocalSession`.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken): Promise<IChatModelReference | undefined> {
 		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService);

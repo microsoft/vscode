@@ -22,6 +22,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { COPILOT_PROVIDER_ID } from '../../providers/copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
@@ -114,7 +116,7 @@ export class SessionTypePicker extends Disposable {
 		super();
 
 		// Restore the previously selected session type from storage
-		this._picked = this._readStoredPick();
+		this._picked = this._readDefaultPick();
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
@@ -129,9 +131,10 @@ export class SessionTypePicker extends Disposable {
 				}
 			} else {
 				this._folderSessionTypes = [];
-				// Preserve the stored pick when no active session exists,
-				// so it can be used as the default for the next new session.
-				this._picked = this._readStoredPick();
+				// Preserve an explicit stored pick when no active session
+				// exists, so it can seed the next new session. Implicit picks
+				// are ignored here so the provider's default order wins.
+				this._picked = this._readDefaultPick();
 			}
 			this._updateTriggerLabel();
 		};
@@ -150,7 +153,7 @@ export class SessionTypePicker extends Disposable {
 		// the agents window from an empty workspace).
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
 			if (!this._session.get()) {
-				this._picked = this._readStoredPick();
+				this._picked = this._readDefaultPick();
 				this._updateTriggerLabel();
 			}
 		}));
@@ -326,6 +329,18 @@ export class SessionTypePicker extends Disposable {
 		}
 	}
 
+	/**
+	 * The stored pick to use as the default for a new session. Only an explicit
+	 * dropdown selection is honored; implicit picks (cemented from a previously
+	 * active session, or legacy picks recorded before the `source` field
+	 * existed) are ignored so the provider's default order wins. This lets an
+	 * ExP rollout re-default existing users who never opened the picker.
+	 */
+	private _readDefaultPick(): IPreferredSessionType | undefined {
+		const stored = this._readStoredPick();
+		return stored?.source === 'explicit' ? stored : undefined;
+	}
+
 	private _readStoredPick(): IPreferredSessionType | undefined {
 		const raw = this.storageService.get(STORAGE_KEY_LAST_SESSION_TYPE, StorageScope.PROFILE);
 		if (!raw) {
@@ -336,9 +351,11 @@ export class SessionTypePicker extends Disposable {
 		try {
 			const parsed = JSON.parse(raw) as IStoredSessionTypePick;
 			if (parsed && typeof parsed.sessionTypeId === 'string') {
-				return typeof parsed.providerId === 'string'
-					? { providerId: parsed.providerId, sessionTypeId: parsed.sessionTypeId }
-					: { sessionTypeId: parsed.sessionTypeId };
+				return {
+					...(typeof parsed.providerId === 'string' ? { providerId: parsed.providerId } : {}),
+					sessionTypeId: parsed.sessionTypeId,
+					source: parsed.source,
+				};
 			}
 		} catch {
 			// Not JSON — fall through to legacy raw-string handling.
@@ -397,13 +414,13 @@ export class SessionTypePicker extends Disposable {
 		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
 		const preferAhClaude = this.configurationService.getValue<boolean>(ChatConfiguration.ClaudePreferAgentHostAgents) ?? false;
 
-		// Hide Copilot CLI (EH provider serving 'copilotcli' session type)
-		if (hideEhCopilotCli && providerId === 'default-copilot' && sessionTypeId === 'copilotcli') {
+		// Hide the Extension Host Copilot CLI (served by the default Copilot provider).
+		if (hideEhCopilotCli && providerId === COPILOT_PROVIDER_ID && sessionTypeId === SessionType.CopilotCLI) {
 			return false;
 		}
 
-		// Hide Claude Code (EH provider serving 'claude-code' session type)
-		if (preferAhClaude && providerId === 'default-copilot' && sessionTypeId === 'claude-code') {
+		// Preferring the Agent Host Claude hides the Extension Host Claude entry.
+		if (preferAhClaude && providerId === COPILOT_PROVIDER_ID && sessionTypeId === SessionType.ClaudeCode) {
 			return false;
 		}
 

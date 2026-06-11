@@ -35,13 +35,6 @@ configurationRegistry.registerConfiguration({
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
 		},
-		'chat.agentHost.defaultSessionsProvider': {
-			type: 'boolean',
-			description: nls.localize('chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host appears first in the Agents window session picker."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-		},
 		'chat.agents.copilotCli.hideExtensionHost': {
 			type: 'boolean',
 			description: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker."),
