@@ -366,7 +366,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							feature: 'sideBarChat',
 							editDeltaInfo: info.editDeltaInfo,
 							languageId: info.languageId,
-							modeId: element.model.request?.modeInfo?.modeId,
+							modeId: element.model.request?.modeInfo?.telemetryModeId,
 							modelId: element.model.request?.modelId,
 							applyCodeBlockSuggestionId: undefined,
 							source: undefined,
