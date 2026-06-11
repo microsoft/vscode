@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { convertHtmlToMarkdown } from '../../common/htmlToMarkdown.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { convertHtmlToMarkdown } from '../../browser/htmlToMarkdown.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('htmlToMarkdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
