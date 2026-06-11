@@ -463,6 +463,53 @@ export interface INetworkRequestOptions {
  */
 export type InteractionTypeOverride = 'conversation-subagent' | 'conversation-compaction' | 'conversation-background';
 
+/**
+ * Check if a proxy is configured via environment variable COPILOT_PROXY_URL.
+ * Returns the proxy base URL or undefined if not configured.
+ */
+function getConfiguredProxyUrl(): string | undefined {
+	// In Node.js environment, check process.env
+	if (typeof process !== 'undefined' && process.env) {
+		return process.env.COPILOT_PROXY_URL;
+	}
+	return undefined;
+}
+
+/**
+ * Rewrite endpoint URL to route through configured proxy.
+ * The original URL is passed as X-Original-Url header for the proxy to forward.
+ */
+function maybeInterceptUrlThroughProxy(
+	originalUrl: string,
+	proxyBaseUrl: string,
+	headers: ReqHeaders,
+	logService?: ILogService,
+): string {
+	try {
+		const originalParsed = new URL(originalUrl);
+
+		// Store original URL in header for proxy to use
+		headers['X-Original-Url'] = originalUrl;
+		headers['X-Original-Host'] = originalParsed.hostname;
+
+		// Route through proxy by replacing the host, keep the path
+		const proxyUrl = new URL(originalParsed.pathname + originalParsed.search, proxyBaseUrl);
+		const rewrittenUrl = proxyUrl.toString();
+
+		if (logService) {
+			logService.debug(`[Proxy] Intercepting request: ${originalUrl} -> ${rewrittenUrl}`);
+		}
+
+		return rewrittenUrl;
+	} catch (err) {
+		if (logService) {
+			logService.error(`[Proxy] Failed to rewrite URL: ${err}`);
+		}
+		// Fallback: return original URL if rewriting fails
+		return originalUrl;
+	}
+}
+
 function networkRequest(
 	accessor: ServicesAccessor,
 	options: INetworkRequestOptions,
@@ -470,6 +517,7 @@ function networkRequest(
 	const fetcher = accessor.get(IFetcherService);
 	const telemetryService = accessor.get(ITelemetryService);
 	const capiClientService = accessor.get(ICAPIClientService);
+	const logService = accessor.get(ILogService);
 	const { requestType, endpointOrUrl, secretKey, intent, requestId, body, additionalHeaders, cancelToken, useFetcher, canRetryOnce = true, location } = options;
 
 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
@@ -525,12 +573,19 @@ function networkRequest(
 		request.signal = abort.signal;
 	}
 	if (!isCAPIRequestMetadata(endpoint.urlOrRequestMetadata)) {
-		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
+		// Apply proxy interception if configured
+		let fetchUrl: string = endpoint.urlOrRequestMetadata;
+		const proxyUrl = getConfiguredProxyUrl();
+		if (proxyUrl && typeof fetchUrl === 'string') {
+			fetchUrl = maybeInterceptUrlThroughProxy(fetchUrl, proxyUrl, headers, logService);
+		}
+
+		const requestPromise = fetcher.fetch(fetchUrl, request).catch(reason => {
 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
 				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
 				return fetcher.disconnectAll().then(() => {
-					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
+					return fetcher.fetch(fetchUrl, request);
 				});
 			} else if (fetcher.isAbortError(reason)) {
 				throw new CancellationError();
