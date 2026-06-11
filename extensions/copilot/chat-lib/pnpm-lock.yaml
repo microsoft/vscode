@@ -8,6 +8,7 @@ overrides:
   vscode-languageserver-protocol: 3.17.5
   typescript: 5.8.3
   '@types/node': 22.16.3
+  openai: 6.7.0
 
 importers:
 
@@ -41,8 +42,8 @@ importers:
         specifier: 0.44.0
         version: 0.44.0
       openai:
-        specifier: ^6.7.0
-        version: 6.42.0
+        specifier: 6.7.0
+        version: 6.7.0
       undici:
         specifier: ^7.24.1
         version: 7.27.1
@@ -1304,8 +1305,9 @@ packages:
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
-  openai@6.42.0:
-    resolution: {integrity: sha512-1WFEt/uXMXOLhYRNkgJWo08Y2YNvNwpVU72K7ibrWgWpNOXd4VojXLbe6SQ4bLiUQ3Y8jz4IiyVkylJCL1DtZg==}
+  openai@6.7.0:
+    resolution: {integrity: sha512-mgSQXa3O/UXTbA8qFzoa7aydbXBJR5dbLQXCRapAOtoNT+v69sLdKMZzgiakpqhclRnhPggPAXoniVGn2kMY2A==}
+    hasBin: true
     peerDependencies:
       ws: ^8.18.0
       zod: ^3.25 || ^4.0
@@ -2947,7 +2949,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@6.42.0: {}
+  openai@6.7.0: {}
 
   outdent@0.8.0: {}
 
