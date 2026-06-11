@@ -427,20 +427,22 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				|| this.authenticationService.isAuthenticationProviderRegistered(provider.id);
 		};
 
-		if (isAvailable()) {
-			this.logService.debug('[DefaultAccount] Default account authentication provider is already available.');
-			return;
-		}
-
-		// Resolve as soon as the default account authentication provider is declared or
-		// registered, but wait no longer than installed extensions being registered.
 		this.logService.debug('[DefaultAccount] Waiting for default account authentication provider to be available.');
 		const disposables = new DisposableStore();
 		try {
 			await new Promise<void>(resolve => {
+				// Check if the provider is available.
+				// If available, resolve immediately. Otherwise, wait for it to be declared or registered.
+				if (isAvailable()) {
+					this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
+					resolve();
+					return;
+				}
+
+				// Resolve as soon as the default account authentication provider is declared or
+				// registered, but wait no longer than installed extensions being registered.
 				disposables.add(Event.any(this.authenticationService.onDidChangeDeclaredProviders, this.authenticationService.onDidRegisterAuthenticationProvider)(() => {
 					if (isAvailable()) {
-						disposables.dispose();
 						this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
 						resolve();
 					}
@@ -451,12 +453,15 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				// registered after the connection is established, so without this the provider
 				// would never become available.
 				if (this.environmentService.remoteAuthority) {
-					this.authenticationService.getSessions(provider.id, undefined, {}, true);
+					void this.authenticationService.getSessions(provider.id, undefined, {}, true);
 				}
 
-				this.extensionService.whenInstalledExtensionsRegistered().finally(() => {
+				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 					disposables.dispose();
 					this.logService.debug('[DefaultAccount] Installed extensions registered.');
+					resolve();
+				}, error => {
+					this.logService.error('[DefaultAccount] Error while waiting for installed extensions to be registered', getErrorMessage(error));
 					resolve();
 				});
 			});
