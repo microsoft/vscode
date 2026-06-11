@@ -29,12 +29,17 @@ import { DebugRecorder } from './debugRecorder';
  *
  * ## Overlap guarantee
  *
- * Adjacent slices are guaranteed to overlap by **at least** {@link OVERLAP_MS}. Worst-case math:
- * with ticks at `T1` and `T2 = T1 + INTERVAL_MS`, and idle-defer `d ∈ [0, HARD_CAP_MS]`, the actual send
- * times are `S1 = T1 + d1` and `S2 = T2 + d2`. Overlap is
- * `WINDOW_MS - (S2 - S1) = WINDOW_MS - INTERVAL_MS - (d2 - d1)`. Minimum overlap is reached when
+ * Adjacent **sent** slices are guaranteed to overlap by **at least** {@link OVERLAP_MS}, _provided the JS
+ * scheduler runs ticks on time_. Worst-case math: with ticks at `T1` and `T2 = T1 + INTERVAL_MS`, and
+ * idle-defer `d ∈ [0, HARD_CAP_MS]`, the actual send times are `S1 = T1 + d1` and `S2 = T2 + d2`.
+ * Overlap is `WINDOW_MS - (S2 - S1) = WINDOW_MS - INTERVAL_MS - (d2 - d1)`. Minimum overlap is reached when
  * `d2 = HARD_CAP_MS, d1 = 0`, giving `WINDOW_MS - INTERVAL_MS - HARD_CAP_MS = OVERLAP_MS`. Hence the
  * formula `INTERVAL_MS = WINDOW_MS - OVERLAP_MS - HARD_CAP_MS`.
+ *
+ * **Caveats** the backend must tolerate:
+ * - Empty slices are skipped (see below), so `sequenceNumber + 1` does **not** imply contiguous windows.
+ * - Extension-host stalls, machine sleep, or delayed timers can produce arbitrarily large gaps between
+ *   adjacent slices. Treat `windowStart`/`windowEnd` as authoritative and detect gaps explicitly.
  *
  * ## Empty slices are skipped
  *
@@ -43,9 +48,11 @@ import { DebugRecorder } from './debugRecorder';
  *
  * ## Reconstruction
  *
- * Each event carries a `sessionId` (stable per sender lifetime), a monotonically increasing `sequenceNumber`,
- * and explicit `windowStart`/`windowEnd` timestamps. The backend stitches a longer recording by grouping
- * events by `sessionId`, ordering by `sequenceNumber`, and deduplicating entries in the overlap zone by
+ * Each event carries a `sessionId` (stable per sender lifetime — note that a new sender is created
+ * whenever `InlineEditProviderFeature`'s autorun reruns, e.g. on copilot-token change, so one extension
+ * session can produce multiple `sessionId`s), a monotonically increasing `sequenceNumber`, and explicit
+ * `windowStart`/`windowEnd` timestamps. The backend stitches a longer recording by grouping events by
+ * `sessionId`, ordering by `windowStart`, and deduplicating entries in the overlap zone by
  * `(documentId, time)`.
  */
 export class ContinuousEnhancedTelemetrySender extends Disposable {
@@ -57,7 +64,11 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 	/** Tick cadence. See class-level overlap math. */
 	public static readonly INTERVAL_MS = 5 * 60 * 1000 - 30 * 1000 - 30 * 1000;
 
-	private static readonly MAX_ENTRIES_BYTES = 200 * 1024;
+	/**
+	 * Recording payload cap. Note this counts **UTF-16 code units** (`string.length`), not bytes —
+	 * matches the existing suggestion-anchored recording cap so the two paths behave consistently.
+	 */
+	private static readonly MAX_ENTRIES_CHARS = 200 * 1024;
 
 	private readonly _sessionId = generateUuid();
 	private _sequenceNumber = 0;
@@ -138,7 +149,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		const sequenceNumber = this._sequenceNumber++;
 
 		const recording = {
-			entries: entriesSize > ContinuousEnhancedTelemetrySender.MAX_ENTRIES_BYTES ? undefined : entries,
+			entries: entriesSize > ContinuousEnhancedTelemetrySender.MAX_ENTRIES_CHARS ? undefined : entries,
 			entriesSize,
 			windowStart,
 			windowEnd: now,
@@ -146,13 +157,15 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 			sequenceNumber,
 		};
 
-		const { activeDocumentRepository, repositoryUrls } = this._collectGitMetadata();
+		const repositoryUrls = this._collectWorkspaceRepositories();
 
 		this._telemetryService.sendEnhancedGHTelemetryEvent('copilot-nes/provideInlineEdit',
 			multiplexProperties({
 				continuous: 'true',
 				recording: JSON.stringify(recording),
-				activeDocumentRepository,
+				// `activeDocumentRepository` is intentionally omitted: a continuous slice spans many
+				// documents across `WINDOW_MS`, so there's no single "active" doc that meaningfully
+				// applies. The full workspace repo set is reported via `repositories` instead.
 				repositories: repositoryUrls === undefined ? undefined : JSON.stringify(repositoryUrls),
 			}),
 			{
@@ -165,29 +178,21 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		);
 	}
 
-	private _collectGitMetadata(): { activeDocumentRepository: string | undefined; repositoryUrls: string[] | undefined } {
+	private _collectWorkspaceRepositories(): string[] | undefined {
 		const git = this._gitExtensionService.getExtensionApi();
 		if (!git) {
-			return { activeDocumentRepository: undefined, repositoryUrls: undefined };
+			return undefined;
 		}
 
 		const remoteUrlSet = new Set<string>();
-		let activeDocumentRepository: string | undefined;
-
 		for (const repository of git.repositories) {
 			const remoteName = repository.state.HEAD?.upstream?.remote;
 			const remote = repository.state.remotes.find(r => r.name === remoteName);
 			if (remote?.fetchUrl) { remoteUrlSet.add(remote.fetchUrl); }
 			if (remote?.pushUrl) { remoteUrlSet.add(remote.pushUrl); }
-			if (activeDocumentRepository === undefined && remote?.fetchUrl) {
-				activeDocumentRepository = remote.pushUrl || remote.fetchUrl;
-			}
 		}
 
-		return {
-			activeDocumentRepository,
-			repositoryUrls: remoteUrlSet.size === 0 ? undefined : [...remoteUrlSet],
-		};
+		return remoteUrlSet.size === 0 ? undefined : [...remoteUrlSet];
 	}
 }
 
