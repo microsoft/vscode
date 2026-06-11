@@ -54,6 +54,25 @@ const ripgrepUniversalPlatforms = [
 	'win32-arm64', 'win32-ia32', 'win32-x64',
 ];
 
+const copilotTgrepPlatforms = [
+	'darwin-arm64', 'darwin-x64',
+	'linux-arm64', 'linux-x64',
+	'linuxmusl-arm64', 'linuxmusl-x64',
+	'win32-arm64', 'win32-x64',
+];
+
+function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
+	if (platform === 'alpine') {
+		return `linuxmusl-${arch}`;
+	}
+	if (arch === 'alpine') {
+		return 'linuxmusl-x64';
+	}
+
+	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
+	return `${nodePlatform}-${nodeArch}`;
+}
+
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
  * for architectures other than the build target.
@@ -66,6 +85,17 @@ export function getRipgrepExcludeFilter(platform: string, arch: string): string[
 	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@vscode/ripgrep-universal/bin/${p}/**`);
 
 	return ['**', ...excludes];
+}
+
+export function getCopilotTgrepExcludeFilter(platform: string, arch: string): string[] {
+	const target = toCopilotTgrepPlatformArch(platform, arch);
+	const nonTargetPlatforms = copilotTgrepPlatforms.filter(p => p !== target);
+
+	return [
+		'**',
+		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot/tgrep/bin/${p}/**`),
+		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot/sdk/tgrep/bin/${p}/**`),
+	];
 }
 
 /**
@@ -126,6 +156,7 @@ export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, n
 export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string): void {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const platformArch = `${nodePlatform}-${nodeArch}`;
+	const tgrepPlatformArch = toCopilotTgrepPlatformArch(platform, arch);
 
 	const extensionNodeModules = path.join(builtInCopilotExtensionDir, 'node_modules');
 	const copilotBase = path.join(extensionNodeModules, '@github', 'copilot');
@@ -133,7 +164,9 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	if (!fs.existsSync(copilotSdkBase)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
-	pruneNonTargetCopilotSdkPrebuilds(platformArch, copilotSdkBase);
+	pruneNonTargetCopilotSdkPrebuilds(platformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
+	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotSdkBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
+	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
 
 	const ripgrepSource = path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', platformArch);
 	if (!fs.existsSync(ripgrepSource)) {
@@ -163,13 +196,12 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	}
 }
 
-function pruneNonTargetCopilotSdkPrebuilds(targetPlatformArch: string, copilotSdkBase: string): void {
-	const prebuildsDir = path.join(copilotSdkBase, 'prebuilds');
+function pruneNonTargetCopilotSdkPrebuilds(targetPlatformArch: string, prebuildsDir: string, platformArchs: string[]): void {
 	if (!fs.existsSync(prebuildsDir)) {
 		return;
 	}
 
-	for (const platformArch of copilotPlatforms) {
+	for (const platformArch of platformArchs) {
 		if (platformArch === targetPlatformArch) {
 			continue;
 		}
