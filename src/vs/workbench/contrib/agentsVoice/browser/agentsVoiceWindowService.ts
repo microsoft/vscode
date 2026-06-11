@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { disposableWindowInterval } from '../../../../base/browser/dom.js';
 import { getZoomFactor } from '../../../../base/browser/browser.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -268,19 +269,18 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				}, 200);
 			}
 		};
-		const zoomCheckInterval = auxiliaryWindow.window.setInterval(checkZoom, 500);
-		this._windowDisposables.add({ dispose: () => { auxiliaryWindow.window.clearInterval(zoomCheckInterval); if (zoomDebounce) { clearTimeout(zoomDebounce); } } });
+		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, checkZoom, 500));
+		this._windowDisposables.add({ dispose: () => { if (zoomDebounce) { clearTimeout(zoomDebounce); } } });
 
 		// Poll for session updates
 		this.agentSessionsService.model.resolve(undefined);
-		const pollInterval = auxiliaryWindow.window.setInterval(() => {
+		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
 			this.agentSessionsService.model.resolve(undefined);
-		}, 3000);
-		this._windowDisposables.add({ dispose: () => auxiliaryWindow.window.clearInterval(pollInterval) });
+		}, 3000));
 
 		// Periodically save window bounds
 		let lastBoundsJson = '';
-		const boundsPollInterval = auxiliaryWindow.window.setInterval(() => {
+		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
 			if (!this._window) { return; }
 			try {
 				const state = this._window.createState();
@@ -292,8 +292,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					}
 				}
 			} catch { /* window may have been disposed */ }
-		}, 1000);
-		this._windowDisposables.add({ dispose: () => auxiliaryWindow.window.clearInterval(boundsPollInterval) });
+		}, 1000));
 
 		// Clean up when user closes window via OS controls
 		Event.once(auxiliaryWindow.onUnload)(() => {
