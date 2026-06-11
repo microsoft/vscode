@@ -235,6 +235,11 @@ function prependAnnouncementToFirstTurn(
 	return result;
 }
 
+function initializeIntegrationId() {
+	// Initialize integration id
+	process.env.GITHUB_COPILOT_INTEGRATION_ID = 'code-oss';
+}
+
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
@@ -312,6 +317,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostCheckpointService private readonly _checkpointService: IAgentHostCheckpointService,
 	) {
 		super();
+		initializeIntegrationId();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
 		this.onDidCustomizationsChange = this._plugins.onDidChange;
