@@ -160,11 +160,17 @@ function npmInstall(workDir: string, env: NodeJS.ProcessEnv): void {
 	// `--no-package-lock` skips writing a lockfile we'd just throw away.
 	// `--ignore-scripts` blocks any postinstall/preinstall the SDK or its
 	// transitive deps might ship.
-	const result = spawnSync('npm', ['install', '--no-package-lock', '--ignore-scripts'], {
+	// On Windows, npm is a `.cmd` shim; Node's child_process won't resolve
+	// PATHEXT without an explicit suffix.
+	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+	const result = spawnSync(npm, ['install', '--no-package-lock', '--ignore-scripts'], {
 		cwd: workDir,
 		env: { ...process.env, ...env },
 		stdio: 'inherit',
 	});
+	if (result.error) {
+		throw new Error(`[${SCRIPT}] npm install failed to spawn: ${result.error.message}`);
+	}
 	if (result.status !== 0) {
 		throw new Error(`[${SCRIPT}] npm install exited ${result.status}`);
 	}
