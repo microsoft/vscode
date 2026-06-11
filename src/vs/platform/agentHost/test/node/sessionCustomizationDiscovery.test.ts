@@ -821,4 +821,52 @@ flakySuite('SessionCustomizationDiscovery (real filesystem)', () => {
 			.sort();
 		assert.deepStrictEqual(afterSkillFiles, [calcSkillFile, publishSkillFile].sort(), 'rescan should discover both skills');
 	});
+
+	test('fires onDidChange when an existing agent file is modified and when a new agent file is created', async () => {
+		// .github/agents is watched non-recursively; agents are markdown files
+		// living as direct children of the agents directory.
+		const agentsDir = join(workspaceDir, '.github', 'agents');
+		await fs.promises.mkdir(agentsDir, { recursive: true });
+		const planAgentFile = join(agentsDir, 'plan.md');
+		await fs.promises.writeFile(planAgentFile, 'plan agent v1');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const initial = await discovery.scan(CancellationToken.None);
+		const initialAgentFiles = initial
+			.filter(d => d.type === DiscoveredType.Agent)
+			.flatMap(d => d.files.map(f => f.uri.fsPath));
+		assert.deepStrictEqual(initialAgentFiles, [planAgentFile], 'initial scan should discover only the plan agent');
+
+		// Wait until the non-recursive agents watcher is observably live.
+		await waitForWatcher(discovery, agentsDir);
+
+		let changeCount = 0;
+		let fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		// Modify an existing agent file (direct child of the non-recursively watched dir).
+		await fs.promises.writeFile(planAgentFile, 'plan agent v2');
+		await raceTimeout(fired.p, 5000);
+		assert.ok(changeCount >= 1, 'expected onDidChange to fire for .github/agents/plan.md modification');
+
+		const countAfterModify = changeCount;
+		fired = new DeferredPromise<void>();
+
+		// Create a brand-new agent file as a direct child of the agents directory.
+		const exploreAgentFile = join(agentsDir, 'explore.md');
+		await fs.promises.writeFile(exploreAgentFile, 'explore agent v1');
+		await raceTimeout(fired.p, 5000);
+		assert.ok(changeCount > countAfterModify, 'expected onDidChange to fire when a new agent file is created under .github/agents');
+
+		// A follow-up scan should now surface both agents.
+		const after = await discovery.scan(CancellationToken.None);
+		const afterAgentFiles = after
+			.filter(d => d.type === DiscoveredType.Agent)
+			.flatMap(d => d.files.map(f => f.uri.fsPath))
+			.sort();
+		assert.deepStrictEqual(afterAgentFiles, [exploreAgentFile, planAgentFile].sort(), 'rescan should discover both agents');
+	});
 });
