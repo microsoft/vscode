@@ -678,7 +678,8 @@ export class ClaudeChatSessionItemController extends Disposable {
 	// #region Folder Resolution
 
 	async getFolderInfoForSession(sessionId: string, selectedFolderUri?: URI): Promise<ClaudeFolderInfo> {
-		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
+		const workspaceFolders = this._workspaceService.getWorkspaceFolders()
+			.filter(f => f.scheme === 'file');
 
 		if (workspaceFolders.length === 1) {
 			return {
