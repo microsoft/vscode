@@ -189,22 +189,34 @@ export class CommitCommandsCenter {
 
 		// Tooltip (default)
 		const branch = this.repository.HEAD?.name;
+		const hasStagedChanges = this.repository.indexGroup.resourceStates.length > 0;
+		const hasUnstagedChanges = this.repository.workingTreeGroup.resourceStates.length > 0;
+		const isStagedCommit = hasStagedChanges && hasUnstagedChanges;
 		let tooltip = alwaysCommitToNewBranch ?
 			l10n.t('Commit Changes to New Branch') :
 			branch ?
-				l10n.t('Commit Changes on "{0}"', branch) :
-				l10n.t('Commit Changes');
+				isStagedCommit ?
+					l10n.t('Commit Staged Changes on "{0}"', branch) :
+					l10n.t('Commit Changes on "{0}"', branch) :
+				isStagedCommit ?
+					l10n.t('Commit Staged Changes') :
+					l10n.t('Commit Changes');
 
 		// Tooltip (in progress)
 		if (this.repository.operations.isRunning(OperationKind.Commit)) {
-			tooltip = !alwaysCommitToNewBranch ?
-				l10n.t('Committing Changes...') :
-				l10n.t('Committing Changes to New Branch...');
+			tooltip = alwaysCommitToNewBranch ?
+				l10n.t('Committing Changes to New Branch...') :
+				isStagedCommit ?
+					l10n.t('Committing Staged Changes...') :
+					l10n.t('Committing Changes...');
 		}
 
+		const commitTitle = isStagedCommit ? l10n.t('{0} Commit Staged', icon ?? '$(check)') : l10n.t('{0} Commit', icon ?? '$(check)');
+		const commitAmendTitle = isStagedCommit ? l10n.t('{0} Commit Staged (Amend)', icon ?? '$(check)') : l10n.t('{0} Commit (Amend)', icon ?? '$(check)');
+
 		return [
-			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
-			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commit', title: commitTitle, tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commitAmend', title: commitAmendTitle, tooltip, arguments: [this.repository.sourceControl, null] },
 		];
 	}
 
