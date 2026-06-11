@@ -160,13 +160,17 @@ function npmInstall(workDir: string, env: NodeJS.ProcessEnv): void {
 	// `--no-package-lock` skips writing a lockfile we'd just throw away.
 	// `--ignore-scripts` blocks any postinstall/preinstall the SDK or its
 	// transitive deps might ship.
-	// On Windows, npm is a `.cmd` shim; Node's child_process won't resolve
-	// PATHEXT without an explicit suffix.
-	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+	// On Windows, npm is a `.cmd` shim. Two things matter:
+	//   1. The explicit `.cmd` suffix — Node won't resolve PATHEXT.
+	//   2. `shell: true` — since Node 20 (CVE-2024-27980) child_process
+	//      refuses to spawn .cmd/.bat without it.
+	const isWindows = process.platform === 'win32';
+	const npm = isWindows ? 'npm.cmd' : 'npm';
 	const result = spawnSync(npm, ['install', '--no-package-lock', '--ignore-scripts'], {
 		cwd: workDir,
 		env: { ...process.env, ...env },
 		stdio: 'inherit',
+		shell: isWindows,
 	});
 	if (result.error) {
 		throw new Error(`[${SCRIPT}] npm install failed to spawn: ${result.error.message}`);
