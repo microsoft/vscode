@@ -46,6 +46,17 @@ export interface ChatState {
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
+	 * How the user can interact with this chat.
+	 *
+	 * - `"full"` — user can send messages and watch (default when absent)
+	 * - `"read-only"` — user can watch but not send messages
+	 * - `"hidden"` — internal worker not shown in UI
+	 *
+	 * Supports agent-team patterns where worker chats are read-only or hidden.
+	 * Absence defaults to `"full"` for backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
+	/**
 	 * Optional per-chat working directory.
 	 *
 	 * If absent, the chat inherits
@@ -98,6 +109,17 @@ export interface ChatSummary {
 	/** How this chat came into existence */
 	origin?: ChatOrigin;
 	/**
+	 * How the user can interact with this chat.
+	 *
+	 * - `"full"` — user can send messages and watch (default when absent)
+	 * - `"read-only"` — user can watch but not send messages
+	 * - `"hidden"` — internal worker not shown in UI
+	 *
+	 * Supports agent-team patterns where worker chats are read-only or hidden.
+	 * Absence defaults to `"full"` for backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
+	/**
 	 * Optional per-chat working directory.
 	 *
 	 * If absent, the chat inherits
@@ -117,6 +139,22 @@ export type ChatOrigin =
 	| { kind: ChatOriginKind.User }
 	| { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
 	| { kind: ChatOriginKind.Tool; chat: URI; toolCallId: string };
+
+/**
+ * How a user can interact with a chat.
+ *
+ * - `"full"` — user can send messages and watch (default when absent)
+ * - `"read-only"` — user can watch but not send messages (e.g. agent team workers)
+ * - `"hidden"` — internal worker not shown in UI at all
+ *
+ * Supports the agent-team pattern where a lead chat is fully interactive and
+ * worker chats are read-only (visible for observability) or hidden (internal
+ * implementation detail). The harness sets this based on the chat's role;
+ * the UI uses it to show appropriate controls.
+ *
+ * @category Chat State
+ */
+export type ChatInteractivity = 'full' | 'read-only' | 'hidden';
 
 // ─── Pending Message Types ───────────────────────────────────────────────────
 
