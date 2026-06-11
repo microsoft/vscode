@@ -129,11 +129,13 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	/** Rail turn-row elements by turn index, for in-place selection updates without rebuilding the rail. */
 	private readonly railRowsByIndex = new Map<number, HTMLElement>();
 	/**
-	 * Component accordion items by component name (`system`, `tools`,
+	 * Component accordion entries by component name (`system`, `tools`,
 	 * `messages[i]`), so findings and signature segments can reveal the
-	 * matching entry. Rebuilt on every content render.
+	 * matching entry. We track both the outer item (for the open/flash
+	 * classes and scroll target) and the inner header (the focus target).
+	 * Rebuilt on every content render.
 	 */
-	private readonly componentElements = new Map<string, HTMLElement>();
+	private readonly componentElements = new Map<string, { item: HTMLElement; head: HTMLElement }>();
 	/** Selection index the breaking component was last auto-expanded for. */
 	private autoOpenedForIndex = -1;
 	/**
@@ -1029,7 +1031,9 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	 */
 	private renderFinding(list: HTMLElement, insight: ICacheInsight): void {
 		const isLink = !!insight.component;
-		const row = DOM.append(list, isLink ? $('button.chat-debug-cache-finding.is-clickable') : $('.chat-debug-cache-finding'));
+		// Explicit `type="button"` keeps the row from being treated as a
+		// submit button if a future ancestor `<form>` is ever introduced.
+		const row = DOM.append(list, isLink ? $('button.chat-debug-cache-finding.is-clickable', { type: 'button' }) : $('.chat-debug-cache-finding'));
 		DOM.append(row, $(`span.codicon.codicon-${findingIcon(insight.severity)}.chat-debug-cache-finding-icon.is-${insight.severity}`, { 'aria-hidden': 'true' }));
 		const body = DOM.append(row, $('.chat-debug-cache-finding-body'));
 		DOM.append(body, $('.chat-debug-cache-finding-title', undefined, insight.title));
@@ -1052,19 +1056,25 @@ export class ChatDebugCacheExplorerView extends Disposable {
 	 * of the current drift list (e.g. an identical message).
 	 */
 	private revealComponent(name: string): void {
-		const el = this.componentElements.get(name);
-		if (!el) {
+		const entry = this.componentElements.get(name);
+		if (!entry) {
 			return;
 		}
+		const { item, head } = entry;
 		if (!this.openComponents.has(name)) {
 			this.openComponents.add(name);
-			el.classList.add('open');
+			item.classList.add('open');
+			head.setAttribute('aria-expanded', 'true');
 		}
-		el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		item.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		// Remove + reflow + re-add so a second click restarts the animation.
-		el.classList.remove('flash');
-		void el.offsetWidth;
-		el.classList.add('flash');
+		item.classList.remove('flash');
+		void item.offsetWidth;
+		item.classList.add('flash');
+		// Move focus to the revealed header so keyboard / screen reader users
+		// know where the activation landed. preventScroll because we already
+		// did the smooth-scroll above and don't want focus to jump-snap on top.
+		head.focus({ preventScroll: true });
 	}
 
 	private renderSideCard(data: ISideData, title?: string): HTMLElement {
@@ -1277,6 +1287,12 @@ export class ChatDebugCacheExplorerView extends Disposable {
 				seg.title = s.drift
 					? localize('chatDebug.cache.segDriftTooltip', "{0} ({1}): {2} \u2014 drifted. Click to inspect.", s.component, s.label, sizeText(s.chars))
 					: localize('chatDebug.cache.segTooltip', "{0} ({1}): {2}", s.component, s.label, sizeText(s.chars));
+				// Mirror the tooltip into an accessible name so screen readers
+				// announce what the button-role span does. Only drift segments
+				// are focusable, so non-drift slivers don't need one.
+				if (s.drift) {
+					seg.setAttribute('aria-label', seg.title);
+				}
 				// In-bar text is the char count alone \u2014 the role is already
 				// color-coded, and partial labels ("user:24,9\u2026") read worse
 				// than none. Only segments wide enough for the digits get text.
@@ -1479,10 +1495,16 @@ export class ChatDebugCacheExplorerView extends Disposable {
 
 		for (const c of effectiveDrift) {
 			const item = DOM.append(acc, $('.chat-debug-cache-acc-item'));
-			this.componentElements.set(c.name, item);
 			item.classList.add(c.status);
-			if (this.openComponents.has(c.name)) { item.classList.add('open'); }
+			const isOpen = this.openComponents.has(c.name);
+			if (isOpen) { item.classList.add('open'); }
 			const head = DOM.append(item, $('.chat-debug-cache-acc-head'));
+			this.componentElements.set(c.name, { item, head });
+			// Expose the header as an expand/collapse button so keyboard and
+			// screen reader users can operate it the same way mouse users can.
+			head.tabIndex = 0;
+			head.setAttribute('role', 'button');
+			head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
 			DOM.append(head, $('span.chat-debug-cache-chev'));
 			const name = DOM.append(head, $('.chat-debug-cache-acc-name'));
 			// Lead with the same role swatch the signature bar uses so a
@@ -1526,13 +1548,22 @@ export class ChatDebugCacheExplorerView extends Disposable {
 			}
 			body.appendChild(this.renderComponentDiff(aText, bText, c.aSize, c.bSize));
 
-			this.contentDisposables.add(DOM.addDisposableListener(head, DOM.EventType.CLICK, () => {
+			const toggle = () => {
 				if (this.openComponents.has(c.name)) {
 					this.openComponents.delete(c.name);
 					item.classList.remove('open');
+					head.setAttribute('aria-expanded', 'false');
 				} else {
 					this.openComponents.add(c.name);
 					item.classList.add('open');
+					head.setAttribute('aria-expanded', 'true');
+				}
+			};
+			this.contentDisposables.add(DOM.addDisposableListener(head, DOM.EventType.CLICK, toggle));
+			this.contentDisposables.add(DOM.addDisposableListener(head, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					toggle();
 				}
 			}));
 		}

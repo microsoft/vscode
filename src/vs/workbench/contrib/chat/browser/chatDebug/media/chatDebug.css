@@ -1617,6 +1617,10 @@ button.chat-debug-cache-finding.is-clickable:focus-visible {
 .chat-debug-cache-acc-head:hover {
 	background: var(--vscode-list-hoverBackground);
 }
+.chat-debug-cache-acc-head:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
 .chat-debug-cache-chev::before {
 	content: "\25B6";
 	display: inline-block;
