@@ -50,6 +50,7 @@ import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitP
 import { parsedPluginsEqual, toChildCustomizations } from './copilotPluginConverters.js';
 import { CopilotSessionLauncher, ContextTierConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { ShellManager } from './copilotShellTools.js';
+import { isRestrictedTelemetryEnabled } from './copilotTokenFields.js';
 import { CopilotSlashCommandCompletionProvider } from './copilotSlashCommandCompletionProvider.js';
 import { DiscoveredType, SessionCustomizationDiscovery, areDiscoveredDirectoriesEqual, type IDiscoveredDirectory } from './sessionCustomizationDiscovery.js';
 
@@ -275,6 +276,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	private _githubToken: string | undefined;
+
+	/** Reflects the `rt=1` field on the GitHub Copilot bearer token; gates enhanced GH telemetry. */
+	private _restrictedTelemetryEnabled = false;
+	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
+	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
+
+	get restrictedTelemetryEnabled(): boolean {
+		return this._restrictedTelemetryEnabled;
+	}
+
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 	/**
 	 * Per-session MCP-notification subscriptions, keyed by `sessionId`.
@@ -448,6 +459,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const tokenChanged = this._githubToken !== token;
 		this._githubToken = token;
+		this._updateRestrictedTelemetry(token);
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
@@ -457,6 +469,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			void this._refreshModels();
 		}
 		return true;
+	}
+
+	private _updateRestrictedTelemetry(token: string | undefined): void {
+		const rtEnabled = isRestrictedTelemetryEnabled(token);
+		if (rtEnabled !== this._restrictedTelemetryEnabled) {
+			this._restrictedTelemetryEnabled = rtEnabled;
+			this._logService.info(`[Copilot] Restricted telemetry ${rtEnabled ? 'enabled' : 'disabled'}`);
+			this._onDidChangeRestrictedTelemetry.fire();
+		}
 	}
 
 	private async _refreshModels(): Promise<void> {
