@@ -770,4 +770,55 @@ flakySuite('SessionCustomizationDiscovery (real filesystem)', () => {
 		await raceTimeout(fired.p, 5000);
 		assert.ok(changeCount > countAfterFoo, 'expected onDidChange to fire for .github/instructions/inner/inner.instructions.md');
 	});
+
+	test('fires onDidChange when an existing SKILL.md is modified and when a new skill is created', async () => {
+		// .github/skills is watched recursively; each skill lives in its own
+		// subdirectory as <skillName>/SKILL.md.
+		const skillsDir = join(workspaceDir, '.github', 'skills');
+		const calcSkillDir = join(skillsDir, 'calc');
+		await fs.promises.mkdir(calcSkillDir, { recursive: true });
+		const calcSkillFile = join(calcSkillDir, 'SKILL.md');
+		await fs.promises.writeFile(calcSkillFile, 'calc skill v1');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		const initial = await discovery.scan(CancellationToken.None);
+		const initialSkillFiles = initial
+			.filter(d => d.type === DiscoveredType.Skill)
+			.flatMap(d => d.files.map(f => f.uri.fsPath));
+		assert.deepStrictEqual(initialSkillFiles, [calcSkillFile], 'initial scan should discover only the calc skill');
+
+		// Wait until the recursive skills watcher is observably live.
+		await waitForWatcher(discovery, skillsDir);
+
+		let changeCount = 0;
+		let fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		// Modify an existing skill file (nested under the recursively-watched dir).
+		await fs.promises.writeFile(calcSkillFile, 'calc skill v2');
+		await raceTimeout(fired.p, 5000);
+		assert.ok(changeCount >= 1, 'expected onDidChange to fire for .github/skills/calc/SKILL.md modification');
+
+		const countAfterModify = changeCount;
+		fired = new DeferredPromise<void>();
+
+		// Create a brand-new skill: new subdirectory plus its SKILL.md inside.
+		const publishSkillDir = join(skillsDir, 'publish');
+		const publishSkillFile = join(publishSkillDir, 'SKILL.md');
+		await fs.promises.mkdir(publishSkillDir);
+		await fs.promises.writeFile(publishSkillFile, 'publish skill v1');
+		await raceTimeout(fired.p, 5000);
+		assert.ok(changeCount > countAfterModify, 'expected onDidChange to fire when a new skill is created under .github/skills');
+
+		// A follow-up scan should now surface both skills.
+		const after = await discovery.scan(CancellationToken.None);
+		const afterSkillFiles = after
+			.filter(d => d.type === DiscoveredType.Skill)
+			.flatMap(d => d.files.map(f => f.uri.fsPath))
+			.sort();
+		assert.deepStrictEqual(afterSkillFiles, [calcSkillFile, publishSkillFile].sort(), 'rescan should discover both skills');
+	});
 });
