@@ -279,6 +279,35 @@ suite('SessionCustomizationDiscovery', () => {
 		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when AGENTS.md at the workspace root is modified');
 	});
 
+	test('does not fire onDidChange for files outside any trigger URI', async () => {
+		// Seed a customization so the workspace + `.github` dirs get watchers.
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+		}));
+
+		// None of these paths intersect any trigger URI:
+		//  - `.git/HEAD`             : `.git` is unrelated (not `.github`)
+		//  - `.vscode/settings.json` : `.vscode` is unrelated
+		//  - `README.md`             : at workspace root but not AGENTS.md/CLAUDE.md/GEMINI.md
+		//  - `src/index.ts`          : unrelated top-level directory
+		await seed('/workspace/.git/HEAD', 'ref: refs/heads/main');
+		await seed('/workspace/.vscode/settings.json', '{}');
+		await seed('/workspace/README.md', '# project');
+		await seed('/workspace/src/index.ts', 'export {};');
+
+		// Give the in-memory provider time to deliver any (stray) events.
+		await timeout(100);
+
+		assert.strictEqual(changeCount, 0, 'expected onDidChange not to fire for paths outside any trigger URI');
+	});
+
 	test('cancellation of one caller does not affect another concurrent caller', async () => {
 		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
 
