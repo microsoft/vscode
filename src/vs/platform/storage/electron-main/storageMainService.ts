@@ -17,7 +17,7 @@ import { AbstractStorageService, isProfileUsingDefaultStorage, IStorageService, 
 import { ApplicationStorageMain, ApplicationSharedStorageMain, ProfileStorageMain, InMemoryStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain, IStorageChangeEvent } from './storageMain.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
-import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Schemas } from '../../../base/common/network.js';
 
@@ -131,6 +131,19 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			if (e.workspace) {
 				this.workspaceStorage(e.workspace).init();
 			}
+
+			Event.once(Event.any(e.window.onDidClose, e.window.onDidDestroy))(async () => {
+				if (this.shutdownReason) {
+					return;
+				}
+				if (e.window.profile && this.mapProfileToStorage.has(e.window.profile.id)) {
+					await this.profileStorage(e.window.profile).close();
+				}
+				const actualWorkspace = e.workspace ?? e.window.openedWorkspace ?? toWorkspaceIdentifier(e.window.backupPath, e.window.isExtensionDevelopmentHost);
+				if (actualWorkspace && this.mapWorkspaceToStorage.has(actualWorkspace.id)) {
+					await this.workspaceStorage(actualWorkspace).close();
+				}
+			});
 		}));
 
 		// All Storage: Close when shutting down
@@ -230,7 +243,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		if (!profileStorage) {
 			this.logService.trace(`StorageMainService: creating profile storage (${profile.name})`);
 
-			profileStorage = this._register(this.createProfileStorage(profile));
+			profileStorage = this.createProfileStorage(profile);
 			this.mapProfileToStorage.set(profile.id, profileStorage);
 
 			// Don't use this._register() for listeners that are disposed early
@@ -277,7 +290,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		if (!workspaceStorage) {
 			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);
 
-			workspaceStorage = this._register(this.createWorkspaceStorage(workspace));
+			workspaceStorage = this.createWorkspaceStorage(workspace);
 			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
 
 			// Don't use this._register() for Event.once as it auto-disposes
