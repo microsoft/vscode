@@ -8,7 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ChangesetKind } from '../common/changesetUri.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/changesetOperation.js';
-import { ChangesetOperationScope, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -43,6 +43,7 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 			label: localize('agentHost.changeset.commit', "Commit"),
 			scopes: [ChangesetOperationScope.Changeset],
 			icon: 'git-commit',
+			status: ChangesetOperationStatus.Idle,
 		}];
 	}
 

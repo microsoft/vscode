@@ -432,4 +432,10 @@ suite('Resources', () => {
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI6), true, '19');
 		assert.strictEqual(extUriIgnorePathCase.isEqualOrParent(fileURI7, fileURI5), false, '20');
 	});
+
+	test('isEqualOrParent handles ../', () => {
+		const fileURI = URI.file('/home/user/projects');
+		const fileURI2 = URI.file('/home/user/projects/../../../../tmp/folder');
+		assert.strictEqual(extUri.isEqualOrParent(fileURI2, fileURI), false);
+	});
 });

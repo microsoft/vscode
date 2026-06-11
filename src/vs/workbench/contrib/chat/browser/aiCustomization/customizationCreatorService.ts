@@ -82,7 +82,7 @@ export class CustomizationCreatorService {
 			modeInfo: {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,
-				modeId: 'custom',
+				telemetryModeId: 'custom',
 				applyCodeBlockSuggestionId: undefined,
 				modeInstructions: {
 					name: 'customization-creator',

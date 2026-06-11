@@ -121,12 +121,12 @@ export interface InstallExtensionOptions extends InstallOptions {
 }
 
 export interface IExtensionsNotification {
-	readonly message: string;
+	readonly message: string | IMarkdownString;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
 	readonly query?: string;
 	readonly action?: { readonly label: string; run(): void };
-	dismiss(): void;
+	dismiss?(): void;
 }
 
 export interface IExtensionsWorkbenchService {

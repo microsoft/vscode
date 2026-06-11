@@ -12,10 +12,9 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, RemoteAgentHostProtocolClient } from '../../browser/remoteAgentHostProtocolClient.js';
-import { IAgentHostPermissionService } from '../../common/agentHostPermissionService.js';
+import { AgentHostPermissionMode, AgentHostResourcePermissionError, IAgentHostResourceService } from '../../common/agentHostResourceService.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
@@ -75,23 +74,56 @@ class CloseOnDisposeProtocolTransport extends TestProtocolTransport {
 suite('RemoteAgentHostProtocolClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createPermissionService(allow = true): IAgentHostPermissionService {
+	function createPermissionService(allow = true): IAgentHostResourceService {
+		return createResourceServiceStub({ granted: () => allow });
+	}
+
+	interface IResourceServiceStubOpts {
+		granted?: (address: string, uri: URI, mode: AgentHostPermissionMode) => boolean;
+		onRequest?: (address: string, params: { uri: string; read?: boolean; write?: boolean }) => Promise<void>;
+		onGrantImplicitRead?: (address: string, uri: URI) => void;
+	}
+
+	/**
+	 * Stub for {@link IAgentHostResourceService}: each FS method runs the
+	 * `granted` predicate and either throws {@link AgentHostResourcePermissionError}
+	 * (carrying the same `resourceRequest` payload the real service would
+	 * advertise) or resolves with a minimal placeholder result. Sufficient to
+	 * drive the protocol client's reverse-RPC permission-gating paths.
+	 */
+	function createResourceServiceStub(opts: IResourceServiceStubOpts = {}): IAgentHostResourceService {
+		const grant = opts.granted ?? (() => true);
 		const empty = observableValue<readonly never[]>('test', []);
+		const denyRead = (uri: string) => new AgentHostResourcePermissionError({ channel: 'ahp-root://', uri, read: true });
+		const denyWrite = (uri: string) => new AgentHostResourcePermissionError({ channel: 'ahp-root://', uri, write: true });
+		const gateRead = async (addr: string, uri: URI) => {
+			if (!grant(addr, uri, AgentHostPermissionMode.Read)) { throw denyRead(uri.toString()); }
+		};
+		const gateWrite = async (addr: string, uri: URI) => {
+			if (!grant(addr, uri, AgentHostPermissionMode.Write)) { throw denyWrite(uri.toString()); }
+		};
 		return {
 			_serviceBrand: undefined,
-			check: async () => allow,
-			request: async () => { /* auto-allow */ },
+			check: async (addr, uri, mode) => grant(addr, uri, mode),
+			async list(addr, uri) { await gateRead(addr, uri); return { entries: [] }; },
+			async read(addr, uri) { await gateRead(addr, uri); throw new Error('Not implemented in stub'); },
+			async write(addr, params) { await gateWrite(addr, URI.parse(params.uri)); },
+			async del(addr, params) { await gateWrite(addr, URI.parse(params.uri)); },
+			async move(addr, params) { await gateWrite(addr, URI.parse(params.source)); await gateWrite(addr, URI.parse(params.destination)); },
+			async copy(addr, params) { await gateRead(addr, URI.parse(params.source)); await gateWrite(addr, URI.parse(params.destination)); },
+			async resolve(addr, params) { await gateRead(addr, URI.parse(params.uri)); throw new Error('Not implemented in stub'); },
+			async mkdir(addr, params) { await gateWrite(addr, URI.parse(params.uri)); },
+			request: async (addr, params) => opts.onRequest ? opts.onRequest(addr, params) : undefined,
 			pendingFor: () => empty,
 			allPending: empty,
 			findPending: () => undefined,
-			grantImplicitRead: () => Disposable.None,
+			grantImplicitRead: (address, uri) => { opts.onGrantImplicitRead?.(address, uri); return Disposable.None; },
 			connectionClosed: () => { },
 		};
 	}
 
 	function createClient(transport = disposables.add(new TestProtocolTransport()), permissionService = createPermissionService(), loadEstimator?: { hasHighLoad(): boolean }): { client: RemoteAgentHostProtocolClient; transport: TestProtocolTransport } {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, new NullLogService(), fileService, permissionService, new TestConfigurationService()));
+		const client = disposables.add(new RemoteAgentHostProtocolClient('test.example:1234', transport, loadEstimator, new NullLogService(), permissionService, new TestConfigurationService()));
 		return { client, transport };
 	}
 
@@ -548,10 +580,9 @@ suite('RemoteAgentHostProtocolClient', () => {
 		test('resourceMove is denied when destination lacks write access', async () => {
 			const sourceUri = URI.file('/grant/foo').toString();
 			const destUri = URI.file('/no-grant/bar').toString();
-			const stub: ReturnType<typeof createPermissionService> = {
-				...createPermissionService(false),
-				check: async (_addr, uri) => uri.toString() === sourceUri,
-			};
+			const stub = createResourceServiceStub({
+				granted: (_addr, uri) => uri.toString() === sourceUri,
+			});
 			const { transport } = createClient(undefined, stub);
 
 			transport.fireMessage({ jsonrpc: '2.0', id: 9, method: 'resourceMove', params: { channel: 'ahp-root://', source: sourceUri, destination: destUri } });
@@ -569,11 +600,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		test('reverse resourceRequest delegates to permission service and replies with empty result', async () => {
-			let lastRequest: { address: string; params: { channel: 'ahp-root://'; uri: string; read?: boolean; write?: boolean } } | undefined;
-			const stub: ReturnType<typeof createPermissionService> = {
-				...createPermissionService(false),
-				request: async (address, params) => { lastRequest = { address, params }; },
-			};
+			let lastRequest: { address: string; params: { uri: string; read?: boolean; write?: boolean } } | undefined;
+			const stub = createResourceServiceStub({
+				granted: () => false,
+				onRequest: async (address, params) => { lastRequest = { address, params }; },
+			});
 			const { transport } = createClient(undefined, stub);
 
 			const uri = URI.file('/etc/foo').toString();
@@ -587,10 +618,10 @@ suite('RemoteAgentHostProtocolClient', () => {
 		});
 
 		test('reverse resourceRequest replies with PermissionDenied on cancellation', async () => {
-			const stub: ReturnType<typeof createPermissionService> = {
-				...createPermissionService(false),
-				request: async () => { throw new CancellationError(); },
-			};
+			const stub = createResourceServiceStub({
+				granted: () => false,
+				onRequest: async () => { throw new CancellationError(); },
+			});
 			const { transport } = createClient(undefined, stub);
 
 			const uri = URI.file('/etc/foo').toString();
@@ -612,22 +643,11 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 	suite('implicit grants for outgoing customization actions', () => {
 
-		function createCapturingPermissionService(): { service: IAgentHostPermissionService; calls: { address: string; uri: URI }[] } {
-			const empty = observableValue<readonly never[]>('test', []);
+		function createCapturingPermissionService(): { service: IAgentHostResourceService; calls: { address: string; uri: URI }[] } {
 			const calls: { address: string; uri: URI }[] = [];
-			const service: IAgentHostPermissionService = {
-				_serviceBrand: undefined,
-				check: async () => true,
-				request: async () => { /* auto-allow */ },
-				pendingFor: () => empty,
-				allPending: empty,
-				findPending: () => undefined,
-				grantImplicitRead: (address, uri) => {
-					calls.push({ address, uri });
-					return Disposable.None;
-				},
-				connectionClosed: () => { },
-			};
+			const service = createResourceServiceStub({
+				onGrantImplicitRead: (address, uri) => calls.push({ address, uri }),
+			});
 			return { service, calls };
 		}
 
@@ -814,9 +834,8 @@ suite('RemoteAgentHostProtocolClient', () => {
 				transports.push(t);
 				return t;
 			};
-			const fileService = disposables.add(new FileService(new NullLogService()));
 			const client = disposables.add(new RemoteAgentHostProtocolClient(
-				'test.example:1234', factory, undefined, new NullLogService(), fileService, createPermissionService(), new TestConfigurationService(),
+				'test.example:1234', factory, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(),
 			));
 			return { client, transports };
 		}
@@ -873,7 +892,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 
 				// Establish a session subscription so dispatch() can apply optimistically.
 				const sessionUri = URI.parse('copilot:/test-session');
-				const subRef = client.getSubscription(StateComponents.Session, sessionUri);
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
 				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
 				transports[0].fireMessage({
 					jsonrpc: '2.0', id: subscribeReq.id,
@@ -921,7 +940,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				await completeHandshake(transports[0], connectPromise);
 
 				const sessionUri = URI.parse('copilot:/test-session');
-				const subRef = client.getSubscription(StateComponents.Session, sessionUri);
+				const subRef = client.getSubscription(StateComponents.Session, sessionUri, 'test');
 				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
 				transports[0].fireMessage({
 					jsonrpc: '2.0', id: subscribeReq.id,
@@ -1011,7 +1030,7 @@ suite('RemoteAgentHostProtocolClient', () => {
 				await completeHandshake(transports[0], connectPromise);
 
 				const sessionUri = URI.parse('copilot:/test-session');
-				const subRef = client.getSubscription<{ summary: { title: string } }>(StateComponents.Session, sessionUri);
+				const subRef = client.getSubscription<{ summary: { title: string } }>(StateComponents.Session, sessionUri, 'test');
 				const subscribeReq = await waitForRequest(transports[0], 'subscribe');
 				transports[0].fireMessage({
 					jsonrpc: '2.0', id: subscribeReq.id,

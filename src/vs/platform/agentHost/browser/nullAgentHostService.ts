@@ -8,7 +8,7 @@ import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
-import type { IAgentSubscription } from '../common/state/agentSubscription.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
@@ -30,14 +30,16 @@ export class NullAgentHostService implements IAgentHostService {
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
 	readonly onDidAction: Event<ActionEnvelope> = Event.None;
+	readonly onMcpNotification = Event.None;
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
 
 	get rootState(): IAgentSubscription<RootState> { return notSupported(); }
 
-	getSubscription<T extends StateComponents>(_kind: T, _resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
+	getSubscription<T extends StateComponents>(_kind: T, _resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> { return notSupported(); }
 	getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, _resource: URI): IAgentSubscription<ComponentToState[T]> | undefined { return undefined; }
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
 	dispatch(_channel: string, _action: SessionAction | TerminalAction | IRootConfigChangedAction): void { notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
