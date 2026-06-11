@@ -16,7 +16,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { isChatRequestFileEntry, isImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
-import { IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
+import { AgentFeedbackKind, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackService, IAgentFeedbackSubmittedEvent } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../chat/browser/sessionsTasksService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -1184,7 +1184,7 @@ type FeedbackConvertedEvent = {
 	sessionFilesChanged: number;
 	sessionLinesAdded: number;
 	sessionLinesDeleted: number;
-	feedbackKind: 'codeReview' | 'prReview';
+	feedbackKind: AgentFeedbackKind.AgentReview | AgentFeedbackKind.PRReview;
 	hasSuggestion: boolean;
 	hasExistingFeedbackForFile: boolean;
 };
@@ -1222,7 +1222,7 @@ type FeedbackReplyAddedEvent = {
 	sessionFilesChanged: number;
 	sessionLinesAdded: number;
 	sessionLinesDeleted: number;
-	feedbackKind: 'user' | 'codeReview' | 'prReview';
+	feedbackKind: AgentFeedbackKind;
 	replyCount: number;
 };
 
