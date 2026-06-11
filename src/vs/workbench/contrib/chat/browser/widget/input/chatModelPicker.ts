@@ -1317,6 +1317,17 @@ export class ModelPickerWidget extends Disposable {
 				// per-option descriptions are surfaced on hover (tooltip) instead of
 				// being shown inline in the picker.
 				const description = isDefault ? defaultLabel : undefined;
+				// The visual description is hover-only, so build a separate accessible
+				// description so screen reader users still hear the default marker and
+				// the per-option explanation.
+				const ariaDescriptionParts: string[] = [];
+				if (isDefault) {
+					ariaDescriptionParts.push(defaultLabel);
+				}
+				if (enumDescription) {
+					ariaDescriptionParts.push(enumDescription);
+				}
+				const ariaDescription = ariaDescriptionParts.length ? ariaDescriptionParts.join(', ') : undefined;
 				const checked = config.value === value;
 				items.push({
 					item: {
@@ -1334,6 +1345,7 @@ export class ModelPickerWidget extends Disposable {
 					kind: ActionListItemKind.Action,
 					label: displayLabel,
 					description,
+					ariaDescription,
 					hover: enumDescription ? { content: enumDescription } : undefined,
 					group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
 					hideIcon: false,
@@ -1368,6 +1380,11 @@ export class ModelPickerWidget extends Disposable {
 				});
 			},
 		);
+
+		// Nothing configurable for this model: don't show an empty popup.
+		if (!items.length) {
+			return;
+		}
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {

@@ -5,7 +5,7 @@
 
 .action-widget {
 	font-size: 13px;
-	min-width: 155px;
+	min-width: 100px;
 	max-width: 80vw;
 	z-index: 40;
 	display: block;
@@ -417,6 +417,11 @@
 	margin: 2px;
 	background-color: var(--vscode-toolbar-hoverBackground);
 	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Give widgets with a header banner more room so the banner text reads well. */
+.action-widget:has(.action-list-header) {
+	min-width: 155px;
 }
 
 .action-widget .action-list-header .action-list-header-icon {
