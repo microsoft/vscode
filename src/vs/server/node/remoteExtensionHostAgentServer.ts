@@ -508,18 +508,21 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			const reason = (err instanceof Error ? err.message : String(err));
 			const errorMessage: ErrorMessage = { type: 'error', reason };
 			protocol.sendControl(VSBuffer.fromString(JSON.stringify(errorMessage)));
-			const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
+			const socket = protocol.getSocket();
 			protocol.dispose();
-			remoteSocket.end();
+			await socket.drain();
+			socket.dispose();
 			return;
 		}
 
 		const okMessage: OKMessage = { type: 'ok' };
 		protocol.sendControl(VSBuffer.fromString(JSON.stringify(okMessage)));
 
-		const remoteSocket = (<NodeSocket>protocol.getSocket()).socket;
+		const remoteNodeSocket = <NodeSocket>protocol.getSocket();
+		const remoteSocket = remoteNodeSocket.socket;
 		const dataChunk = protocol.readEntireBuffer();
 		protocol.dispose();
+		remoteNodeSocket.dispose(false); // `false` prevents the underlying socket from being closed
 
 		if (dataChunk.byteLength > 0) {
 			localSocket.write(dataChunk.buffer);
