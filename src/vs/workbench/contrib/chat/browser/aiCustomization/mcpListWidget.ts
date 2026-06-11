@@ -523,8 +523,6 @@ export class McpListWidget extends Disposable {
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
 		const emptyHeader = DOM.append(this.emptyContainer, $('.empty-state-header'));
-		const emptyIcon = DOM.append(emptyHeader, $('.empty-icon'));
-		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
 		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
 
@@ -1087,7 +1085,7 @@ export class McpListWidget extends Disposable {
 						type: 'question',
 					});
 					if (result.confirmed) {
-						plugin.remove();
+						plugin.remove?.();
 					}
 				}
 			));

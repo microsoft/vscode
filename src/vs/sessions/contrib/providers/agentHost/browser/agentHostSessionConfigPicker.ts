@@ -14,7 +14,7 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -24,6 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -35,7 +36,8 @@ import { ActiveSessionProviderIdContext, IsPhoneLayoutContext } from '../../../.
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionInputContext } from '../../../chat/browser/sessionInputContext.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
 import { PermissionPicker } from '../../copilotChatSessions/browser/permissionPicker.js';
@@ -104,11 +106,18 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
-		description: item.description,
+		detail: item.description,
 		group: { title: '', icon: getConfigIcon(property, item.value) },
 		disabled: policyRestricted && (item.value === 'autoApprove' || item.value === 'autopilot'),
-		item: { ...item, label: item.value === currentValue ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
+		item: { ...item, label: isSelectedValue(currentValue, item.value) ? `${item.label} ${localize('selected', "(Selected)")}` : item.label },
 	}));
+}
+
+function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
+	if (typeof currentValue === 'boolean') {
+		return currentValue === (itemValue === 'true');
+	}
+	return itemValue === currentValue;
 }
 
 function renderPickerTrigger(slot: HTMLElement, disabled: boolean, disposables: DisposableStore, onOpen: () => void): HTMLElement {
@@ -153,9 +162,8 @@ function hasShownAutoApproveWarning(value: string): boolean {
 }
 
 /**
- * Filters out autopilot if disabled, and marks bypass/autopilot as disabled
- * if enterprise policy restricts auto-approval. Returns the filtered items
- * and policy state.
+ * Marks bypass/autopilot as disabled if enterprise policy restricts
+ * auto-approval. Returns the items and policy state.
  */
 function applyAutoApproveFiltering(
 	items: readonly IConfigPickerItem[],
@@ -165,10 +173,8 @@ function applyAutoApproveFiltering(
 	if (property !== SessionConfigKey.AutoApprove) {
 		return { items, policyRestricted: false };
 	}
-	const isAutopilotEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 	const policyRestricted = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-	const filtered = isAutopilotEnabled ? items : items.filter(item => item.value !== 'autopilot');
-	return { items: filtered, policyRestricted };
+	return { items, policyRestricted };
 }
 
 /**
@@ -240,11 +246,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private _container: HTMLElement | undefined;
 
 	constructor(
+		protected readonly _session: IObservable<IActiveSession | undefined>,
 		@IActionWidgetService protected readonly _actionWidgetService: IActionWidgetService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
 		@IDialogService protected readonly _dialogService: IDialogService,
-		@ISessionsManagementService protected readonly _sessionsManagementService: ISessionsManagementService,
+		@IHoverService protected readonly _hoverService: IHoverService,
 		@ISessionsProvidersService protected readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 		@IWorkbenchLayoutService protected readonly _layoutService: IWorkbenchLayoutService,
@@ -252,7 +259,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		super();
 
 		this._register(autorun(reader => {
-			this._sessionsManagementService.activeSession.read(reader);
+			this._session.read(reader);
 			this._renderConfigPickers();
 		}));
 
@@ -288,7 +295,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._renderDisposables.clear();
 		dom.clearNode(this._container);
 
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		const provider = session ? this._getProvider(session.providerId) : undefined;
 		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
@@ -311,15 +318,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const properties = this._orderProperties(Object.entries(resolvedConfig.schema.properties));
 
 		for (const [property, schema] of properties) {
-			// Only render pickers for properties we know how to present. Today
-			// that's string properties with either a static `enum` or a
-			// dynamic enum sourced via `getSessionConfigCompletions`.
-			// Anything else (objects, arrays, free-form strings, numbers,
-			// booleans) has no enumerable choice set and is edited through
-			// the JSONC settings editor instead.
-			const hasStaticEnum = !!schema.enum && schema.enum.length > 0;
-			const hasDynamicEnum = !!schema.enumDynamic;
-			if (schema.type !== 'string' || (!hasStaticEnum && !hasDynamicEnum)) {
+			if (!this._isPickable(schema)) {
 				continue;
 			}
 			if (!this._shouldRenderProperty(property, schema, isNewSession)) {
@@ -350,12 +349,26 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// keeping it focusable and using correct ARIA semantics. The
 			// click handler bails when resolving in `_showPicker`.
 			const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(provider, session.sessionId, property, schema, trigger));
+			const tooltip = schema.description ?? schema.title;
+			if (tooltip) {
+				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+			}
 			if (!isReadOnly && isLoading) {
 				slot.classList.add('disabled');
 				trigger.setAttribute('aria-disabled', 'true');
 			}
 			this._renderTrigger(trigger, property, schema, value, isReadOnly);
 		}
+	}
+
+	private _isPickable(schema: SessionConfigPropertySchema): boolean {
+		if (schema.type === 'boolean') {
+			return true;
+		}
+		if (schema.type !== 'string') {
+			return false;
+		}
+		return !!schema.enumDynamic || (Array.isArray(schema.enum) && schema.enum.length > 0);
 	}
 
 	/**
@@ -461,10 +474,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					}
 				}
 
-				provider.setSessionConfigValue(sessionId, property, item.value).catch(() => { /* best-effort */ });
+				const nextValue = schema.type === 'boolean' ? item.value === 'true' : item.value;
+				provider.setSessionConfigValue(sessionId, property, nextValue).catch(() => { /* best-effort */ });
 			},
 			onFilter: schema.enumDynamic
-				? query => this._filterDelayer.trigger(async () => toActionItems(property, await this._getItems(provider, sessionId, property, schema, query), provider.getSessionConfig(sessionId)?.values[property]))
+				? query => this._filterDelayer.trigger(async () => {
+					const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query);
+					const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
+					return toActionItems(property, filteredItems, provider.getSessionConfig(sessionId)?.values[property], filteredPolicyRestricted);
+				})
 				: undefined,
 			onHide: () => trigger.focus(),
 		};
@@ -486,6 +504,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		if (schema.type === 'boolean') {
+			return [
+				{ value: 'true', label: localize('agentHostSessionConfig.boolean.true', "On") },
+				{ value: 'false', label: localize('agentHostSessionConfig.boolean.false', "Off") },
+			];
+		}
 		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
@@ -509,6 +533,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
+		if (schema.type === 'boolean') {
+			return value === true
+				? localize('agentHostSessionConfig.boolean.onLabel', "On")
+				: localize('agentHostSessionConfig.boolean.offLabel', "Off");
+		}
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;
@@ -745,7 +774,6 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
@@ -763,26 +791,37 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig,
 			'sessions.agentHost.sessionConfigPicker',
-			() => new PickerActionViewItem(this._instantiationService.createInstance(MobileAgentHostSessionConfigPicker)),
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, session));
+			},
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig,
 			NEW_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(
-				isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
-			)),
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(
+					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
+					session,
+				));
+			},
 		));
 		this._register(actionViewItemService.register(
 			MenuId.ChatInput,
 			RUNNING_SESSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(
-				isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
-			)),
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(
+					isPhoneLayout(this._layoutService) ? MobileAgentHostModePicker : AgentHostModePicker,
+					session,
+				));
+			},
 		));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl,
 			NEW_SESSION_APPROVE_PICKER_ID,
-			() => this._createNewSessionPermissionPicker(),
+			(_action, _options, scopedInstantiationService) => this._createNewSessionPermissionPicker(scopedInstantiationService),
 		));
 		this._register(actionViewItemService.register(
 			MenuId.ChatInputSecondary,
@@ -792,7 +831,10 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 		this._register(actionViewItemService.register(
 			MenuId.ChatInputSecondary,
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
-			() => new PickerActionViewItem(this._instantiationService.createInstance(AgentHostClaudePermissionModePicker)),
+			(_action, _options, scopedInstantiationService) => {
+				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, session));
+			},
 		));
 	}
 
@@ -801,9 +843,10 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 	 * {@link PermissionPicker} so the styling matches the surrounding sessions
 	 * pickers (font size, padding, icon size).
 	 */
-	private _createNewSessionPermissionPicker(): PickerActionViewItem {
-		const delegate = this._instantiationService.createInstance(AgentHostPermissionPickerDelegate);
-		const picker = this._instantiationService.createInstance(MobilePermissionPicker, delegate);
+	private _createNewSessionPermissionPicker(instantiationService: IInstantiationService): PickerActionViewItem {
+		const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
+		const delegate = instantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
+		const picker = instantiationService.createInstance(MobilePermissionPicker, delegate);
 		return new PickerActionViewItem(picker, delegate);
 	}
 
@@ -818,6 +861,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
+			const { session } = instantiationService.invokeFunction(accessor => accessor.get(ISessionInputContext));
 			const pickerOptions: IChatInputPickerOptions = {
 				compact: constObservable(true),
 			};
@@ -825,6 +869,7 @@ class AgentHostSessionConfigPickerContribution extends Disposable implements IWo
 				AgentHostPermissionPickerActionItem,
 				action,
 				pickerOptions,
+				session,
 			);
 		};
 	}

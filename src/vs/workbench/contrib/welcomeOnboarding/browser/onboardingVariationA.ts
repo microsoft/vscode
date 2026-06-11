@@ -447,7 +447,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				if (!this._footerSignInBtn && !this._userSignedIn) {
 					this._footerSignInBtn = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn'));
 					this._footerSignInBtn.type = 'button';
-					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in for AI Powered Features");
+					this._footerSignInBtn.textContent = localize('onboarding.sessions.signInNudge', "Sign in to use GitHub Copilot");
 					this.stepDisposables.add(addDisposableListener(this._footerSignInBtn, EventType.CLICK, async () => {
 						this._logAction('signInNudge');
 						await this._handleSignIn();
@@ -482,7 +482,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		title.textContent = localize('onboarding.signIn.heroTitle', "Welcome to VS Code");
 
 		const subtitle = append(contentMain, $('p.onboarding-a-signin-subtitle'));
-		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to continue with AI-powered development.");
+		subtitle.textContent = localize('onboarding.signIn.heroSubtitle', "Sign in to use GitHub Copilot.");
 
 		const actions = append(contentMain, $('.onboarding-a-signin-actions'));
 
@@ -1133,12 +1133,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Group 1: Chat modes — Plan / Agent
 		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
 		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
-		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Choose Your Agent");
+		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Agents made for the task");
 		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(chatGrid, Codicon.listOrdered,
 			localize('onboarding.sessions.planMode', "Plan"),
-			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an implementation agent to execute."));
+			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an agent to execute."));
 
 		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
 			localize('onboarding.sessions.agentMode', "Agent"),
@@ -1147,7 +1147,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Group 2: ways to run and customize agents beyond the default Chat experience
 		const moreGroup = append(features, $('.onboarding-a-sessions-group'));
 		const moreLabel = append(moreGroup, $('div.onboarding-a-sessions-group-label'));
-		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents That Work Your Way");
+		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents that work your way");
 		const moreGrid = append(moreGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
 
 		this._createFeatureCard(moreGrid, Codicon.rocket,
@@ -1164,10 +1164,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {
-		const card = this._registerStepFocusable(append(parent, $('div.onboarding-a-feature-card')));
-		card.setAttribute('tabindex', '0');
-		card.setAttribute('role', 'group');
-		card.setAttribute('aria-label', title);
+		const card = append(parent, $('div.onboarding-a-feature-card'));
 		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
 		iconCol.appendChild(renderIcon(icon));
 		const textCol = append(card, $('div.onboarding-a-feature-text'));

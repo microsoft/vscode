@@ -41,8 +41,6 @@ import { IActiveSession, ISessionsManagementService } from '../../../../../servi
 // ---- Mock connection --------------------------------------------------------
 
 class MockAgentConnection extends mock<IAgentConnection>() {
-	declare readonly _serviceBrand: undefined;
-
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
@@ -377,7 +375,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('resolveWorkspace builds workspace from URI', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
+		const uri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
 		assert.ok(ws, 'resolveWorkspace should resolve vscode-agent-host:// URIs');
@@ -455,8 +453,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
-		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/file/-/tmp/copilot-worktrees/vscode-feature');
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/tmp/copilot-worktrees/vscode-feature?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		connection.addSession(createSession('project-1', {
 			summary: 'Project Session',
 			project: { uri: projectUri, displayName: 'vscode' },
@@ -494,7 +492,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const workspaces = provider.getSessions().map(session => session.workspace.get());
 		assert.deepStrictEqual(workspaces.map(workspace => workspace?.folders[0]?.root.toString()), [
-			'vscode-agent-host://localhost__4321/file/-/home/user/vscode',
+			'vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 			'https://github.com/microsoft/vscode',
 		]);
 	});
@@ -581,7 +579,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('createNewSession returns session with correct fields', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.providerId, provider.id);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
@@ -595,7 +593,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
 		connection.failResolveSessionConfig = true;
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
-		const workspaceUri = URI.parse('vscode-agent-host://auth/home/user/project');
+		const workspaceUri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
 		const session = provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
 		const resolved = provider.getSessionByResource(session.resource);
 
@@ -613,7 +611,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('clearConnection clears pending new session config', () => {
 		const provider = createProvider(disposables, connection);
 
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 		provider.clearConnection();
 
 		assert.deepStrictEqual({
@@ -802,7 +800,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			values: {},
 		};
 		const provider = createProvider(disposables, connection);
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
 
 		assert.strictEqual(session.loading.get(), true);
@@ -914,8 +913,9 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
 			},
 		});
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
+		provider.setAuthenticationPending(false);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		const chat = await provider.createNewChat(session.sessionId);
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
@@ -926,7 +926,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Session data adapter -------
 
 	test('session adapter has correct workspace from working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo') }));
+		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/home/user/myrepo?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0') }));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
 		provider.getSessions();
@@ -1090,7 +1090,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('non-web: resolveWorkspace includes [host] suffix in label', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
-		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
+		const uri = URI.parse('vscode-agent-host://localhost__4321/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
 		assert.ok(ws);
@@ -1098,7 +1098,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('non-web: session workspace from project metadata includes [host] suffix', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		connection.addSession(createSession('project-1', {
 			summary: 'Project Session',
 			project: { uri: projectUri, displayName: 'vscode' },
@@ -1114,7 +1114,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('non-web: session workspace from working directory includes [host] suffix', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('ws-sess', {
 			summary: 'WS Test',
-			workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo'),
+			workingDirectory: URI.parse('vscode-agent-host://localhost__4321/home/user/myrepo?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0'),
 		}));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
@@ -1127,12 +1127,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('non-web: createNewSession workspace label includes [host] suffix', () => {
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
-		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://localhost__4321/home/user/project'), provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.workspace.get()?.label, 'project [Test Host]');
 	});
 
-	test('non-web: session description is the host label', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('non-web: idle session description is undefined', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('desc-sess', { summary: 'Desc Test' }));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });
@@ -1140,11 +1140,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Desc Test');
-		const description = session?.description.get();
-		assert.ok(description, 'description should be defined on non-web');
-		// MarkdownString.appendText escapes spaces as &nbsp; — verify the
-		// host label is present rather than the exact serialized form.
-		assert.ok(description!.value.includes('Test') && description!.value.includes('Host'));
+		assert.strictEqual(session?.description.get(), undefined);
 	}));
 
 	test('web: session description is undefined (host filter dropdown replaces it)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

@@ -13,12 +13,14 @@ import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
-import type { IAgentSubscription } from './state/agentSubscription.js';
+import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
+import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { ProtectedResourceMetadata, type ChangesetSummary, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition } from './state/protocol/state.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
+import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
-import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type CustomizationRef, type PendingMessage, type RootState, type SessionCustomization, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
+import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -47,9 +49,6 @@ export function isAgentHostEnabled(configurationService: IConfigurationService):
 	return !isWeb && !!configurationService.getValue<boolean>(AgentHostEnabledSettingId);
 }
 
-/** Configuration key that controls whether per-host IPC traffic output channels are created. */
-export const AgentHostIpcLoggingSettingId = 'chat.agentHost.ipcLoggingEnabled';
-
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
@@ -57,26 +56,112 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
- * Configuration key that holds the absolute path to a locally-installed
- * `@anthropic-ai/claude-agent-sdk` package. When non-empty, the Claude agent
- * provider is registered inside the agent host and the SDK module is loaded
- * via dynamic `import()` from this path. When empty (the default), the
- * Claude provider is not registered. The SDK is intentionally not bundled
- * with VS Code; users opting into the Claude agent install the SDK
- * themselves and point this setting at it. The agent host process must be
- * restarted for changes to take effect.
+ * Configuration key that holds the absolute path to the **SDK root directory**
+ * — the directory that contains a `node_modules/@anthropic-ai/claude-agent-sdk`
+ * subtree. When non-empty, the agent host treats it as a dev override and skips
+ * the on-demand download from `product.agentSdks.claude` for the Claude SDK.
+ *
+ * Empty (the default) means: load the SDK from `product.agentSdks.claude` if
+ * the build supplies one; otherwise the Claude provider is not registered.
+ * The agent host process must be restarted for changes to take effect.
  */
-export const AgentHostClaudeAgentSdkPathSettingId = 'chat.agentHost.claudeAgent.path';
+export const AgentHostClaudeAgentSdkRootSettingId = 'chat.agentHost.claudeAgent.sdkRoot';
 
 /**
- * Environment variable that holds the absolute path to a locally-installed
- * `@anthropic-ai/claude-agent-sdk` package. When set to a non-empty value,
- * the agent host process registers the Claude agent provider and loads the
- * SDK module from this path. Set by the agent host starters from
- * {@link AgentHostClaudeAgentSdkPathSettingId}, and may also be set directly
- * by developers as an override.
+ * Environment variable form of {@link AgentHostClaudeAgentSdkRootSettingId}.
+ * Set by the agent host starters from the setting, and may also be set
+ * directly by developers as an override.
  */
-export const AgentHostClaudeSdkPathEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_PATH';
+export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
+
+/**
+ * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
+ * shell tool (the path taken when {@link AgentHostCustomTerminalToolEnabledSettingId}
+ * is `false`). Values mirror {@link AgentSandboxEnabledValue}:
+ *
+ *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
+ *    path \u2014 commands run unsandboxed.
+ *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
+ *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
+ *    Outbound network is enforced via the user's allow/deny host lists.
+ *  - `'allowNetwork'`: same as `'on'` but with unrestricted outbound network.
+ *
+ * Has no effect when {@link AgentHostCustomTerminalToolEnabledSettingId} is
+ * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
+ * commands and reads `chat.agent.sandbox.enabled` directly.
+ */
+export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
+
+/**
+ * Selects which Claude integration fulfills Claude sessions opened from the
+ * **Agents Window**:
+ *  - `true` — Claude is provided by the agent host process.
+ *  - `false` (default) — Claude is provided by the GitHub Copilot Chat extension.
+ *
+ * The agent host always registers Claude when its SDK is reachable; this
+ * setting only controls whether the per-window bridge in
+ * `AgentHostContribution` actually surfaces the AH provider in the Agents
+ * Window. The extension's `chatSessions` contribution mirrors the rule
+ * declaratively (its `when` clause hides the EH provider when this is `true`),
+ * so flipping the setting takes effect live without a window reload.
+ *
+ * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
+ * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
+ */
+export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAgentHost';
+
+/**
+ * Sibling of {@link ClaudePreferAgentHostAgentsSettingId} that selects the
+ * Claude implementation for the **regular workbench** (sidebar chat in a
+ * non-Agents-Window window). Same shape, same semantics — just a different
+ * surface scope.
+ */
+export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
+
+// -- Codex agent settings --------------------------------------------------------
+//
+// Codex is opt-in via `chat.agentHost.codexAgent.sdkRoot`. The setting points
+// at an absolute path to a directory containing a `node_modules/@openai/codex`
+// subtree (the same shape `npm install @openai/codex` produces, and the same
+// shape the agent host downloads on demand from `product.agentSdks.codex`).
+// The agent host spawns the native codex binary from inside that tree as a
+// long-lived child process and speaks JSON-RPC over stdio. The binary is not
+// bundled with VS Code; users either install codex themselves (typically via
+// `npm install -g @openai/codex` or a platform package manager) or rely on
+// the on-demand download.
+
+/**
+ * Absolute path to the **SDK root directory** containing a
+ * `node_modules/@openai/codex` subtree. When non-empty, the agent host treats
+ * it as a dev override and skips the on-demand download from
+ * `product.agentSdks.codex`. Empty (the default) falls through to product
+ * config; if neither is present, the provider is not registered.
+ */
+export const AgentHostCodexAgentSdkRootSettingId = 'chat.agentHost.codexAgent.sdkRoot';
+
+/**
+ * Optional override for `$CODEX_HOME`. When set, the codex app-server child
+ * process inherits this value, controlling where rollouts and config live.
+ */
+export const AgentHostCodexAgentCodexHomeSettingId = 'chat.agentHost.codexAgent.codexHome';
+
+/**
+ * Additional command-line arguments passed to `codex app-server`. Mainly for
+ * debugging (e.g. `--log-level=debug`).
+ */
+export const AgentHostCodexAgentBinaryArgsSettingId = 'chat.agentHost.codexAgent.binaryArgs';
+
+/**
+ * Environment variable form of {@link AgentHostCodexAgentSdkRootSettingId}.
+ * Forwarded by the starters from the setting.
+ */
+export const AgentHostCodexAgentSdkRootEnvVar = 'VSCODE_AGENT_HOST_CODEX_SDK_ROOT';
+
+/** Forwarded `$CODEX_HOME`. */
+export const AgentHostCodexAgentCodexHomeEnvVar = 'CODEX_HOME';
+
+/** Forwarded extra args for `codex app-server` (JSON-encoded string[]). */
+export const AgentHostCodexAgentBinaryArgsEnvVar = 'VSCODE_AGENT_HOST_CODEX_APP_SERVER_ARGS';
 
 // -- OpenTelemetry settings ------------------------------------------------------
 //
@@ -180,6 +265,44 @@ export function buildAgentHostOTelEnv(
 	return out;
 }
 
+/**
+ * Settings -> env-var fan-out for the Claude/Codex SDK overrides that the
+ * agent host process consumes. Shared by both starters
+ * (`nodeAgentHostStarter.ts`, `electronAgentHostStarter.ts`) so they don't
+ * drift the next time someone adds a setting.
+ *
+ * The shape mirrors {@link buildAgentHostOTelEnv}: only set a key when the
+ * underlying setting has a non-empty value AND the inherited env doesn't
+ * already define it (developer override wins). Returns a partial env map
+ * the caller spreads into the spawned child's environment.
+ */
+export interface IAgentSdkStarterSettings {
+	readonly claudeSdkRoot?: string;
+	readonly codexSdkRoot?: string;
+	readonly codexHome?: string;
+	readonly codexBinaryArgs?: readonly string[];
+}
+
+export function buildAgentSdkEnv(
+	settings: IAgentSdkStarterSettings,
+	inheritedEnv: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+	const out: Record<string, string> = {};
+	const setIfMissing = (key: string, value: string | undefined): void => {
+		if (value === undefined || value === '' || inheritedEnv[key] !== undefined) {
+			return;
+		}
+		out[key] = value;
+	};
+	setIfMissing(AgentHostClaudeSdkRootEnvVar, settings.claudeSdkRoot);
+	setIfMissing(AgentHostCodexAgentSdkRootEnvVar, settings.codexSdkRoot);
+	setIfMissing(AgentHostCodexAgentCodexHomeEnvVar, settings.codexHome);
+	if (Array.isArray(settings.codexBinaryArgs) && settings.codexBinaryArgs.length > 0) {
+		setIfMissing(AgentHostCodexAgentBinaryArgsEnvVar, JSON.stringify(settings.codexBinaryArgs));
+	}
+	return out;
+}
+
 /** Result of starting the agent host WebSocket server on-demand. */
 export interface IAgentHostSocketInfo {
 	readonly socketPath: string;
@@ -240,14 +363,21 @@ export interface IAgentSessionMetadata {
 	readonly isRead?: boolean;
 	readonly isArchived?: boolean;
 	/**
+	 * Aggregate counts (additions / deletions / files) describing the
+	 * `changeKind: 'session'` changeset for this session — the chip
+	 * aggregate previously embedded in the catalogue entry. Mirrors
+	 * `SessionSummary.changes`.
+	 */
+	readonly changes?: ChangesSummary;
+	/**
 	 * Catalogue of changesets the agent can produce for this session — the
-	 * {@link ChangesetSummary | catalogue} that travels on
+	 * {@link Changeset | catalogue} that travels on
 	 * `SessionSummary.changesets`. Lightweight summary entries (id / label /
 	 * URI template / aggregate counts) without per-file detail; clients
 	 * subscribe to a specific expanded changeset URI when they need the full
 	 * file list.
 	 */
-	readonly changesets?: readonly ChangesetSummary[];
+	readonly changesets?: readonly Changeset[];
 	/**
 	 * Side-channel metadata mirroring {@link SessionState._meta}, propagated
 	 * to clients via per-session state subscriptions.
@@ -312,9 +442,22 @@ export interface AuthenticateParams {
 	 * {@link IAuthorizationProtectedResourceMetadata} that this token targets.
 	 */
 	readonly resource: string;
+	/**
+	 * Scopes that were used to acquire the token. Omitted for legacy clients
+	 * that can only identify tokens by protected resource.
+	 */
+	readonly scopes?: readonly string[];
 
 	/** The bearer token value (RFC 6750). */
 	readonly token: string;
+}
+
+/** Request for a previously accepted bearer token. */
+export interface IAgentHostAuthTokenRequest {
+	/** Protected resource identifier from {@link ProtectedResourceMetadata.resource}. */
+	readonly resource: string;
+	/** Required token scopes, when the caller needs a scope-specific token. */
+	readonly scopes?: readonly string[];
 }
 
 /**
@@ -339,6 +482,26 @@ export const GITHUB_COPILOT_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
 	authorization_servers: ['https://github.com/login/oauth'],
 	scopes_supported: ['read:user', 'user:email'],
 	required: true,
+};
+
+/**
+ * Canonical {@link ProtectedResourceMetadata} for GitHub repository write
+ * operations (e.g. creating a pull request). Distinct from
+ * {@link GITHUB_COPILOT_PROTECTED_RESOURCE} so that the broader `repo`
+ * scope is only requested when a session actually needs it (e.g. when a
+ * changeset operation handler throws `AHP_AUTH_REQUIRED` with this
+ * resource), rather than at session create for every agent.
+ *
+ * `required: false` reflects that the resource is only needed on demand —
+ * agents do not have to advertise it eagerly. The workbench-side auth
+ * contributor resolves it lazily in response to operation invocations.
+ */
+export const GITHUB_REPO_PROTECTED_RESOURCE: ProtectedResourceMetadata = {
+	resource: 'https://api.github.com/repos',
+	resource_name: 'GitHub Repository',
+	authorization_servers: ['https://github.com/login/oauth'],
+	scopes_supported: ['repo'],
+	required: false,
 };
 
 export interface IAgentCreateSessionConfig {
@@ -455,7 +618,7 @@ export interface IAgentToolPendingConfirmationSignal {
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `SessionToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
-	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory';
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool' | 'hook' | 'memory' | 'extension-management' | 'extension-permission-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
 	/**
@@ -536,6 +699,21 @@ export namespace AgentSession {
 }
 
 // ---- Agent provider interface -----------------------------------------------
+
+/**
+ * A notification originating from an MCP server, routed back to the AHP
+ * client through the `mcp://` side channel. `channel` is the channel
+ * URI advertised on the owning
+ * {@link McpServerCustomization.channel | McpServerCustomization}; the
+ * client uses it to fan the notification out to the appropriate App.
+ * `method` and `params` follow the underlying MCP notification spec
+ * (e.g. `notifications/tools/list_changed`).
+ */
+export interface IMcpNotification {
+	readonly channel: string;
+	readonly method: string;
+	readonly params?: Record<string, unknown>;
+}
 
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
@@ -636,17 +814,19 @@ export interface IAgent {
 	readonly onDidCustomizationsChange?: Event<void>;
 
 	/**
-	 * Returns the host-owned customization refs this agent currently exposes.
+	 * Returns the host-owned customizations this agent currently exposes.
 	 *
 	 * Used to publish baseline customization metadata on {@link AgentInfo}.
+	 * Always container customizations ({@link PluginCustomization} or
+	 * {@link DirectoryCustomization}).
 	 */
-	getCustomizations?(): readonly CustomizationRef[];
+	getCustomizations?(): readonly Customization[];
 
 	/**
 	 * Returns the effective customization list for a session, including
 	 * source, enablement, and loading/error status.
 	 */
-	getSessionCustomizations?(session: URI): Promise<readonly SessionCustomization[]>;
+	getSessionCustomizations?(session: URI): Promise<readonly Customization[]>;
 
 	/**
 	 * Authenticate for a specific resource. Returns true if accepted.
@@ -676,7 +856,7 @@ export interface IAgent {
 	 *
 	 * The agent MAY defer a client restart until all active sessions are idle.
 	 */
-	setClientCustomizations(session: URI, clientId: string, customizations: CustomizationRef[]): Promise<ISyncedCustomization[]>;
+	setClientCustomizations(session: URI, clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]>;
 
 	/**
 	 * Receives client-provided tool definitions to make available in a
@@ -690,7 +870,7 @@ export interface IAgent {
 	 * @param clientId The client that owns these tools.
 	 * @param tools The tool definitions (full replacement).
 	 */
-	setClientTools(session: URI, clientId: string, tools: ToolDefinition[]): void;
+	setClientTools(session: URI, clientId: string | undefined, tools: ToolDefinition[]): void;
 
 	/**
 	 * Called when a client completes a client-provided tool call.
@@ -705,11 +885,41 @@ export interface IAgent {
 	/**
 	 * Notifies the agent that a customization has been toggled on or off.
 	 * The agent MAY restart its client before the next message is sent.
+	 *
+	 * @param id The opaque session-unique customization id.
 	 */
-	setCustomizationEnabled(uri: string, enabled: boolean): void;
+	setCustomizationEnabled(id: string, enabled: boolean): void;
 
 	/** Gracefully shut down all sessions. */
 	shutdown(): Promise<void>;
+
+	/**
+	 * Routes a request received on an `mcp://` side channel to the agent's
+	 * MCP server implementation. The channel carries raw MCP JSON-RPC
+	 * methods (e.g. `tools/list`, `tools/call`, `resources/read`) tagged
+	 * with the routing envelope; the protocol server decodes the envelope
+	 * and forwards `(session, serverName, method, params)` here.
+	 *
+	 * The agent MUST reject unknown methods with an error whose message
+	 * begins with `Method not found` so the protocol server can map it to
+	 * a JSON-RPC `-32601`.
+	 *
+	 * Optional — agents that don't surface any MCP servers (or don't
+	 * advertise `mcpApp` capabilities) can omit this.
+	 */
+	handleMcpRequest?(session: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/**
+	 * Fires when an MCP server owned by this agent emits a notification
+	 * that should be forwarded to AHP clients over the `mcp://` side
+	 * channel. Today this is exclusively
+	 * `notifications/tools/list_changed` and
+	 * `notifications/resources/list_changed`. The protocol server
+	 * fans the notification out to every connected client.
+	 *
+	 * Optional — agents that don't expose MCP servers can omit this.
+	 */
+	readonly onMcpNotification?: Event<IMcpNotification>;
 
 	/** Dispose this provider and all its resources. */
 	dispose(): void;
@@ -737,6 +947,9 @@ export interface IAgentService {
 	 * bearer token delivery.
 	 */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+
+	/** Return a bearer token previously supplied via {@link authenticate}. */
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
 
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
@@ -779,6 +992,37 @@ export interface IAgentService {
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
+
+	/** Invoke a server-defined changeset operation. */
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
+
+	/**
+	 * Routes a request received on an `mcp://` AHP side channel to the
+	 * MCP server implementation owned by the appropriate agent. The
+	 * channel URI shape is `mcp://<providerId>/<sessionId>/<serverName>`
+	 * (the latter two segments URL-encoded), matching the
+	 * {@link McpServerCustomization.channel | channel} the agent host
+	 * advertises while the server is in
+	 * {@link McpServerStatus.Ready | `Ready`}.
+	 *
+	 * `method` is the raw MCP JSON-RPC method (e.g. `tools/list`,
+	 * `tools/call`, `resources/read`); `params` are the JSON-RPC params
+	 * (still carrying the routing envelope's `channel` field, which the
+	 * agent may ignore). Rejects with an `Error` whose message begins
+	 * with `Method not found` when the channel is unknown or the agent
+	 * doesn't recognise the method — the protocol server translates that
+	 * into a JSON-RPC `-32601`.
+	 */
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
+	/**
+	 * Aggregated stream of MCP notifications across every agent. The
+	 * protocol server subscribes once and broadcasts each notification as
+	 * a JSON-RPC notification to all connected clients (the routing
+	 * envelope's `channel` field is sufficient for client-side dispatch,
+	 * so no per-subscription fanout is required).
+	 */
+	readonly onMcpNotification: Event<IMcpNotification>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;
@@ -869,6 +1113,44 @@ export interface IAgentService {
 	 * Move (rename) a resource from one URI to another on the agent host's filesystem.
 	 */
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+
+	/**
+	 * Resolve a resource (stat + realpath) on the agent host's filesystem.
+	 */
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
+
+	/**
+	 * Create a directory (mkdir -p semantics) on the agent host's filesystem.
+	 */
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+
+	/**
+	 * Create a resource watcher on the agent host's filesystem. Returns the
+	 * `ahp-resource-watch:/<id>` channel URI the caller subscribes to in
+	 * order to receive `resourceWatch/changed` events. The watcher is
+	 * tied to the subscriber refcount on that channel — the implementation
+	 * MUST hold the underlying file-system watcher for a short grace
+	 * period after the last unsubscribe so reconnects don't drop events.
+	 */
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+
+	/**
+	 * Notify the agent service that a client subscribed to the given
+	 * `ahp-resource-watch:` channel so the per-watch refcount is bumped
+	 * (and the underlying {@link IFileService} watcher attached on the
+	 * first subscriber). Returns the decoded watch descriptor when the
+	 * channel parses successfully and the watcher is live; returns
+	 * `undefined` for unknown channels so the caller can surface a
+	 * not-found error.
+	 */
+	onResourceWatchSubscribed(channel: string): ResourceWatchState | undefined;
+
+	/**
+	 * Counterpart to {@link onResourceWatchSubscribed}. Decrements the
+	 * per-watch refcount; on the last drop the watcher is held for a
+	 * short grace period before disposal.
+	 */
+	onResourceWatchUnsubscribed(channel: string): boolean;
 }
 
 /**
@@ -879,13 +1161,26 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
-	readonly _serviceBrand: undefined;
+
 	readonly clientId: string;
 
 	// ---- State subscriptions ------------------------------------------------
 	readonly rootState: IAgentSubscription<RootState>;
-	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>>;
+	/**
+	 * Acquire a refcounted subscription to `resource`. `owner` names the
+	 * caller holding the reference so inspection surfaces can attribute who
+	 * is retaining a subscription; use a stable identifier such as the
+	 * acquiring class name.
+	 */
+	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>>;
 	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
+
+	/**
+	 * Read-only descriptors of every active resource subscription on this
+	 * connection, for inspection/debug surfaces. Excludes the always-live
+	 * {@link rootState}.
+	 */
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[];
 
 	// ---- Action dispatch ----------------------------------------------------
 	/**
@@ -901,6 +1196,13 @@ export interface IAgentConnection {
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
 	readonly onDidAction: Event<ActionEnvelope>;
+	/**
+	 * Fires when the host forwards an MCP server notification (e.g.
+	 * `notifications/tools/list_changed`) over the `mcp://` side channel.
+	 * The `channel` field on the notification routes the payload to the
+	 * matching {@link McpServerCustomization}.
+	 */
+	readonly onMcpNotification: Event<IMcpNotification>;
 
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
@@ -922,6 +1224,9 @@ export interface IAgentConnection {
 	createTerminal(params: CreateTerminalParams): Promise<void>;
 	disposeTerminal(terminal: URI): Promise<void>;
 
+	// ---- Changeset operations -----------------------------------------------
+	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
+
 	// ---- Filesystem operations ----------------------------------------------
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI): Promise<ResourceReadResult>;
@@ -929,6 +1234,18 @@ export interface IAgentConnection {
 	resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult>;
 	resourceDelete(params: ResourceDeleteParams): Promise<ResourceDeleteResult>;
 	resourceMove(params: ResourceMoveParams): Promise<ResourceMoveResult>;
+	resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult>;
+	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult>;
+	createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult>;
+	/**
+	 * Convenience method that bundles
+	 * {@link createResourceWatch} + {@link subscribe} + a typed
+	 * {@link IFileChange}[] event stream, so consumers (notably
+	 * `AHPFileSystemProvider.watch`) can drive a watcher without
+	 * understanding the underlying channel protocol. Disposing the
+	 * returned handle unsubscribes.
+	 */
+	watchResource(params: CreateResourceWatchParams): Promise<IRemoteWatchHandle>;
 }
 
 export const IAgentHostService = createDecorator<IAgentHostService>('agentHostService');
@@ -938,6 +1255,8 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
  * exposes the proxied service). Consumed by the main process and workbench.
  */
 export interface IAgentHostService extends IAgentConnection {
+
+	readonly _serviceBrand: undefined;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

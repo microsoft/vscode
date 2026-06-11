@@ -59,7 +59,7 @@
 	width: 36px;
 	height: 4px;
 	margin: 8px auto 4px;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-xSmall);
 	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
 	flex-shrink: 0;
 }

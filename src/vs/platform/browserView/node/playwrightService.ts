@@ -7,23 +7,17 @@ import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lif
 import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
-import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
+import { CDPRequest, CDPResponse } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 
 // eslint-disable-next-line local/code-import-patterns
-import type { Browser, BrowserContext, Page } from 'playwright-core';
-
-interface PlaywrightTransport {
-	send(s: CDPRequest): void;
-	close(): void;  // Note: calling close is expected to issue onclose at some point.
-	onmessage?: (message: CDPResponse | CDPEvent) => void;
-	onclose?: (reason?: string) => void;
-}
+import type { Browser, BrowserContext, ConnectOverCDPTransport, Page } from 'playwright-core';
 
 /**
  * Tracks whether a caller-initiated Playwright action is currently in flight.
@@ -32,14 +26,25 @@ export interface IPlaywrightActionScope {
 	activeCalls: number;
 }
 
-declare module 'playwright-core' {
-	interface BrowserType {
-		_connectOverCDPTransport(transport: PlaywrightTransport): Promise<Browser>;
-	}
-}
-
 const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
 const SESSION_INACTIVITY_MS = 30 * 60_000; // 30 minutes
+
+/**
+ * Narrow a raw Playwright transport payload to a {@link CDPRequest}.
+ *
+ * Playwright types the `send` payload as `object` but passes structured CDP
+ * messages (not JSON strings) for a caller-supplied transport, so this guard
+ * is expected to always hold. It exists to fail loudly (the caller throws)
+ * should a future Playwright version change the wire format, rather than
+ * silently forwarding malformed messages.
+ */
+function isCDPRequest(message: object): message is CDPRequest {
+	const candidate = message as Partial<CDPRequest>;
+	return typeof candidate.id === 'number'
+		&& typeof candidate.method === 'string'
+		&& (candidate.sessionId === undefined || typeof candidate.sessionId === 'string');
+}
+
 
 
 /**
@@ -74,6 +79,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -120,12 +126,18 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		try {
 			const playwright = await import('playwright-core');
 			const sub = group.onCDPMessage(msg => transport.onmessage?.(msg));
-			const transport: PlaywrightTransport = {
+			const transport: ConnectOverCDPTransport = {
 				close() {
 					sub.dispose();
 					this.onclose?.();
 				},
-				send(message) {
+				send: (rawMessage) => {
+					if (!isCDPRequest(rawMessage)) {
+						// Fail loudly: returning silently would leave Playwright
+						// waiting for a response and surface later as an opaque hang.
+						throw new Error(`[PlaywrightService] Unexpected CDP transport payload for session ${sessionId} (type: ${typeof rawMessage})`);
+					}
+					const message = rawMessage;
 					// Block Playwright's automatic / default emulation traffic. We
 					// only forward `Emulation.*` to the view while a caller-initiated
 					// action is running (see IPlaywrightActionScope) so the workbench
@@ -133,16 +145,16 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 					// setup Playwright issues on its own when connecting or creating
 					// pages — is acknowledged with a synthetic success response and
 					// never hits the view.
-					if (actionScope.activeCalls === 0 && typeof message.method === 'string' && message.method.startsWith('Emulation.')) {
+					if (actionScope.activeCalls === 0 && message.method.startsWith('Emulation.')) {
 						setTimeout(() => {
-							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId });
+							transport.onmessage?.({ id: message.id, result: {}, sessionId: message.sessionId } satisfies CDPResponse);
 						}, 1);
 						return;
 					}
 					void group.sendCDPMessage(message);
 				}
 			};
-			browser = await playwright.chromium._connectOverCDPTransport(transport);
+			browser = await playwright.chromium.connectOverCDP(transport);
 		} catch (e) {
 			group.dispose();
 			throw e;
@@ -164,6 +176,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			actionScope,
 			this.logService,
 			this.agentNetworkFilterService,
+			this.telemetryService,
 		);
 
 		// Keep the global tracked set in sync with group events. When a
@@ -356,6 +369,7 @@ class PlaywrightSession extends Disposable {
 	private readonly _deferredResults = this._register(new DisposableMap<string, {
 		pageId: string;
 		promise: Promise<unknown>;
+		logCtx?: IExecutionLogContext;
 	} & IDisposable>());
 
 	constructor(
@@ -365,6 +379,7 @@ class PlaywrightSession extends Disposable {
 		private readonly actionScope: IPlaywrightActionScope,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
+		private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -411,18 +426,39 @@ class PlaywrightSession extends Disposable {
 	async invokeFunction(pageId: string, fnDef: string, args: unknown[] = [], timeoutMs?: number): Promise<IInvokeFunctionResult> {
 		this.logService.info(`[PlaywrightSession] Invoking function on view ${pageId}`);
 
+		const logCtx: IExecutionLogContext = {
+			startedAt: Date.now(),
+			codeLength: fnDef.length,
+			codeLineCount: fnDef.split('\n').length,
+			pageMethodsCalled: new Map<string, number>(),
+			wasDeferred: false,
+			resumeCount: 0,
+			logged: false,
+		};
+
+		let fn;
+		try {
+			fn = await this._compileFunction(fnDef);
+		} catch (err: unknown) {
+			// Surface compile/syntax errors as { error, summary }, like other execution failures.
+			this._logExecution(logCtx, false);
+			const summary = await this._getSummary(pageId);
+			return { error: err instanceof Error ? err.message : String(err), summary };
+		}
+		const wrappedCallback = async (page: Page) => fn(createPageApiProxy(page, logCtx.pageMethodsCalled), args);
+
 		if (timeoutMs !== undefined) {
-			const fn = await this._compileFunction(fnDef);
-			return this._runWithDeferral(pageId, async (page) => fn(page, args ?? []), timeoutMs);
+			return this._runWithDeferral(pageId, wrappedCallback, timeoutMs, undefined, logCtx);
 		}
 
 		let result, error;
 		try {
-			result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
+			result = await this._runAgainstPage(pageId, wrappedCallback);
 		} catch (err: unknown) {
 			error = err instanceof Error ? err.message : String(err);
 		}
 
+		this._logExecution(logCtx, !error);
 		const summary = await this._getSummary(pageId);
 		return { result, error, summary };
 	}
@@ -433,9 +469,12 @@ class PlaywrightSession extends Disposable {
 			throw new Error(`No deferred result found with ID "${deferredResultId}". It may have been cleaned up or already consumed.`);
 		}
 
-		const { pageId, promise } = entry;
+		const { pageId, promise, logCtx } = entry;
+		if (logCtx) {
+			logCtx.resumeCount++;
+		}
 		this._deferredResults.deleteAndDispose(deferredResultId);
-		return this._runWithDeferral(pageId, () => promise, timeoutMs, deferredResultId);
+		return this._runWithDeferral(pageId, () => promise, timeoutMs, deferredResultId, logCtx);
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {
@@ -480,8 +519,18 @@ class PlaywrightSession extends Disposable {
 		return tab.safeRunAgainstPage(async () => callback(page));
 	}
 
-	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string): Promise<IInvokeFunctionResult> {
+	private async _runWithDeferral(pageId: string, callback: (page: Page) => Promise<unknown>, timeoutMs: number, existingDeferredId?: string, logCtx?: IExecutionLogContext): Promise<IInvokeFunctionResult> {
 		const deferred = new DeferredPromise();
+
+		// Attach settlement logging once, on the initiating call: `deferred.p` settles
+		// when the page work finishes no matter how many times the result is deferred,
+		// resumed, or abandoned, so a deferred run is still logged once it settles.
+		// `_logExecution` is idempotent, so this is a no-op if the synchronous path
+		// below already logged a non-deferred completion.
+		if (existingDeferredId === undefined && logCtx) {
+			deferred.p.then(() => this._logExecution(logCtx, true), () => this._logExecution(logCtx, false));
+		}
+
 		const wrappedPromise = this._runAgainstPage(pageId, async (page) => {
 			const promise = callback(page);
 			promise.catch(() => { /* prevent unhandled rejection if deferred */ });
@@ -503,14 +552,50 @@ class PlaywrightSession extends Disposable {
 
 		let deferredResultId: string | undefined;
 		if (interrupted) {
+			if (logCtx) {
+				logCtx.wasDeferred = true;
+			}
 			deferredResultId = existingDeferredId ?? generateUuid();
 			const cleanup = disposableTimeout(() => this._deferredResults.deleteAndDispose(deferredResultId!), DEFERRED_RESULT_CLEANUP_MS);
-			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, dispose: () => cleanup.dispose() });
+			this._deferredResults.set(deferredResultId, { pageId, promise: deferred.p, logCtx, dispose: () => cleanup.dispose() });
 			this.logService.info(`[PlaywrightSession] Execution interrupted, deferred as ${deferredResultId}`);
+		} else if (logCtx) {
+			// Completed or failed within the timeout: log the outcome now rather than
+			// relying on the settlement promise, which never settles if the page work
+			// threw before `settleWith` ran (e.g. the page could not be resolved).
+			this._logExecution(logCtx, !error);
 		}
 
 		const summary = await this._getSummary(pageId);
 		return { result, error, summary, deferredResultId };
+	}
+
+	/**
+	 * Emit completion telemetry for a single {@link invokeFunction} call, once the
+	 * page work settles. Idempotent: only the first call for a given context emits,
+	 * so the synchronous and settlement-promise paths can both call it safely.
+	 */
+	private _logExecution(ctx: IExecutionLogContext, success: boolean): void {
+		if (ctx.logged) {
+			return;
+		}
+		ctx.logged = true;
+		const entries = [...ctx.pageMethodsCalled.entries()];
+		const total = entries.reduce((sum, [, count]) => sum + count, 0);
+		this.telemetryService.publicLog2<RunPlaywrightCodeEvent, RunPlaywrightCodeClassification>(
+			'integratedBrowser.tools.runPlaywrightCode.completed',
+			{
+				pageMethodsCalled: JSON.stringify(Object.fromEntries(entries)),
+				pageMethodsCalledDcount: entries.length,
+				pageMethodsCalledCount: total,
+				success: success ? 1 : 0,
+				wasDeferred: ctx.wasDeferred ? 1 : 0,
+				resumeCount: ctx.resumeCount,
+				durationMs: Math.round(Date.now() - ctx.startedAt),
+				codeLength: ctx.codeLength,
+				codeLineCount: ctx.codeLineCount,
+			}
+		);
 	}
 
 	private async _compileFunction(fnDef: string): Promise<(page: Page, args: unknown[]) => unknown> {
@@ -673,4 +758,123 @@ class PlaywrightSession extends Disposable {
 		this._pageQueue = [];
 		super.dispose();
 	}
+}
+
+/**
+ * Per-invocation state threaded through {@link PlaywrightSession.invokeFunction}
+ * and its deferral machinery so completion telemetry can be emitted exactly once
+ * when the underlying page work settles - even for deferred runs the caller
+ * never resumes.
+ */
+interface IExecutionLogContext {
+	/** {@link Date.now} timestamp captured when the invocation began. */
+	readonly startedAt: number;
+	/** Character length of the executed function source. */
+	readonly codeLength: number;
+	/** Line count of the executed function source. */
+	readonly codeLineCount: number;
+	/** Per-method call counts accumulated by {@link createPageApiProxy}. */
+	readonly pageMethodsCalled: Map<string, number>;
+	/** Set once the execution is interrupted and deferred at least once. */
+	wasDeferred: boolean;
+	/** Number of times the caller resumed this execution via {@link PlaywrightSession.waitForDeferredResult}. */
+	resumeCount: number;
+	/** Guards against double-logging; set by {@link PlaywrightSession._logExecution}. */
+	logged: boolean;
+}
+
+type RunPlaywrightCodeEvent = {
+	pageMethodsCalled: string;
+	pageMethodsCalledDcount: number;
+	pageMethodsCalledCount: number;
+	success: number;
+	wasDeferred: number;
+	resumeCount: number;
+	durationMs: number;
+	codeLength: number;
+	codeLineCount: number;
+};
+
+type RunPlaywrightCodeClassification = {
+	pageMethodsCalled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON object mapping dotted `page.*` method names to their call counts (e.g. `{"click":2,"keyboard.press":5}`), in first-observed order.' };
+	pageMethodsCalledDcount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct `page.*` methods invoked.' };
+	pageMethodsCalledCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total `page.*` method calls including duplicates (sum of all per-method counts).' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the code completed without error, 0 otherwise.' };
+	wasDeferred: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the execution was interrupted and deferred at least once, 0 otherwise.' };
+	resumeCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of times the caller resumed this execution by polling for its deferred result. 0 means the run either completed within the first timeout or was deferred and never resumed (settled in the background).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Wall-clock time in milliseconds from invocation start until the page work settled.' };
+	codeLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Character length of the executed function source.' };
+	codeLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Line count of the executed function source.' };
+	owner: 'jruales';
+	comment: 'Tracks how the run_playwright_code chat tool is exercised.';
+};
+
+/**
+ * Property names that are skipped by {@link createPageApiProxy} so that JS
+ * runtime/idiomatic accesses don't show up as fake API usage. Includes
+ * `then`/`catch`/`finally` (so awaiting the proxy never records noise),
+ * conversion hooks, and `constructor`.
+ */
+const PAGE_PROXY_IGNORED_PROPS = new Set<string>([
+	'then',
+	'catch',
+	'finally',
+	'toJSON',
+	'toString',
+	'valueOf',
+	'constructor',
+]);
+
+/**
+ * Maximum nesting depth for the recursive page proxy. The Playwright `page`
+ * surface only nests one level deep in practice (e.g. `page.keyboard.press`),
+ * so 3 is generously above any real workload while preventing pathological
+ * cases on cyclic structures.
+ */
+const PAGE_PROXY_MAX_DEPTH = 3;
+
+/**
+ * Wrap a Playwright `page` so every call through the proxy increments a counter
+ * in {@link methodCalls}, keyed by the dotted path from `page` (e.g. `click`,
+ * `keyboard.press`). Object properties are proxied recursively (capped at
+ * {@link PAGE_PROXY_MAX_DEPTH}) so calls on namespaces like `keyboard` and
+ * `mouse` are visible; symbol keys, `_`-prefixed internals, and
+ * {@link PAGE_PROXY_IGNORED_PROPS} are skipped to avoid noise.
+ *
+ * Wrappers and nested proxies are cached per property so repeated reads return
+ * the same value, preserving Playwright's object identity (e.g.
+ * `page.keyboard === page.keyboard`).
+ */
+function createPageApiProxy<T extends object>(target: T, methodCalls: Map<string, number>, prefix: string = '', depth: number = 0): T {
+	if (depth >= PAGE_PROXY_MAX_DEPTH) {
+		return target;
+	}
+	const cache = new Map<string, unknown>();
+	return new Proxy(target, {
+		get(t, prop, receiver) {
+			const value = Reflect.get(t, prop, receiver);
+			if (typeof prop !== 'string' || prop.startsWith('_') || PAGE_PROXY_IGNORED_PROPS.has(prop)) {
+				return value;
+			}
+			const cached = cache.get(prop);
+			if (cached !== undefined) {
+				return cached;
+			}
+			if (typeof value === 'function') {
+				const name = prefix + prop;
+				const wrapper = function (this: unknown, ...args: unknown[]) {
+					methodCalls.set(name, (methodCalls.get(name) ?? 0) + 1);
+					return Reflect.apply(value as Function, t, args);
+				};
+				cache.set(prop, wrapper);
+				return wrapper;
+			}
+			if (value !== null && typeof value === 'object') {
+				const nested = createPageApiProxy(value as object, methodCalls, `${prefix}${prop}.`, depth + 1);
+				cache.set(prop, nested);
+				return nested;
+			}
+			return value;
+		},
+	});
 }

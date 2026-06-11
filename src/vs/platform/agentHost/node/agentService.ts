@@ -7,27 +7,29 @@ import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
-import { equals as objectEquals } from '../../../base/common/objects.js';
+import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
-import { extname as resourcesExtname, isEqual, joinPath } from '../../../base/common/resources.js';
+import { extname as resourcesExtname, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { localize } from '../../../nls.js';
+import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileChange, IFileService, toFileSystemProviderErrorCode, type FileChangesEvent } from '../../files/common/files.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
-import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription, parseChangesetUri } from '../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
+import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildSubagentSessionUriPrefix, parseSubagentSessionUri, readSessionGitState, withSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isSubagentSession, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -36,18 +38,26 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { AgentHostChangesetService, IAgentHostChangesetService } from './agentHostChangesetService.js';
+import { AgentHostChangesetService, IAgentHostChangesetService, META_CHANGES_SUMMARY } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
 import { CHANGESET_DB_METADATA_KEYS, ChangesetSessionCoordinator } from './agentHostChangesetCoordinator.js';
 import { AgentHostCompletions, IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostFileCompletionProvider } from './agentHostFileCompletionProvider.js';
+import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
+import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
+import { AgentHostChangesetOperationContributionService } from './agentHostChangesetOperationContributionService.js';
+import { registerDefaultChangesetOperationContributions } from './agentHostChangesetOperationContributions.js';
+import { AgentHostSessionGitStateService } from './agentHostSessionGitStateService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
+import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
+import { AgentHostOctoKitService, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
 
 /**
  * Grace period before an empty, unsubscribed session is garbage-collected
@@ -56,6 +66,16 @@ import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetrySer
  * provider-side session, worktree, and on-disk state.
  */
 const SESSION_GC_GRACE_MS = 30_000;
+
+/**
+ * Grace period before an idle resource watch is torn down after its last
+ * subscriber unsubscribes (mirrors {@link SESSION_GC_GRACE_MS}). Within
+ * this window, a re-subscribe (or reconnect) reuses the still-running
+ * {@link IFileService} watcher so transient drop-outs don't miss change
+ * events. Resource watch action envelopes flow through the normal
+ * envelope replay buffer for the same reason.
+ */
+const RESOURCE_WATCH_GRACE_MS = 30_000;
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -73,6 +93,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
 
+	/** Protocol: fires for MCP server-originated notifications routed over `mcp://` channels. */
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
+
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
 
@@ -88,6 +112,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
+	private readonly _authService: AgentHostAuthenticationService;
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
 	/** Observable registered agents, drives `root/agentsChanged` via {@link AgentSideEffects}. */
@@ -98,6 +123,10 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _changesets: IAgentHostChangesetService;
 	/** Owns AgentService-side orchestration of the changeset feature. */
 	private readonly _changesetCoordinator: ChangesetSessionCoordinator;
+	/** Owns session git-state probing and git-backed catalogue decoration. */
+	private readonly _sessionGitStateService: AgentHostSessionGitStateService;
+	/** Owns changeset operation contributions and handler activation. */
+	private readonly _changesetOperationContributionService: AgentHostChangesetOperationContributionService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
 	private readonly _configurationService: IAgentConfigurationService;
@@ -124,6 +153,30 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _pendingSessionGc = this._register(new DisposableResourceMap<IDisposable>());
 
+	/**
+	 * Active resource watches keyed by the channel URI string
+	 * (`ahp-resource-watch:/<encoded>`).
+	 *
+	 * Each entry owns the {@link IFileService} watcher together with the
+	 * decoded descriptor, the subscriber refcount, and the optional
+	 * grace-window dispose timer. The watch URI itself is fully
+	 * self-describing — {@link createResourceWatch} just encodes the
+	 * caller's params into the URI and returns it. State only exists
+	 * here once at least one client has subscribed.
+	 *
+	 * Lifecycle:
+	 * - First subscriber to a channel: {@link onResourceWatchSubscribed}
+	 *   parses the URI, creates the {@link IFileService} watcher, and
+	 *   installs the entry with `subscribers = 1`.
+	 * - Subsequent subscribers bump the refcount and cancel any pending
+	 *   grace-window dispose timer.
+	 * - {@link onResourceWatchUnsubscribed} drops the refcount; when it
+	 *   reaches zero we arm a {@link RESOURCE_WATCH_GRACE_MS} dispose
+	 *   timer rather than tearing down immediately, giving disconnected
+	 *   clients time to reconnect.
+	 */
+	private readonly _resourceWatches = this._register(new DisposableMap<string, IActiveResourceWatch>());
+
 	/** Exposes the terminal manager for use by agent providers. */
 	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
@@ -146,10 +199,13 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _rootConfigResource?: URI,
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 		_fileMonitorService?: IAgentHostFileMonitorService,
+		copilotApiService?: ICopilotApiService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
+		this._authService = new AgentHostAuthenticationService(_logService);
 		this._stateManager = this._register(new AgentHostStateManager(_logService, {
+			hostBuildInfo: hostBuildInfoFromProduct(this._productService),
 			changesetStateRetention: {
 				// The cache calls this lazily after construction. If a future state-manager
 				// initialization path registers changesets before `_changesets` is assigned,
@@ -169,6 +225,7 @@ export class AgentService extends Disposable implements IAgentService {
 		updateAgentHostTelemetryLevelFromConfig(this._telemetryService, this._stateManager.rootState.config?.values);
 		const services = new ServiceCollection(
 			[ILogService, this._logService],
+			[IAgentService, this],
 			[IProductService, this._productService],
 			[IAgentConfigurationService, configurationService],
 			[IAgentHostFileMonitorService, fileMonitorService],
@@ -181,6 +238,12 @@ export class AgentService extends Disposable implements IAgentService {
 			[ISessionDataService, this._sessionDataService],
 		);
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
+		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, undefined);
+		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
+		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
+		services.set(ICopilotApiService, effectiveCopilotApiService);
+		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
+		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
 
 		// The checkpoint service is constructed in the outer agent-host
 		// DI scope and passed via {@link _checkpointService}; register it
@@ -200,6 +263,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// constructor injection resolves naturally.
 		this._changesets = this._register(instantiationService.createInstance(AgentHostChangesetService, this._stateManager));
 		services.set(IAgentHostChangesetService, this._changesets);
+		this._register(registerDefaultChangesetOperationContributions(this._changesetOperationContributionService, instantiationService, this._stateManager));
 
 		// The coordinator owns all AgentService-side orchestration of the
 		// changeset feature: lifecycle hooks, listSessions overlay,
@@ -213,11 +277,26 @@ export class AgentService extends Disposable implements IAgentService {
 		this._register(this._completions.registerProvider(
 			new AgentHostFileCompletionProvider(this._stateManager, workspaceFiles),
 		));
+		// Built-in generic provider: offers the `/rename` slash command for any
+		// session that already has history. Execution is handled server-side in
+		// AgentSideEffects (redirected to a SessionTitleChanged action).
+		this._register(this._completions.registerProvider(
+			new AgentHostRenameCompletionProvider(
+				session => (this._stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+			),
+		));
 
 		this._sideEffects = this._register(instantiationService.createInstance(AgentSideEffects, this._stateManager, {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
+			copilotApiService: effectiveCopilotApiService,
+			getGitHubCopilotToken: () => {
+				return this.getAuthToken({
+					resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+					scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+				});
+			},
 			onTurnComplete: session => {
 				const workingDirStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
 				this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
@@ -241,6 +320,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
 		}
+		if (provider.onMcpNotification) {
+			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
+		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
@@ -257,8 +339,6 @@ export class AgentService extends Disposable implements IAgentService {
 		this._skillCompletionProviderRegistered = true;
 		const provider = this._register(new AgentHostSkillCompletionProvider(
 			session => this._findProviderForSession(session),
-			this._fileService,
-			this._logService,
 		));
 		this._register(this._completions.registerProvider(provider));
 	}
@@ -266,33 +346,32 @@ export class AgentService extends Disposable implements IAgentService {
 	// ---- auth ---------------------------------------------------------------
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
-		this._logService.trace(`[AgentService] authenticate called: resource=${params.resource}`);
-		// Multiple providers may share the same protected resource (e.g.
-		// both Copilot CLI and Claude consume the GitHub Copilot token).
-		// Fan out to every matching provider in parallel; the request is
-		// considered authenticated if at least one accepts. Provider
-		// failures are isolated — one provider rejecting (e.g. proxy
-		// server bind failure) MUST NOT prevent another provider from
-		// accepting the same token.
-		const matching = [...this._providers.values()].filter(
-			p => p.getProtectedResources().some(r => r.resource === params.resource),
-		);
-		const settled = await Promise.allSettled(
-			matching.map(p => p.authenticate(params.resource, params.token)),
-		);
-		let authenticated = false;
-		for (let i = 0; i < settled.length; i++) {
-			const result = settled[i];
-			if (result.status === 'fulfilled') {
-				authenticated ||= result.value;
-			} else {
-				this._logService.error(
-					result.reason,
-					`[AgentService] Provider '${matching[i].id}' authenticate threw for resource=${params.resource}`,
-				);
-			}
+		return this._authService.authenticate(params, this._providers.values());
+	}
+
+	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
+		return this._authService.getAuthToken(request);
+	}
+
+	// ---- Changeset operation handlers --------------------------------------
+
+	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		return this._changesetOperationContributionService.invokeChangesetOperation(params);
+	}
+
+	// ---- MCP `mcp://` channel routing --------------------------------------
+
+	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const route = parseMcpChannelUri(channel);
+		if (!route) {
+			throw new Error(`Method not found: invalid mcp:// channel ${channel}`);
 		}
-		return { authenticated };
+		const provider = this._providers.get(route.providerId);
+		if (!provider || !provider.handleMcpRequest) {
+			throw new Error(`Method not found: no provider for mcp:// channel ${channel}`);
+		}
+		const sessionUri = AgentSession.uri(route.providerId, route.sessionId);
+		return provider.handleMcpRequest(sessionUri, route.serverName, method, params);
 	}
 
 	// ---- session management -------------------------------------------------
@@ -349,11 +428,12 @@ export class AgentService extends Disposable implements IAgentService {
 		// Overlay live session state from the state manager.
 		// For the title, prefer the state manager's value when it is
 		// non-empty, so SDK-sourced titles are not overwritten by the
-		// initial empty placeholder. The default `session` changeset
-		// catalogue entry lives on `state.summary.changesets` (published
-		// at session-ready/restore time and refreshed after each compute
-		// pass) and must be surfaced here so a fresh `listSessions` call
-		// returns the same catalogue subscribers see via
+		// initial empty placeholder. The default changeset catalogue lives
+		// on `state.changesets` (seeded after `createSession` /
+		// `restoreSession` and refreshed after each compute pass) and the
+		// chip aggregate on `state.summary.changes`; both must be surfaced
+		// here so a fresh `listSessions` call returns the same values
+		// subscribers see via the per-session action stream and
 		// `notify/sessionSummaryChanged`.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
@@ -365,14 +445,51 @@ export class AgentService extends Disposable implements IAgentService {
 					activity: liveState.summary.activity,
 					model: liveState.summary.model ?? s.model,
 					agent: liveState.summary.agent ?? s.agent,
-					changesets: liveState.summary.changesets ?? s.changesets,
+					changes: liveState.summary.changes ?? s.changes,
+					changesets: liveState.changesets ?? s.changesets,
 				};
 			}
 			return s;
 		});
 
-		this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
-		return withStatus;
+		// Overlay any session known to state but missing from the providers'
+		// `listSessions` snapshot, so renderer-side caches don't evict a
+		// live/active session (which would close the chat view holding the
+		// in-flight response bubble). Two cases need this: a provider can
+		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
+		// an empty array right after `session/turnComplete`), and a
+		// provisional session (created but not yet materialized — see
+		// `createSession`) is absent for its entire provisional window. We use
+		// *all* tracked summaries (not just announced ones) to cover the latter.
+		const known = new Set(withStatus.map(s => s.session.toString()));
+		const additions: IAgentSessionMetadata[] = [];
+		for (const summary of this._stateManager.getAllSessionSummaries()) {
+			if (known.has(summary.resource)) {
+				continue;
+			}
+			// Subagent sessions are nested under their parent and must never
+			// surface as top-level entries in the session list.
+			if (isSubagentSession(summary.resource)) {
+				continue;
+			}
+			additions.push({
+				session: URI.parse(summary.resource),
+				startTime: summary.createdAt,
+				modifiedTime: summary.modifiedAt,
+				summary: summary.title,
+				status: summary.status,
+				activity: summary.activity,
+				model: summary.model,
+				agent: summary.agent,
+				workingDirectory: typeof summary.workingDirectory === 'string' ? URI.parse(summary.workingDirectory) : undefined,
+				...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
+				changes: summary.changes,
+			});
+		}
+		const combined = additions.length > 0 ? [...withStatus, ...additions] : withStatus;
+
+		this._logService.trace(`[AgentService] listSessions returned ${combined.length} sessions (${additions.length} state-manager fallback)`);
+		return combined;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -458,7 +575,16 @@ export class AgentService extends Disposable implements IAgentService {
 					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
-			const summary = this._buildInitialSummary(provider, session, config, created, sourceState?.summary.title ?? 'Forked Session');
+			// Prefix the forked session's title so consumers (sidebar, chat
+			// model) can distinguish it from the source without each surface
+			// reinventing the convention. Avoid double-prefixing when a user
+			// forks an already-forked session.
+			const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
+			const sourceTitle = sourceState?.summary.title;
+			const forkedTitle = sourceTitle
+				? (sourceTitle.startsWith(forkedTitlePrefix) ? sourceTitle : `${forkedTitlePrefix}${sourceTitle}`)
+				: localize('agentHost.forkedSessionFallback', "Forked Session");
+			const summary = this._buildInitialSummary(provider, session, config, created, forkedTitle);
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
@@ -491,19 +617,18 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		// Initial changeset state is established as part of session creation,
-		// never deferred to materialization. Two halves: (1) the summary
-		// catalogue is seeded by `buildDefaultChangesetCatalogue` inside
-		// `_buildInitialSummary`; (2) the backing per-changeset states are
+		// never deferred to materialization. Two halves: (1) the catalogue
+		// is seeded on `state.changesets` via `setSessionChangesets` right
+		// after `createSession`; (2) the backing per-changeset states are
 		// registered by `_changesetCoordinator.onSessionCreated` here. Both
 		// run before `SessionReady` is dispatched. Any future change must
 		// keep both halves at create time so client subscriptions resolve
-		// to a `status: computing` snapshot rather than a 404 even on
-		// provisional sessions, and so the catalogue chip renders the
-		// default entries (`Branch Changes`, `Uncommitted Changes`,
-		// `This Turn`) immediately. The first two are git-only: a later
 		// `_attachGitState` strips them once the git probe confirms the
 		// resolved working directory is not a git repo. Pinned by item-2
 		// regression tests in `agentService.test.ts`.
+		const changesets = buildDefaultChangesetCatalogue(session.toString());
+		this._stateManager.setSessionChangesets(session.toString(), changesets);
+
 		this._changesetCoordinator.onSessionCreated(session.toString());
 
 		if (!created.provisional) {
@@ -540,7 +665,6 @@ export class AgentService extends Disposable implements IAgentService {
 			model: config?.model,
 			agent: config?.agent,
 			workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
-			changesets: buildDefaultChangesetCatalogue(session.toString()),
 		};
 	}
 
@@ -578,7 +702,14 @@ export class AgentService extends Disposable implements IAgentService {
 		// see consistent state through both paths.
 		this._stateManager.markSessionPersisted(sessionKey, summary);
 		this._stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionReady });
+
+		// Attach git state for the working directory (if present)
 		this._attachGitState(e.session, e.workingDirectory);
+
+		// Initialize the session's changesets from the catalogue
+		const changesets = buildDefaultChangesetCatalogue(sessionKey);
+		this._stateManager.setSessionChangesets(sessionKey, changesets);
+
 		// If a client subscribed to this session's uncommitted changeset
 		// before the working directory was known, the coordinator drains
 		// the deferred refresh now that the working directory is set.
@@ -604,93 +735,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 * rendering naturally skips them in the meantime.
 	 */
 	private _attachGitState(session: URI, workingDirectory: URI | undefined): void {
-		if (!workingDirectory) {
-			return;
-		}
 		const sessionKey = session.toString();
-		this._gitService.getSessionGitState(workingDirectory).then(
+		this._sessionGitStateService.attachGitState(session, workingDirectory).then(
 			gitState => {
 				if (!gitState) {
-					this._stripGitOnlyChangesetEntries(sessionKey);
 					return;
 				}
-				const current = this._stateManager.getSessionState(sessionKey)?._meta;
-				// Skip the action if the computed git state hasn't changed; this is
-				// called after every turn, so deduping avoids needless action churn.
-				if (objectEquals(readSessionGitState(current), gitState)) {
-					return;
-				}
-				const next = withSessionGitState(current, gitState);
-				this._stateManager.setSessionMeta(sessionKey, next);
-				this._updateBranchChangesetDescription(sessionKey, gitState);
+				this._changesetCoordinator.onSessionGitStateChanged(sessionKey);
+				this._changesetOperationContributionService.updateOperations(sessionKey, gitState);
 			},
 			e => {
 				this._logService.warn(`[AgentService] Failed to compute git state for ${session}`, e);
 			},
 		);
-	}
-
-	/**
-	 * Drops the `Branch Changes` and `Uncommitted Changes` entries from
-	 * the session's catalogue. Called only when the git probe has
-	 * definitively determined the working directory is not a git repo.
-	 * An absent / unresolved working directory is treated as transient
-	 * and does NOT trigger a strip — see {@link _attachGitState}.
-	 * Backing per-changeset states (registered unconditionally) are left
-	 * in place — only the catalogue advertisements are stripped.
-	 */
-	private _stripGitOnlyChangesetEntries(sessionKey: string): void {
-		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
-		if (!current || current.length === 0) {
-			return;
-		}
-		const branchUri = buildSessionChangesetUri(sessionKey);
-		const uncommittedUri = buildUncommittedChangesetUri(sessionKey);
-		const filtered = current.filter(c => c.uriTemplate !== branchUri && c.uriTemplate !== uncommittedUri);
-		if (filtered.length === current.length) {
-			return;
-		}
-		this._stateManager.setSessionChangesets(sessionKey, filtered);
-	}
-
-	/**
-	 * Patches the `Branch Changes` catalogue entry's `description` to
-	 * `${branchName} → ${baseBranchName}` once the git probe resolves
-	 * both names (typical worktree-isolation case). No-ops when the
-	 * entry has already been stripped (non-git working dir), when the
-	 * branch info is incomplete, or when the description is unchanged.
-	 * The count-refresh path in `AgentHostChangesetService` preserves
-	 * extra fields via spread, so the description survives subsequent
-	 * compute passes without further plumbing.
-	 */
-	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
-		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
-		const state = this._stateManager.getSessionState(sessionKey);
-		const current = state?.summary.changesets;
-		if (!current || current.length === 0) {
-			return;
-		}
-		const branchUri = buildSessionChangesetUri(sessionKey);
-		let changed = false;
-		const next = current.map(c => {
-			if (c.uriTemplate !== branchUri) {
-				return c;
-			}
-			if (c.description === description) {
-				return c;
-			}
-			changed = true;
-			if (description === undefined) {
-				const { description: _omit, ...rest } = c;
-				return rest;
-			}
-			return { ...c, description };
-		});
-		if (!changed) {
-			return;
-		}
-		this._stateManager.setSessionChangesets(sessionKey, next);
 	}
 
 	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
@@ -759,9 +816,13 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 		}
 		this._changesetCoordinator.onSessionDisposed(session.toString());
+		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
+		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+		// performed by the provider above. No-op when the directory does not exist.
+		await this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
@@ -1090,7 +1151,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 		const attachmentsRootStr = this._attachmentsRoot(channel).toString();
-		return !!action.userMessage.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
+		return !!action.message.attachments?.some(a => this._isRewritableAttachment(a, attachmentsRootStr));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRootStr: string): boolean {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
@@ -1128,7 +1189,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * chance to make use of it.
 	 */
 	private async _rewriteUserMessageAttachments<T extends SessionTurnStartedAction | SessionPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
-		const attachments = action.userMessage.attachments;
+		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
@@ -1137,7 +1198,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, attachmentsRootStr, clientId)));
 		return {
 			...action,
-			userMessage: { ...action.userMessage, attachments: rewritten },
+			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
@@ -1150,6 +1211,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (attachment.type === MessageAttachmentKind.Resource && this._isRewritableAttachment(attachment, attachmentsRootStr)) {
 				const originalUri = URI.parse(attachment.uri);
+				// If the attachment references a file that already exists on the agent
+				// host side, leave it untouched rather than snapshotting a client copy (#319314).
+				if (originalUri.scheme === Schemas.file && await this._fileExistsSafe(originalUri)) {
+					return attachment;
+				}
+
 				const bytes = await this._readClientResource(originalUri, clientId);
 				const basename = this._attachmentBasename(attachment.label, getMediaMime(originalUri.path));
 				return this._writeAndRewrite(attachment, bytes, basename, attachmentsRoot);
@@ -1158,6 +1225,18 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
 		}
 		return attachment;
+	}
+
+	/**
+	 * Like {@link IFileService.exists} but never throws (e.g. when no provider
+	 * is registered for the URI scheme), returning `false` in that case.
+	 */
+	private async _fileExistsSafe(uri: URI): Promise<boolean> {
+		try {
+			return await this._fileService.exists(uri);
+		} catch {
+			return false;
+		}
 	}
 
 	/**
@@ -1174,8 +1253,12 @@ export class AgentService extends Disposable implements IAgentService {
 			return contents.value.buffer;
 		} catch (err) {
 			if (proxiedUri !== originalUri) {
-				const contents = await this._fileService.readFile(originalUri);
-				return contents.value.buffer;
+				try {
+					const contents = await this._fileService.readFile(originalUri);
+					return contents.value.buffer;
+				} catch {
+					// ignore
+				}
 			}
 			throw err;
 		}
@@ -1271,6 +1354,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let isRead: boolean | undefined;
 		let isArchived: boolean | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
+		let changes: ChangesSummary | undefined;
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
@@ -1297,10 +1381,16 @@ export class AgentService extends Disposable implements IAgentService {
 						} else if (m.isDone !== undefined) {
 							isArchived = m.isDone === 'true';
 						}
-						// Capture the batched changeset blobs verbatim — the
-						// coordinator parses, validates, and applies them
-						// after `restoreSession` registers the static states.
+
 						changesetMetadata = m as Record<string, string | undefined>;
+						if (changesetMetadata[META_CHANGES_SUMMARY]) {
+							try {
+								changes = JSON.parse(changesetMetadata[META_CHANGES_SUMMARY]);
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse changes summary for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
+						}
+
 						if (m.configValues) {
 							try {
 								persistedConfigValues = JSON.parse(m.configValues);
@@ -1336,16 +1426,19 @@ export class AgentService extends Disposable implements IAgentService {
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
 			agent: meta.agent,
+			changes: meta.changes ?? changes,
 			workingDirectory: meta.workingDirectory?.toString(),
-			changesets: buildDefaultChangesetCatalogue(sessionStr),
 		};
 
 		this._stateManager.restoreSession(summary, [...turns]);
 
+		const changesets = buildDefaultChangesetCatalogue(sessionStr);
+		this._stateManager.setSessionChangesets(sessionStr, changesets);
+
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The catalogue
-		// summary is already on the summary above (seeded synchronously by
-		// `buildDefaultChangesetCatalogue`). The coordinator drains any
+		// itself is seeded on `state.changesets` synchronously by the
+		// `setSessionChangesets` call above. The coordinator drains any
 		// uncommitted refresh deferred by an earlier `addSubscriber` —
 		// `addSubscriber`'s 0→1 trigger may have fired for
 		// `<session>/changeset/uncommitted` before this restore ran (e.g.
@@ -1462,14 +1555,24 @@ export class AgentService extends Disposable implements IAgentService {
 		} else {
 			content = VSBuffer.fromString(params.data);
 		}
+		const mode = params.mode ?? ResourceWriteMode.Truncate;
+		const position = params.position ?? 0;
 		try {
-			if (params.createOnly) {
+			if (params.ifMatch !== undefined || mode !== ResourceWriteMode.Truncate || position !== 0) {
+				await this._resourceWriteWithMode(fileUri, content, mode, position, params);
+			} else if (params.createOnly) {
 				await this._fileService.createFile(fileUri, content, { overwrite: false });
 			} else {
 				await this._fileService.writeFile(fileUri, content);
 			}
 			return {};
 		} catch (e) {
+			if (e instanceof ProtocolError) {
+				throw e;
+			}
+			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
+			}
 			const code = toFileSystemProviderErrorCode(e as Error);
 			if (code === FileSystemProviderErrorCode.FileExists) {
 				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `File already exists: ${fileUri.toString()}`);
@@ -1479,6 +1582,67 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to write file: ${fileUri.toString()}`);
 		}
+	}
+
+	/**
+	 * Slow-path for {@link resourceWrite} when the caller requested a
+	 * non-default {@link ResourceWriteMode}, supplied a `position`, or
+	 * provided an `ifMatch` etag precondition. Reads the current file
+	 * contents (when needed) and produces a single `writeFile` call that
+	 * realises the requested splice. A missing file is treated as
+	 * empty for `append` and `insert` (so the operation behaves like a
+	 * create); for `truncate` it falls through to a normal write.
+	 */
+	private async _resourceWriteWithMode(
+		fileUri: URI,
+		data: VSBuffer,
+		mode: ResourceWriteMode,
+		position: number,
+		params: ResourceWriteParams,
+	): Promise<void> {
+		let existing: VSBuffer | undefined;
+		let currentEtag: string | undefined;
+		try {
+			const file = await this._fileService.readFile(fileUri);
+			existing = file.value;
+			currentEtag = file.etag;
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code !== FileSystemProviderErrorCode.FileNotFound) {
+				throw e;
+			}
+		}
+
+		if (params.ifMatch !== undefined) {
+			// Missing file with an ifMatch is always a conflict (the caller
+			// believed they had the etag for an existing file).
+			if (existing === undefined || currentEtag !== params.ifMatch) {
+				throw new ProtocolError(AhpErrorCodes.Conflict, `ifMatch precondition failed for: ${fileUri.toString()}`);
+			}
+		}
+
+		const base = existing ?? VSBuffer.alloc(0);
+		let next: VSBuffer;
+		switch (mode) {
+			case ResourceWriteMode.Append: {
+				const eof = base.byteLength;
+				const splitAt = Math.max(0, eof - position);
+				next = VSBuffer.concat([base.slice(0, splitAt), data, base.slice(splitAt, eof)]);
+				break;
+			}
+			case ResourceWriteMode.Insert: {
+				const splitAt = Math.min(position, base.byteLength);
+				next = VSBuffer.concat([base.slice(0, splitAt), data, base.slice(splitAt, base.byteLength)]);
+				break;
+			}
+			case ResourceWriteMode.Truncate:
+			default: {
+				const splitAt = Math.min(position, base.byteLength);
+				next = VSBuffer.concat([base.slice(0, splitAt), data]);
+				break;
+			}
+		}
+		await this._fileService.writeFile(fileUri, next, { etag: currentEtag });
 	}
 
 	async resourceCopy(params: ResourceCopyParams): Promise<ResourceCopyResult> {
@@ -1529,6 +1693,198 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Source not found: ${source.toString()}`);
 		}
+	}
+
+	async resourceResolve(params: ResourceResolveParams): Promise<ResourceResolveResult> {
+		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		try {
+			const stat = await this._fileService.stat(uri);
+			let type: ResourceType;
+			if (stat.isSymbolicLink && params.followSymlinks === false) {
+				// `IFileService.stat` always follows symlinks in its
+				// type-classification logic, so `followSymlinks: false`
+				// only changes how we report the result — we surface the
+				// link itself rather than the target.
+				type = ResourceType.Symlink;
+			} else if (stat.isDirectory) {
+				type = ResourceType.Directory;
+			} else {
+				type = ResourceType.File;
+			}
+			const result: ResourceResolveResult = {
+				uri: uri.toString(),
+				type,
+				...(stat.size !== undefined ? { size: stat.size } : {}),
+				...(stat.mtime !== undefined ? { mtime: new Date(stat.mtime).toISOString() } : {}),
+				...(stat.ctime !== undefined ? { ctime: new Date(stat.ctime).toISOString() } : {}),
+				...(stat.etag ? { etag: stat.etag } : {}),
+			};
+			return result;
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${uri.toString()}`);
+		}
+	}
+
+	async resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
+		const uri = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		try {
+			// `IFileService.createFolder` is idempotent for an existing
+			// directory and creates parents as needed, matching the
+			// `mkdir -p` semantics required by the spec.
+			const existing = await this._fileService.stat(uri).catch(() => undefined);
+			if (existing && !existing.isDirectory) {
+				throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Path exists and is not a directory: ${uri.toString()}`);
+			}
+			await this._fileService.createFolder(uri);
+			return {};
+		} catch (e) {
+			if (e instanceof ProtocolError) {
+				throw e;
+			}
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${uri.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Failed to create directory: ${uri.toString()}`);
+		}
+	}
+
+	async createResourceWatch(params: CreateResourceWatchParams): Promise<CreateResourceWatchResult> {
+		const root = typeof params.uri === 'string' ? URI.parse(params.uri) : URI.revive(params.uri);
+		// Verify the URI exists before we mint a channel; spec requires
+		// `NotFound` when the URI is missing rather than silently producing
+		// a watcher that will never fire. The watcher itself is not
+		// attached here — encoding the descriptor into the channel URI
+		// lets `subscribe` materialise the underlying IFileService
+		// watcher lazily on the first subscriber, and tear it down again
+		// after the last unsubscribe (with a grace window).
+		try {
+			await this._fileService.stat(root);
+		} catch (e) {
+			const code = toFileSystemProviderErrorCode(e as Error);
+			if (code === FileSystemProviderErrorCode.NoPermissions) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Permission denied: ${root.toString()}`);
+			}
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Resource not found: ${root.toString()}`);
+		}
+
+		const channel = buildResourceWatchChannelUri({
+			root: root.toString(),
+			recursive: params.recursive === true,
+			excludes: params.excludes,
+			includes: params.includes,
+		});
+		return { channel };
+	}
+
+	/**
+	 * Notifies the agent service that a client subscribed to a resource
+	 * watch channel. On the first subscriber the underlying
+	 * {@link IFileService} watcher is attached; subsequent subscribers
+	 * bump the refcount and cancel any pending grace dispose. Returns
+	 * the decoded descriptor for use as the subscribe snapshot, or
+	 * `undefined` when `channel` is not a recognisable
+	 * `ahp-resource-watch:` URI.
+	 */
+	onResourceWatchSubscribed(channel: string): ResourceWatchState | undefined {
+		const descriptor = parseResourceWatchChannelUri(channel);
+		if (!descriptor) {
+			return undefined;
+		}
+		const existing = this._resourceWatches.get(channel);
+		if (existing) {
+			existing.subscribers++;
+			if (existing.pendingGc) {
+				existing.pendingGc.clear();
+			}
+			return existing.descriptor;
+		}
+		// First subscriber — materialise the IFileService watcher.
+		const disposables = new DisposableStore();
+		try {
+			const root = URI.parse(descriptor.root);
+			const watchOptions = {
+				recursive: descriptor.recursive,
+				excludes: descriptor.excludes?.items ?? [],
+				includes: descriptor.includes?.items,
+			};
+			if (descriptor.recursive) {
+				// Correlated watchers are non-recursive only, so register
+				// an uncorrelated recursive watch and filter the global
+				// stream by descendants of the watched root.
+				disposables.add(this._fileService.watch(root, watchOptions));
+				disposables.add(this._fileService.onDidFilesChange(event => {
+					const filtered = collectChangesUnderRoot(event, root);
+					if (filtered.length > 0) {
+						this._dispatchResourceWatchChanges(channel, filtered);
+					}
+				}));
+			} else {
+				const watcher = this._fileService.createWatcher(root, { ...watchOptions, recursive: false });
+				disposables.add(watcher);
+				disposables.add(watcher.onDidChange(event => {
+					this._dispatchResourceWatchChanges(channel, collectChanges(event));
+				}));
+			}
+		} catch (e) {
+			disposables.dispose();
+			this._logService.warn(`[AgentService] Failed to start IFileService watcher for ${channel}: ${e instanceof Error ? e.message : String(e)}`);
+			return undefined;
+		}
+		this._resourceWatches.set(channel, {
+			channel,
+			descriptor,
+			subscribers: 1,
+			disposables,
+			pendingGc: disposables.add(new MutableDisposable()),
+			dispose: () => disposables.dispose(),
+		});
+		return descriptor;
+	}
+
+	/**
+	 * Counterpart to {@link onResourceWatchSubscribed}. Decrements the
+	 * subscriber refcount for a watch channel; when it reaches zero the
+	 * watcher is held for {@link RESOURCE_WATCH_GRACE_MS} before being
+	 * disposed, giving a transient disconnect time to resubscribe.
+	 */
+	onResourceWatchUnsubscribed(channel: string): boolean {
+		const entry = this._resourceWatches.get(channel);
+		if (!entry) {
+			return false;
+		}
+		entry.subscribers = Math.max(0, entry.subscribers - 1);
+		if (entry.subscribers > 0) {
+			return true;
+		}
+		entry.pendingGc.value = disposableTimeout(() => {
+			const current = this._resourceWatches.get(channel);
+			if (!current || current.subscribers > 0) {
+				return;
+			}
+			this._resourceWatches.deleteAndDispose(channel);
+		}, RESOURCE_WATCH_GRACE_MS);
+		return true;
+	}
+
+	private _dispatchResourceWatchChanges(channel: string, raw: readonly IFileChange[]): void {
+		if (raw.length === 0) {
+			return;
+		}
+		const items = raw.map(c => ({
+			uri: c.resource.toString(),
+			type: c.type === FileChangeType.ADDED ? ResourceChangeType.Added
+				: c.type === FileChangeType.DELETED ? ResourceChangeType.Deleted
+					: ResourceChangeType.Updated,
+		}));
+		this._stateManager.dispatchServerAction(channel, {
+			type: ActionType.ResourceWatchChanged,
+			changes: { items },
+		});
 	}
 
 	async shutdown(): Promise<void> {
@@ -1700,4 +2056,57 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providers.clear();
 		super.dispose();
 	}
+}
+
+/**
+ * Runtime owner of an active resource watch — pairs the {@link IFileService}
+ * watcher disposables with the subscriber refcount and the optional
+ * grace-window timer used to delay disposal after the last unsubscribe.
+ */
+interface IActiveResourceWatch extends IDisposable {
+	readonly channel: string;
+	readonly descriptor: ResourceWatchState;
+	subscribers: number;
+	readonly disposables: DisposableStore;
+	pendingGc: MutableDisposable<IDisposable>;
+}
+
+/**
+ * Flatten a {@link FileChangesEvent} into a synthetic {@link IFileChange}
+ * list. The event stores only URI arrays publicly (the underlying
+ * `IFileChange[]` is private), so we reconstruct one entry per URI per
+ * change type. The synthetic shape is sufficient for translation into
+ * `ResourceWatchChangedAction` items.
+ */
+function collectChanges(event: FileChangesEvent): IFileChange[] {
+	const out: IFileChange[] = [];
+	for (const resource of event.rawAdded) {
+		out.push({ resource, type: FileChangeType.ADDED });
+	}
+	for (const resource of event.rawUpdated) {
+		out.push({ resource, type: FileChangeType.UPDATED });
+	}
+	for (const resource of event.rawDeleted) {
+		out.push({ resource, type: FileChangeType.DELETED });
+	}
+	return out;
+}
+
+/**
+ * Variant of {@link collectChanges} that restricts the output to changes
+ * inside `root` (inclusive). Used for the recursive watch fallback,
+ * which feeds off the uncorrelated global stream and must filter out
+ * unrelated events.
+ */
+function collectChangesUnderRoot(event: FileChangesEvent, root: URI): IFileChange[] {
+	const out: IFileChange[] = [];
+	const accept = (resource: URI, type: FileChangeType) => {
+		if (isEqualOrParent(resource, root)) {
+			out.push({ resource, type });
+		}
+	};
+	for (const resource of event.rawAdded) { accept(resource, FileChangeType.ADDED); }
+	for (const resource of event.rawUpdated) { accept(resource, FileChangeType.UPDATED); }
+	for (const resource of event.rawDeleted) { accept(resource, FileChangeType.DELETED); }
+	return out;
 }

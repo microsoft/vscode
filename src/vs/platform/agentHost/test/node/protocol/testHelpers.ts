@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { ActionEnvelope } from '../../../common/state/sessionActions.js';
 import type { SessionAddedParams } from '../../../common/state/protocol/notifications.js';
+import { MessageKind } from '../../../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import {
 	isJsonRpcNotification,
@@ -225,12 +226,15 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * Start the agent host server with the real Copilot SDK agent (no mock agent).
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
-export async function startRealServer(options?: { readonly claudeSdkPath?: string }): Promise<IServerHandle> {
+export async function startRealServer(options?: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
 		const args = ['--port', '0', '--without-connection-token'];
-		if (options?.claudeSdkPath) {
-			args.push('--claude-sdk-path', options.claudeSdkPath);
+		if (options?.claudeSdkRoot) {
+			args.push('--claude-sdk-root', options.claudeSdkRoot);
+		}
+		if (options?.codexSdkRoot) {
+			args.push('--codex-sdk-root', options.codexSdkRoot);
 		}
 		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
@@ -313,7 +317,7 @@ export function dispatchTurnStarted(c: TestProtocolClient, session: string, turn
 		action: {
 			type: 'session/turnStarted',
 			turnId,
-			userMessage: { text },
+			message: { text, origin: { kind: MessageKind.User } },
 		},
 	});
 }

@@ -56,26 +56,25 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('prebuilds', 'linux-x64', 'computer.node'),
 			path.join('prebuilds', 'win32-arm64', 'computer.node'),
 			path.join('prebuilds', 'win32-x64', 'computer.node'),
+			// cli-native to be included
+			path.join('prebuilds', 'darwin-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'darwin-x64', 'cli-native.node'),
+			path.join('prebuilds', 'linux-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'linux-x64', 'cli-native.node'),
+			path.join('prebuilds', 'linuxmusl-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'linuxmusl-x64', 'cli-native.node'),
+			path.join('prebuilds', 'win32-arm64', 'cli-native.node'),
+			path.join('prebuilds', 'win32-x64', 'cli-native.node'),
 			// Native modules present in the raw @github/copilot package. Root
 			// prebuilds are stripped from the shipped extension by .vscodeignore.
-			path.join('prebuilds', 'darwin-arm64', 'icu-native.node'),
 			path.join('prebuilds', 'darwin-arm64', 'runtime.node'),
-			path.join('prebuilds', 'darwin-x64', 'icu-native.node'),
 			path.join('prebuilds', 'darwin-x64', 'runtime.node'),
-			path.join('prebuilds', 'linux-arm64', 'icu-native.node'),
 			path.join('prebuilds', 'linux-arm64', 'runtime.node'),
-			path.join('prebuilds', 'linux-x64', 'icu-native.node'),
 			path.join('prebuilds', 'linux-x64', 'runtime.node'),
-			path.join('prebuilds', 'linuxmusl-arm64', 'icu-native.node'),
 			path.join('prebuilds', 'linuxmusl-arm64', 'runtime.node'),
-			path.join('prebuilds', 'linuxmusl-x64', 'icu-native.node'),
 			path.join('prebuilds', 'linuxmusl-x64', 'runtime.node'),
-			path.join('prebuilds', 'win32-arm64', 'icu-native.node'),
 			path.join('prebuilds', 'win32-arm64', 'runtime.node'),
-			path.join('prebuilds', 'win32-arm64', 'win32-native.node'),
-			path.join('prebuilds', 'win32-x64', 'icu-native.node'),
 			path.join('prebuilds', 'win32-x64', 'runtime.node'),
-			path.join('prebuilds', 'win32-x64', 'win32-native.node'),
 			// Second copy of native prebuilds re-shipped by the @github/copilot/sdk subpackage
 			// (previously hidden by a broad sdk/prebuilds/** exclusion that masked the node-pty files we used to shim in at test setup).
 			path.join('sdk', 'prebuilds', 'darwin-arm64', 'computer.node'),
@@ -90,19 +89,57 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('sdk', 'prebuilds', 'linux-x64', 'runtime.node'),
 			path.join('sdk', 'prebuilds', 'win32-arm64', 'runtime.node'),
 			path.join('sdk', 'prebuilds', 'win32-x64', 'runtime.node'),
+			// node-pty natives re-shipped into the @github/copilot/sdk subpackage by our
+			// postinstall so built-in installs can spawn through node-pty (used by mxc).
+			path.join('sdk', 'prebuilds', 'darwin-arm64', 'pty.node'),
+			path.join('sdk', 'prebuilds', 'darwin-x64', 'pty.node'),
+			path.join('sdk', 'prebuilds', 'linux-arm64', 'pty.node'),
+			path.join('sdk', 'prebuilds', 'linux-x64', 'pty.node'),
+			path.join('sdk', 'prebuilds', 'darwin-arm64', 'spawn-helper'),
+			path.join('sdk', 'prebuilds', 'darwin-x64', 'spawn-helper'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'conpty.node'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'conpty.node'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'conpty_console_list.node'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'conpty_console_list.node'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'conpty', 'OpenConsole.exe'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'conpty', 'conpty.dll'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'conpty', 'OpenConsole.exe'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'conpty', 'conpty.dll'),
 			path.join('ripgrep', 'bin', 'darwin-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'darwin-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'linuxmusl-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'linuxmusl-x64', 'rg'),
-			// sharp related files
-			path.join('sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
-			// sharp related files, files copied by us.
-			path.join('sdk', 'sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
+			// tgrep files
+			path.join('tgrep', 'bin', 'darwin-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'darwin-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linux-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linux-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linuxmusl-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linuxmusl-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'win32-arm64', 'tgrep.exe'),
+			path.join('tgrep', 'bin', 'win32-x64', 'tgrep.exe'),
+			// tgrep files
+			path.join('sdk', 'tgrep', 'bin', 'darwin-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'darwin-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linux-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linux-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linuxmusl-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linuxmusl-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'win32-arm64', 'tgrep.exe'),
+			path.join('sdk', 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'),
+			// cli-native to be included
+			path.join('sdk', 'prebuilds', 'darwin-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'darwin-x64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'linux-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'linux-x64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'win32-arm64', 'cli-native.node'),
+			path.join('sdk', 'prebuilds', 'win32-x64', 'cli-native.node'),
 			// foundry-local-sdk vendored native bindings.
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'darwin-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-x64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-x64', 'foundry_local_napi.node'),
 			// pvrecorder vendored native bindings.
@@ -118,21 +155,27 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('mxc-bin', 'arm64', 'wslcsdk.dll'),
 			path.join('mxc-bin', 'arm64', 'wxc-exec.exe'),
 			path.join('mxc-bin', 'arm64', 'wxc-test-proxy.exe'),
+			path.join('mxc-bin', 'arm64', 'wxc-host-prep.exe'),
 			path.join('mxc-bin', 'arm64', 'wxc-windows-sandbox-daemon.exe'),
 			path.join('mxc-bin', 'arm64', 'wxc-windows-sandbox-guest.exe'),
+			path.join('mxc-bin', 'arm64', 'mxc-diagnostic-console.exe'),
 			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'bsi.cose'),
 			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.cat'),
 			path.join('mxc-bin', 'arm64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
+			path.join('mxc-bin', 'arm64', 'linux-test-proxy'),
 			path.join('mxc-bin', 'x64', 'lxc-exec'),
 			path.join('mxc-bin', 'x64', 'winhttp-proxy-shim.exe'),
 			path.join('mxc-bin', 'x64', 'wslcsdk.dll'),
 			path.join('mxc-bin', 'x64', 'wxc-exec.exe'),
 			path.join('mxc-bin', 'x64', 'wxc-test-proxy.exe'),
+			path.join('mxc-bin', 'x64', 'wxc-host-prep.exe'),
 			path.join('mxc-bin', 'x64', 'wxc-windows-sandbox-daemon.exe'),
 			path.join('mxc-bin', 'x64', 'wxc-windows-sandbox-guest.exe'),
+			path.join('mxc-bin', 'x64', 'mxc-diagnostic-console.exe'),
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'bsi.cose'),
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.cat'),
 			path.join('mxc-bin', 'x64', '_manifest', 'spdx_2.2', 'manifest.spdx.cose'),
+			path.join('mxc-bin', 'x64', 'linux-test-proxy'),
 			// parsing commands for shell.
 			'tree-sitter-bash.wasm',
 			'tree-sitter.wasm',
@@ -154,6 +197,10 @@ describe('CopilotCLI SDK Upgrade', function () {
 			'tree-sitter-scala.wasm',
 		].map(p => path.join(copilotSDKPath, p)));
 
+		const optionalKnownBinaries = new Set([
+			path.join(copilotSDKPath, 'mxc-bin', 'x64', 'mxc-exec-mac'),
+		]);
+
 		// Exclude ripgrep files that we copy over in src/extension/chatSessions/copilotcli/node/ripgrepShim.ts (until we get better API/solution from SDK)
 		const ripgrepFilesWeCopy = path.join(copilotSDKPath, 'sdk', 'ripgrep', 'bin');
 
@@ -167,7 +214,7 @@ describe('CopilotCLI SDK Upgrade', function () {
 			if (binaryName.startsWith('keytar') || binaryName.startsWith('clipboard')) {
 				continue;
 			}
-			if (!knownBinaries.has(binary)) {
+			if (!knownBinaries.has(binary) && !optionalKnownBinaries.has(binary)) {
 				errors.push(`Unexpected native binary found in Copilot CLI SDK: ${path.relative(copilotSDKPath, binary)}`);
 			}
 		}

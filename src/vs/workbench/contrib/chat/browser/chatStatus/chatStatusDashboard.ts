@@ -102,13 +102,18 @@ export class ChatStatusDashboard extends DomWidget {
 
 	private static readonly QUICK_SETTINGS_COLLAPSED_KEY = 'chatStatusDashboard.quickSettingsCollapsed';
 
+	// Status entries surfaced elsewhere (e.g. chat-input pill) and skipped here.
+	private static readonly HIDDEN_ENTRY_IDS = new Set<string>([
+		'copilot.otelStatus',
+	]);
+
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
 	private readonly timeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 	private readonly quotaCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
-	private readonly quotaCreditsCompactFormatter = safeIntl.NumberFormat(language, { notation: 'compact', maximumFractionDigits: 1, minimumFractionDigits: 0 });
+
 
 	constructor(
 		private readonly options: IChatStatusDashboardOptions | undefined,
@@ -140,14 +145,14 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
 		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
-		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false && !(this.chatEntitlementService.quotas.additionalUsageEnabled ?? false);
+		const isPooledQuotaDepleted = premiumChat?.unlimited && premiumChat.hasQuota === false;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
 		const hasVisibleUsageContent = chat?.unlimited === false ||
 			premiumChat?.unlimited === false ||
 			(!this.options?.compactQuotaLayout && completions?.unlimited === false) ||
 			isAnonymousWithSentiment ||
 			isPooledQuotaDepleted;
-		const contributedEntries = [...this.chatStatusItemService.getEntries()];
+		const contributedEntries = [...this.chatStatusItemService.getEntries()].filter(entry => !ChatStatusDashboard.HIDDEN_ENTRY_IDS.has(entry.id));
 		const hasQuickSettingsContent =
 			!this.options?.disableInlineSuggestionsSettings ||
 			!this.options?.disableModelSelection ||
@@ -310,6 +315,28 @@ export class ChatStatusDashboard extends DomWidget {
 				premiumChatQuotaIndicator = this.createQuotaIndicator(container, premiumChatQuota, premiumChatLabel, premiumChatResetLabel, compact ? planName : undefined);
 			}
 
+			// Additional Budget indicator (overage bar, shown when overage_entitlement > 0)
+			let additionalBudgetIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			let additionalBudgetElement: HTMLElement | undefined;
+			const initialOverageEntitlement = this.chatEntitlementService.quotas.additionalUsageEntitlement ?? 0;
+			if (initialOverageEntitlement > 0) {
+				const overageCount = this.chatEntitlementService.quotas.additionalUsageCount ?? 0;
+				const overagePercentRemaining = Math.max(0, Math.min(100, ((initialOverageEntitlement - overageCount) / initialOverageEntitlement) * 100));
+				const overageSnapshot: IQuotaSnapshot = {
+					percentRemaining: overagePercentRemaining,
+					unlimited: false,
+					entitlement: initialOverageEntitlement,
+					quotaRemaining: Math.max(0, initialOverageEntitlement - overageCount),
+				};
+				const additionalBudgetLabel = localize('additionalBudgetLabel', "Additional Budget");
+				additionalBudgetIndicator = this.createQuotaIndicator(container, overageSnapshot, additionalBudgetLabel, resetLabel, compact ? additionalBudgetLabel : undefined);
+				additionalBudgetElement = container.lastElementChild as HTMLElement;
+				const isPremiumExhausted = premiumChatQuota && premiumChatQuota.percentRemaining <= 0;
+				if (!isPremiumExhausted) {
+					additionalBudgetElement.classList.add('muted');
+				}
+			}
+
 			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
 			const showCompletions = !compact && completionsQuota && !completionsQuota.unlimited && completionsQuota.percentRemaining >= 0
 				&& (!this.chatEntitlementService.quotas.usageBasedBilling || this.chatEntitlementService.entitlement === ChatEntitlement.Free);
@@ -328,6 +355,21 @@ export class ChatStatusDashboard extends DomWidget {
 				}
 				if (completionsQuota) {
 					completionsQuotaIndicator?.(completionsQuota);
+				}
+				if (additionalBudgetIndicator && additionalBudgetElement) {
+					const overageEntitlement = this.chatEntitlementService.quotas.additionalUsageEntitlement ?? 0;
+					const overageCount = this.chatEntitlementService.quotas.additionalUsageCount ?? 0;
+					if (overageEntitlement > 0) {
+						const overagePercentRemaining = Math.max(0, Math.min(100, ((overageEntitlement - overageCount) / overageEntitlement) * 100));
+						additionalBudgetIndicator({
+							percentRemaining: overagePercentRemaining,
+							unlimited: false,
+							entitlement: overageEntitlement,
+							quotaRemaining: Math.max(0, overageEntitlement - overageCount),
+						});
+					}
+					const premiumExhausted = premiumChatQuota && premiumChatQuota.percentRemaining <= 0;
+					additionalBudgetElement.classList.toggle('muted', !premiumExhausted);
 				}
 				const { calloutVisible } = globalCalloutUpdater();
 				if (headerAdditionalSpendButton) {
@@ -726,10 +768,13 @@ export class ChatStatusDashboard extends DomWidget {
 		quotaPercentage.tabIndex = isCompact ? -1 : 0;
 
 		const indicatorElement = $('div.quota-indicator', undefined,
-			$('div.quota-title', undefined, isCompact ? compactTitle : label),
+			$('div.quota-title', undefined,
+				$('span', undefined, isCompact ? compactTitle : label),
+				...isCompact ? [] : [resetValue]
+			),
 			$('div.quota-details', undefined,
 				quotaPercentage,
-				resetValue
+				...isCompact ? [resetValue] : []
 			),
 			...isCompact ? [] : [$('div.quota-bar', undefined, quotaBit)]
 		);
@@ -760,13 +805,8 @@ export class ChatStatusDashboard extends DomWidget {
 				const used = currentQuota.quotaRemaining !== undefined
 					? total - currentQuota.quotaRemaining
 					: total * (100 - currentQuota.percentRemaining) / 100;
-				const compactThreshold = 100_000;
-				const usedFormatted = used >= compactThreshold
-					? this.quotaCreditsCompactFormatter.value.format(used)
-					: this.quotaCreditsFormatter.value.format(used);
-				const totalFormatted = total >= compactThreshold
-					? this.quotaCreditsCompactFormatter.value.format(total)
-					: this.quotaCreditsFormatter.value.format(total);
+				const usedFormatted = this.quotaCreditsFormatter.value.format(used);
+				const totalFormatted = this.quotaCreditsFormatter.value.format(total);
 				quotaValueText.textContent = localize('quotaCreditsDisplay', "{0} / {1}", usedFormatted, totalFormatted);
 				quotaValueSuffix.textContent = isCompact
 					? localize('quotaLabelUsed', "{0} used", label)
@@ -815,28 +855,41 @@ export class ChatStatusDashboard extends DomWidget {
 			const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
 			const isUsageBasedBilling = quotas.usageBasedBilling === true;
 
+			// Only chat quotas drive the global callout. Reaching the inline
+			// suggestions (completions) limit pauses ghost text only, so it must
+			// not trigger the "Copilot is paused" message reserved for chat limits.
 			const allQuotas: IQuotaSnapshot[] = [];
 			if (quotas.chat && !quotas.chat.unlimited) { allQuotas.push(quotas.chat); }
 			if (quotas.premiumChat && !quotas.premiumChat.unlimited) { allQuotas.push(quotas.premiumChat); }
-			if (quotas.completions && !quotas.completions.unlimited) { allQuotas.push(quotas.completions); }
 
 			const maxUsedPercentage = allQuotas.length > 0 ? Math.max(...allQuotas.map(q => Math.max(0, 100 - q.percentRemaining))) : 0;
 			const isPooledQuotaExhausted = quotas.premiumChat?.unlimited && quotas.premiumChat.hasQuota === false;
 
-			if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
+			// Business/Enterprise: hasQuota === false is the authoritative signal
+			// that the org has blocked usage, regardless of overages or remaining quota.
+			if (isEnterpriseUser && isPooledQuotaExhausted) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
-					: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
+				calloutText.textContent = localize('quotaBudgetExceededEnterprise', "Your organization or enterprise has exceeded its Copilot budget. Contact your admin to resume usage.");
+			} else if (maxUsedPercentage >= 100 && additionalUsageEnabled) {
+				quotaCallout.style.display = '';
+				quotaCallout.className = 'quota-callout info';
+				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				calloutText.textContent = isEnterpriseUser
+					? localize('quotaAdditionalUsageActiveEnterprise', "Copilot has paused because your limits are reached. Please contact your admin to increase your limits.")
+					: isUsageBasedBilling
+						? localize('quotaAdditionalUsageActive', "Additional budget is configured. Usage will continue until limits reset.")
+						: localize('quotaBudgetActive', "Premium request budget is configured. Usage will continue until limits reset.");
 			} else if (maxUsedPercentage >= 75 && maxUsedPercentage < 100 && additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';
 				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
-				calloutText.textContent = isUsageBasedBilling
-					? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
-					: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
+				calloutText.textContent = isEnterpriseUser
+					? localize('quotaAdditionalUsageApproachingEnterprise', "Copilot will pause when your limits are reached. Please contact your admin to increase your limits.")
+					: isUsageBasedBilling
+						? localize('quotaAdditionalUsageApproaching', "Once the limit is reached, additional budget will be used.")
+						: localize('quotaBudgetApproaching', "Once the limit is reached, premium request budget will be used.");
 			} else if ((maxUsedPercentage >= 100 || isPooledQuotaExhausted) && !additionalUsageEnabled) {
 				quotaCallout.style.display = '';
 				quotaCallout.className = 'quota-callout info';

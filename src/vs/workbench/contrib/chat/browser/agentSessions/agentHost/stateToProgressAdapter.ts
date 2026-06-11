@@ -8,16 +8,16 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
-import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange, type UserMessage } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type ChatExternalEditKind, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
-import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, toAgentHostCompletionVariableEntryFromMetadata, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -73,6 +73,14 @@ const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set(['task']);
 
 export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
+}
+
+function systemNotificationToProgress(content: StringOrMarkdown | undefined, connectionAuthority: string | undefined): IChatProgress | undefined {
+	if (!content) {
+		return undefined;
+	}
+	const value = stringOrMarkdownToString(content, connectionAuthority);
+	return { kind: 'progressMessage', content: typeof value === 'string' ? new MarkdownString(value) : value };
 }
 
 /**
@@ -142,8 +150,19 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const details = lookup?.toResponseDetails(rawModelId, turn.usage);
 
 		// Request
-		const variableData = userMessageToVariableData(turn.userMessage, connectionAuthority);
-		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId, variableData });
+		const variableData = messageToVariableData(turn.message, connectionAuthority);
+		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
+		history.push({
+			id: turn.id,
+			type: 'request',
+			prompt: turn.message.text,
+			participant: participantId,
+			modelId,
+			variableData,
+			...(isSystemInitiated ? {
+				isSystemInitiated: true,
+			} : {}),
+		});
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];
@@ -175,6 +194,14 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 						parts.push({ kind: 'thinking', value: rp.content });
 					}
 					break;
+				case ResponsePartKind.SystemNotification:
+					{
+						const progress = systemNotificationToProgress(rp.content, connectionAuthority);
+						if (progress) {
+							parts.push(progress);
+						}
+					}
+					break;
 				case ResponsePartKind.ContentRef:
 					// Content references are not restored into history;
 					// they are handled separately by the content provider.
@@ -193,13 +220,13 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 }
 
 /**
- * Converts a turn's persisted {@link UserMessage} into the chat-layer
+ * Converts a turn's persisted {@link Message} into the chat-layer
  * {@link IChatRequestVariableData} shape so attachments survive a
  * history replay (and pending/server-initiated turn synthesis). Returns
  * `undefined` when the message has no convertible attachments.
  */
-export function userMessageToVariableData(userMessage: UserMessage, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(userMessage.attachments, connectionAuthority);
+export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority);
 }
 
 export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string): IChatRequestVariableData | undefined {
@@ -293,13 +320,32 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		};
 	}
 
+	const agentHostCompletionKind = getAgentHostCompletionKind(attachment);
+	if (agentHostCompletionKind !== undefined) {
+		return toAgentHostCompletionVariableEntryFromMetadata(agentHostCompletionKind, attachment.label, attachment._meta);
+	}
+
+	const modelRepresentation = attachment.type === MessageAttachmentKind.Simple ? attachment.modelRepresentation : undefined;
 	return {
 		kind: 'generic',
 		id: generateUuid(),
 		name: attachment.label,
-		value: attachment.modelRepresentation || attachment.label,
+		value: modelRepresentation || attachment.label,
 		_meta: attachment._meta,
 	};
+}
+
+function getAgentHostCompletionKind(attachment: MessageAttachment): AgentHostCompletionReferenceKind | undefined {
+	if (attachment.type !== MessageAttachmentKind.Simple) {
+		return undefined;
+	}
+	switch (attachment.displayKind) {
+		case 'command':
+			return AgentHostCompletionReferenceKind.Command;
+		case 'skill':
+			return AgentHostCompletionReferenceKind.Skill;
+	}
+	return undefined;
 }
 
 function textRangeToIRange(range: TextRange): IRange {
@@ -348,6 +394,14 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				}
 				break;
 			}
+			case ResponsePartKind.SystemNotification:
+				{
+					const progress = systemNotificationToProgress(rp.content, connectionAuthority);
+					if (progress) {
+						parts.push(progress);
+					}
+				}
+				break;
 			case ResponsePartKind.ContentRef:
 				break;
 		}
@@ -381,6 +435,87 @@ function getTerminalOutput(tc: ToolCallState) {
 
 function getTerminalLanguage(tc: ToolCallState) {
 	return tc.toolName === 'powershell' ? 'powershell' : 'shellscript';
+}
+
+/**
+ * True if this tool call should render as a terminal pill in the chat UI.
+ *
+ * Combines three signals so the workbench renders consistently across every
+ * stage of the tool lifecycle:
+ *
+ * 1. `existingKind === 'terminal'` — preserve the prior render decision so a
+ *    tool already set up as terminal stays terminal across snapshots.
+ * 2. `getToolKind(tc) === 'terminal'` with a command available — the
+ *    always-available `_meta.toolKind` flag set by the event mapper for
+ *    built-in `bash`/`powershell` SDK tools that never emit a
+ *    {@link ToolResultContentType.Terminal} content block. We only render the
+ *    terminal pill once we actually have the command (`getTerminalInput`):
+ *    rendering a terminal pill with an empty command line looks broken, so
+ *    until the command arrives we fall back to the generic tool widget
+ *    (the `invocationMessage`).
+ * 3. A `Terminal` content block in `tc.content` (Running/Completed only) —
+ *    the AHP-side signal for the custom terminal tool (`agenthost-terminal:`
+ *    URIs).
+ *
+ * Without (1) the live invocation would race against the async arrival of the
+ * Terminal block via `onDidAssociateTerminal`.
+ */
+function isTerminalToolCall(tc: ToolCallState, existingKind?: string): boolean {
+	if (existingKind === 'terminal') {
+		return true;
+	}
+	if (getToolKind(tc) === 'terminal' && getTerminalInput(tc) !== undefined) {
+		return true;
+	}
+	if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) {
+		return !!getTerminalContentUri(tc.content);
+	}
+	return false;
+}
+
+/**
+ * Build an {@link IChatTerminalToolInvocationData} payload from a tool-call
+ * state. Single source of truth for the five places that need to (re)compute
+ * the terminal payload: pending confirmation, live create, streaming refresh,
+ * finalize, and history replay.
+ *
+ * Each field falls back to `existing` so callers can re-call on later
+ * snapshots without losing values that arrived earlier. This is critical for
+ * the AHP fields `terminalToolSessionId` / `terminalCommandUri`, which
+ * `_reviveTerminalIfNeeded` populates asynchronously once a Terminal content
+ * block arrives — refreshing from `tc` alone would clobber them whenever the
+ * block hasn't landed yet.
+ *
+ * Completion-only fields (e.g. `terminalCommandState` from `tc.success`)
+ * are layered on top by the caller; the helper is status-agnostic.
+ */
+function buildTerminalToolSpecificData(
+	tc: ToolCallState,
+	sessionResource: URI,
+	existing?: IChatTerminalToolInvocationData,
+): IChatTerminalToolInvocationData {
+	const terminalContentUri = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
+		? getTerminalContentUri(tc.content)
+		: undefined;
+	const nextCommand = getTerminalInput(tc);
+	const commandLine = nextCommand
+		? { ...existing?.commandLine, original: nextCommand }
+		: existing?.commandLine ?? { original: '' };
+	const nextOutput = getTerminalOutput(tc);
+	// Spread `existing` so any field set by a prior pass (notably the
+	// async-populated AHP fields and anything we don't explicitly handle)
+	// is preserved unless we have a fresh value to override it with.
+	return {
+		...existing,
+		kind: 'terminal',
+		commandLine,
+		language: existing?.language ?? getTerminalLanguage(tc),
+		terminalToolSessionId: terminalContentUri
+			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
+			: existing?.terminalToolSessionId,
+		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
+		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
+	};
 }
 
 function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined): IToolResultInputOutputDetails | undefined {
@@ -433,8 +568,7 @@ function getToolErrorString(tc: ToolCallState): string | undefined {
  * tool invocation suitable for history replay.
  */
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): IChatToolInvocationSerialized {
-	const terminalContentUri = tc.status === ToolCallStatus.Completed ? getTerminalContentUri(tc.content) : undefined;
-	const isTerminal = !!terminalContentUri || getToolKind(tc) === 'terminal';
+	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
 
@@ -472,12 +606,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
-			kind: 'terminal',
-			commandLine: { original: getTerminalInput(tc) ?? '' },
-			language: getTerminalLanguage(tc),
-			terminalToolSessionId: terminalContentUri ? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource) : undefined,
-			terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : undefined,
-			terminalCommandOutput: getTerminalOutput(tc),
+			...buildTerminalToolSpecificData(tc, sessionResource),
 			terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
 		};
 	} else if (getToolKind(tc) === 'search') {
@@ -804,11 +933,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				}),
 			};
 		} else if (getToolKind(tc) === 'terminal' && tc.toolInput) {
-			toolSpecificData = {
-				kind: 'terminal',
-				commandLine: { original: getTerminalInput(tc) || '' },
-				language: getTerminalLanguage(tc),
-			};
+			toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
 		} else if (tc.toolInput) {
 			let rawInput: unknown;
 			try { rawInput = JSON.parse(tc.toolInput); } catch { rawInput = { input: tc.toolInput }; }
@@ -832,18 +957,17 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, subAgentInvocationId, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? localize('ahp.running', "Running {0}...", tc.displayName);
 
-	const terminalContentUri = (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed)
-		? getTerminalContentUri(tc.content)
-		: undefined;
-	if (terminalContentUri) {
-		invocation.toolSpecificData = {
-			kind: 'terminal',
-			commandLine: { original: getTerminalInput(tc) || '' },
-			language: getTerminalLanguage(tc),
-			terminalToolSessionId: makeAhpTerminalToolSessionId(terminalContentUri, sessionResource),
-			terminalCommandUri: URI.parse(terminalContentUri),
-			terminalCommandOutput: getTerminalOutput(tc),
-		} satisfies IChatTerminalToolInvocationData;
+	if (isTerminalToolCall(tc)) {
+		// Set terminal toolSpecificData eagerly so the renderer shows a
+		// terminal pill (expandable command + output area) from the start,
+		// instead of falling back to the generic tool widget that only
+		// surfaces the first line of the command via the invocation message.
+		// For the SDK's built-in `bash`/`powershell` tools there's no
+		// Terminal content block (they run outside AHP's terminal infra),
+		// so the AHP-terminal fields (`terminalToolSessionId`,
+		// `terminalCommandUri`) stay undefined — the renderer treats this
+		// as a display-only terminal that still surfaces command + output.
+		invocation.toolSpecificData = buildTerminalToolSpecificData(tc, sessionResource);
 	} else if (isSubagentTool(tc)) {
 		// Subagent-spawning tool: set subagent toolSpecificData eagerly so the
 		// renderer groups it correctly from the start (before child content
@@ -872,7 +996,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
  * Called from the session handler when a tool transitions to Running state
  * to set the initial `toolSpecificData`, or when content changes arrive.
  */
-export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string | undefined): void {
+export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, sessionResource: URI, connectionAuthority: string | undefined): void {
 	if (tc.status !== ToolCallStatus.Running) {
 		return;
 	}
@@ -899,6 +1023,27 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		const agentName = getSubagentAgentName(tc) ?? existing.toolSpecificData.agentName;
 		if (description !== existing.toolSpecificData.description || agentName !== existing.toolSpecificData.agentName) {
 			existing.toolSpecificData = { kind: 'subagent', description, agentName };
+			existing.notifyToolSpecificDataChanged();
+		}
+		return;
+	}
+
+	// Refresh terminal toolSpecificData as streaming text content arrives
+	// (or when terminal toolSpecificData was not set up-front because the
+	// tool transitioned through the Streaming state before reaching
+	// Running). Preserves AHP-terminal fields (`terminalToolSessionId`,
+	// `terminalCommandUri`, `terminalCommandId`) that `_reviveTerminalIfNeeded`
+	// in the session handler populates asynchronously when a Terminal
+	// content block is present.
+	const existingTerminal = existing.toolSpecificData?.kind === 'terminal'
+		? existing.toolSpecificData
+		: undefined;
+	if (isTerminalToolCall(tc, existing.toolSpecificData?.kind)) {
+		const next = buildTerminalToolSpecificData(tc, sessionResource, existingTerminal);
+		const outputChanged = next.terminalCommandOutput?.text !== existingTerminal?.terminalCommandOutput?.text;
+		const commandChanged = next.commandLine.original !== existingTerminal?.commandLine.original;
+		if (!existingTerminal || outputChanged || commandChanged) {
+			existing.toolSpecificData = next;
 			existing.notifyToolSpecificDataChanged();
 		}
 	}
@@ -935,10 +1080,7 @@ export interface IToolCallFileEdit {
 export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolCallState, backendSession: URI, connectionAuthority: string | undefined): IToolCallFileEdit[] {
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
-	const terminalContentUri = tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed
-		? getTerminalContentUri(tc.content)
-		: undefined;
-	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || !!terminalContentUri || getToolKind(tc) === 'terminal';
+	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
@@ -968,16 +1110,11 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	}
 
 	if (isTerminal && (isCompleted || isCancelled)) {
-		const existing = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+		const existing = invocation.toolSpecificData?.kind === 'terminal' ? invocation.toolSpecificData : undefined;
 		invocation.presentation = undefined;
 		invocation.toolSpecificData = {
-			kind: 'terminal',
-			commandLine: existing?.commandLine || { original: getTerminalInput(tc) || '' },
-			language: getTerminalLanguage(tc),
-			terminalToolSessionId: terminalContentUri ? makeAhpTerminalToolSessionId(terminalContentUri, backendSession) : existing?.terminalToolSessionId,
-			terminalCommandOutput: getTerminalOutput(tc),
+			...buildTerminalToolSpecificData(tc, backendSession, existing),
 			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
-			terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);

@@ -8,7 +8,6 @@ import { URI } from '../../../base/common/uri.js';
 import { IAgentSessionMetadata } from '../common/agentService.js';
 import {
 	buildSessionChangesetUri,
-	buildUncommittedChangesetUri,
 	ChangesetKind,
 	parseChangesetUri,
 } from '../common/changesetUri.js';
@@ -20,13 +19,16 @@ import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { ILogService } from '../../log/common/log.js';
 import {
-	buildCatalogueFromLiveState,
-	buildCatalogueFromPersistedDiffs,
+	computeChangesSummaryFromLiveState,
+	computeChangesSummaryFromPersistedDiffs,
 	IAgentHostChangesetService,
+	META_CHANGES_SUMMARY,
+	META_CHANGESET_BRANCH,
 	META_CHANGESET_SESSION,
 	META_CHANGESET_UNCOMMITTED,
 	META_LEGACY_DIFFS,
 } from './agentHostChangesetService.js';
+import { ChangesSummary } from '../common/state/protocol/state.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -44,8 +46,10 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  * apply methods.
  */
 export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
+	[META_CHANGESET_BRANCH]: true,
 	[META_CHANGESET_UNCOMMITTED]: true,
 	[META_CHANGESET_SESSION]: true,
+	[META_CHANGES_SUMMARY]: true,
 	[META_LEGACY_DIFFS]: true,
 };
 
@@ -56,9 +60,9 @@ export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
  * {@link IAgentHostChangesetService} (which owns compute / publish /
  * persist primitives).
  *
- * Owns the deferred uncommitted-refresh state machine — refreshes that
- * fire before the session's working directory is known are queued and
- * drained from {@link onSessionMaterialized} / {@link onSessionRestored}.
+ * Owns the deferred static-refresh state machine — refreshes that fire
+ * before the session's working directory is known are queued and drained
+ * from {@link onSessionMaterialized} / {@link onSessionRestored}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
  * overlay, subscribe URI routing) inherently span sessions, so a single
@@ -67,12 +71,25 @@ export const CHANGESET_DB_METADATA_KEYS: Record<string, true> = {
 export class ChangesetSessionCoordinator extends Disposable {
 
 	/**
+	 * Sessions that subscribed to their branch changeset before the
+	 * working directory was known (provisional / not-yet-materialized
+	 * sessions). Drained by {@link onSessionMaterialized} and
+	 * {@link onSessionRestored} once the working directory is set.
+	 */
+	private readonly _pendingBranchRefreshes = new Set<string>();
+	/**
 	 * Sessions that subscribed to their uncommitted changeset before the
 	 * working directory was known (provisional / not-yet-materialized
 	 * sessions). Drained by {@link onSessionMaterialized} and
 	 * {@link onSessionRestored} once the working directory is set.
 	 */
 	private readonly _pendingUncommittedRefreshes = new Set<string>();
+	/**
+	 * Sessions that subscribed to their session-wide branch changeset before
+	 * the working directory was known. Drained alongside uncommitted refreshes
+	 * once restore / materialization has populated the session summary.
+	 */
+	private readonly _pendingSessionRefreshes = new Set<string>();
 
 	/**
 	 * Per-session set of turn ids that have at least one live subscriber to
@@ -91,10 +108,10 @@ export class ChangesetSessionCoordinator extends Disposable {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
 		@IAgentHostGitService gitService: IAgentHostGitService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, logService));
+		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
 		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
 	}
 
@@ -134,6 +151,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
 		this._changesets.registerStaticChangesets(sessionStr);
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
+			branchRaw: metadata[META_CHANGESET_BRANCH],
 			uncommittedRaw: metadata[META_CHANGESET_UNCOMMITTED],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
@@ -148,7 +166,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 
 	/**
 	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Drains any uncommitted refresh that was deferred
+	 * becomes known). Drains any static changeset refresh that was deferred
 	 * because the working directory was not yet known.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
@@ -157,11 +175,24 @@ export class ChangesetSessionCoordinator extends Disposable {
 	}
 
 	/**
+	 * Called after `_meta.git` is attached or updated. Git state can provide
+	 * the base branch used by Branch Changes and fresh uncommitted counts, so
+	 * refresh both static changesets once the session has a working directory.
+	 */
+	onSessionGitStateChanged(sessionStr: string): void {
+		this._logService.debug(`[ChangesetSessionCoordinator] Git state changed for ${sessionStr}; refreshing static changesets. hasWorkingDirectory=${!!this._configurationService.getEffectiveWorkingDirectory(sessionStr)}`);
+		this._triggerSessionRefresh(sessionStr);
+		this._triggerUncommittedRefresh(sessionStr);
+	}
+
+	/**
 	 * Called when a session is disposed. Forgets any pending refresh
 	 * queued for that session.
 	 */
 	onSessionDisposed(sessionStr: string): void {
+		this._pendingBranchRefreshes.delete(sessionStr);
 		this._pendingUncommittedRefreshes.delete(sessionStr);
+		this._pendingSessionRefreshes.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 	}
@@ -173,9 +204,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 	// ---- Subscription hooks -------------------------------------------------
 
 	/**
-	 * Called on every `addSubscriber` 0→1 transition. When `resource` is
-	 * the uncommitted changeset URI, triggers the first git-diff refresh
-	 * (or queues it for later if the working directory is not yet known).
+	 * Called on every `addSubscriber` 0→1 transition. When `resource` is a
+	 * static changeset URI, triggers the first git-diff refresh (or queues
+	 * it for later if the working directory is not yet known).
 	 *
 	 * Both {@link AgentService.subscribe} and the handshake fast-path
 	 * (`ProtocolServerHandler.initialSubscriptions`) call into
@@ -184,16 +215,18 @@ export class ChangesetSessionCoordinator extends Disposable {
 	onFirstSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		if (parsed?.kind === ChangesetKind.Branch) {
+			this._triggerBranchRefresh(parsed.sessionUri);
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			return;
+		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._triggerUncommittedRefresh(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
-			// Session-changeset compute uses git when a working dir is
-			// available and falls back to the SDK edit-tracker otherwise,
-			// so it doesn't need the same deferral as uncommitted.
-			this._changesets.refreshSessionChangeset(parsed.sessionUri);
+			this._triggerSessionRefresh(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
 		}
@@ -218,26 +251,33 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// no turn has run since process start, no one ever subscribed
 			// to the changeset URIs directly, and the user has been
 			// editing files manually in the working tree.
+			this._triggerBranchRefresh(resourceStr);
 			this._triggerUncommittedRefresh(resourceStr);
-			this._changesets.refreshSessionChangeset(resourceStr);
+			this._triggerSessionRefresh(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 		}
 	}
 
 	/**
 	 * Called when a resource's last subscriber drops. Cleans up any
-	 * deferred uncommitted refresh queued for that session — if no one is
-	 * subscribed anymore, there's no point firing it on materialize.
+	 * deferred refresh queued for that session — if no one is subscribed anymore,
+	 * there's no point firing it on materialize.
 	 */
 	onLastSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		if (parsed?.kind === ChangesetKind.Branch) {
+			this._pendingBranchRefreshes.delete(parsed.sessionUri);
+			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+			return;
+		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
+			this._pendingSessionRefreshes.delete(parsed.sessionUri);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
@@ -328,88 +368,108 @@ export class ChangesetSessionCoordinator extends Disposable {
 	/**
 	 * Returns the session-DB metadata keys to merge into a batched read
 	 * for `sessionStr`, OR `undefined` when live state already answers
-	 * the catalogue question (so the caller can skip loading the
-	 * potentially-large persisted blobs).
+	 * the aggregate-counts question (so the caller can skip loading the
+	 * potentially-large persisted diff blobs).
 	 *
-	 * Returning `undefined` is the fast path: live `summary.changesets`
-	 * (loaded session) or a ready live changeset state (registered but
-	 * not-yet-restored session) is authoritative.
+	 * Returning `undefined` is the fast path: a live `summary.changes`
+	 * (loaded session) or a ready live `changeKind: 'session'` changeset
+	 * state (registered but not-yet-restored session) is authoritative.
 	 */
 	getListMetadataKeys(sessionStr: string): Record<string, true> | undefined {
-		if (this._readyLiveCatalogueExists(sessionStr)) {
+		const liveSummaryChanges = this._stateManager.getSessionState(sessionStr)?.summary.changes;
+		if (liveSummaryChanges) {
 			return undefined;
 		}
-		const liveSessionState = this._stateManager.getSessionState(sessionStr);
-		if (liveSessionState?.summary.changesets) {
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
+		if (liveSession?.status === ChangesetStatus.Ready) {
 			return undefined;
 		}
 		return CHANGESET_DB_METADATA_KEYS;
 	}
 
 	/**
-	 * Decorates a single listSessions entry with the catalogue overlay.
+	 * Decorates a single listSessions entry with the `changes` aggregate
+	 * (additions / deletions / files for the session-wide changeset).
 	 * `metadata` is the already-batched DB read; if it lacks the
 	 * changeset keys (because {@link getListMetadataKeys} returned
 	 * `undefined`), this method falls through to synthesising the
-	 * catalogue from live state.
+	 * aggregate from live state.
 	 *
-	 * Precedence: live `summary.changesets` > ready live changeset state
-	 * > parsed persisted blobs > undefined (no catalogue advertised).
-	 * This mirrors the inline pre-coordinator logic.
+	 * Precedence: live `summary.changes` (already projected onto `entry`
+	 * by the caller for loaded sessions) > ready live
+	 * `changeKind: 'session'` changeset state > parsed persisted
+	 * session-wide diff blob > undefined (no aggregate advertised).
+	 * The catalogue itself is uniform across sessions and is not part of
+	 * the listSessions overlay — it is seeded on `state.changesets` once
+	 * at session creation.
 	 */
 	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
 		const sessionStr = entry.session.toString();
-		const liveSessionState = this._stateManager.getSessionState(sessionStr);
-		const liveUncommitted = this._stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
-		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-		const hasReadyLiveCatalogue = liveUncommitted?.status === ChangesetStatus.Ready
-			|| liveSession?.status === ChangesetStatus.Ready;
 
-		// Ready live state for an unopened session: synthesise the catalogue
-		// from that live state. Counts stay in lockstep with the actual
-		// changeset state for the session-list chip.
-		if (!liveSessionState && hasReadyLiveCatalogue) {
-			const catalogue = buildCatalogueFromLiveState(sessionStr, liveUncommitted, liveSession);
-			if (catalogue) {
-				return { ...entry, changesets: catalogue };
-			}
+		// Loaded session: the caller has already projected
+		// `state.summary.changes` onto the entry. Nothing to
+		// overlay.
+		if (this._stateManager.getSessionState(sessionStr)) {
 			return entry;
+		}
+
+		// Check if the metadata contains the changes summary. In the past we
+		// used to store the changesets in the session database but we have
+		// since moved to a more efficient storage mechanism by only storing
+		// the changes summary.
+		const changesSummary = metadata[META_CHANGES_SUMMARY];
+		if (changesSummary !== undefined) {
+			let changes: ChangesSummary | undefined;
+			try {
+				changes = JSON.parse(changesSummary);
+			} catch (error) { }
+
+			return { ...entry, changes };
+		}
+
+		// Read live state for an unopened session: synthesise the aggregate
+		// from the live `changeKind: 'session'` changeset state. Counts stay
+		// in lockstep with the actual changeset state for the session-list
+		// chip.
+		const liveSession = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
+		const liveChanges = computeChangesSummaryFromLiveState(liveSession);
+		if (liveChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this._changesets.persistChangesSummary(sessionStr, liveChanges);
+			return { ...entry, changes: liveChanges };
 		}
 
 		// No live source — try persisted blobs (if the caller batched them).
-		const uncommittedRaw = metadata[META_CHANGESET_UNCOMMITTED];
 		const sessionRaw = metadata[META_CHANGESET_SESSION];
 		const legacyRaw = metadata[META_LEGACY_DIFFS];
-		if (uncommittedRaw === undefined && sessionRaw === undefined && legacyRaw === undefined) {
+		if (sessionRaw === undefined && legacyRaw === undefined) {
 			return entry;
 		}
-		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, {
-			uncommittedRaw,
-			sessionRaw,
-			legacyRaw,
-		});
+		const restored = this._changesets.parsePersistedStaticChangesets(sessionStr, { sessionRaw, legacyRaw });
+
 		// `listSessions` must not seed full changeset state for every row;
-		// it only parses persisted blobs enough to render catalogue counts.
+		// it only parses persisted blobs enough to render the chip aggregate.
 		// Once the session is opened via `restoreSession`, the live overlay in
-		// `AgentService.listSessions` replaces this parse-only catalogue.
-		if (!liveSessionState) {
-			const catalogue = buildCatalogueFromPersistedDiffs(sessionStr, restored.uncommitted, restored.session);
-			if (catalogue) {
-				return { ...entry, changesets: catalogue };
-			}
+		// `AgentService.listSessions` replaces this parse-only aggregate.
+		const persistedChanges = computeChangesSummaryFromPersistedDiffs(restored.session);
+		if (persistedChanges) {
+			// Migrate the changes summary to the new storage mechanism.
+			this._changesets.persistChangesSummary(sessionStr, persistedChanges);
+			return { ...entry, changes: persistedChanges };
 		}
+
 		return entry;
 	}
 
 	// ---- Internal -----------------------------------------------------------
 
-	private _readyLiveCatalogueExists(sessionStr: string): boolean {
-		const uncommitted = this._stateManager.getChangesetState(buildUncommittedChangesetUri(sessionStr));
-		if (uncommitted?.status === ChangesetStatus.Ready) {
-			return true;
+	private _triggerBranchRefresh(sessionStr: string): void {
+		const wd = this._configurationService.getEffectiveWorkingDirectory(sessionStr);
+		if (!wd) {
+			this._pendingBranchRefreshes.add(sessionStr);
+			return;
 		}
-		const session = this._stateManager.getChangesetState(buildSessionChangesetUri(sessionStr));
-		return session?.status === ChangesetStatus.Ready;
+		this._changesets.refreshBranchChangeset(sessionStr);
 	}
 
 	/**
@@ -432,9 +492,24 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._changesets.refreshUncommittedChangeset(sessionStr);
 	}
 
+	private _triggerSessionRefresh(sessionStr: string): void {
+		const wd = this._configurationService.getEffectiveWorkingDirectory(sessionStr);
+		if (!wd) {
+			this._pendingSessionRefreshes.add(sessionStr);
+			return;
+		}
+		this._changesets.refreshSessionChangeset(sessionStr);
+	}
+
 	private _drainPendingRefresh(sessionStr: string): void {
+		if (this._pendingBranchRefreshes.delete(sessionStr)) {
+			this._triggerBranchRefresh(sessionStr);
+		}
 		if (this._pendingUncommittedRefreshes.delete(sessionStr)) {
 			this._triggerUncommittedRefresh(sessionStr);
+		}
+		if (this._pendingSessionRefreshes.delete(sessionStr)) {
+			this._triggerSessionRefresh(sessionStr);
 		}
 	}
 }

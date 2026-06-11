@@ -16,7 +16,7 @@ import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '.
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { $, addDisposableListener, addStandardDisposableListener, clearNode, getTotalWidth } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, clearNode, getTotalWidth, isHTMLElement } from '../../../../base/browser/dom.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { overviewRulerRangeHighlight } from '../../../../editor/common/core/editorColorRegistry.js';
@@ -24,11 +24,10 @@ import { OverviewRulerLane } from '../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { AgentFeedbackKind, IAgentFeedbackService, AgentFeedbackState } from './agentFeedbackService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -44,6 +43,17 @@ interface ICommentItemActions {
 	convertAction: Action | undefined;
 	removeAction: Action;
 	addReplyAction: Action;
+}
+
+/**
+ * Shared in-progress reply state that survives widget rebuilds. The contribution
+ * owns the single instance and hands it to each widget so drafts (and focus)
+ * are not lost when widgets are torn down and recreated in response to
+ * unrelated feedback / review changes.
+ */
+interface IReplyDraftState {
+	readonly drafts: Map<string, string>;
+	focusedCommentId: string | undefined;
 }
 
 /**
@@ -78,6 +88,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		private readonly _editor: ICodeEditor,
 		private readonly _commentItems: readonly ISessionEditorComment[],
 		private readonly _sessionResource: URI,
+		private readonly _replyDraftState: IReplyDraftState | undefined,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
@@ -204,9 +215,10 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			}
 			itemMeta.appendChild(lineInfo);
 
-			if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
+			const typeLabel = this._getTypeLabel(comment);
+			if (typeLabel) {
 				const typeBadge = $('span.agent-feedback-widget-item-type');
-				typeBadge.textContent = this._getTypeLabel(comment);
+				typeBadge.textContent = typeLabel;
 				itemMeta.appendChild(typeBadge);
 			}
 
@@ -244,6 +256,16 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 					() => this._convertToAgentFeedback(comment),
 				));
 				actionBar.push(itemActions.convertAction, { icon: true, label: false });
+			}
+			if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Created) {
+				const acceptAction = this._eventStore.add(new Action(
+					'agentFeedback.widget.accept',
+					nls.localize('acceptComment', "Accept"),
+					ThemeIcon.asClassName(Codicon.check),
+					true,
+					() => { this._acceptFeedback(comment); return Promise.resolve(); },
+				));
+				actionBar.push(acceptAction, { icon: true, label: false });
 			}
 			itemActions.removeAction = this._eventStore.add(new Action(
 				'agentFeedback.widget.remove',
@@ -312,23 +334,27 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			this._eventStore.add(addDisposableListener(item, 'mousedown', onSelectableMousedown));
 
 			this._bodyNode.appendChild(item);
+
+			// Restore an in-progress reply draft if one exists for this comment.
+			// This keeps the reply input alive across widget rebuilds that
+			// happen while the user is typing (e.g. when an unrelated feedback
+			// or review change fires onDidChangeFeedback).
+			const draft = this._replyDraftState?.drafts.get(comment.id);
+			if (draft !== undefined) {
+				this._startAddingReply(comment, item, itemActions, draft);
+			}
 		}
 	}
 
-	private _getTypeLabel(comment: ISessionEditorComment): string {
-		if (comment.source === SessionEditorCommentSource.PRReview) {
-			return nls.localize('prReviewComment', "PR Review");
+	private _getTypeLabel(comment: ISessionEditorComment): string | undefined {
+		switch (comment.kind) {
+			case AgentFeedbackKind.PRReview:
+				return nls.localize('prReviewComment', "PR Review");
+			case AgentFeedbackKind.AgentReview:
+				return nls.localize('agentReviewComment', "Agent Review");
+			default:
+				return undefined;
 		}
-
-		if (comment.source === SessionEditorCommentSource.CodeReview) {
-			return comment.suggestion
-				? nls.localize('reviewSuggestion', "Review Suggestion")
-				: nls.localize('reviewComment', "Review");
-		}
-
-		return comment.suggestion
-			? nls.localize('feedbackSuggestion', "Feedback Suggestion")
-			: nls.localize('feedbackComment', "Feedback");
 	}
 
 	private _renderSuggestion(comment: ISessionEditorComment): HTMLElement {
@@ -373,10 +399,6 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	private _removeComment(comment: ISessionEditorComment): void {
 		if (comment.source === SessionEditorCommentSource.PRReview) {
 			this._codeReviewService.resolvePRReviewThread(this._sessionResource!, comment.sourceId);
-			return;
-		}
-		if (comment.source === SessionEditorCommentSource.CodeReview) {
-			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
 			return;
 		}
 
@@ -437,7 +459,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		textarea.focus();
 	}
 
-	private _startAddingReply(comment: ISessionEditorComment, itemNode: HTMLElement, actions: ICommentItemActions): void {
+	private _startAddingReply(comment: ISessionEditorComment, itemNode: HTMLElement, actions: ICommentItemActions, initialText?: string): void {
 		// If a reply input is already open for this item, just focus it.
 		const existing = this._activeReplyInputs.get(comment.id);
 		if (existing) {
@@ -460,9 +482,16 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		const textarea = $('textarea.agent-feedback-widget-edit-textarea') as HTMLTextAreaElement;
 		textarea.placeholder = nls.localize('addReplyPlaceholder', "Add a comment\u2026");
 		textarea.rows = 1;
+		if (initialText !== undefined) {
+			textarea.value = initialText;
+		}
 		replyContainer.appendChild(textarea);
 		itemNode.appendChild(replyContainer);
 		this._activeReplyInputs.set(comment.id, { container: replyContainer, textarea });
+
+		// Ensure the draft store has an entry so subsequent rebuilds know to
+		// restore the input even before the user has typed anything.
+		this._replyDraftState?.drafts.set(comment.id, textarea.value);
 
 		const autoSize = () => {
 			textarea.style.height = 'auto';
@@ -471,7 +500,20 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		};
 		autoSize();
 
-		replyStore.add(addDisposableListener(textarea, 'input', autoSize));
+		replyStore.add(addDisposableListener(textarea, 'input', () => {
+			this._replyDraftState?.drafts.set(comment.id, textarea.value);
+			autoSize();
+		}));
+
+		const clearDraft = () => {
+			if (!this._replyDraftState) {
+				return;
+			}
+			this._replyDraftState.drafts.delete(comment.id);
+			if (this._replyDraftState.focusedCommentId === comment.id) {
+				this._replyDraftState.focusedCommentId = undefined;
+			}
+		};
 
 		const cleanup = () => {
 			replyStore.dispose();
@@ -483,6 +525,7 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			actions.addReplyAction.enabled = true;
 			this._activeReplyInputs.delete(comment.id);
 			replyContainer.remove();
+			clearDraft();
 			this._editor.layoutOverlayWidget(this);
 		};
 
@@ -492,6 +535,9 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 				e.stopPropagation();
 				const newReply = textarea.value.trim();
 				if (newReply) {
+					// Clear the draft before triggering the change so the
+					// rebuilt widget doesn't re-open the reply input.
+					clearDraft();
 					this._saveReply(comment, newReply);
 					// Widget will be rebuilt by the change event.
 				} else {
@@ -505,13 +551,31 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 		}));
 
 		// Cancel the reply when focus leaves and the textarea is empty.
+		// When the textarea contains text, keep it open so the user doesn't
+		// lose their draft just because focus moved elsewhere.
+		// Skip cleanup entirely if the widget is being disposed — the browser
+		// fires blur as part of removing the textarea from the DOM, and we
+		// don't want that teardown blur to wipe out the draft that the
+		// rebuilt widget needs to restore.
 		replyStore.add(addDisposableListener(textarea, 'blur', () => {
+			if (this._disposed) {
+				return;
+			}
 			if (textarea.value.trim() === '') {
 				cleanup();
 			}
 		}));
 
-		textarea.focus();
+		// Only steal focus when this is an explicit user-triggered open. For
+		// drafts restored across a rebuild, only refocus if the textarea had
+		// focus at the moment the previous widget was torn down.
+		if (initialText === undefined || this._replyDraftState?.focusedCommentId === comment.id) {
+			textarea.focus();
+			// Place caret at the end of any restored text so typing continues
+			// naturally from where the user left off.
+			const len = textarea.value.length;
+			textarea.setSelectionRange(len, len);
+		}
 	}
 
 	private _saveReply(comment: ISessionEditorComment, replyText: string): void {
@@ -520,16 +584,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			return;
 		}
 
-		// For external comments (code review, PR review), convert to agent
-		// feedback first preserving the original text, then add the reply so
-		// that the original comment and the reply live in the same thread.
+		// For PR review comments, convert to agent feedback first preserving
+		// the original text, then add the reply so that the original comment and
+		// the reply live in the same thread.
 		if (!comment.canConvertToAgentFeedback) {
 			return;
 		}
-
-		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
-			? comment.sourceId
-			: undefined;
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
@@ -538,15 +598,12 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			comment.text,
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
-			sourcePRReviewCommentId,
+			comment.sourceId,
+			AgentFeedbackKind.PRReview,
 		);
 		this._agentFeedbackService.addReply(this._sessionResource, feedback.id, replyText);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
-		if (comment.source === SessionEditorCommentSource.CodeReview) {
-			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
-		} else if (comment.source === SessionEditorCommentSource.PRReview) {
-			this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
-		}
+		this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
 	}
 
 	private _saveEdit(comment: ISessionEditorComment, newText: string): void {
@@ -582,16 +639,23 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	/**
+	 * Accept a Created agent feedback item so it becomes submittable.
+	 */
+	private _acceptFeedback(comment: ISessionEditorComment): void {
+		if (comment.source !== SessionEditorCommentSource.AgentFeedback) {
+			return;
+		}
+		this._agentFeedbackService.acceptFeedback(this._sessionResource, comment.sourceId);
+		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, comment.id);
+	}
+
+	/**
 	 * Converts a non-agent-feedback comment into an agent feedback item, optionally with edited text.
 	 */
 	private _convertToAgentFeedbackWithText(comment: ISessionEditorComment, text: string): void {
 		if (!comment.canConvertToAgentFeedback) {
 			return;
 		}
-
-		const sourcePRReviewCommentId = comment.source === SessionEditorCommentSource.PRReview
-			? comment.sourceId
-			: undefined;
 
 		const feedback = this._agentFeedbackService.addFeedback(
 			this._sessionResource,
@@ -600,14 +664,11 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 			text,
 			comment.suggestion,
 			createAgentFeedbackContext(this._editor, this._codeEditorService, comment.resourceUri, comment.range),
-			sourcePRReviewCommentId,
+			comment.sourceId,
+			AgentFeedbackKind.PRReview,
 		);
 		this._agentFeedbackService.setNavigationAnchor(this._sessionResource, toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, feedback.id));
-		if (comment.source === SessionEditorCommentSource.CodeReview) {
-			this._codeReviewService.removeComment(this._sessionResource, comment.sourceId);
-		} else if (comment.source === SessionEditorCommentSource.PRReview) {
-			this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
-		}
+		this._codeReviewService.markPRReviewCommentConverted(this._sessionResource, comment.sourceId);
 	}
 
 	/**
@@ -711,6 +772,29 @@ export class AgentFeedbackEditorWidget extends Disposable implements IOverlayWid
 	}
 
 	/**
+	 * Returns the comment id whose active reply textarea matches the given
+	 * element, or `undefined` if none. Used by the contribution to remember
+	 * which reply input had focus immediately before tearing widgets down,
+	 * so focus can be restored on the new widget.
+	 */
+	findReplyCommentIdForElement(element: HTMLElement): string | undefined {
+		for (const [commentId, { textarea }] of this._activeReplyInputs) {
+			if (textarea === element) {
+				return commentId;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Ids of the comments rendered by this widget. Used by the contribution
+	 * to prune draft state for comments that no longer exist.
+	 */
+	getCommentIds(): readonly string[] {
+		return this._commentItems.map(comment => comment.id);
+	}
+
+	/**
 	 * Updates the widget position and layout.
 	 */
 	layout(startLineNumber: number): void {
@@ -811,10 +895,19 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	private readonly _widgetListeners = this._register(new DisposableStore());
 	private _sessionResource: URI | undefined;
 
+	/**
+	 * Reply input state shared across widget rebuilds. Without this, any
+	 * unrelated feedback / review state change would dispose the active
+	 * widget and discard the textarea the user was typing in.
+	 */
+	private readonly _replyDraftState: IReplyDraftState = {
+		drafts: new Map<string, string>(),
+		focusedCommentId: undefined,
+	};
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -847,7 +940,6 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			}
 
 			this._rebuildWidgets(
-				this._codeReviewService.getReviewState(this._sessionResource).read(reader),
 				this._codeReviewService.getPRReviewState(this._sessionResource).read(reader),
 			);
 			this._handleNavigation();
@@ -860,16 +952,15 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			this._sessionResource = undefined;
 			return;
 		}
-		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
+		this._sessionResource = this._agentFeedbackService.getSessionForFile(model.uri)?.resource;
 	}
 
 	private _rebuildWidgets(
-		reviewState = this._sessionResource ? this._codeReviewService.getReviewState(this._sessionResource).get() : undefined,
 		prReviewState: IPRReviewState | undefined = this._sessionResource ? this._codeReviewService.getPRReviewState(this._sessionResource).get() : undefined,
 	): void {
 		this._clearWidgets();
 
-		if (!this._sessionResource || !reviewState) {
+		if (!this._sessionResource) {
 			return;
 		}
 
@@ -881,7 +972,6 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		const comments = getSessionEditorComments(
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
-			reviewState,
 			prReviewState,
 		);
 		const fileComments = this._getCommentsForModel(model.uri, comments);
@@ -896,7 +986,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		// further down.
 		for (let i = groups.length - 1; i >= 0; i--) {
 			const group = groups[i];
-			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource);
+			const widget = this._instantiationService.createInstance(AgentFeedbackEditorWidget, this._editor, group, this._sessionResource, this._replyDraftState);
 			this._widgets.push(widget);
 
 			// Ensure only one widget is expanded per file at a time: when a
@@ -910,6 +1000,32 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			}));
 
 			widget.layout(group[0].range.startLineNumber);
+		}
+
+		this._pruneOrphanedReplyDrafts();
+	}
+
+	/**
+	 * Remove draft entries for comments that no longer exist in any widget.
+	 * Without this, deleted comments would leave drafts in the map forever.
+	 */
+	private _pruneOrphanedReplyDrafts(): void {
+		if (this._replyDraftState.drafts.size === 0 && this._replyDraftState.focusedCommentId === undefined) {
+			return;
+		}
+		const knownCommentIds = new Set<string>();
+		for (const widget of this._widgets) {
+			for (const commentId of widget.getCommentIds()) {
+				knownCommentIds.add(commentId);
+			}
+		}
+		for (const commentId of [...this._replyDraftState.drafts.keys()]) {
+			if (!knownCommentIds.has(commentId)) {
+				this._replyDraftState.drafts.delete(commentId);
+			}
+		}
+		if (this._replyDraftState.focusedCommentId !== undefined && !knownCommentIds.has(this._replyDraftState.focusedCommentId)) {
+			this._replyDraftState.focusedCommentId = undefined;
 		}
 	}
 
@@ -971,7 +1087,6 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		const comments = getSessionEditorComments(
 			this._sessionResource,
 			this._agentFeedbackService.getFeedback(this._sessionResource),
-			this._codeReviewService.getReviewState(this._sessionResource).get(),
 			this._codeReviewService.getPRReviewState(this._sessionResource).get(),
 		);
 		const bearing = this._agentFeedbackService.getNavigationBearing(this._sessionResource, comments);
@@ -1010,11 +1125,37 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 	}
 
 	private _clearWidgets(): void {
+		// Capture which reply textarea (if any) currently has focus so the
+		// rebuilt widget can refocus it. The textarea's own blur event would
+		// fire as part of the teardown below and clear this state, so we
+		// snapshot it synchronously here instead of relying on focus tracking.
+		this._captureFocusedReplyCommentId();
+
 		this._widgetListeners.clear();
 		for (const widget of this._widgets) {
 			widget.dispose();
 		}
 		this._widgets.length = 0;
+	}
+
+	private _captureFocusedReplyCommentId(): void {
+		// Always recompute from scratch — the previously-captured value may
+		// be stale (e.g. the user clicked elsewhere after typing).
+		this._replyDraftState.focusedCommentId = undefined;
+		if (this._widgets.length === 0) {
+			return;
+		}
+		const activeElement = this._editor.getDomNode()?.ownerDocument.activeElement;
+		if (!isHTMLElement(activeElement)) {
+			return;
+		}
+		for (const widget of this._widgets) {
+			const commentId = widget.findReplyCommentIdForElement(activeElement);
+			if (commentId !== undefined) {
+				this._replyDraftState.focusedCommentId = commentId;
+				return;
+			}
+		}
 	}
 
 	override dispose(): void {

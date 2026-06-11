@@ -6,12 +6,13 @@
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { LocalChatSessionsProvider, LOCAL_SESSION_ENABLED_SETTING, LocalSessionType } from './localChatSessionsProvider.js';
+import { LocalChatSessionsProvider, LOCAL_SESSION_ENABLED_SETTING } from './localChatSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { ForkConversationAction } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -59,6 +60,7 @@ registerAction2(class extends ForkConversationAction {
 	protected override _openForkedSession(instantiationService: IInstantiationService, parentSessionResource: URI, forkedSessionResource: URI): Promise<void> {
 		return instantiationService.invokeFunction(async accessor => {
 			const sessionsManagementService = accessor.get(ISessionsManagementService);
+			const sessionsViewService = accessor.get(ISessionsViewService);
 			const logService = accessor.get(ILogService);
 
 			const parentSession = sessionsManagementService.getSession(parentSessionResource);
@@ -67,12 +69,10 @@ registerAction2(class extends ForkConversationAction {
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
 			}
 
-			if (parentSession.sessionType !== LocalSessionType.id) {
-				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
-			}
-
-			// Local sessions — wait for the forked session to appear, but
-			// bound the wait so a missing session does not hang forever.
+			// Wait for the forked session to appear, but bound the wait so a
+			// missing session does not hang forever. Applies to local and
+			// contributed (agent-host) sessions alike — both surface via
+			// `sessionsManagementService` in the Agents window.
 			if (!sessionsManagementService.getSession(forkedSessionResource)) {
 				let listener: IDisposable | undefined;
 				const appeared = await raceTimeout(new Promise<boolean>(resolve => {
@@ -89,7 +89,7 @@ registerAction2(class extends ForkConversationAction {
 					return;
 				}
 			}
-			await sessionsManagementService.openSession(forkedSessionResource);
+			await sessionsViewService.openSession(forkedSessionResource);
 
 		});
 	}

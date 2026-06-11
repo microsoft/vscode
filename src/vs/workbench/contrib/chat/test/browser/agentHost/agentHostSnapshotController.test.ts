@@ -184,13 +184,112 @@ suite('AgentHostSnapshotController', () => {
 		assert.deepStrictEqual(controller.requestDisablement.get().map(d => d.requestId), ['req-2']);
 	});
 
-	test('ensureRequestCheckpoint creates sentinel and is idempotent', () => {
+	test('ensureRequestCheckpoint creates a checkpoint and is idempotent', () => {
 		const controller = createController(store, new Map());
 		controller.ensureRequestCheckpoint('req-1');
 		controller.ensureRequestCheckpoint('req-1');
-		// A sentinel alone doesn't enable undo (currentIdx === -1 since
-		// sentinels never advance the cursor on their own).
-		assert.strictEqual(controller.canUndo.get(), false);
+		// Undo is request-level: a checkpoint exists, so we can undo it
+		// (even though the request produced no edits).
+		assert.strictEqual(controller.canUndo.get(), true);
+		assert.strictEqual(controller.canRedo.get(), false);
+	});
+
+	test('ensureRequestCheckpoint does not mark the current request as disabled', () => {
+		const controller = createController(store, new Map());
+		// Simulates the start-of-turn path in the session handler: the
+		// checkpoint for the in-flight request must not appear in
+		// requestDisablement (otherwise the chat UI hides the live turn).
+		controller.ensureRequestCheckpoint('req-1');
+		assert.deepStrictEqual(controller.requestDisablement.get(), []);
+		controller.ensureRequestCheckpoint('req-2');
+		assert.deepStrictEqual(controller.requestDisablement.get(), []);
+	});
+
+	test('restoreSnapshot of a no-edit request marks it disabled', async () => {
+		const controller = createController(store, new Map());
+		// Two requests, neither produced file edits — mirrors a session
+		// hydrated from history where intermediate turns had no tool calls.
+		controller.ensureRequestCheckpoint('req-1');
+		controller.ensureRequestCheckpoint('req-2');
+		await controller.restoreSnapshot('req-2', undefined);
+		assert.deepStrictEqual(
+			controller.requestDisablement.get().map(d => d.requestId),
+			['req-2'],
+		);
+	});
+
+	test('starting a new request after restore-to-start splices stale checkpoints', () => {
+		const before = URI.file('/snap/before-1').toString();
+		const after = URI.file('/snap/after-1').toString();
+		const controller = createController(store, new Map([
+			[before, 'a'], [after, 'b'], [URI.file('/file.ts').toString(), 'a'],
+		]));
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1', filePath: '/file.ts',
+			beforeURI: before, afterURI: after,
+		}));
+		return controller.restoreSnapshot('req-1', undefined).then(() => {
+			// After restoring before req-1, the user sends a new request.
+			// The stale forward branch must be spliced or the new checkpoint
+			// would coexist with the discarded one.
+			controller.ensureRequestCheckpoint('req-2');
+			assert.deepStrictEqual(controller.requestDisablement.get(), []);
+			assert.strictEqual(controller.canRedo.get(), false);
+		});
+	});
+
+	test('multiple tool calls in one request share a checkpoint', async () => {
+		const before1 = URI.file('/snap/before-1').toString();
+		const after1 = URI.file('/snap/after-1').toString();
+		const before2 = URI.file('/snap/before-2').toString();
+		const after2 = URI.file('/snap/after-2').toString();
+		const fileA = URI.file('/a.ts').toString();
+		const fileB = URI.file('/b.ts').toString();
+		const contentMap = new Map([
+			[before1, 'a-original'], [after1, 'a-modified'], [fileA, 'a-modified'],
+			[before2, 'b-original'], [after2, 'b-modified'], [fileB, 'b-modified'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1', filePath: '/a.ts',
+			beforeURI: before1, afterURI: after1,
+		}));
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-2', filePath: '/b.ts',
+			beforeURI: before2, afterURI: after2,
+		}));
+		// Restoring before req-1 undoes BOTH tool calls' edits.
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.strictEqual(contentMap.get(fileA), 'a-original');
+		assert.strictEqual(contentMap.get(fileB), 'b-original');
+	});
+
+	test('multiple tool calls editing the same file collapse to one net edit', async () => {
+		// Two sequential edits to /file.ts within the same request: the
+		// second edit's after-content must win on redo, and the first
+		// edit's before-content must win on undo. Without merging, the
+		// two edits would race when applied in parallel.
+		const beforeA = URI.file('/snap/before-a').toString();
+		const afterA = URI.file('/snap/after-a').toString();
+		const beforeB = URI.file('/snap/before-b').toString();
+		const afterB = URI.file('/snap/after-b').toString();
+		const file = URI.file('/file.ts').toString();
+		const contentMap = new Map([
+			[beforeA, 'v0'], [afterA, 'v1'],
+			[beforeB, 'v1'], [afterB, 'v2'],
+			[file, 'v2'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1', filePath: '/file.ts',
+			beforeURI: beforeA, afterURI: afterA,
+		}));
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-2', filePath: '/file.ts',
+			beforeURI: beforeB, afterURI: afterB,
+		}));
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.strictEqual(contentMap.get(file), 'v0');
 	});
 
 	test('hasEditsInRequest reflects added tool call edits', () => {
@@ -216,6 +315,75 @@ suite('AgentHostSnapshotController', () => {
 			content: [],
 		});
 		assert.strictEqual(controller.canUndo.get(), false);
+	});
+
+	test('undoInteraction steps back one checkpoint at a time', async () => {
+		const beforeA = URI.file('/snap/before-a').toString();
+		const afterA = URI.file('/snap/after-a').toString();
+		const beforeB = URI.file('/snap/before-b').toString();
+		const afterB = URI.file('/snap/after-b').toString();
+		const fileA = URI.file('/a.ts').toString();
+		const fileB = URI.file('/b.ts').toString();
+		const contentMap = new Map([
+			[beforeA, 'a0'], [afterA, 'a1'], [fileA, 'a1'],
+			[beforeB, 'b0'], [afterB, 'b1'], [fileB, 'b1'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({ toolCallId: 'tc-1', filePath: '/a.ts', beforeURI: beforeA, afterURI: afterA }));
+		controller.addToolCallEdits('req-2', makeToolCall({ toolCallId: 'tc-2', filePath: '/b.ts', beforeURI: beforeB, afterURI: afterB }));
+
+		// Undo req-2 only — req-1's edit stays applied.
+		await controller.undoInteraction();
+		assert.strictEqual(contentMap.get(fileA), 'a1');
+		assert.strictEqual(contentMap.get(fileB), 'b0');
+		assert.strictEqual(controller.canUndo.get(), true);
+		assert.strictEqual(controller.canRedo.get(), true);
+
+		// Undo req-1 too.
+		await controller.undoInteraction();
+		assert.strictEqual(contentMap.get(fileA), 'a0');
+		assert.strictEqual(controller.canUndo.get(), false);
+
+		// Extra undo past the start is a safe no-op.
+		await controller.undoInteraction();
+		assert.strictEqual(contentMap.get(fileA), 'a0');
+	});
+
+	test('redoInteraction steps forward and stops at HEAD (no infinite loop)', async () => {
+		const beforeA = URI.file('/snap/before-a').toString();
+		const afterA = URI.file('/snap/after-a').toString();
+		const beforeB = URI.file('/snap/before-b').toString();
+		const afterB = URI.file('/snap/after-b').toString();
+		const fileA = URI.file('/a.ts').toString();
+		const fileB = URI.file('/b.ts').toString();
+		const contentMap = new Map([
+			[beforeA, 'a0'], [afterA, 'a1'], [fileA, 'a1'],
+			[beforeB, 'b0'], [afterB, 'b1'], [fileB, 'b1'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({ toolCallId: 'tc-1', filePath: '/a.ts', beforeURI: beforeA, afterURI: afterA }));
+		controller.addToolCallEdits('req-2', makeToolCall({ toolCallId: 'tc-2', filePath: '/b.ts', beforeURI: beforeB, afterURI: afterB }));
+
+		// Restore to before req-1 so both edits are pending a redo.
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.strictEqual(contentMap.get(fileA), 'a0');
+		assert.strictEqual(contentMap.get(fileB), 'b0');
+		assert.strictEqual(controller.canRedo.get(), true);
+
+		// Emulate the "Redo" action's drain loop. The bounded guard turns a
+		// regression (redoInteraction not advancing the cursor) into a clean
+		// assertion failure instead of an infinite loop that would hang the
+		// window — which is exactly the bug this guards against.
+		let guard = 0;
+		while (controller.canRedo.get()) {
+			await controller.redoInteraction();
+			assert.ok(++guard <= 10, 'redoInteraction failed to advance the checkpoint cursor');
+		}
+
+		assert.strictEqual(contentMap.get(fileA), 'a1');
+		assert.strictEqual(contentMap.get(fileB), 'b1');
+		assert.strictEqual(controller.canRedo.get(), false);
+		assert.strictEqual(controller.canUndo.get(), true);
 	});
 
 	test('streaming-edits APIs throw — agent host owns edits server-side', () => {

@@ -58,6 +58,7 @@ export {
 	type ChangesetFileRemovedAction,
 	type ChangesetOperationsChangedAction,
 	type ChangesetClearedAction,
+	type ResourceWatchChangedAction,
 	type StateAction,
 } from './protocol/actions.js';
 

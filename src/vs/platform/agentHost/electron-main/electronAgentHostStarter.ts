@@ -19,7 +19,7 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkPathSettingId, AgentHostClaudeSdkPathEnvVar, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentSdkRootSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHost.config.contribution.js';
 import '../common/agentHostStarter.config.contribution.js';
@@ -66,14 +66,15 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// PATH and other vars from the user's login shell (macOS/Linux GUI launches).
 		const shellEnv = await this._resolveShellEnv();
 
-		// Gate optional providers via env vars consumed by `agentHostMain.ts`.
-		// The Claude agent is opt-in: enabled when the user points the SDK path
-		// setting at a locally-installed `@anthropic-ai/claude-agent-sdk` package,
-		// or when the env var is already set on the parent process (developer
-		// override). The SDK itself is intentionally not bundled with VS Code.
-		const claudeSdkPath = this._configurationService.getValue<string>(AgentHostClaudeAgentSdkPathSettingId)
-			|| process.env[AgentHostClaudeSdkPathEnvVar]
-			|| '';
+		// Forward the Claude/Codex SDK overrides + codex home/args from
+		// workbench settings to the agent host process. Parent env wins on
+		// collision — see `buildAgentSdkEnv` for the precedence rule.
+		const sdkEnv = buildAgentSdkEnv({
+			claudeSdkRoot: this._configurationService.getValue<string>(AgentHostClaudeAgentSdkRootSettingId),
+			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
+			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
+			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+		}, process.env);
 
 		// Translate `chat.agentHost.otel.*` settings into the env vars consumed by
 		// the agent host process. Any value already present on `process.env` wins
@@ -107,7 +108,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				VSCODE_ESM_ENTRYPOINT: 'vs/platform/agentHost/node/agentHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true',
-				...(claudeSdkPath ? { [AgentHostClaudeSdkPathEnvVar]: claudeSdkPath } : {}),
+				...sdkEnv,
 				...otelEnv,
 			}
 		});

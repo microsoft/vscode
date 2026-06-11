@@ -710,7 +710,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					}
 
 					if (isString(element.tooltip)) {
-						return element.tooltip;
+						return treeMenus.getResourceActions([element]).length > 0 ? localize('treeAriaLabelHasActionsTooltip', "{0}, has actions", element.tooltip) : element.tooltip;
 					} else {
 						if (element.resourceUri && !element.label) {
 							// The custom tree has no good information on what should be used for the aria label.
@@ -724,6 +724,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 						}
 						if (element.description) {
 							buildAriaLabel += element.description;
+						}
+						if (treeMenus.getResourceActions([element]).length > 0) {
+							buildAriaLabel = buildAriaLabel ? localize('treeAriaLabelHasActionsSuffix', "{0}, has actions", buildAriaLabel.trim()) : localize('treeAriaLabelHasActions', "has actions");
 						}
 						return buildAriaLabel;
 					}
@@ -1489,6 +1492,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		const menuActions = this.menus.getResourceActions([node]);
 		templateData.actionBar.push(menuActions, { icon: true, label: false });
+
+		// Associate the inline toolbar with the tree item so screen readers
+		// announce which item the actions belong to when focus moves to them.
+		if (menuActions.length > 0) {
+			const itemName = [label, description].filter((part): part is string => !!part).join(' ').trim();
+			templateData.actionBar.setAriaLabel(itemName ? localize('treeActionBarAriaLabel', "Actions for {0}", itemName) : localize('treeActionBarAriaLabelNoName', "Actions"));
+		} else {
+			templateData.actionBar.setAriaLabel('');
+		}
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;

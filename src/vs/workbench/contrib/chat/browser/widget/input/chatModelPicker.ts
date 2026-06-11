@@ -17,6 +17,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -29,7 +30,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
-import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../services/chat/common/chatEntitlementService.js';
 import * as semver from '../../../../../../base/common/semver/semver.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -60,6 +61,10 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 			break;
 	}
 	return hoverContent;
+}
+
+export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
+	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
 }
 
 /**
@@ -165,6 +170,34 @@ type ChatModelPickerInteractionClassification = {
 
 type ChatModelPickerInteractionEvent = {
 	interaction: ChatModelPickerInteraction;
+};
+
+type ChatThinkingEffortChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the thinking effort is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the thinking effort was changed for' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous thinking effort value' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new thinking effort value' };
+};
+
+type ChatThinkingEffortChangeEvent = {
+	model: string | TelemetryTrustedValue<string>;
+	fromValue: string;
+	toValue: string;
+};
+
+type ChatContextSizeChangeClassification = {
+	owner: 'lramos15';
+	comment: 'Reporting when the context window size is changed';
+	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model the context size was changed for' };
+	fromValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous context size value' };
+	toValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new context size value' };
+};
+
+type ChatContextSizeChangeEvent = {
+	model: string | TelemetryTrustedValue<string>;
+	fromValue: string;
+	toValue: string;
 };
 
 /**
@@ -407,18 +440,60 @@ export function buildModelPickerItems(
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
+	autoModelUnavailable: boolean = false,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
-		items.push(createModelItem({
-			id: 'auto',
-			enabled: true,
-			checked: true,
-			class: undefined,
-			tooltip: localize('chat.modelPicker.auto', "Auto"),
-			label: localize('chat.modelPicker.auto', "Auto"),
-			run: () => { }
-		}));
+		if (autoModelUnavailable) {
+			// Auto is not available for this session type (e.g. the Claude agent
+			// host), so the empty list cannot fall back to Auto. Surface a single
+			// disabled "No models available" entry. For Copilot Free / Student
+			// users, attach an inline upgrade link on the right (matching the
+			// unavailable-model upgrade affordance elsewhere in the picker).
+			const entitlement = chatEntitlementService.entitlement;
+			const canUpgrade = entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
+			const description = canUpgrade
+				? new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true })
+				: undefined;
+			let hover: MarkdownString | undefined;
+			if (canUpgrade) {
+				hover = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+				hover.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			}
+			items.push({
+				item: {
+					id: 'noModels',
+					enabled: false,
+					checked: false,
+					class: undefined,
+					tooltip: localize('chat.modelPicker.noModels', "No models available"),
+					label: localize('chat.modelPicker.noModels', "No models available"),
+					run: () => { }
+				},
+				kind: ActionListItemKind.Action,
+				label: localize('chat.modelPicker.noModels', "No models available"),
+				description,
+				group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
+				disabled: true,
+				hideIcon: false,
+				hover: hover ? { content: hover } : undefined,
+			});
+			// Nothing else is selectable in this state, so surface only the
+			// single disabled entry. Returning here prevents the grouped-picker
+			// logic below from appending an Auto entry, model groups, or a
+			// standalone "Manage Models" action.
+			return items;
+		} else {
+			items.push(createModelItem({
+				id: 'auto',
+				enabled: true,
+				checked: true,
+				class: undefined,
+				tooltip: localize('chat.modelPicker.auto', "Auto"),
+				label: localize('chat.modelPicker.auto', "Auto"),
+				run: () => { }
+			}));
+		}
 	}
 
 	if (useGroupedModelPicker) {
@@ -1008,12 +1083,11 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const isPro = isProUser(this._entitlementService.entitlement);
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
 		const isSignedOut = this._entitlementService.entitlement === ChatEntitlement.Unknown;
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		// Signed-out users (e.g. offline-BYOK) should not see Copilot control-manifest entries
-		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : (isPro ? manifest.paid : manifest.free);
+		const controlModelsForTier: IStringDictionary<IModelControlEntry> = isSignedOut ? {} : getControlModelsForEntitlement(manifest, this._entitlementService.entitlement);
 		const canShowManageModelsAction = this._delegate.showManageModelsAction() && shouldShowManageModelsAction(this._entitlementService);
 		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
@@ -1050,6 +1124,7 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
+			this._delegate.autoModelUnavailable?.() ?? false,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1141,15 +1216,24 @@ export class ModelPickerWidget extends Disposable {
 
 		const { name, statusIcon } = this._selectedModel?.metadata || {};
 
+		// When Auto is unavailable for this session and there are no models to
+		// pick, surface the empty state on the button itself — overriding any
+		// stale/carried-over selection (e.g. an "Auto" model from another
+		// session type) so the label matches the dropdown's "No models
+		// available" entry.
+		const noModelsAvailable = (this._delegate.autoModelUnavailable?.() ?? false) && this._delegate.getModels().length === 0;
+
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		if (statusIcon) {
+		if (statusIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(statusIcon));
 		}
-		const modelLabel = name ?? localize('chat.modelPicker.auto', "Auto");
+		const modelLabel = noModelsAvailable
+			? localize('chat.modelPicker.noModels', "No models available")
+			: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		// In PRU mode, append the config description (e.g. thinking effort) to the button label
 		const isUBB = !!this._entitlementService.quotas.usageBasedBilling;
-		const configDescription = !isUBB && this._selectedModel
+		const configDescription = !isUBB && this._selectedModel && !noModelsAvailable
 			? getModelConfigurationDescription(this._selectedModel, this._languageModelsService)
 			: undefined;
 		const fullLabel = configDescription
@@ -1214,6 +1298,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
+		const previousEffortValue = String(config.value ?? '');
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 
@@ -1240,6 +1325,11 @@ export class ModelPickerWidget extends Disposable {
 					tooltip: config.schema.enumDescriptions?.[index] ?? '',
 					label: displayLabel,
 					run: () => {
+						this._telemetryService.publicLog2<ChatThinkingEffortChangeEvent, ChatThinkingEffortChangeClassification>('chat.thinkingEffortChange', {
+							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+							fromValue: previousEffortValue,
+							toValue: String(value),
+						});
 						this._languageModelsService.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
@@ -1301,6 +1391,7 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const modelIdentifier = this._selectedModel.identifier;
+		const previousTokensValue = String(config.value ?? '');
 		const enumValues = config.schema.enum ?? [];
 		const enumItemLabels = config.schema.enumItemLabels;
 
@@ -1314,10 +1405,7 @@ export class ModelPickerWidget extends Disposable {
 		for (let index = 0; index < enumValues.length; index++) {
 			const value = enumValues[index];
 			const label = enumItemLabels?.[index] ?? formatTokenCount(Number(value));
-			const isDefault = value === config.schema.default;
-			const displayLabel = isDefault
-				? localize('models.tokensDefault', "{0} (default)", label)
-				: label;
+			const displayLabel = label;
 			const description = config.schema.enumDescriptions?.[index];
 			items.push({
 				item: {
@@ -1328,6 +1416,11 @@ export class ModelPickerWidget extends Disposable {
 					tooltip: description ?? '',
 					label: displayLabel,
 					run: () => {
+						this._telemetryService.publicLog2<ChatContextSizeChangeEvent, ChatContextSizeChangeClassification>('chat.contextSizeChange', {
+							model: this._selectedModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(modelIdentifier) : 'unknown',
+							fromValue: previousTokensValue,
+							toValue: String(value),
+						});
 						this._languageModelsService.setModelConfiguration(
 							modelIdentifier,
 							{ [config.key]: value }
@@ -1381,7 +1474,7 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
+export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, openerService: IOpenerService, isUBB?: boolean): { element: HTMLElement; disposable: DisposableStore } | undefined {
 	const isAuto = isAutoModel(model);
 	const container = dom.$('.chat-model-hover');
 	const disposables = new DisposableStore();
@@ -1503,16 +1596,6 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, op
 	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
 }
 
-
-export function formatTokenCount(count: number): string {
-	if (count > 900_000) {
-		const value = Math.ceil(count / 1_000_000);
-		return `${value}M`;
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
-}
 
 function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');

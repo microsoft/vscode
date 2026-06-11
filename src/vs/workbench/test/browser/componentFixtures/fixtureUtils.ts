@@ -101,7 +101,7 @@ import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEd
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
+import { ICodeReviewService, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 
 // Editor
@@ -584,6 +584,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
+		managedSettingsFetchStatus: null,
+		managedSettingsFetchedAt: null,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		resolveGitHubUrl: (path: string) => `https://github.com/${path}`,
@@ -622,11 +624,17 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		onDidChangeFeedback: Event.None,
 		onDidChangeNavigation: Event.None,
+		onDidAddFeedback: Event.None,
+		onDidConvertFeedback: Event.None,
+		onDidAddReply: Event.None,
+		onDidSubmitFeedback: Event.None,
 		addFeedback: () => undefined!,
 		removeFeedback: () => { },
 		updateFeedback: () => { },
+		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		getSessionForFile: () => undefined,
 		getMostRecentSessionForResource: () => undefined,
 		revealFeedback: async () => { },
 		revealSessionComment: async () => { },
@@ -635,7 +643,10 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		setNavigationAnchor: () => { },
 		getNavigationBearing: () => ({ activeIdx: -1, totalCount: 0 }),
 		clearFeedback: () => { },
+		markFeedbackSubmitted: () => { },
+		submitFeedback: async () => { },
 		addFeedbackAndSubmit: async () => { },
+		setFeedbackResolved: async () => { },
 	});
 
 	definePartialInstance(IChatEditingService, {
@@ -654,13 +665,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ICodeReviewService, {
 		_serviceBrand: undefined,
-		getReviewState: () => constObservable({ kind: CodeReviewStateKind.Idle }),
 		getPRReviewState: () => constObservable({ kind: PRReviewStateKind.None }),
-		hasReview: () => false,
-		requestReview: () => { },
-		removeComment: () => { },
-		updateComment: () => { },
-		dismissReview: () => { },
 		resolvePRReviewThread: async () => { },
 		markPRReviewCommentConverted: () => { },
 	});

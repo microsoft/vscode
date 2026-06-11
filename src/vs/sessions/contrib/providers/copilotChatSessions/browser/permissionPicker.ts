@@ -24,7 +24,7 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 
 const PERMISSION_LEVEL_OPTION_ID = 'permissionLevel';
@@ -136,7 +136,15 @@ export class PermissionPicker extends Disposable {
 		const isApplicable = this._delegate.isApplicable;
 		if (isApplicable) {
 			this._renderDisposables.add(autorun(reader => {
-				slot.style.display = isApplicable.read(reader) ? '' : 'none';
+				const visible = isApplicable.read(reader);
+				slot.style.display = visible ? '' : 'none';
+				// Also collapse the wrapping `.action-item` that
+				// `MenuWorkbenchToolBar` created for this picker — hiding only
+				// the inner slot leaves the wrapper occupying its `min-width`
+				// floor and produces a visible empty gap in the chip row when
+				// the picker isn't applicable to the active session (e.g.
+				// Claude agent host has no `autoApprove` in its schema).
+				container.style.display = visible ? '' : 'none';
 			}));
 		}
 
@@ -149,7 +157,6 @@ export class PermissionPicker extends Disposable {
 		}
 
 		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
-		const isAutopilotEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotEnabled) !== false;
 
 		const items: IActionListItem<IPermissionItem>[] = [
 			{
@@ -178,10 +185,7 @@ export class PermissionPicker extends Disposable {
 				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
-		];
-
-		if (isAutopilotEnabled) {
-			items.push({
+			{
 				kind: ActionListItemKind.Action,
 				group: { kind: ActionListItemKind.Header, title: '', icon: Codicon.rocket },
 				item: {
@@ -192,9 +196,12 @@ export class PermissionPicker extends Disposable {
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
 				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				hover: {
+					content: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done. Autopilot may increase costs."),
+				},
 				disabled: policyRestricted,
-			});
-		}
+			},
+		];
 
 		items.push({
 			kind: ActionListItemKind.Separator,
@@ -221,7 +228,7 @@ export class PermissionPicker extends Disposable {
 				if (item.level) {
 					await this._selectLevel(item.level);
 				} else {
-					await this.openerService.open(URI.parse('https://code.visualstudio.com/docs/copilot/agents/agent-tools#_permission-levels'));
+					await this.openerService.open(URI.parse('https://aka.ms/vscode/docs/permissions'));
 				}
 			},
 			onHide: () => { triggerElement.focus(); },
@@ -318,14 +325,14 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel | undefined>;
 
 	constructor(
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		private readonly _session: IObservable<IActiveSession | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
 		this.currentPermissionLevel = derived(this, reader => {
-			const session = this._sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			if (!session) {
 				return undefined;
 			}
@@ -338,7 +345,7 @@ export class CopilotPermissionPickerDelegate extends Disposable implements IPerm
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
-		const session = this._sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}

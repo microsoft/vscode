@@ -21,6 +21,7 @@ import type { ConfigSchema } from '../../../../../../platform/agentHost/common/s
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -110,6 +111,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 
 	let agentHost: MockAgentHostService;
 	let provisional: IAgentHostUntitledProvisionalSessionService;
+	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 
 	setup(async () => {
@@ -120,6 +122,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IChatService, new MockChatService());
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
+		folderService = ds.add(insta.createInstance(AgentHostNewSessionFolderService));
+		insta.stub(IAgentHostNewSessionFolderService, folderService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
 	});
@@ -179,6 +183,49 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(overlay?.values, resolved.values);
 		assert.strictEqual(agentHost.resolveCalls.length, 1);
 		assert.deepStrictEqual(agentHost.resolveCalls[0].config, { isolation: 'worktree' });
+	});
+
+	test('refreshResolvedConfig stores a schema overlay for running sessions', async () => {
+		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-j' });
+		const resolved: ResolveSessionConfigResult = {
+			schema: makeSchema(true),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		agentHost.resolveQueue = [resolved];
+
+		let changeFires = 0;
+		cleanup.add(provisional.onDidChange(uri => { if (uri.toString() === ui.toString()) { changeFires++; } }));
+
+		await provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'folder' });
+
+		assert.deepStrictEqual({
+			overlay: provisional.getResolvedConfig(ui),
+			changeFires,
+			resolveConfig: agentHost.resolveCalls[0].config,
+		}, {
+			overlay: resolved,
+			changeFires: 1,
+			resolveConfig: { isolation: 'folder' },
+		});
+	});
+
+	test('refreshResolvedConfig ignores stale running-session responses', async () => {
+		const ui = URI.from({ scheme: 'agent-host-copilot', path: '/real-k' });
+		const first = new DeferredPromise<ResolveSessionConfigResult>();
+		const second = new DeferredPromise<ResolveSessionConfigResult>();
+		cleanup.add({ dispose: () => { first.cancel(); second.cancel(); } });
+		agentHost.resolveQueue = [first.p, second.p];
+
+		const a = provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'worktree' });
+		const b = provisional.refreshResolvedConfig(ui, 'copilot', undefined, { isolation: 'folder' });
+
+		first.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
+		second.complete({ schema: makeSchema(true), values: { isolation: 'folder' } });
+
+		await a;
+		await b;
+
+		assert.deepStrictEqual(provisional.getResolvedConfig(ui), { schema: makeSchema(true), values: { isolation: 'folder' } });
 	});
 
 	test('optimistic merge: overlay.values reflects partial before re-resolve completes', async () => {
@@ -316,5 +363,65 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(after?.schema, before.schema, 'schema unchanged after failed re-resolve');
 		// Optimistic merge still applied for values.
 		assert.strictEqual(after?.values?.['branch'], 'feature/x');
+	});
+
+	// Yield enough microtasks + a macrotask for the fire-and-forget folder-change
+	// recreation (dispose -> create -> re-resolve) to settle against the mock.
+	async function flush(): Promise<void> {
+		for (let i = 0; i < 50; i++) {
+			await Promise.resolve();
+		}
+		await timeout(0);
+	}
+
+	test('folder change recreates the provisional at the new cwd preserving config', async () => {
+		const folderA = URI.file('/repoA');
+		const folderB = URI.file('/repoB');
+		const ui = untitledChatUri('cwd1');
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		await provisional.applyConfigChange(ui, 'copilot', folderA, { isolation: 'worktree' });
+		assert.strictEqual(agentHost.createCalls.length, 1);
+
+		// Re-resolve response for the recreation at the new cwd.
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+		folderService.setFolder(ui, folderB);
+		await flush();
+
+		const recreate = agentHost.createCalls[agentHost.createCalls.length - 1];
+		assert.deepStrictEqual({
+			createCount: agentHost.createCalls.length,
+			disposedOld: agentHost.disposed.some(d => d.toString() === expectedBackendUri('cwd1').toString()),
+			recreatedSession: recreate.session?.toString(),
+			recreatedCwd: recreate.workingDirectory?.toString(),
+			recreatedConfig: recreate.config?.['isolation'],
+		}, {
+			createCount: 2,
+			disposedOld: true,
+			recreatedSession: expectedBackendUri('cwd1').toString(),
+			recreatedCwd: folderB.toString(),
+			recreatedConfig: 'worktree',
+		});
+	});
+
+	test('folder change to the same folder is a no-op', async () => {
+		const folderA = URI.file('/repoA');
+		const ui = untitledChatUri('cwd2');
+		await provisional.getOrCreate(ui, 'copilot', folderA);
+		assert.strictEqual(agentHost.createCalls.length, 1);
+
+		folderService.setFolder(ui, folderA);
+		await flush();
+
+		assert.strictEqual(agentHost.createCalls.length, 1, 'no recreate for unchanged folder');
+		assert.strictEqual(agentHost.disposed.length, 0);
+	});
+
+	test('folder change with no provisional entry is a no-op', async () => {
+		const ui = untitledChatUri('cwd3');
+		folderService.setFolder(ui, URI.file('/repoB'));
+		await flush();
+
+		assert.strictEqual(agentHost.createCalls.length, 0);
+		assert.strictEqual(provisional.get(ui), undefined);
 	});
 });

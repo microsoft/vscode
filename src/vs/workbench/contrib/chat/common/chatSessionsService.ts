@@ -31,6 +31,30 @@ export interface IChatSessionCommandContribution {
 	readonly when?: string;
 }
 
+export interface IChatSessionProviderOptionModelMetadata {
+	readonly name: string;
+	readonly id: string;
+	readonly vendor?: string;
+	readonly version?: string;
+	readonly family?: string;
+	readonly tooltip?: string;
+	readonly pricing?: string;
+	readonly multiplierNumeric?: number;
+	readonly inputCost?: number;
+	readonly outputCost?: number;
+	readonly cacheCost?: number;
+	readonly longContextInputCost?: number;
+	readonly longContextOutputCost?: number;
+	readonly longContextCacheCost?: number;
+	readonly priceCategory?: string;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly capabilities?: {
+		readonly vision?: boolean;
+		readonly toolCalling?: boolean;
+	};
+}
+
 export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
@@ -40,6 +64,8 @@ export interface IChatSessionProviderOptionItem {
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
 	readonly slashCommand?: string;
+	readonly tooltip?: string;
+	readonly modelMetadata?: IChatSessionProviderOptionModelMetadata;
 	// [key: string]: any;
 }
 
@@ -191,6 +217,8 @@ export type IChatSessionHistoryItem = {
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
 	modeInstructions?: IChatRequestModeInstructions;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
 } | {
 	type: 'response';
 	parts: IChatProgress[];
@@ -200,6 +228,12 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+export interface IChatSessionServerRequest {
+	readonly prompt: string;
+	readonly variableData?: IChatRequestVariableData;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
+}
 
 /**
  * A set of well-known session types
@@ -215,18 +249,31 @@ export namespace SessionType {
 }
 
 /**
- * Returns whether the given session type is an agent host target.
- * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ * Returns whether the given session type is a local agent host target.
+ */
+export function isLocalAgentHostTarget(target: string): boolean {
+	return target === SessionType.AgentHostCopilot ||
+		target.startsWith('agent-host-');
+}
+
+/**
+ * Returns whether the given session type is a remote agent host target.
  *
  * Note: The `remote-` prefix convention is established by
  * `RemoteAgentHostContribution` which generates session types as
  * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
+export function isRemoteAgentHostTarget(target: string): boolean {
+	return target.startsWith('remote-');
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ */
 export function isAgentHostTarget(target: string): boolean {
-	return target === SessionType.AgentHostCopilot ||
-		target.startsWith('agent-host-') ||
-		target.startsWith('remote-');
+	return isLocalAgentHostTarget(target) || isRemoteAgentHostTarget(target);
 }
 
 /**
@@ -255,7 +302,7 @@ export interface IChatSession extends IDisposable {
 	 * queued message). The consumer should create a new request+response pair in
 	 * the model and prepare to receive progress via {@link progressObs}.
 	 */
-	readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData }>;
+	readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 
 	/**
 	 * Editing session transferred from a previously-untitled chat session in `onDidCommitChatSessionItem`.
@@ -280,6 +327,14 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+
+	/**
+	 * Renames the session.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 * @returns A promise that resolves once the rename has been dispatched. The promise is rejected if renaming fails.
+	 */
+	renameSession?: (title: string, token: CancellationToken) => Promise<void>;
 }
 
 export interface IChatSessionContentProvider {
@@ -431,6 +486,13 @@ export interface IChatSessionItemController {
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	resolveChatSessionItem?(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Permanently delete the session identified by `resource`. Implementations should tear down any backend state for
+	 * the session. The controller is expected to fire an `onDidChangeChatSessionItems` event with the removed resource
+	 * as a result of the deletion.
+	 */
+	deleteChatSessionItem?(resource: URI, token: CancellationToken): Promise<void>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -648,6 +710,19 @@ export interface IChatSessionsService {
 	 */
 	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
 
+	/**
+	 * Returns whether the loaded session supports renaming.
+	 */
+	sessionSupportsRename(sessionResource: URI): boolean;
+
+	/**
+	 * Renames a contributed chat session.
+	 * @param sessionResource The session resource to rename.
+	 * @param title The new title for the session.
+	 * @param token Cancellation token.
+	 */
+	renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void>;
+
 	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
@@ -664,6 +739,12 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Permanently deletes a chat session item by delegating to the registered controller's `deleteChatSessionItem`
+	 * handler. Throws if the controller does not implement `deleteChatSessionItem`.
+	 */
+	deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Registers an alias so that session-option lookups by the real resource

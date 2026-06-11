@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
-import { buildDefaultChangesetCatalogue, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
@@ -20,6 +20,7 @@ import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../.
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
+import { ChangesSummary } from '../../common/state/protocol/state.js';
 
 suite('ChangesetSessionCoordinator', () => {
 
@@ -35,8 +36,8 @@ suite('ChangesetSessionCoordinator', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(session),
 		}, { emitNotification });
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalogue(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
@@ -125,6 +126,38 @@ suite('ChangesetSessionCoordinator', () => {
 			acquisitions: ['file:///repo'],
 			rootLookups: ['file:///repo/worktree'],
 		});
+	});
+
+	test('defers session changeset refresh until the working directory is known', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, undefined, false);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildSessionChangesetUri(session)));
+		await tick();
+
+		const summary = environment.stateManager.getSessionState(session)!.summary;
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.coordinator.onSessionMaterialized(session);
+		await tick();
+
+		assert.deepStrictEqual(environment.changesets.sessionRefreshes, [session]);
+	});
+
+	test('drops pending session changeset refresh when the last subscriber leaves', async () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		const changeset = buildSessionChangesetUri(session);
+		createSession(environment.stateManager, session, undefined, false);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		environment.coordinator.onLastSubscriber(URI.parse(changeset));
+		const summary = environment.stateManager.getSessionState(session)!.summary;
+		environment.stateManager.markSessionPersisted(session, { ...summary, workingDirectory: 'file:///repo/worktree' });
+		environment.coordinator.onSessionMaterialized(session);
+		await tick();
+
+		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
 	});
 
 	test('does not attach root state when watcher acquisition fails', async () => {
@@ -342,6 +375,7 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly branchRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
@@ -350,7 +384,11 @@ class TestChangesetService implements IAgentHostChangesetService {
 	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	applyPersistedStaticChangesets(_sessionUri: string, _diffs: IRestoredChangesetDiffs): void { }
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
+	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
+	refreshBranchChangeset(session: string): void {
+		this.branchRefreshes.push(session);
+	}
 	refreshUncommittedChangeset(session: string): void {
 		this.uncommittedRefreshes.push(session);
 	}
@@ -365,6 +403,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
 
 	clearRefreshes(): void {
+		this.branchRefreshes.length = 0;
 		this.uncommittedRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
 	}
