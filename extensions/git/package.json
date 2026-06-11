@@ -30,6 +30,7 @@
     "findFiles2",
     "quickDiffProvider",
     "quickPickSortByLabel",
+    "resolvers",
     "scmActionButton",
     "scmArtifactProvider",
     "scmHistoryProvider",
