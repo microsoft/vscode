@@ -45,6 +45,19 @@ suite('chatDebugCacheDiff', () => {
 			]);
 		});
 
+		test('names tool results after the matching tool_call (correlated by id)', () => {
+			const json = JSON.stringify([
+				{ role: 'assistant', parts: [{ type: 'tool_call', id: 'call_1', name: 'read_file', arguments: { path: '/a' } }] },
+				{ role: 'user', parts: [{ type: 'tool_call_response', id: 'call_1', response: 'file contents' }] },
+				{ role: 'user', parts: [{ type: 'tool_call_response', id: 'call_unknown', response: 'orphan result' }] },
+			]);
+			assert.deepStrictEqual(parseInputMessages(json).map(m => ({ role: m.role, name: m.name })), [
+				{ role: 'assistant', name: undefined },
+				{ role: 'tool', name: 'read_file' },
+				{ role: 'tool', name: undefined },
+			]);
+		});
+
 		test('extracts tool_call arguments on assistant messages', () => {
 			const json = JSON.stringify([
 				{ role: 'assistant', parts: [{ type: 'tool_call', id: 'call_1', name: 'fs_read', arguments: { path: '/etc/hosts' } }] },

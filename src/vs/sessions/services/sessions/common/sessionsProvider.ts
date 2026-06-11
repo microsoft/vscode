@@ -44,6 +44,14 @@ export interface ISessionModelPickerOptions {
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
 	readonly showManageModelsAction: boolean;
+	/**
+	 * Whether the Auto model is unavailable for this session type, so it cannot
+	 * fall back to Auto. When true and the provider offers no models, the core
+	 * picker stays visible and shows a "No models available" state (with an
+	 * upgrade prompt for Copilot Free / Student users) instead of hiding the
+	 * picker or offering Auto.
+	 */
+	readonly autoModelUnavailable?: boolean;
 }
 
 /**

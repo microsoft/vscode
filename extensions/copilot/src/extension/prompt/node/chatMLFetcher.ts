@@ -424,10 +424,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 							[GenAiAttr.RESPONSE_MODEL]: normalizedResponseModel ?? chatEndpoint.model,
 							[GenAiAttr.RESPONSE_ID]: result.requestId,
 							[GenAiAttr.RESPONSE_FINISH_REASONS]: ['stop'],
-							...(result.usage.prompt_tokens_details?.cached_tokens
+							...(result.usage.prompt_tokens_details?.cached_tokens !== undefined
 								? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: result.usage.prompt_tokens_details.cached_tokens }
 								: {}),
-							...(result.usage.prompt_tokens_details?.cache_creation_input_tokens
+							...(result.usage.prompt_tokens_details?.cache_creation_input_tokens !== undefined
 								? { [GenAiAttr.USAGE_CACHE_CREATION_INPUT_TOKENS]: result.usage.prompt_tokens_details.cache_creation_input_tokens }
 								: {}),
 							[CopilotChatAttr.TIME_TO_FIRST_TOKEN]: timeToFirstToken,

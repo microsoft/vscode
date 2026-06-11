@@ -9,7 +9,7 @@ import type { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import type { IRange } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ToolDataSource, type ILanguageModelToolsService, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AgentFeedbackState, type IAgentFeedback, type IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackKind, AgentFeedbackState, type IAgentFeedback, type IAgentFeedbackService } from './agentFeedbackService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const addCommentToolName = 'addComment';
@@ -245,7 +245,7 @@ function createAddCommentTool(agentFeedbackService: IAgentFeedbackService, sessi
 			const { resourceUri, range, text } = getAddCommentToolArgs(invocation);
 			// The agent adds comments in the Created state; the user accepts them
 			// before they are acted upon.
-			agentFeedbackService.addFeedback(session.session.resource, resourceUri, range, text, undefined, undefined, undefined, 'codeReview', AgentFeedbackState.Created);
+			agentFeedbackService.addFeedback(session.session.resource, resourceUri, range, text, undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
 			return { content: [{ kind: 'text', value: localize('agentFeedback.addCommentTool.result', "Comment added.") }] };
 		},
 		async prepareToolInvocation(): Promise<IPreparedToolInvocation> {

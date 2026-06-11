@@ -23,6 +23,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
+import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -41,6 +42,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
+import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -352,6 +354,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _sessionDataDir: URI;
 	/** Protocol turn ID set by {@link send}, used for file edit tracking. */
 	private _turnId = '';
+	/** Accumulated Copilot usage for the current top-level turn, in nano-AIU. */
+	private _turnCopilotUsageTotalNanoAiu = 0;
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
@@ -622,6 +626,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string): void {
 		this._turnId = turnId;
+		this._turnCopilotUsageTotalNanoAiu = 0;
 		this._currentMarkdownPartIds.clear();
 		this._currentReasoningPartIds.clear();
 		this._parentToolCallIdsByAgentId.clear();
@@ -846,6 +851,7 @@ export class CopilotAgentSession extends Disposable {
 	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode): Promise<void> {
 		if (turnId) {
 			this._turnId = turnId;
+			this._turnCopilotUsageTotalNanoAiu = 0;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
@@ -1047,9 +1053,9 @@ export class CopilotAgentSession extends Disposable {
 		await this._wrapper.session.disconnect();
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._wrapper.session.setModel(model, { reasoningEffort });
+		await this._wrapper.session.setModel(model, { reasoningEffort, contextTier });
 	}
 
 	/**
@@ -1322,25 +1328,31 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Returns true when our custom shell tool is registered and the
-	 * {@link TerminalSandboxEngine} reports sandboxing is enabled — i.e.
-	 * shell commands run inside the sandbox by default. The shell tool
-	 * prompts on its own when escalating to unsandboxed execution, so the
-	 * SDK's pre-call permission prompt is redundant in that case.
+	 * Returns true when shell commands run inside a sandbox by default — either
+	 * through the AgentHost's own {@link TerminalSandboxEngine} (when the custom
+	 * terminal tool is enabled) or through the SDK's built-in shell tool wrapped
+	 * by the `sandboxConfig` we pushed via `session.options.update`.
 	 *
-	 * Returns false when shell tools are not registered (the SDK's built-in
-	 * terminal runs unsandboxed unless `AgentHostConfigKey.EnableCustomTerminalTool`
-	 * is set)
-	 * so the standard confirmation flow is preserved.
+	 * In both cases the shell tool prompts on its own when escalating to
+	 * unsandboxed execution, so the SDK's pre-call `shell` permission prompt
+	 * is redundant and we auto-approve it.
+	 *
+	 * Returns false when neither sandbox path is configured, so the standard
+	 * confirmation flow is preserved.
 	 */
 	private async _isShellSandboxedByDefault(): Promise<boolean> {
-		if (!this._shellManager) {
-			return false;
+		const customTerminalToolEnabled = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) === true;
+		if (customTerminalToolEnabled) {
+			if (!this._shellManager) {
+				return false;
+			}
+			return this._shellManager.getOrCreateSandboxEngine().isEnabled();
 		}
-		if (this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.EnableCustomTerminalTool) !== true) {
-			return false;
-		}
-		return this._shellManager.getOrCreateSandboxEngine().isEnabled();
+		// SDK-managed shell path: gate on the same host config that
+		// `CopilotSessionLauncher` reads when forwarding `sandboxConfig` to
+		// the SDK, so the two stay in lock-step.
+		const sandbox = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
+		return buildSandboxConfigForSdk(process.platform, sandbox) !== undefined;
 	}
 
 	/**
@@ -2126,7 +2138,17 @@ export class CopilotAgentSession extends Disposable {
 			if (typeof e.data.cost === 'number') {
 				metadata.cost = e.data.cost;
 			}
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}`);
+			// TODO: `copilotUsage` is marked `asInternal` in the SDK schema so it is not exposed on the generated
+			// `AssistantUsageData` type, but it is present at runtime. Read it dynamically.
+			const copilotUsage = (e.data as unknown as Record<string, unknown>).copilotUsage as { totalNanoAiu?: number } | undefined;
+			if (typeof copilotUsage?.totalNanoAiu === 'number') {
+				this._turnCopilotUsageTotalNanoAiu += copilotUsage.totalNanoAiu;
+				metadata.copilotUsage = {
+					...copilotUsage,
+					totalNanoAiu: this._turnCopilotUsageTotalNanoAiu,
+				};
+			}
+			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}, cost=${e.data.cost ?? '?'}, totalNanoAiu=${metadata.copilotUsage ? this._turnCopilotUsageTotalNanoAiu : '?'}`);
 			const usage: UsageInfo = {
 				inputTokens: e.data.inputTokens,
 				outputTokens: e.data.outputTokens,

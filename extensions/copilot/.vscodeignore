@@ -29,14 +29,17 @@ node_modules/@github/copilot/sharp/**
 !node_modules/@github/copilot/sdk/*.js
 !node_modules/@github/copilot/sdk/worker/*.js
 !node_modules/@github/copilot/sdk/sharp/**
+!node_modules/@github/copilot/sdk/builtin-skills/*/*.yaml
 !node_modules/@github/copilot/sdk/definitions/*.yaml
 !node_modules/@github/copilot/sdk/definitions/sidekick/*.yaml
+!node_modules/@github/copilot/sdk/prebuilds/*/*.node
 !node_modules/@github/copilot/sdk/prebuilds/*/runtime.node
 !node_modules/@github/copilot/sdk/prebuilds/*/pty.node
 !node_modules/@github/copilot/sdk/prebuilds/*/spawn-helper
 !node_modules/@github/copilot/sdk/prebuilds/*/conpty.node
 !node_modules/@github/copilot/sdk/prebuilds/*/conpty_console_list.node
 !node_modules/@github/copilot/sdk/prebuilds/*/conpty/**
+!node_modules/@github/copilot/sdk/tgrep/bin/*/**
 !CHANGELOG.md
 !README.md
 !package.json
