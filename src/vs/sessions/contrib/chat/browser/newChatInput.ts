@@ -707,8 +707,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	attach(uri: URI): void {
-		this._contextAttachments.addAttachments(toFileVariableEntry(uri));
+	attach(uris: URI[]): void {
+		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
 	}
 }
 

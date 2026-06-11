@@ -5,6 +5,8 @@
 
 import { localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -372,20 +374,16 @@ class AddFileAsContextAction extends Action2 {
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
 		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
-		const resource = resolvedContext.groupedEditors
+		const resources = resolvedContext.groupedEditors
 			.flatMap(groupedEditor => groupedEditor.editors)
 			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
-			.find(uri => uri !== undefined);
-		if (!resource) {
-			return;
-		}
-
-		if (!['file', 'vscode-remote', 'untitled'].includes(resource.scheme)) {
+			.filter((uri): uri is URI => uri !== undefined && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(uri.scheme));
+		if (resources.length === 0) {
 			return;
 		}
 
 		const sessionId = sessionManagementService.activeSession.get()?.sessionId;
-		sessionsPartService.getSessionView(sessionId)?.attach(resource);
+		sessionsPartService.getSessionView(sessionId)?.attach(resources);
 	}
 }
 

@@ -84,8 +84,8 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
-	override attach(uri: URI): void {
-		this._widget.attach(uri);
+	override attach(uris: URI[]): void {
+		this._widget.attach(uris);
 	}
 }
 
@@ -247,8 +247,10 @@ export class ChatView extends AbstractChatView {
 		this._widget.focusInput();
 	}
 
-	override attach(uri: URI): void {
-		this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
+	override attach(uris: URI[]): void {
+		for (const uri of uris) {
+			this._widget.attachmentModel.addFile(uri).catch(err => this.logService.error('[ChatView] Failed to attach file as context', err));
+		}
 	}
 
 	override setActive(active: boolean): void {
