@@ -87,8 +87,8 @@ import { IChatFollowup, IChatPlanReview, IChatQuestionCarousel, IChatToolInvocat
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, createModelConfigurationActions } from '../../../common/languageModels.js';
-import { computeStoredConfiguration, extractSchemaDefaults, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -447,15 +447,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('_currentLanguageModel', undefined);
 
 	/**
-	 * Per-editor snapshot of each model's configuration (e.g. context size,
-	 * thinking effort), keyed by model identifier. Cleared on session-type change
-	 * so the next read re-seeds from the new (location, sessionType)-scoped
-	 * storage bucket. Writes go to that bucket so newly opened editors with the
-	 * same (location, sessionType) inherit the latest value, while already-open
-	 * editors keep their own snapshot. See issue #320393.
+	 * Per-editor store of each model's configuration (e.g. context size, thinking
+	 * effort), persisted to a `(location, sessionType)`-scoped storage bucket.
+	 * Cleared on session-type change so the next read re-seeds from the new
+	 * bucket. See issue #320393.
 	 */
-	private readonly _modelConfigurationOverrides = new Map<string, IStringDictionary<unknown>>();
-	private readonly _onDidChangeModelConfiguration = this._register(new Emitter<string>());
+	private readonly _modelConfigStore = this._register(new ChatModelConfigurationStore(
+		() => this.getModelConfigurationStorageKey(),
+		this.languageModelsService,
+		this.storageService,
+	));
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
@@ -871,7 +872,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._waitForPersistedLanguageModel.clear();
 		// Drop the per-editor configuration snapshot so the next read re-seeds
 		// from the new (location, sessionType)-scoped storage bucket.
-		this._modelConfigurationOverrides.clear();
+		this._modelConfigStore.clear();
 
 		const selectedModelStorageKey = this.getSelectedModelStorageKey();
 		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
@@ -1025,74 +1026,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return !sessionType || sessionType === localChatSessionType;
 			},
 			autoModelUnavailable: () => this._autoModelUnavailable(),
-			modelConfiguration: {
-				getModelConfiguration: (modelId: string) => this.getModelConfiguration(modelId),
-				setModelConfiguration: (modelId: string, values: IStringDictionary<unknown>) => this._setModelConfigurationOverride(modelId, values),
-				getModelConfigurationActions: (modelId: string) => {
-					const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-					return createModelConfigurationActions(
-						metadata?.configurationSchema,
-						this.getModelConfiguration(modelId) ?? {},
-						(key, value) => this._setModelConfigurationOverride(modelId, { [key]: value })
-					);
-				},
-				onDidChange: this._onDidChangeModelConfiguration.event,
-			},
+			modelConfiguration: this._modelConfigStore,
 		};
 	}
 
 	/**
-	 * Returns this editor's snapshot of the given model's configuration. The
-	 * resolution order, in line with how model selection is persisted, is:
-	 *   1. In-memory snapshot (this editor's live value).
-	 *   2. Scoped storage bucket keyed by `(location, sessionType)`. A present
-	 *      entry wins even when empty, since an empty entry records an explicit
-	 *      reset-to-default.
-	 *   3. The profile-global default from {@link ILanguageModelsService}
-	 *      (legacy/migration fallback, only used when there is no scoped entry).
-	 * The merged result (schema defaults + user overrides) is cached in
-	 * {@link _modelConfigurationOverrides} so subsequent reads are O(1).
+	 * Returns this editor's snapshot of the given model's configuration (e.g.
+	 * context size, thinking effort), scoped to this editor rather than the
+	 * profile-global value. Delegates to {@link ChatModelConfigurationStore}.
 	 * See issue #320393.
 	 */
 	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
-		let override = this._modelConfigurationOverrides.get(modelId);
-		if (!override) {
-			const bucket = this._readModelConfigurationBucket();
-			override = resolveModelConfiguration(
-				bucket[modelId],
-				this._getModelSchemaDefaults(modelId),
-				this.languageModelsService.getModelConfiguration(modelId),
-			);
-			this._modelConfigurationOverrides.set(modelId, override);
-		}
-		return Object.keys(override).length > 0 ? override : undefined;
-	}
-
-	private async _setModelConfigurationOverride(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
-		const current = this.getModelConfiguration(modelId) ?? {};
-		const schemaDefaults = this._getModelSchemaDefaults(modelId);
-		const stored = computeStoredConfiguration(current, values, schemaDefaults);
-
-		// In-memory snapshot keeps the full effective config (defaults + overrides).
-		this._modelConfigurationOverrides.set(modelId, { ...schemaDefaults, ...stored });
-
-		// Persist as the (location, sessionType)-scoped default for newly opened
-		// editors. The entry is stored even when empty so that an explicit
-		// reset-to-default is remembered and does not fall back to the
-		// profile-global value on the next read (see issue #320393). Already-open
-		// editors in other (location, sessionType) buckets — or in this one — keep
-		// their own in-memory snapshot and are unaffected because nothing listens
-		// to storage changes for this key (mirrors how `setCurrentLanguageModel`
-		// persists the selected model).
-		const bucket = this._readModelConfigurationBucket();
-		bucket[modelId] = stored;
-		this._writeModelConfigurationBucket(bucket);
-
-		this._onDidChangeModelConfiguration.fire(modelId);
-	}
-
-	private _getModelSchemaDefaults(modelId: string): IStringDictionary<unknown> {
-		return extractSchemaDefaults(this.languageModelsService.lookupLanguageModel(modelId)?.configurationSchema);
+		return this._modelConfigStore.getModelConfiguration(modelId);
 	}
 
 	private getModelConfigurationStorageKey(): string {
@@ -1101,41 +1046,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return `chat.modelConfiguration.${this.location}.${sessionType}`;
 		}
 		return `chat.modelConfiguration.${this.location}`;
-	}
-
-	private _readModelConfigurationBucket(): { [modelId: string]: IStringDictionary<unknown> } {
-		// Use a null-prototype dictionary: model identifiers originate from
-		// (extension-contributed) providers, so a key like `__proto__` or
-		// `constructor` must not be read as an inherited member or mutate the
-		// bucket's prototype on write.
-		const result: { [modelId: string]: IStringDictionary<unknown> } = Object.create(null);
-		const raw = this.storageService.get(this.getModelConfigurationStorageKey(), StorageScope.APPLICATION);
-		if (!raw) {
-			return result;
-		}
-		try {
-			const parsed = JSON.parse(raw);
-			if (parsed && typeof parsed === 'object') {
-				for (const [modelId, entry] of Object.entries(parsed)) {
-					// Only accept plain-object per-model entries.
-					if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-						result[modelId] = entry as IStringDictionary<unknown>;
-					}
-				}
-			}
-		} catch {
-			// Ignore malformed JSON and fall back to an empty bucket.
-		}
-		return result;
-	}
-
-	private _writeModelConfigurationBucket(bucket: { [modelId: string]: IStringDictionary<unknown> }): void {
-		const key = this.getModelConfigurationStorageKey();
-		if (Object.keys(bucket).length === 0) {
-			this.storageService.remove(key, StorageScope.APPLICATION);
-		} else {
-			this.storageService.store(key, JSON.stringify(bucket), StorageScope.APPLICATION, StorageTarget.USER);
-		}
 	}
 
 	private _createModePickerDelegate(): IModePickerDelegate {
@@ -2710,7 +2620,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
 		this.contextUsageWidget.setModelConfigurationResolver(
 			modelId => this.getModelConfiguration(modelId),
-			this._onDidChangeModelConfiguration.event,
+			this._modelConfigStore.onDidChange,
 		);
 		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);
 
