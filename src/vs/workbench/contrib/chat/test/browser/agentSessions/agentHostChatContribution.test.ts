@@ -4891,7 +4891,7 @@ suite('AgentHostChatContribution', () => {
 
 			// Starting a turn claims active-client for this connection.
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');
@@ -4945,7 +4945,7 @@ suite('AgentHostChatContribution', () => {
 
 			// The fresh customization set is published on first turn.
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			fire({ type: 'session/turnComplete', session, turnId } as SessionAction);
+			fire({ type: 'chat/turnComplete', session, turnId } as ChatAction);
 			await turnPromise;
 
 			const activeClientActions = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/activeClientChanged');

@@ -1056,7 +1056,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
 
-			const actions: SessionAction[] = [];
+			const actions: (SessionAction | ChatAction)[] = [];
 			disposables.add(agent.onDidSessionProgress(progress => {
 				if (progress.kind === 'action') {
 					actions.push(progress.action);

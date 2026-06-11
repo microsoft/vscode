@@ -228,7 +228,6 @@ export function makeAssistantMessage(
 			content,
 			stop_reason: 'end_turn',
 			stop_sequence: null,
-			stop_details: null,
 			container: null,
 			context_management: null,
 			usage: {

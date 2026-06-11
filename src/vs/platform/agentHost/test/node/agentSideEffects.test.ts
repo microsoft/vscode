@@ -1613,7 +1613,7 @@ suite('AgentSideEffects', () => {
 			agent.fireProgress({
 				kind: 'action', session: sessionUri,
 				action: {
-					type: ActionType.SessionToolCallStart, turnId: 'turn-1',
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
 					toolCallId: 'tc-client-approve-1', toolName: 'runTask', displayName: 'Run Task', contributor: { kind: ToolCallContributorKind.Client, clientId: 'test-client' },
 					_meta: { toolKind: 'terminal' },
 				},
@@ -1644,7 +1644,7 @@ suite('AgentSideEffects', () => {
 			});
 
 			sideEffects.handleAction(sessionUri.toString(), {
-				type: ActionType.SessionToolCallConfirmed,
+				type: ActionType.ChatToolCallConfirmed,
 				turnId: 'turn-1',
 				toolCallId: 'tc-client-approve-1',
 				approved: true,

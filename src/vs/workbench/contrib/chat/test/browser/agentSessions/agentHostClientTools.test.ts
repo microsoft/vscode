@@ -645,27 +645,27 @@ suite('AgentHostClientTools', () => {
 			const backendSession = AgentSession.uri('copilot', 'session-1').toString();
 
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionTurnStarted,
+				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				message: { text: 'run the task', origin: { kind: MessageKind.User } },
-			} as SessionAction);
+			} as ChatAction);
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallStart,
+				type: ActionType.ChatToolCallStart,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				toolName: 'runTask',
 				displayName: 'Run Task',
 				contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
-			} as SessionAction);
+			} as ChatAction);
 			connection.applySessionAction(URI.parse(backendSession), {
-				type: ActionType.SessionToolCallReady,
+				type: ActionType.ChatToolCallReady,
 				turnId: 'turn-1',
 				toolCallId: 'tool-call-1',
 				invocationMessage: 'Run Task',
 				toolInput: '{"task":"build"}',
 				confirmationTitle: 'Run Task',
 				_meta: { autoApproveBySetting: true },
-			} as SessionAction);
+			} as ChatAction);
 
 			await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			await timeout(0);
@@ -673,11 +673,11 @@ suite('AgentHostClientTools', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(connection.dispatchedActions
-				.filter(entry => isSessionAction(entry.action)
-					&& (entry.action.type === ActionType.SessionToolCallConfirmed || entry.action.type === ActionType.SessionToolCallComplete)
+				.filter(entry => isChatAction(entry.action)
+					&& (entry.action.type === ActionType.ChatToolCallConfirmed || entry.action.type === ActionType.ChatToolCallComplete)
 					&& entry.action.toolCallId === 'tool-call-1')
 				.map(entry => {
-					if (entry.action.type === ActionType.SessionToolCallConfirmed) {
+					if (entry.action.type === ActionType.ChatToolCallConfirmed) {
 						return {
 							type: entry.action.type,
 							approved: entry.action.approved,
@@ -685,7 +685,7 @@ suite('AgentHostClientTools', () => {
 							success: undefined,
 						};
 					}
-					if (entry.action.type === ActionType.SessionToolCallComplete) {
+					if (entry.action.type === ActionType.ChatToolCallComplete) {
 						return {
 							type: entry.action.type,
 							approved: undefined,
@@ -696,13 +696,13 @@ suite('AgentHostClientTools', () => {
 					throw new Error(`Unexpected action type: ${entry.action.type}`);
 				}), [
 				{
-					type: ActionType.SessionToolCallConfirmed,
+					type: ActionType.ChatToolCallConfirmed,
 					approved: true,
 					confirmed: ToolCallConfirmationReason.Setting,
 					success: undefined,
 				},
 				{
-					type: ActionType.SessionToolCallComplete,
+					type: ActionType.ChatToolCallComplete,
 					approved: undefined,
 					confirmed: undefined,
 					success: true,
