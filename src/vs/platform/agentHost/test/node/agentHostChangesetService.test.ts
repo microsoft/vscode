@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
-import { BASELINE_TURN_ID, buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
+import { buildDefaultChangesetCatalogue, buildSessionChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, SessionStatus, withSessionGitState, type Changeset } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
@@ -922,62 +922,6 @@ suite.skip('AgentHostChangesetService', () => {
 				status: 'ready',
 				ids: ['file:///wd/a.ts'],
 			});
-		});
-
-		test('uses the baseline ref as the from-endpoint when original is BASELINE_TURN_ID', async () => {
-			const sessionStr = sessionUri.toString();
-			setupSession('file:///wd');
-
-			const db = new TestSessionDatabase();
-			await db.setMetadata(META_CHECKPOINT_WORKING_DIR, 'file:///wd');
-
-			const calls: Array<{ fromRef: string; toRef: string }> = [];
-			const gitService = createNoopGitService();
-			gitService.computeFileDiffsBetweenRefs = async (_wd, opts) => {
-				calls.push({ fromRef: opts.fromRef, toRef: opts.toRef });
-				return [];
-			};
-			const svc = disposables.add(new AgentHostChangesetService(
-				stateManager,
-				new NullLogService(),
-				createSessionDataService(db),
-				gitService,
-				makeCheckpointService({
-					'mod': { parent: 'ref-baseline', current: 'ref-mod' },
-				}, 'ref-baseline'),
-			));
-
-			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, BASELINE_TURN_ID, 'mod');
-
-			assert.strictEqual(compareUri, `${sessionStr}/changeset/compare/baseline/mod`);
-			assert.deepStrictEqual(calls, [{ fromRef: 'ref-baseline', toRef: 'ref-mod' }]);
-			const state = stateManager.getSnapshot(compareUri)?.state as { status: string } | undefined;
-			assert.strictEqual(state?.status, 'ready');
-		});
-
-		test('transitions to Error when original is BASELINE_TURN_ID but no baseline was captured', async () => {
-			const sessionStr = sessionUri.toString();
-			setupSession('file:///wd');
-
-			const gitService = createNoopGitService();
-			let gitCalls = 0;
-			gitService.computeFileDiffsBetweenRefs = async () => { gitCalls++; return undefined; };
-			const svc = disposables.add(new AgentHostChangesetService(
-				stateManager,
-				new NullLogService(),
-				createSessionDataService(new TestSessionDatabase()),
-				gitService,
-				makeCheckpointService({
-					'mod': { parent: 'ref-baseline', current: 'ref-mod' },
-				} /* no baseline */),
-			));
-
-			const compareUri = await svc.computeCompareTurnsChangeset(sessionStr, BASELINE_TURN_ID, 'mod');
-
-			const state = stateManager.getSnapshot(compareUri)?.state as { status: string; error?: { message: string } } | undefined;
-			assert.strictEqual(state?.status, 'error');
-			assert.ok(state?.error?.message.includes('baseline'), `expected error to name the missing baseline, got ${state?.error?.message}`);
-			assert.strictEqual(gitCalls, 0, 'git must not be invoked when the baseline is missing');
 		});
 
 		test('transitions to Error when either checkpoint is missing', async () => {

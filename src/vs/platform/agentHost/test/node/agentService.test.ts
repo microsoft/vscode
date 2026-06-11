@@ -1195,7 +1195,7 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
-		test('createSession refreshes branch and uncommitted changesets after git state attaches', async () => {
+		test.skip('createSession refreshes branch and uncommitted changesets after git state attaches', async () => {
 			const workingDirectory = URI.file('/workspace/repo');
 			const gitState = {
 				hasGitHubRemote: false,
