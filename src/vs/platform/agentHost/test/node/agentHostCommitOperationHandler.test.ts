@@ -110,6 +110,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
 	refreshUncommittedChangeset(session: string): void { this.calls.push(`refreshUncommitted:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
+	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
 	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }

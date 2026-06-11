@@ -316,6 +316,21 @@ export interface IAgentHostChangesetService {
 	computeCompareTurnsChangeset(session: ProtocolURI, originalTurnId: string, modifiedTurnId: string): Promise<ProtocolURI>;
 
 	/**
+	 * Computes and publishes the uncommitted changeset for `session`
+	 * directly via git (`git status` against HEAD). The uncommitted slot
+	 * has no SDK edit-tracker fallback — the aggregator answers a different
+	 * question than `git status` and would silently rebrand SDK-tracked
+	 * edits as uncommitted git changes. When the session has no working
+	 * directory, the working directory isn't a git work tree, or the git
+	 * command fails, the changeset transitions to `status: Error`.
+	 *
+	 * Uncommitted changesets are not persisted; callers schedule recomputes
+	 * (e.g. on turn complete, post-commit, working-tree watcher event)
+	 * directly via this method.
+	 */
+	computeUncommittedChangeset(session: ProtocolURI): Promise<ProtocolURI>;
+
+	/**
 	 * Hook called by `AgentSideEffects` after a tool call that produced
 	 * file edits completes. Schedules a debounced session-changeset recompute.
 	 */
@@ -576,6 +591,62 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			ref.dispose();
 		}
 		return compareUri;
+	}
+
+	async computeUncommittedChangeset(session: ProtocolURI): Promise<ProtocolURI> {
+		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
+		const statusBeforeCompute = this._stateManager.getChangesetState(uncommittedUri)?.status;
+		if (statusBeforeCompute !== ChangesetStatus.Computing) {
+			this._stateManager.dispatchServerAction(uncommittedUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Computing,
+			});
+		}
+
+		try {
+			const diffs = await this._computeUncommittedDiffs(session);
+			if (diffs === undefined) {
+				// Git unavailable (no working directory, not a git work
+				// tree, or the git command returned nothing). Surface as
+				// Error rather than preserving cached state — no SDK
+				// edit-tracker fallback exists for the uncommitted slot.
+				this._stateManager.dispatchServerAction(uncommittedUri, {
+					type: ActionType.ChangesetStatusChanged,
+					status: ChangesetStatus.Error,
+					error: { errorType: 'computeFailed', message: 'Failed to compute uncommitted diff from git.' },
+				});
+				return uncommittedUri;
+			}
+
+			this._publishChangesetDiffs(session, uncommittedUri, diffs);
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to compute uncommitted diffs for ${session}`, err);
+			this._stateManager.dispatchServerAction(uncommittedUri, {
+				type: ActionType.ChangesetStatusChanged,
+				status: ChangesetStatus.Error,
+				error: { errorType: 'computeFailed', message: err instanceof Error ? err.message : String(err) },
+			});
+		}
+
+		return uncommittedUri;
+	}
+
+	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
+		const workingDirectory = this._stateManager.getSessionState(session)?.summary.workingDirectory;
+		if (!workingDirectory) {
+			return undefined;
+		}
+
+		let workingDirectoryUri: URI;
+		try {
+			workingDirectoryUri = URI.parse(workingDirectory);
+		} catch {
+			return undefined;
+		}
+
+		return this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
+			sessionUri: session,
+		});
 	}
 
 	private async _computeTurnDiffsPreferCheckpoint(session: ProtocolURI, db: ISessionDatabase, turnId: string): Promise<readonly ISessionFileDiff[]> {

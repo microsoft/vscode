@@ -507,6 +507,127 @@ suite.skip('AgentHostChangesetService', () => {
 		});
 	});
 
+	suite('computeUncommittedChangeset', () => {
+
+		test('happy path: git returns diffs, state goes Ready with files, nothing persisted to the DB', async () => {
+			const sessionDb = new SessionDatabase(':memory:');
+			disposables.add(toDisposable(() => sessionDb.close()));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+
+			const gitDiffs = [
+				{ after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 1, removed: 0 } },
+				{ after: { uri: 'file:///wd/b.ts', content: { uri: 'file:///wd/b.ts' } }, diff: { added: 2, removed: 1 } },
+			];
+			const stubGit = {
+				computeSessionFileDiffs: async () => gitDiffs,
+			} as unknown as IAgentHostGitService;
+
+			const localChangesets = disposables.add(new AgentHostChangesetService(
+				localStateManager, new NullLogService(), sessionDataService, stubGit, NULL_CHECKPOINT_SERVICE));
+
+			const sessionStr = sessionUri.toString();
+			localStateManager.createSession({
+				resource: sessionStr,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+
+			await localChangesets.computeUncommittedChangeset(sessionStr);
+
+			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
+			const snapshot = localStateManager.getSnapshot(uncommittedUri);
+			const state = snapshot?.state as { status: string; files: Array<{ id: string }> } | undefined;
+			assert.deepStrictEqual({
+				status: state?.status,
+				files: state?.files.map(f => f.id).sort(),
+				persistedUncommitted: await sessionDb.getMetadata('agentHost.changeset.uncommitted'),
+			}, {
+				status: ChangesetStatus.Ready,
+				files: ['file:///wd/a.ts', 'file:///wd/b.ts'],
+				persistedUncommitted: undefined,
+			});
+		});
+
+		test('no working directory: state goes Error with computeFailed', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession();
+
+			await changesetService.computeUncommittedChangeset(sessionStr);
+
+			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
+			const snapshot = stateManager.getSnapshot(uncommittedUri);
+			const state = snapshot?.state as { status: string; error?: { errorType: string } } | undefined;
+			assert.deepStrictEqual({
+				status: state?.status,
+				errorType: state?.error?.errorType,
+			}, {
+				status: ChangesetStatus.Error,
+				errorType: 'computeFailed',
+			});
+		});
+
+		test('git returns undefined (not a git work tree): state goes Error with computeFailed', async () => {
+			const sessionStr = sessionUri.toString();
+			setupSession('file:///wd');
+
+			// Shared `changesetService` uses createNoopGitService() whose
+			// computeSessionFileDiffs returns undefined — exactly the
+			// "not a git work tree" signal we want to exercise.
+			await changesetService.computeUncommittedChangeset(sessionStr);
+
+			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
+			const snapshot = stateManager.getSnapshot(uncommittedUri);
+			const state = snapshot?.state as { status: string; error?: { errorType: string } } | undefined;
+			assert.deepStrictEqual({
+				status: state?.status,
+				errorType: state?.error?.errorType,
+			}, {
+				status: ChangesetStatus.Error,
+				errorType: 'computeFailed',
+			});
+		});
+
+		test('git throws: state goes Error with original message', async () => {
+			const stubGit = {
+				computeSessionFileDiffs: async () => { throw new Error('git command failed'); },
+			} as unknown as IAgentHostGitService;
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localChangesets = disposables.add(new AgentHostChangesetService(
+				localStateManager, new NullLogService(), createNullSessionDataService(), stubGit, NULL_CHECKPOINT_SERVICE));
+
+			const sessionStr = sessionUri.toString();
+			localStateManager.createSession({
+				resource: sessionStr,
+				provider: 'mock',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				workingDirectory: 'file:///wd',
+			});
+
+			await localChangesets.computeUncommittedChangeset(sessionStr);
+
+			const uncommittedUri = `${sessionStr}/changeset/uncommitted`;
+			const snapshot = localStateManager.getSnapshot(uncommittedUri);
+			const state = snapshot?.state as { status: string; error?: { errorType: string; message: string } } | undefined;
+			assert.deepStrictEqual({
+				status: state?.status,
+				errorType: state?.error?.errorType,
+				message: state?.error?.message,
+			}, {
+				status: ChangesetStatus.Error,
+				errorType: 'computeFailed',
+				message: 'git command failed',
+			});
+		});
+	});
+
 	suite('restorePersistedStaticChangesets', () => {
 
 		const aDiff = { after: { uri: 'file:///wd/a.ts', content: { uri: 'file:///wd/a.ts' } }, diff: { added: 1, removed: 0 } };
