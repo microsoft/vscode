@@ -18,6 +18,7 @@ import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -56,7 +57,18 @@ export type McpAppLoadState =
 export class ChatMcpAppModel extends Disposable {
 	private static readonly heightCache = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, number>();
 
-	/** Origin store for persistent webview origins per server */
+	/**
+	 * In-memory origin map for agent-host MCP servers. Agent-host server
+	 * ids embed the session id, so they're effectively single-use across
+	 * VS Code restarts — using {@link WebviewOriginStore} for them would
+	 * accumulate one persisted entry per agent-host session forever. The
+	 * in-memory map keeps origins stable for the lifetime of the app
+	 * (enough for webview state to persist across re-renders) without
+	 * touching application storage.
+	 */
+	private static readonly _agentHostOrigins = new Map<string, string>();
+
+	/** Origin store for persistent webview origins per server (local MCP only) */
 	private readonly _originStore: WebviewOriginStore;
 
 	/** The webview element instance */
@@ -113,7 +125,7 @@ export class ChatMcpAppModel extends Disposable {
 		super();
 
 		this._originStore = new WebviewOriginStore(ORIGIN_STORE_KEY, storageService);
-		this._webviewOrigin = this._originStore.getOrigin('mcpApp', this._serverOriginId());
+		this._webviewOrigin = this._computeWebviewOrigin();
 		this._mcpToolCallUI = this._register(this._instantiationService.createInstance(McpToolCallUI, renderData));
 		this._height = ChatMcpAppModel.heightCache.get(this.toolInvocation) ?? 300;
 
@@ -586,6 +598,28 @@ export class ChatMcpAppModel extends Disposable {
 		return this.renderData.kind === 'agentHost'
 			? this.renderData.serverId
 			: this.renderData.serverDefinitionId;
+	}
+
+	/**
+	 * Picks a stable webview origin for this server. Local MCP servers
+	 * get a persisted origin via {@link WebviewOriginStore} since their
+	 * server-definition id is stable across VS Code restarts. Agent-host
+	 * servers fall back to the static in-memory {@link _agentHostOrigins}
+	 * map keyed by `serverId`, so origins are stable within the app
+	 * lifetime without leaking entries into application storage for
+	 * every session.
+	 */
+	private _computeWebviewOrigin(): string {
+		if (this.renderData.kind !== 'agentHost') {
+			return this._originStore.getOrigin('mcpApp', this._serverOriginId());
+		}
+		const key = this._serverOriginId();
+		let origin = ChatMcpAppModel._agentHostOrigins.get(key);
+		if (!origin) {
+			origin = generateUuid();
+			ChatMcpAppModel._agentHostOrigins.set(key, origin);
+		}
+		return origin;
 	}
 
 	/**

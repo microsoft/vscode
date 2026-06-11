@@ -660,9 +660,11 @@ export type ChatMcpAppData =
 		channel: string;
 		/**
 		 * Stable identifier for the originating server, used as the
-		 * webview origin keyset. Typically the AHP customization id —
-		 * its lifetime is per-session, which is the granularity we want
-		 * for persistent webview origins.
+		 * additional key when computing the webview origin. Typically the
+		 * AHP customization id. For top-level (bare) MCP servers this id
+		 * is currently session-scoped, so see {@link ChatMcpAppModel} for
+		 * how it avoids growing persistent application storage on every
+		 * new session.
 		 */
 		serverId: string;
 	};

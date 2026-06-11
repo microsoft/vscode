@@ -663,13 +663,12 @@ function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string
 
 /**
  * Wraps a tool-result resource URI (string) via {@link toAgentHostUri} so it
- * resolves through the agent host filesystem provider on the client when the
- * session is backed by a remote agent host. When there's no connection
- * authority (local agent host), the URI is returned as-parsed.
+ * resolves through the agent host filesystem provider on the client. The
+ * underlying helper has a fast-path that returns the URI unchanged when it's
+ * already a local `file://` resource, so the wrap is safe for all cases.
  */
 function wrapResourceUri(uri: string, connectionAuthority: string): URI {
-	const parsed = URI.parse(uri);
-	return connectionAuthority ? toAgentHostUri(parsed, connectionAuthority) : parsed;
+	return toAgentHostUri(URI.parse(uri), connectionAuthority);
 }
 
 function getToolErrorString(tc: ToolCallState): string | undefined {

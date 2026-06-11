@@ -159,13 +159,13 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return;
 			}
 
-			this.mcpAppPart.value = r.store.add(this.instantiationService.createInstance(
+			this.mcpAppPart.value = this.instantiationService.createInstance(
 				ChatMcpAppSubPart,
 				this.toolInvocation,
 				this._onDidRemount.event,
 				context,
 				data,
-			));
+			);
 
 			appDomNode.replaceWith(this.mcpAppPart.value.domNode);
 			appDomNode = this.mcpAppPart.value.domNode;
