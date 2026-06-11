@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, autorun, transaction, observableSignalFromEvent } from '../../../../../base/common/observable.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -808,14 +808,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Periodic fallback: check session state changes every 5s
 				// to catch transitions missed when the chat model isn't loaded
 				// (e.g. remote agent host sessions that haven't been opened).
-				const periodicCheck = mainWindow.setInterval(() => this._checkSessionStateChanges(), 5000);
-				this._voiceAutorunDisposable.value = {
-					dispose: () => {
-						sessionChangeListener.dispose();
-						autorunDisposable.dispose();
-						mainWindow.clearInterval(periodicCheck);
-					}
-				};
+				this._voiceAutorunDisposable.value = new DisposableStore();
+				this._voiceAutorunDisposable.value.add(sessionChangeListener);
+				this._voiceAutorunDisposable.value.add(autorunDisposable);
+				this._voiceAutorunDisposable.value.add(disposableWindowInterval(this._window!, () => this._checkSessionStateChanges(), 5000));
 
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
@@ -1007,7 +1003,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	}
 
 	private _onConnectionLost(): void {
-		console.warn('[voice] connection lost, preserving state for reconnect');
+		this.logService.warn('[voice] connection lost, preserving state for reconnect');
 		// Don't stop the mic here — keep the MediaStream alive across the
 		// transient disconnect so the OS mic-in-use indicator doesn't blink
 		// and so reconnection feels seamless. The mic is cycled (stop+start)

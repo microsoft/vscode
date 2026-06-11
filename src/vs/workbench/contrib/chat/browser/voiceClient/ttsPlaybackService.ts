@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export const ITtsPlaybackService = createDecorator<ITtsPlaybackService>('ttsPlaybackService');
 
@@ -54,6 +55,10 @@ type PlaybackTurn = {
 
 export class TtsPlaybackService extends Disposable implements ITtsPlaybackService {
 	declare readonly _serviceBrand: undefined;
+
+	constructor(@ILogService private readonly logService: ILogService) {
+		super();
+	}
 
 	private _window: (Window & typeof globalThis) | undefined;
 	private _playbackCtx: AudioContext | undefined;
@@ -109,7 +114,7 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 				if (!this._playbackTurn?.started) {
 					this._startPlayback();
 				}
-			} catch (err) { console.error('[voice] TTS decode error', err); }
+			} catch (err) { this.logService.error('[voice] TTS decode error', err); }
 		});
 		if (isFinal) {
 			turn.writeChain = turn.writeChain.then(() => this._schedulePlayStop());

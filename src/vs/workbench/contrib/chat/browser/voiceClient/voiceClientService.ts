@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import {
 	IVoiceClientService,
 	IVoicePriorTimelineEntry,
@@ -91,6 +92,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -207,7 +209,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		};
 
 		ws.onclose = (evt: CloseEvent) => {
-			console.warn('[voice] ws.onclose', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
+			this._logService.warn('[voice] ws.onclose', { code: evt.code, reason: evt.reason, wasClean: evt.wasClean });
 			if (this._ws === ws) {
 				if (evt.code === 1000 || evt.code === 1001) {
 					this._cleanup();
@@ -216,7 +218,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 				// Fatal errors that should NOT trigger reconnection
 				if (evt.code === 4001 || evt.code === 4008 || evt.code === 4029) {
-					console.warn(`[voice] fatal close code ${evt.code}: ${evt.reason}, not reconnecting`);
+					this._logService.warn(`[voice] fatal close code ${evt.code}: ${evt.reason}, not reconnecting`);
 					this._onError.fire(evt.reason || `Connection rejected (code ${evt.code})`);
 					this._cleanup();
 					return;
@@ -228,7 +230,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 				const elapsed = Date.now() - this._reconnectStartedAt;
 				if (elapsed >= MAX_RECONNECT_DURATION_MS) {
-					console.warn('[voice] reconnect timeout after 30 minutes, giving up');
+					this._logService.warn('[voice] reconnect timeout after 30 minutes, giving up');
 					this._cleanup();
 					return;
 				}
@@ -241,14 +243,14 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 				const delay = this._reconnectAttempts <= FAST_RETRY_COUNT
 					? FAST_RETRY_DELAY_MS
 					: SLOW_RETRY_DELAY_MS;
-				console.warn(`[voice] reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
+				this._logService.warn(`[voice] reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
 				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
 			}
 		};
 	}
 
 	disconnect(): void {
-		console.warn('[voice] disconnect() called', new Error('disconnect trace').stack);
+		this._logService.warn('[voice] disconnect() called', new Error('disconnect trace').stack);
 		if (this._ws && this._ws.readyState < WebSocket.CLOSING) {
 			this._ws.close();
 		}
@@ -281,7 +283,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			if (this._ws?.readyState === WebSocket.OPEN) {
 				this._ws.send(JSON.stringify({ type: 'ping' }));
 				this._pongTimer = setTimeout(() => {
-					console.warn('[voice] pong timeout — server unreachable, reconnecting');
+					this._logService.warn('[voice] pong timeout — server unreachable, reconnecting');
 					this._ws?.close(4000, 'pong timeout');
 				}, PONG_TIMEOUT_MS);
 			}
