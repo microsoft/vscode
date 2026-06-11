@@ -380,6 +380,10 @@ class AddFileAsContextAction extends Action2 {
 			return;
 		}
 
+		if (!['file', 'vscode-remote', 'untitled'].includes(resource.scheme)) {
+			return;
+		}
+
 		const sessionId = sessionManagementService.activeSession.get()?.sessionId;
 		sessionsPartService.getSessionView(sessionId)?.attach(resource);
 	}
