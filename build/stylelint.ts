@@ -57,11 +57,13 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 		});
 
 		// Design-token checks that need block (selector + declaration) awareness.
-		// Scoped to the design-system area (src/vs/sessions). All findings are
-		// advisory warnings (never fail the build). Findings for a file are
-		// gathered, sorted by source line, then printed under a one-line file
-		// header as compact `path(line,col): [category] value -> var` rows so the
-		// terminal both groups them visually and linkifies each row.
+		// By default these are scoped to the design-system area (src/vs/sessions),
+		// but when `designTokensEverywhere` is set (an explicit path was targeted)
+		// they run on every linted file so the checks follow the requested scope.
+		// All findings are advisory warnings (never fail the build). Findings for a
+		// file are gathered, sorted by source line, then printed under a one-line
+		// file header as compact `path(line,col): [category] value -> var` rows so
+		// the terminal both groups them visually and linkifies each row.
 		const contents = file.contents.toString('utf8');
 		if (designTokensEverywhere || designSystemPattern.test(file.relative)) {
 			const findings: { line: number; category: string; message: string }[] = [];
@@ -107,7 +109,8 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	});
 }
 
-function stylelint(sources: string[] = Array.from(stylelintFilter), designTokensEverywhere = false): NodeJS.ReadWriteStream {
+function stylelint(sources: string[] = Array.from(stylelintFilter), explicit = false): NodeJS.ReadWriteStream {
+	let fileCount = 0;
 	return vfs
 		.src(sources, { base: '.', follow: true, allowEmpty: true })
 		.pipe(gulpstylelint((message, isError) => {
@@ -116,8 +119,18 @@ function stylelint(sources: string[] = Array.from(stylelintFilter), designTokens
 			} else {
 				console.info(message);
 			}
-		}, designTokensEverywhere))
-		.pipe(es.through(function () { /* noop, important for the stream to end */ }));
+		}, explicit))
+		.pipe(es.through(function (this, file: FileWithLines) {
+			fileCount++;
+			this.emit('data', file);
+		}, function () {
+			// When the caller targeted an explicit path that matched no CSS files,
+			// say so - otherwise a typo'd path looks like a clean run.
+			if (explicit && fileCount === 0) {
+				console.info('No CSS files matched the requested path: ' + sources.join(', '));
+			}
+			this.emit('end');
+		}));
 }
 
 /**
