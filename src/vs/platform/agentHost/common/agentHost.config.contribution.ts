@@ -35,5 +35,53 @@ configurationRegistry.registerConfiguration({
 			default: !isWeb && product.quality !== 'stable',
 			tags: ['experimental', 'advanced'],
 		},
+		'chat.agentHost.defaultSessionsProvider': {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host appears first in the Agents window session picker."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.agents.copilotCli.hideExtensionHost': {
+			type: 'boolean',
+			description: nls.localize('chat.agents.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the Agents window picker."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.agents.claude.preferAgentHost': {
+			type: 'boolean',
+			description: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, the Agent Host Claude is the default in the Agents window and the Extension Host Claude is hidden."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.defaultProvider': {
+			type: 'string',
+			enum: ['local', 'copilotEh', 'copilotAh'],
+			enumDescriptions: [
+				nls.localize('chat.editor.defaultProvider.local', "Use the built-in VS Code local chat harness"),
+				nls.localize('chat.editor.defaultProvider.copilotEh', "Use the Extension Host Copilot CLI"),
+				nls.localize('chat.editor.defaultProvider.copilotAh', "Use the Agent Host Copilot CLI"),
+			],
+			description: nls.localize('chat.editor.defaultProvider', "Controls which provider is used as the default for new editor chat sessions."),
+			default: 'local',
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.copilotCli.hideExtensionHost': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the editor window chat picker."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
+		'chat.editor.claude.preferAgentHost': {
+			type: 'boolean',
+			description: nls.localize('chat.editor.claude.preferAgentHost', "When enabled, the Agent Host Claude is the default in the editor window and the Extension Host Claude is hidden."),
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+		},
 	}
 });

@@ -88,6 +88,12 @@ export enum ChatConfiguration {
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
 	AgentHostDefaultChatProvider = 'chat.agentHost.defaultChatProvider',
+	AgentHostDefaultSessionsProvider = 'chat.agentHost.defaultSessionsProvider',
+	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
+	ClaudePreferAgentHostAgents = 'chat.agents.claude.preferAgentHost',
+	EditorDefaultProvider = 'chat.editor.defaultProvider',
+	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
+	ClaudePreferAgentHostEditor = 'chat.editor.claude.preferAgentHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
@@ -221,7 +227,7 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 /**
  * Returns the effective default session type for a new chat in the VS Code
  * window, honoring the experimental
- * {@link ChatConfiguration.AgentHostDefaultChatProvider} setting. Falls back to
+ * {@link ChatConfiguration.EditorDefaultProvider} setting. Falls back to
  * {@link localChatSessionType} when the setting is disabled or the agent host
  * contribution is not registered.
  */
@@ -229,10 +235,18 @@ export function getDefaultNewChatSessionType(
 	configurationService: IConfigurationService,
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution'>
 ): string {
-	if (configurationService.getValue<boolean>(ChatConfiguration.AgentHostDefaultChatProvider) &&
+	const defaultProvider = configurationService.getValue<string>(ChatConfiguration.EditorDefaultProvider);
+
+	// Map the setting value to the corresponding session type
+	if (defaultProvider === 'copilotAh' &&
 		chatSessionsService.getChatSessionContribution(SessionType.AgentHostCopilot)) {
 		return SessionType.AgentHostCopilot;
 	}
+	if (defaultProvider === 'copilotEh' &&
+		chatSessionsService.getChatSessionContribution(SessionType.CopilotCLI)) {
+		return SessionType.CopilotCLI;
+	}
+	// Default to local
 	return localChatSessionType;
 }
 

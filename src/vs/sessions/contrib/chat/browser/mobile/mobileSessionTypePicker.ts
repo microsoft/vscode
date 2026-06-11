@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -36,9 +37,10 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
-		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService);
+		super(session, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, configurationService);
 	}
 
 	override render(container: HTMLElement, options?: { className?: string }): void {

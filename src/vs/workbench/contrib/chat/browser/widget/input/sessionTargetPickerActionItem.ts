@@ -69,10 +69,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
-					if (!this._isVisible(sessionTypeItem.type)) {
-						continue;
-					}
-
 					const lockedForEntitlement = this._isLockedForEntitlement(sessionTypeItem.type);
 					actions.push({
 						...action,
@@ -115,7 +111,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentHostDefaultChatProvider)) {
+			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
+				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor) ||
+				e.affectsConfiguration(ChatConfiguration.ClaudePreferAgentHostEditor)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);
@@ -169,7 +167,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.Local}`,
 		};
 
-		const agentSessionItems: ISessionTypeItem[] = [localSessionItem];
+		const allAgentSessionItems: ISessionTypeItem[] = [localSessionItem];
 
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
@@ -177,7 +175,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			const agentSessionType = getAgentSessionProvider(contribution.type);
 			if (agentSessionType) {
 				// Well-known session type — use hardcoded metadata
-				agentSessionItems.push({
+				allAgentSessionItems.push({
 					type: agentSessionType,
 					label: getAgentSessionProviderName(agentSessionType),
 					hoverDescription: getAgentSessionProviderDescription(agentSessionType),
@@ -189,7 +187,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				// Extension-contributed session type — always use in-place
 				// (openNewChatSessionExternal requires a menu action registered
 				// by _registerMenuItems, which may not exist for extensions)
-				agentSessionItems.push({
+				allAgentSessionItems.push({
 					type: contribution.type,
 					label: contribution.displayName ?? contribution.name ?? contribution.type,
 					hoverDescription: contribution.description ?? '',
@@ -197,6 +195,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 				});
 			}
 		}
+
+		// Filter out hidden items based on settings
+		const agentSessionItems = allAgentSessionItems.filter(item => this._isVisible(item.type));
 
 		// When the experimental "local agent host as default" setting is
 		// enabled, hoist the agent-host item to the front of the picker so it
@@ -225,6 +226,18 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isVisible(_type: AgentSessionTarget): boolean {
+		// Check if we should hide the Extension Host Copilot CLI in editor
+		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
+		if (hideEhCopilotCli && _type === AgentSessionProviders.Background) {  // Background = EH Copilot CLI
+			return false;
+		}
+
+		// Check if we should hide the Extension Host Claude in editor
+		const preferAhClaude = this.configurationService.getValue<boolean>(ChatConfiguration.ClaudePreferAgentHostEditor) ?? false;
+		if (preferAhClaude && _type === AgentSessionProviders.Claude) {  // Claude = EH Claude Code
+			return false;
+		}
+
 		return true;
 	}
 
