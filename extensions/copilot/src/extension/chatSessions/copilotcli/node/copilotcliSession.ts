@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Attachment, SendOptions, SessionOptions, ToolExecutionCompleteEvent } from '@github/copilot/sdk';
+import type { Attachment, SendOptions, SessionOptions, ToolExecutionCompleteEvent, ToolExecutionStartEvent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
@@ -17,7 +17,7 @@ import { IGitService } from '../../../../platform/git/common/gitService';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, GenAiProviderName, IOTelService, ISpanHandle, resolveWorkspaceOTelMetadata, SpanKind, SpanStatusCode, TraceContext, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -1171,6 +1171,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const editToolIds = new Set<string>();
 		const toolCalls = new Map<string, ToolCall>();
 		const toolStartTimes = new Map<string, number>();
+		// Synthesized `execute_tool` spans for native CLI tools (those that execute inside the SDK
+		// and therefore never reach the tools service). MCP/VS Code tools already emit `execute_tool`
+		// spans via the tools service, so we skip those here to avoid duplicate debug-log entries.
+		// Synthesizing these spans is what surfaces native tool calls (e.g. powershell, grep) in the
+		// chat debug logs view for the in-process Copilot CLI experience.
+		const syntheticToolSpans = new Map<string, ISpanHandle>();
+		const invokeAgentTraceContext = invokeAgentSpan.getSpanContext();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		let isQuotaError = false;
@@ -1474,6 +1481,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				toolCalls.set(event.data.toolCallId, event.data as unknown as ToolCall);
 				toolStartTimes.set(event.data.toolCallId, Date.now());
 
+				this._startSyntheticToolSpan(event, syntheticToolSpans, invokeAgentTraceContext);
+
 				if (isCopilotCliEditToolCall(event.data)) {
 					flushPendingInvocationMessages();
 					editToolIds.add(event.data.toolCallId);
@@ -1518,6 +1527,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const eventError = event.data.error ? { ...event.data.error, code: event.data.error.code || '' } : undefined;
 				const eventData = { ...event.data, error: eventError };
 				this._logToolCall(event.data.toolCallId, toolName, toolCall?.arguments, eventData);
+
+				// Complete the synthesized `execute_tool` span (native CLI tools only).
+				this._endSyntheticToolSpan(event, syntheticToolSpans);
 
 				// Mark the end of the edit if this was an edit tool.
 				toolIdEditMap.set(event.data.toolCallId, editTracker.completeEdit(event.data.toolCallId));
@@ -1692,6 +1704,20 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', errorMessage);
 		} finally {
 			cancelCancellationAbort?.();
+
+			// Synthesize a `chat` span carrying the assistant response so the chat debug logs view
+			// shows the agent response (and an llm_request entry) for the in-process Copilot CLI
+			// experience, where the model call happens inside the SDK and never produces a JS span.
+			this._injectAgentResponseSpan(assistantMessageChunks.join(''), this._lastResponseModelId ?? modelId, invokeAgentTraceContext);
+
+			// End any synthesized tool spans that never received a completion event (e.g. on abort)
+			// so they don't leak.
+			for (const toolSpan of syntheticToolSpans.values()) {
+				toolSpan.setStatus(SpanStatusCode.ERROR, 'incomplete');
+				toolSpan.end();
+			}
+			syntheticToolSpans.clear();
+
 			// End the invoke_agent wrapper span
 			const durationSec = (Date.now() - logStartTime) / 1000;
 			invokeAgentSpan.setAttribute('copilot_chat.duration_sec', durationSec);
@@ -2820,6 +2846,105 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		result.push(assistantResponse || '(no response)');
 		result.push(`~~~`);
 		return result.join('\n');
+	}
+
+	/**
+	 * Starts a synthesized `execute_tool` OTel span for a native CLI tool call.
+	 *
+	 * Native CLI tools (e.g. `powershell`, `bash`, `grep`, `task`) execute inside the SDK and never
+	 * reach the workbench tools service, so they don't otherwise produce `execute_tool` spans for the
+	 * chat debug logs view. MCP/VS Code tools (those carrying an `mcpServerName`) already emit spans
+	 * via the tools service and are skipped here to avoid duplicate entries.
+	 */
+	private _startSyntheticToolSpan(
+		event: ToolExecutionStartEvent,
+		syntheticToolSpans: Map<string, ISpanHandle>,
+		rootTraceContext: TraceContext | undefined,
+	): void {
+		const toolCall = event.data as unknown as ToolCall;
+		if (toolCall.mcpServerName) {
+			return;
+		}
+		// Nest tool calls made by a subagent under that subagent's tool span when we have it.
+		const parentToolCallId = event.data.parentToolCallId;
+		const parentContext = (parentToolCallId ? syntheticToolSpans.get(parentToolCallId)?.getSpanContext() : undefined) ?? rootTraceContext;
+		const toolSpan = this._otelService.startSpan(`execute_tool ${toolCall.toolName}`, {
+			kind: SpanKind.INTERNAL,
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.EXECUTE_TOOL,
+				[GenAiAttr.TOOL_NAME]: toolCall.toolName,
+				[GenAiAttr.TOOL_CALL_ID]: toolCall.toolCallId,
+				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
+			},
+			parentTraceContext: parentContext,
+		});
+		if (toolCall.arguments !== undefined) {
+			try {
+				toolSpan.setAttribute(GenAiAttr.TOOL_CALL_ARGUMENTS, truncateForOTel(
+					typeof toolCall.arguments === 'string' ? toolCall.arguments : JSON.stringify(toolCall.arguments),
+					this._otelService.config.maxAttributeSizeChars,
+				));
+			} catch (err) {
+				this.logService.trace(`[CopilotCLISession] Failed to serialize tool arguments for ${toolCall.toolName}: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+		syntheticToolSpans.set(toolCall.toolCallId, toolSpan);
+	}
+
+	/**
+	 * Completes the synthesized `execute_tool` span for a native CLI tool, recording the result and
+	 * status. No-op for tools that were not synthesized (e.g. MCP/VS Code tools).
+	 */
+	private _endSyntheticToolSpan(
+		event: ToolExecutionCompleteEvent,
+		syntheticToolSpans: Map<string, ISpanHandle>,
+	): void {
+		const toolSpan = syntheticToolSpans.get(event.data.toolCallId);
+		if (!toolSpan) {
+			return;
+		}
+		syntheticToolSpans.delete(event.data.toolCallId);
+		if (event.data.success) {
+			const content = event.data.result?.content;
+			if (content !== undefined) {
+				toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(
+					typeof content === 'string' ? content : JSON.stringify(content),
+					this._otelService.config.maxAttributeSizeChars,
+				));
+			}
+			toolSpan.setStatus(SpanStatusCode.OK);
+		} else {
+			const errorMessage = event.data.error
+				? `${event.data.error.code ?? ''} ${event.data.error.message ?? ''}`.trim() || 'tool error'
+				: 'tool error';
+			toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(`ERROR: ${errorMessage}`, this._otelService.config.maxAttributeSizeChars));
+			toolSpan.setStatus(SpanStatusCode.ERROR, errorMessage);
+		}
+		toolSpan.end();
+	}
+
+	/**
+	 * Synthesizes a `chat` OTel span carrying the accumulated assistant response. The chat debug logs
+	 * view derives the `agent_response` (and an `llm_request`) entry from this span. For the in-process
+	 * Copilot CLI experience the model call happens inside the SDK and never produces a JS span, so
+	 * without this the agent response would be missing from the debug logs.
+	 */
+	private _injectAgentResponseSpan(responseText: string, modelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+		if (!responseText) {
+			return;
+		}
+		const chatSpan = this._otelService.startSpan('chat', {
+			kind: SpanKind.INTERNAL,
+			attributes: {
+				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
+				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
+				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
+				...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
+				[GenAiAttr.OUTPUT_MESSAGES]: truncateForOTel(responseText, this._otelService.config.maxAttributeSizeChars),
+			},
+			parentTraceContext: rootTraceContext,
+		});
+		chatSpan.end();
 	}
 
 	private _logToolCall(toolCallId: string, toolName: string, args: unknown, eventData: { success: boolean; error?: { code: string; message: string }; result?: { content: string } }): void {
