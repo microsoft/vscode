@@ -1355,4 +1355,54 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.strictEqual(session?.permissionLevel.get(), ChatPermissionLevel.Default);
 		});
 	});
+
+	// ---- In-flight commit protection -------
+
+	test('concurrent model re-resolve does not spuriously remove an in-flight committed session', async () => {
+		// This reproduces the race condition from the smoke test failure:
+		// 1. Claude session is created and committed (added to model)
+		// 2. _sendFirstChat is waiting for the committed adapter in the cache
+		// 3. A concurrent model re-resolve transiently removes the session
+		//    from agentSessionsService.model.sessions
+		// 4. _refreshSessionCache should NOT fire `removed` for the in-flight
+		//    session because it is protected by _inFlightCommits
+
+		const { provider, commitSession, realResource } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const removals: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => {
+			for (const r of e.removed) {
+				removals.push(r.resource.toString());
+			}
+		}));
+
+		const added = waitForSessionAdded(provider);
+		const chat = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'test' });
+		await added;
+
+		// Commit: adds the real session to the model, triggering
+		// _refreshSessionCache which populates the AgentSessionAdapter.
+		commitSession();
+
+		// Simulate a concurrent model re-resolve transiently dropping the
+		// session: remove it from the model (fires onDidChangeSessions →
+		// _refreshSessionCache). Because _sendFirstChat holds the resource
+		// in _inFlightCommits, _refreshSessionCache must NOT fire `removed`.
+		model.removeSession(realResource);
+
+		// The committed session resource must NOT appear in removals
+		assert.ok(
+			!removals.includes(realResource.toString()),
+			`In-flight committed session ${realResource.toString()} should not be spuriously removed. ` +
+			`Removals seen: [${removals.join(', ')}]`,
+		);
+
+		// Re-add the session so _waitForSessionInCache can resolve
+		model.addSession(createMockAgentSession(realResource, { providerType: AgentSessionProviders.Claude }));
+
+		await sendPromise;
+	});
 });

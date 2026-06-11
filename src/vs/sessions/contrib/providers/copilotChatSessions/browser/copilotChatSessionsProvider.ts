@@ -1387,6 +1387,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Cache of adapted sessions, keyed by resource URI string. */
 	private readonly _sessionCache = new Map<string, AgentSessionAdapter | CopilotCLISession | RemoteNewSession | ClaudeCodeNewSession>();
 
+	/**
+	 * Resources of committed sessions that are currently in-flight (i.e.
+	 * between {@link _sendFirstChat} entering the send and the replace
+	 * event firing). Protected from spurious removal by
+	 * {@link _refreshSessionCache} so that a concurrent model re-resolve
+	 * cannot transiently drop them.
+	 */
+	private readonly _inFlightCommits = new Set<string>();
+
 	/** Cache of ISession wrappers, keyed by session group ID. */
 	private readonly _sessionGroupCache = new Map<string, ISession>();
 
@@ -1993,6 +2002,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(session.resource.toString(), session);
 		this._invalidateGroupingCaches();
 
+		// For non-CLI sessions, chatResource is already the resource we will later
+		// wait for in the committed session cache. Protect it from spurious
+		// removal by _refreshSessionCache before any async work begins — a
+		// concurrent model re-resolve can transiently drop the session from
+		// agentSessionsService.model.sessions while the send is still in-flight.
+		// _refreshSessionCache to fire a `removed` event that tears down the
+		// UI while the send is still in-flight.
+		const committedKey = !(session instanceof CopilotCLISession)
+			? chatResource.toString()
+			: undefined;
+		if (committedKey) {
+			this._inFlightCommits.add(committedKey);
+		}
+
 		// Add the new session to the sessions model immediately so it appears in the sessions list
 		const newSession = this._chatToSession(session);
 		this._onDidChangeSessions.fire({ added: [newSession], removed: [], changed: [] });
@@ -2062,18 +2085,26 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				let committedResource = chatResource;
 				if (session instanceof CopilotCLISession) {
 					committedResource = await this._waitForCommittedSession(session.resource, responseCompletePromise, responseCreatedPromise);
+					// For CopilotCLI, protect the committed resource now that
+					// we know it (Claude sessions were already protected at the
+					// top of _sendFirstChat).
+					this._inFlightCommits.add(committedResource.toString());
 				}
 
-				// Wait for _refreshSessionCache to populate the committed adapter
-				const committedChat = await this._waitForSessionInCache(committedResource, cts.token);
-				this._sessionCache.delete(session.resource.toString());
-				this._clearCurrentNewSessionIfMatch(session);
+				try {
+					// Wait for _refreshSessionCache to populate the committed adapter
+					const committedChat = await this._waitForSessionInCache(committedResource, cts.token);
+					this._sessionCache.delete(session.resource.toString());
+					this._clearCurrentNewSessionIfMatch(session);
 
-				const committedSession = this._chatToSession(committedChat);
-				this._sessionGroupCache.delete(session.sessionId);
-				this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
+					const committedSession = this._chatToSession(committedChat);
+					this._sessionGroupCache.delete(session.sessionId);
+					this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
 
-				return committedSession;
+					return committedSession;
+				} finally {
+					this._inFlightCommits.delete(committedResource.toString());
+				}
 			} catch (error) {
 				this._clearCurrentNewSessionIfMatch(session, /* leak */ true);
 
@@ -2097,6 +2128,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this.logService.error(`[CopilotChatSessionsProvider] Failed to send first chat for session ${session.sessionId}:`, error);
 			throw error;
 		} finally {
+			if (committedKey) {
+				this._inFlightCommits.delete(committedKey);
+			}
 			ref?.dispose();
 		}
 	}
@@ -2574,7 +2608,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		const removedData: ICopilotChatSession[] = [];
 		for (const [key, adapter] of this._sessionCache) {
-			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter) {
+			if (!currentKeys.has(key) && adapter instanceof AgentSessionAdapter && !this._inFlightCommits.has(key)) {
 				removedData.push(adapter);
 				cacheChanged = true;
 			}
