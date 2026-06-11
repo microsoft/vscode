@@ -250,12 +250,10 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		// Set up the tool dispatch delegate — uses command bridge for widget ops
 		this.voiceToolDispatchService.setDelegate({
 			acceptInput: (text: string): boolean => {
-				try {
-					this.commandService.executeCommand('_chat.voice.acceptInput', text);
-					return true;
-				} catch {
-					return false;
-				}
+				this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(err => {
+					this.logService.warn('[voice] acceptInput delegate failed:', err);
+				});
+				return true;
 			},
 			getCurrentSessionResource: (): URI | undefined => {
 				// Synchronous command bridge not possible — return undefined,
@@ -1093,7 +1091,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			const currentSession = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
 			if (currentSession) {
 				// There's an active chat widget — send to it
-				this.commandService.executeCommand('_chat.voice.acceptInput', text);
+				this.commandService.executeCommand('_chat.voice.acceptInput', text).catch(err => {
+					this.logService.warn('[voice] acceptInput failed for current session:', err);
+				});
 			} else {
 				// No focused chat session — find the most recent existing session
 				// instead of creating a new one, so voice continues the conversation.

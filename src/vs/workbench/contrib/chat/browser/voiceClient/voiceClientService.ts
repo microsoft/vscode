@@ -34,6 +34,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _ws: WebSocket | undefined;
 	private _reconnectAttempts = 0;
 	private _reconnectStartedAt: number | undefined;
+	private _reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 	private _isConnected = false;
 	private _isResuming = false;
 	private _window: (Window & typeof globalThis) | undefined;
@@ -241,7 +242,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					? FAST_RETRY_DELAY_MS
 					: SLOW_RETRY_DELAY_MS;
 				console.warn(`[voice] reconnecting in ${delay}ms (attempt ${this._reconnectAttempts})`);
-				setTimeout(() => this._connectWebSocket(), delay);
+				this._reconnectTimer = setTimeout(() => this._connectWebSocket(), delay);
 			}
 		};
 	}
@@ -256,12 +257,17 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 
 	private _cleanup(): void {
 		this._stopPing();
+		if (this._reconnectTimer) {
+			clearTimeout(this._reconnectTimer);
+			this._reconnectTimer = undefined;
+		}
 		if (this._contextSendTimer) {
 			clearTimeout(this._contextSendTimer);
 			this._contextSendTimer = undefined;
 		}
 		this._pendingContext = undefined;
 		this._ws = undefined;
+		this._window = undefined;
 		this._lastSessionId = undefined;
 		this._lastSentById.clear();
 		this._lastSentActive = '';
