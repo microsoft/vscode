@@ -30,7 +30,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, ToolCallContributorKind, type FileEdit, type MessageAttachment, type MessageResourceAttachment } from '../../common/state/protocol/state.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
 import { MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -880,7 +880,8 @@ export class CopilotAgentSession extends Disposable {
 	 * mapped to the SDK's `selection` variant so the range survives the round-trip — keying off the `selection` field
 	 * rather than just `displayKind` avoids symbol attachments degrading to a plain file reference (#315193).
 	 *
-	 * Image resource attachments are also forwarded as `blob` variants so the SDK gets an explicit MIME type and can
+	 * Resource attachments classified as images (via `attachment.contentType`, the URI's extension, or the protocol's
+	 * advisory `'image'` displayKind) are forwarded as `blob` variants so the SDK gets an explicit MIME type and can
 	 * route them to the model's native vision channel — the SDK's `file` variant carries no MIME info, so vision-capable
 	 * models would otherwise fall back to a tool-call view path and effectively miss the image (#320516).
 	 *
@@ -925,8 +926,8 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.displayKind === 'selection') {
 			return { type: 'file' as const, path, displayName };
 		}
-		if (attachment.displayKind !== 'directory') {
-			const mimeType = this._getImageMimeType(attachment.displayKind, uri.path);
+		if (attachment.displayKind === 'image' || attachment.displayKind === 'document' || attachment.displayKind === undefined) {
+			const mimeType = this._getImageMimeType(attachment, uri.path);
 			if (mimeType) {
 				const blob = await this._tryReadAsBlob(uri, mimeType, displayName);
 				if (blob) {
@@ -939,17 +940,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Returns an image MIME type when the attachment is known (or can be detected from its path) to be an image. Returns
-	 * `undefined` otherwise, so non-image attachments keep the reference-style `file` path through the SDK.
+	 * Returns an image MIME type for an attachment, or `undefined` for non-images so they keep the reference-style
+	 * `file` path. Prefers `contentType` (authoritative), then path-derived MIME, then the `'image'` displayKind hint
+	 * (falls back to `image/png`). Never propagates a non-image MIME under an `'image'` hint.
 	 */
-	private _getImageMimeType(displayKind: string | undefined, path: string): string | undefined {
+	private _getImageMimeType(attachment: MessageResourceAttachment, path: string): string | undefined {
+		if (attachment.contentType?.startsWith('image/')) {
+			return attachment.contentType;
+		}
 		const mime = getMediaMime(path);
 		if (mime?.startsWith('image/')) {
 			return mime;
 		}
-		// Honor the protocol's advisory `'image'` hint even when the path has no extension we recognize — fall back to
-		// PNG so the SDK still routes through the vision channel rather than dropping it on the `file` path with no MIME.
-		if (displayKind === 'image') {
+		if (attachment.displayKind === 'image') {
 			return 'image/png';
 		}
 		return undefined;

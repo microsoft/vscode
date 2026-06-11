@@ -393,12 +393,15 @@ suite('CopilotAgentSession', () => {
 		const noExtBytes = 'fake image bytes';
 		const wavUri = URI.file('/workspace/attachments/ghi/voice.wav');
 		const wavBytes = 'fake audio bytes';
+		const jpegUri = URI.file('/workspace/attachments/jkl/snapshot.png');
+		const jpegBytes = 'fake jpeg bytes';
 		const docUri = URI.file('/workspace/notes.txt');
 		const { session, mockSession } = await createAgentSession(disposables, {
 			fileContents: {
 				[pngUri.toString()]: pngBytes,
 				[noExtUri.toString()]: noExtBytes,
 				[wavUri.toString()]: wavBytes,
+				[jpegUri.toString()]: jpegBytes,
 				[docUri.toString()]: 'plain document',
 			},
 		});
@@ -411,6 +414,9 @@ suite('CopilotAgentSession', () => {
 			// `displayKind: 'image'` over a path that resolves to a NON-image MIME (.wav -> audio/x-wav): still force
 			// image/png — never propagate a non-image MIME under an `'image'` hint.
 			{ type: MessageAttachmentKind.Resource, uri: wavUri.toString(), label: 'voice', displayKind: 'image' },
+			// Producer-declared `contentType` is authoritative — the snapshot path says `.png` but the producer says
+			// JPEG, and that's what we forward.
+			{ type: MessageAttachmentKind.Resource, uri: jpegUri.toString(), label: 'snapshot', displayKind: 'image', contentType: 'image/jpeg' },
 			// Non-image resources still go as `file` references.
 			{ type: MessageAttachmentKind.Resource, uri: docUri.toString(), label: 'notes.txt', displayKind: 'document' },
 		]);
@@ -436,7 +442,34 @@ suite('CopilotAgentSession', () => {
 					mimeType: 'image/png',
 					displayName: 'voice',
 				},
+				{
+					type: 'blob',
+					data: encodeBase64(VSBuffer.fromString(jpegBytes)),
+					mimeType: 'image/jpeg',
+					displayName: 'snapshot',
+				},
 				{ type: 'file', path: docUri.fsPath, displayName: 'notes.txt' },
+			],
+		}]);
+	});
+
+	test('keeps non-image Resource attachments as file references even when contentType is set', async () => {
+		const pdfUri = URI.file('/workspace/spec.pdf');
+		const { session, mockSession } = await createAgentSession(disposables, {
+			fileContents: {
+				// Read shouldn't fire for non-image content types; if it does the test fails loudly.
+				[pdfUri.toString()]: 'never-read',
+			},
+		});
+
+		await session.send('attach this', [
+			{ type: MessageAttachmentKind.Resource, uri: pdfUri.toString(), label: 'spec.pdf', displayKind: 'document', contentType: 'application/pdf' },
+		]);
+
+		assert.deepStrictEqual(mockSession.sendRequests, [{
+			prompt: 'attach this',
+			attachments: [
+				{ type: 'file', path: pdfUri.fsPath, displayName: 'spec.pdf' },
 			],
 		}]);
 	});
