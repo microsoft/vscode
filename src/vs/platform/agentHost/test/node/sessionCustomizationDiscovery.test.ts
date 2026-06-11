@@ -4,15 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { flakySuite } from '../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
@@ -181,6 +189,94 @@ suite('SessionCustomizationDiscovery', () => {
 
 		assert.strictEqual(watchCalls.length, watchCallsAfterFirstScan, 'expected no new watch registrations for unchanged roots');
 		assert.strictEqual(watchDisposeCalls, 0, 'expected existing watchers to remain active for unchanged roots');
+	});
+
+	test('fires onDidChange when a new agent file is added under a non-recursively watched root', async () => {
+		// Seed an existing agent so `.github/agents` is discovered and watched.
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+
+		// Flush buffered file change events from the initial seed/scan so the
+		// assertion below only observes the event triggered by the new file.
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await seed('/workspace/.github/agents/bar.agent.md', 'new workspace agent');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire for a new agent file inside the watched directory');
+	});
+
+	test('fires onDidChange when an existing agent file is modified under a non-recursively watched root', async () => {
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		// Overwrite the existing agent file to produce an UPDATED event.
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent (updated)');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when an existing agent file is modified');
+	});
+
+	test('fires onDidChange when an existing agent file is deleted under a non-recursively watched root', async () => {
+		const agentUri = await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+		// Seed a second agent so the parent directory still exists after the deletion.
+		await seed('/workspace/.github/agents/bar.agent.md', 'workspace agent bar');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await fileService.del(agentUri);
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when an existing agent file is deleted');
+	});
+
+	test('fires onDidChange when AGENTS.md in the workspace root is modified', async () => {
+		// AGENTS.md lives directly under the workspace root, which is watched non-recursively.
+		await seed('/workspace/AGENTS.md', 'agents instructions');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await seed('/workspace/AGENTS.md', 'agents instructions (updated)');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when AGENTS.md at the workspace root is modified');
 	});
 
 	test('cancellation of one caller does not affect another concurrent caller', async () => {
@@ -505,5 +601,173 @@ suite('SessionPluginBundler', () => {
 		const a = disposables.add(instantiationService.createInstance(SessionPluginBundler, workspace));
 		const b = disposables.add(instantiationService.createInstance(SessionPluginBundler, otherWorkspace));
 		assert.notStrictEqual(a.rootUri.toString(), b.rootUri.toString());
+	});
+});
+
+flakySuite('SessionCustomizationDiscovery (real filesystem)', () => {
+
+	const disposables = new DisposableStore();
+	let testDir: string;
+	let workspaceDir: string;
+	let userHomeDir: string;
+	let fileService: FileService;
+	let instantiationService: TestInstantiationService;
+	let workspace: URI;
+	let userHome: URI;
+
+	setup(async () => {
+		// Use realpathSync to resolve symlinks on macOS (tmp dir is symlinked
+		// under /var -> /private/var); mismatched paths trip up watcher matching.
+		testDir = getRandomTestPath(fs.realpathSync(tmpdir()), 'vsctests', 'discovery');
+		workspaceDir = join(testDir, 'workspace');
+		userHomeDir = join(testDir, 'home');
+		await fs.promises.mkdir(workspaceDir, { recursive: true });
+		await fs.promises.mkdir(userHomeDir, { recursive: true });
+
+		workspace = URI.file(workspaceDir);
+		userHome = URI.file(userHomeDir);
+
+		const log = new NullLogService();
+		fileService = disposables.add(new FileService(log));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(log))));
+
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IAgentPluginManager, { basePath: URI.file(join(testDir, 'agentPlugins')) } as Partial<IAgentPluginManager>);
+	});
+
+	teardown(async () => {
+		disposables.clear();
+		await Promises.rm(testDir).catch(() => undefined);
+	});
+
+	// Confirms the OS-level watcher for `dirPath` is live by writing throwaway
+	// sentinel files as direct children of it until we observe a corresponding
+	// onDidChange event. Works for both recursive and non-recursive watchers.
+	// Returns as soon as the watcher fires (plus a short drain), avoiding fixed
+	// warmup delays.
+	async function waitForWatcher(discovery: SessionCustomizationDiscovery, dirPath: string): Promise<void> {
+		for (let attempt = 0; attempt < 100; attempt++) {
+			let fired = false;
+			const sub = discovery.onDidChange(() => { fired = true; });
+			try {
+				const sentinel = join(dirPath, `__warmup-${attempt}.tmp`);
+				await fs.promises.writeFile(sentinel, `warmup ${attempt}`);
+				await timeout(20);
+				if (fired) {
+					// Drain any FS events still in flight from earlier sentinel writes
+					// so they don't leak into the test's assertion window.
+					let lastFire = Date.now();
+					const drain = discovery.onDidChange(() => { lastFire = Date.now(); });
+					try {
+						while (Date.now() - lastFire < 100) {
+							await timeout(30);
+						}
+					} finally {
+						drain.dispose();
+					}
+					return;
+				}
+			} finally {
+				sub.dispose();
+			}
+		}
+		throw new Error(`watcher for ${dirPath} did not become ready within budget`);
+	}
+
+	test('does not fire onDidChange when a file outside watched roots is modified', async () => {
+		// Seed an agent file so the workspace and its agent dirs get watched.
+		const agentsDir = join(workspaceDir, '.github', 'agents');
+		await fs.promises.mkdir(agentsDir, { recursive: true });
+		await fs.promises.writeFile(join(agentsDir, 'foo.agent.md'), 'workspace agent');
+
+		// Pre-create the unrelated nested dir so adding a file inside it later
+		// does not change a directly-watched directory's direct entries.
+		const outsideDir = join(workspaceDir, 'src');
+		await fs.promises.mkdir(outsideDir, { recursive: true });
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+
+		// Wait until at least one watched directory's watcher is observably live.
+		await waitForWatcher(discovery, agentsDir);
+
+		let changeCount = 0;
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+		}));
+
+		// This file lives under <workspace>/src/, which is NOT a direct entry of
+		// any non-recursively watched root (workspace itself is watched only for
+		// its direct children like AGENTS.md). The OS-level watcher should not
+		// deliver an event for it.
+		await fs.promises.writeFile(join(outsideDir, 'test.ts'), 'unrelated source file');
+
+		// Wait long enough for any stray watcher events to propagate.
+		await timeout(500);
+
+		assert.strictEqual(changeCount, 0, 'expected onDidChange not to fire for changes outside any watched root');
+	});
+
+	test('fires onDidChange when AGENTS.md in the workspace root is modified', async () => {
+		// AGENTS.md is a direct child of the workspace, which is watched non-recursively.
+		await fs.promises.writeFile(join(workspaceDir, 'AGENTS.md'), 'workspace agents instructions');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+
+		// Wait until the workspace-root watcher is observably live.
+		await waitForWatcher(discovery, workspaceDir);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await fs.promises.writeFile(join(workspaceDir, 'AGENTS.md'), 'workspace agents instructions (updated)');
+		await raceTimeout(fired.p, 5000);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when AGENTS.md at the workspace root is modified');
+	});
+
+	test('fires onDidChange when files under .github/instructions are modified (including nested)', async () => {
+		// .github/instructions is watched recursively, so both a direct child and
+		// a nested file inside a subdirectory should trigger refresh.
+		const instructionsDir = join(workspaceDir, '.github', 'instructions');
+		const nestedDir = join(instructionsDir, 'inner');
+		await fs.promises.mkdir(nestedDir, { recursive: true });
+		const fooPath = join(instructionsDir, 'foo.instructions.md');
+		const innerPath = join(nestedDir, 'inner.instructions.md');
+		await fs.promises.writeFile(fooPath, 'foo v1');
+		await fs.promises.writeFile(innerPath, 'inner v1');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+
+		// Wait until the recursive instructions watcher is observably live.
+		await waitForWatcher(discovery, instructionsDir);
+
+		let changeCount = 0;
+		let fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		// Direct child of the recursively-watched directory.
+		await fs.promises.writeFile(fooPath, 'foo v2');
+		await raceTimeout(fired.p, 5000);
+		assert.ok(changeCount >= 1, 'expected onDidChange to fire for .github/instructions/foo.instructions.md');
+
+		const countAfterFoo = changeCount;
+		fired = new DeferredPromise<void>();
+
+		// Nested file inside the recursively-watched directory.
+		await fs.promises.writeFile(innerPath, 'inner v2');
+		await raceTimeout(fired.p, 5000);
+		assert.ok(changeCount > countAfterFoo, 'expected onDidChange to fire for .github/instructions/inner/inner.instructions.md');
 	});
 });

@@ -178,8 +178,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._watchRootUris.clear();
 		this._register(this._fileService.onDidFilesChange(e => {
-			for (const [uri, recursive] of this._watchRootUris.entries()) {
-				if (recursive ? e.affects(uri) : e.contains(uri)) {
+			for (const [uri] of this._watchRootUris.entries()) {
+				if (e.affects(uri)) {
 					this._scheduleRefresh();
 					break;
 				}
