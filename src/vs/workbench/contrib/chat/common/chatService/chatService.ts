@@ -630,19 +630,49 @@ export function isLegacyChatTerminalToolInvocationData(data: unknown): data is I
 	return !!data && typeof data === 'object' && 'command' in data && 'language' in data;
 }
 
-export interface IChatToolInputInvocationData {
-	kind: 'input';
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	rawInput: any;
-	/** Optional MCP App UI metadata for rendering during and after tool execution */
-	mcpAppData?: {
+/**
+ * Routing information for an MCP App's webview sub-RPCs. The kind
+ * determines where `tools/call`, `resources/read`,
+ * `sampling/createMessage`, etc. are sent:
+ *
+ * - `local`: resolves the MCP server via {@link IMcpService} from a
+ *   `serverDefinitionId` + `collectionId`. Used for locally-configured
+ *   MCP servers whose state lives in the workbench.
+ * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
+ *   on an AHP `mcp://` side channel. Used for MCP servers owned by an
+ *   agent host (e.g. Copilot CLI).
+ */
+export type ChatMcpAppData =
+	| {
+		kind: 'local';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		resourceUri: string;
 		/** Reference to the server definition for reconnection */
 		serverDefinitionId: string;
 		/** Reference to the collection containing the server */
 		collectionId: string;
+	}
+	| {
+		kind: 'agentHost';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		resourceUri: string;
+		/** AHP `mcp://` channel URI for the originating server. */
+		channel: string;
+		/**
+		 * Stable identifier for the originating server, used as the
+		 * webview origin keyset. Typically the AHP customization id —
+		 * its lifetime is per-session, which is the granularity we want
+		 * for persistent webview origins.
+		 */
+		serverId: string;
 	};
+
+export interface IChatToolInputInvocationData {
+	kind: 'input';
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	rawInput: any;
+	/** Optional MCP App UI metadata for rendering during and after tool execution */
+	mcpAppData?: ChatMcpAppData;
 }
 
 export const enum ToolConfirmKind {

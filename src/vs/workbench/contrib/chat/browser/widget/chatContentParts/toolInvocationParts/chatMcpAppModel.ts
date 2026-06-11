@@ -113,7 +113,7 @@ export class ChatMcpAppModel extends Disposable {
 		super();
 
 		this._originStore = new WebviewOriginStore(ORIGIN_STORE_KEY, storageService);
-		this._webviewOrigin = this._originStore.getOrigin('mcpApp', renderData.serverDefinitionId);
+		this._webviewOrigin = this._originStore.getOrigin('mcpApp', this._serverOriginId());
 		this._mcpToolCallUI = this._register(this._instantiationService.createInstance(McpToolCallUI, renderData));
 		this._height = ChatMcpAppModel.heightCache.get(this.toolInvocation) ?? 300;
 
@@ -166,6 +166,13 @@ export class ChatMcpAppModel extends Disposable {
 		// Set up message handling
 		this._register(this._webview.onMessage(async ({ message }) => {
 			await this._handleWebviewMessage(message as McpApps.AppMessage);
+		}));
+
+		this._register(this._mcpToolCallUI.onNotification(n => {
+			if (!this._announcedCapabilities) {
+				return;
+			}
+			this._webview.postMessage({ jsonrpc: '2.0', method: n.method, params: n.params });
 		}));
 
 		// Start loading the content
@@ -435,6 +442,10 @@ export class ChatMcpAppModel extends Disposable {
 					result = await this._handleResourcesRead(request.params, token);
 					break;
 
+				case 'sampling/createMessage':
+					result = await this._handleSamplingCreateMessage(request.params, token);
+					break;
+
 				case 'ping':
 					break;
 
@@ -566,6 +577,33 @@ export class ChatMcpAppModel extends Disposable {
 	/**
 	 * Sends the tool result notification when the result becomes available.
 	 */
+	/**
+	 * Returns a stable identifier for the originating MCP server to use
+	 * as the webview origin key. Local servers use their definition id,
+	 * agent-host servers use the per-session `serverId`.
+	 */
+	private _serverOriginId(): string {
+		return this.renderData.kind === 'agentHost'
+			? this.renderData.serverId
+			: this.renderData.serverDefinitionId;
+	}
+
+	/**
+	 * Resolves a server-relative resource URI into a workbench URI.
+	 * - Local servers: wrap in {@link McpResourceURI.fromServer} so it
+	 *   resolves through the MCP filesystem provider.
+	 * - Agent-host servers: pass through as a plain {@link URI}. There's
+	 *   no host-side resolver for AHP-backed servers in v1, so these
+	 *   URIs may not be openable, but they preserve the original
+	 *   resource reference for the user.
+	 */
+	private _resolveServerResourceUri(serverUri: string): URI {
+		if (this.renderData.kind === 'agentHost') {
+			return URI.parse(serverUri);
+		}
+		return McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, serverUri);
+	}
+
 	private _sendToolResult(resultDetails: IToolResult['toolResultDetails'] | IChatToolInvocationSerialized['resultDetails']): void {
 		if (isToolResultInputOutputDetails(resultDetails) && resultDetails.mcpOutput) {
 			this._sendNotification({
@@ -591,7 +629,7 @@ export class ChatMcpAppModel extends Disposable {
 			if (c.type === 'image') {
 				return { kind: 'image', value: decodeBase64(c.data).buffer, id, name: 'Image' };
 			} else if (c.type === 'resource_link') {
-				const uri = McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, c.uri);
+				const uri = this._resolveServerResourceUri(c.uri);
 				return { kind: 'file', value: uri, id, name: basename(uri) };
 			} else {
 				return undefined;
@@ -608,7 +646,7 @@ export class ChatMcpAppModel extends Disposable {
 			return {};
 		}
 
-		const idPrefix = `mcpui-context-${hash(this.renderData.serverDefinitionId)}-`;
+		const idPrefix = `mcpui-context-${hash(this._serverOriginId())}-`;
 		const toDelete = widget.attachmentModel.getAttachmentIDs();
 		const idsToDelete = Array.from(toDelete).filter(id => id.startsWith(idPrefix));
 		const entries: IChatRequestVariableEntry[] = [];
@@ -626,7 +664,7 @@ export class ChatMcpAppModel extends Disposable {
 						mimeType: block.mimeType,
 					});
 				} else if (block.type === 'resource_link') {
-					const uri = McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, block.uri);
+					const uri = this._resolveServerResourceUri(block.uri);
 					entries.push({
 						kind: 'file',
 						value: uri,
@@ -715,10 +753,7 @@ export class ChatMcpAppModel extends Disposable {
 					newParts.push({ kind: 'data', mimeType: resource.mimeType, uri });
 				} else if (content.type === 'resource_link') {
 					// ResourceLink — create a part with an MCP resource URI, resolved lazily on save
-					const mcpUri = McpResourceURI.fromServer(
-						{ id: this.renderData.serverDefinitionId, label: '' },
-						content.uri,
-					);
+					const mcpUri = this._resolveServerResourceUri(content.uri);
 					newParts.push({ kind: 'data', mimeType: content.mimeType, uri: mcpUri });
 				}
 			} catch (error) {
@@ -775,6 +810,18 @@ export class ChatMcpAppModel extends Disposable {
 		}
 
 		return this._mcpToolCallUI.readResource(params.uri, token);
+	}
+
+	/**
+	 * Handles sampling/createMessage requests from the MCP App. Forwarded
+	 * to the host-side sampling implementation through the underlying
+	 * transport (typically an agent host that owns the MCP server).
+	 */
+	private async _handleSamplingCreateMessage(params: MCP.CreateMessageRequestParams, token: CancellationToken): Promise<MCP.CreateMessageResult> {
+		if (!params) {
+			throw new Error('Missing params in sampling/createMessage request');
+		}
+		return this._mcpToolCallUI.sampling(params, token);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any

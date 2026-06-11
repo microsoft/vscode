@@ -8,12 +8,12 @@ import { escapeMarkdownLinkLabel, IMarkdownString, MarkdownString } from '../../
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { MessageKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ChatExternalEditKind, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { type ChatExternalEditKind, type ChatMcpAppData, type IChatExternalEdit, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatSearchToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IChatRequestVariableData } from '../../../common/model/chatModel.js';
@@ -62,6 +62,47 @@ function getSubagentTaskDescription(tc: { _meta?: Record<string, unknown> }): st
 function getSubagentAgentName(tc: { _meta?: Record<string, unknown> }): string | undefined {
 	const v = tc._meta?.subagentAgentName;
 	return typeof v === 'string' && v.length > 0 ? v : undefined;
+}
+
+/**
+ * Returns MCP App render data for a tool call when it is an MCP call
+ * with an `_meta.ui.resourceUri` and a known AHP `mcp://` `channel`.
+ * Used by both live and serialized adapters to populate
+ * `IChatToolInputInvocationData.mcpAppData` so the chat renderer mounts
+ * a `ChatMcpAppSubPart` over the tool.
+ *
+ * Tool calls produced by an agent host always route through the AHP
+ * `mcp://` side channel (and never through {@link IMcpService}), so
+ * the returned data is always `kind: 'agentHost'`. The customization
+ * id doubles as a stable per-session `serverId` for webview origin
+ * scoping — two sessions exposing the same upstream MCP server therefore
+ * get distinct webview origins (assuming distinct customization ids).
+ */
+function getMcpAppData(tc: ToolCallState, _sessionResource: URI): ChatMcpAppData | undefined {
+	if (tc.contributor?.kind !== ToolCallContributorKind.MCP) {
+		return undefined;
+	}
+	const ui = tc._meta?.ui;
+	if (!ui || typeof ui !== 'object') {
+		return undefined;
+	}
+	const resourceUri = (ui as { resourceUri?: unknown }).resourceUri;
+	if (typeof resourceUri !== 'string' || resourceUri.length === 0) {
+		return undefined;
+	}
+	const channelValue = (ui as { channel?: unknown }).channel;
+	if (typeof channelValue !== 'string' || channelValue.length === 0) {
+		// No channel yet — the App's sub-RPCs would have nowhere to go.
+		// Skip mounting until the customization reaches Ready and the
+		// producer re-emits with the channel populated.
+		return undefined;
+	}
+	return {
+		kind: 'agentHost',
+		resourceUri,
+		serverId: tc.contributor.customizationId,
+		channel: channelValue,
+	};
 }
 
 /**
@@ -603,7 +644,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	}
 
-	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | undefined;
+	let toolSpecificData: IChatTerminalToolInvocationData | IChatSearchToolInvocationData | IChatToolInputInvocationData | undefined;
 	if (isTerminal) {
 		toolSpecificData = {
 			...buildTerminalToolSpecificData(tc, sessionResource),
@@ -611,6 +652,13 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		};
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
+	} else {
+		const mcpAppData = getMcpAppData(tc, sessionResource);
+		if (mcpAppData) {
+			let rawInput: unknown;
+			try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
+			toolSpecificData = { kind: 'input', rawInput, mcpAppData };
+		}
 	}
 
 	const pastTenseMsg = isSuccess
@@ -1118,6 +1166,19 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);
+	}
+
+	if (isCompleted) {
+		const mcpAppData = getMcpAppData(tc, backendSession);
+		if (mcpAppData) {
+			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
+			let rawInput: unknown = existingInput?.rawInput;
+			if (rawInput === undefined) {
+				try { rawInput = tc.toolInput ? JSON.parse(tc.toolInput) : {}; } catch { rawInput = { input: tc.toolInput }; }
+			}
+			invocation.toolSpecificData = { kind: 'input', rawInput, mcpAppData };
+			invocation.notifyToolSpecificDataChanged();
+		}
 	}
 
 	const isFailure = (isCompleted && !tc.success) || isCancelled;

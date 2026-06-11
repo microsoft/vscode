@@ -245,6 +245,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
 		return {
 			clientName: 'vscode',
+			enableMcpApps: true,
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
