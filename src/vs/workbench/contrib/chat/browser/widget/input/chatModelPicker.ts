@@ -17,6 +17,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { formatTokenCount } from '../../../../../../base/common/numbers.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -1543,19 +1544,6 @@ export function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentif
 	return container.children.length > 0 ? { element: container, disposable: disposables } : undefined;
 }
 
-
-export function formatTokenCount(count: number): string {
-	if (count >= 1_000_000) {
-		const value = count / 1_000_000;
-		const floored = Math.floor(value * 10) / 10;
-		return floored % 1 === 0 ? `${floored.toFixed(0)}M` : `${floored.toFixed(1)}M`;
-	} else if (count > 900_000) {
-		return '1M';
-	} else if (count >= 1000) {
-		return `${Math.round(count / 1000)}K`;
-	}
-	return count.toString();
-}
 
 function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');
