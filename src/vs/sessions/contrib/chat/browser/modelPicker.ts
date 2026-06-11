@@ -54,7 +54,8 @@ function getModelPickerOptionsForSession(session: ISession | undefined, sessions
  * {@link ISessionModelPickerOptions.autoModelUnavailable}). Used to disable
  * sending — e.g. the Claude agent for a Copilot Free / Student user shows
  * "No models available" and must not send. Not reactive on its own; callers
- * should re-evaluate when the language model registry changes.
+ * should re-evaluate when the session provider's {@link ISessionsProvider.onDidChangeModels}
+ * fires.
  */
 export function sessionHasNoSelectableModel(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): boolean {
 	if (!session) {

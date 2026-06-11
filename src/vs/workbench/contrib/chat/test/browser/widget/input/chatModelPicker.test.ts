@@ -205,6 +205,9 @@ suite('buildModelPickerItems', () => {
 	test('autoModelUnavailable shows a disabled no-models entry instead of auto', () => {
 		const items = callBuild([], { autoModelUnavailable: true });
 		const actions = getActionItems(items);
+		// Exactly one entry: the early return must suppress Auto and the
+		// standalone "Manage Models" action (the helper always passes one).
+		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions.some(a => a.label === 'Auto'), false);
 		assert.strictEqual(actions[0].item?.id, 'noModels');
 		assert.strictEqual(actions[0].item?.enabled, false);

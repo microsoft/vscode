@@ -477,6 +477,11 @@ export function buildModelPickerItems(
 				hideIcon: false,
 				hover: hover ? { content: hover } : undefined,
 			});
+			// Nothing else is selectable in this state, so surface only the
+			// single disabled entry. Returning here prevents the grouped-picker
+			// logic below from appending an Auto entry, model groups, or a
+			// standalone "Manage Models" action.
+			return items;
 		} else {
 			items.push(createModelItem({
 				id: 'auto',
