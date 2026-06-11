@@ -173,9 +173,10 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	let effort: string | undefined;
 	if (thinkingConfig) {
 		const declaredLevels = endpoint.supportsReasoningEffort?.length ? endpoint.supportsReasoningEffort : undefined;
+		const explicitlyUnsupported = endpoint.supportsReasoningEffort !== undefined && endpoint.supportsReasoningEffort.length === 0;
 		const defaultEffort = declaredLevels
 			? (declaredLevels.includes('medium') ? 'medium' : declaredLevels[Math.floor((declaredLevels.length - 1) / 2)])
-			: endpoint.supportsAdaptiveThinking ? 'high' : undefined;
+			: !explicitlyUnsupported && endpoint.supportsAdaptiveThinking ? 'high' : undefined;
 		if (defaultEffort !== undefined) {
 			const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 				?? reasoningEffort
