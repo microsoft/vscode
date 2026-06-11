@@ -41,6 +41,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import type { ICopilotApiService } from './shared/copilotApiService.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -52,6 +54,10 @@ export interface IAgentSideEffectsOptions {
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
 	readonly sessionDataService: ISessionDataService;
+	/** Get the GitHub token used for Copilot utility title generation. */
+	readonly getGitHubCopilotToken?: () => string | undefined;
+	/** CAPI service used for Copilot utility title generation. */
+	readonly copilotApiService?: ICopilotApiService;
 	/**
 	 * Called after each top-level session turn completes so git state can be
 	 * refreshed and published via `SessionMetaChanged`. Subagent turns are
@@ -104,6 +110,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSubagentSignals = new Map<string, IPendingSubagentSignal[]>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _turnTracker: AgentHostTurnTracker;
+	private readonly _titleController: AgentHostSessionTitleController;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -118,6 +125,11 @@ export class AgentSideEffects extends Disposable {
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._turnTracker = new AgentHostTurnTracker(this._telemetryReporter);
 		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
+		this._titleController = this._register(instantiationService.createInstance(AgentHostSessionTitleController, this._stateManager, {
+			sessionDataService: this._options.sessionDataService,
+			getGitHubCopilotToken: this._options.getGitHubCopilotToken,
+			copilotApiService: this._options.copilotApiService,
+		}));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -743,19 +755,8 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 
-				// On the very first turn, immediately set the session title to the
-				// user's message so the UI shows a meaningful title right away
-				// while waiting for the AI-generated title. Only apply when the
-				// title is still the default placeholder to avoid clobbering a
-				// title set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(channel);
-				const fallbackTitle = action.message.text.trim().replace(/\s+/g, ' ').slice(0, 200);
-				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
-					this._stateManager.dispatchServerAction(channel, {
-						type: ActionType.SessionTitleChanged,
-						title: fallbackTitle,
-					});
-				}
+				this._titleController.seedTitleFromFirstMessage(channel, action.message.text);
 
 				const agent = this._options.getAgent(channel);
 				if (!agent) {
@@ -916,6 +917,10 @@ export class AgentSideEffects extends Disposable {
 				break;
 			}
 		}
+	}
+
+	cancelSessionTitleGeneration(session: ProtocolURI): void {
+		this._titleController.cancelTitleGeneration(session);
 	}
 
 	/**
