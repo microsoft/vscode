@@ -243,6 +243,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Else we could end up with duplicates or the like.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		const customAgents = await toSdkCustomAgents(pluginsWithoutDirs.flatMap(p => p.agents), this._fileService);
+		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
+		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
 		return {
 			clientName: 'vscode',
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
@@ -256,8 +258,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onExitPlanModeRequest: (request, invocation) => runtime.handleExitPlanModeRequest(request, invocation),
 			workingDirectory: plan.workingDirectory?.fsPath,
 			customAgents,
-			skillDirectories: toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills)),
-			instructionDirectories: toSdkInstructionDirectories(plugins.flatMap(p => p.instructions)),
+			skillDirectories,
+			instructionDirectories,
 			systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),

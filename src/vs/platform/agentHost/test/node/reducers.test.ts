@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { changesetReducer, chatReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ResponsePartKind, ToolCallStatus, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
@@ -193,6 +193,40 @@ suite('chatReducer – summaryStatus with tool call confirmations and input requ
 		});
 
 		assert.strictEqual(state.status, SessionStatus.InputNeeded);
+	});
+
+	test('ChatToolCallReady preserves action metadata on pending and running tool calls', () => {
+		const state = withActiveTurnAndToolCall(makeChat());
+		const pending = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			toolInput: '/foo.ts',
+			_meta: { autoApproveBySetting: true },
+		});
+		const running = chatReducer(state, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file',
+			toolInput: '/foo.ts',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			_meta: { autoApproveBySetting: true },
+		});
+
+		const getToolCall = (s: ChatState) => {
+			const part = s.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall;
+		};
+		assert.deepStrictEqual([
+			{ status: getToolCall(pending).status, meta: getToolCall(pending)._meta },
+			{ status: getToolCall(running).status, meta: getToolCall(running)._meta },
+		], [
+			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
+			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
+		]);
 	});
 });
 

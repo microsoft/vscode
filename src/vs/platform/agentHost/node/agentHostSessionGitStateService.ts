@@ -7,7 +7,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, buildUncommittedChangesetUri, formatSessionChangesetDescription } from '../common/changesetUri.js';
 import { readSessionGitState, withSessionGitState, type Changeset, type ISessionGitState } from '../common/state/sessionState.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -84,14 +84,14 @@ export class AgentHostSessionGitStateService extends Disposable {
 		this._stateManager.setSessionChangesets(sessionKey, filtered);
 	}
 
-	private _updateBranchChangesetDescription(sessionKey: string, gitState: { branchName?: string; baseBranchName?: string }): void {
-		const description = formatSessionChangesetDescription(gitState.branchName, gitState.baseBranchName);
+	private _updateBranchChangesetDescription(sessionKey: string, gitState: ISessionGitState): void {
+		const description = formatSessionChangesetDescription(gitState);
 		const state = this._stateManager.getSessionState(sessionKey);
 		const current = state?.changesets;
 		if (!current || current.length === 0) {
 			return;
 		}
-		const branchUri = buildSessionChangesetUri(sessionKey);
+		const branchUri = buildBranchChangesetUri(sessionKey);
 		let changed = false;
 		const next = current.map((c: Changeset) => {
 			if (c.uriTemplate !== branchUri) {

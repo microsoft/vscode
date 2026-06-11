@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
-import type { FetchTurnsResult } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, buildSubagentSessionUri, type MarkdownResponsePart, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import type { FetchTurnsResult, ListSessionsResult } from '../../../common/state/sessionProtocol.js';
+import { ResponsePartKind, ROOT_STATE_URI, buildSubagentSessionUri, isSubagentSession, type MarkdownResponsePart, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -214,5 +214,33 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const childToolCalls = childTurn.responseParts.filter(p => p.kind === ResponsePartKind.ToolCall);
 		const childToolNames = childToolCalls.map(p => p.toolCall.toolName);
 		assert.deepStrictEqual(childToolNames, ['echo_tool'], 'child subagent session should contain the inner `echo_tool` call');
+	});
+
+	test('subagent: child sessions never appear in listSessions', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-subagent-list');
+		dispatchTurnStarted(client, sessionUri, 'turn-sa-list', 'subagent', 1);
+
+		// Wait for the parent turn to complete so the subagent child session
+		// has been created in the state manager.
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Sanity: the subagent child session is live (subscribing succeeds).
+		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
+		const childSnapshot = await client.call<SubscribeResult>('subscribe', { channel: childUri });
+		assert.ok(childSnapshot.snapshot, 'subagent child session should be live');
+
+		const result = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+		assert.deepStrictEqual(
+			{
+				subagentSessions: result.items.filter(s => isSubagentSession(s.resource)).map(s => s.resource),
+				includesParent: result.items.some(s => s.resource === sessionUri),
+			},
+			{
+				subagentSessions: [],
+				includesParent: true,
+			},
+		);
 	});
 });

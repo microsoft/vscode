@@ -21,6 +21,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import { localize } from '../../../../../../nls.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -153,6 +154,10 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 		default:
 			return ToolCallConfirmationReason.UserAction;
 	}
+}
+
+function shouldAutoApproveClientToolCall(toolCall: ToolCallState): boolean {
+	return toolCall._meta?.autoApproveBySetting === true;
 }
 
 /**
@@ -713,13 +718,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!isNewSession) {
 			this._ensurePendingMessageSubscription(sessionResource, resolvedSession);
 
-			// Claim active client up-front so the host syncs this client's
-			// customizations into session state immediately. Without this,
-			// session-scoped customizations (and the agents derived from
-			// them) wouldn't land until the user sent their first message,
-			// leaving the agent picker empty on session open.
-			this._ensureActiveClientForMessage(resolvedSession);
-
 			// Eagerly create the snapshot controller once the ChatModel for
 			// this session is available so that "Restore Checkpoint" works
 			// on historical turns. The model may already exist (in which
@@ -843,8 +841,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					config: request.agentHostSessionConfig,
 				});
 			}
-
-			this._ensureActiveClientForMessage(resolvedSession);
 		}
 
 		const completedTurn = await this._handleTurn(resolvedSession, request, progress, cancellationToken);
@@ -1179,6 +1175,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (cancellationToken.isCancellationRequested) {
 			return;
 		}
+
+		// Claim the active-client slot for this connection before the turn
+		// goes out. We only claim on turn start (not on session open) so
+		// that opening a session doesn't dispossess another client that's
+		// in the middle of a turn.
+		this._ensureActiveClientForMessage(session);
 
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
@@ -1759,6 +1761,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// idempotent.
 		store.add(autorun(reader => {
 			const state = invocation.state.read(reader);
+			const tc = part$.read(reader).toolCall;
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
+				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
+				return;
+			}
 			if (confirmationDispatched) {
 				return;
 			}
@@ -1823,6 +1830,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// `cts.token.isCancellationRequested`.
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
+			const state = invocation.state.read(reader);
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && shouldAutoApproveClientToolCall(tc)) {
+				state.confirm({ type: ToolConfirmKind.Setting, id: SessionConfigKey.AutoApprove });
+			}
 			if (tc.status === ToolCallStatus.Cancelled) {
 				if (cts.token.isCancellationRequested) {
 					return;

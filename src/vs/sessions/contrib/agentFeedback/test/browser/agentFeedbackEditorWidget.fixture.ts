@@ -71,28 +71,6 @@ function createFeedbackComment(id: string, text: string, startLineNumber: number
 	};
 }
 
-function createReviewComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber, suggestion?: ICodeReviewSuggestion): ISessionEditorComment {
-	const range: IRange = {
-		startLineNumber,
-		startColumn: 1,
-		endLineNumber,
-		endColumn: 1,
-	};
-
-	return {
-		id: `codeReview:${id}`,
-		sourceId: id,
-		source: SessionEditorCommentSource.CodeReview,
-		text,
-		resourceUri: fileResource,
-		range,
-		sessionResource,
-		suggestion,
-		severity: 'warning',
-		canConvertToAgentFeedback: true,
-	};
-}
-
 function createPRReviewComment(id: string, text: string, startLineNumber: number, endLineNumber: number = startLineNumber): ISessionEditorComment {
 	return {
 		id: `prReview:${id}`,
@@ -252,13 +230,13 @@ const groupedFeedback = [
 ];
 
 const reviewOnly = [
-	createReviewComment('r-1', 'Handle the null case before returning here.', 7),
-	createReviewComment('r-2', 'This branch needs a stronger explanation.', 8),
+	createFeedbackComment('r-1', 'Handle the null case before returning here.', 7),
+	createFeedbackComment('r-2', 'This branch needs a stronger explanation.', 8),
 ];
 
 const mixedComments = [
 	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
-	createReviewComment('r-1', 'This should be extracted into a helper.', 3),
+	createFeedbackComment('r-1', 'This should be extracted into a helper.', 3),
 	createFeedbackComment('f-2', 'Consider renaming this for readability.', 4),
 ];
 
@@ -269,7 +247,7 @@ const reviewSuggestion: ICodeReviewSuggestion = {
 };
 
 const suggestionMix = [
-	createReviewComment('r-3', 'Prefer using the helper so the intent is explicit.', 8, 8, reviewSuggestion),
+	createFeedbackComment('r-3', 'Prefer using the helper so the intent is explicit.', 8, 8, reviewSuggestion),
 	createFeedbackComment('f-3', 'Keep the helper name aligned with the domain concept.', 9),
 ];
 
@@ -295,7 +273,7 @@ const threadedFeedback = [
 const allSourcesMixed = [
 	createFeedbackComment('f-1', 'Prefer a clearer variable name on this line.', 2),
 	createPRReviewComment('pr-1', 'Our style guide says to use descriptive names here.', 3),
-	createReviewComment('r-1', 'This should be extracted into a helper.', 6),
+	createFeedbackComment('r-1', 'This should be extracted into a helper.', 6),
 	createPRReviewComment('pr-2', 'This logic duplicates what we have in utils.ts — consider reusing.', 8, 9),
 ];
 
@@ -360,7 +338,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 		render: context => renderWidget(context, {
 			commentItems: mixedComments,
 			expanded: true,
-			focusedCommentId: 'codeReview:r-1',
+			focusedCommentId: 'agentFeedback:r-1',
 		}),
 	}),
 

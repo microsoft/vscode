@@ -1039,6 +1039,82 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		test('getSessionCustomizations coalesces burst watcher changes into one discovered refresh publish', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+
+			const workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
+			const agentsRoot = URI.joinPath(workspace, '.github', 'agents');
+			const instructionsRoot = URI.joinPath(workspace, '.github', 'instructions');
+			await fileService.createFolder(agentsRoot);
+			await fileService.createFolder(instructionsRoot);
+			await fileService.writeFile(URI.joinPath(agentsRoot, 'helper-0.agent.md'), VSBuffer.fromString('agent 0'));
+			await fileService.writeFile(URI.joinPath(instructionsRoot, 'base.instructions.md'), VSBuffer.fromString('---\napplyTo:\n  - src/**\n---\nbase instruction'));
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, fileService });
+
+			const actions: SessionAction[] = [];
+			disposables.add(agent.onDidSessionProgress(progress => {
+				if (progress.kind === 'action') {
+					actions.push(progress.action);
+				}
+			}));
+
+			type DiscoveredDirectoryCustomization = PluginCustomization & { children: NonNullable<PluginCustomization['children']> };
+
+			const countDiscoveredRefreshPublishes = (): number => actions.filter(action => {
+				if (action.type !== ActionType.SessionCustomizationsChanged) {
+					return false;
+				}
+				const customizations = (action as Extract<SessionAction, { type: ActionType.SessionCustomizationsChanged }>).customizations;
+				return customizations.some(customization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString())
+					&& customizations.some(customization => customization.type === CustomizationType.Directory && customization.uri === instructionsRoot.toString());
+			}).length;
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'session-discovery-burst-watcher-change');
+				await agent.createSession({
+					session,
+					workingDirectory: workspace,
+				});
+
+				await agent.getSessionCustomizations(session);
+				await new Promise(resolve => setTimeout(resolve, 50));
+				const publishCountBeforeBurst = countDiscoveredRefreshPublishes();
+
+				await Promise.all([
+					fileService.writeFile(URI.joinPath(agentsRoot, 'helper-1.agent.md'), VSBuffer.fromString('agent 1')),
+					fileService.writeFile(URI.joinPath(agentsRoot, 'helper-2.agent.md'), VSBuffer.fromString('agent 2')),
+					fileService.writeFile(URI.joinPath(instructionsRoot, 'extra.instructions.md'), VSBuffer.fromString('---\napplyTo:\n  - test/**\n---\nextra instruction')),
+				]);
+
+				let discoveredAgentCount = 0;
+				let discoveredInstructionCount = 0;
+				for (let i = 0; i < 20 && (discoveredAgentCount < 3 || discoveredInstructionCount < 2); i++) {
+					await new Promise(resolve => setTimeout(resolve, 50));
+					const customizations = await agent.getSessionCustomizations(session);
+					const discoveredAgentDirectory = customizations.find((customization): customization is DiscoveredDirectoryCustomization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString());
+					const discoveredInstructionDirectory = customizations.find((customization): customization is DiscoveredDirectoryCustomization => customization.type === CustomizationType.Directory && customization.uri === instructionsRoot.toString());
+					discoveredAgentCount = discoveredAgentDirectory?.children.filter(child => child.type === CustomizationType.Agent).length ?? 0;
+					discoveredInstructionCount = discoveredInstructionDirectory?.children.filter(child => child.type === CustomizationType.Rule).length ?? 0;
+				}
+
+				assert.strictEqual(discoveredAgentCount, 3, 'expected agent burst changes to be discovered');
+				assert.strictEqual(discoveredInstructionCount, 2, 'expected instruction burst changes to be discovered');
+				assert.strictEqual(
+					countDiscoveredRefreshPublishes(),
+					publishCountBeforeBurst + 1,
+					'expected burst watcher changes across folders to result in exactly one discovered refresh publish (_onDidRefresh)'
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('provisional sessions', () => {

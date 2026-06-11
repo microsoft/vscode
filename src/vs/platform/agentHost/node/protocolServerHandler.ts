@@ -11,7 +11,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { AgentSession, type IAgentService } from '../common/agentService.js';
+import { AgentSession, type IAgentService, type IMcpNotification } from '../common/agentService.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isSessionAction, isTerminalAction, type SessionAction, type TerminalAction, type IRootConfigChangedAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
@@ -80,6 +80,28 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	}
 	const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
+}
+
+/** True when `value` is a non-null params object (as opposed to an array or primitive). */
+function isParamsObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Returns the `channel` URI carried on a request's params when it is an
+ * `mcp://` channel — the AHP routing envelope for raw MCP requests
+ * tunnelled over the JSON-RPC connection. Returns `undefined` for any
+ * other params shape.
+ */
+function readMcpChannel(params: unknown): string | undefined {
+	if (!isParamsObject(params)) {
+		return undefined;
+	}
+	const channel = params['channel'];
+	if (typeof channel !== 'string' || !channel.startsWith('mcp://')) {
+		return undefined;
+	}
+	return channel;
 }
 
 /**
@@ -294,6 +316,10 @@ export class ProtocolServerHandler extends Disposable {
 
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
+		}));
+
+		this._register(this._agentService.onMcpNotification(notification => {
+			this._broadcastMcpNotification(notification);
 		}));
 
 		if (this._config.otlpLogEmitter) {
@@ -1182,6 +1208,27 @@ export class ProtocolServerHandler extends Disposable {
 			return;
 		}
 
+		// MCP side-channel: requests targeting an `mcp://` channel carry the
+		// channel URI in `params.channel`. We forward them through the
+		// agent service, which routes by `<providerId>/<sessionId>/<serverName>`
+		// to the owning agent's MCP App implementation. Unknown channels and
+		// unknown methods are rejected with `-32601`.
+		const mcpChannel = readMcpChannel(params);
+		if (mcpChannel !== undefined) {
+			const paramsObj = isParamsObject(params) ? params : undefined;
+			this._agentService.handleMcpRequest(mcpChannel, method, paramsObj).then(result => {
+				client.transport.send(jsonRpcSuccess(id, result ?? null));
+			}).catch(err => {
+				if (err instanceof Error && err.message.startsWith('Method not found')) {
+					client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, err.message));
+					return;
+				}
+				this._logService.error(`[ProtocolServer] mcp:// request '${method}' on ${mcpChannel} failed`, err);
+				client.transport.send(jsonRpcErrorFrom(id, err));
+			});
+			return;
+		}
+
 		client.transport.send(jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, `Unknown method: ${method}`));
 	}
 
@@ -1219,6 +1266,27 @@ export class ProtocolServerHandler extends Disposable {
 		const { type, ...params } = notification;
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
+		for (const record of this._clients.values()) {
+			record.connection?.transport.send(msg);
+		}
+	}
+
+	/**
+	 * Forward an MCP server-originated notification (e.g.
+	 * `notifications/tools/list_changed`) over the AHP transport. The
+	 * `channel` field on `params` is the AHP routing envelope; the
+	 * receiving client demultiplexes by it. Notifications are broadcast
+	 * to every connected client — per-channel subscription filtering is
+	 * left to the client, since MCP notifications are cheap and the
+	 * client already knows which channels it cares about.
+	 */
+	private _broadcastMcpNotification(notification: IMcpNotification): void {
+		const params: Record<string, unknown> = { ...(notification.params ?? {}), channel: notification.channel };
+		// MCP notifications don't share a discriminated `method` literal
+		// with the known {@link AhpServerNotification} union, so cast
+		// through `unknown` to satisfy the transport contract.
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
+		const msg = { jsonrpc: '2.0' as const, method: notification.method, params } as unknown as AhpServerNotification;
 		for (const record of this._clients.values()) {
 			record.connection?.transport.send(msg);
 		}
