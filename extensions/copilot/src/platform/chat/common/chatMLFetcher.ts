@@ -126,12 +126,26 @@ export class FetchStreamRecorder {
 		return this._firstTokenEmittedTime;
 	}
 
+	private _lastOutputChunkTime: number | undefined;
+	private readonly _outputChunkGapsMs: number[] = [];
+	/** Inter-chunk arrival gaps (ms) between consecutive content-bearing output chunks, used for the GenAI `time_per_output_chunk` metric. */
+	public get outputChunkGapsMs(): readonly number[] {
+		return this._outputChunkGapsMs;
+	}
+
 	constructor(
 		callback: FinishedCallback | undefined
 	) {
 		this.callback = async (text: string, index: number, delta: IResponseDelta): Promise<number | undefined> => {
-			if (this._firstTokenEmittedTime === undefined && (delta.text || delta.beginToolCalls || (typeof delta.thinking?.text === 'string' && delta.thinking?.text || delta.thinking?.text?.length) || delta.copilotToolCalls || delta.copilotToolCallStreamUpdates)) {
-				this._firstTokenEmittedTime = Date.now();
+			const isContentChunk = !!(delta.text || delta.beginToolCalls || (typeof delta.thinking?.text === 'string' && delta.thinking?.text || delta.thinking?.text?.length) || delta.copilotToolCalls || delta.copilotToolCallStreamUpdates);
+			if (isContentChunk) {
+				const now = Date.now();
+				if (this._firstTokenEmittedTime === undefined) {
+					this._firstTokenEmittedTime = now;
+				} else if (this._lastOutputChunkTime !== undefined) {
+					this._outputChunkGapsMs.push(now - this._lastOutputChunkTime);
+				}
+				this._lastOutputChunkTime = now;
 			}
 
 			const result = callback ? await callback(text, index, delta) : undefined;

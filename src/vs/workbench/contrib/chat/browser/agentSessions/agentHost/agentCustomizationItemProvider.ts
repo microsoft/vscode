@@ -10,14 +10,16 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CustomizationLoadStatus, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationLoadState, type DirectoryCustomization, PluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ICustomizationAgentRef, ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemAction, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationContentExpander } from './agentCustomizationContentExpander.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { IAgentSource, ICustomAgent, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 
 
 const REMOTE_HOST_GROUP = 'remote-host';
@@ -114,6 +116,10 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		if (!type) {
 			return undefined;
 		}
+		let userInvocable: boolean | undefined = undefined;
+		if (child.type === CustomizationType.Agent) {
+			userInvocable = child._meta?.userInvocable !== false;
+		}
 
 		return {
 			itemKey: child.id,
@@ -125,17 +131,37 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			groupKey,
 			extensionId: undefined,
 			pluginUri: undefined,
-			userInvocable: undefined,
+			userInvocable,
 		};
 	}
 
-	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomizationAgentRef[]> {
+	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {
 		const agents = this._customAgentsService.getCustomAgents(sessionResource);
+		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => ({
+			id: agent.uri,
 			uri: this.toRemoteUri(agent.uri),
 			name: agent.name,
 			description: agent.description,
-		}));
+			sessionTypes: sessionTypes,
+			enabled: true,
+			// fill default/empty values for all other properties they will not be used by the UI
+			// when making a request, all that's needed is the agent id.
+			source: { storage: PromptsStorage.local } satisfies IAgentSource,
+			tools: undefined,
+			agents: undefined,
+			argumentHint: undefined,
+			handOffs: undefined,
+			hooks: undefined,
+			model: undefined,
+			agentInstructions: { content: '', toolReferences: [] },
+			visibility: {
+				agentInvocable: true,
+				userInvocable: agent._meta?.userInvocable !== false
+			},
+			target: Target.Undefined
+		} satisfies ICustomAgent));
+
 	}
 
 	async provideChatSessionCustomizations(sessionResource: URI, token: CancellationToken): Promise<ICustomizationItem[]> {
@@ -152,6 +178,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		for (const sessionCustomization of customizations) {
 			if (isDirectoryCustomization(sessionCustomization)) {
 				directoryCustomizations.push(sessionCustomization);
+			} else if (sessionCustomization.type === CustomizationType.McpServer) {
+				// Bare MCP server entries aren't shown as plugin items in this view.
+				continue;
 			} else {
 				const isBundleItem = isSyntheticBundle(sessionCustomization);
 				const isClientSynced = sessionCustomization.clientId !== undefined;
@@ -207,7 +236,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const workingDirectory = this._customAgentsService.getWorkingDirectory(sessionResource);
 
 		for (const sessionCustomization of directoryCustomizations) {
-			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory) ? AICustomizationSources.local : AICustomizationSources.user;
+			const source = workingDirectory && sessionCustomization.uri.startsWith(workingDirectory + '/') ? AICustomizationSources.local : AICustomizationSources.user;
 			const groupKey = sessionCustomization.clientId ? REMOTE_CLIENT_GROUP : undefined;
 			for (const child of this.toDirectoryItems(sessionCustomization, source, groupKey)) {
 				items.set(child.itemKey ?? child.uri.toString(), {

@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
-import { DeferredPromise, raceCancellation, timeout } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellation, raceCancellationError, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -1542,7 +1542,9 @@ class CachedPromise<T> {
 			this.cachedPromise = promise;
 		}
 
-		return raceCancellation(this.cachedPromise, token, []);
+		// Each caller observes the shared computation through its own token so that
+		// one caller cancelling does not affect concurrent callers.
+		return raceCancellationError(this.cachedPromise, token);
 	}
 
 	clear(): void {
