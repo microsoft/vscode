@@ -186,7 +186,17 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 				this.voiceSessionController.connect(mainWindow);
 			},
 			disconnect: () => this.voiceSessionController.disconnect(),
-			pttDown: () => this.voiceSessionController.pttDown(),
+			pttDown: () => {
+				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
+					this.voiceSessionController.connect(mainWindow).then(() => {
+						if (this.voiceSessionController.isConnected.get()) {
+							this.voiceSessionController.pttDown();
+						}
+					});
+					return;
+				}
+				this.voiceSessionController.pttDown();
+			},
 			pttUp: () => this.voiceSessionController.pttUp(),
 			closeWindow: () => this.closeWindow(),
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),

@@ -435,7 +435,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			copilotIconSrc: FileAccess.asBrowserUri('vs/sessions/browser/media/sessions-icon.svg').toString(true),
 			connect: () => this.voiceSessionController.connect(win),
 			disconnect: () => this.voiceSessionController.disconnect(),
-			pttDown: () => this.voiceSessionController.pttDown(),
+			pttDown: () => {
+				if (!this.voiceSessionController.isConnected.get() && !this.voiceSessionController.isConnecting.get()) {
+					this.voiceSessionController.connect(win).then(() => {
+						if (this.voiceSessionController.isConnected.get()) {
+							this.voiceSessionController.pttDown();
+						}
+					});
+					return;
+				}
+				this.voiceSessionController.pttDown();
+			},
 			pttUp: () => this.voiceSessionController.pttUp(),
 			closeWindow: () => { /* no-op: chat pane has no close button */ },
 			stopPlayback: () => this.ttsPlaybackService.stopPlayback(),

@@ -38,6 +38,7 @@ import {
 	VoiceEnabledClassification, VoiceEnabledEvent,
 	VoiceDisabledClassification, VoiceDisabledEvent,
 } from '../../chat/browser/voiceClient/voiceTelemetry.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 // --- Context Keys ---
 
@@ -160,9 +161,13 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		const windowService = accessor.get(IAgentsVoiceWindowService);
-		// Open the voice window if not already open, then toggle PTT
+		// Open the voice window if not already open
 		if (!windowService.isOpen) {
 			await windowService.toggleWindow();
+		}
+		// Auto-connect on first PTT press
+		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
+			await voiceController.connect(mainWindow);
 		}
 		if (!voiceController.isConnected.get()) {
 			return;
