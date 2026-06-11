@@ -176,7 +176,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session', 'refreshUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
@@ -214,7 +214,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			changesetCalls: ['onCommitted:agent:/session', 'refreshUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});

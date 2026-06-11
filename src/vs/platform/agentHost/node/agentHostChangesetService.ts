@@ -709,7 +709,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 		}
 		this._scheduleStaticRecompute(session, 'session', turnId);
-		this._scheduleStaticRecompute(session, 'uncommitted');
+		void this.computeUncommittedChangeset(session);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {

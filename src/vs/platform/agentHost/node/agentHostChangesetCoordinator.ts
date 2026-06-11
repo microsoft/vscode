@@ -489,7 +489,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			this._pendingUncommittedRefreshes.add(sessionStr);
 			return;
 		}
-		this._changesets.refreshUncommittedChangeset(sessionStr);
+		void this._changesets.computeUncommittedChangeset(sessionStr);
 	}
 
 	private _triggerSessionRefresh(sessionStr: string): void {
