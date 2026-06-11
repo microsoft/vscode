@@ -49,8 +49,8 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		return result;
 	}
 
-	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		return computeActiveSignatureIndex(context, info.selectedItemIndex, signatures);
+	private getActiveSignature(_context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, _signatures: readonly vscode.SignatureInformation[]): number {
+		return computeActiveSignatureIndex(info.selectedItemIndex);
 	}
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
@@ -91,17 +91,8 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	}
 }
 
-export function computeActiveSignatureIndex(
-	_context: {
-		isRetrigger: boolean;
-		activeSignatureHelp?: {
-			signatures: ReadonlyArray<{ label: string }>;
-			activeSignature: number;
-		};
-	},
-	tsSelectedItemIndex: number,
-	_signatures: ReadonlyArray<{ label: string }>,
-): number {
+/** @internal exported for unit testing only */
+export function computeActiveSignatureIndex(tsSelectedItemIndex: number): number {
 	return tsSelectedItemIndex;
 }
 

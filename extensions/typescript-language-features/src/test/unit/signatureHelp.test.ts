@@ -7,142 +7,36 @@ import * as assert from 'assert';
 import 'mocha';
 import { computeActiveSignatureIndex } from '../../languageFeatures/signatureHelp';
 
-const numberSig = { label: 'foo(a: number): number' };
-const stringSig = { label: 'foo(a: string): string' };
-const overloads = [numberSig, stringSig];
+// --- Historical context: behaviour BEFORE the fix for #268728 ---
+//
+// The original getActiveSignature matched the previously-shown overload by label
+// and returned its index whenever a retrigger occurred:
+//
+//   const existingIndex = signatures.findIndex(s => s.label === previousLabel);
+//   if (existingIndex >= 0) { return existingIndex; }   // BUG: ignores TS's new index
+//   return info.selectedItemIndex;
+//
+// This meant that when typed arguments narrowed the overload set — e.g. a string
+// first argument causes TypeScript to change selectedItemIndex from 0 (number overload)
+// to 1 (string overload) on the comma retrigger — VS Code would still return the stale
+// index (0) and the signature help widget would never switch overloads.
+//
+// The fix: always defer to TypeScript's selectedItemIndex.
 
-function makeContext(opts: {
-	isRetrigger: boolean;
-	activeSignature?: number;
-	signatures?: ReadonlyArray<{ label: string }>;
-}) {
-	return {
-		isRetrigger: opts.isRetrigger,
-		activeSignatureHelp:
-			opts.activeSignature !== undefined
-				? {
-						signatures: opts.signatures ?? overloads,
-						activeSignature: opts.activeSignature,
-						activeParameter: 0,
-					}
-				: undefined,
-	};
-}
+suite('computeActiveSignatureIndex', () => {
 
-// The original (buggy) implementation embedded here for before/after comparison.
-// This reflects what was in getActiveSignature before the fix for #268728.
-function getActiveSignature_BEFORE(
-	context: ReturnType<typeof makeContext>,
-	tsSelectedItemIndex: number,
-	signatures: ReadonlyArray<{ label: string }>,
-): number {
-	const previouslyActiveSignature =
-		context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-	if (previouslyActiveSignature && context.isRetrigger) {
-		const existingIndex = signatures.findIndex(
-			(other) => other.label === previouslyActiveSignature.label,
-		);
-		if (existingIndex >= 0) {
-			return existingIndex; // BUG: ignores TS's updated selectedItemIndex
-		}
-	}
-	return tsSelectedItemIndex;
-}
-
-suite('getActiveSignature — BEFORE fix (#268728)', () => {
-	test('non-retrigger returns TypeScript selectedItemIndex', () => {
-		assert.strictEqual(
-			getActiveSignature_BEFORE(makeContext({ isRetrigger: false }), 0, overloads),
-			0,
-		);
+	test('returns TypeScript selectedItemIndex for first overload', () => {
+		assert.strictEqual(computeActiveSignatureIndex(0), 0);
 	});
 
-	test('retrigger with no previous context returns TypeScript selectedItemIndex', () => {
-		assert.strictEqual(
-			getActiveSignature_BEFORE(makeContext({ isRetrigger: true }), 1, overloads),
-			1,
-		);
+	test('returns TypeScript selectedItemIndex for second overload', () => {
+		assert.strictEqual(computeActiveSignatureIndex(1), 1);
 	});
 
-	test('retrigger preserves previously-shown overload when TypeScript selection is unchanged', () => {
-		assert.strictEqual(
-			getActiveSignature_BEFORE(
-				makeContext({ isRetrigger: true, activeSignature: 0 }),
-				0,
-				overloads,
-			),
-			0,
-		);
-	});
-
-	test('BUG: retrigger returns stale overload even after TS updates selectedItemIndex', () => {
-		// When typed arguments narrow the overload set (e.g. a string first argument),
-		// TS updates selectedItemIndex from 0 to 1 on the comma retrigger.
-		// Old code finds numberSig still in the list and returns 0 — wrong.
-		assert.strictEqual(
-			getActiveSignature_BEFORE(
-				makeContext({ isRetrigger: true, activeSignature: 0 }),
-				1,
-				overloads,
-			),
-			0, // BUG: returns 0 (number overload) instead of the correct 1 (string overload)
-		);
-	});
-});
-
-suite('computeActiveSignatureIndex — AFTER fix (#268728)', () => {
-	test('non-retrigger returns TypeScript selectedItemIndex', () => {
-		assert.strictEqual(
-			computeActiveSignatureIndex(makeContext({ isRetrigger: false }), 0, overloads),
-			0,
-		);
-	});
-
-	test('retrigger with no previous context returns TypeScript selectedItemIndex', () => {
-		assert.strictEqual(
-			computeActiveSignatureIndex(makeContext({ isRetrigger: true }), 1, overloads),
-			1,
-		);
-	});
-
-	test('retrigger preserves previously-shown overload when TypeScript selection is unchanged', () => {
-		assert.strictEqual(
-			computeActiveSignatureIndex(
-				makeContext({ isRetrigger: true, activeSignature: 0 }),
-				0,
-				overloads,
-			),
-			0,
-		);
-	});
-
-	test('FIX: retrigger now follows TS when arguments narrow the overload set (#268728)', () => {
-		// When typed arguments narrow the overload set (e.g. a string first argument),
-		// TS updates selectedItemIndex from 0 to 1 on the comma retrigger.
-		// Fixed code honours that update instead of locking in the earlier selection.
-		assert.strictEqual(
-			computeActiveSignatureIndex(
-				makeContext({ isRetrigger: true, activeSignature: 0 }),
-				1,
-				overloads,
-			),
-			1, // FIX: correctly returns 1 (string overload)
-		);
-	});
-
-	test('retrigger returns correct index after signature list reorders', () => {
-		// Previous list: [number=0, string=1], previously active index was 1 (string).
-		// New list after retrigger: [string=0, number=1] (reordered).
-		// TS still selects string, now at index 0. Should return 0, not the stale index 1.
-		const previousSignatures = [numberSig, stringSig];
-		const currentSignatures = [stringSig, numberSig];
-		assert.strictEqual(
-			computeActiveSignatureIndex(
-				makeContext({ isRetrigger: true, activeSignature: 1, signatures: previousSignatures }),
-				0, // TS selects stringSig, now at index 0 in the current list
-				currentSignatures,
-			),
-			0, // must follow tsSelectedItemIndex, not the stale activeSignature=1
-		);
+	test('overload narrowing is honoured (#268728)', () => {
+		// Before fix: on a comma retrigger where previously showing overload 0,
+		// the old code returned 0 even after TS updated selectedItemIndex to 1.
+		// After fix: tsSelectedItemIndex is returned directly, so 1 is returned.
+		assert.strictEqual(computeActiveSignatureIndex(1), 1);
 	});
 });
