@@ -6,7 +6,7 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, NullLogService } from '../../../../log/common/log.js';
+import { ILogService, LogLevel, NullLogService } from '../../../../log/common/log.js';
 import { ICompletedSpanData, SpanStatusCode } from '../../../../otel/common/spanData.js';
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { AgentHostSpanTelemetryConsumer } from '../../../node/otel/agentHostSpanTelemetryConsumer.js';
@@ -248,5 +248,44 @@ suite('platform/agentHost - AgentHostSpanTelemetryConsumer', () => {
 		}));
 		strictEqual(events.length, 1);
 		strictEqual(events[0].data?.hasError, true);
+	});
+
+	test('span log only includes allow-listed non-content attributes', () => {
+		const traceLines: string[] = [];
+		const log = new class extends NullLogService {
+			override getLevel(): LogLevel { return LogLevel.Trace; }
+			override trace(msg: string): void { traceLines.push(msg); }
+		};
+		const { service } = makeRecordingTelemetryService();
+		const di = store.add(new TestInstantiationService());
+		di.set(ITelemetryService, service);
+		di.set(ILogService, log);
+		const consumer = store.add(di.createInstance(AgentHostSpanTelemetryConsumer));
+
+		const leakyValue = 'super secret user prompt that must never be logged';
+		consumer.onSpan(makeSpan({
+			traceId: 'c'.repeat(32),
+			spanId: 'leaky',
+			name: 'chat gpt-4o',
+			startTime: 0, endTime: 1,
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'gen_ai.request.model': 'gpt-4o',
+				'gen_ai.usage.input_tokens': 42,
+				'gen_ai.input.messages': leakyValue,
+				'gen_ai.output.messages': leakyValue,
+				'gen_ai.tool.call.arguments': leakyValue,
+				'copilot_chat.hook_input': leakyValue,
+			},
+		}));
+
+		strictEqual(traceLines.length, 1);
+		const dump = traceLines[0];
+		strictEqual(dump.includes('gen_ai.request.model=gpt-4o'), true);
+		strictEqual(dump.includes('gen_ai.usage.input_tokens=42'), true);
+		strictEqual(dump.includes(leakyValue), false, 'content value leaked into log');
+		strictEqual(dump.includes('gen_ai.input.messages'), false);
+		strictEqual(dump.includes('gen_ai.tool.call.arguments'), false);
+		strictEqual(dump.includes('copilot_chat.hook_input'), false);
 	});
 });

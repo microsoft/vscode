@@ -162,19 +162,15 @@ Both event families run in parallel so we can compare workbench-perceived vs SDK
 
 ### Diagnostic logging
 
-At log level `debug`, every span observed by the consumer is dumped with its full attribute set:
+At log level `trace`, every span observed by the consumer is logged as a single line with identity, timing, and a fixed allow-list of non-content diagnostic attributes (model, finish reason, token counts, cost, AIU, initiator, etc.):
 
 ```
-[debug] [agentHost.otel] span op=invoke_agent name="invoke_agent explore" span=748ca10e1387477a parent=b995d63ca4cdbd87 trace=… dur=13039ms status=0
-    gen_ai.agent.id=builtin:explore
-    gen_ai.agent.name=explore
-    gen_ai.usage.input_tokens=35624
-    …
+[trace] [agentHost.otel] span op=chat span=748ca10e1387477a parent=b995d63ca4cdbd87 trace=… dur=4118ms status=0 gen_ai.provider.name=github gen_ai.request.model=claude-sonnet-4.5 gen_ai.response.model=claude-haiku-4.5 gen_ai.usage.input_tokens=19521 gen_ai.usage.output_tokens=128 …
 ```
 
-This is the easiest way to audit which SDK attributes are present on a given span family. Set the agent host log level to **Debug** via *Developer: Set Log Level…* → Agent Host.
+Set the agent host log level to **Trace** via *Developer: Set Log Level…* → Agent Host.
 
-**Privacy**: the consumer only reads attributes that are counters, IDs, or short enums — never prompt/response content. It is safe to run regardless of `chat.agentHost.otel.captureContent`.
+**Privacy**: telemetry events emitted by the consumer only carry counters, IDs, and short enums — never prompt/response/tool-argument content. The trace log uses a fixed allow-list (see `LOGGED_SPAN_ATTRIBUTES` in [agentHostSpanTelemetryConsumer.ts](node/otel/agentHostSpanTelemetryConsumer.ts)) so content-bearing SDK attributes such as `gen_ai.input.*`, `gen_ai.output.*`, `gen_ai.tool.call.{arguments,result}`, and `copilot_chat.hook_{input,output}` are never logged, even if the SDK was started with `captureContent` on.
 
 **Cost**: registering the consumer forces the loopback receiver to start, which means the SDK runs with its OTel exporter even when the user hasn't enabled `chat.agentHost.otel.enabled`. The wire format is OTLP/JSON over localhost — overhead is small but non-zero.
 
