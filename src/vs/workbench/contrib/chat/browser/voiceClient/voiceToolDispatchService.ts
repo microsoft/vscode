@@ -11,6 +11,7 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, getAgentChangesSummary } from '../agentSessions/agentSessionsModel.js';
 import { IChatService, IChatSendRequestOptions, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { IVoiceToolCall } from '../../common/voiceClient/voiceClientService.js';
@@ -161,14 +162,26 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			}
 			case 'focus_session': {
 				const targetSessionId = argString('coding_session_id');
-				const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
-				const targetSession = targetSessionId
-					? sessions.find(s => s.resource.toString() === targetSessionId)
-					: undefined;
-				if (targetSession) {
+				let targetResource: URI | undefined;
+				if (targetSessionId) {
+					// Try agent sessions first
+					const agentSession = this.agentSessionsService.model.sessions
+						.find(s => !s.isArchived() && s.resource.toString() === targetSessionId);
+					targetResource = agentSession?.resource;
+					// Fall back to regular chat sessions
+					if (!targetResource) {
+						for (const chatModel of this.chatService.chatModels.get()) {
+							if (chatModel.sessionResource.toString() === targetSessionId) {
+								targetResource = chatModel.sessionResource;
+								break;
+							}
+						}
+					}
+				}
+				if (targetResource) {
 					const currentResource = delegate.getCurrentSessionResource();
-					if (targetSession.resource.toString() !== currentResource?.toString()) {
-						delegate.switchToSession(targetSession.resource);
+					if (targetResource.toString() !== currentResource?.toString()) {
+						delegate.switchToSession(targetResource);
 					}
 				}
 				break;
@@ -176,16 +189,29 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 			case 'approve_confirmation':
 			case 'reject_confirmation': {
 				const targetSessionId = argString('coding_session_id');
-				const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
-				const targetSession = targetSessionId
-					? sessions.find(s => s.resource.toString() === targetSessionId)
-					: undefined;
-				const model = targetSession
-					? this.chatService.getSession(targetSession.resource)
-					: (() => {
-						const res = delegate.getCurrentSessionResource();
-						return res ? this.chatService.getSession(res) : undefined;
-					})();
+				// Look up the model from agent sessions first, then regular chat sessions
+				let model: IChatModel | undefined;
+				if (targetSessionId) {
+					const agentSession = this.agentSessionsService.model.sessions
+						.find(s => !s.isArchived() && s.resource.toString() === targetSessionId);
+					model = agentSession
+						? this.chatService.getSession(agentSession.resource)
+						: undefined;
+					// Fall back to regular chat sessions
+					if (!model) {
+						for (const chatModel of this.chatService.chatModels.get()) {
+							if (chatModel.sessionResource.toString() === targetSessionId) {
+								model = chatModel;
+								break;
+							}
+						}
+					}
+				}
+				if (!model) {
+					// Last resort: use the currently focused session
+					const res = delegate.getCurrentSessionResource();
+					model = res ? this.chatService.getSession(res) : undefined;
+				}
 				if (model) {
 					const lastReq = model.getRequests().at(-1);
 					if (lastReq?.response) {
