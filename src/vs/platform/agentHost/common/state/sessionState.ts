@@ -58,7 +58,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentInfo, type AgentSelection, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -409,6 +409,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		model: summary.model,
 		agent: summary.agent,
 		origin: summary.origin,
+		interactivity: summary.interactivity,
 		workingDirectory: summary.workingDirectory,
 		turns: [],
 		activeTurn: undefined,
@@ -454,6 +455,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.model !== undefined) { summary.model = state.model; }
 	if (state.agent !== undefined) { summary.agent = state.agent; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
+	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
 	return summary;
 }
