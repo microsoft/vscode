@@ -118,8 +118,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					{
 						...action,
 						id: 'chat.permissions.default',
-						label: localize('permissions.default', "Default Approvals"),
-						detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+						label: localize('permissions.default', "Ask for Approvals"),
+						detail: localize('permissions.default.subtext', "Uses your configured approval settings"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default && !sandboxOn,
 						tooltip: '',
@@ -131,8 +131,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					{
 						...action,
 						id: 'chat.permissions.default.sandbox',
-						label: localize('permissions.default.sandbox', "Default Approvals with Sandboxing"),
-						detail: localize('permissions.default.sandbox.subtext', "Terminal commands run in a sandbox"),
+						label: localize('permissions.default.sandbox', "Ask Outside Sandbox"),
+						detail: localize('permissions.default.sandbox.subtext', "Auto-approve inside sandbox, ask otherwise"),
 						icon: ThemeIcon.fromId(Codicon.shield.id),
 						checked: currentLevel === ChatPermissionLevel.Default && sandboxOn,
 						tooltip: '',
@@ -249,9 +249,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					break;
 				default:
 					icon = Codicon.shield;
-					label = localize('permissions.default.label', "Default Approvals");
 					if (sandboxOn) {
-						trailingIcon = Codicon.lock;
+						label = localize('permissions.defaultSandboxed.label', "Ask Outside Sandbox");
+					} else {
+						label = localize('permissions.default.label', "Ask for Approvals");
 					}
 					break;
 			}
