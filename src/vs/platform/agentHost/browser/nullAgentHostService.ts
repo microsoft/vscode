@@ -30,6 +30,7 @@ export class NullAgentHostService implements IAgentHostService {
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
 	readonly onDidAction: Event<ActionEnvelope> = Event.None;
+	readonly onMcpNotification = Event.None;
 
 	readonly authenticationPending: IObservable<boolean> = constObservable(false);
 	setAuthenticationPending(_pending: boolean): void { /* no-op */ }

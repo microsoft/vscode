@@ -266,6 +266,16 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
+	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
+		const chatSessionType = getChatSessionType(sessionResource);
+		const controllerData = this.sessionItemControllers.get(chatSessionType);
+		if (!controllerData?.controller.deleteChatSessionItem) {
+			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
+		}
+		await controllerData.initialRefresh;
+		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
 	registerSessionResourceAlias(_untitledResource: URI, _realResource: URI): void {
 		// noop
 	}

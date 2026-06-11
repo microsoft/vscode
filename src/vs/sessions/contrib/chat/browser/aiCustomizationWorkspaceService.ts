@@ -276,6 +276,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	private static readonly _skillUIIntegrations: ReadonlyMap<string, string> = new Map([
 		['act-on-feedback', localize('skillUI.actOnFeedback', "Used by the Submit Feedback button in the Changes toolbar")],
+		['code-review', localize('skillUI.codeReview', "Used by the Run Code Review button in the Changes view")],
 		['generate-run-commands', localize('skillUI.generateRunCommands', "Used by the Run button in the title bar")],
 		['create-pr', localize('skillUI.createPr', "Used by the Create Pull Request button in the Changes toolbar")],
 		['create-draft-pr', localize('skillUI.createDraftPr', "Used by the Create Draft Pull Request button in the Changes toolbar")],

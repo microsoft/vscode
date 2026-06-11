@@ -75,8 +75,8 @@ import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
 import { autorun } from '../../base/common/observable.js';
 import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from './sessionsViewService.js';
-import { ISessionsPartService } from './parts/sessionsPartService.js';
+import { ISessionsViewService } from '../services/sessions/browser/sessionsViewService.js';
+import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
 import { ISessionsSetUpService } from './sessionsSetUpService.js';
 
 //#region Workbench Options

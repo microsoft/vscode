@@ -721,7 +721,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				hover: {
 					content: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
 				},
-				icon: Codicon.play,
+				icon: Codicon.runCompact,
 				enabled: true,
 				class: undefined,
 				category: isWorktreeTask ? worktreeCategory : defaultCategory,

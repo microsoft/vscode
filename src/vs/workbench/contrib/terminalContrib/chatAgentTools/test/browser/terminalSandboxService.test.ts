@@ -416,6 +416,9 @@ suite('TerminalSandboxService - network domains', () => {
 		const signedCommitWithGlobalOptionConfig = await getConfigAfterWrap('git -C repo commit --gpg-sign=key -m "test"', [{ keyword: 'git', args: ['-C', 'repo', 'commit', '--gpg-sign=key', '-m', 'test'] }]);
 		strictEqual(signedCommitWithGlobalOptionConfig.network.allowAllUnixSockets, true, 'Signed git commits with global options should allow Unix sockets for GPG signing');
 
+		const chainedSignedCommitConfig = await getConfigAfterWrap('git commit -S -m "test" && npm install', [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }, { keyword: 'npm', args: ['install'] }]);
+		strictEqual(Object.prototype.hasOwnProperty.call(chainedSignedCommitConfig.network, 'allowAllUnixSockets'), false, 'Chained signed git commits should not allow all Unix sockets for the entire invocation');
+
 		const unsignedCommitConfig = await getConfigAfterWrap('git commit -m "test"', [{ keyword: 'git', args: ['commit', '-m', 'test'] }]);
 		strictEqual(Object.prototype.hasOwnProperty.call(unsignedCommitConfig.network, 'allowAllUnixSockets'), false, 'Unsigned git commits should not allow all Unix sockets');
 
@@ -427,6 +430,16 @@ suite('TerminalSandboxService - network domains', () => {
 		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Windows, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }]);
 
 		deepStrictEqual(config, {}, 'Signed git commit runtime values should not apply on Windows');
+	});
+
+	test('should skip unsafe command-specific runtime values for chained commands', () => {
+		const config = getTerminalSandboxRuntimeConfigurationForCommands(OperatingSystem.Linux, [{ keyword: 'git', args: ['commit', '-S', '-m', 'test'] }, { keyword: 'npm', args: ['install'] }]);
+
+		deepStrictEqual(config, {
+			filesystem: {
+				allowWrite: ['~/.volta/']
+			}
+		});
 	});
 
 	test('should preserve user runtime settings over command-specific runtime values', async () => {

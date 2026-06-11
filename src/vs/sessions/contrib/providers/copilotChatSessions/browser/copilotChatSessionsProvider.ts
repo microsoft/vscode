@@ -1613,12 +1613,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
+	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
+		// A session type that requires custom models cannot fall back to Auto.
+		// When it has no models (e.g. the Claude agent for a Copilot Free /
+		// Student user), the picker shows a "No models available" state instead
+		// of Auto. Derive this from the contribution's declarative
+		// `requiresCustomModels` flag rather than hardcoding session-type names.
+		const sessionType = this.getSession(sessionId)?.sessionType;
+		const autoModelUnavailable = !!sessionType && this.chatSessionsService.requiresCustomModelsForSessionType(sessionType);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
+			autoModelUnavailable,
 		};
 	}
 
@@ -1991,7 +1999,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				kind: modeKind,
 				isBuiltin: modeIsBuiltin,
 				modeInstructions,
-				modeId,
+				telemetryModeId: modeId,
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel,
 			},
@@ -2124,7 +2132,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				kind: ChatModeKind.Agent,
 				isBuiltin: true,
 				modeInstructions: undefined,
-				modeId: 'agent',
+				telemetryModeId: 'agent',
 				applyCodeBlockSuggestionId: undefined,
 				permissionLevel: newChatSession.permissionLevel.get(),
 			},

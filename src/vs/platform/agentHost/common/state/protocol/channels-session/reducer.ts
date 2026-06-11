@@ -374,6 +374,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 						invocationMessage: action.invocationMessage,
 						toolInput: action.toolInput,
 						confirmed: action.confirmed,
+						_meta: action._meta ?? base._meta,
 					};
 				}
 				return {
@@ -384,6 +385,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 					confirmationTitle: action.confirmationTitle,
 					edits: action.edits,
 					editable: action.editable,
+					_meta: action._meta ?? base._meta,
 					...(action.options ? { options: action.options } : {}),
 				};
 			}));
@@ -549,11 +551,10 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
 			};
 
 		case ActionType.SessionChangesetsChanged: {
-			const { changesets: _omit, ...summaryWithoutChangesets } = state.summary;
-			const newSummary = action.changesets
-				? { ...summaryWithoutChangesets, changesets: action.changesets }
-				: summaryWithoutChangesets;
-			return { ...state, summary: newSummary };
+			const { changesets: _omit, ...stateWithoutChangesets } = state;
+			return action.changesets
+				? { ...stateWithoutChangesets, changesets: action.changesets }
+				: stateWithoutChangesets;
 		}
 
 		case ActionType.SessionConfigChanged:

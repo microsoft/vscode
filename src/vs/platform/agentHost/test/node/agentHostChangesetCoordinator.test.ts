@@ -20,6 +20,7 @@ import { IAgentHostFileMonitorOptions, IAgentHostFileMonitorService } from '../.
 import { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
+import { ChangesSummary } from '../../common/state/protocol/state.js';
 
 suite('ChangesetSessionCoordinator', () => {
 
@@ -35,8 +36,8 @@ suite('ChangesetSessionCoordinator', () => {
 			modifiedAt: Date.now(),
 			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
-			changesets: buildDefaultChangesetCatalogue(session),
 		}, { emitNotification });
+		stateManager.setSessionChangesets(session, buildDefaultChangesetCatalogue(session));
 		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 	}
 
@@ -374,6 +375,7 @@ class TestFileMonitorService extends Disposable implements IAgentHostFileMonitor
 class TestChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly branchRefreshes: string[] = [];
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
@@ -382,7 +384,11 @@ class TestChangesetService implements IAgentHostChangesetService {
 	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
 	applyPersistedStaticChangesets(_sessionUri: string, _diffs: IRestoredChangesetDiffs): void { }
 	restorePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
+	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(_changesetUri: string): boolean { return false; }
+	refreshBranchChangeset(session: string): void {
+		this.branchRefreshes.push(session);
+	}
 	refreshUncommittedChangeset(session: string): void {
 		this.uncommittedRefreshes.push(session);
 	}
@@ -397,6 +403,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
 
 	clearRefreshes(): void {
+		this.branchRefreshes.length = 0;
 		this.uncommittedRefreshes.length = 0;
 		this.sessionRefreshes.length = 0;
 	}
