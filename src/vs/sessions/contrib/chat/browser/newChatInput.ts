@@ -45,8 +45,7 @@ import { installMobileChipLaneScroll } from '../../../browser/parts/mobile/mobil
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ChatInputStatusActionViewItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStatusActionViewItem.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
@@ -283,16 +282,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// kicks in once a drag crosses a small threshold on phone.
 		this._register(installMobileChipLaneScroll(newChatBottomContainer, this.layoutService));
 
-		// Status indicators (e.g. OpenTelemetry pill) for the new-session view.
+		// Generic extension point for status indicators in the new-session view.
 		const statusContainer = dom.append(repoConfigContainer, dom.$('.new-chat-status-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, statusContainer, MenuId.ChatInputStatus, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			actionViewItemProvider: (action) => {
-				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChatInputStatusActionViewItem, action);
-				}
-				return undefined;
-			},
 		}));
 
 		// Restore draft input state from storage

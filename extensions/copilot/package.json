@@ -2854,12 +2854,6 @@
         "enablement": "config.github.copilot.chat.otel.dbSpanExporter.enabled"
       },
       {
-        "command": "github.copilot.chat.otel.statusActive",
-        "title": "OpenTelemetry",
-        "category": "Chat",
-        "icon": "$(broadcast)"
-      },
-      {
         "command": "github.copilot.sessionSync.deleteSessions",
         "title": "%github.copilot.command.sessionSync.deleteSessions%",
         "category": "Chat",
@@ -5589,18 +5583,7 @@
           "group": "inline@2"
         }
       ],
-      "chat/input/status": [
-        {
-          "command": "github.copilot.chat.otel.statusActive",
-          "when": "github.copilot.otel.state == 'on'",
-          "group": "navigation"
-        }
-      ],
       "commandPalette": [
-        {
-          "command": "github.copilot.chat.otel.statusActive",
-          "when": "false"
-        },
         {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"

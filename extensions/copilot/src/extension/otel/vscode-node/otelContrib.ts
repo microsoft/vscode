@@ -16,11 +16,8 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import type { IExtensionContribution } from '../../common/contributions';
 
 const OPEN_OTEL_SETTINGS_COMMAND = 'github.copilot.chat.otel.openSettings';
-const PILL_COMMAND = 'github.copilot.chat.otel.statusActive';
 const CHAT_STATUS_ITEM_ID = 'copilot.otelStatus';
-const OTEL_STATE_CONTEXT_KEY = 'github.copilot.otel.state';
 const DOCS_URL = 'https://code.visualstudio.com/docs/copilot/guides/monitoring-agents';
-type OTelUiState = 'off' | 'on';
 
 /**
  * Lifecycle contribution that logs OTel status, wires the SQLite store,
@@ -153,28 +150,18 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 	}
 
 	/**
-	 * Surfaces the active OTel configuration in the UI: a row in the Copilot
-	 * Chat status dashboard plus a $(broadcast) pill on the chat input.
+	 * Surfaces the active OTel configuration as a row in the Copilot Chat
+	 * status dashboard (no pill in the chat input — see PM feedback re: UI noise).
 	 */
 	private _installVisibilityIndicators(): void {
-		void vscode.commands.executeCommand('setContext', OTEL_STATE_CONTEXT_KEY, this._computeUiState());
-
-		// Only show broadcast indicators when the user explicitly opted in;
+		// Only show indicators when the user explicitly opted in;
 		// db-only / debug-panel modes don't send data off-machine.
 		if (!this._otelService.config.enabledExplicitly) {
 			return;
 		}
 
-		this._register(vscode.commands.registerCommand(PILL_COMMAND, () =>
-			vscode.commands.executeCommand(OPEN_OTEL_SETTINGS_COMMAND)
-		));
-
 		const chatStatusItem = this._register(vscode.window.createChatStatusItem(CHAT_STATUS_ITEM_ID));
 		this._refreshChatStatusItem(chatStatusItem);
-	}
-
-	private _computeUiState(): OTelUiState {
-		return this._otelService.config.enabledExplicitly ? 'on' : 'off';
 	}
 
 	private _refreshChatStatusItem(item: vscode.ChatStatusItem): void {
