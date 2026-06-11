@@ -125,7 +125,7 @@ const FONT_SIZE_RAMP: ReadonlyMap<number, string> = new Map([
 	[18, 'var(--vscode-agents-fontSize-heading2)'],
 	[13, 'var(--vscode-bodyFontSize) or var(--vscode-agents-fontSize-heading3) or var(--vscode-agents-fontSize-body1)'],
 	[12, 'var(--vscode-bodyFontSize-small) or var(--vscode-agents-fontSize-label1)'],
-	[11, 'var(--vscode-bodyFontSize-xSmall) or var(--vscode-agents-fontSize-body2) or var(--vscode-agents-fontSize-label2)']
+	[11, 'var(--vscode-bodyFontSize-xSmall) or var(--vscode-agents-fontSize-body2) or var(--vscode-agents-fontSize-label2)'],
 	[10, 'var(--vscode-agents-fontSize-label3)'],
 ]);
 
