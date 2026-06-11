@@ -16,6 +16,9 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
+import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
@@ -363,18 +366,23 @@ class AddFileAsContextAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const editorService = accessor.get(IEditorService);
 		const sessionManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = accessor.get(ISessionsPartService);
 
-		const resource = editorService.activeEditor?.resource;
+		const resolvedContext = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const resource = resolvedContext.groupedEditors
+			.flatMap(groupedEditor => groupedEditor.editors)
+			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+			.find(uri => uri !== undefined);
 		if (!resource) {
 			return;
 		}
 
 		const sessionId = sessionManagementService.activeSession.get()?.sessionId;
 		sessionsPartService.getSessionView(sessionId)?.attach(resource);
+	}
 }
 
 registerAction2(AddFileAsContextAction);

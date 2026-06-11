@@ -85,9 +85,7 @@ export class NewChatView extends AbstractChatView {
 	}
 
 	override attach(uri: URI): void {
-		if (this._widget instanceof NewChatWidget) {
-			this._widget.attach(uri);
-		}
+		this._widget.attach(uri);
 	}
 }
 
