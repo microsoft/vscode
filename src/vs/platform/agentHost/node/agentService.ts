@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isSubagentSession, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -48,6 +48,7 @@ import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostChangesetOperationContributionService } from './agentHostChangesetOperationContributionService.js';
 import { registerDefaultChangesetOperationContributions } from './agentHostChangesetOperationContributions.js';
@@ -91,6 +92,10 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Protocol: fires for ephemeral notifications (sessionAdded/Removed). */
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	/** Protocol: fires for MCP server-originated notifications routed over `mcp://` channels. */
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
@@ -306,6 +311,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
 		}
+		if (provider.onMcpNotification) {
+			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
+		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
@@ -340,6 +348,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._changesetOperationContributionService.invokeChangesetOperation(params);
+	}
+
+	// ---- MCP `mcp://` channel routing --------------------------------------
+
+	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const route = parseMcpChannelUri(channel);
+		if (!route) {
+			throw new Error(`Method not found: invalid mcp:// channel ${channel}`);
+		}
+		const provider = this._providers.get(route.providerId);
+		if (!provider || !provider.handleMcpRequest) {
+			throw new Error(`Method not found: no provider for mcp:// channel ${channel}`);
+		}
+		const sessionUri = AgentSession.uri(route.providerId, route.sessionId);
+		return provider.handleMcpRequest(sessionUri, route.serverName, method, params);
 	}
 
 	// ---- session management -------------------------------------------------
@@ -433,6 +456,11 @@ export class AgentService extends Disposable implements IAgentService {
 		const additions: IAgentSessionMetadata[] = [];
 		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
 			if (known.has(summary.resource)) {
+				continue;
+			}
+			// Subagent sessions are nested under their parent and must never
+			// surface as top-level entries in the session list.
+			if (isSubagentSession(summary.resource)) {
 				continue;
 			}
 			additions.push({

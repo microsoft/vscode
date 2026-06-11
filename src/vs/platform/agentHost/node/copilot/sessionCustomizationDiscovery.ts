@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
@@ -42,12 +43,9 @@ export function areDiscoveredDirectoriesEqual(a: readonly IDiscoveredDirectory[]
 		return false;
 	}
 
-	const sortedA = [...a].sort(compareDiscoveredDirectory);
-	const sortedB = [...b].sort(compareDiscoveredDirectory);
-
-	for (let i = 0; i < sortedA.length; i++) {
-		const left = sortedA[i];
-		const right = sortedB[i];
+	for (let i = 0; i < a.length; i++) {
+		const left = a[i];
+		const right = b[i];
 		if (left.type !== right.type || left.uri.toString() !== right.uri.toString() || !areDiscoveredFilesEqual(left.files, right.files)) {
 			return false;
 		}
@@ -69,12 +67,9 @@ function areDiscoveredFilesEqual(a: readonly IDiscoveredFile[], b: readonly IDis
 		return false;
 	}
 
-	const sortedA = [...a].sort(compareDiscoveredFile);
-	const sortedB = [...b].sort(compareDiscoveredFile);
-
-	for (let i = 0; i < sortedA.length; i++) {
-		const left = sortedA[i];
-		const right = sortedB[i];
+	for (let i = 0; i < a.length; i++) {
+		const left = a[i];
+		const right = b[i];
 		if (left.uri.toString() !== right.uri.toString() || left.etag !== right.etag) {
 			return false;
 		}
@@ -149,7 +144,11 @@ const agentInstructions: { workspace: IInstructionFile[]; user: IInstructionFile
 	],
 };
 
-const REFRESH_DEBOUNCE_MS = 100;
+function throwIfCancelled(token: CancellationToken): void {
+	if (token.isCancellationRequested) {
+		throw new CancellationError();
+	}
+}
 
 /**
  * Discovers customization files (agents, skills, and instructions)
@@ -157,10 +156,6 @@ const REFRESH_DEBOUNCE_MS = 100;
  * user's home, and emits {@link onDidChange} when any of those directories
  * change on disk.
  *
- * The first call to {@link directories} performs the scan; subsequent calls return
- * the cached result until a watcher fires (or until {@link refresh} is
- * invoked). Watchers are recreated on each scan so directories that did not
- * exist initially get picked up once they appear.
  *
  * Workspace roots take precedence over user-home roots when the same URI is
  * discovered through multiple paths (de-duped by URI).
@@ -171,10 +166,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private readonly _watchers = new ResourceMap<{ readonly recursive: boolean; readonly disposable: IDisposable }>();
-	private readonly _refreshDelayer = this._register(new Delayer<void>(REFRESH_DEBOUNCE_MS));
 	private readonly _watchRootUris = new ResourceMap<boolean>();
-
-	private _cached: Promise<readonly IDiscoveredDirectory[]> | undefined;
 
 	constructor(
 		private readonly _workingDirectory: URI,
@@ -186,8 +178,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 		this._register({ dispose: () => this._disposeAllWatchers() });
 		this._watchRootUris.clear();
 		this._register(this._fileService.onDidFilesChange(e => {
-			for (const rootUri of this._watchRootUris.keys()) {
-				if (e.affects(rootUri)) {
+			for (const [uri, recursive] of this._watchRootUris.entries()) {
+				if (recursive ? e.affects(uri) : e.contains(uri)) {
 					this._scheduleRefresh();
 					break;
 				}
@@ -195,44 +187,34 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}));
 	}
 
-	directories(): Promise<readonly IDiscoveredDirectory[]> {
-		if (!this._cached) {
-			this._cached = this._scan();
-		}
-		return this._cached;
+	private _scheduleRefresh(): void {
+		this._onDidChange.fire();
 	}
 
 	/**
-	 * Forces the next call to {@link directories} to re-scan and re-attach watchers.
-	 * Does not emit {@link onDidChange} on its own — callers that explicitly
-	 * refresh own that responsibility.
+	 * Returns the list of discovered customization directories and files in a sorted way.
+	 * Also sets up watchers for all discovered root directories (recursively if specified by the root or if already watching recursively).
+	 * Each call performs a fresh scan scoped to the provided cancellation token.
 	 */
-	refresh(): void {
-		this._cached = undefined;
-	}
+	public async scan(token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
+		throwIfCancelled(token);
 
-	private _scheduleRefresh(): void {
-		this._refreshDelayer.trigger(() => {
-			this.refresh();
-			this._onDidChange.fire();
-		}).catch(() => { /* delayer cancelled on dispose */ });
-	}
-
-	private async _scan(): Promise<readonly IDiscoveredDirectory[]> {
 		const nextWatchRootUris = new ResourceMap<boolean>();
 		const seen = new ResourceSet();
 		const result: IDiscoveredDirectory[] = [];
 
 		// Workspace first so it wins on URI conflicts.
 		await Promise.all([
-			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris)),
-			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris)),
-			this._scanAgentInstructions(this._workingDirectory, agentInstructions.workspace, seen, result, nextWatchRootUris),
-			this._scanAgentInstructions(this._userHome, agentInstructions.user, seen, result, nextWatchRootUris)
+			...searchRoots.workspace.map(root => this._scanRoot(this._workingDirectory, root, seen, result, nextWatchRootUris, token)),
+			...searchRoots.user.map(root => this._scanRoot(this._userHome, root, seen, result, nextWatchRootUris, token)),
+			this._scanAgentInstructions(this._workingDirectory, agentInstructions.workspace, seen, result, nextWatchRootUris, token),
+			this._scanAgentInstructions(this._userHome, agentInstructions.user, seen, result, nextWatchRootUris, token)
 		]);
 
+		throwIfCancelled(token);
+
 		this._reconcileWatchers(nextWatchRootUris);
-		return result;
+		return result.sort(compareDiscoveredDirectory);
 	}
 
 	private _reconcileWatchers(nextWatchRootUris: ResourceMap<boolean>): void {
@@ -272,9 +254,11 @@ export class SessionCustomizationDiscovery extends Disposable {
 	/**
 	 * For agent instructions, create a single root for the base directory.
 	 */
-	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>): Promise<void> {
+	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>, token: CancellationToken): Promise<void> {
 		const files: IDiscoveredFile[] = [];
 		for (const root of roots) {
+			throwIfCancelled(token);
+
 			const rootUri = joinPath(base, ...root.path);
 			let stat: IFileStatWithMetadata;
 			try {
@@ -291,6 +275,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 				watchRootUris.set(rootUri, false); // set up non recursive watcher
 			}
 			for (const entry of stat.children) {
+				throwIfCancelled(token);
+
 				if (entry.isFile && root.filenames.includes(entry.name)) {
 					const uri = joinPath(rootUri, entry.name);
 					if (!seen.has(uri)) {
@@ -301,11 +287,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 		if (files.length > 0) {
-			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files });
+			result.push({ uri: base, type: DiscoveredType.AgentInstruction, files: files.sort(compareDiscoveredFile) });
 		}
 	}
 
-	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>): Promise<void> {
+	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>, token: CancellationToken): Promise<void> {
+		throwIfCancelled(token);
+
 		const rootUri = joinPath(base, ...root.path);
 		let stat: IFileStatWithMetadata;
 		try {
@@ -324,6 +312,8 @@ export class SessionCustomizationDiscovery extends Disposable {
 		if (root.type === DiscoveredType.Skill) {
 			const files: IDiscoveredFile[] = [];
 			for (const child of stat.children) {
+				throwIfCancelled(token);
+
 				if (child.isDirectory) {
 					const skillFile = joinPath(child.resource, SKILL_FILENAME);
 					try {
@@ -337,12 +327,14 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 		} else if (root.type === DiscoveredType.Agent) {
 			const files: IDiscoveredFile[] = [];
 			// agents are markdown files directly under the root (no subdirectory scanning),
 			// excluding only exact-case README.md.
 			for (const child of stat.children) {
+				throwIfCancelled(token);
+
 				if (child.isFile) {
 					const filename = child.name;
 					if (filename.endsWith(MARKDOWN_SUFFIX) && filename !== README_FILENAME && !seen.has(child.resource)) {
@@ -351,13 +343,17 @@ export class SessionCustomizationDiscovery extends Disposable {
 					}
 				}
 			}
-			result.push({ uri: rootUri, type: root.type, files });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 
 		} else if (root.type === DiscoveredType.Instruction) {
 			const files: IDiscoveredFile[] = [];
 			// instructions are all .instructions.md files directly under the root or in a subdirectory
 			const findInstructions = async (stat: IFileStatWithMetadata, recursionLevel: number): Promise<void> => {
+				throwIfCancelled(token);
+
 				for (const child of stat.children ?? []) {
+					throwIfCancelled(token);
+
 					if (child.isFile) {
 						const name = child.name.toLowerCase();
 						if (name.endsWith(INSTRUCTION_FILE_SUFFIX) && !seen.has(child.resource)) {
@@ -378,7 +374,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 				}
 			};
 			await findInstructions(stat, 0);
-			result.push({ uri: rootUri, type: root.type, files });
+			result.push({ uri: rootUri, type: root.type, files: files.sort(compareDiscoveredFile) });
 		} else {
 			this._logService.warn(`[SessionCustomizationDiscovery] Unrecognized root type '${root.type}' for root '${rootUri.toString()}'`);
 		}

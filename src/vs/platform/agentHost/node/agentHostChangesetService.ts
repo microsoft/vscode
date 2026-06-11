@@ -11,17 +11,15 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
 	BASELINE_TURN_ID,
+	buildBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
-	sessionChangesetLabel,
-	uncommittedChangesetLabel,
-	uncommittedChangesetDescription,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
-import type { Changeset, ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
+import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
@@ -46,6 +44,9 @@ import { META_CHECKPOINT_WORKING_DIR } from './agentHostCheckpointService.js';
  */
 export const META_CHANGESET_UNCOMMITTED = 'agentHost.changeset.uncommitted';
 
+/** Metadata key under which the branch changeset's diff list is persisted. */
+export const META_CHANGESET_BRANCH = 'agentHost.changeset.branch';
+
 /** Metadata key under which the session-wide changeset's diff list is persisted. */
 export const META_CHANGESET_SESSION = 'agentHost.changeset.session';
 
@@ -61,14 +62,22 @@ export const META_LEGACY_DIFFS = 'diffs';
 export const META_CHANGES_SUMMARY = 'agentHost.changes';
 
 /** The two static changeset kinds we publish by default. */
-export type StaticChangesetKind = 'uncommitted' | 'session';
+export type StaticChangesetKind = 'branch' | 'uncommitted' | 'session';
 
 function staticChangesetUri(session: ProtocolURI, kind: StaticChangesetKind): ProtocolURI {
-	return kind === 'uncommitted' ? buildUncommittedChangesetUri(session) : buildSessionChangesetUri(session);
+	return kind === 'branch'
+		? buildBranchChangesetUri(session)
+		: kind === 'uncommitted'
+			? buildUncommittedChangesetUri(session)
+			: buildSessionChangesetUri(session);
 }
 
 function persistKeyFor(kind: StaticChangesetKind): string {
-	return kind === 'uncommitted' ? META_CHANGESET_UNCOMMITTED : META_CHANGESET_SESSION;
+	return kind === 'branch'
+		? META_CHANGESET_BRANCH :
+		kind === 'uncommitted'
+			? META_CHANGESET_UNCOMMITTED
+			: META_CHANGESET_SESSION;
 }
 
 /**
@@ -127,73 +136,6 @@ export function computeChangesSummaryFromPersistedDiffs(
 }
 
 /**
- * Builds a single static {@link Changeset} catalogue entry. Optional
- * `description` is threaded through when provided.
- */
-function buildStaticCatalogueEntry(label: string, uri: string, changeKind: string, description?: string): Changeset {
-	return description ? { label, uriTemplate: uri, changeKind, description } : { label, uriTemplate: uri, changeKind };
-}
-
-function defaultCatalogueWithCounts(sessionUri: string): Changeset[] {
-	return [
-		buildStaticCatalogueEntry(sessionChangesetLabel(), buildSessionChangesetUri(sessionUri), 'session'),
-		buildStaticCatalogueEntry(uncommittedChangesetLabel(), buildUncommittedChangesetUri(sessionUri), 'uncommitted', uncommittedChangesetDescription())
-	];
-}
-
-/**
- * Build the default ordered changeset catalogue (`Branch Changes`,
- * `Uncommitted Changes`, `This Turn`) seeded from the live
- * {@link ChangesetState} for an unopened session that has no live
- * `SessionState` but already has ready changeset states (e.g. from a
- * prior `restoreStaticChangeset` call).
- *
- * Returns `undefined` when no live state is ready, so `listSessions`
- * naturally leaves the `changesets` field undefined for sessions that
- * have no usable counts yet — preserving the long-standing contract that
- * unopened sessions without persisted or live data advertise no catalogue.
- *
- * The two static entries (`Branch Changes`, `Uncommitted Changes`) are
- * git-only — `AgentService._attachGitState` strips them from the live
- * `summary.changesets` for non-git working directories. The synthesised
- * catalogue here mirrors the live-state shape so list overlays stay
- * consistent with the per-session catalogue clients subscribe to.
- *
- * The compare-turns changeset is intentionally NOT advertised in the
- * catalogue — it is subscribe-only (see
- * {@link buildDefaultChangesetCatalogue}).
- */
-export function buildCatalogueFromLiveState(
-	sessionUri: string,
-	uncommitted: ChangesetState | undefined,
-	session: ChangesetState | undefined,
-): Changeset[] | undefined {
-	const uncommittedReady = uncommitted?.status === ChangesetStatus.Ready;
-	const sessionReady = session?.status === ChangesetStatus.Ready;
-	if (!uncommittedReady && !sessionReady) {
-		return undefined;
-	}
-	return defaultCatalogueWithCounts(sessionUri);
-}
-
-/**
- * Build the default ordered changeset catalogue from parsed persisted
- * diffs. Returns `undefined` when both inputs are absent so unopened
- * sessions with no usable data leave `changesets` undefined — preserving
- * the existing `listSessions` behaviour for malformed metadata cases.
- */
-export function buildCatalogueFromPersistedDiffs(
-	sessionUri: string,
-	uncommittedDiffs: readonly ISessionFileDiff[] | undefined,
-	sessionDiffs: readonly ISessionFileDiff[] | undefined,
-): Changeset[] | undefined {
-	if (!uncommittedDiffs && !sessionDiffs) {
-		return undefined;
-	}
-	return defaultCatalogueWithCounts(sessionUri);
-}
-
-/**
  * Parses a JSON-serialised {@link ISessionFileDiff}[] blob from session
  * metadata. Returns `undefined` for missing or malformed input, logging a
  * warning that names `sessionUri` and `kind` so operators can correlate the
@@ -219,6 +161,7 @@ export function tryParsePersistedDiffs(raw: string | undefined, sessionUri: stri
  * and `seedIfEmpty` gating.
  */
 export interface IPersistedChangesetMetadata {
+	readonly branchRaw?: string;
 	readonly uncommittedRaw?: string;
 	readonly sessionRaw?: string;
 	readonly legacyRaw?: string;
@@ -231,6 +174,7 @@ export interface IPersistedChangesetMetadata {
  * the session-list overlay.
  */
 export interface IRestoredChangesetDiffs {
+	readonly branch?: readonly ISessionFileDiff[];
 	readonly uncommitted?: readonly ISessionFileDiff[];
 	readonly session?: readonly ISessionFileDiff[];
 }
@@ -326,6 +270,12 @@ export interface IAgentHostChangesetService {
 	 * slot while its producer is mid-flight.
 	 */
 	isStaticChangesetComputeActive(changesetUri: ProtocolURI): boolean;
+
+	/**
+	 * Lazy refresh of the branch changeset, kicked off when a client
+	 * first subscribes to `<session>/changeset/branch`.
+	 */
+	refreshBranchChangeset(session: ProtocolURI): void;
 
 	/**
 	 * Lazy refresh of the uncommitted changeset, kicked off when a client
@@ -439,6 +389,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
+		this._stateManager.registerChangeset(buildBranchChangesetUri(session));
 		this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		this._stateManager.registerChangeset(buildSessionChangesetUri(session));
 	}
@@ -449,13 +400,15 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
+		const persistedBranch = tryParsePersistedDiffs(metadata.branchRaw, sessionUri, 'branch', this._logService);
 		const persistedUncommitted = tryParsePersistedDiffs(metadata.uncommittedRaw, sessionUri, 'uncommitted', this._logService);
+
 		// Legacy `diffs` is the migration fallback for the session-wide
 		// changeset only — it never carried uncommitted state.
 		const persistedSession = tryParsePersistedDiffs(metadata.sessionRaw, sessionUri, 'session', this._logService)
 			?? tryParsePersistedDiffs(metadata.legacyRaw, sessionUri, 'session (legacy)', this._logService);
 
-		return { uncommitted: persistedUncommitted, session: persistedSession };
+		return { branch: persistedBranch, uncommitted: persistedUncommitted, session: persistedSession };
 	}
 
 	applyPersistedStaticChangesets(sessionUri: ProtocolURI, diffs: IRestoredChangesetDiffs): void {
@@ -464,6 +417,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// refresh in this lifetime) is always more authoritative than a
 		// potentially-stale persisted blob; without this guard a fresh
 		// `restorePersistedStaticChangesets` call would clobber it.
+		this._seedIfEmpty(sessionUri, 'branch', diffs.branch);
 		this._seedIfEmpty(sessionUri, 'uncommitted', diffs.uncommitted);
 		this._seedIfEmpty(sessionUri, 'session', diffs.session);
 	}
@@ -491,6 +445,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		this.restoreStaticChangeset(session, kind, diffs);
+	}
+
+	refreshBranchChangeset(session: ProtocolURI): void {
+		this._scheduleStaticRecompute(session, 'branch', undefined, this._markStaticChangesetComputing(session, 'branch'));
 	}
 
 	refreshUncommittedChangeset(session: ProtocolURI): void {
@@ -788,6 +746,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		try {
 			let diffs = await this._tryComputeGitDiffs(session, ref.object, kind);
 			if (!diffs) {
+				if (kind === 'branch') {
+					// Branch changeset answers a different question than the
+					// edit-tracker aggregator — do not fall back. Preserve
+					// whatever cached state is already there.
+					this._logService.debug(`[AgentHostChangesetService] Branch git diff unavailable for ${session}; preserving cached changeset. previousStatus=${statusBeforeCompute ?? 'unknown'} cachedFiles=${this._stateManager.getChangesetState(changesetUri)?.files.length ?? 0}`);
+					this._restoreStaticChangesetStatus(changesetUri, statusBeforeCompute);
+					return;
+				}
 				if (kind === 'uncommitted') {
 					// Path B (edit-tracker aggregator) answers a different
 					// question than `git status` and must not be allowed to
@@ -948,7 +914,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return undefined;
 		}
 		let baseBranch: string | undefined;
-		if (kind === 'session') {
+		if (kind === 'branch' || kind === 'session') {
 			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
 			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
 			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;

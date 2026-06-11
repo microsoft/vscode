@@ -61,6 +61,8 @@ class ImmediatelyDoneQuery implements Query {
 	async interrupt(): Promise<void> { /* not exercised here */ }
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
+	reloadSkills(): never { throw new Error('not modeled'); }
+	backgroundTasks(): never { throw new Error('not modeled'); }
 	async close(): Promise<void> { /* not exercised here */ }
 	async [Symbol.asyncDispose](): Promise<void> { /* not exercised here */ }
 	setMaxThinkingTokens(): never { throw new Error('not modeled'); }

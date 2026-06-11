@@ -495,8 +495,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				metadata: modeInstructions.metadata,
 				isBuiltin: mode.isBuiltin
 			} : undefined,
-			modeId: modeId,
-			modeName: getModeNameForTelemetry(mode),
+			telemetryModeId: modeId,
+			telemetryModeName: getModeNameForTelemetry(mode),
 			applyCodeBlockSuggestionId: undefined,
 			permissionLevel: this._currentPermissionLevel.get(),
 		};
@@ -2540,7 +2540,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 		this.statusToolbarContainer = elements.statusToolbarContainer;
 
-		if (this.options.isSessionsWindow || this.options.renderStyle === 'compact') {
+		if (this.options.renderStyle === 'compact') {
 			toolbarsContainer.prepend(this.contextUsageWidgetContainer);
 		}
 
