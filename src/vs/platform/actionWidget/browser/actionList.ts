@@ -530,6 +530,17 @@ export interface IActionListOptions {
 	readonly footerText?: string;
 
 	/**
+	 * Optional text shown above the action list as a header banner. When set, it is
+	 * rendered at the top of the widget, optionally prefixed by {@link headerIcon}.
+	 */
+	readonly headerText?: string;
+
+	/**
+	 * Optional icon shown to the left of {@link headerText} in the header banner.
+	 */
+	readonly headerIcon?: ThemeIcon;
+
+	/**
 	 * Optional CSS class name added to the action list container, for scoped styling.
 	 */
 	readonly className?: string;
@@ -568,6 +579,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private readonly _footerContainer: HTMLElement | undefined;
+	private readonly _headerContainer: HTMLElement | undefined;
 	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _groupTitleByIndex = new Map<number, string>();
 
@@ -740,6 +752,18 @@ export class ActionListWidget<T> extends Disposable {
 			this._footerContainer = document.createElement('div');
 			this._footerContainer.className = 'action-list-footer';
 			this._footerContainer.textContent = this._options.footerText;
+		}
+
+		// Create header banner
+		if (this._options?.headerText) {
+			this._headerContainer = document.createElement('div');
+			this._headerContainer.className = 'action-list-header';
+			if (this._options.headerIcon) {
+				const icon = dom.append(this._headerContainer, dom.$('span.action-list-header-icon'));
+				icon.classList.add(...ThemeIcon.asClassNameArray(this._options.headerIcon));
+			}
+			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
+			text.textContent = this._options.headerText;
 		}
 
 		this._applyFilter();
@@ -990,6 +1014,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	get footerContainer(): HTMLElement | undefined {
 		return this._footerContainer;
+	}
+
+	get headerContainer(): HTMLElement | undefined {
+		return this._headerContainer;
 	}
 
 	get filterInput(): HTMLInputElement | undefined {

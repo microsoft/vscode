@@ -170,18 +170,9 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	}
 
 	const thinkingEnabled = !!thinkingConfig;
-	// In Efficiency Mode, subagent requests are forced to the lowest available
-	// reasoning effort to reduce cost. Subagent requests are identified by the
-	// `conversation-subagent` interaction type override.
-	const isEfficiencySubagent = options.interactionTypeOverride === 'conversation-subagent'
-		&& configurationService.getConfig(ConfigKey.Advanced.EfficiencyModeEnabled);
 	let effort: 'low' | 'medium' | 'high' | undefined;
 	if (thinkingConfig && endpoint.supportsReasoningEffort?.length) {
-		const efficiencyEffort = isEfficiencySubagent && endpoint.supportsReasoningEffort.includes('low')
-			? 'low'
-			: undefined;
-		const candidateEffort = efficiencyEffort
-			?? configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+		const candidateEffort = configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
 			?? reasoningEffort
 			?? (endpoint.supportsReasoningEffort.length === 1 ? endpoint.supportsReasoningEffort[0] : 'medium');
 		if (candidateEffort === 'low' || candidateEffort === 'medium' || candidateEffort === 'high') {

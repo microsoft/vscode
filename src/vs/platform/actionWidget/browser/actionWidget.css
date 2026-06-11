@@ -405,6 +405,27 @@
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
+/* Header banner */
+.action-widget .action-list-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	line-height: 16px;
+	padding: 10px 12px;
+}
+
+.action-widget .action-list-header .action-list-header-icon {
+	flex-shrink: 0;
+	margin-top: 1px;
+	font-size: 16px;
+}
+
+.action-widget .action-list-header .action-list-header-text {
+	flex: 1;
+}
+
 /* Anchor for the absolutely-positioned submenu panel */
 .action-widget .actionList {
 	position: relative;

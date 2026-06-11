@@ -10,7 +10,7 @@ import { IChatHookService } from '../../../platform/chat/common/chatHookService'
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -30,7 +30,6 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
 import { IBuildPromptResult } from './intents';
-import { resolveLowCostSubagentEndpoint } from './subagentEndpoint';
 
 export interface IExecutionSubagentToolCallingLoopOptions extends IToolCallingLoopOptions {
 	request: ChatRequest;
@@ -114,7 +113,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService);
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
 		const shellType = this.terminalService.terminalShellType;
 
@@ -129,7 +128,18 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		}
 
 		if (modelName) {
-			return resolveLowCostSubagentEndpoint(this.endpointProvider, modelName, this.options.request, this._logService, 'Execution subagent');
+			try {
+				// Try to get the specified model
+				const endpoint = await this.endpointProvider.getChatEndpoint(modelName);
+				if (endpoint.supportsToolCalls) {
+					return endpoint;
+				}
+				// Model does not support tool calls, fallback to main agent endpoint
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
+			} catch (error) {
+				// Model not available, fallback to main agent endpoint
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
+			}
 		} else {
 			// No model name specified, use main agent endpoint
 			return await this.endpointProvider.getChatEndpoint(this.options.request);

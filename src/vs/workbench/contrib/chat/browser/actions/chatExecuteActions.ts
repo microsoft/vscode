@@ -1199,38 +1199,6 @@ class ExecuteHandoffAction extends Action2 {
 	}
 }
 
-/**
- * Setting id (owned by the GitHub Copilot Chat extension) that drives "Efficiency Mode".
- * When enabled, the agent is prompted to be frugal and minimize tool calls.
- */
-export const EFFICIENCY_MODE_SETTING_ID = 'github.copilot.chat.efficiencyMode.enabled';
-
-/**
- * Toggles "Efficiency Mode" on or off. Exposed in the Command Palette and surfaced
- * as a checkable entry in the chat model picker (see {@link ModelPickerWidget}), where
- * its on/off state is shown clearly with a checkmark.
- */
-export class ToggleEfficiencyModeAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.toggleEfficiencyMode';
-
-	constructor() {
-		super({
-			id: ToggleEfficiencyModeAction.ID,
-			title: localize2('interactive.toggleEfficiencyMode.label', "Toggle Efficiency Mode"),
-			tooltip: localize('toggleEfficiencyMode.tooltip', "Efficiency Mode: ask the agent to be frugal and minimize tool calls"),
-			category: CHAT_CATEGORY,
-			f1: true,
-			precondition: ChatContextKeys.enabled,
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const current = configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
-		await configurationService.updateValue(EFFICIENCY_MODE_SETTING_ID, !current);
-	}
-}
-
 
 export function registerChatExecuteActions(): DisposableStore {
 	const store = new DisposableStore();
@@ -1241,7 +1209,6 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(SendToNewChatAction));
 	store.add(registerAction2(ChatSubmitWithCodebaseAction));
 	store.add(registerAction2(ToggleChatModeAction));
-	store.add(registerAction2(ToggleEfficiencyModeAction));
 	store.add(registerAction2(SwitchToNextModelAction));
 	store.add(registerAction2(SwitchToNextPinnedModelAction));
 	store.add(registerAction2(OpenModelPickerAction));

@@ -7,9 +7,9 @@ import { randomUUID } from 'crypto';
 import type { CancellationToken, ChatRequest, ChatResponseStream, LanguageModelToolInformation, Progress } from 'vscode';
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { IChatHookService } from '../../../platform/chat/common/chatHookService';
-import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes'; import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -27,7 +27,6 @@ import { ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IBuildPromptContext } from '../common/intents';
 import { IBuildPromptResult } from './intents';
-import { resolveLowCostSubagentEndpoint } from './subagentEndpoint';
 
 export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopOptions {
 	request: ChatRequest;
@@ -96,20 +95,11 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'vscode-agentic-search-router-a';
 
 	/**
-	 * Smaller, cheaper model used for the subagent when Efficiency Mode is enabled and
-	 * no explicit subagent model has been configured. This is a real model family (not a
-	 * `copilot-utility*` model) and is resolved against the full set of chat endpoints, so
-	 * it must match the `family` or `model` of an available endpoint.
-	 */
-	private static readonly EFFICIENCY_MODE_MODEL = 'gemini-3-flash';
-
-	/**
 	 * Get the endpoint to use for the search subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService);
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
 		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
-		const efficiencyMode = this._configurationService.getConfig(ConfigKey.Advanced.EfficiencyModeEnabled);
 
 		if (useAgenticProxy) {
 			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
@@ -117,11 +107,15 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
 		}
 
-		// Prefer an explicitly configured model; otherwise, in Efficiency Mode, route to a
-		// smaller/cheaper model rather than the (potentially expensive) main agent model.
-		const resolvedModel = modelName || (efficiencyMode ? SearchSubagentToolCallingLoop.EFFICIENCY_MODE_MODEL : undefined);
-		if (resolvedModel) {
-			return resolveLowCostSubagentEndpoint(this.endpointProvider, resolvedModel, this.options.request, this._logService, 'Search subagent');
+		if (modelName) {
+			try {
+				// Try to get the specified model
+				return await this.endpointProvider.getChatEndpoint(modelName);
+			} catch (error) {
+				// Model not available or doesn't support tool calls, fallback to main agent
+				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
+				return await this.endpointProvider.getChatEndpoint(this.options.request);
+			}
 		} else {
 			// No model name specified, use main agent endpoint
 			return await this.endpointProvider.getChatEndpoint(this.options.request);

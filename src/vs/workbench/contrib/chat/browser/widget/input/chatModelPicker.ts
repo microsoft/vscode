@@ -24,10 +24,8 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../platform/
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
@@ -38,7 +36,6 @@ import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IUpdateService, StateType } from '../../../../../../platform/update/common/update.js';
-import { EFFICIENCY_MODE_SETTING_ID } from '../../actions/chatExecuteActions.js';
 
 function isVersionAtLeast(current: string, required: string): boolean {
 	const currentSemver = semver.coerce(current);
@@ -75,13 +72,6 @@ export function getControlModelsForEntitlement(manifest: IModelsControlManifest,
 const ModelPickerSection = {
 	Other: 'other',
 } as const;
-
-/**
- * Storage key holding the per-model effort/context values that Efficiency Mode
- * overrode, so they can be restored when Efficiency Mode is turned off. Shape:
- * `{ [modelIdentifier]: { [configKey]: priorValue } }`.
- */
-const EFFICIENCY_SAVED_CONFIG_STORAGE_KEY = 'chat.efficiencyMode.savedModelConfig';
 
 /**
  * Returns a human-readable display name for a model vendor.
@@ -887,15 +877,6 @@ export class ModelPickerWidget extends Disposable {
 	private _badge: ModelPickerBadge | undefined;
 	private _compact: IObservable<boolean> | undefined;
 
-	/**
-	 * Tracks whether Efficiency Mode's per-model effort/context clamping is currently
-	 * applied, so toggles are idempotent and a reload (with the setting already on)
-	 * does not re-clamp models that were already adjusted.
-	 */
-	private _efficiencyModeApplied = false;
-	/** Set by the in-picker toggle so the configuration listener does not sync twice. */
-	private _suppressNextEfficiencySync = false;
-
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
 	private _nameButton: HTMLElement | undefined;
@@ -917,7 +898,6 @@ export class ModelPickerWidget extends Disposable {
 		private readonly _delegate: IModelPickerDelegate,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
@@ -926,14 +906,8 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
-		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-
-		// If the setting is already on at construction, models were clamped in a
-		// previous session (the per-model config persists), so mark as applied to
-		// avoid re-clamping — but still allow restore-on-disable from saved priors.
-		this._efficiencyModeApplied = this._configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
 
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			this._renderLabel();
@@ -941,22 +915,6 @@ export class ModelPickerWidget extends Disposable {
 
 		this._register(this._entitlementService.onDidChangeUsageBasedBilling(() => {
 			this._renderLabel();
-		}));
-
-		// Keep the picker bar in sync when Efficiency Mode is toggled from
-		// elsewhere (Command Palette or Settings). The in-picker toggle handles
-		// its own sync and suppresses this listener to avoid doing the work twice.
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(EFFICIENCY_MODE_SETTING_ID)) {
-				if (this._suppressNextEfficiencySync) {
-					this._suppressNextEfficiencySync = false;
-					this._renderLabel();
-					return;
-				}
-				const enabled = this._configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
-				await this._syncEfficiencyMode(enabled);
-				this._renderLabel();
-			}
 		}));
 	}
 
@@ -974,11 +932,6 @@ export class ModelPickerWidget extends Disposable {
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
 		this._selectedModel = model;
 		this._renderLabel();
-		// While Efficiency Mode is on, clamp the newly selected model too so the
-		// reduced effort/context applies to whatever model the user switches to.
-		if (this._efficiencyModeApplied && model) {
-			void this._applyEfficiencyToModel(model);
-		}
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -1010,7 +963,7 @@ export class ModelPickerWidget extends Disposable {
 		this._nameButton.setAttribute('aria-expanded', 'false');
 
 		// Combined configuration button (conditionally visible): opens a single
-		// dropdown with Thinking Effort, Context Size and Efficiency Mode sections.
+		// dropdown with Thinking Effort and Context Size sections.
 		this._configButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-config'));
 		this._configButton.tabIndex = 0;
 		this._configButton.setAttribute('role', 'button');
@@ -1069,10 +1022,6 @@ export class ModelPickerWidget extends Disposable {
 			});
 			this._selectedModel = model;
 			this._renderLabel();
-			// Clamp the chosen model if Efficiency Mode is active.
-			if (this._efficiencyModeApplied) {
-				void this._applyEfficiencyToModel(model);
-			}
 			this._onDidChangeSelection.fire(model);
 		};
 
@@ -1275,108 +1224,9 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Applies or restores Efficiency Mode's per-model effort/context clamping.
-	 * Idempotent: returns early if the requested state already matches what is applied.
-	 */
-	private async _syncEfficiencyMode(enabled: boolean): Promise<void> {
-		if (enabled === this._efficiencyModeApplied) {
-			return;
-		}
-		// Update the applied flag up front so concurrent selection changes don't
-		// race the apply/restore below.
-		this._efficiencyModeApplied = enabled;
-		if (enabled) {
-			await this._applyEfficiencyToModel(this._selectedModel);
-		} else {
-			await this._restoreEfficiencyForAllModels();
-		}
-	}
-
-	/**
-	 * Reads the saved pre-Efficiency-Mode per-model config from storage.
-	 */
-	private _readSavedEfficiencyConfig(): IStringDictionary<IStringDictionary<unknown>> {
-		const raw = this._storageService.get(EFFICIENCY_SAVED_CONFIG_STORAGE_KEY, StorageScope.PROFILE);
-		if (!raw) {
-			return {};
-		}
-		try {
-			return JSON.parse(raw) as IStringDictionary<IStringDictionary<unknown>>;
-		} catch {
-			return {};
-		}
-	}
-
-	private _writeSavedEfficiencyConfig(map: IStringDictionary<IStringDictionary<unknown>>): void {
-		if (Object.keys(map).length === 0) {
-			this._storageService.remove(EFFICIENCY_SAVED_CONFIG_STORAGE_KEY, StorageScope.PROFILE);
-		} else {
-			this._storageService.store(EFFICIENCY_SAVED_CONFIG_STORAGE_KEY, JSON.stringify(map), StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
-	/**
-	 * Resolves the cheapest value for a configurable group ('navigation' = thinking
-	 * effort, 'tokens' = context size) on the given model, alongside its current value.
-	 */
-	private _getEfficientValueForGroup(model: ILanguageModelChatMetadataAndIdentifier, group: string): { key: string; target: unknown; current: unknown } | undefined {
-		const config = resolveConfigProperty(model, group, this._languageModelsService);
-		if (!config) {
-			return undefined;
-		}
-		// Efficiency Mode resets thinking effort and context size to the model's
-		// default rather than the absolute minimum, so the main model stays usable
-		// while still undoing any user bump-ups. The bigger savings come from the
-		// subagents (smaller models + lower reasoning effort) handled elsewhere.
-		const target = config.schema.default;
-		if (target === undefined) {
-			return undefined;
-		}
-		return { key: config.key, target, current: config.value };
-	}
-
-	/**
-	 * Resets the model's thinking effort and context size to their defaults,
-	 * saving any overridden values so they can be restored when Efficiency Mode is off.
-	 */
-	private async _applyEfficiencyToModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): Promise<void> {
-		if (!model) {
-			return;
-		}
-		const saved = this._readSavedEfficiencyConfig();
-		const modelKey = model.identifier;
-		for (const group of ['navigation', 'tokens']) {
-			const eff = this._getEfficientValueForGroup(model, group);
-			if (!eff || eff.current === eff.target) {
-				continue;
-			}
-			// Save the prior value once (idempotent across repeated applies).
-			saved[modelKey] = saved[modelKey] ?? {};
-			if (!Object.hasOwn(saved[modelKey], eff.key)) {
-				saved[modelKey][eff.key] = eff.current;
-			}
-			await this._languageModelsService.setModelConfiguration(modelKey, { [eff.key]: eff.target });
-		}
-		this._writeSavedEfficiencyConfig(saved);
-	}
-
-	/**
-	 * Restores every per-model effort/context value that Efficiency Mode overrode.
-	 */
-	private async _restoreEfficiencyForAllModels(): Promise<void> {
-		const saved = this._readSavedEfficiencyConfig();
-		for (const [modelKey, keys] of Object.entries(saved)) {
-			for (const [configKey, priorValue] of Object.entries(keys)) {
-				await this._languageModelsService.setModelConfiguration(modelKey, { [configKey]: priorValue });
-			}
-		}
-		this._writeSavedEfficiencyConfig({});
-	}
-
-	/**
 	 * Opens the combined configuration dropdown containing the model's Thinking
-	 * Effort and Context Size options (when available) plus the global Efficiency
-	 * Mode On/Off toggle, all in a single popup anchored to the config button.
+	 * Effort and Context Size options (when available), in a single popup anchored
+	 * to the config button.
 	 */
 	private _showConfigPicker(): void {
 		if (this._domNode?.classList.contains('disabled') || !this._configButton || !this._selectedModel) {
@@ -1464,51 +1314,6 @@ export class ModelPickerWidget extends Disposable {
 			},
 		);
 
-		// --- Efficiency Mode (On/Off) ---
-		const isEfficiencyMode = this._configurationService.getValue<boolean>(EFFICIENCY_MODE_SETTING_ID) === true;
-		const efficiencyModeTooltip = localize('chat.modelPicker.efficiencyMode.tooltip', "Efficiency Mode optimizes for lower cost: it keeps responses concise, resets this model's reasoning effort and context size to their defaults, and runs subagents with lower reasoning effort and smaller models. Applies to any model.");
-		if (items.length) {
-			items.push({ kind: ActionListItemKind.Separator });
-		}
-		items.push({ kind: ActionListItemKind.Header, label: localize('chat.modelPicker.efficiencyMode', "Efficiency Mode") });
-		for (const enabled of [true, false]) {
-			const checked = isEfficiencyMode === enabled;
-			const isDefaultOption = !enabled;
-			const label = enabled
-				? localize('chat.modelPicker.efficiencyMode.on', "On")
-				: localize('chat.modelPicker.efficiencyMode.off', "Off");
-			items.push({
-				item: {
-					id: `efficiency.${enabled}`,
-					enabled: true,
-					checked,
-					class: undefined,
-					tooltip: efficiencyModeTooltip,
-					label,
-					run: async () => {
-						if (isEfficiencyMode === enabled) {
-							return;
-						}
-						// The configuration listener also reacts to this change; suppress
-						// it so we only apply/restore the per-model clamping once here.
-						this._suppressNextEfficiencySync = true;
-						await this._configurationService.updateValue(EFFICIENCY_MODE_SETTING_ID, enabled);
-						await this._syncEfficiencyMode(enabled);
-						// Refresh the picker bar so the effort/context labels reflect the
-						// clamped values, then re-open the dropdown so the new state shows.
-						this._renderLabel();
-						this._showConfigPicker();
-					}
-				},
-				kind: ActionListItemKind.Action,
-				label,
-				description: isDefaultOption ? defaultLabel : undefined,
-				tooltip: efficiencyModeTooltip,
-				group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
-				hideIcon: false,
-			});
-		}
-
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: (action: IActionWidgetDropdownAction) => {
@@ -1541,7 +1346,8 @@ export class ModelPickerWidget extends Disposable {
 				getWidgetRole: () => 'menu' as const,
 			},
 			{
-				footerText: localize('chat.config.costHint', "Increasing context size or thinking effort may increase cost"),
+				headerText: localize('chat.config.costHint', "Non-default options may increase cost"),
+				headerIcon: Codicon.info,
 			}
 		);
 	}
