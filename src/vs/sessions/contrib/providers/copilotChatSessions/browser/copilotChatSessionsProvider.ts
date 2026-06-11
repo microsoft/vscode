@@ -43,6 +43,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ClaudePreferAgentHostAgentsSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
@@ -1368,7 +1369,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	get sessionTypes(): readonly ISessionType[] {
 		const types: ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
-		if (this._claudeEnabled) {
+		if (this._isClaudeAvailable()) {
 			types.push(ClaudeCodeSessionType);
 		}
 		return types;
@@ -1406,6 +1407,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _multiChatEnabled: boolean;
 	private _claudeEnabled: boolean;
+	private _preferAgentHostClaude: boolean;
+
+	/**
+	 * Claude is offered by this (Copilot Chat sessions) provider only when the
+	 * underlying `claudeAgent.enabled` setting is on AND the user has not opted
+	 * the agent-host implementation in via `chat.agents.claude.preferAgentHost`.
+	 * When the latter is true, the agent host registers Claude itself and this
+	 * provider stays out of the way so the picker shows a single entry.
+	 */
+	private _isClaudeAvailable(): boolean {
+		return this._claudeEnabled && !this._preferAgentHostClaude;
+	}
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly supportsLocalWorkspaces = true;
@@ -1429,15 +1442,24 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
+		this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)) {
-				const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
-				if (this._claudeEnabled !== claudeEnabled) {
-					this._claudeEnabled = claudeEnabled;
-					this._onDidChangeSessionTypes.fire();
-					this._refreshSessionCache();
-				}
+			const claudeEnabledChanged = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING);
+			const preferAgentHostChanged = e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId);
+			if (!claudeEnabledChanged && !preferAgentHostChanged) {
+				return;
+			}
+			const wasAvailable = this._isClaudeAvailable();
+			if (claudeEnabledChanged) {
+				this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
+			}
+			if (preferAgentHostChanged) {
+				this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
+			}
+			if (this._isClaudeAvailable() !== wasAvailable) {
+				this._onDidChangeSessionTypes.fire();
+				this._refreshSessionCache();
 			}
 		}));
 
@@ -1464,7 +1486,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return [CopilotCloudSessionType];
 		}
 		const types: ISessionType[] = [CopilotCLISessionType];
-		if (this._claudeEnabled) {
+		if (this._isClaudeAvailable()) {
 			types.push(ClaudeCodeSessionType);
 		}
 		return types;
@@ -2531,7 +2553,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				continue;
 			}
 
-			if (session.providerType === AgentSessionProviders.Claude && !this._claudeEnabled) {
+			if (session.providerType === AgentSessionProviders.Claude && !this._isClaudeAvailable()) {
 				continue;
 			}
 
