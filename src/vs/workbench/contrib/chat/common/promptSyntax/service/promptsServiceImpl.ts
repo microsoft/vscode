@@ -1413,6 +1413,14 @@ class CachedPromise<T> extends Disposable {
 	}
 
 	public get(token: CancellationToken): Promise<T> {
+		// If a previous in-flight computation had all of its callers cancel, the pool's
+		// token will have fired and the computation may have rejected/aborted. A new
+		// caller arriving in that window must not inherit that cancellation, so start
+		// fresh.
+		if (this.cachedPool?.token.isCancellationRequested) {
+			this.cachedPromise = undefined;
+			this.cachedPool = undefined;
+		}
 		let pool = this.cachedPool;
 		if (this.cachedPromise === undefined) {
 			// Aggregate callers' tokens so the shared computation is cancelled

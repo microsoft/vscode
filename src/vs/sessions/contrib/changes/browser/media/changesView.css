@@ -102,38 +102,6 @@
 	padding: 2px 4px;
 }
 
-/* Overview section (header) - hidden since actions moved outside card */
-.changes-view-body .chat-editing-session-overview {
-	display: none;
-}
-
-/* Summary container */
-.changes-view-body .changes-summary {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 6px;
-	padding: 0 6px;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Line counts in header */
-.changes-view-body .changes-summary .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
-	font-size: 11px;
-	font-weight: 500;
-}
-
-.changes-view-body .changes-summary .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
-	font-size: 11px;
-	font-weight: 500;
-}
-
 .changes-view-body .changes-files-header-right-toolbar .working-set-lines-added {
 	color: var(--vscode-chat-linesAddedForeground);
 }

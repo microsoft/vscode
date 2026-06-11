@@ -495,8 +495,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				metadata: modeInstructions.metadata,
 				isBuiltin: mode.isBuiltin
 			} : undefined,
-			modeId: modeId,
-			modeName: getModeNameForTelemetry(mode),
+			telemetryModeId: modeId,
+			telemetryModeName: getModeNameForTelemetry(mode),
 			applyCodeBlockSuggestionId: undefined,
 			permissionLevel: this._currentPermissionLevel.get(),
 		};
