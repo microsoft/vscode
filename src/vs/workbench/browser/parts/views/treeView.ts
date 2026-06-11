@@ -1496,7 +1496,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		// Associate the inline toolbar with the tree item so screen readers
 		// announce which item the actions belong to when focus moves to them.
 		if (menuActions.length > 0) {
-			const itemName = labelStr ?? description ?? '';
+			const itemName = [label, description].filter((part): part is string => !!part).join(' ').trim();
 			templateData.actionBar.setAriaLabel(itemName ? localize('treeActionBarAriaLabel', "Actions for {0}", itemName) : localize('treeActionBarAriaLabelNoName', "Actions"));
 		} else {
 			templateData.actionBar.setAriaLabel('');
