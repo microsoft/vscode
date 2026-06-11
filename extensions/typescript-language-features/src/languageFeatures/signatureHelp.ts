@@ -50,11 +50,15 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	}
 
 	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		// Try matching the previous active signature's label to keep it selected
+		// On retrigger, prefer the previously-shown overload to avoid flicker — but only
+		// when TypeScript still selects the same one. TypeScript updates selectedItemIndex
+		// when typed arguments narrow the overload set (e.g. a string first argument
+		// eliminates number overloads on the next trigger-character retrigger), and we
+		// must honour that update rather than locking in the earlier selection.
 		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
 		if (previouslyActiveSignature && context.isRetrigger) {
 			const existingIndex = signatures.findIndex(other => other.label === previouslyActiveSignature?.label);
-			if (existingIndex >= 0) {
+			if (existingIndex >= 0 && existingIndex === info.selectedItemIndex) {
 				return existingIndex;
 			}
 		}
