@@ -1047,9 +1047,9 @@ export class CopilotAgentSession extends Disposable {
 		await this._wrapper.session.disconnect();
 	}
 
-	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._wrapper.session.setModel(model, { reasoningEffort });
+		await this._wrapper.session.setModel(model, { reasoningEffort, contextTier });
 	}
 
 	/**
