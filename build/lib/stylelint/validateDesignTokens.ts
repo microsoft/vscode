@@ -15,14 +15,6 @@ const ALLOWED_CODICON_PX = new Set([16, 12]);
 export interface IDesignTokenViolation {
 	readonly line: number;
 	readonly message: string;
-	/**
-	 * `true` when the codicon is sized in the 13-15px near-miss band, which is
-	 * always meant to be 12 or 16. Off-ramp sizes outside that band (large
-	 * hero/empty-state icons, small <=11px chevrons) set this `false` as they may
-	 * be intentional. Used only to tailor the warning wording - all codicon
-	 * size findings are reported as warnings and never fail the build.
-	 */
-	readonly isNearMiss: boolean;
 }
 
 /** Near-miss band: a codicon at 13/14/15px is always a mistake for 12 or 16. */
@@ -110,7 +102,7 @@ export function validateCodiconFontSizes(text: string): IDesignTokenViolation[] 
 			return;
 		}
 		const nearMiss = isNearMiss(px);
-		violations.push({ line, isNearMiss: nearMiss, message: formatCodiconMessage(match[1], nearMiss) });
+		violations.push({ line, message: formatCodiconMessage(match[1], nearMiss) });
 	});
 
 	return violations;
@@ -162,7 +154,6 @@ export function validateFontSizeTokens(text: string): IDesignTokenViolation[] {
 		}
 		violations.push({
 			line,
-			isNearMiss: false,
 			message: `${match[1]}px -> ${suggestion}`
 		});
 	});
@@ -253,7 +244,6 @@ export function validateCornerRadiusTokens(text: string): IDesignTokenViolation[
 		const note = exact ? '' : ` (off-scale, ${token.px}px)`;
 		violations.push({
 			line,
-			isNearMiss: !exact,
 			message: `${pxMatch[1]}px -> var(--vscode-cornerRadius-${token.name})${note}`
 		});
 	});
@@ -342,7 +332,6 @@ export function validateFontWeightTokens(text: string): IDesignTokenViolation[] 
 		const note = exact ? '' : ' (off-ramp, 400/600 only)';
 		violations.push({
 			line,
-			isNearMiss: !exact,
 			message: `${shown} -> var(--vscode-agents-fontWeight-${token.name})${note}`
 		});
 	});
@@ -437,7 +426,6 @@ export function validateSpacingTokens(text: string): IDesignTokenViolation[] {
 		}
 		violations.push({
 			line,
-			isNearMiss: true,
 			message: `${value} is off the spacing scale -> nearest: ${snapped.join(' ')} (${vars.join(' ')})`
 		});
 	});
@@ -481,7 +469,6 @@ export function validateStrokeTokens(text: string): IDesignTokenViolation[] {
 		}
 		violations.push({
 			line,
-			isNearMiss: false,
 			message: `${decl[1].trim()}: ${value.trim()} -> use var(--vscode-strokeThickness) for the 1px width`
 		});
 	});
