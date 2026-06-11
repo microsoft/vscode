@@ -181,8 +181,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	onSessionGitStateChanged(sessionStr: string): void {
 		this._logService.debug(`[ChangesetSessionCoordinator] Git state changed for ${sessionStr}; refreshing static changesets. hasWorkingDirectory=${!!this._configurationService.getEffectiveWorkingDirectory(sessionStr)}`);
-		this._triggerSessionRefresh(sessionStr);
+		this._triggerBranchRefresh(sessionStr);
 		this._triggerUncommittedRefresh(sessionStr);
+		this._triggerSessionRefresh(sessionStr);
 	}
 
 	/**

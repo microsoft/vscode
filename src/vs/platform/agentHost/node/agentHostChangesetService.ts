@@ -918,7 +918,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			// Get session checkpoints
 			const latestTurnId = this._stateManager.getSessionState(session)?.turns.at(-1)?.id;
 			if (!latestTurnId) {
-				return undefined;
+				return [];
 			}
 
 			const sessionUri = URI.parse(session);
