@@ -6,7 +6,7 @@
 import * as l10n from '@vscode/l10n';
 import { BasePromptElementProps, PromptElement, PromptElementProps, PromptPiece, PromptReference, PromptSizing, TextChunk } from '@vscode/prompt-tsx';
 import type * as vscode from 'vscode';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { OffsetLineColumnConverter } from '../../../platform/editing/common/offsetLineColumnConverter';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { RelativePattern } from '../../../platform/filesystem/common/fileTypes';
@@ -23,13 +23,14 @@ import { count } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Position as EditorPosition } from '../../../util/vs/editor/common/core/position';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ExcludeSettingOptions, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, Location, MarkdownString, Range } from '../../../vscodeTypes';
+import { ExcludeSettingOptions, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, LanguageModelTextPart, Location, MarkdownString, Range } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { Tag } from '../../prompts/node/base/tag';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
+import { IExperimentationService } from '../../../lib/node/chatLibMain';
 
 interface IFindTextInFilesToolParams {
 	query: string;
@@ -49,12 +50,16 @@ interface LineMatch {
 
 interface FileMatch {
 	path: string;
-	matches: LineMatch;
+	matches: LineMatch[];
+	elidedMatches?: number;
 }
 
 interface MatchResult {
-	totalMatches: number;
-	truncated?: boolean;
+	stats: {
+		total: number;
+		elided: number;
+		filesElided: number;
+	};
 	files: FileMatch[];
 }
 
@@ -69,6 +74,8 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IPromptPathRepresentationService private readonly promptPathRepresentationService: IPromptPathRepresentationService,
+		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, token: CancellationToken) {
@@ -104,8 +111,15 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		// try find text with a timeout of 20s
 		const timeoutInMs = 20_000;
 
+		const useGrepStyle = this.getOutputFormat() === 'grep';
+		// For the grp output we don't limit the number of matches by cutting files. We instead
+		// keep files and cut matches for each file. Therefore we need to ask for more results upfront
+		// to account for the fact that some files will be cut off. For the tag output we cut off files
+		// instead of matches, so we can just ask for the maxResults number of results.
+		const searchMaxResults = useGrepStyle ? maxResults * 5 : maxResults;
+
 		let results = await raceTimeoutAndCancellationError(
-			(searchToken) => this.searchAndCollectResults(options.input.query, isRegExp, patterns, maxResults, includeIgnoredFiles, searchToken),
+			(searchToken) => this.searchAndCollectResults(options.input.query, isRegExp, patterns, searchMaxResults, includeIgnoredFiles, searchToken),
 			token,
 			timeoutInMs,
 			// embed message to give LLM hint about what to do next
@@ -115,7 +129,7 @@ export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolPar
 		// If we still have no results, we need to try the opposite regex mode
 		if (!results.length && queryIsValidRegex) {
 			results = await raceTimeoutAndCancellationError(
-				(searchToken) => this.searchAndCollectResults(options.input.query, !isRegExp, patterns, maxResults, includeIgnoredFiles, searchToken),
+				(searchToken) => this.searchAndCollectResults(options.input.query, !isRegExp, patterns, searchMaxResults, includeIgnoredFiles, searchToken),
 				token,
 				timeoutInMs,
 				// embed message to give LLM hint about what to do next
@@ -141,7 +155,11 @@ If you believe that it should have results, you can check into the .*ignore file
 Then if you want to include those files you can call the tool again by setting "includeIgnoredFiles" to true.`;
 		}
 
-		return this.renderTagStyle(results, options, maxResults, globResult, askedForTooManyResults, isRegExp, noMatchInstructions, token);
+		if (useGrepStyle) {
+			return this.renderGrepStyle(results, options, maxResults, globResult, isRegExp, noMatchInstructions, token);
+		} else {
+			return this.renderTagStyle(results, options, maxResults, globResult, askedForTooManyResults, isRegExp, noMatchInstructions, token);
+		}
 	}
 
 	private async renderTagStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, askedForTooManyResults: boolean | number | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
@@ -166,15 +184,120 @@ Then if you want to include those files you can call the tool again by setting "
 		return result;
 	}
 
-	private async renderJSONStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, askedForTooManyResults: boolean | number | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
-		const textMatches = results.filter(isTextSearchMatch);
-		if (!textMatches.length) {
+	private renderGrepStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): vscode.ExtendedLanguageModelToolResult {
+		const groupedMatches = this.createGroupedFileMatches(results, maxResults);
+		if (!groupedMatches) {
 			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
 		}
-		const groupedByFile: Map<string, vscode.TextSearchMatch2> = new Map();
-		for (const textMatch of textMatches) {
-			
+		const totalMatches = groupedMatches.stats.total;
+		const totalFiles = groupedMatches.stats.filesElided + groupedMatches.files.length;
+		const match = totalMatches === 1 ? `1 match` : `${totalMatches} matches`;
+		const files = totalFiles === 1 ? `1 file` : `${totalFiles} files`;
+		let elided: string = '';
+		if (groupedMatches.stats.elided > 0) {
+			const shownMatches = groupedMatches.stats.total - groupedMatches.stats.elided;
+			const match = shownMatches === 1 ? `1 match` : `${shownMatches} matches`;
+			const files = groupedMatches.files.length === 1 ? `1 file` : `${groupedMatches.files.length} files`;
+			elided = ` (showing ${match} in ${files})`;
 		}
+		const buffer: string[] = [`Found ${match} in ${files} for "${options.input.query}"${elided}`, ''];
+		groupedMatches.files.forEach((f, i) => {
+			buffer.push(f.path);
+			for (const match of f.matches) {
+				buffer.push(`${match.line}:${match.text}`);
+			}
+			if (f.elidedMatches && f.elidedMatches > 0) {
+				const match = f.elidedMatches === 1 ? `1 more match` : `${f.elidedMatches} more matches`;
+				buffer.push(`... (${match} in this file)`);
+			}
+			if (i < groupedMatches.files.length - 1) {
+				buffer.push('');
+			}
+		});
+		const result = new ExtendedLanguageModelToolResult([new LanguageModelTextPart(buffer.join('\n'))]);
+		const query = this.formatQueryString(options.input, globResult);
+		result.toolResultMessage = this.getResultMessage(isRegExp, query, groupedMatches.stats.total);
+		return result;
+	}
+
+	private createGroupedFileMatches(results: vscode.TextSearchResult2[], maxResults: number): MatchResult | undefined {
+		const textMatches = results.filter(isTextSearchMatch);
+		if (!textMatches.length) {
+			return undefined;
+		}
+		const groupedByFile: Map<string, FileMatch> = new Map();
+		for (const textMatch of textMatches) {
+			const path = this.promptPathRepresentationService.getFilePath(textMatch.uri, true);
+			let fileMatch = groupedByFile.get(path);
+			if (fileMatch === undefined) {
+				fileMatch = { path, matches: [] };
+				groupedByFile.set(path, fileMatch);
+			}
+			fileMatch.matches.push({
+				line: textMatch.ranges[0].sourceRange.start.line + 1,
+				text: textMatch.previewText.replace(/\n$/, '').trimEnd()
+			});
+		}
+		let fileMatches = Array.from(groupedByFile.values()).sort((a, b) => a.path.localeCompare(b.path));
+		let totalMatches = 0;
+		for (const fileMatch of fileMatches) {
+			fileMatch.matches = fileMatch.matches.sort((a, b) => a.line - b.line);
+			totalMatches += fileMatch.matches.length;
+		}
+
+		let totalElided = 0;
+		let filesElided = 0;
+		if (totalMatches > maxResults) {
+			const allowedMatches: { index: number; allowed: number }[] = [];
+			let overflow: number = 0;
+			fileMatches.forEach((fileMatch, index) => {
+				const weight = fileMatch.matches.length / totalMatches;
+				let allowed = Math.floor(weight * maxResults);
+				if (allowed === 0 && fileMatch.matches.length > 0) {
+					allowed = 1;
+					overflow++;
+				}
+				allowedMatches.push({ index, allowed });
+			});
+			if (overflow > 0) {
+				let changed = false;
+				allowedMatches.sort((a, b) => b.allowed - a.allowed);
+				do {
+					for (const allowedMatch of allowedMatches) {
+						if (allowedMatch.allowed > 1) {
+							allowedMatch.allowed--;
+							overflow--;
+							changed = true;
+						}
+						if (overflow === 0) {
+							break;
+						}
+					}
+				} while (overflow > 0 && changed);
+			}
+			for (const allowedMatch of allowedMatches) {
+				const fileMatch = fileMatches[allowedMatch.index];
+				if (fileMatch.matches.length > allowedMatch.allowed) {
+					const elided = fileMatch.matches.length - allowedMatch.allowed;
+					fileMatch.elidedMatches = elided;
+					totalElided += elided;
+					fileMatch.matches = fileMatch.matches.slice(0, allowedMatch.allowed);
+				}
+			}
+			if (overflow > 0 && maxResults < fileMatches.length) {
+				filesElided = fileMatches.length - maxResults;
+				// If we hit this then all match groups had only 1 match but we still had more matches than maxResults, so we need to just cut off the rest
+				fileMatches = fileMatches.slice(0, maxResults);
+			}
+		}
+		return {
+			stats: {
+				total: totalMatches,
+				elided: totalElided,
+				filesElided: filesElided,
+			},
+			files: fileMatches
+		};
 	}
 
 	private errorResult(message: string): vscode.ExtendedLanguageModelToolResult {
@@ -320,6 +443,11 @@ Then if you want to include those files you can call the tool again by setting "
 			...input,
 			includePattern,
 		};
+	}
+
+	private getOutputFormat(): 'grep' | 'tag' {
+		const expFlag = this.configurationService.getExperimentBasedConfig(ConfigKey.GrepSearchOutputFormat, this.experimentationService);
+		return expFlag === 'grep' ? 'grep' : 'tag';
 	}
 }
 
