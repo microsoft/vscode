@@ -8,11 +8,10 @@ process.env.APPLICATION_INSIGHTS_NO_STATSBEAT = 'true';
 
 import * as appInsights from 'applicationinsights';
 import * as os from 'os';
-import type { TelemetrySender } from 'vscode';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { IEnvService } from '../../env/common/envService';
-import { createTrackingIdGetter, TelemetryProperties } from '../common/telemetry';
+import { createTrackingIdGetter, ITelemetrySenderApi, TelemetryProperties } from '../common/telemetry';
 
 export function wrapEventNameForPrefixRemoval(eventName: string): string {
 	return `wrapped-telemetry-event-name-${eventName}-wrapped-telemetry-event-name`;
@@ -25,7 +24,7 @@ export function unwrapEventNameFromPrefix(eventName: string): string {
 	return match ? match[1] : eventName;
 }
 
-export class AzureInsightReporter implements TelemetrySender {
+export class AzureInsightReporter implements ITelemetrySenderApi {
 	private readonly client: appInsights.TelemetryClient;
 	private readonly getTrackingId: () => string | undefined;
 	constructor(capiClientService: ICAPIClientService, envService: IEnvService, tokenStore: ICopilotTokenStore, private readonly namespace: string, key: string) {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TelemetryLogger } from 'vscode';
 import { redactPaths } from '../../../util/common/pathRedaction';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { Mutable } from '../../../util/vs/base/common/types';
@@ -12,18 +11,18 @@ import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStor
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IDomainService } from '../../endpoint/common/domainService';
 import { IEnvService } from '../../env/common/envService';
-import { ITelemetrySender, ITelemetryUserConfig, TelemetryEventMeasurements, TelemetryEventProperties, TelemetryTrustedValue } from '../common/telemetry';
+import { ITelemetryLoggerApi, ITelemetrySender, ITelemetryUserConfig, TelemetryEventMeasurements, TelemetryEventProperties, TelemetryTrustedValue } from '../common/telemetry';
 import { TelemetryData, eventPropertiesToSimpleObject } from '../common/telemetryData';
 
 
 export class BaseGHTelemetrySender implements ITelemetrySender {
 	protected readonly _disposables: DisposableStore = new DisposableStore();
-	private _standardTelemetryLogger: TelemetryLogger;
-	private _enhancedTelemetryLogger?: TelemetryLogger;
+	private _standardTelemetryLogger: ITelemetryLoggerApi;
+	private _enhancedTelemetryLogger?: ITelemetryLoggerApi;
 
 	constructor(
 		private readonly _tokenStore: ICopilotTokenStore,
-		protected readonly _createTelemetryLogger: (enhanced: boolean) => TelemetryLogger,
+		protected readonly _createTelemetryLogger: (enhanced: boolean) => ITelemetryLoggerApi,
 		private readonly _configService: IConfigurationService,
 		private readonly _telemetryConfig: ITelemetryUserConfig,
 		protected readonly _envService: IEnvService,

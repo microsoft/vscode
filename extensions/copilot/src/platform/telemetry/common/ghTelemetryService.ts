@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { TelemetrySender } from 'vscode';
 import { redactPaths } from '../../../util/common/pathRedaction';
 import { IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { FailingTelemetryReporter } from './failingTelemetryReporter';
-import { IGHTelemetryService, ITelemetryUserConfig } from './telemetry';
+import { IGHTelemetryService, ITelemetrySenderApi, ITelemetryUserConfig } from './telemetry';
 import { TelemetryData } from './telemetryData';
 
 
 // A container for the secure and insecure reporters
 class TelemetryReporters {
-	private reporter: TelemetrySender | undefined;
-	private reporterSecure: TelemetrySender | undefined;
+	private reporter: ITelemetrySenderApi | undefined;
+	private reporterSecure: ITelemetrySenderApi | undefined;
 
-	public getReporter(telemetryUserConfig: ITelemetryUserConfig, isTest: boolean, secure: boolean): TelemetrySender | undefined {
+	public getReporter(telemetryUserConfig: ITelemetryUserConfig, isTest: boolean, secure: boolean): ITelemetrySenderApi | undefined {
 		if (!secure) {
 			return this.reporter;
 		}
@@ -33,10 +32,10 @@ class TelemetryReporters {
 		}
 		return undefined;
 	}
-	public setReporter(reporter: TelemetrySender | undefined): void {
+	public setReporter(reporter: ITelemetrySenderApi | undefined): void {
 		this.reporter = reporter;
 	}
-	public setSecureReporter(reporter: TelemetrySender | undefined): void {
+	public setSecureReporter(reporter: ITelemetrySenderApi | undefined): void {
 		this.reporterSecure = reporter;
 	}
 	async deactivate(): Promise<void> {
@@ -89,10 +88,10 @@ export class GHTelemetryService implements IGHTelemetryService {
 		}
 	}
 
-	public setSecureReporter(reporterSecure: TelemetrySender | undefined): void {
+	public setSecureReporter(reporterSecure: ITelemetrySenderApi | undefined): void {
 		this.reporters.setSecureReporter(reporterSecure);
 	}
-	public setReporter(reporter: TelemetrySender | undefined): void {
+	public setReporter(reporter: ITelemetrySenderApi | undefined): void {
 		this.reporters.setReporter(reporter);
 	}
 

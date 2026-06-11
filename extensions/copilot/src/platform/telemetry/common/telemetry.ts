@@ -2,13 +2,36 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { TelemetrySender } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { IDisposable } from '../../../util/vs/base/common/lifecycle';
 import type { CopilotToken } from '../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStore';
 import type { TelemetryData } from './telemetryData';
 
+/**
+ * Local copy of the shape of `vscode.TelemetrySender`. Defined here so that
+ * code in this folder does not need a type-only `import { TelemetrySender }
+ * from 'vscode'`, which would prevent reuse from outside the extension host
+ * (e.g. the agent host utility process). Structurally compatible with
+ * `vscode.TelemetrySender`, so an instance of either can be assigned to
+ * either type.
+ */
+export interface ITelemetrySenderApi {
+	sendEventData(eventName: string, data?: Record<string, any>): void;
+	sendErrorData(error: Error, data?: Record<string, any>): void;
+	flush?(): void | Thenable<void>;
+}
+
+/**
+ * Local copy of the subset of `vscode.TelemetryLogger` we use. See
+ * {@link ITelemetrySenderApi} for the rationale.
+ */
+export interface ITelemetryLoggerApi {
+	logUsage(eventName: string, data?: Record<string, any>): void;
+	logError(eventName: string, data?: Record<string, any>): void;
+	logError(error: Error, data?: Record<string, any>): void;
+	dispose(): void;
+}
 
 // Interfaces taken from and should match `@vscode/extension-telemetry` package
 export interface TelemetryEventMeasurements {
@@ -16,7 +39,7 @@ export interface TelemetryEventMeasurements {
 }
 
 export interface TelemetryEventProperties {
-	readonly [key: string]: string | import('vscode').TelemetryTrustedValue<string> | undefined;
+	readonly [key: string]: string | TelemetryTrustedValue<string> | undefined;
 }
 
 // Interfaces taken from and should match `vscode-tas-client`
@@ -159,8 +182,8 @@ export interface IMSFTTelemetrySender extends ITelemetrySender {
 }
 export interface IGHTelemetryService {
 	readonly _serviceBrand: undefined;
-	setSecureReporter(reporter: TelemetrySender | undefined): void;
-	setReporter(reporter: TelemetrySender | undefined): void;
+	setSecureReporter(reporter: ITelemetrySenderApi | undefined): void;
+	setReporter(reporter: ITelemetrySenderApi | undefined): void;
 
 	/**
 	 * Standard telemetry events can be disabled with VS Code's telemetry settings.
