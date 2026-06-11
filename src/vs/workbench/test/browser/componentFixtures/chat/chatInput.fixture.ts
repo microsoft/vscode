@@ -23,15 +23,26 @@ import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUt
 
 import '../../../../contrib/chat/browser/widget/media/chat.css';
 
-interface ChatInputFixtureOptions {
+export interface ChatInputFixtureOptions {
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
 	readonly todos?: IChatTodo[];
+	/**
+	 * Renders the input the way the Agents (sessions) window does: the
+	 * `.interactive-input-part` is wrapped in the sessions DOM ancestry and the
+	 * `isSessionsWindow` layout path is exercised. The caller is responsible for
+	 * loading the sessions stylesheet so the 32px horizontal padding applies.
+	 */
+	readonly isSessionsWindow?: boolean;
+	/** Seeds the input editor with this text. */
+	readonly value?: string;
+	/** Selects this range after seeding the text, to exercise selection rendering (e.g. reverse-rounded corners). */
+	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 }
 
-async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
+export async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { artifacts = [], editingSession, todos = [] } = fixtureOptions;
+	const { artifacts = [], editingSession, todos = [], isSessionsWindow = false, value, selection } = fixtureOptions;
 	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
 	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
@@ -71,6 +82,7 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
 		widgetViewKindTag: 'view',
 		inputEditorMinLines: 2,
+		isSessionsWindow,
 	};
 	const styles: IChatInputStyles = {
 		overlayBackground: 'var(--vscode-editor-background)',
@@ -91,6 +103,13 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 	inputPart.layout(500);
 	await new Promise(r => setTimeout(r, 100));
 	inputPart.layout(500);
+	if (value !== undefined) {
+		inputPart.setValue(value, true);
+		inputPart.layout(500);
+		if (selection) {
+			inputPart.inputEditor.setSelection(selection);
+		}
+	}
 	inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
 	await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
 	await new Promise(r => setTimeout(r, 50));

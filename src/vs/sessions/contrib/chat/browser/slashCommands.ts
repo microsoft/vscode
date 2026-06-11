@@ -5,21 +5,16 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { themeColorFromId } from '../../../../base/common/themables.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
+import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { inputPlaceholderForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
-import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -71,25 +66,27 @@ function isAgentHostBackedWidget(widget: IChatWidget): boolean {
  */
 export class SlashCommandHandler extends Disposable {
 
-	private static readonly _slashDecoType = 'sessions-slash-command';
-	private static readonly _slashPlaceholderDecoType = 'sessions-slash-placeholder';
-	private static _slashDecosRegistered = false;
+	private static readonly _commandClassName = 'sessions-slash-command';
+	private static readonly _placeholderClassName = 'sessions-slash-placeholder';
 
 	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
 	private _cachedPromptCommands: readonly IChatPromptSlashCommand[] = [];
 
+	private readonly _commandDecorations: IEditorDecorationsCollection;
+	private readonly _placeholderDecorations: IEditorDecorationsCollection;
+
 	constructor(
 		private readonly _editor: CodeEditorWidget,
 		@ICommandService private readonly commandService: ICommandService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
+		this._commandDecorations = this._editor.createDecorationsCollection();
+		this._placeholderDecorations = this._editor.createDecorationsCollection();
 		this._registerSlashCommands();
 		this._registerCompletions();
 		this._registerDecorations();
@@ -170,16 +167,6 @@ export class SlashCommandHandler extends Disposable {
 	}
 
 	private _registerDecorations(): void {
-		if (!SlashCommandHandler._slashDecosRegistered) {
-			SlashCommandHandler._slashDecosRegistered = true;
-			this.codeEditorService.registerDecorationType('sessions-chat', SlashCommandHandler._slashDecoType, {
-				color: themeColorFromId(chatSlashCommandForeground),
-				backgroundColor: themeColorFromId(chatSlashCommandBackground),
-				borderRadius: '3px',
-			});
-			this.codeEditorService.registerDecorationType('sessions-chat', SlashCommandHandler._slashPlaceholderDecoType, {});
-		}
-
 		this._register(this._editor.onDidChangeModelContent(() => this._updateDecorations()));
 		this._updateDecorations();
 	}
@@ -190,8 +177,8 @@ export class SlashCommandHandler extends Disposable {
 		const match = value.match(/^\/([\w\p{L}\d_\-\.:]+)\s?/u);
 
 		if (!match) {
-			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashDecoType, []);
-			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashPlaceholderDecoType, []);
+			this._commandDecorations.clear();
+			this._placeholderDecorations.clear();
 			return;
 		}
 
@@ -199,41 +186,36 @@ export class SlashCommandHandler extends Disposable {
 		const slashCommand = this._slashCommands.find(c => c.command === commandName);
 		const promptCommand = this._cachedPromptCommands.find(c => c.name === commandName);
 		if (!slashCommand && !promptCommand) {
-			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashDecoType, []);
-			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashPlaceholderDecoType, []);
+			this._commandDecorations.clear();
+			this._placeholderDecorations.clear();
 			return;
 		}
 
 		// Highlight the slash command text
 		const commandEnd = match[0].trimEnd().length;
-		const commandDeco: IDecorationOptions[] = [{
-			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: commandEnd + 1 },
-		}];
-		this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashDecoType, commandDeco);
+		this._commandDecorations.set([{
+			range: new Range(1, 1, 1, commandEnd + 1),
+			options: { description: 'sessions-slash-command', inlineClassName: SlashCommandHandler._commandClassName },
+		}]);
 
 		// Show the command description as a placeholder after the command
 		const restOfInput = value.slice(match[0].length).trim();
 		const detail = slashCommand?.detail ?? promptCommand?.description;
 		if (!restOfInput && detail) {
 			const placeholderCol = match[0].length + 1;
-			const placeholderDeco: IDecorationOptions[] = [{
-				range: { startLineNumber: 1, startColumn: placeholderCol, endLineNumber: 1, endColumn: model!.getLineMaxColumn(1) },
-				renderOptions: {
-					after: {
-						contentText: detail,
-						color: this._getPlaceholderColor(),
-					}
-				}
-			}];
-			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashPlaceholderDecoType, placeholderDeco);
+			this._placeholderDecorations.set([{
+				range: new Range(1, placeholderCol, 1, model!.getLineMaxColumn(1)),
+				options: {
+					description: 'sessions-slash-placeholder',
+					// The range is collapsed (nothing follows the command), so injected
+					// text only renders with `showIfCollapsed`.
+					showIfCollapsed: true,
+					after: { content: detail, inlineClassName: SlashCommandHandler._placeholderClassName },
+				},
+			} satisfies IModelDeltaDecoration]);
 		} else {
-			this._editor.setDecorationsByType('sessions-chat', SlashCommandHandler._slashPlaceholderDecoType, []);
+			this._placeholderDecorations.clear();
 		}
-	}
-
-	private _getPlaceholderColor(): string | undefined {
-		const theme = this.themeService.getColorTheme();
-		return theme.getColor(inputPlaceholderForeground)?.toString();
 	}
 
 	private _registerCompletions(): void {

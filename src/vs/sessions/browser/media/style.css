@@ -562,9 +562,18 @@
 }
 
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
-.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
-.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor {
 	background-color: transparent !important;
+}
+
+/* The `.monaco-editor-background` layer must use a *solid* color (not transparent):
+ * the editor reuses this class for the reverse-rounded selection corner pieces,
+ * which "carve" the rounded notches out of the selection highlight. With a
+ * transparent background those pieces stop covering the selection layer and the
+ * corners render as blocky squares. Paint it with the same color the chat input
+ * container uses so the editor still visually matches its surroundings. */
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-agentsChatInput-background) !important;
 }
 
 /* Scoped to the chat panel (`.part.sessionspart`) and the chat editor host
