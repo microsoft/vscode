@@ -22,9 +22,13 @@ import type { ITypedPermissionRequest } from './copilotToolDisplay.js';
 import type { ICopilotPluginInfo } from './copilotAgent.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
+export const ContextTierConfigKey = 'contextTier';
 
 const ReasoningEfforts = ['low', 'medium', 'high', 'xhigh'] as const;
 type ReasoningEffort = NonNullable<SessionConfig['reasoningEffort']>;
+
+const ContextTiers = ['default', 'long_context'] as const;
+type ContextTier = NonNullable<SessionConfig['contextTier']>;
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -121,6 +125,10 @@ function isReasoningEffort(value: string | undefined): value is ReasoningEffort 
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
 
+function isContextTier(value: string | undefined): value is ContextTier {
+	return ContextTiers.some(contextTier => contextTier === value);
+}
+
 function getCopilotSdkErrorCode(err: unknown): number | undefined {
 	if (typeof err !== 'object' || err === null) {
 		return undefined;
@@ -168,6 +176,11 @@ function shouldCreateEmptySessionAfterResumeError(err: unknown): boolean {
 export function getCopilotReasoningEffort(model: ModelSelection | undefined): SessionConfig['reasoningEffort'] {
 	const thinkingLevel = model?.config?.[ThinkingLevelConfigKey];
 	return isReasoningEffort(thinkingLevel) ? thinkingLevel : undefined;
+}
+
+export function getCopilotContextTier(model: ModelSelection | undefined): SessionConfig['contextTier'] {
+	const contextTier = model?.config?.[ContextTierConfigKey];
+	return isContextTier(contextTier) ? contextTier : undefined;
 }
 
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
@@ -223,6 +236,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			streaming: true,
 			model: plan.model?.id,
 			reasoningEffort: getCopilotReasoningEffort(plan.model),
+			contextTier: getCopilotContextTier(plan.model),
 			...(plan.resolvedAgentName ? { agent: plan.resolvedAgentName } : {}),
 			workingDirectory: plan.workingDirectory?.fsPath,
 		});
