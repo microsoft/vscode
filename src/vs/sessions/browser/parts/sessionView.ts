@@ -272,10 +272,10 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	/**
-	 * Attaches the given resource as context to the hosted chat view's input.
+	 * Attaches the given resources as context to the hosted chat view's input.
 	 */
-	attach(uri: URI): void {
-		this._currentView.value?.attach(uri);
+	attach(uris: URI[]): void {
+		this._currentView.value?.attach(uris);
 	}
 
 	/**

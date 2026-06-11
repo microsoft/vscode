@@ -106,11 +106,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Attach the given resource as context to this view's chat input. The
+	 * Attach the given resources as context to this view's chat input. The
 	 * default implementation is a no-op; subclasses that host a chat widget
-	 * (e.g. `ChatView`) override this to add the attachment to the widget.
+	 * (e.g. `ChatView`) override this to add the attachments to the widget.
 	 */
-	attach(_uri: URI): void {
+	attach(_uris: URI[]): void {
 		// no-op by default
 	}
 
