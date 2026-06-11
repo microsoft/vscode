@@ -92,6 +92,32 @@ export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
  */
 export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
 
+/**
+ * Selects which Claude integration fulfills Claude sessions opened from the
+ * **Agents Window**:
+ *  - `true` — Claude is provided by the agent host process.
+ *  - `false` (default) — Claude is provided by the GitHub Copilot Chat extension.
+ *
+ * The agent host always registers Claude when its SDK is reachable; this
+ * setting only controls whether the per-window bridge in
+ * `AgentHostContribution` actually surfaces the AH provider in the Agents
+ * Window. The extension's `chatSessions` contribution mirrors the rule
+ * declaratively (its `when` clause hides the EH provider when this is `true`),
+ * so flipping the setting takes effect live without a window reload.
+ *
+ * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
+ * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
+ */
+export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAgentHost';
+
+/**
+ * Sibling of {@link ClaudePreferAgentHostAgentsSettingId} that selects the
+ * Claude implementation for the **regular workbench** (sidebar chat in a
+ * non-Agents-Window window). Same shape, same semantics — just a different
+ * surface scope.
+ */
+export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
+
 // -- Codex agent settings --------------------------------------------------------
 //
 // Codex is opt-in via `chat.agentHost.codexAgent.sdkRoot`. The setting points
