@@ -203,6 +203,22 @@ export interface IChatInputPartOptions {
 	 */
 	hideCustomChatModes?: boolean;
 	/**
+	 * When `false`, the input part does NOT subscribe to the workbench-global
+	 * {@link IEditorService.onDidActiveEditorChange} event. Defaults to `true`.
+	 *
+	 * Modal/dialog hosts (e.g. the automations dialog) have no live chat
+	 * session and a stub {@link IChatWidget} with `viewModel: undefined`,
+	 * so the unscoped global listener would call
+	 * {@link refreshChatSessionPickers} against a `sessionResource === undefined`
+	 * state every time *any* editor in the workbench gains focus — including
+	 * when another chat session elsewhere completes a turn. That refresh can
+	 * flip context keys (`chatSessionHasOptions`, `chatSessionOptionsValid`)
+	 * and trigger {@link hideAllSessionPickerWidgets}, causing the dialog's
+	 * mode / workspace / model pickers to disappear mid-edit. Hosts with no
+	 * real session should opt out.
+	 */
+	respondsToGlobalEditorChanges?: boolean;
+	/**
 	 * When true, suppress the autorun that switches the current language
 	 * model to a mode's declared preferred model (`IChatMode.model`).
 	 * Used by the automations dialog so opening "New Automation" always
@@ -642,10 +658,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentChatModes.value = localModes;
 		this._currentChatModesObservable = observableValue<IChatModes>('currentChatModes', localModes);
 		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
-		this._register(this.editorService.onDidActiveEditorChange(() => {
-			this._indexOfLastOpenedContext = -1;
-			this.refreshChatSessionPickers();
-		}));
+		if (this.options.respondsToGlobalEditorChanges !== false) {
+			this._register(this.editorService.onDidActiveEditorChange(() => {
+				this._indexOfLastOpenedContext = -1;
+				this.refreshChatSessionPickers();
+			}));
+		}
 
 		// React to chat session option changes for the active session
 		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {

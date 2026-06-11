@@ -722,6 +722,13 @@ function renderForm(
 		// render via {@link WorkspacePicker.renderTrigger}, so selection
 		// state, recents, and label updates stay single-sourced.
 		workspacePickerInput: workspacePicker,
+		// The dialog has no live chat session — its stub widget reports
+		// `viewModel: undefined`. Unrelated workbench activity (another
+		// chat session completing a turn, focus shifting between editors)
+		// fires `onDidActiveEditorChange`, which would otherwise cause
+		// `refreshChatSessionPickers` to run against a session-less state
+		// and hide the dialog's mode / workspace / model pickers mid-edit.
+		respondsToGlobalEditorChanges: false,
 	};
 
 	// {@link ChatInputPart.render} requires an {@link IChatWidget}. The modal
