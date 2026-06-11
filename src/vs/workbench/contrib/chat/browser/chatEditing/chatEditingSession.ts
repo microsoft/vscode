@@ -11,7 +11,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, Mutable } from '../../../../../base/common/types.js';
@@ -377,6 +377,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public hasEditsInRequest(requestId: string, reader?: IReader): boolean {
 		return this._timeline.hasEditsInRequest(requestId, reader);
+	}
+
+	public getModifiedFileResourcesForRequests(requestIds: ReadonlySet<string>): readonly URI[] {
+		const seen = new ResourceSet();
+		const result: URI[] = [];
+		for (const entry of this._entriesObs.get()) {
+			if (requestIds.has(entry.lastModifyingRequestId) && !seen.has(entry.modifiedURI)) {
+				seen.add(entry.modifiedURI);
+				result.push(entry.modifiedURI);
+			}
+		}
+		return result;
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {

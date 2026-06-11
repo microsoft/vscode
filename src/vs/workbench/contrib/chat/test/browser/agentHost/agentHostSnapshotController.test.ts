@@ -302,6 +302,28 @@ suite('AgentHostSnapshotController', () => {
 		assert.strictEqual(controller.hasEditsInRequest('req-2'), false);
 	});
 
+	test('getModifiedFileResourcesForRequests returns deduped edited resources', () => {
+		const controller = createController(store, new Map());
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1', filePath: '/file-a.ts',
+			beforeURI: 'agenthost-content:///before-a', afterURI: 'agenthost-content:///after-a',
+		}));
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-2', filePath: '/file-a.ts',
+			beforeURI: 'agenthost-content:///before-a2', afterURI: 'agenthost-content:///after-a2',
+		}));
+		controller.addToolCallEdits('req-2', makeToolCall({
+			toolCallId: 'tc-3', filePath: '/file-b.ts',
+			beforeURI: 'agenthost-content:///before-b', afterURI: 'agenthost-content:///after-b',
+		}));
+		// req-3 has a checkpoint but no file edits.
+		controller.ensureRequestCheckpoint('req-3');
+
+		const resources = controller.getModifiedFileResourcesForRequests(new Set(['req-1', 'req-2', 'req-3']));
+		assert.deepStrictEqual(resources.map(r => r.path), ['/file-a.ts', '/file-b.ts']);
+		assert.deepStrictEqual(controller.getModifiedFileResourcesForRequests(new Set(['req-3'])), []);
+	});
+
 	test('non-completed tool calls are ignored', () => {
 		const controller = createController(store, new Map());
 		controller.addToolCallEdits('req-1', {
