@@ -37,6 +37,10 @@ export class ClaudeSessionOptionBuilder {
 		return this._lastUsedPermissionMode;
 	}
 
+	rememberPermissionMode(permissionMode: PermissionMode): void {
+		this._lastUsedPermissionMode = permissionMode;
+	}
+
 	constructor(
 		private readonly _configurationService: IConfigurationService,
 		private readonly _folderMruService: IChatFolderMruService,
@@ -150,7 +154,7 @@ export class ClaudeSessionOptionBuilder {
 		const selectedPermission = getSelectedOption(groups, PERMISSION_MODE_OPTION_ID);
 		let permissionMode: PermissionMode | undefined;
 		if (selectedPermission && isPermissionMode(selectedPermission.id)) {
-			this._lastUsedPermissionMode = selectedPermission.id;
+			this.rememberPermissionMode(selectedPermission.id);
 			permissionMode = selectedPermission.id;
 		}
 
