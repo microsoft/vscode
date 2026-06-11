@@ -193,5 +193,19 @@ suite('parseArgs', () => {
 		assert.deepStrictEqual(errorReporter.result, []);
 	});
 
+	test('handles Chromium feature switch parser edge cases', () => {
+		const multipleValuesReporter = newErrorReporter();
+		const multipleValuesArgs = parseArgs(['--enable-features=FeatureA', '--enable-features=FeatureB'], OPTIONS, multipleValuesReporter);
+
+		assert.strictEqual(multipleValuesArgs['enable-features'], 'FeatureB');
+		assert.deepStrictEqual(multipleValuesReporter.result, ['onMultipleValues enable-features FeatureB']);
+
+		const emptyValueReporter = newErrorReporter();
+		const emptyValueArgs = parseArgs(['--disable-features='], OPTIONS, emptyValueReporter);
+
+		assert.strictEqual(emptyValueArgs['disable-features'], undefined);
+		assert.deepStrictEqual(emptyValueReporter.result, ['onEmptyValue disable-features']);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

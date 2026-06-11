@@ -466,11 +466,11 @@ import product from '../../platform/product/common/product.js';
 			},
 			'enable-features': {
 				type: 'string',
-				description: localize('argv.enableFeatures', "Enables Chromium runtime features for troubleshooting. Only change this when requested by the VS Code team.")
+				description: localize('argv.enableFeatures', "Enables comma-separated Chromium runtime features for troubleshooting (for example, \"FeatureA,FeatureB\"). Provide this switch once. Only change this when requested by the VS Code team.")
 			},
 			'disable-features': {
 				type: 'string',
-				description: localize('argv.disableFeatures', "Disables Chromium runtime features for troubleshooting. Only change this when requested by the VS Code team.")
+				description: localize('argv.disableFeatures', "Disables comma-separated Chromium runtime features for troubleshooting (for example, \"FeatureA,FeatureB\"). Provide this switch once. Only change this when requested by the VS Code team.")
 			}
 		}
 	};
