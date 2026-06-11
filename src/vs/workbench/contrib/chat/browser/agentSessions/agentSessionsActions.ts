@@ -36,6 +36,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 
@@ -694,7 +695,10 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',
 				order: 4,
-				when: ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local)
+				when: ContextKeyExpr.or(
+					ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+					ChatContextKeyExprs.isAgentHostSessionItem,
+				)
 			}
 		});
 	}
@@ -705,6 +709,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		}
 
 		const chatService = accessor.get(IChatService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		const dialogService = accessor.get(IDialogService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const commandService = accessor.get(ICommandService);
@@ -728,13 +733,21 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 			// Clear chat widget
 			await widgetService.getWidgetBySessionResource(session.resource)?.clear();
 
-			// Remove from storage
-			await chatService.removeHistoryEntry(session.resource);
+			if (isLocalAgentSessionItem(session)) {
+				// Remove from storage
+				await chatService.removeHistoryEntry(session.resource);
 
-			// Track session ID for cloud cleanup
-			const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
-			if (sessionId) {
-				deletedSessionIds.push(sessionId);
+				// Track session ID for cloud cleanup
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(session.resource);
+				if (sessionId) {
+					deletedSessionIds.push(sessionId);
+				}
+			} else if (isAgentHostAgentSessionItem(session)) {
+				try {
+					await chatSessionsService.deleteChatSessionItem(session.resource, CancellationToken.None);
+				} catch (err) {
+					dialogService.error(localize('deleteSession.error', "Failed to delete chat session: {0}", toErrorMessage(err)));
+				}
 			}
 		}
 

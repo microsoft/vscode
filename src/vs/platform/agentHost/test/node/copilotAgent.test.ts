@@ -172,7 +172,7 @@ interface ITestCopilotModelInfo {
 	readonly defaultReasoningEffort?: ModelInfo['defaultReasoningEffort'];
 }
 
-interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata'> {
+interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'listModels' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
 }
 
@@ -200,6 +200,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly rpc: ITestCopilotClient['rpc'] = { sessions: { fork: async () => ({ sessionId: 'forked-session' }) } };
 	listSessionCallCount = 0;
 	readonly getSessionMetadataCalls: string[] = [];
+	readonly deletedSessionIds: string[] = [];
 
 	constructor(
 		private readonly _sessions: Awaited<ReturnType<ITestCopilotClient['listSessions']>>,
@@ -216,6 +217,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	async getSessionMetadata(sessionId: string): ReturnType<ITestCopilotClient['getSessionMetadata']> {
 		this.getSessionMetadataCalls.push(sessionId);
 		return this._sessions.find(s => s.sessionId === sessionId);
+	}
+	async deleteSession(sessionId: string): Promise<void> {
+		this.deletedSessionIds.push(sessionId);
 	}
 	createSession: ITestCopilotClient['createSession'] = async () => { throw new Error('not implemented'); };
 	resumeSession: ITestCopilotClient['resumeSession'] = async () => { throw new Error('not implemented'); };
@@ -1092,6 +1096,58 @@ suite('CopilotAgent', () => {
 
 				assert.strictEqual(removeWorktreeCalls, 0, 'no worktree to remove for provisional');
 				assert.strictEqual(agent.hasSession(result.session), false);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession removes the session from the SDK on-disk store', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'persisted-session-1');
+				await agent.disposeSession(session);
+
+				assert.deepStrictEqual(client.deletedSessionIds, ['persisted-session-1']);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession on provisional session does not call client.deleteSession', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const result = await agent.createSession({
+					session: AgentSession.uri('copilotcli', 'prov-3'),
+					workingDirectory: URI.file('/workspace'),
+				});
+
+				await agent.disposeSession(result.session);
+
+				assert.deepStrictEqual(client.deletedSessionIds, []);
+				assert.strictEqual(agent.hasSession(result.session), false);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('disposeSession propagates SDK delete errors and preserves in-memory state', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			client.deleteSession = async () => { throw new Error('boom'); };
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const session = AgentSession.uri('copilotcli', 'persisted-session-2');
+				await assert.rejects(() => agent.disposeSession(session), /boom/);
 			} finally {
 				await disposeAgent(agent);
 			}

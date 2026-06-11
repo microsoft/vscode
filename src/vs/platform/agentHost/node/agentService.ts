@@ -810,6 +810,9 @@ export class AgentService extends Disposable implements IAgentService {
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
+		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+		// performed by the provider above. No-op when the directory does not exist.
+		await this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
