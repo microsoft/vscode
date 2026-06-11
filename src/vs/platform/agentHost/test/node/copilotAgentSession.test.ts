@@ -5,7 +5,7 @@
 
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -101,7 +101,20 @@ class MockCopilotSession {
 				return this.compactResult;
 			},
 		},
+		mcp: {
+			list: async () => {
+				if (this.mcpListError !== undefined) {
+					throw this.mcpListError;
+				}
+				return this.mcpListResult;
+			},
+			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
+			cancelSamplingExecution: async () => { /* no-op */ },
+		},
 	};
+
+	mcpListResult: { servers: ReadonlyArray<{ name: string; status: 'connected' | 'failed' | 'pending'; error?: string }> } = { servers: [] };
+	mcpListError: unknown = undefined;
 }
 
 class CapturingLogService extends NullLogService {
@@ -204,6 +217,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	configValues?: Record<string, unknown>;
 	fileContents?: Record<string, string>;
 	fileReadErrors?: readonly string[];
+	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
+	configureMockSession?: (session: MockCopilotSession) => void;
 }): Promise<{
 	session: CopilotAgentSession;
 	runtime: ICopilotSessionRuntime;
@@ -239,6 +254,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
 	const mockSession = new MockCopilotSession();
+	options?.configureMockSession?.(mockSession);
 
 	const launchPlan: CopilotSessionLaunchPlan = {
 		kind: 'create',
@@ -319,6 +335,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			shellManager: undefined,
 			clientSnapshot: options?.clientSnapshot,
 			activeClientState: options?.activeClientState,
+			resolveMcpChildId: () => undefined,
 			workingDirectory: options?.workingDirectory,
 		},
 	));
@@ -3258,6 +3275,52 @@ suite('CopilotAgentSession', () => {
 			const signal = await waitForSignal(s => isAction(s, ActionType.SessionInputRequested));
 			session.respondToUserInputRequest(getInputRequest(signal).id, SessionInputResponseKind.Decline);
 			await responsePromise;
+		});
+	});
+
+	suite('MCP server inventory', () => {
+
+		test('seeds inventory from rpc.mcp.list at subscription time', async () => {
+			const { signals, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = {
+						servers: [
+							{ name: 'alpha', status: 'connected' },
+							{ name: 'beta', status: 'pending' },
+						],
+					};
+				},
+			});
+
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			// Give the seed's microtask chain time to apply both servers.
+			await timeout(0);
+
+			const updates = getActions(signals).filter(a => a.type === ActionType.SessionCustomizationUpdated);
+			const names = updates.map(a => (a as { customization: { name: string } }).customization.name).sort();
+			assert.deepStrictEqual(names, ['alpha', 'beta']);
+		});
+
+		test('logs a warning and continues when rpc.mcp.list rejects', async () => {
+			const logService = new CapturingLogService();
+			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
+				logService,
+				configureMockSession: m => { m.mcpListError = new Error('boom'); },
+			});
+			// Allow the rejected promise to surface.
+			await timeout(0);
+			await timeout(0);
+
+			assert.ok(
+				logService.warnings.some(w => w.message.includes('Failed to seed MCP server inventory')),
+				`expected seed-failure warning, got: ${JSON.stringify(logService.warnings)}`,
+			);
+
+			// Subsequent live events still flow through the normal pipeline.
+			mockSession.fire('session.mcp_servers_loaded', {
+				servers: [{ name: 'late', status: 'connected' }],
+			} as SessionEventPayload<'session.mcp_servers_loaded'>['data']);
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
 		});
 	});
 });

@@ -58,7 +58,6 @@ import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multi
 import { getChangesEditorLabels } from './changesEditorLabels.js';
 import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
 import { GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
@@ -94,7 +93,6 @@ class ChangesButtonBarWidget extends Disposable {
 		viewModel: ChangesViewModel,
 		hasGitOperationInProgressObs: IObservable<boolean>,
 		@IMenuService menuService: IMenuService,
-		@ICodeReviewService codeReviewService: ICodeReviewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -113,43 +111,6 @@ class ChangesButtonBarWidget extends Disposable {
 			return activeSessionState?.outgoingChanges;
 		});
 
-		const reviewStateObs = derivedOpts<{ isLoading: boolean; commentCount: number | undefined }>({ equalsFn: structuralEquals }, reader => {
-			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
-			if (!sessionResource) {
-				return { isLoading: false, commentCount: undefined };
-			}
-
-			const sessionChanges = viewModel.activeSessionChangesObs.read(reader);
-			const prReviewState = codeReviewService.getPRReviewState(sessionResource).read(reader);
-			const prReviewCommentCount = prReviewState.kind === PRReviewStateKind.Loaded
-				? prReviewState.comments.length
-				: 0;
-
-			let isLoading = false;
-			let commentCount: number | undefined;
-			if (sessionChanges && sessionChanges.length > 0) {
-				const reviewFiles = getCodeReviewFilesFromSessionChanges(sessionChanges);
-				const reviewVersion = getCodeReviewVersion(reviewFiles);
-				const reviewState = codeReviewService.getReviewState(sessionResource).read(reader);
-
-				if (reviewState.kind === CodeReviewStateKind.Loading && reviewState.version === reviewVersion) {
-					isLoading = true;
-				} else {
-					const codeReviewCommentCount = reviewState.kind === CodeReviewStateKind.Result && reviewState.version === reviewVersion
-						? reviewState.comments.length
-						: 0;
-					const totalReviewCommentCount = codeReviewCommentCount + prReviewCommentCount;
-					if (totalReviewCommentCount > 0) {
-						commentCount = totalReviewCommentCount;
-					}
-				}
-			} else if (prReviewCommentCount > 0) {
-				commentCount = prReviewCommentCount;
-			}
-
-			return { isLoading, commentCount };
-		});
-
 		const runningLabelObs = observableValue<string | IMarkdownString | undefined>(this, undefined);
 
 		// Clear the running label override
@@ -163,7 +124,6 @@ class ChangesButtonBarWidget extends Disposable {
 			const hasGitOperationInProgress = hasGitOperationInProgressObs.read(reader);
 			const sessionResource = viewModel.activeSessionResourceObs.read(reader);
 			const outgoingChanges = outgoingChangesObs.read(reader) ?? 0;
-			const reviewState = reviewStateObs.read(reader);
 
 			const buttonBar = new MenuWorkbenchButtonBar(
 				container,
@@ -173,7 +133,7 @@ class ChangesButtonBarWidget extends Disposable {
 					menuOptions: sessionResource
 						? { arg: sessionResource }
 						: { shouldForwardArgs: true },
-					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, reviewState, hasGitOperationInProgress, runningLabelObs)
+					buttonConfigProvider: (action) => this._getButtonConfiguration(action, outgoingChanges, hasGitOperationInProgress, runningLabelObs)
 				},
 				menuService, contextKeyService, contextMenuService, keybindingService, telemetryService, hoverService
 			);
@@ -185,7 +145,7 @@ class ChangesButtonBarWidget extends Disposable {
 		}));
 	}
 
-	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
+	private _getButtonConfiguration(action: IAction, outgoingChanges: number, hasGitOperationInProgress: boolean, runningLabelObs: IObservable<string | IMarkdownString | undefined>): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string | IMarkdownString; customLabelObs?: IObservable<string | IMarkdownString | undefined>; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.commit' ||
 			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR'
@@ -220,16 +180,8 @@ class ChangesButtonBarWidget extends Disposable {
 				: action.label;
 			return { customLabel, showIcon: true, showLabel: true, isSecondary: false };
 		}
-		if (action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID) {
-			if (reviewState.isLoading) {
-				return { showIcon: true, showLabel: true, isSecondary: true, customLabel: '$(loading~spin)', customClass: 'code-review-loading' };
-			}
-			if (reviewState.commentCount !== undefined) {
-				return { showIcon: true, showLabel: true, isSecondary: true, customLabel: String(reviewState.commentCount), customClass: 'code-review-comments' };
-			}
-			return { showIcon: true, showLabel: false, isSecondary: true };
-		}
 		if (
+			action.id === RUN_SESSION_CODE_REVIEW_ACTION_ID ||
 			action.id === 'chatEditing.viewAllSessionChanges' ||
 			action.id === 'github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR'
 		) {

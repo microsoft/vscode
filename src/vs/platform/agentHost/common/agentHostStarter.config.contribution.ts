@@ -8,9 +8,9 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
-	AgentHostClaudeAgentSdkPathSettingId,
+	AgentHostClaudeAgentSdkRootSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
-	AgentHostCodexAgentBinaryPathSettingId,
+	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
@@ -42,16 +42,16 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
 	type: 'object',
 	properties: {
-		[AgentHostClaudeAgentSdkPathSettingId]: {
+		[AgentHostClaudeAgentSdkRootSettingId]: {
 			type: 'string',
-			description: nls.localize('chat.agentHost.claudeAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package. When set, the Claude agent provider is registered inside the agent host and the SDK is loaded from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect. This setting will be removed once the SDK is delivered through the Extension Marketplace."),
+			description: nls.localize('chat.agentHost.claudeAgent.sdkRoot', "Experimental, for local SDK development only. Absolute path to a directory containing `node_modules/@anthropic-ai/claude-agent-sdk`. When set, the agent host loads Claude from this tree instead of downloading the SDK. Empty (the default) falls through to the SDK distribution shipped with this build. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: '',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
 		},
-		[AgentHostCodexAgentBinaryPathSettingId]: {
+		[AgentHostCodexAgentSdkRootSettingId]: {
 			type: 'string',
-			description: nls.localize('chat.agentHost.codexAgent.path', "Experimental, for local testing only. Absolute path to a locally-installed `codex` binary. When set, the Codex agent provider is registered inside the agent host and `codex app-server` is spawned from this path. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			description: nls.localize('chat.agentHost.codexAgent.sdkRoot', "Experimental, for local SDK development only. Absolute path to a directory containing `node_modules/@openai/codex`. When set, the agent host spawns the Codex binary from this tree instead of downloading the SDK. Empty (the default) falls through to the SDK distribution shipped with this build. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
 			default: '',
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',

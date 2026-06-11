@@ -19,9 +19,9 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
-import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -49,18 +49,6 @@ interface ISessionsSlashCommandData {
 
 
 /**
- * Returns `true` when the widget's chat session is backed by an agent
- * host (local or remote). For these sessions, completions are delegated
- * to the agent host via `AgentHostInputCompletions`, and the workbench's
- * default in-process providers (file/symbol/tool/agent) short-circuit.
- */
-function isAgentHostBackedWidget(widget: IChatWidget): boolean {
-	const sessionResource = widget.viewModel?.model.sessionResource;
-	return !!sessionResource && isAgentHostTarget(getChatSessionType(sessionResource));
-}
-
-
-/**
  * Manages slash commands for the sessions new-chat input widget — registration,
  * autocompletion, decorations (syntax highlighting + placeholder text), and execution.
  */
@@ -82,7 +70,7 @@ export class SlashCommandHandler extends Disposable {
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
@@ -262,13 +250,12 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
-				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (widget && isAgentHostBackedWidget(widget)) {
+				const activeSession = this.sessionsManagementService.activeSession.get();
+				if (activeSession && isAgentHostTarget(getChatSessionType(activeSession.resource))) {
 					// Agent-host sessions delegate completions to the host
 					// process via `AgentHostInputCompletions`.
 					return null;
 				}
-
 
 				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
 				if (!range) {
