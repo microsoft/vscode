@@ -614,6 +614,10 @@ export interface IChatTerminalToolInvocationData {
 	autoApproveInfo?: IMarkdownString;
 	/** Names of missing sandbox dependencies that the user may choose to install */
 	missingSandboxDependencies?: string[];
+	/** Approved repair actions that may make an installed but unusable sandbox dependency work. */
+	sandboxRemediations?: string[];
+	/** User-visible reason a sandbox prerequisite cannot be repaired automatically. */
+	sandboxPrerequisiteFailure?: string;
 }
 
 /**
