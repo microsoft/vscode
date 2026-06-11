@@ -42,6 +42,22 @@ interface IFindTextInFilesToolParams {
 
 const MaxResultsCap = 200;
 
+interface LineMatch {
+	line: number;
+	text: string;
+}
+
+interface FileMatch {
+	path: string;
+	matches: LineMatch;
+}
+
+interface MatchResult {
+	totalMatches: number;
+	truncated?: boolean;
+	files: FileMatch[];
+}
+
 export class FindTextInFilesTool implements ICopilotTool<IFindTextInFilesToolParams> {
 	public static readonly toolName = ToolName.FindTextInFiles;
 	public static readonly nonDeferred = true;
@@ -125,6 +141,10 @@ If you believe that it should have results, you can check into the .*ignore file
 Then if you want to include those files you can call the tool again by setting "includeIgnoredFiles" to true.`;
 		}
 
+		return this.renderTagStyle(results, options, maxResults, globResult, askedForTooManyResults, isRegExp, noMatchInstructions, token);
+	}
+
+	private async renderTagStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, askedForTooManyResults: boolean | number | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
 		const prompt = await renderPromptElementJSON(this.instantiationService,
 			FindTextInFilesResult,
 			{ textResults: results, maxResults, askedForTooManyResults: Boolean(askedForTooManyResults), noMatchInstructions },
@@ -143,6 +163,23 @@ Then if you want to include those files you can call the tool again by setting "
 		result.toolResultMessage = this.getResultMessage(isRegExp, query, textMatches.length);
 
 		result.toolResultDetails = textMatches;
+		return result;
+	}
+
+	private async renderJSONStyle(results: vscode.TextSearchResult2[], options: vscode.LanguageModelToolInvocationOptions<IFindTextInFilesToolParams>, maxResults: number, globResult: InputGlobResult | undefined, askedForTooManyResults: boolean | number | undefined, isRegExp: boolean, noMatchInstructions: string | undefined, token: CancellationToken): Promise<vscode.ExtendedLanguageModelToolResult> {
+		const textMatches = results.filter(isTextSearchMatch);
+		if (!textMatches.length) {
+			return this.errorResult(noMatchInstructions ? `No matches found. ${noMatchInstructions}` : 'No matches found.');
+		}
+		const groupedByFile: Map<string, vscode.TextSearchMatch2> = new Map();
+		for (const textMatch of textMatches) {
+			
+		}
+	}
+
+	private errorResult(message: string): vscode.ExtendedLanguageModelToolResult {
+		const result = new ExtendedLanguageModelToolResult([]);
+		result.toolResultMessage = new MarkdownString(message);
 		return result;
 	}
 
