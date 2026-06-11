@@ -2962,7 +2962,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (turns.length === 0) {
 			// No usage events were reported — still surface the response if we have one.
 			if (responseText) {
-				this._emitChatSpan({ model: fallbackModelId }, responseText, rootTraceContext);
+				this._emitChatSpan({}, responseText, fallbackModelId, rootTraceContext);
 			}
 			return;
 		}
@@ -2976,7 +2976,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		}
 		for (let i = 0; i < turns.length; i++) {
-			this._emitChatSpan(turns[i], i === responseTurnIndex ? responseText : '', rootTraceContext);
+			this._emitChatSpan(turns[i], i === responseTurnIndex ? responseText : '', fallbackModelId, rootTraceContext);
 		}
 	}
 
@@ -2984,14 +2984,15 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * Emits a single synthesized `chat` span for one model turn. Token usage attributes are set only when
 	 * present, and the assistant response (`OUTPUT_MESSAGES`) is attached only to the turn that produced it.
 	 */
-	private _emitChatSpan(turn: IModelTurnUsage, responseText: string, rootTraceContext: TraceContext | undefined): void {
-		const chatSpan = this._otelService.startSpan('chat', {
-			kind: SpanKind.INTERNAL,
+	private _emitChatSpan(turn: IModelTurnUsage, responseText: string, fallbackModelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+		const model = turn.model ?? fallbackModelId;
+		const chatSpan = this._otelService.startSpan(model ? `chat ${model}` : 'chat', {
+			kind: SpanKind.CLIENT,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
-				...(turn.model ? { [GenAiAttr.REQUEST_MODEL]: turn.model } : {}),
+				...(model ? { [GenAiAttr.REQUEST_MODEL]: model } : {}),
 				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),
 				...(typeof turn.outputTokens === 'number' ? { [GenAiAttr.USAGE_OUTPUT_TOKENS]: turn.outputTokens } : {}),
 				...(typeof turn.cacheReadTokens === 'number' ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: turn.cacheReadTokens } : {}),
