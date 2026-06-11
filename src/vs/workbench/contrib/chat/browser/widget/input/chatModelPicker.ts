@@ -1260,9 +1260,10 @@ export class ModelPickerWidget extends Disposable {
 				const isDefault = value === config.schema.default;
 				const displayLabel = formatValueLabel(value, enumItemLabels?.[index]);
 				const enumDescription = config.schema.enumDescriptions?.[index];
-				// Mark the default value with a right-aligned "Default" label instead of
-				// appending "(default)" to the value label.
-				const description = isDefault ? defaultLabel : enumDescription;
+				// Only the default value shows a right-aligned "Default" label. The
+				// per-option descriptions are surfaced on hover (tooltip) instead of
+				// being shown inline in the picker.
+				const description = isDefault ? defaultLabel : undefined;
 				const checked = config.value === value;
 				items.push({
 					item: {
@@ -1280,6 +1281,7 @@ export class ModelPickerWidget extends Disposable {
 					kind: ActionListItemKind.Action,
 					label: displayLabel,
 					description,
+					hover: enumDescription ? { content: enumDescription } : undefined,
 					group: { title: '', icon: ThemeIcon.fromId(checked ? Codicon.check.id : Codicon.blank.id) },
 					hideIcon: false,
 				});
