@@ -761,6 +761,8 @@ export class ActionListWidget<T> extends Disposable {
 			if (this._options.headerIcon) {
 				const icon = dom.append(this._headerContainer, dom.$('span.action-list-header-icon'));
 				icon.classList.add(...ThemeIcon.asClassNameArray(this._options.headerIcon));
+				// Decorative: the header text already conveys the meaning.
+				icon.setAttribute('aria-hidden', 'true');
 			}
 			const text = dom.append(this._headerContainer, dom.$('span.action-list-header-text'));
 			text.textContent = this._options.headerText;
