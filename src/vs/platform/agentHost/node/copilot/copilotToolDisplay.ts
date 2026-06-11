@@ -380,6 +380,41 @@ export function isHiddenTool(toolName: string): boolean {
 }
 
 /**
+ * Returns true if the tool should render as a markdown response part instead
+ * of a tool-call entry. This is intentionally scoped to `task_complete` only:
+ * it is the autopilot completion signal and its `summary` argument reads like
+ * a normal assistant message, so it renders inline as markdown (matching the
+ * Copilot CLI chat-extension behaviour) instead of a tool pill. No other tool
+ * is rendered this way. Use {@link getToolMarkdownContent} to obtain the
+ * markdown to render, which may be `undefined` (render nothing).
+ */
+export function isMarkdownRenderedTool(toolName: string): boolean {
+	return toolName === CopilotToolName.TaskComplete;
+}
+
+/**
+ * Returns the markdown content to render for a {@link isMarkdownRenderedTool}
+ * tool, or `undefined` when there is nothing to render. Currently only the
+ * `task_complete` tool's `summary` argument is surfaced this way, prefixed
+ * with a bold label so it reads as a distinct completion message.
+ *
+ * The leading blank line ensures the summary renders as its own paragraph:
+ * consecutive markdown response parts are concatenated by string append on
+ * the client, so without it the label would run directly into any preceding
+ * assistant text.
+ */
+export function getToolMarkdownContent(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
+	if (toolName === CopilotToolName.TaskComplete) {
+		const summary = parameters?.summary;
+		if (typeof summary !== 'string' || summary.length === 0) {
+			return undefined;
+		}
+		return '\n\n' + localize('toolMarkdown.taskComplete', "**Task complete:** {0}", summary);
+	}
+	return undefined;
+}
+
+/**
  * Returns true if the tool executes shell commands.
  */
 export function isShellTool(toolName: string): boolean {

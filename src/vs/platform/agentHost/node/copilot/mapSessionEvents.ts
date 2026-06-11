@@ -13,7 +13,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type Message, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from '../shared/fileEditTracker.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 
@@ -440,6 +440,19 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
+				// `task_complete` renders `summary` as a
+				// markdown response part rather than a tool-call entry
+				if (isMarkdownRenderedTool(info.toolName)) {
+					const summary = getToolMarkdownContent(info.toolName, info.parameters);
+					if (summary) {
+						builder.responseParts.push({
+							kind: ResponsePartKind.Markdown,
+							id: generateUuid(),
+							content: summary,
+						});
+					}
+					break;
+				}
 				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, storedEdits, subagentInfoByToolCallId.get(d.toolCallId));
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
@@ -493,6 +506,17 @@ export async function mapSessionEvents(
 			const info = toolInfoByCallId.get(request.toolCallId)
 				?? makeToolStartInfo(request.name, request.arguments, parentToolCallId, workingDirectory);
 			if (!info) {
+				continue;
+			}
+			if (isMarkdownRenderedTool(info.toolName)) {
+				const summary = getToolMarkdownContent(info.toolName, info.parameters);
+				if (summary) {
+					builder.responseParts.push({
+						kind: ResponsePartKind.Markdown,
+						id: generateUuid(),
+						content: summary,
+					});
+				}
 				continue;
 			}
 			builder.responseParts.push(makeCompletedToolCallPart(
