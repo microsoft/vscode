@@ -729,11 +729,10 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 		const deletedSessionIds: string[] = [];
 
 		for (const session of sessions) {
-
-			// Clear chat widget
-			await widgetService.getWidgetBySessionResource(session.resource)?.clear();
-
 			if (isLocalAgentSessionItem(session)) {
+				// Clear chat widget before deletion: local sessions are stored in-process and removal cannot fail.
+				await widgetService.getWidgetBySessionResource(session.resource)?.clear();
+
 				// Remove from storage
 				await chatService.removeHistoryEntry(session.resource);
 
@@ -743,8 +742,12 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 					deletedSessionIds.push(sessionId);
 				}
 			} else if (isAgentHostAgentSessionItem(session)) {
+				// Delegate to the agent host session controller, which disposes the backend session and removes
+				// the item from the sidebar. Only clear the chat widget after a successful delete so that a
+				// failure (and the resulting error dialog) leaves the user on the still-existing session.
 				try {
 					await chatSessionsService.deleteChatSessionItem(session.resource, CancellationToken.None);
+					await widgetService.getWidgetBySessionResource(session.resource)?.clear();
 				} catch (err) {
 					dialogService.error(localize('deleteSession.error', "Failed to delete chat session: {0}", toErrorMessage(err)));
 				}
