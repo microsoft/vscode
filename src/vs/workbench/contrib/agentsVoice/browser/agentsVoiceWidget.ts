@@ -158,12 +158,8 @@ export class AgentsVoiceWidget extends Disposable {
 		if (this._options.focusable) {
 			this.container.tabIndex = 0;
 			const win = getWindow(this.container);
-			this.container.addEventListener('keydown', (e: KeyboardEvent) => {
-				if (e.code === 'Space' && !e.repeat && !_isTextInput(e.target)) {
-					e.preventDefault();
-					this.callbacks.pttDown();
-				}
-			});
+			// keyup listener for hold-to-talk release — the keydown is
+			// handled by the registered Space keybinding (agentsVoice.pushToTalk).
 			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
 				if (e.code === 'Space' && !_isTextInput(e.target)) {
 					e.preventDefault();

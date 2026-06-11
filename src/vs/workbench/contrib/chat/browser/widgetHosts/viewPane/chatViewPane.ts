@@ -74,6 +74,7 @@ import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { IAgentsVoiceWindowService, AgentsVoiceStorageKeys } from '../../../../agentsVoice/common/agentsVoice.js';
 import { AgentsVoiceWidget } from '../../../../agentsVoice/browser/agentsVoiceWidget.js';
+import { AGENTS_VOICE_WIDGET_FOCUSED } from '../../../../agentsVoice/browser/agentsVoice.contribution.js';
 import { bindWidgetToController } from '../../../../agentsVoice/browser/agentsVoiceWidgetBinding.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -494,6 +495,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			reshowOnboardingOnDisconnect: false,
 		});
 		this._voiceBarDisposables.add(widget);
+
+		// Set context key for voice widget focus (drives Space keybinding)
+		const widgetFocusedKey = AGENTS_VOICE_WIDGET_FOCUSED.bindTo(this.contextKeyService);
+		bar.addEventListener('focusin', () => widgetFocusedKey.set(true));
+		bar.addEventListener('focusout', () => widgetFocusedKey.set(false));
+		this._voiceBarDisposables.add({ dispose: () => widgetFocusedKey.reset() });
 
 		// Hide the popout button when the floating window is already open.
 		widget.setPopoutAvailable(!this.agentsVoiceWindowService.isOpen);
