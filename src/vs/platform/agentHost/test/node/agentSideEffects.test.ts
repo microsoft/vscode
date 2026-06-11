@@ -1507,24 +1507,21 @@ suite('AgentSideEffects', () => {
 		function setupSessionWithConfig(autoApproveLevel: string): void {
 			setupSession(URI.file('/workspace').toString());
 			// Set config on the session state directly (as agentService.ts does)
-			const state = stateManager.getSessionState(sessionUri.toString());
-			if (state) {
-				state.config = {
-					schema: {
-						type: 'object',
-						properties: {
-							autoApprove: {
-								type: 'string',
-								title: 'Approvals',
-								enum: ['default', 'autoApprove', 'autopilot'],
-								default: 'default',
-								sessionMutable: true,
-							},
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: {
+							type: 'string',
+							title: 'Approvals',
+							enum: ['default', 'autoApprove', 'autopilot'],
+							default: 'default',
+							sessionMutable: true,
 						},
 					},
-					values: { autoApprove: autoApproveLevel },
-				};
-			}
+				},
+				values: { autoApprove: autoApproveLevel },
+			});
 		}
 
 		test('auto-approves all writes when autoApprove is set to bypass', () => {
@@ -2562,24 +2559,21 @@ suite('AgentSideEffects', () => {
 			disposables.add(sideEffects.registerProgressListener(agent));
 
 			// Set the parent session to "Bypass Approvals" via session config.
-			const parentState = stateManager.getSessionState(sessionUri.toString());
-			if (parentState) {
-				parentState.config = {
-					schema: {
-						type: 'object',
-						properties: {
-							autoApprove: {
-								type: 'string',
-								title: 'Approvals',
-								enum: ['default', 'autoApprove', 'autopilot'],
-								default: 'default',
-								sessionMutable: true,
-							},
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: {
+							type: 'string',
+							title: 'Approvals',
+							enum: ['default', 'autoApprove', 'autopilot'],
+							default: 'default',
+							sessionMutable: true,
 						},
 					},
-					values: { autoApprove: 'autoApprove' },
-				};
-			}
+				},
+				values: { autoApprove: 'autoApprove' },
+			});
 
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', contributor: undefined, _meta: { toolKind: undefined, language: undefined } } });
 			agent.fireProgress({ kind: 'action', session: sessionUri, action: { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-parent', invocationMessage: 'Delegating...', toolInput: undefined, confirmed: ToolCallConfirmationReason.NotNeeded } });
@@ -2669,13 +2663,10 @@ suite('AgentSideEffects', () => {
 
 		test('ChatToolCallConfirmed with allow-session adds tool to session permissions', () => {
 			setupSession();
-			const state = stateManager.getSessionState(sessionUri.toString());
-			if (state) {
-				state.config = {
-					schema: { type: 'object', properties: {} },
-					values: {},
-				};
-			}
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: {},
+			});
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -2725,13 +2716,10 @@ suite('AgentSideEffects', () => {
 
 		test('subsequent tool_ready for same tool is auto-approved after allow-session permission', () => {
 			setupSession();
-			const state = stateManager.getSessionState(sessionUri.toString());
-			if (state) {
-				state.config = {
-					schema: { type: 'object', properties: {} },
-					values: { permissions: { allow: ['CustomTool'], deny: [] } },
-				};
-			}
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { permissions: { allow: ['CustomTool'], deny: [] } },
+			});
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -2770,13 +2758,10 @@ suite('AgentSideEffects', () => {
 
 		test('subagent tool calls inherit parent session permissions', () => {
 			setupSession();
-			const state = stateManager.getSessionState(sessionUri.toString());
-			if (state) {
-				state.config = {
-					schema: { type: 'object', properties: {} },
-					values: { permissions: { allow: ['CustomTool'], deny: [] } },
-				};
-			}
+			stateManager.setSessionConfig(sessionUri.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { permissions: { allow: ['CustomTool'], deny: [] } },
+			});
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 

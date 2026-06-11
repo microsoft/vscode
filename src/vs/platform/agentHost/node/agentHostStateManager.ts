@@ -12,7 +12,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, isRootAction, isSessionAction, isChatAction, isChangesetAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type ChatState, type ISessionWithDefaultChat, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, isAhpChatChannel, mergeSessionWithDefaultChat, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type ChatState, type ISessionWithDefaultChat, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo, SessionStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -368,7 +368,14 @@ export class AgentHostStateManager extends Disposable {
 		this._chatStates.set(chatUri, { ...createChatState(chatSummary), turns: turns ?? [] });
 		const sessionState = this._sessionStates.get(sessionKey);
 		if (sessionState) {
-			this._sessionStates.set(sessionKey, { ...sessionState, chats: [chatSummary], defaultChat: chatUri });
+			// Update the session's chat catalog in place so the object
+			// identity returned by `createSession`/`restoreSession` stays
+			// live in the map. Callers (e.g. `AgentService.createSession`)
+			// mutate the returned state directly (`state.config = …`), so
+			// replacing the map entry with a fresh clone here would strand
+			// those mutations on a detached object.
+			sessionState.chats = [chatSummary];
+			sessionState.defaultChat = chatUri;
 		}
 	}
 
@@ -470,6 +477,26 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	setSessionMeta(session: URI, meta: SessionMeta | undefined): void {
 		this.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: meta });
+	}
+
+	/**
+	 * Seeds or replaces a session's resolved {@link SessionConfigState} on the
+	 * live session state. Unlike mid-session {@link ActionType.SessionConfigChanged}
+	 * updates (which merge values onto an existing config), this establishes
+	 * the initial config and is therefore an in-place mutation of the
+	 * authoritative state object so the value is present in the first snapshot
+	 * a subscriber receives. Use this from create/restore flows where the
+	 * config is resolved asynchronously after the session state already exists
+	 * in the map — reading back through {@link getSessionState} would return a
+	 * detached composite copy and stranding the mutation there.
+	 */
+	setSessionConfig(session: URI, config: SessionConfigState | undefined): void {
+		const state = this._sessionStates.get(session);
+		if (!state) {
+			this._logService.warn(`[AgentHostStateManager] setSessionConfig: unknown session ${session}`);
+			return;
+		}
+		state.config = config;
 	}
 
 	// ---- Changeset registry -------------------------------------------------

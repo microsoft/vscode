@@ -16,7 +16,7 @@ import { CompletionsParams, CompletionsResult, ListSessionsResult, ResourceReadR
 import { ActionType, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, AHP_UNSUPPORTED_PROTOCOL_VERSION, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, type SessionSummary } from '../../common/state/sessionState.js';
 import type { SessionAddedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -412,7 +412,9 @@ suite('ProtocolServerHandler', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
-		const transport = connectClient('client-1', [sessionUri]);
+		// Chat actions are emitted on the derived default-chat channel, so the
+		// client must subscribe to it (as the real UI bridge does) to see echoes.
+		const transport = connectClient('client-1', [sessionUri, buildDefaultChatUri(sessionUri)]);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {

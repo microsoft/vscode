@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isSubagentSession, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isAhpChatChannel, isSubagentSession, parseDefaultChatUri, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -848,6 +848,27 @@ export class AgentService extends Disposable implements IAgentService {
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			if (!snapshot) {
+				// Chat channel URIs carry their owning session URI. The chat
+				// snapshot only materializes once that session is restored
+				// (which seeds the default chat state), so restore the parent
+				// session rather than the chat URI itself. This makes the
+				// chat-channel subscribe self-sufficient and independent of
+				// whether the session channel was subscribed first.
+				const parsedChatSession = parseDefaultChatUri(resourceStr);
+				if (parsedChatSession !== undefined) {
+					if (!this._stateManager.getSessionState(parsedChatSession)) {
+						const parentUri = URI.parse(parsedChatSession);
+						const parsedSubagentParent = parseSubagentSessionUri(parentUri);
+						if (parsedSubagentParent) {
+							await this._restoreSubagentSession(parsedChatSession, parsedSubagentParent.parentSession);
+						} else {
+							await this.restoreSession(parentUri);
+						}
+					}
+					snapshot = this._stateManager.getSnapshot(resourceStr);
+				}
+			}
+			if (!snapshot) {
 				// Changeset URIs are routed through the coordinator (which
 				// owns its URI shape, the unknown-id early throw, and turn
 				// / static seeding). Other URIs fall through to the
@@ -1102,6 +1123,19 @@ export class AgentService extends Disposable implements IAgentService {
 
 	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
+
+		// Clients dispatch conversation (chat) actions against the session's
+		// default chat channel. Normalize to the owning session URI so the
+		// downstream attachment rewrite, optimistic state apply, and side
+		// effects (which key agents/permissions by session) all operate on a
+		// consistent session URI. The state manager re-derives the chat
+		// channel URI when emitting to per-chat subscribers.
+		if (isAhpChatChannel(channel)) {
+			const session = parseDefaultChatUri(channel);
+			if (session !== undefined) {
+				channel = session;
+			}
+		}
 
 		const pending = this._clientDispatchQueues.get(clientId);
 		if (!pending && !this._needsAsyncRewrite(channel, action)) {
@@ -1450,10 +1484,7 @@ export class AgentService extends Disposable implements IAgentService {
 			config: persistedConfigValues,
 		});
 		if (restoredConfig) {
-			const restoredState = this._stateManager.getSessionState(sessionStr);
-			if (restoredState) {
-				restoredState.config = restoredConfig;
-			}
+			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
 		}
 
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);

@@ -593,7 +593,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 	}
 
-	async provideChatSessionContent(sessionResource: URI, _token: CancellationToken): Promise<IChatSession> {
+	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		if (sessionResource.path.substring(1).startsWith('untitled-')) {
 			throw new Error(`Agent host chat sessions must be created by the sessions provider: ${sessionResource.toString()}`);
 		}
@@ -614,12 +614,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!isNewSession) {
 			try {
 				const sub = this._ensureSessionSubscription(resolvedSession.toString());
-				// Wait for the subscription to hydrate from the server
-				if (!this._getSessionState(resolvedSession.toString())) {
-					await new Promise<void>(resolve => {
-						const d = sub.onDidChange(() => { d.dispose(); resolve(); });
-					});
-				}
+				const chatSub = this._ensureDefaultChatSubscription(resolvedSession.toString());
+				// Wait for both the session summary and its default-chat
+				// conversation state to hydrate from the server. After the
+				// multi-chat protocol adoption, turns/activeTurn live on the
+				// separate chat channel, so reading them before the chat
+				// subscription lands would yield an empty history.
+				await Promise.all([
+					this._whenSubscriptionHydrated(sub, token),
+					this._whenSubscriptionHydrated(chatSub, token),
+				]);
 				const sessionState = this._getSessionState(resolvedSession.toString());
 				if (sessionState) {
 					sessionTitle = sessionState.summary.title;
@@ -3117,6 +3121,25 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * merged with its default chat so conversation contents (turns, active
 	 * turn, pending/queued messages, input requests) are visible.
 	 */
+	/**
+	 * Resolves once a subscription has received its first snapshot (its
+	 * `value` is no longer `undefined`) — i.e. it has hydrated with state or
+	 * an error. Resolves immediately if already hydrated or if cancellation
+	 * is requested.
+	 */
+	private _whenSubscriptionHydrated<T>(sub: IAgentSubscription<T>, token: CancellationToken): Promise<void> {
+		if (sub.value !== undefined || token.isCancellationRequested) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => {
+			const store = new DisposableStore();
+			const settle = () => { store.dispose(); resolve(); };
+			store.add(sub.onDidChange(() => { if (sub.value !== undefined) { settle(); } }));
+			store.add(token.onCancellationRequested(settle));
+			if (sub.value !== undefined) { settle(); }
+		});
+	}
+
 	private _getSessionState(sessionUri: string): ISessionWithDefaultChat | undefined {
 		const ref = this._sessionSubscriptions.get(sessionUri);
 		if (!ref) {

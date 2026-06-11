@@ -484,8 +484,7 @@ suite('AgentHostStateManager', () => {
 	});
 
 	test('restoreSession returns existing state for duplicate session', () => {
-		manager.createSession(makeSessionSummary());
-		const existing = manager.getSessionState(sessionUri);
+		const existing = manager.createSession(makeSessionSummary());
 
 		const state = manager.restoreSession(makeSessionSummary(), []);
 		assert.strictEqual(state, existing);

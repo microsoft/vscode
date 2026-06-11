@@ -23,7 +23,9 @@ import { ActionType, StateAction, type ChatToolCallCompleteAction } from '../com
 import {
 	buildSubagentSessionUri,
 	getToolFileEdits,
+	isAhpChatChannel,
 	MessageKind,
+	parseDefaultChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
 	ROOT_STATE_URI,
@@ -133,8 +135,12 @@ export class AgentSideEffects extends Disposable {
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (!envelope.origin && envelope.action.type === ActionType.ChatToolCallComplete) {
 				const action = envelope.action;
-				const agent = this._options.getAgent(envelope.channel);
-				agent?.onClientToolCallComplete(URI.parse(envelope.channel), action.toolCallId, action.result);
+				// Chat-action envelopes are emitted on the chat channel URI;
+				// agents are keyed by session URI, so resolve back to the
+				// owning session before notifying the agent.
+				const sessionChannel = isAhpChatChannel(envelope.channel) ? (parseDefaultChatUri(envelope.channel) ?? envelope.channel) : envelope.channel;
+				const agent = this._options.getAgent(sessionChannel);
+				agent?.onClientToolCallComplete(URI.parse(sessionChannel), action.toolCallId, action.result);
 			}
 		}));
 	}
