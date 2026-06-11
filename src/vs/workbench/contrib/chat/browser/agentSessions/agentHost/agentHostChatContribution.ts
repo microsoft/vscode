@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, ClaudePreferAgentHostAgentsSettingId, ClaudePreferAgentHostEditorSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -102,12 +102,57 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (initialRootState && !(initialRootState instanceof Error)) {
 			this._handleRootStateChange(initialRootState);
 		}
+
+		// React to per-window preference flips for AH-vs-EH Claude. The
+		// extension's `chatSessions` contribution gates the EH side declaratively
+		// via its `when` clause; we mirror that on the AH side by toggling
+		// registration of the `claude` provider inside this window. Flipping
+		// the relevant setting unregisters / re-registers Claude live.
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			const relevantSetting = this._isSessionsWindow
+				? ClaudePreferAgentHostAgentsSettingId
+				: ClaudePreferAgentHostEditorSettingId;
+			if (!e.affectsConfiguration(relevantSetting)) {
+				return;
+			}
+			const current = this._agentHostService.rootState.value;
+			if (current && !(current instanceof Error)) {
+				this._handleRootStateChange(current);
+			}
+		}));
+	}
+
+	/**
+	 * Whether this window wants the given agent registered, given the
+	 * per-window AH/EH preference settings. Today only the `claude` provider
+	 * has dual implementations (EH from the Copilot extension, AH from inside
+	 * the agent host process) and a corresponding preference; all other
+	 * providers are AH-only and unconditionally allowed.
+	 *
+	 * Symmetric with the EH-side gate that lives in the extension's
+	 * `chatSessions` contribution `when` clause:
+	 *   - Agents Window  → `chat.agents.claude.preferAgentHost`
+	 *   - Editor Window  → `chat.editor.claude.preferAgentHost`
+	 *
+	 * If the relevant setting is `false`, the EH Claude is the one that
+	 * surfaces in this window, so the AH side suppresses its own registration
+	 * to avoid Claude appearing twice in the same window.
+	 */
+	private _shouldRegisterAgent(provider: AgentProvider): boolean {
+		if (provider !== 'claude') {
+			return true;
+		}
+		const settingId = this._isSessionsWindow
+			? ClaudePreferAgentHostAgentsSettingId
+			: ClaudePreferAgentHostEditorSettingId;
+		return this._configurationService.getValue<boolean>(settingId) === true;
 	}
 
 	private _handleRootStateChange(rootState: RootState): void {
-		const incoming = new Set(rootState.agents.map(a => a.provider));
+		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
+		const incoming = new Set(allowed.map(a => a.provider));
 
-		// Remove agents that are no longer present
+		// Remove agents that are no longer present OR no longer allowed
 		for (const [provider] of this._agentRegistrations) {
 			if (!incoming.has(provider)) {
 				this._agentRegistrations.deleteAndDispose(provider);
@@ -120,7 +165,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			.catch(() => { /* best-effort */ });
 
 		// Register new agents and push model updates to existing ones
-		for (const agent of rootState.agents) {
+		for (const agent of allowed) {
 			if (!this._agentRegistrations.has(agent.provider)) {
 				this._registerAgent(agent);
 			} else {

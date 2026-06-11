@@ -186,6 +186,12 @@ async function startAgentHost(): Promise<void> {
 		// via a `product.agentSdks.<pkg>` entry that ships with this build.
 		// If neither is present, the provider is not registered and never
 		// appears in the agent picker (matches the pre-CDN UX exactly).
+		//
+		// Per-window AH-vs-EH Claude preference (`chat.{agents,editor}.claude.preferAgentHost`)
+		// is enforced in the renderer by `AgentHostContribution._shouldRegisterAgent`,
+		// which decides whether to bridge this provider into a given window. The
+		// agent host itself stays surface-agnostic: register if reachable, let
+		// each renderer pick.
 		if (agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
