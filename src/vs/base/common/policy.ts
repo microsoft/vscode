@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
+import { IManagedSettingsData } from './copilotPolicy.js';
 import { IPolicyData } from './defaultAccount.js';
 
 /**
@@ -85,18 +86,17 @@ export interface IPolicy {
 	};
 
 	/**
-	 * The value that an ACCOUNT-based feature will use when its corresponding policy is active.
+	 * Evaluates policy data from any source — account-level (GitHub org policy)
+	 * or managed-settings (MDM / file-based) — and returns the value this policy
+	 * should take.  Each caller supplies only the source it owns:
 	 *
-	 * Only applicable when policy is tagged with ACCOUNT. When an account-based feature's policy is enabled,
-	 * this value determines what value the feature receives.
+	 * - `AccountPolicyService` passes `{ accountPolicy }`.
+	 * - `ManagedSettingsFilePolicyService` passes `{ managedSettings }`.
 	 *
-	 * For example:
-	 * - If evaluated value is `true`,  the feature's setting is locked to `true` WHEN the policy is in effect.
-	 * - If evaluated value is `foo`, the feature's setting is locked to 'foo'  WHEN the policy is in effect.
-	 *
-	 * If `undefined`, the feature's setting is not locked and can be overridden by other means.
+	 * Return a concrete value to **override** the user's setting, or
+	 * `undefined` to **not apply** any override for this source.
 	 */
-	readonly value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+	readonly value?: (sources: IPolicyValueSources) => string | number | boolean | undefined;
 
 	/**
 	 * The most-restrictive value that should be applied when the user is subject to the
@@ -109,4 +109,25 @@ export interface IPolicy {
 	 * Only consulted while the gate is active and unsatisfied; ignored otherwise.
 	 */
 	readonly restrictedValue?: string | number | boolean;
+
+	/**
+	 * When set, this value is treated as a security-critical "deny" signal.
+	 * If **any** policy source provides this value, it takes effect regardless
+	 * of source priority — no lower-priority source can override it.
+	 * Used for settings like `disableBypassPermissionsMode` where `"disable"`
+	 * from any enterprise source must stick.
+	 */
+	readonly denyValue?: string | number | boolean;
+}
+
+/**
+ * Data sources that can feed a policy's {@link IPolicy.value} callback.
+ * Each policy service passes only the source it owns — the callback
+ * inspects whichever fields are relevant.
+ */
+export interface IPolicyValueSources {
+	/** Account-level policy data from the user's GitHub org. */
+	readonly accountPolicy?: IPolicyData;
+	/** GitHubCopilot managed-settings data from MDM plist/registry or file. */
+	readonly managedSettings?: IManagedSettingsData;
 }

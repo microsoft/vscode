@@ -64,7 +64,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService, IAccountPolicyGateService } from '../services/policies/common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
 
 export class DesktopMain extends Disposable {
 

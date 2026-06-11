@@ -30,8 +30,8 @@ export class FilePolicyService extends AbstractPolicyService implements IPolicyS
 	private readonly throttledDelayer = this._register(new ThrottledDelayer(500));
 
 	constructor(
-		private readonly file: URI,
-		@IFileService private readonly fileService: IFileService,
+		protected readonly file: URI,
+		@IFileService protected readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -45,7 +45,7 @@ export class FilePolicyService extends AbstractPolicyService implements IPolicyS
 		await this.refresh();
 	}
 
-	private async read(): Promise<Map<PolicyName, PolicyValue>> {
+	protected async read(): Promise<Map<PolicyName, PolicyValue>> {
 		const policies = new Map<PolicyName, PolicyValue>();
 
 		try {

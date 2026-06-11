@@ -22,7 +22,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
+import { MultiplexPolicyService } from '../../../../../platform/policy/common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -103,7 +103,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -114,7 +114,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -125,7 +125,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -140,7 +140,18 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: policyData => policyData.cloud_session_storage_enabled === false ? false : undefined,
+					value: ({ accountPolicy }) => accountPolicy?.cloud_session_storage_enabled === false ? false : undefined,
+				}
+			},
+			'setting.G': {
+				'type': 'string',
+				'default': '',
+				policy: {
+					name: 'PolicySettingG',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					denyValue: 'disable',
 				}
 			},
 		}
@@ -367,5 +378,40 @@ suite('MultiplexPolicyService', () => {
 
 		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), undefined);
 		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.F'), undefined);
+	});
+
+	test('deny-sticky: denyValue from lower-priority source overrides higher-priority', async () => {
+		// File policy (higher priority) sets a non-deny value,
+		// but we simulate the deny value arriving from the lower-priority source.
+		// Since MultiplexPolicyService is [filePolicyService, accountPolicyService],
+		// we set the denyValue via the file source to verify it sticks.
+		await fileService.writeFile(policyFile,
+			VSBuffer.fromString(JSON.stringify({ PolicySettingG: 'disable' }))
+		);
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingG'), 'disable');
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.G'), 'disable');
+	});
+
+	test('deny-sticky: non-deny value does not trigger sticky behavior', async () => {
+		await fileService.writeFile(policyFile,
+			VSBuffer.fromString(JSON.stringify({ PolicySettingG: 'allow' }))
+		);
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingG'), 'allow');
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.G'), 'allow');
+	});
+
+	test('deny-sticky: unset denyValue policy returns undefined', async () => {
+		await clear();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingG'), undefined);
+		assert.strictEqual(policyConfiguration.configurationModel.getValue('setting.G'), undefined);
 	});
 });

@@ -486,7 +486,16 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatToolsAutoApprove',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				denyValue: false,
+				value: ({ accountPolicy, managedSettings }) => {
+					if (managedSettings?.permissions?.disableBypassPermissionsMode === 'disable') {
+						return false;
+					}
+					if (accountPolicy?.chat_preview_features_enabled === false) {
+						return false;
+					}
+					return undefined;
+				},
 				localization: {
 					description: {
 						key: 'autoApprove3.description',
@@ -507,7 +516,7 @@ configurationRegistry.registerConfiguration({
 				name: 'CopilotSessionSync',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.121',
-				value: (policyData) => policyData.cloud_session_storage_enabled === false ? false : undefined,
+				value: ({ accountPolicy }) => accountPolicy?.cloud_session_storage_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.sessionSync.enabled.policy',
@@ -749,11 +758,11 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatMCP',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (policyData) => {
-					if (policyData.mcp === false) {
+				value: ({ accountPolicy }) => {
+					if (accountPolicy?.mcp === false) {
 						return McpAccessValue.None;
 					}
-					if (policyData.mcpAccess === 'registry_only') {
+					if (accountPolicy?.mcpAccess === 'registry_only') {
 						return McpAccessValue.Registry;
 					}
 					return undefined;
@@ -934,7 +943,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatEnabledPlugins',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => policyData.enabledPlugins ? JSON.stringify(policyData.enabledPlugins) : undefined,
+				value: ({ accountPolicy }) => accountPolicy?.enabledPlugins ? JSON.stringify(accountPolicy.enabledPlugins) : undefined,
 				localization: {
 					description: {
 						key: 'chat.plugins.enabledPlugins.policy',
@@ -977,8 +986,8 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatExtraMarketplaces',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => {
-					const obj = extraKnownMarketplacesToConfigDict(policyData.extraKnownMarketplaces);
+				value: ({ accountPolicy }) => {
+					const obj = extraKnownMarketplacesToConfigDict(accountPolicy?.extraKnownMarketplaces);
 					return obj ? JSON.stringify(obj) : undefined;
 				},
 				localization: {
@@ -1000,7 +1009,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatStrictMarketplaces',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.122',
-				value: (policyData) => policyData.strictKnownMarketplaces,
+				value: ({ accountPolicy }) => accountPolicy?.strictKnownMarketplaces,
 				localization: {
 					description: {
 						key: 'chat.plugins.strictMarketplaces.policy',
@@ -1018,7 +1027,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatAgentMode',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (policyData) => policyData.chat_agent_enabled === false ? false : undefined,
+				value: ({ accountPolicy }) => accountPolicy?.chat_agent_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.agent.enabled.description',
@@ -1260,7 +1269,7 @@ configurationRegistry.registerConfiguration({
 				name: 'McpGalleryServiceUrl',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
-				value: (policyData) => policyData.mcpRegistryUrl,
+				value: ({ accountPolicy }) => accountPolicy?.mcpRegistryUrl,
 				localization: {
 					description: {
 						key: 'mcp.gallery.serviceUrl',
@@ -1547,7 +1556,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatHooks',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.109',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				value: ({ accountPolicy }) => accountPolicy?.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.useHooks.description',

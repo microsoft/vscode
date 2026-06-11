@@ -6,7 +6,7 @@
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../common/policy.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Throttler } from '../../../base/common/async.js';
-import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
+import type { PolicyUpdate, Watcher, WatcherOptions } from '@vscode/policy-watcher';
 import { MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -17,7 +17,8 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		private readonly productName: string
+		private readonly productName: string,
+		private readonly watcherOptions?: WatcherOptions,
 	) {
 		super();
 	}
@@ -33,7 +34,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 				this.watcher.value = createWatcher(this.productName, policyDefinitions, update => {
 					this._onDidPolicyChange(update);
 					c();
-				});
+				}, this.watcherOptions);
 			} catch (err) {
 				this.logService.error(`NativePolicyService#_updatePolicyDefinitions - Error creating watcher:`, err);
 				e(err);
