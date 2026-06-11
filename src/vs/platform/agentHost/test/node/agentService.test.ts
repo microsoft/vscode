@@ -567,8 +567,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Sanity: the subagent child session is announced.
 			assert.ok(
-				service.stateManager.getAnnouncedSessionSummaries().some(s => s.resource === childSessionUri),
-				'subagent child session should be announced',
+				service.stateManager.getAllSessionSummaries().some(s => s.resource === childSessionUri),
+				'subagent child session should be listed',
 			);
 
 			const listed = await service.listSessions();
