@@ -242,8 +242,7 @@
 
 /* Project picker in inline title row */
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label,
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label {
 	height: auto;
 	padding: 4px;
 	font-size: 18px;
@@ -256,28 +255,24 @@
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label:hover,
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label:hover {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label,
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label .sessions-chat-dropdown-label {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-label {
 	font-size: 18px;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron),
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.codicon-chevron-down),
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label > .codicon:not(.codicon-chevron-down) {
 	font-size: 16px;
 	margin: 0;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron,
-.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-chevron,
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label .sessions-chat-dropdown-chevron {
+.sessions-chat-picker-slot.sessions-chat-session-type-picker .action-label .sessions-chat-dropdown-chevron {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -285,28 +280,6 @@
 	margin-left: 6px;
 	line-height: 1;
 	transform: translateY(1px);
-}
-
-/*
- * Static (non-interactive) kind label: blends into the surrounding
- * "New <kind> in <workspace>" sentence as plain inline text rather
- * than the chip-styled dropdown trigger used when the picker is
- * interactive.
- */
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label.static {
-	padding: 0;
-	color: var(--vscode-descriptionForeground);
-	cursor: default;
-	background-color: transparent;
-}
-
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label.static:hover {
-	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
-}
-
-.sessions-chat-picker-slot.sessions-chat-kind-picker .action-label.static .sessions-chat-dropdown-label {
-	margin-left: 0;
 }
 
 .sessions-chat-dropdown-label {
@@ -464,30 +437,4 @@
 	visibility: visible;
 }
 
-/* Inline automation schedule pickers — rendered next to the session-config
- * toolbar when the kind picker is set to "automation". They reuse the
- * existing `.sessions-chat-picker-slot` styling so they match the look of
- * the permission picker sitting alongside them. */
-.sessions-chat-toolbar-extension-slot {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-}
 
-.sessions-chat-automation-schedule {
-	display: flex;
-	align-items: center;
-	flex-wrap: nowrap;
-	min-width: 0;
-}
-
-.sessions-chat-automation-schedule .sessions-chat-picker-slot {
-	min-width: 0;
-}
-
-.sessions-chat-automation-time-slot,
-.sessions-chat-automation-day-slot {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-}
