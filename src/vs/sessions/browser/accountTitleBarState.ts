@@ -15,7 +15,6 @@ export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
-	readonly accountSessionId?: string;
 }
 
 /**
@@ -34,7 +33,6 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
-			accountSessionId: account.sessionId,
 		};
 	}
 
@@ -49,7 +47,6 @@ export async function resolveAccountInfo(
 					accountName: sessions[0].account.label,
 					accountProviderId: provider.id,
 					accountProviderLabel: provider.label,
-					accountSessionId: sessions[0].id,
 				};
 			}
 		} catch {

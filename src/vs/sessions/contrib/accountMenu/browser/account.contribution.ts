@@ -154,7 +154,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
-	private accountSessionId: string | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -242,7 +241,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
-		this.accountSessionId = info?.accountSessionId;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
@@ -317,11 +315,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const requestId = ++this.avatarRequestCounter;
 
 		try {
-			const avatarUrl = await this.accountProfileImageService.getProfileImageUrl({
-				providerId: this.accountProviderId,
-				accountName: this.accountName,
-				sessionId: this.accountSessionId,
-			});
+			const avatarUrl = await this.accountProfileImageService.getDefaultProfileImageUrl();
 			if (requestId !== this.avatarRequestCounter) {
 				return;
 			}

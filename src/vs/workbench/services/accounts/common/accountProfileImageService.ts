@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService, isSuccess } from '../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
-import { GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID, IAccountProfileImageRequest, IAccountProfileImageService, isGitHubAuthenticationProvider } from './accountProfileImage.js';
+import { GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID, IAccountProfileImageService, isGitHubAuthenticationProvider } from './accountProfileImage.js';
 
 const GITHUB_PROFILE_IMAGE_SIZE = 64;
 const GITHUB_DOTCOM_URL = 'https://github.com/';
@@ -22,7 +22,13 @@ interface IGitHubUserResponse {
 	readonly avatar_url?: string;
 }
 
-class AccountProfileImageService extends Disposable implements IAccountProfileImageService {
+interface IAccountProfileImageRequest {
+	readonly providerId: string | undefined;
+	readonly accountName: string | undefined;
+	readonly sessionId?: string;
+}
+
+export class AccountProfileImageService extends Disposable implements IAccountProfileImageService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -58,7 +64,7 @@ class AccountProfileImageService extends Disposable implements IAccountProfileIm
 		}
 	}
 
-	async getProfileImageUrl(request: IAccountProfileImageRequest): Promise<string | undefined> {
+	private async getProfileImageUrl(request: IAccountProfileImageRequest): Promise<string | undefined> {
 		try {
 			const accountName = request.accountName?.trim();
 			const providerId = request.providerId;
@@ -160,7 +166,7 @@ class AccountProfileImageService extends Disposable implements IAccountProfileIm
 		}
 
 		if (providerId === GITHUB_ENTERPRISE_AUTH_PROVIDER_ID) {
-			const providerUriSetting = this.productService.defaultChatAgent.providerUriSetting;
+			const providerUriSetting = this.productService.defaultChatAgent?.providerUriSetting;
 			if (!providerUriSetting) {
 				return GITHUB_DOTCOM_URL;
 			}

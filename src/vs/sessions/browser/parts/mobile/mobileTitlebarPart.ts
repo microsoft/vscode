@@ -82,9 +82,7 @@ export class MobileTitlebarPart extends Disposable {
 	private readonly accountIconElement: HTMLElement;
 	private readonly accountBadgeElement: HTMLElement;
 	private accountName: string | undefined;
-	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
-	private accountSessionId: string | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -325,9 +323,7 @@ export class MobileTitlebarPart extends Disposable {
 		}
 
 		this.accountName = info?.accountName;
-		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
-		this.accountSessionId = info?.accountSessionId;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderAccountState();
@@ -384,11 +380,7 @@ export class MobileTitlebarPart extends Disposable {
 		const requestId = ++this.avatarRequestCounter;
 
 		try {
-			const avatarUrl = await this.accountProfileImageService.getProfileImageUrl({
-				providerId: this.accountProviderId,
-				accountName: this.accountName,
-				sessionId: this.accountSessionId,
-			});
+			const avatarUrl = await this.accountProfileImageService.getDefaultProfileImageUrl();
 			if (requestId !== this.avatarRequestCounter) {
 				return;
 			}

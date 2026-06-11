@@ -45,7 +45,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { IAccountProfileImageService, GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID, isGitHubAuthenticationProvider } from '../../services/accounts/common/accountProfileImage.js';
+import { IAccountProfileImageService, isGitHubAuthenticationProvider } from '../../services/accounts/common/accountProfileImage.js';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -603,7 +603,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		this.accountProfileImageElement = append(this.label, $('img.workbench-account-profile-image', { 'aria-hidden': 'true', draggable: 'false' })) as HTMLImageElement;
+		this.accountProfileImageElement = append(this.label, $('img.workbench-account-profile-image', { 'aria-hidden': 'true', alt: '', draggable: 'false' })) as HTMLImageElement;
 		this.accountProfileImageElement.decoding = 'async';
 		this.accountProfileImageElement.referrerPolicy = 'no-referrer';
 		this.updateAccountProfileImage();
@@ -671,28 +671,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	}
 
 	private async resolveAccountProfileImageUrl(): Promise<string | undefined> {
-		const defaultProfileImageUrl = await this.accountProfileImageService.getDefaultProfileImageUrl();
-		if (defaultProfileImageUrl) {
-			return defaultProfileImageUrl;
-		}
-
-		const defaultAccountProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
-		const providerIds = [GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID];
-		const preferredProviderIds = isGitHubAuthenticationProvider(defaultAccountProvider.id)
-			? [defaultAccountProvider.id, ...providerIds.filter(providerId => providerId !== defaultAccountProvider.id)]
-			: providerIds;
-
-		for (const providerId of preferredProviderIds) {
-			const accounts = this.groupedAccounts.get(providerId);
-			if (accounts?.length) {
-				return this.accountProfileImageService.getProfileImageUrl({
-					providerId,
-					accountName: accounts[0].label,
-				});
-			}
-		}
-
-		return undefined;
+		return this.accountProfileImageService.getDefaultProfileImageUrl();
 	}
 
 	private updateAccountProfileImage(): void {
