@@ -1980,11 +1980,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.set(session.resource.toString(), session);
 		this._invalidateGroupingCaches();
 
-		// For Claude sessions, chatResource is already the committed resource
-		// (returned by createNewChatSessionItem). Protect it from spurious
-		// removal by _refreshSessionCache before any async work begins —
-		// a concurrent model re-resolve can transiently drop the session from
-		// agentSessionsService.model.sessions, which would otherwise cause
+		// For non-CLI sessions, chatResource is already the resource we will later
+		// wait for in the committed session cache. Protect it from spurious
+		// removal by _refreshSessionCache before any async work begins — a
+		// concurrent model re-resolve can transiently drop the session from
+		// agentSessionsService.model.sessions while the send is still in-flight.
 		// _refreshSessionCache to fire a `removed` event that tears down the
 		// UI while the send is still in-flight.
 		const committedKey = !(session instanceof CopilotCLISession)
