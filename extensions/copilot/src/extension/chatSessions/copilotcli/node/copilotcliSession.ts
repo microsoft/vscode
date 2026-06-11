@@ -1177,6 +1177,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		// Synthesizing these spans is what surfaces native tool calls (e.g. powershell, grep) in the
 		// chat debug logs view for the in-process Copilot CLI experience.
 		const syntheticToolSpans = new Map<string, ISpanHandle>();
+		// Per-model-turn usage reported by the SDK (`assistant.usage`). Used at request completion to
+		// synthesize one `chat` span per turn so the chat debug logs view shows the model turns, token
+		// metrics, and the agent response for the in-process Copilot CLI experience (the SDK performs
+		// the model call natively and never produces a JS span we could observe directly).
+		const modelTurnUsages: IModelTurnUsage[] = [];
 		const invokeAgentTraceContext = invokeAgentSpan.getSpanContext();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
@@ -1431,12 +1436,23 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 				// Accumulate per-turn credits from SDK copilotUsage data
 				const copilotUsage = (event.data as Record<string, unknown>).copilotUsage;
+				let copilotUsageNanoAiu: number | undefined;
 				if (copilotUsage && typeof copilotUsage === 'object') {
 					const { totalNanoAiu } = copilotUsage as { totalNanoAiu?: number };
 					if (typeof totalNanoAiu === 'number') {
+						copilotUsageNanoAiu = totalNanoAiu;
 						this._chatQuotaService.setLastCopilotUsage(totalNanoAiu, request.id);
 					}
 				}
+				// Record this model turn so we can synthesize a `chat` span for it at request completion.
+				modelTurnUsages.push({
+					model: event.data.model,
+					inputTokens: event.data.inputTokens,
+					outputTokens: event.data.outputTokens,
+					cacheReadTokens: event.data.cacheReadTokens,
+					copilotUsageNanoAiu,
+					parentToolCallId: event.data.parentToolCallId,
+				});
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
 				lastUsageInfo = {
@@ -1481,7 +1497,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				toolCalls.set(event.data.toolCallId, event.data as unknown as ToolCall);
 				toolStartTimes.set(event.data.toolCallId, Date.now());
 
-				this._startSyntheticToolSpan(event, syntheticToolSpans, invokeAgentTraceContext);
+				// Only synthesize tool spans when the bridge is absent. If a future SDK registers its own
+				// JS OTel provider the bridge forwards native tool spans, and synthesizing would duplicate them.
+				if (!this._bridgeProcessor) {
+					this._startSyntheticToolSpan(event, syntheticToolSpans, invokeAgentTraceContext);
+				}
 
 				if (isCopilotCliEditToolCall(event.data)) {
 					flushPendingInvocationMessages();
@@ -1705,10 +1725,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		} finally {
 			cancelCancellationAbort?.();
 
-			// Synthesize a `chat` span carrying the assistant response so the chat debug logs view
-			// shows the agent response (and an llm_request entry) for the in-process Copilot CLI
-			// experience, where the model call happens inside the SDK and never produces a JS span.
-			this._injectAgentResponseSpan(assistantMessageChunks.join(''), this._lastResponseModelId ?? modelId, invokeAgentTraceContext);
+			// Synthesize a `chat` span per model turn so the chat debug logs view shows the model
+			// turns, token metrics, and the agent response for the in-process Copilot CLI experience,
+			// where the model calls happen inside the SDK and never produce JS spans. Skip when the bridge
+			// is installed (a future SDK with its own JS provider), since it forwards the native chat spans.
+			if (!this._bridgeProcessor) {
+				this._injectModelTurnSpans(modelTurnUsages, assistantMessageChunks.join(''), this._lastResponseModelId ?? modelId, invokeAgentTraceContext);
+			}
 
 			// End any synthesized tool spans that never received a completion event (e.g. on abort)
 			// so they don't leak.
@@ -2907,10 +2930,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		if (event.data.success) {
 			const content = event.data.result?.content;
 			if (content !== undefined) {
-				toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(
-					typeof content === 'string' ? content : JSON.stringify(content),
-					this._otelService.config.maxAttributeSizeChars,
-				));
+				try {
+					toolSpan.setAttribute(GenAiAttr.TOOL_CALL_RESULT, truncateForOTel(
+						typeof content === 'string' ? content : JSON.stringify(content),
+						this._otelService.config.maxAttributeSizeChars,
+					));
+				} catch (err) {
+					this.logService.trace(`[CopilotCLISession] Failed to serialize tool result for ${event.data.toolCallId}: ${err instanceof Error ? err.message : String(err)}`);
+				}
 			}
 			toolSpan.setStatus(SpanStatusCode.OK);
 		} else {
@@ -2924,23 +2951,52 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
-	 * Synthesizes a `chat` OTel span carrying the accumulated assistant response. The chat debug logs
-	 * view derives the `agent_response` (and an `llm_request`) entry from this span. For the in-process
-	 * Copilot CLI experience the model call happens inside the SDK and never produces a JS span, so
-	 * without this the agent response would be missing from the debug logs.
+	 * Synthesizes one `chat` OTel span per model turn reported by the SDK (`assistant.usage`), carrying
+	 * that turn's token usage and resolved model. The chat debug logs view derives an `llm_request`
+	 * (model turn) entry from each span and the `agent_response` from the final main-agent turn's output
+	 * messages. For the in-process Copilot CLI experience the model calls happen inside the SDK and never
+	 * produce JS spans, so without this the model turns, token metrics, and agent response would all be
+	 * missing from the debug logs.
 	 */
-	private _injectAgentResponseSpan(responseText: string, modelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
-		if (!responseText) {
+	private _injectModelTurnSpans(turns: readonly IModelTurnUsage[], responseText: string, fallbackModelId: string | undefined, rootTraceContext: TraceContext | undefined): void {
+		if (turns.length === 0) {
+			// No usage events were reported — still surface the response if we have one.
+			if (responseText) {
+				this._emitChatSpan({ model: fallbackModelId }, responseText, rootTraceContext);
+			}
 			return;
 		}
+		// The assistant response belongs to the final main-agent turn (one without a parent tool call;
+		// turns with a parent tool call originate from subagents).
+		let responseTurnIndex = -1;
+		for (let i = turns.length - 1; i >= 0; i--) {
+			if (!turns[i].parentToolCallId) {
+				responseTurnIndex = i;
+				break;
+			}
+		}
+		for (let i = 0; i < turns.length; i++) {
+			this._emitChatSpan(turns[i], i === responseTurnIndex ? responseText : '', rootTraceContext);
+		}
+	}
+
+	/**
+	 * Emits a single synthesized `chat` span for one model turn. Token usage attributes are set only when
+	 * present, and the assistant response (`OUTPUT_MESSAGES`) is attached only to the turn that produced it.
+	 */
+	private _emitChatSpan(turn: IModelTurnUsage, responseText: string, rootTraceContext: TraceContext | undefined): void {
 		const chatSpan = this._otelService.startSpan('chat', {
 			kind: SpanKind.INTERNAL,
 			attributes: {
 				[GenAiAttr.OPERATION_NAME]: GenAiOperationName.CHAT,
 				[GenAiAttr.PROVIDER_NAME]: GenAiProviderName.GITHUB,
 				[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
-				...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
-				[GenAiAttr.OUTPUT_MESSAGES]: truncateForOTel(responseText, this._otelService.config.maxAttributeSizeChars),
+				...(turn.model ? { [GenAiAttr.REQUEST_MODEL]: turn.model } : {}),
+				...(typeof turn.inputTokens === 'number' ? { [GenAiAttr.USAGE_INPUT_TOKENS]: turn.inputTokens } : {}),
+				...(typeof turn.outputTokens === 'number' ? { [GenAiAttr.USAGE_OUTPUT_TOKENS]: turn.outputTokens } : {}),
+				...(typeof turn.cacheReadTokens === 'number' ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: turn.cacheReadTokens } : {}),
+				...(typeof turn.copilotUsageNanoAiu === 'number' ? { [CopilotChatAttr.COPILOT_USAGE_NANO_AIU]: turn.copilotUsageNanoAiu } : {}),
+				...(responseText ? { [GenAiAttr.OUTPUT_MESSAGES]: truncateForOTel(JSON.stringify([{ role: 'assistant', parts: [{ type: 'text', content: responseText }] }]), this._otelService.config.maxAttributeSizeChars) } : {}),
 			},
 			parentTraceContext: rootTraceContext,
 		});
@@ -3077,6 +3133,20 @@ interface UsageInfoData {
 	readonly conversationTokens?: number;
 	readonly toolDefinitionsTokens?: number;
 	readonly tokenLimit?: number;
+}
+
+/**
+ * Token usage for a single model turn, captured from the SDK `assistant.usage` event. Used to
+ * synthesize per-turn `chat` spans for the in-process Copilot CLI chat debug logs view.
+ */
+interface IModelTurnUsage {
+	readonly model?: string;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cacheReadTokens?: number;
+	readonly copilotUsageNanoAiu?: number;
+	/** Set when the turn originates from a subagent (nested under a parent tool call). */
+	readonly parentToolCallId?: string;
 }
 
 function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {
