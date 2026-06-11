@@ -22,7 +22,7 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
-import { ChatMissingSandboxDepsConfirmationSubPart } from './chatMissingSandboxDepsConfirmationSubPart.js';
+import { ChatSandboxPrerequisiteConfirmationSubPart } from './chatSandboxPrerequisiteConfirmationSubPart.js';
 import { ChatModifiedFilesConfirmationSubPart } from './chatModifiedFilesConfirmationSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
@@ -128,7 +128,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
 				this.subPart instanceof ChatTerminalToolConfirmationSubPart ||
 				this.subPart instanceof ChatModifiedFilesConfirmationSubPart ||
-				this.subPart instanceof ChatMissingSandboxDepsConfirmationSubPart ||
+				this.subPart instanceof ChatSandboxPrerequisiteConfirmationSubPart ||
 				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
 				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
 			this.domNode.classList.toggle('has-confirmation', isConfirmation);
@@ -180,8 +180,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			}
 
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-				if (this.toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(this.toolInvocation.toolSpecificData) && this.toolInvocation.toolSpecificData.missingSandboxDependencies?.length) {
-					return this.instantiationService.createInstance(ChatMissingSandboxDepsConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
+				if (this.toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(this.toolInvocation.toolSpecificData) && (this.toolInvocation.toolSpecificData.missingSandboxDependencies?.length || this.toolInvocation.toolSpecificData.sandboxRemediations?.length)) {
+					return this.instantiationService.createInstance(ChatSandboxPrerequisiteConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex);
 				} else if (this.toolInvocation.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
