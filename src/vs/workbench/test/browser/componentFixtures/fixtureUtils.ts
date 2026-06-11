@@ -21,13 +21,11 @@ import '../../../browser/parts/auxiliarybar/media/auxiliaryBarPart.css';
 // Theme
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService, IThemingRegistry, Extensions as ThemingExtensions } from '../../../../platform/theme/common/themeService.js';
-import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
+import { ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 import { ExtensionData } from '../../../services/themes/common/workbenchThemeService.js';
+import { installGlobalStyles, InstallGlobalStylesOptions } from './fixtureUtilsCss.js';
 
 // Instantiation
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -244,9 +242,6 @@ class NullStorageService implements IStorageService {
 // Themes
 // ============================================================================
 
-const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
-const mockEnvironmentService: IEnvironmentService = Object.create(null);
-
 // Eagerly bundle all built-in theme JSON files so they can be served to
 // `_loadColorTheme` via the IExtensionResourceLoaderService code path. The
 // rspack config maps these JSON files to `asset/source`, so they are imported
@@ -296,68 +291,6 @@ function createBuiltInTheme(themePath: string, uiTheme: ThemeTypeSelector): Colo
 export const darkTheme = createBuiltInTheme('/extensions/theme-defaults/themes/dark_modern.json', ThemeTypeSelector.VS_DARK);
 export const lightTheme = createBuiltInTheme('/extensions/theme-defaults/themes/light_modern.json', ThemeTypeSelector.VS);
 
-let globalStyleSheet: CSSStyleSheet | undefined;
-let iconsStyleSheetCache: CSSStyleSheet | undefined;
-let darkThemeStyleSheet: CSSStyleSheet | undefined;
-let lightThemeStyleSheet: CSSStyleSheet | undefined;
-
-function getGlobalStyleSheet(): CSSStyleSheet {
-	if (!globalStyleSheet) {
-		globalStyleSheet = new CSSStyleSheet();
-		const globalRules: string[] = [];
-		for (const sheet of Array.from(document.styleSheets)) {
-			try {
-				for (const rule of Array.from(sheet.cssRules)) {
-					globalRules.push(rule.cssText);
-				}
-			} catch {
-				// Cross-origin stylesheets can't be read
-			}
-		}
-		globalStyleSheet.replaceSync(globalRules.join('\n'));
-	}
-	return globalStyleSheet;
-}
-
-function getIconsStyleSheetCached(): CSSStyleSheet {
-	if (!iconsStyleSheetCache) {
-		iconsStyleSheetCache = new CSSStyleSheet();
-		const iconsSheet = getIconsStyleSheet(undefined);
-		iconsStyleSheetCache.replaceSync(iconsSheet.getCSS() as string);
-		iconsSheet.dispose();
-	}
-	return iconsStyleSheetCache;
-}
-
-function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
-	const isDark = theme.type === ColorScheme.DARK;
-	if (isDark && darkThemeStyleSheet) {
-		return darkThemeStyleSheet;
-	}
-	if (!isDark && lightThemeStyleSheet) {
-		return lightThemeStyleSheet;
-	}
-
-	const scopeSelector = '.' + theme.classNames[0];
-	const sheet = new CSSStyleSheet();
-	const css = generateColorThemeCSS(
-		theme,
-		scopeSelector,
-		themingRegistry.getThemingParticipants(),
-		mockEnvironmentService
-	);
-	sheet.replaceSync(css.code);
-
-	if (isDark) {
-		darkThemeStyleSheet = sheet;
-	} else {
-		lightThemeStyleSheet = sheet;
-	}
-	return sheet;
-}
-
-let globalStylesInstalled = false;
-
 let themesLoadedPromise: Promise<void> | undefined;
 function ensureThemesLoaded(): Promise<void> {
 	if (!themesLoadedPromise) {
@@ -369,24 +302,33 @@ function ensureThemesLoaded(): Promise<void> {
 	return themesLoadedPromise;
 }
 
-function installGlobalStyles(): void {
-	if (globalStylesInstalled) {
-		return;
-	}
-	globalStylesInstalled = true;
-	document.adoptedStyleSheets = [
-		...document.adoptedStyleSheets,
-		getGlobalStyleSheet(),
-		getIconsStyleSheetCached(),
-		getThemeStyleSheet(darkTheme),
-		getThemeStyleSheet(lightTheme),
-	];
+export async function setupTheme(container: HTMLElement, theme: ColorThemeData, options?: InstallGlobalStylesOptions): Promise<void> {
+	await ensureThemesLoaded();
+	await installGlobalStyles([darkTheme, lightTheme], options);
+	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 }
 
-export async function setupTheme(container: HTMLElement, theme: ColorThemeData): Promise<void> {
-	await ensureThemesLoaded();
-	installGlobalStyles();
-	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
+/**
+ * Derives the global-style install options from the render `input` (passed via
+ * the CLI `--input` flag). Recognises `reverseStylesheets`, which is either
+ * `true` (reverse all stylesheet documents) or `{ fromIndex, toIndex }` (reverse
+ * only that index window, used by the order-dependency bisection).
+ */
+function parseStyleOptions(input: unknown): InstallGlobalStylesOptions | undefined {
+	if (!input || typeof input !== 'object') {
+		return undefined;
+	}
+	const value = (input as Record<string, unknown>).reverseStylesheets;
+	if (value === true) {
+		return { reverseStylesheets: true };
+	}
+	if (value && typeof value === 'object') {
+		const range = value as Record<string, unknown>;
+		if (typeof range.fromIndex === 'number' && typeof range.toIndex === 'number') {
+			return { reverseStylesheets: { fromIndex: range.fromIndex, toIndex: range.toIndex } };
+		}
+	}
+	return undefined;
 }
 
 function getPlatformClass(): string {
@@ -969,7 +911,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 			});
 
 			async function actualRender() {
-				await setupTheme(container, theme);
+				await setupTheme(container, theme, parseStyleOptions(context.input));
 
 				let renderTimeApi: IDisposable | undefined;
 				if (virtualTimeEnabled) {
