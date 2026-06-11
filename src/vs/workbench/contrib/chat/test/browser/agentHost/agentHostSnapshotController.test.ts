@@ -316,6 +316,10 @@ suite('AgentHostSnapshotController', () => {
 			toolCallId: 'tc-3', filePath: '/file-b.ts',
 			beforeURI: 'agenthost-content:///before-b', afterURI: 'agenthost-content:///after-b',
 		}));
+		controller.addToolCallEdits('req-2', makeToolCall({
+			toolCallId: 'tc-4', filePath: '/file-a.ts',
+			beforeURI: 'agenthost-content:///before-a3', afterURI: 'agenthost-content:///after-a3',
+		}));
 		// req-3 has a checkpoint but no file edits.
 		controller.ensureRequestCheckpoint('req-3');
 
