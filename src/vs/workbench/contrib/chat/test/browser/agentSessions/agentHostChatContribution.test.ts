@@ -1075,6 +1075,27 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(listController.items.map(item => item.label), ['Local session']);
 		});
 
+		test('deleteChatSessionItem disposes the corresponding backend session and removes it from the cached items', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { listController, agentHostService } = createContribution(disposables);
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'session-to-delete'), startTime: 1000, modifiedTime: 2000, summary: 'Doomed' });
+			await listController.refresh(CancellationToken.None);
+			assert.strictEqual(listController.items.length, 1);
+
+			const itemResource = listController.items[0].resource;
+			const removalEvents: URI[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => {
+				if (delta.removed) {
+					removalEvents.push(...delta.removed);
+				}
+			}));
+			await listController.deleteChatSessionItem(itemResource, CancellationToken.None);
+
+			assert.deepStrictEqual(agentHostService.disposedSessions.map(s => s.toString()), [AgentSession.uri('copilot', 'session-to-delete').toString()]);
+			assert.strictEqual(listController.items.length, 0);
+			assert.deepStrictEqual(removalEvents.map(r => r.toString()), [itemResource.toString()]);
+		}));
+
 		test('newChatSessionItem creates final-looking resource used for requested backend session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { listController, sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
