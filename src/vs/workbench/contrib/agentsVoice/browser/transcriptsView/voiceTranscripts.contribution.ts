@@ -15,6 +15,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import {
 	Extensions as ViewContainerExtensions,
 	IViewContainersRegistry,
@@ -83,6 +84,7 @@ class ShowVoiceTranscriptsAction extends Action2 {
 			title: localize2('agentsVoice.showTranscripts', "Show Voice Transcripts"),
 			f1: true,
 			category: localize2('agentsVoiceCategory', "Agents Voice"),
+			precondition: ChatContextKeys.enabled,
 		});
 	}
 
