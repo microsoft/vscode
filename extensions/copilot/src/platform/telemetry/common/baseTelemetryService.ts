@@ -82,11 +82,13 @@ export class BaseTelemetryService implements ITelemetryService {
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
-		properties = { ...properties, ...this._sharedProperties };
+		const sku = this._tokenStore.copilotToken?.sku;
+		properties = { ...properties, ...this._sharedProperties, sku: sku ?? '' };
 		this._ghTelemetrySender.sendEnhancedTelemetryEvent(eventName, properties, measurements);
 	}
 	sendEnhancedGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
-		properties = { ...properties, ...this._sharedProperties };
+		const sku = this._tokenStore.copilotToken?.sku;
+		properties = { ...properties, ...this._sharedProperties, sku: sku ?? '' };
 		this._ghTelemetrySender.sendEnhancedTelemetryErrorEvent(eventName, properties, measurements);
 	}
 
