@@ -45,12 +45,7 @@ import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
 import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-
-const GITHUB_PROFILE_IMAGE_SIZE = 64;
-const GITHUB_AUTH_PROVIDER_ID = 'github';
-const GITHUB_ENTERPRISE_AUTH_PROVIDER_ID = 'github-enterprise';
-const GITHUB_AUTH_PROVIDER_IDS = new Set([GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID]);
-const GITHUB_DOTCOM_URL = 'https://github.com/';
+import { IAccountProfileImageService, GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID, isGitHubAuthenticationProvider } from '../../services/accounts/common/accountProfileImage.js';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -298,6 +293,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ILogService private readonly logService: ILogService,
+		@IAccountProfileImageService private readonly accountProfileImageService: IAccountProfileImageService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService
@@ -316,7 +312,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private registerListeners(): void {
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async (e) => {
 			await this.addAccountsFromProvider(e.id);
-			if (this.isGitHubProvider(e.id)) {
+			if (isGitHubAuthenticationProvider(e.id)) {
 				this.refreshAccountProfileImage();
 			}
 		}));
@@ -324,7 +320,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider((e) => {
 			this.groupedAccounts.delete(e.id);
 			this.problematicProviders.delete(e.id);
-			if (this.isGitHubProvider(e.id)) {
+			if (isGitHubAuthenticationProvider(e.id)) {
 				this.refreshAccountProfileImage();
 			}
 		}));
@@ -342,7 +338,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 					this.logService.error(e);
 				}
 			}
-			if (this.isGitHubProvider(e.providerId)) {
+			if (isGitHubAuthenticationProvider(e.providerId)) {
 				this.refreshAccountProfileImage();
 			}
 		}));
@@ -616,12 +612,11 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private async refreshAccountProfileImage(): Promise<void> {
 		try {
 			const requestId = ++this.profileImageResolveRequestCounter;
-			const account = await this.resolveGitHubAccountProfileImageInfo();
+			const profileImageUrl = await this.resolveAccountProfileImageUrl();
 			if (requestId !== this.profileImageResolveRequestCounter) {
 				return;
 			}
 
-			const profileImageUrl = getGitHubAccountProfileImageUrl(account?.accountName, account?.baseUrl);
 			if (profileImageUrl === this.currentProfileImageUrl && this.profileImageLoadState !== 'failed') {
 				return;
 			}
@@ -675,56 +670,29 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 	}
 
-	private async resolveGitHubAccountProfileImageInfo(): Promise<{ accountName: string; baseUrl: string } | undefined> {
-		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
-		if (defaultAccount && this.isGitHubProvider(defaultAccount.authenticationProvider.id)) {
-			return {
-				accountName: defaultAccount.accountName,
-				baseUrl: this.defaultAccountService.resolveGitHubUrl(''),
-			};
+	private async resolveAccountProfileImageUrl(): Promise<string | undefined> {
+		const defaultProfileImageUrl = await this.accountProfileImageService.getDefaultProfileImageUrl();
+		if (defaultProfileImageUrl) {
+			return defaultProfileImageUrl;
 		}
 
 		const defaultAccountProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
-		const preferredProviderIds = this.isGitHubProvider(defaultAccountProvider.id)
-			? [defaultAccountProvider.id, ...[...GITHUB_AUTH_PROVIDER_IDS].filter(providerId => providerId !== defaultAccountProvider.id)]
-			: [...GITHUB_AUTH_PROVIDER_IDS];
+		const providerIds = [GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID];
+		const preferredProviderIds = isGitHubAuthenticationProvider(defaultAccountProvider.id)
+			? [defaultAccountProvider.id, ...providerIds.filter(providerId => providerId !== defaultAccountProvider.id)]
+			: providerIds;
 
 		for (const providerId of preferredProviderIds) {
 			const accounts = this.groupedAccounts.get(providerId);
 			if (accounts?.length) {
-				return {
+				return this.accountProfileImageService.getProfileImageUrl({
+					providerId,
 					accountName: accounts[0].label,
-					baseUrl: this.getGitHubProviderBaseUrl(providerId),
-				};
+				});
 			}
 		}
 
 		return undefined;
-	}
-
-	private getGitHubProviderBaseUrl(providerId: string): string {
-		if (providerId === this.defaultAccountService.getDefaultAccountAuthenticationProvider().id) {
-			return this.defaultAccountService.resolveGitHubUrl('');
-		}
-
-		if (providerId === GITHUB_ENTERPRISE_AUTH_PROVIDER_ID) {
-			const providerUriSetting = this.productService.defaultChatAgent.providerUriSetting;
-			if (!providerUriSetting) {
-				return GITHUB_DOTCOM_URL;
-			}
-
-			const value = this.configurationService.getValue<string | undefined>(providerUriSetting);
-			if (value) {
-				try {
-					const enterpriseUrl = new URL(value);
-					return `${enterpriseUrl.protocol}//${enterpriseUrl.host}/`;
-				} catch (error) {
-					this.logService.error(error);
-				}
-			}
-		}
-
-		return GITHUB_DOTCOM_URL;
 	}
 
 	private updateAccountProfileImage(): void {
@@ -756,17 +724,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 	//#endregion
 
-	private isGitHubProvider(providerId: string): boolean {
-		return GITHUB_AUTH_PROVIDER_IDS.has(providerId);
-	}
-}
-
-function getGitHubAccountProfileImageUrl(accountName: string | undefined, baseUrl = GITHUB_DOTCOM_URL): string | undefined {
-	if (!accountName?.trim()) {
-		return undefined;
-	}
-
-	return new URL(`${encodeURIComponent(accountName.trim())}.png?size=${GITHUB_PROFILE_IMAGE_SIZE}`, baseUrl).toString();
 }
 
 export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
@@ -868,6 +825,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@ISecretStorageService secretStorageService: ISecretStorageService,
 		@IStorageService storageService: IStorageService,
 		@ILogService logService: ILogService,
+		@IAccountProfileImageService accountProfileImageService: IAccountProfileImageService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICommandService commandService: ICommandService
@@ -881,7 +839,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 				}),
 				hoverOptions,
 				compact: true,
-			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, defaultAccountService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, commandService);
+			}, () => undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, defaultAccountService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, accountProfileImageService, activityService, instantiationService, commandService);
 	}
 }
 

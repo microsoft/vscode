@@ -64,7 +64,7 @@ On phone-sized viewports (`< 640px` width):
 └──────────────────────────────────┘
 ```
 
-- **MobileTitlebarPart** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and a contextual right slot that swaps between the new session (+) button (when in a chat) and the account indicator 👤 (on the welcome / new session screen).
+- **MobileTitlebarPart** is a DOM element prepended above the grid. It has a hamburger (☰), session title, and a contextual right slot that swaps between the new session (+) button (when in a chat) and the account indicator 👤 (on the welcome / new session screen). The account indicator uses the shared workbench account profile image service so GitHub Enterprise avatars resolve via the authenticated GitHub API instead of a static URL.
 - **Sidebar** is hidden by default and opens as an **85% width drawer overlay** with a backdrop when the hamburger is tapped. CSS makes its `split-view-view` absolutely positioned with `z-index: 250`. The workbench manually calls `sidebarPart.layout()` with drawer dimensions after opening. Closing the drawer clears the navigation stack.
 - **Titlebar** is hidden in the grid (`visible: false`) and via CSS — replaced by MobileTitlebarPart.
 - **SessionCompositeBar** (chat tabs) is hidden via CSS.
@@ -114,7 +114,7 @@ The workbench toggles the `phone-layout` CSS class on `layout()` and creates/des
 
 | File | Purpose |
 |------|---------|
-| `mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, avatar loading, and account panel with copilot dashboard. |
+| `mobileTitlebarPart.ts` | Phone top bar: hamburger (☰), session title, contextual right slot (+ for in-chat, account indicator for welcome). Emits `onDidClickHamburger`, `onDidClickNewSession`, `onDidClickTitle`. Includes account state tracking, shared profile-image-service avatar loading, and account panel with copilot dashboard. |
 | `mobileChatShell.css` | **Single source of truth** for all phone-layout CSS: flex column layout, split-view-view absolute positioning, card chrome removal, part/content width overrides, sidebar title hiding, composite bar hiding, welcome page layout, sash hiding, button focus overrides, chip row styling. |
 | `mobilePickerSheet.ts` | Reusable phone-friendly bottom sheet for picker-style choices. Promise-based overlay with backdrop, drag handle, header (title + Done button + optional header actions), sectioned listbox, and optional inline search with debounced cancellable loads. Uses `DisposableStore` for lifecycle. |
 | `media/mobilePickerSheet.css` | Styling for the bottom sheet widget (backdrop, slide-up animation, row layout, search input, section dividers, checkmarks). |

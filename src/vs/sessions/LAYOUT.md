@@ -88,7 +88,7 @@ When multiple remote agent hosts are known, a dropdown pill in the left toolbar 
 
 ### Account Widget (Right)
 
-Shows the signed-in GitHub profile image (falls back to the account codicon). Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
+Shows the active GitHub or GitHub Enterprise profile image using the shared workbench account profile image service (falls back to the account codicon). Clicking opens a combined account and Copilot status panel with sign-in/sign-out and settings actions.
 
 ---
 

@@ -20,15 +20,17 @@ import { fillInActionBarActions } from '../../../../platform/actions/browser/men
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../menus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
+import { getAccountTitleBarState, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
+import { IAccountProfileImageService } from '../../../../workbench/services/accounts/common/accountProfileImage.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -82,6 +84,7 @@ export class MobileTitlebarPart extends Disposable {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private accountSessionId: string | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -109,6 +112,8 @@ export class MobileTitlebarPart extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatDashboardService private readonly chatDashboardService: IChatDashboardService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAccountProfileImageService private readonly accountProfileImageService: IAccountProfileImageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -322,6 +327,7 @@ export class MobileTitlebarPart extends Disposable {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.accountSessionId = info?.accountSessionId;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderAccountState();
@@ -374,39 +380,52 @@ export class MobileTitlebarPart extends Disposable {
 		this.accountButton.setAttribute('aria-label', state.ariaLabel);
 	}
 
-	private refreshAvatar(): void {
-		const avatarUrl = getAccountProfileImageUrl(this.accountProviderId, this.accountName);
-		if (avatarUrl === this.currentAvatarUrl) {
-			return;
-		}
-
-		this.currentAvatarUrl = avatarUrl;
-		this.loadedAvatarUrl = undefined;
-		this.avatarLoadDisposable.clear();
+	private async refreshAvatar(): Promise<void> {
 		const requestId = ++this.avatarRequestCounter;
 
-		if (!avatarUrl) {
-			this.renderAccountState();
-			return;
-		}
+		try {
+			const avatarUrl = await this.accountProfileImageService.getProfileImageUrl({
+				providerId: this.accountProviderId,
+				accountName: this.accountName,
+				sessionId: this.accountSessionId,
+			});
+			if (requestId !== this.avatarRequestCounter) {
+				return;
+			}
 
-		const image = new Image();
-		image.referrerPolicy = 'no-referrer';
-		const clearHandlers = () => { image.onload = null; image.onerror = null; };
-		image.onload = () => {
-			if (requestId !== this.avatarRequestCounter) { return; }
-			this.loadedAvatarUrl = avatarUrl;
-			this.renderAccountState();
-			clearHandlers();
-		};
-		image.onerror = () => {
-			if (requestId !== this.avatarRequestCounter) { return; }
+			if (avatarUrl === this.currentAvatarUrl && this.loadedAvatarUrl) {
+				return;
+			}
+
+			this.currentAvatarUrl = avatarUrl;
 			this.loadedAvatarUrl = undefined;
-			this.renderAccountState();
-			clearHandlers();
-		};
-		this.avatarLoadDisposable.value = toDisposable(() => { clearHandlers(); image.src = ''; });
-		image.src = avatarUrl;
+			this.avatarLoadDisposable.clear();
+
+			if (!avatarUrl) {
+				this.renderAccountState();
+				return;
+			}
+
+			const image = new Image();
+			image.referrerPolicy = 'no-referrer';
+			const clearHandlers = () => { image.onload = null; image.onerror = null; };
+			image.onload = () => {
+				if (requestId !== this.avatarRequestCounter) { return; }
+				this.loadedAvatarUrl = avatarUrl;
+				this.renderAccountState();
+				clearHandlers();
+			};
+			image.onerror = () => {
+				if (requestId !== this.avatarRequestCounter) { return; }
+				this.loadedAvatarUrl = undefined;
+				this.renderAccountState();
+				clearHandlers();
+			};
+			this.avatarLoadDisposable.value = toDisposable(() => { clearHandlers(); image.src = ''; });
+			image.src = avatarUrl;
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	// --- Account Sheet --- //

@@ -27,12 +27,13 @@ import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
+import { getAccountTitleBarBadgeKey, getAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
 import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
@@ -40,6 +41,7 @@ import { IAuthenticationUsageService } from '../../../../workbench/services/auth
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IAccountProfileImageService, isGitHubAuthenticationProvider } from '../../../../workbench/services/accounts/common/accountProfileImage.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -152,6 +154,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private accountSessionId: string | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -175,6 +178,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IAccountProfileImageService private readonly accountProfileImageService: IAccountProfileImageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(undefined, action, options);
 		this.lastState = getAccountTitleBarState({
@@ -237,6 +242,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.accountSessionId = info?.accountSessionId;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderState();
@@ -300,59 +306,72 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 
 	private getAvatarAltText(hasLoadedAvatar: boolean): string {
-		if (hasLoadedAvatar && this.accountProviderId === 'github' && this.accountName) {
+		if (hasLoadedAvatar && isGitHubAuthenticationProvider(this.accountProviderId) && this.accountName) {
 			return localize('accountAvatarAlt', "GitHub profile image for {0}", this.accountName);
 		}
 
 		return localize('accountAvatarAltFallback', "Account profile image");
 	}
 
-	private refreshAvatar(): void {
-		const avatarUrl = getAccountProfileImageUrl(this.accountProviderId, this.accountName);
-		if (avatarUrl === this.currentAvatarUrl) {
-			return;
-		}
-
-		this.currentAvatarUrl = avatarUrl;
-		this.loadedAvatarUrl = undefined;
-		this.avatarLoadDisposable.clear();
+	private async refreshAvatar(): Promise<void> {
 		const requestId = ++this.avatarRequestCounter;
 
-		if (!avatarUrl) {
-			this.renderState();
-			return;
-		}
-
-		const image = new Image();
-		image.referrerPolicy = 'no-referrer';
-		const clearHandlers = () => {
-			image.onload = null;
-			image.onerror = null;
-		};
-		image.onload = () => {
+		try {
+			const avatarUrl = await this.accountProfileImageService.getProfileImageUrl({
+				providerId: this.accountProviderId,
+				accountName: this.accountName,
+				sessionId: this.accountSessionId,
+			});
 			if (requestId !== this.avatarRequestCounter) {
 				return;
 			}
 
-			this.loadedAvatarUrl = avatarUrl;
-			this.renderState();
-			clearHandlers();
-		};
-		image.onerror = () => {
-			if (requestId !== this.avatarRequestCounter) {
+			if (avatarUrl === this.currentAvatarUrl && this.loadedAvatarUrl) {
 				return;
 			}
 
+			this.currentAvatarUrl = avatarUrl;
 			this.loadedAvatarUrl = undefined;
+			this.avatarLoadDisposable.clear();
+
+			if (!avatarUrl) {
+				this.renderState();
+				return;
+			}
+
+			const image = new Image();
+			image.referrerPolicy = 'no-referrer';
+			const clearHandlers = () => {
+				image.onload = null;
+				image.onerror = null;
+			};
+			image.onload = () => {
+				if (requestId !== this.avatarRequestCounter) {
+					return;
+				}
+
+				this.loadedAvatarUrl = avatarUrl;
+				this.renderState();
+				clearHandlers();
+			};
+			image.onerror = () => {
+				if (requestId !== this.avatarRequestCounter) {
+					return;
+				}
+
+				this.loadedAvatarUrl = undefined;
+				this.renderState();
+				clearHandlers();
+			};
+			this.avatarLoadDisposable.value = toDisposable(() => {
+				clearHandlers();
+				image.src = '';
+			});
+			image.src = avatarUrl;
 			this.renderState();
-			clearHandlers();
-		};
-		this.avatarLoadDisposable.value = toDisposable(() => {
-			clearHandlers();
-			image.src = '';
-		});
-		image.src = avatarUrl;
-		this.renderState();
+		} catch (error) {
+			this.logService.error(error);
+		}
 	}
 
 	private getHoverTarget(): { targetElements: HTMLElement[]; x: number } {

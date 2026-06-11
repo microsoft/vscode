@@ -9,11 +9,13 @@ import { localize } from '../../nls.js';
 import { ChatEntitlement, IChatSentiment, IQuotaSnapshot } from '../../workbench/services/chat/common/chatEntitlementService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../workbench/services/authentication/common/authentication.js';
+import { GITHUB_AUTH_PROVIDER_ID, GITHUB_ENTERPRISE_AUTH_PROVIDER_ID } from '../../workbench/services/accounts/common/accountProfileImage.js';
 
 export interface IResolvedAccountInfo {
 	readonly accountName: string;
 	readonly accountProviderId: string;
 	readonly accountProviderLabel: string;
+	readonly accountSessionId?: string;
 }
 
 /**
@@ -32,20 +34,27 @@ export async function resolveAccountInfo(
 			accountName: account.accountName,
 			accountProviderId: account.authenticationProvider.id,
 			accountProviderLabel: account.authenticationProvider.name,
+			accountSessionId: account.sessionId,
 		};
 	}
 
-	try {
-		const sessions = await authenticationService.getSessions('github');
-		if (sessions.length > 0) {
-			return {
-				accountName: sessions[0].account.label,
-				accountProviderId: 'github',
-				accountProviderLabel: 'GitHub',
-			};
+	for (const provider of [
+		{ id: GITHUB_AUTH_PROVIDER_ID, label: localize('github', "GitHub") },
+		{ id: GITHUB_ENTERPRISE_AUTH_PROVIDER_ID, label: localize('githubEnterprise', "GitHub Enterprise") },
+	]) {
+		try {
+			const sessions = await authenticationService.getSessions(provider.id);
+			if (sessions.length > 0) {
+				return {
+					accountName: sessions[0].account.label,
+					accountProviderId: provider.id,
+					accountProviderLabel: provider.label,
+					accountSessionId: sessions[0].id,
+				};
+			}
+		} catch {
+			// Provider not available yet
 		}
-	} catch {
-		// Provider not available yet
 	}
 
 	return undefined;
@@ -75,14 +84,6 @@ export interface IAccountTitleBarState {
 	readonly badge?: string;
 	readonly dotBadge?: 'warning' | 'error';
 	readonly revealLabelOnHover?: boolean;
-}
-
-export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined): string | undefined {
-	if (accountProviderId !== 'github' || !accountName?.trim()) {
-		return undefined;
-	}
-
-	return `https://github.com/${encodeURIComponent(accountName.trim())}.png?size=64`;
 }
 
 export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string | undefined {
