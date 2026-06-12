@@ -20,6 +20,10 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { getSessionTypeUpgradeDescription, getSessionTypeUpgradeHover, isSessionTypeLockedForEntitlement } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeUpgrade.js';
+import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
 const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
@@ -88,6 +92,9 @@ export class SessionTypePicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
+		@IChatEntitlementService protected readonly chatEntitlementService: IChatEntitlementService,
+		@ILanguageModelsService protected readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -235,12 +242,18 @@ export class SessionTypePicker extends Disposable {
 			const isFirstInGroup = providerId !== lastProviderId;
 			lastProviderId = providerId;
 			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
+			const lockedForEntitlement = isSessionTypeLockedForEntitlement(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.id);
 			const item: ISessionTypePickerItem = isCurrent
 				? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
 				: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
 			groupedItems.push({
 				kind: ActionListItemKind.Action,
 				label: sessionType.label,
+				disabled: lockedForEntitlement,
+				...(lockedForEntitlement ? {
+					description: getSessionTypeUpgradeDescription(),
+					hover: { content: getSessionTypeUpgradeHover() },
+				} : {}),
 				group: providersWithDuplicates.has(providerId) ? {
 					title: isFirstInGroup ? groupTitle : '',
 					icon: sessionType.icon,

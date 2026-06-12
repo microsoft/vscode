@@ -7,7 +7,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,13 +20,13 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { getSessionTypeUpgradeDescription, getSessionTypeUpgradeHover, isSessionTypeLockedForEntitlement } from '../../agentSessions/sessionTypeUpgrade.js';
 import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
-import { hasModelsTargetingSession } from './chatModelSelectionLogic.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
 
@@ -72,7 +71,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
-					const lockedForEntitlement = this._isLockedForEntitlement(sessionTypeItem.type);
+					const lockedForEntitlement = isSessionTypeLockedForEntitlement(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
 					actions.push({
 						...action,
 						id: sessionTypeItem.commandId,
@@ -81,9 +80,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						icon: this._getSessionIcon(sessionTypeItem),
 						enabled: lockedForEntitlement ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
-						description: lockedForEntitlement ? this._getUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
+						description: lockedForEntitlement ? getSessionTypeUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: lockedForEntitlement ? this._getUpgradeHover() : sessionTypeItem.hoverDescription },
+						hover: { content: lockedForEntitlement ? getSessionTypeUpgradeHover() : sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -242,59 +241,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 		// Disable non-local session types when their provider is not registered yet
 		return !!this.chatSessionsService.getChatSessionContribution(type);
-	}
-
-	/**
-	 * Whether the given session type is locked behind a plan upgrade for the
-	 * current user's entitlement. A session type is locked when, for a Copilot
-	 * Free or Copilot Student (EDU) user, it cannot produce a request: it does
-	 * not support the synthetic "Auto" model fallback ({@link IChatSessionsService.supportsAutoModelForSessionType})
-	 * and the user has no (BYOK) model targeting it. This covers the cloud agent
-	 * (no Auto, no model pool) and the Claude agent (no Auto, no Claude models
-	 * for Free / Student users). Locked types are shown greyed out with an
-	 * Upgrade prompt instead of being selectable.
-	 */
-	protected _isLockedForEntitlement(type: AgentSessionTarget): boolean {
-		const entitlement = this.chatEntitlementService.entitlement;
-		if (entitlement !== ChatEntitlement.Free && entitlement !== ChatEntitlement.EDU) {
-			return false;
-		}
-		// Session types that can fall back to the synthetic "Auto" model can
-		// always produce a request, so they are never locked.
-		if (this.chatSessionsService.supportsAutoModelForSessionType(type)) {
-			return false;
-		}
-		// No Auto fallback: usable only if the user has a (BYOK) model targeting
-		// this session type. Otherwise it is locked behind a plan upgrade.
-		return !this._hasModelsTargetingSessionType(type);
-	}
-
-	/**
-	 * Whether any currently registered language model targets the given session
-	 * type (e.g. a user-configured BYOK model). General-pool models are ignored
-	 * since a session type that requires its own models cannot use them.
-	 */
-	private _hasModelsTargetingSessionType(type: AgentSessionTarget): boolean {
-		const models = this.languageModelsService.getLanguageModelIds()
-			.map((id): ILanguageModelChatMetadataAndIdentifier | undefined => {
-				const metadata = this.languageModelsService.lookupLanguageModel(id);
-				return metadata ? { identifier: id, metadata } : undefined;
-			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
-		return hasModelsTargetingSession(models, type);
-	}
-
-	private _getUpgradeDescription(): IMarkdownString {
-		return new MarkdownString(
-			localize('chat.sessionTarget.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan)"),
-			{ isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] } }
-		);
-	}
-
-	private _getUpgradeHover(): MarkdownString {
-		const hover = new MarkdownString('', { isTrusted: { enabledCommands: ['workbench.action.chat.upgradePlan'] }, supportThemeIcons: true });
-		hover.appendMarkdown(localize('chat.sessionTarget.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan) to use this agent."));
-		return hover;
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
