@@ -219,11 +219,13 @@ class DocumentHistory {
 				// only considers edits that happened before the bookmark
 				break;
 			}
-			docVersion++;
 			if (editOrSelectionChange.kind === 'selections') {
 				const serializedOffsetRange: ISerializedOffsetRange[] = editOrSelectionChange.selections.map(s => [s.start, s.endExclusive]);
 				log.push({ entry: { kind: 'selectionChanged', id: this.id, selection: serializedOffsetRange, time: editOrSelectionChange.instant }, sortTime: editOrSelectionChange.instant });
 			} else {
+				// Only content changes bump the document version, mirroring how VS Code's real
+				// model version works (and matching what `WorkspaceRecorder` writes in production).
+				docVersion++;
 				log.push({ entry: { kind: 'changed', id: this.id, v: docVersion, edit: serializeStringEdit(editOrSelectionChange.edit), time: editOrSelectionChange.instant }, sortTime: editOrSelectionChange.instant });
 			}
 		}
@@ -268,11 +270,13 @@ class DocumentHistory {
 		log.push({ entry: { kind: 'opened', id: this.id, time: baseValueTime }, sortTime: baseValueTime });
 
 		for (const e of inRange) {
-			docVersion++;
 			if (e.kind === 'selections') {
 				const serializedOffsetRange: ISerializedOffsetRange[] = e.selections.map(s => [s.start, s.endExclusive]);
 				log.push({ entry: { kind: 'selectionChanged', id: this.id, selection: serializedOffsetRange, time: e.instant }, sortTime: e.instant });
 			} else {
+				// Only content changes bump the document version (selections don't), matching what
+				// `WorkspaceRecorder` writes in production via VS Code's real model version.
+				docVersion++;
 				log.push({ entry: { kind: 'changed', id: this.id, v: docVersion, edit: serializeStringEdit(e.edit), time: e.instant }, sortTime: e.instant });
 			}
 		}
