@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -107,6 +108,16 @@ export class ChatView extends AbstractChatView {
 	private _currentChatResource: URI | undefined;
 	private _historyKey: string | undefined;
 
+	/**
+	 * Maps an original (pre-commit) chat resource to the committed one for
+	 * sessions whose URI was swapped by an `onDidCommitSession` event. Used to
+	 * keep subsequent `setChat` calls on the original (still-untitled) `IChat`
+	 * — which can arrive after the swap because the owning session's
+	 * `activeChat` observable lags behind — pointing at the committed model
+	 * instead of reloading the soon-to-be-disposed untitled one.
+	 */
+	private readonly _committedResourceRedirects = new ResourceMap<URI>();
+
 	/** Whether this view currently represents the active session. */
 	private _isActive = true;
 
@@ -155,6 +166,20 @@ export class ChatView extends AbstractChatView {
 				this._applyHistoryKey();
 			}
 		}));
+
+		// When the underlying chat session URI is committed (e.g. a Copilot
+		// CLI untitled session is replaced by its SDK-session URI after the
+		// first turn), rebind the widget to the committed URI immediately so
+		// follow-up messages typed in this widget go to the committed session
+		// instead of the soon-to-be-disposed untitled one. Mirrors the
+		// behaviour of `ChatViewPane` for the panel chat.
+		this._register(this.chatSessionsService.onDidCommitSession(e => {
+			if (!this._currentChatResource || !isEqual(e.original, this._currentChatResource)) {
+				return;
+			}
+			this._committedResourceRedirects.set(e.original, e.committed);
+			this._loadChat(e.committed, 'ChatView#onDidCommitSession');
+		}));
 	}
 
 	private _buildStyles(active: boolean) {
@@ -173,7 +198,14 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override setChat(chat: IChat, historyKey?: string): void {
-		const resource = chat.resource;
+		// If this chat resource has already been swapped to a committed URI
+		// via `onDidCommitSession`, route to the committed one. The owning
+		// session's `activeChat` observable can still emit the original
+		// (untitled) `IChat` after the swap, and reloading it would replace
+		// the widget's committed model with the soon-to-be-disposed untitled
+		// one — losing any follow-up requests typed against the committed
+		// session.
+		const resource = this._committedResourceRedirects.get(chat.resource) ?? chat.resource;
 		this._historyKey = historyKey;
 		this._applyHistoryKey();
 
@@ -182,14 +214,32 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 
+		this._loadChat(resource, 'ChatView');
+	}
+
+	/**
+	 * Load the chat model for `resource`, set it on the widget, and update
+	 * the tracked current chat resource. Cancels any previous in-flight load.
+	 */
+	private _loadChat(resource: URI, source: string): void {
 		this._currentChatResource = resource;
+
+		// A redirect `original -> committed` is only useful while this view is
+		// showing `committed`; once we move on (to a different chat or a
+		// different session), no future `setChat` call will need it. Drop
+		// stale entries so the map stays bounded over the view's lifetime.
+		for (const [original, committed] of this._committedResourceRedirects) {
+			if (!isEqual(committed, resource)) {
+				this._committedResourceRedirects.delete(original);
+			}
+		}
 
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
 		const token = cts.token;
 
-		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatView').then(ref => {
+		const loadPromise = this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, source).then(ref => {
 			if (token.isCancellationRequested || !ref) {
 				ref?.dispose();
 				return;

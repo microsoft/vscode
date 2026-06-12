@@ -172,24 +172,84 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Click the topmost (most recently active) session item in the sidebar
-	 * sessions list to make it the active session view. This is needed for
-	 * session types (notably Copilot CLI) where the workbench auto-creates a
-	 * fresh untitled session after a request completes; without re-selecting
-	 * the just-completed session, a follow-up prompt would land in the new
+	 * Click the session in the sidebar whose item text contains `label` to
+	 * make it the active session view. This is needed for session types
+	 * (notably Copilot CLI) where the workbench auto-creates a fresh untitled
+	 * session after a request completes; without re-selecting the
+	 * just-completed session, a follow-up prompt would land in the new
 	 * untitled session and spawn a brand new agent session instead of
 	 * continuing the existing conversation.
 	 *
+	 * `label` should be a substring of the session row's text (typically the
+	 * first response text from message 1, e.g. `MOCKED_COPILOT_RESPONSE`).
+	 * We can't simply click the topmost row because the sessions list
+	 * contains workspace folder group headers and historical sessions from
+	 * prior runs.
+	 *
 	 * Returns once the active session has loaded and is ready for input.
+	 *
+	 * We also wait for the row to drop the `Working...` status indicator
+	 * before clicking. While the session is still `SessionStatus.InProgress`
+	 * (i.e. the workbench-side commit/swap of the untitled session into its
+	 * real SDK-backed session is still in flight) the chat widget remains
+	 * bound to the untitled URI. Sending a follow-up prompt during that
+	 * window routes the request through the still-in-flight `_sendFirstChat`
+	 * path again, and the response stream ends up attached to the untitled
+	 * chat model that is then disposed when the swap finally lands. The
+	 * caller never sees msg2's response in the active session view.
+	 *
+	 * After clicking the row we additionally wait until the
+	 * `.session-view.is-active` element contains a response bubble whose
+	 * rendered markdown matches `label`. The workbench auto-creates a fresh
+	 * untitled session as soon as one commits, and that fresh session becomes
+	 * the active view. If the row click and the auto-create race, the active
+	 * view ends up bound to the new untitled session and shows the empty
+	 * homepage, not the just-completed conversation. The post-click wait
+	 * guarantees the chat widget has actually re-bound to the session we
+	 * intended to activate before the caller types a follow-up.
 	 */
-	async activateMostRecentSession(timeoutMs: number = 30_000): Promise<void> {
+	async activateSessionByLabel(label: string, timeoutMs: number = 30_000): Promise<void> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(SESSION_LIST_ROW, undefined, retryCount);
-		// The first list row is the most recently active session (the list is
-		// ordered newest-first). Click it to switch the active view away from
-		// the auto-created new-session placeholder.
-		await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="0"]`);
-		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+		const workingStatus = 'Working...';
+		const deadline = Date.now() + timeoutMs;
+		const needle = label.toLowerCase();
+		const activeResponseSelector = `${ACTIVE_SESSION} .interactive-item-container.interactive-response .rendered-markdown`;
+		let lastTexts: string[] = [];
+		let lastActiveTexts: string[] = [];
+		while (Date.now() < deadline) {
+			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
+			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
+			const matchIndex = lastTexts.findIndex(t => t.toLowerCase().includes(needle) && !t.includes(workingStatus));
+			if (matchIndex < 0) {
+				await new Promise(r => setTimeout(r, 250));
+				continue;
+			}
+
+			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
+			console.log(`[agentsWindow] activateSessionByLabel("${label}") clicking index ${matchIndex}; all rows:\n${summary}`);
+			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
+			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+
+			// Wait until the active session view's chat widget actually shows a
+			// response matching `label`. A bare `is-active` check is not enough
+			// because the workbench may auto-create a fresh untitled session
+			// and route it into the active slot between row-render and click.
+			while (Date.now() < deadline) {
+				const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
+				lastActiveTexts = (responses ?? []).map(el => (el.textContent ?? '').trim());
+				if (lastActiveTexts.some(t => t.toLowerCase().includes(needle))) {
+					return;
+				}
+				await new Promise(r => setTimeout(r, 250));
+			}
+			const activeSummary = lastActiveTexts.length
+				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
+				: '  (no response bubbles in active session view)';
+			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${label}". Active view responses:\n${activeSummary}`);
+		}
+		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
+		throw new Error(`Timed out waiting for a settled session list row containing "${label}" (without "${workingStatus}"). Last-seen rows:\n${summary}`);
 	}
 
 	/**
@@ -238,7 +298,11 @@ export class AgentsWindow {
 		const seen = lastTexts.length
 			? lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.length > 500 ? t.slice(0, 500) + '…' : t)}`).join('\n')
 			: '  (no assistant response elements found)';
-		throw new Error(`Timed out waiting for assistant text matching ${predicate}\nLast-seen response text(s):\n${seen}`);
+		const rowsAtFailure = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
+		const rowsSummary = (rowsAtFailure ?? []).map((r, i) => `  [${i}] ${JSON.stringify((r.textContent ?? '').trim().slice(0, 120))}`).join('\n');
+		const activeViews = await this.code.getElements(ACTIVE_SESSION, /* recursive */ false);
+		const activeSummary = (activeViews ?? []).map((v, i) => `  [${i}] class=${JSON.stringify(v.className)} text=${JSON.stringify((v.textContent ?? '').trim().slice(0, 200))}`).join('\n');
+		throw new Error(`Timed out waiting for assistant text matching ${predicate}\nLast-seen response text(s):\n${seen}\nSession list rows at failure:\n${rowsSummary}\nActive session views:\n${activeSummary}`);
 	}
 
 	private async waitForResponseSettled(timeoutMs: number, fallbackQuietMs: number): Promise<void> {

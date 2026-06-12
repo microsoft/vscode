@@ -180,9 +180,11 @@ export function setup(logger: Logger) {
 					// agent session (with its own session id and branch) rather
 					// than continuing the existing one. Click back into the
 					// just-completed session before sending message 2 so the
-					// follow-up lands in the same session.
+					// follow-up lands in the same session. Identify the row by
+					// its msg1 reply text since the sessions list also contains
+					// workspace folder group headers and historical sessions.
 					if (session.name === 'Copilot CLI') {
-						await app.workbench.agentsWindow.activateMostRecentSession();
+						await app.workbench.agentsWindow.activateSessionByLabel(session.reply);
 					}
 
 					// Follow-up message in the same session — exercises the
