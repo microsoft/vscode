@@ -35,6 +35,33 @@ export interface IBreadcrumbsItemEvent {
 	payload: unknown;
 }
 
+/**
+ * Computes a new horizontal scroll position for revealing a breadcrumb item.
+ *
+ * @param scrollLeft The current horizontal scroll position.
+ * @param width The viewport width.
+ * @param itemOffsetLeft The item's left offset in the breadcrumbs strip.
+ * @param itemWidth The item's width.
+ * @param minimal Whether to use minimal scrolling semantics.
+ * Returns `undefined` when no scrolling is required.
+ */
+export function getBreadcrumbScrollLeft(scrollLeft: number, width: number, itemOffsetLeft: number, itemWidth: number, minimal: boolean): number | undefined {
+	const itemEnd = itemOffsetLeft + itemWidth;
+	let target: number | undefined;
+
+	if (!minimal) {
+		target = itemOffsetLeft;
+	} else if (itemOffsetLeft < scrollLeft) {
+		target = itemOffsetLeft;
+	} else if (itemEnd > scrollLeft + width) {
+		target = itemEnd - width;
+	}
+	if (target === undefined || target === scrollLeft) {
+		return undefined;
+	}
+	return target;
+}
+
 export class BreadcrumbsWidget {
 
 	private readonly _disposables = new DisposableStore();
@@ -230,7 +257,7 @@ export class BreadcrumbsWidget {
 	reveal(item: BreadcrumbsItem): void {
 		const idx = this._items.indexOf(item);
 		if (idx >= 0) {
-			this._reveal(idx, false);
+			this._reveal(idx, true);
 		}
 	}
 
@@ -246,11 +273,16 @@ export class BreadcrumbsWidget {
 		if (!node) {
 			return;
 		}
+		// Refresh cached dimensions: setItems re-renders synchronously but defers the
+		// scrollable's scanDomNode to a double-RAF, so without this we may clamp against
+		// a stale scrollWidth and leave the target right-clipped.
+		this._scrollable.scanDomNode();
 		const { width } = this._scrollable.getScrollDimensions();
 		const { scrollLeft } = this._scrollable.getScrollPosition();
-		if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
+		const newScrollLeft = getBreadcrumbScrollLeft(scrollLeft, width, node.offsetLeft, node.offsetWidth, minimal);
+		if (newScrollLeft !== undefined) {
 			this._scrollable.setRevealOnScroll(false);
-			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+			this._scrollable.setScrollPosition({ scrollLeft: newScrollLeft });
 			this._scrollable.setRevealOnScroll(true);
 		}
 	}
@@ -274,6 +306,7 @@ export class BreadcrumbsWidget {
 				node.classList.add('selected');
 			}
 		}
+		this._reveal(this._selectedItemIdx, true);
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
 	}
 
