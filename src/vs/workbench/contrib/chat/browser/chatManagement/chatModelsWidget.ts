@@ -1051,7 +1051,6 @@ export class ChatModelsWidget extends Disposable {
 	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
-	private browseMarketplaceButton: Button | undefined;
 	private dropdownActions: IAction[] = [];
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
@@ -1202,7 +1201,6 @@ export class ChatModelsWidget extends Disposable {
 			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
 			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
 			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
-			this.browseMarketplaceButton = browseMarketplaceButton;
 		}
 
 		// Table container
