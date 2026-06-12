@@ -17,6 +17,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 // rules behind a `.style-override-<id>` ancestor class, so the styles are inert
 // until the matching class is toggled onto the workbench container(s) below.
 import './media/roundedButtons.css';
+import './media/tabs.css';
 
 const SETTING_ID = 'workbench.experimental.styleOverrides';
 
@@ -37,6 +38,11 @@ const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
 		id: 'roundedButtons',
 		label: localize('styleOverrides.roundedButtons', "Rounded Buttons"),
 		description: localize('styleOverrides.roundedButtons.description', "Renders workbench buttons as fully rounded pills.")
+	},
+	{
+		id: 'tabs',
+		label: localize('styleOverrides.tabs', "Agents Window Tabs"),
+		description: localize('styleOverrides.tabs.description', "Styles editor tabs as transparent, rounded pills to match the Agents window.")
 	}
 ];
 
