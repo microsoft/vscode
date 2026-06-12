@@ -158,14 +158,37 @@ export class AgentsVoiceWidget extends Disposable {
 		if (this._options.focusable) {
 			this.container.tabIndex = 0;
 			const win = getWindow(this.container);
-			// keyup listener for hold-to-talk release — the keydown is
-			// handled by the registered Space keybinding (agentsVoice.pushToTalk).
-			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
-				if (e.code === 'Space' && !_isTextInput(e.target)) {
+			// Track which key triggered PTT so keyup releases correctly
+			// even when the user rebinds pushToTalk to a different key.
+			// We capture the last keydown code at the document level (capture
+			// phase) before the VS Code keybinding handler fires pttDown.
+			let pttKeyCode: string | undefined;
+			let lastKeyDownCode: string | undefined;
+			const onDocKeydown = (e: KeyboardEvent) => { lastKeyDownCode = e.code; };
+			win.document.addEventListener('keydown', onDocKeydown, true);
+			this._register(toDisposable(() => win.document.removeEventListener('keydown', onDocKeydown, true)));
+
+			this.container.addEventListener('keydown', (e: KeyboardEvent) => {
+				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
+					// Prevent repeat keydowns from activating focused child
+					// buttons (role="button" elements fire click on Space).
 					e.preventDefault();
+				}
+			});
+			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
+				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
+					e.preventDefault();
+					pttKeyCode = undefined;
 					this.callbacks.pttUp();
 				}
 			});
+
+			// Hook into pttDown to snapshot which key started PTT.
+			const origPttDown = this.callbacks.pttDown;
+			(this.callbacks as VoiceWidgetCallbacks).pttDown = () => {
+				pttKeyCode = lastKeyDownCode;
+				origPttDown.call(this.callbacks);
+			};
 			// Catch pointerup outside the container too (mirrors the chat view pane behavior)
 			const onDocPointerUp = () => this.callbacks.pttUp();
 			win.document.addEventListener('pointerup', onDocPointerUp);

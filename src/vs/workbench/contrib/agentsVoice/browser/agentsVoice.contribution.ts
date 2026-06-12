@@ -160,11 +160,6 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
-		const windowService = accessor.get(IAgentsVoiceWindowService);
-		// Open the voice window if not already open
-		if (!windowService.isOpen) {
-			await windowService.toggleWindow();
-		}
 		// Auto-connect on first PTT press
 		if (!voiceController.isConnected.get() && !voiceController.isConnecting.get()) {
 			await voiceController.connect(mainWindow);
