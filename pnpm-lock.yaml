@@ -1405,6 +1405,9 @@ importers:
       '@vscode/markdown-it-katex':
         specifier: ^1.1.2
         version: 1.1.2
+      katex:
+        specifier: ^0.16.4
+        version: 0.16.47
     devDependencies:
       '@types/markdown-it':
         specifier: ^0.0.0

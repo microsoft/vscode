@@ -119,6 +119,7 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "dependencies": {
-    "@vscode/markdown-it-katex": "^1.1.2"
+    "@vscode/markdown-it-katex": "^1.1.2",
+    "katex": "^0.16.4"
   }
 }
