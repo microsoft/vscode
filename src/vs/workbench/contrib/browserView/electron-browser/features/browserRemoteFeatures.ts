@@ -7,6 +7,8 @@ import { localize } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../browserEditor.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
@@ -28,6 +30,7 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		super(editor);
 
 		this._container = $('.browser-remote-indicator');
+		this._container.setAttribute('role', 'img');
 
 		const icon = renderIcon(Codicon.remote);
 		this._container.appendChild(icon);
@@ -62,7 +65,7 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		let isWarning = false;
 
 		if (model) {
-			if (model.url.startsWith('file://')) {
+			if (URI.parse(model.url).scheme === Schemas.file) {
 				isConnected = false;
 				statusMessage = localize('browser.connectedLocally.file', "File URLs are served locally, not over the remote connection.");
 				isWarning = true;
@@ -78,6 +81,7 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		this._container.classList.toggle('connected', isConnected);
 		this._container.classList.toggle('warning', isWarning);
 		this._container.style.display = isConnected || this.browserViewWorkbenchService.willUseRemoteProxy() ? '' : 'none';
+		this._container.setAttribute('aria-label', statusMessage);
 		this._message = statusMessage;
 	}
 }
