@@ -87,8 +87,8 @@ suite('AuthenticationService', function () {
 		expect(staticWithoutSession.hasCopilotTokenSource).toBe(true);
 	});
 
-	test('Emits onDidAuthenticationChange when a Copilot Token change is notified', async () => {
-		const promise = Event.toPromise(authenticationService.onDidAuthenticationChange);
+	test('Emits onDidCopilotTokenChange when a Copilot Token change is notified', async () => {
+		const promise = Event.toPromise(authenticationService.onDidCopilotTokenChange);
 		const newToken = 'tid=new';
 		authenticationService.setCopilotToken(new CopilotToken(createTestExtendedTokenInfo({
 			token: newToken,
@@ -99,8 +99,8 @@ suite('AuthenticationService', function () {
 		expect(authenticationService.copilotToken?.token).toBe(newToken);
 	});
 
-	test.skip('Emits onDidAuthenticationChange when a Copilot Token change is notified from the manager', async () => {
-		const promise = Event.toPromise(authenticationService.onDidAuthenticationChange);
+	test.skip('Emits onDidCopilotTokenChange when a Copilot Token change is notified from the manager', async () => {
+		const promise = Event.toPromise(authenticationService.onDidCopilotTokenChange);
 		const newToken = 'tid=new';
 		copilotTokenManager.completionsToken = newToken;
 		await promise;
