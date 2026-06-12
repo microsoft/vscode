@@ -23,7 +23,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
-import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type ClientAnnotationsAction } from '../common/state/sessionActions.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -1113,7 +1113,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _clientDispatchQueues = new Map<string, Promise<void>>();
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const pending = this._clientDispatchQueues.get(clientId);
@@ -1122,7 +1122,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const next = (pending ?? Promise.resolve()).then(async () => {
-			const rewritten: SessionAction | TerminalAction | IRootConfigChangedAction = this._needsAsyncRewrite(channel, action)
+			const rewritten: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction = this._needsAsyncRewrite(channel, action)
 				? await this._rewriteUserMessageAttachments(channel, action, clientId)
 				: action;
 			this._dispatchActionNow(channel, rewritten, clientId, clientSeq);
@@ -1137,7 +1137,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 	}
 
-	private _dispatchActionNow(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	private _dispatchActionNow(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(channel, action, origin);
 		if (action.type === ActionType.RootConfigChanged) {
@@ -1146,7 +1146,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.handleAction(channel, action);
 	}
 
-	private _needsAsyncRewrite(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
+	private _needsAsyncRewrite(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): action is SessionTurnStartedAction | SessionPendingMessageSetAction {
 		if (action.type !== ActionType.SessionTurnStarted && action.type !== ActionType.SessionPendingMessageSet) {
 			return false;
 		}
