@@ -15,10 +15,12 @@ import { ILogService } from '../../log/common/log.js';
 export const IAgentHostFileMonitorService = createDecorator<IAgentHostFileMonitorService>('agentHostFileMonitorService');
 
 export const DEFAULT_AGENT_HOST_WATCH_EXCLUDES: readonly string[] = Object.freeze([
+	'**/.git/lfs/**',
+	'**/.git/logs/**',
 	'**/.git/objects/**',
 	'**/.git/subtree-cache/**',
 	'**/.git/**/*.lock',
-	'**/.hg/store/**',
+	'**/.git/**/fsmonitor--daemon/**',
 	'**/*.watchman-cookie-*',
 ]);
 
@@ -115,6 +117,7 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 	}
 
 	private _onDidFilesChange(event: FileChangesEvent): void {
+		this._logService.trace(`[AgentHostFileMonitorService] File changes: ${event.rawUpdated.join(', ')}`);
 		for (const key of this._entries.keys()) {
 			this._onDidFilesChangeEntry(key, event);
 		}
