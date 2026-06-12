@@ -10,20 +10,20 @@ import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
-import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
+import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser }      '../../treeSitterCommandParser.js';
+import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult }      './commandLineAnalyzer.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
-const nullDevice = Symbol('null device');
+      nullDevice = Symbol('null device');
 
 type FileWrite = URI | string | typeof nullDevice;
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
-		private readonly _treeSitterCommandParser: TreeSitterCommandParser,
-		private readonly _log: (message: string, ...args: unknown[]) => void,
+		        readonly _treeSitterCommandParser: TreeSitterCommandParser,
+		        readonly _log: (message: string, ...args: unknown[]) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -39,27 +39,27 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			console.error(e);
 			this._log('Failed to get file writes via grammar', options.treeSitterLanguage);
 			return {
-				isAutoApproveAllowed: false
+				isAutoApproveAllowed: 
 			};
 		}
 		return this._getResult(options, fileWrites);
 	}
 
-	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
+	private        _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
 		let fileWrites: FileWrite[] = [];
 
 		// Get file writes from redirections (via tree-sitter grammar)
-		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
+		      capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
 
 		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
-		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
+		      commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
 
-		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
+		      allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
 
 		if (allCapturedFileWrites.length) {
-			const cwd = options.cwd;
+			      cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
 				fileWrites = allCapturedFileWrites.map(e => {
@@ -77,7 +77,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					}
 
 					// Absolute
-					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
+					      isAbsolute = options.io === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
 					if (isAbsolute) {
 						// Ensure cwd's scheme and authority is retained
 						return cwd.with({ path: e });
@@ -127,7 +127,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					break;
 				}
 				case 'outsideWorkspace': {
-					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
+					      workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
 						for (const fileWrite of fileWrites) {
 							if (fileWrite === nullDevice) {
@@ -136,14 +136,14 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							}
 
 							if (isString(fileWrite)) {
-								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
+								const isAbsolute = options.io === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
 								if (!isAbsolute) {
 									isAutoApproveAllowed = false;
 									this._log('File write blocked due to unknown terminal cwd', fileWrite);
 									break;
 								}
 							}
-							const fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
+							      fileUri = URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite);
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
 							// `~` catches POSIX tilde expansion (e.g. `~/foo`) and `%` catches Windows
@@ -157,7 +157,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								break;
 							}
 
-							const isInsideWorkspace = workspaceFolders.some(folder =>
+							      isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
 							);
@@ -182,14 +182,14 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					}
 					break;
 				}
-				case 'never':
+				     'never':
 				default: {
 					break;
 				}
 			}
 		}
 
-		const disclaimers: string[] = [];
+		      disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
 			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw === nullDevice ? '/dev/null' : fw.toString()}\``).join(', ');
 			if (!isAutoApproveAllowed) {
@@ -211,8 +211,8 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	 * user temp (`...\AppData\Local\Temp\`), system temp (`C:\Windows\Temp\`),
 	 * and common dev conventions like `C:\Temp\` and `C:\tmp\`.
 	 */
-	private _isInTempDirectory(uriPath: string, os: OperatingSystem | undefined): boolean {
-		if (os === OperatingSystem.Windows) {
+	        _isInTempDirectory(uriPath:       , io: OperatingSystem | undefined): boolean {
+		if (io === OperatingSystem.Windows) {
 			// Windows paths from URI.with({path}) keep their original backslashes,
 			// so accept either separator. Require content after the segment so the
 			// directory itself is not matched.
