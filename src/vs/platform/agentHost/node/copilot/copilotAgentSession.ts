@@ -44,7 +44,7 @@ import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvide
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
 import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
-import { feedbackServerToolDefinitions } from '../shared/agentFeedbackServerTools.js';
+import { feedbackServerToolDefinitions, feedbackServerToolNames } from '../shared/agentFeedbackServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -1266,6 +1266,17 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return { kind: 'approve-once' };
 				}
+			}
+
+			// Auto-approve the agent host's feedback ("comments") server tools.
+			// They only read or mutate the session's own annotations channel
+			// (server-held feedback state) and never touch the workspace, shell,
+			// or network, so prompting for them is redundant noise.
+			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
+				&& feedbackServerToolNames.includes(request.toolName)
+			) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving feedback server tool ${request.toolName}`);
+				return { kind: 'approve-once' };
 			}
 
 			const isShellRequest = request.kind === 'shell'

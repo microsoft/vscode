@@ -2999,6 +2999,24 @@ suite('CopilotAgentSession', () => {
 			const { runtime } = await createAgentSession(disposables);
 			assert.deepStrictEqual(runtime.createServerSdkTools(), []);
 		});
+
+		test('auto-approves every feedback tool without prompting for confirmation', async () => {
+			const feedbackToolHost = new FakeFeedbackToolHost();
+			const { runtime, signals } = await createAgentSession(disposables, { feedbackToolHost });
+
+			const results = [];
+			for (const toolName of feedbackServerToolNames) {
+				results.push(await runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId: `tc-${toolName}`, toolName }));
+			}
+
+			assert.deepStrictEqual({
+				results,
+				pendingConfirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
+			}, {
+				results: feedbackServerToolNames.map(() => ({ kind: 'approve-once' })),
+				pendingConfirmations: 0,
+			});
+		});
 	});
 
 	// ---- Plan mode ----------------------------------------------------------
