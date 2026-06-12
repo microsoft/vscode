@@ -92,7 +92,6 @@ export class InlineEditDebugComponent extends Disposable {
 				title: '',
 				data: data.toString(),
 				issueBody: 'Please describe the expected outcome and attach a screenshot!',
-				public: !isInternalUser
 			});
 		}));
 

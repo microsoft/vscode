@@ -28,7 +28,7 @@ export class FeedbackCommandContribution extends Disposable {
 			appendPromptDetailsSection(output, LogMemory.getLogs().join('\n'), LogMemory.getRequestIds().join('\n'));
 			await vscode.commands.executeCommand('workbench.action.openIssueReporter', {
 				issueTitle: title,
-				issueSource: typeof options === 'string' ? undefined : options.issueSource,
+				issueSource: typeof options === 'string' ? 'vscode' : options.issueSource ?? 'vscode',
 				uri: vscode.Uri.parse('https://github.com/microsoft/vscode'),
 				data: output.join('\n'),
 				privateUri: isTeamMember ? vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog') : undefined,
