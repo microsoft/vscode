@@ -219,8 +219,8 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
-				autoModelUnavailable: {
-					description: localize('chatSessionsExtPoint.autoModelUnavailable', 'When set, the chat session cannot fall back to the "Auto" model. When no models are available, the picker shows a "No models available" state instead of "Auto".'),
+				supportsAutoModel: {
+					description: localize('chatSessionsExtPoint.supportsAutoModel', 'Whether the chat session supports the synthetic "Auto" model fallback. Defaults to false. When true and no models are available, the picker shows "Auto" instead of a "No models available" state.'),
 					type: 'boolean',
 					default: false
 				},
@@ -1266,9 +1266,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!contribution?.requiresCustomModels;
 	}
 
-	public autoModelUnavailableForSessionType(chatSessionType: string): boolean {
+	public supportsAutoModelForSessionType(chatSessionType: string): boolean {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
-		return !!contribution?.autoModelUnavailable;
+		return !!contribution?.supportsAutoModel;
 	}
 
 	public supportsDelegationForSessionType(chatSessionType: string): boolean {

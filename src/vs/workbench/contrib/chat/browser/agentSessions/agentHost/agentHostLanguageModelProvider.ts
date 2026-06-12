@@ -11,19 +11,23 @@ import { nullExtensionDescription } from '../../../../../services/extensions/com
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema } from '../../../common/languageModels.js';
 
 /**
- * Returns whether an agent host provider has no synthetic "Auto" model to fall
- * back to.
+ * Returns whether an agent host provider exposes a synthetic "Auto" model to
+ * fall back to.
  *
- * Most harnesses (e.g. the Copilot CLI agent host) expose an Auto selection
- * and can run without an explicit model, so they should show "Auto" rather
- * than a "No models available" state when no models are listed. The Claude
- * harness has no Auto model.
+ * Today only the Copilot CLI harness exposes an Auto selection and can run
+ * without an explicit model, so it shows "Auto" rather than a "No models
+ * available" state when no models are listed. Other harnesses (Claude,
+ * Codex, …) require an explicit model.
  *
  * `provider` is the underlying agent provider id (e.g. `'copilotcli'`,
- * `'claude'`), not the `agent-host-<provider>` session type.
+ * `'claude'`, `'codex'`), not the `agent-host-<provider>` session type.
+ *
+ * TODO: hoist this capability onto the agent host protocol (e.g. a
+ * `supportsAutoModel?: boolean` on `IAgentDescriptor` / `AgentInfo`) so each
+ * agent declares its own value instead of this allow-list living in core.
  */
-export function agentHostProviderAutoModelUnavailable(provider: string): boolean {
-	return provider.includes('claude');
+export function agentHostProviderSupportsAutoModel(provider: string): boolean {
+	return provider === 'copilotcli';
 }
 
 /**

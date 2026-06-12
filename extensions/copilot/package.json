@@ -6682,7 +6682,7 @@
         "when": "config.github.copilot.chat.claudeAgent.enabled",
         "canDelegate": true,
         "requiresCustomModels": true,
-        "autoModelUnavailable": true,
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6742,6 +6742,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
+        "supportsAutoModel": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
