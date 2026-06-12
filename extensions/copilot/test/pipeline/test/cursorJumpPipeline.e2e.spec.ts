@@ -62,7 +62,7 @@ afterAll(async () => {
 	}
 });
 
-async function runCursorPipeline(sampleTask: NesDatagenSampleTask, overrides?: Partial<RunPipelineOptions>): Promise<{
+async function runCursorPipeline(sampleTask: NesDatagenSampleTask, nesDatagenOverrides?: Partial<NonNullable<RunPipelineOptions['nesDatagen']>>): Promise<{
 	samples: OutputSample[];
 	logs: string[];
 }> {
@@ -71,29 +71,26 @@ async function runCursorPipeline(sampleTask: NesDatagenSampleTask, overrides?: P
 		logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
 	};
 
-	const defaultOutputPath = path.join(tmpDir, `output-${sampleTask}.jsonl`);
+	const outputPath = nesDatagenOverrides?.output ?? path.join(tmpDir, `output-${sampleTask}.jsonl`);
 	const opts: RunPipelineOptions = {
 		nesDatagen: {
 			input: inputPath,
-			output: defaultOutputPath,
+			output: outputPath,
 			rowOffset: 0,
 			workerMode: false,
 			sampleTask,
 			sameFileJumpMinAbove: 5,
 			sameFileJumpMinBelow: 5,
+			...nesDatagenOverrides,
 		},
 		configFile: configPath,
 		verbose: true,
 		parallelism: 1,
-		...overrides,
 	};
 
 	await runInputPipeline(opts, log);
 
-	// Read from the *final* configured output path — `overrides.nesDatagen`
-	// fully replaces the default block, so callers that override may have
-	// pointed at a different file.
-	const outputContents = await fs.readFile(opts.nesDatagen!.output!, 'utf-8');
+	const outputContents = await fs.readFile(outputPath, 'utf-8');
 	return { samples: parseJsonl<OutputSample>(outputContents), logs };
 }
 
@@ -194,15 +191,8 @@ describe('nes-datagen cursor-jump pipeline e2e', () => {
 	describe('row offset', () => {
 		test('applies rowOffset to sample rowIndex in metadata', async () => {
 			const { samples } = await runCursorPipeline(NesDatagenSampleTask.CursorBoth, {
-				nesDatagen: {
-					input: inputPath,
-					output: path.join(tmpDir, 'output-offset.jsonl'),
-					rowOffset: 500,
-					workerMode: false,
-					sampleTask: NesDatagenSampleTask.CursorBoth,
-					sameFileJumpMinAbove: 5,
-					sameFileJumpMinBelow: 5,
-				},
+				output: path.join(tmpDir, 'output-offset.jsonl'),
+				rowOffset: 500,
 			});
 
 			expect(samples.length).toBe(2);
