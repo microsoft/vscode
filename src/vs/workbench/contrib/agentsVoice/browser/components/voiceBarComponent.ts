@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import type { VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
 import type { URI } from '../../../../../base/common/uri.js';
-import { FONT_SIZE } from './tokens.js';
+import { FONT_SIZE, addKeyboardActivation } from './tokens.js';
 
 export interface VoiceBarProps {
 	readonly voiceState: VoiceState;
@@ -45,6 +45,7 @@ export function createVoiceBar(): VoiceBarComponent {
 	stopBtn.ariaLabel = localize('agentsVoice.stopSpeech', "Stop speech");
 	stopBtn.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-editorError-foreground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;`;
 	stopBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+	addKeyboardActivation(stopBtn);
 
 	container.append(dot, label, waveform, stopBtn);
 

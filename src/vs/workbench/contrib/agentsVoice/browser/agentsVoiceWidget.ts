@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { observableValue, derived, autorun, type ISettableObservable, type IReader } from '../../../../base/common/observable.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { AGENTS_VOICE_WINDOW_DEFAULT_WIDTH, AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT } from '../common/agentsVoice.js';
@@ -210,6 +211,8 @@ export class AgentsVoiceWidget extends Disposable {
 		this._expandSpacer.style.cssText = 'flex:1;';
 
 		this._chevronWrapper = dom.$('div');
+		this._chevronWrapper.role = 'button';
+		this._chevronWrapper.tabIndex = 0;
 		this._chevronWrapper.style.cssText = 'display:flex;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;';
 		this._chevronIcon = dom.$('span.codicon');
 		this._chevronIcon.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);`;
@@ -217,6 +220,9 @@ export class AgentsVoiceWidget extends Disposable {
 		this._chevronIcon.addEventListener('mouseleave', () => { this._chevronIcon.style.color = 'var(--vscode-descriptionForeground)'; });
 		this._chevronWrapper.append(this._chevronIcon);
 		this._chevronWrapper.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); });
+		this._chevronWrapper.addEventListener('keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._chevronWrapper.click(); }
+		});
 
 		// Assemble: all children are in the DOM; visibility is toggled via display
 		this._contentDiv.append(
@@ -604,7 +610,7 @@ export class AgentsVoiceWidget extends Disposable {
 				this._feedbackDialogState.set({ isSubmitting: false, submitted: true }, undefined);
 				setTimeout(() => { this._feedbackDialogState.set(null, undefined); }, 3000);
 			} else {
-				this._feedbackDialogState.set({ isSubmitting: false, submitted: false, error: result.error ?? 'Failed to submit' }, undefined);
+				this._feedbackDialogState.set({ isSubmitting: false, submitted: false, error: result.error ?? localize('agentsVoice.feedbackError', "Failed to submit") }, undefined);
 			}
 		});
 	}

@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import type { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import type { IPendingToolConfirmation } from '../../../chat/browser/voiceClient/voiceSessionController.js';
-import { FONT_SIZE } from './tokens.js';
+import { FONT_SIZE, addKeyboardActivation } from './tokens.js';
 
 export interface SessionRowData {
 	readonly resource: URI;
@@ -45,6 +45,7 @@ function hoverIcon(className: string, ariaLabel: string): HTMLElement {
 	el.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:1px;`;
 	el.addEventListener('mouseenter', () => { el.style.color = 'var(--vscode-foreground)'; });
 	el.addEventListener('mouseleave', () => { el.style.color = 'var(--vscode-descriptionForeground)'; });
+	addKeyboardActivation(el);
 	return el;
 }
 
@@ -79,14 +80,28 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 			props.onSelectTarget(session.resource);
 		}
 	});
+	row.addEventListener('keydown', (e) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			row.click();
+		}
+	});
 
-	row.addEventListener('mouseenter', () => {
+	const showActions = () => {
 		if (stats) { stats.style.display = 'none'; }
 		if (actions) { actions.style.display = 'flex'; }
-	});
-	row.addEventListener('mouseleave', () => {
+	};
+	const hideActions = () => {
 		if (stats) { stats.style.display = 'flex'; }
 		if (actions) { actions.style.display = 'none'; }
+	};
+	row.addEventListener('mouseenter', showActions);
+	row.addEventListener('mouseleave', hideActions);
+	row.addEventListener('focusin', showActions);
+	row.addEventListener('focusout', (e) => {
+		if (!row.contains((e as FocusEvent).relatedTarget as Node | null)) {
+			hideActions();
+		}
 	});
 
 	// Dot or check
@@ -131,14 +146,14 @@ function createSessionRow(session: SessionRowData, props: SessionListProps): HTM
 	actions.style.cssText = 'display:none;gap:4px;align-items:center;';
 
 	const openBtn = hoverIcon('codicon-link-external', localize('agentsVoice.openSessionAction', "Open session"));
-	openBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); props.onOpenSession(session.resource); });
+	openBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); props.onOpenSession(session.resource); });
 	actions.append(openBtn);
 
 	if (!session.isIdle) {
 		const stopBtn = hoverIcon('codicon-debug-stop', localize('agentsVoice.stopSessionAction', "Stop session"));
 		stopBtn.addEventListener('mouseenter', () => { stopBtn.style.color = 'var(--vscode-editorError-foreground)'; });
 		stopBtn.addEventListener('mouseleave', () => { stopBtn.style.color = 'var(--vscode-descriptionForeground)'; });
-		stopBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); props.onStopSession(session.resource); });
+		stopBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); props.onStopSession(session.resource); });
 		actions.append(stopBtn);
 	}
 
@@ -232,7 +247,7 @@ export function createSessionList(): SessionListComponent {
 			const addBtn = hoverIcon('codicon-add', localize('agentsVoice.newSession', "New session"));
 			addBtn.title = localize('agentsVoice.newSession', "New session");
 			addBtn.style.cssText += 'padding:1px 2px;';
-			addBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); props.onNewSession(); });
+			addBtn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); props.onNewSession(); });
 
 			headerRow.append(headerLabel, addBtn);
 			container.append(headerRow);

@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import type { VoiceState } from '../../../chat/browser/voiceClient/voiceSessionController.js';
-import { FONT_SIZE } from './tokens.js';
+import { FONT_SIZE, addKeyboardActivation } from './tokens.js';
 
 export interface HeaderProps {
 	readonly copilotIconSrc: string;
@@ -41,6 +41,7 @@ function hoverButton(className: string, ariaLabel: string, title: string): HTMLE
 	el.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;padding:2px;`;
 	el.addEventListener('mouseenter', () => { el.style.color = 'var(--vscode-foreground)'; });
 	el.addEventListener('mouseleave', () => { el.style.color = 'var(--vscode-descriptionForeground)'; });
+	addKeyboardActivation(el);
 	return el;
 }
 
@@ -87,6 +88,7 @@ export function createHeader(): HeaderComponent {
 	connDisc.style.cssText = `font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);display:none;`;
 
 	connIndicator.append(connDot, connDisc);
+	addKeyboardActivation(connIndicator);
 
 	// Spacer
 	const spacer = dom.$('span');
@@ -145,21 +147,29 @@ export function createHeader(): HeaderComponent {
 			connIndicator.onclick = props.onDisconnectClick;
 
 			// Spacer / center connect button
-			// connBtnTemplate is `nothing` in original — connect button is not rendered
+			const showConnBtnCenter = !showConnected && props.centerConnectButton;
 			spacer.style.cssText = 'flex:1;';
-			if (!showConnected && props.centerConnectButton) {
+			if (showConnBtnCenter) {
 				spacer.style.cssText = 'flex:1;display:flex;justify-content:center;gap:8px;';
+				// In center mode, popout moves inside the spacer
 				if (props.showPopout) {
-					// In center mode, popout is inside the spacer
+					spacer.append(popoutBtn);
 				}
 			}
 
 			// Feedback
 			feedbackBtn.onclick = props.onFeedbackClick;
 
-			// Popout
-			const showConnBtnCenter = !showConnected && props.centerConnectButton;
-			popoutBtn.style.display = (props.showPopout && !showConnBtnCenter) ? '' : 'none';
+			// Popout — shown in its normal position unless it's in the centered spacer
+			if (showConnBtnCenter) {
+				popoutBtn.style.display = props.showPopout ? '' : 'none';
+			} else {
+				// Ensure popout is back in its normal position (after feedback, before close)
+				if (popoutBtn.parentElement === spacer) {
+					closeBtn.before(popoutBtn);
+				}
+				popoutBtn.style.display = props.showPopout ? '' : 'none';
+			}
 			popoutBtn.onclick = props.onPopoutClick;
 
 			// Close

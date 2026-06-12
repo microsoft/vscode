@@ -83,14 +83,17 @@ export interface TranscriptComponent {
 	update(props: TranscriptProps): void;
 }
 
-let styleInjected = false;
-
 export function createTranscript(): TranscriptComponent {
+	const wrapper = dom.$('div');
 	const container = dom.$('div');
 	container.style.cssText = `display:flex;flex-direction:column;gap:2px;padding:2px 2px 4px;font-size:${FONT_SIZE.body};line-height:${LINE_HEIGHT};word-break:break-word;`;
 
+	const style = dom.$('style');
+	style.textContent = TRANSCRIPT_CSS;
+	wrapper.append(style, container);
+
 	return {
-		element: container,
+		element: wrapper,
 		update(props: TranscriptProps) {
 			let visible = props.turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
 			if (visible.length >= 2 &&
@@ -106,13 +109,6 @@ export function createTranscript(): TranscriptComponent {
 			container.style.display = 'flex';
 			for (const turn of visible) {
 				container.append(turn.speaker === 'user' ? createUserTurn(turn) : createAssistantTurn(turn));
-			}
-
-			if (!styleInjected) {
-				const style = dom.$('style');
-				style.textContent = TRANSCRIPT_CSS;
-				container.append(style);
-				styleInjected = true;
 			}
 		}
 	};

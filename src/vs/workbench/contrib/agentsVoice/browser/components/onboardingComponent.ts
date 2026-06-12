@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
-import { FONT_SIZE } from './tokens.js';
+import { FONT_SIZE, addKeyboardActivation } from './tokens.js';
 
 export interface OnboardingProps {
 	readonly pttKeyLabel: string | undefined;
@@ -56,6 +56,7 @@ export function createOnboarding(): OnboardingComponent {
 	pttKeyChip.tabIndex = 0;
 	pttKeyChip.ariaLabel = localize('agentsVoice.changePttKey', "Change push-to-talk key");
 	pttKeyChip.style.cssText = `font-size:${FONT_SIZE.micro};padding:1px 4px;border:1px solid var(--vscode-descriptionForeground);border-radius:3px;line-height:1;color:var(--vscode-descriptionForeground);cursor:pointer;-webkit-app-region:no-drag;`;
+	addKeyboardActivation(pttKeyChip);
 	pttIconWrap.append(pttKeyChip);
 
 	const pttTextSpan = dom.$('span');
