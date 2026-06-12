@@ -52,16 +52,16 @@ class FakeChangesetService implements IAgentHostChangesetService {
 
 	registerStaticChangesets(): void { /* no-op for routing tests */ }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly unknown[]): void { /* no-op */ }
-	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { /* no-op */ }
-	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	persistChangesSummary(session: string, changesSummary: ChangesSummary): void { /* no-op */ }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshBranchChangeset(): void { /* no-op */ }
-	refreshUncommittedChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
 	setTurnSubscriberProbe(): void { /* no-op */ }
 	setUncommittedSubscriberProbe(): void { /* no-op */ }
+	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/changeset/turn/x`; }
 	async computeCompareTurnsChangeset(session: string, originalTurnId: string, modifiedTurnId: string): Promise<string> {
 		return `${session}/changeset/compare/${originalTurnId}/${modifiedTurnId}`;
