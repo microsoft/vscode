@@ -11,9 +11,14 @@ overrides:
   glob: ^7.2.3
   copilot-chat>glob: ^11.1.0
   '@vscode/vsce>glob': ^11.0.0
-  vscode-languageserver: 10.0.0-next.16
-  vscode-languageserver-protocol: 3.17.6-next.16
-  vscode-languageserver-types: 3.17.6-next.6
+  vscode-css-languageserver>vscode-languageserver: 10.0.0-next.16
+  vscode-html-languageserver>vscode-languageserver: 10.0.0-next.16
+  vscode-json-languageserver>vscode-languageserver: 10.0.0-next.16
+  vscode-languageclient: 10.0.0-next.20
+  vscode-languageserver>vscode-languageserver-protocol: 3.17.6-next.16
+  vscode-languageserver-protocol>vscode-languageserver-types: 3.17.5
+  vscode-markdown-languageservice>vscode-languageserver-protocol: 3.17.2
+  markdown-language-features>vscode-languageserver-types: 3.17.2
   code-oss-dev>@types/sinon: 10.0.2
   eslint: 9.39.4
   node-gyp-build: 4.8.1
@@ -1010,14 +1015,14 @@ importers:
         specifier: ^3.0.5
         version: 3.2.6(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@1.21.7)(jsdom@28.1.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
       vscode-languageserver-protocol:
-        specifier: 3.17.6-next.16
-        version: 3.17.6-next.16
+        specifier: ^3.17.5
+        version: 3.18.0
       vscode-languageserver-textdocument:
         specifier: ^1.0.12
         version: 1.0.12
       vscode-languageserver-types:
-        specifier: 3.17.6-next.6
-        version: 3.17.6-next.6
+        specifier: ^3.17.5
+        version: 3.18.0
       yaml:
         specifier: ^2.8.0
         version: 2.9.0
@@ -1031,8 +1036,8 @@ importers:
   extensions/css-language-features:
     dependencies:
       vscode-languageclient:
-        specifier: ^10.0.0-next.20
-        version: 10.0.0
+        specifier: 10.0.0-next.20
+        version: 10.0.0-next.20
       vscode-uri:
         specifier: ^3.1.0
         version: 3.1.0
@@ -1227,8 +1232,8 @@ importers:
         specifier: ^0.9.8
         version: 0.9.9(tslib@2.8.1)
       vscode-languageclient:
-        specifier: ^10.0.0-next.10
-        version: 10.0.0
+        specifier: 10.0.0-next.20
+        version: 10.0.0-next.20
       vscode-uri:
         specifier: ^3.1.0
         version: 3.1.0
@@ -1296,8 +1301,8 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
       vscode-languageclient:
-        specifier: ^10.0.0-next.20
-        version: 10.0.0
+        specifier: 10.0.0-next.20
+        version: 10.0.0-next.20
     devDependencies:
       '@types/node':
         specifier: 24.x
@@ -1361,8 +1366,8 @@ importers:
         specifier: ^2.3.1
         version: 2.3.1
       vscode-languageclient:
-        specifier: ^8.0.2
-        version: 8.1.0
+        specifier: 10.0.0-next.20
+        version: 10.0.0-next.20
       vscode-languageserver-textdocument:
         specifier: ^1.0.11
         version: 1.0.12
@@ -1404,8 +1409,8 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       vscode-languageserver-types:
-        specifier: 3.17.6-next.6
-        version: 3.17.6-next.6
+        specifier: 3.17.2
+        version: 3.17.2
       vscode-markdown-languageservice:
         specifier: 0.5.0
         version: 0.5.0
@@ -12721,36 +12726,53 @@ packages:
     resolution: {integrity: sha512-perEnXQdQOJMTDFNv+UF3h1Y0z4iSiaN9jIlb0OqIYgosPCZGYh/MCUlkFtV2668PL69lRDO32hmvL2yiidUYg==}
     engines: {node: '>=8.0.0 || >=10.0.0'}
 
+  vscode-jsonrpc@8.0.2:
+    resolution: {integrity: sha512-RY7HwI/ydoC1Wwg4gJ3y6LpU9FJRZAUnTYMXthqhFXXu77ErDd/xkREpGuk4MyYkk4a+XDWAMqe0S3KkelYQEQ==}
+    engines: {node: '>=14.0.0'}
+
   vscode-jsonrpc@8.2.1:
     resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
+    engines: {node: '>=14.0.0'}
+
+  vscode-jsonrpc@9.0.0:
+    resolution: {integrity: sha512-+VvMmQPJhtvJ+8O+zu2JKIRiLxXF8NW7krWgyMGeOHrp4Cn23T5hc0v2LknNeopDOB70wghHAds7mKtcZ0I4Sg==}
     engines: {node: '>=14.0.0'}
 
   vscode-jsonrpc@9.0.0-next.11:
     resolution: {integrity: sha512-u6LElQNbSiE9OugEEmrUKwH6+8BpPz2S5MDHvQUqHL//I4Q8GPikKLOUf856UnbLkZdhxaPrExac1lA3XwpIPA==}
     engines: {node: '>=14.0.0'}
 
-  vscode-languageclient@10.0.0:
-    resolution: {integrity: sha512-3yRHFkktZQCCg8ehHnD2Z4DZ4mZ17FNo8bxM4OFt8wtpxNBAOZGHmpbIflZSkicvCxi+ozuWntbdeWiY0gP77w==}
+  vscode-languageclient@10.0.0-next.20:
+    resolution: {integrity: sha512-/tTHk+U2q+4YQeF3PLr+IlsQA7P2WQy+ZrOpe88VOJDfPer9knm4cz6aMrozSxwkts3q7X41WEf3uASxnaC3gQ==}
     engines: {vscode: ^1.91.0}
 
-  vscode-languageclient@8.1.0:
-    resolution: {integrity: sha512-GL4QdbYUF/XxQlAsvYWZRV3V34kOkpRlvV60/72ghHfsYFnS/v2MANZ9P6sHmxFcZKOse8O+L9G7Czg0NUWing==}
-    engines: {vscode: ^1.67.0}
+  vscode-languageserver-protocol@3.17.2:
+    resolution: {integrity: sha512-8kYisQ3z/SQ2kyjlNeQxbkkTNmVFoQCqkmGrzLH6A9ecPlgTbp3wDTnUNqaUxYr4vlAcloxx8zwy7G5WdguYNg==}
 
   vscode-languageserver-protocol@3.17.6-next.16:
     resolution: {integrity: sha512-kQTjXEuyxMbdmmZ3U+Lib3oUl12xEKNc73RtWxPSDS3TFtjVwt98Q1CUzfDA9EUpsA24M46Bl6q3sLe9AUOKyw==}
 
+  vscode-languageserver-protocol@3.18.0:
+    resolution: {integrity: sha512-Zdz+kJ12Iz6tc11xfZyEo501bBATHXrCjmMfnaR3pMnf1CoqZBKIynba3P+/bi9VEdrMbNtAVKYpKhbODvqy+Q==}
+
   vscode-languageserver-textdocument@1.0.12:
     resolution: {integrity: sha512-cxWNPesCnQCcMPeenjKKsOCKQZ/L6Tv19DTRIGuLWe32lyzWhihGVJ/rcckZXJxfdKCFvRLS3fpBIsV/ZGX4zA==}
 
-  vscode-languageserver-textdocument@1.0.13:
-    resolution: {integrity: sha512-nx0ZHwMGIsVkzFG3/VLeJYBLTaFBRuNdGDvevvjuoayU5EOS2fEYazOhtCM3PI9ClMMg5igc0uwXtAq4tJj+Dw==}
+  vscode-languageserver-types@3.17.2:
+    resolution: {integrity: sha512-zHhCWatviizPIq9B7Vh9uvrH6x3sK8itC84HkamnBWoDFJtzBf7SWlpLCZUit72b3os45h6RWQNC9xHRDF8dRA==}
 
-  vscode-languageserver-types@3.17.6-next.6:
-    resolution: {integrity: sha512-aiJY5/yW+xzw7KPNlwi3gQtddq/3EIn5z8X8nCgJfaiAij2R1APKePngv+MUdLdYJBVTLu+Qa0ODsT+pHgYguQ==}
+  vscode-languageserver-types@3.17.5:
+    resolution: {integrity: sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==}
+
+  vscode-languageserver-types@3.18.0:
+    resolution: {integrity: sha512-8TsGPNMIMiiBdkORgRSvLjuiEIiAFtO+KssmYWxQ+uSVvlf7RjK8YKCOjPzZ+YA04jXEV7+7LvkSmHkhpNS99g==}
 
   vscode-languageserver@10.0.0-next.16:
     resolution: {integrity: sha512-RbsYDOhddv1NtBCAR7+oVxxCmOpQUHhrtgUE0xz6J+BJGSCkfOqBCyLUIwSjKk2rK9llxUj/pR5aL8QCsXrxow==}
+    hasBin: true
+
+  vscode-languageserver@9.0.1:
+    resolution: {integrity: sha512-woByF3PDpkHFUreUa7Hos7+pUWdeWMXRd26+ZX2A8cFx6v/JPTtd4/uN0/jB6XQHYaOlHbio03NTHCqrgG5n7g==}
     hasBin: true
 
   vscode-markdown-languageserver@0.5.0:
@@ -17895,7 +17917,7 @@ snapshots:
       emmet: 2.4.11
       jsonc-parser: 2.3.1
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.18.0
       vscode-uri: 3.1.0
 
   '@vscode/esm-url-webpack-plugin@1.0.1-11(webpack@5.107.2(lightningcss@1.32.0))':
@@ -17977,7 +17999,7 @@ snapshots:
 
   '@vscode/lsif-protocol@0.6.0-next.9':
     dependencies:
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.18.0
 
   '@vscode/markdown-editor@0.0.2-1':
     dependencies:
@@ -26030,7 +26052,7 @@ snapshots:
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.17.5
       vscode-uri: 3.1.0
 
   vscode-grammar-updater@1.1.0:
@@ -26042,7 +26064,7 @@ snapshots:
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.18.0
       vscode-uri: 3.1.0
 
   vscode-json-languageservice@6.0.0-next.1:
@@ -26050,49 +26072,62 @@ snapshots:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 4.0.0-next.1
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.18.0
       vscode-uri: 3.1.0
 
   vscode-jsonrpc@4.0.0: {}
 
+  vscode-jsonrpc@8.0.2: {}
+
   vscode-jsonrpc@8.2.1: {}
+
+  vscode-jsonrpc@9.0.0: {}
 
   vscode-jsonrpc@9.0.0-next.11: {}
 
-  vscode-languageclient@10.0.0:
+  vscode-languageclient@10.0.0-next.20:
     dependencies:
       minimatch: 10.2.5
       semver: 7.8.2
       vscode-languageserver-protocol: 3.17.6-next.16
-      vscode-languageserver-textdocument: 1.0.13
 
-  vscode-languageclient@8.1.0:
+  vscode-languageserver-protocol@3.17.2:
     dependencies:
-      minimatch: 5.1.9
-      semver: 7.5.2
-      vscode-languageserver-protocol: 3.17.6-next.16
+      vscode-jsonrpc: 8.0.2
+      vscode-languageserver-types: 3.17.5
 
   vscode-languageserver-protocol@3.17.6-next.16:
     dependencies:
       vscode-jsonrpc: 9.0.0-next.11
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.17.5
+
+  vscode-languageserver-protocol@3.18.0:
+    dependencies:
+      vscode-jsonrpc: 9.0.0
+      vscode-languageserver-types: 3.17.5
 
   vscode-languageserver-textdocument@1.0.12: {}
 
-  vscode-languageserver-textdocument@1.0.13: {}
+  vscode-languageserver-types@3.17.2: {}
 
-  vscode-languageserver-types@3.17.6-next.6: {}
+  vscode-languageserver-types@3.17.5: {}
+
+  vscode-languageserver-types@3.18.0: {}
 
   vscode-languageserver@10.0.0-next.16:
+    dependencies:
+      vscode-languageserver-protocol: 3.17.6-next.16
+
+  vscode-languageserver@9.0.1:
     dependencies:
       vscode-languageserver-protocol: 3.17.6-next.16
 
   vscode-markdown-languageserver@0.5.0:
     dependencies:
       '@vscode/l10n': 0.0.11
-      vscode-languageserver: 10.0.0-next.16
+      vscode-languageserver: 9.0.1
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.17.6-next.6
+      vscode-languageserver-types: 3.18.0
       vscode-markdown-languageservice: 0.5.0
       vscode-uri: 3.1.0
 
@@ -26101,7 +26136,7 @@ snapshots:
       '@vscode/l10n': 0.0.18
       node-html-parser: 6.1.13
       picomatch: 2.3.2
-      vscode-languageserver-protocol: 3.17.6-next.16
+      vscode-languageserver-protocol: 3.17.2
       vscode-languageserver-textdocument: 1.0.12
       vscode-uri: 3.1.0
 
