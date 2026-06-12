@@ -188,7 +188,7 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 			if (!(err instanceof BudgetExceededError)) {
 				throw err;
 			}
-			subagentResponse = CONTEXT_OVERFLOW_FALLBACK;
+			subagentResponse = CONTEXT_OVERFLOW_FALLBACK; 
 		}
 		// Parse and hydrate code snippets from <final_answer> tags
 		const hydratedResponse = await this.parseFinalAnswerAndHydrate(subagentResponse, cwd, options.workingDirectory, token);
