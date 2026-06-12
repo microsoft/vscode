@@ -38,7 +38,7 @@ const { promisify } = require('node:util');
  * help: boolean;
  * }}
 */
-const args = minimist(process.argv.slice(2), {
+const args = minimist(process.argv.slice(2).filter(a => a !== '--'), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
 	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
 	default: {

@@ -18,7 +18,7 @@ import { promises } from 'fs';
 const root = path.join(__dirname, '..', '..', '..', '..');
 const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
-const args = minimist(process.argv.slice(2), {
+const args = minimist(process.argv.slice(2).filter(a => a !== '--'), {
 	string: [
 		// path to the workspace (folder or *.code-workspace file) to open in the test
 		'workspacePath',

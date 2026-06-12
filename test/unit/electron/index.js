@@ -47,7 +47,7 @@ const minimist = require('minimist');
  * help: boolean;
  * }}
  */
-const args = minimist(process.argv.slice(2), {
+const args = minimist(process.argv.slice(2).filter(a => a !== '--'), {
 	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
