@@ -41,6 +41,7 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
 import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
+import { buildQuotaExceededMessage } from '../chatQuotaMessage.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
@@ -1467,6 +1468,25 @@ export class ChatService extends Disposable implements IChatService {
 						detectedAgent,
 						request,
 					});
+
+					// Centralize quota-exceeded messaging: any provider may flag a
+					// result as quota-exceeded (e.g. an upstream 402), but the
+					// user-facing text is built here so it is friendly, localized,
+					// and plan-/reset-date-aware regardless of which provider (agent
+					// host, Copilot CLI, Claude CLI, ...) produced it.
+					if (rawResult.errorDetails?.isQuotaExceeded) {
+						rawResult = {
+							...rawResult,
+							errorDetails: {
+								...rawResult.errorDetails,
+								message: buildQuotaExceededMessage({
+									entitlement: this.chatEntitlementService.entitlement,
+									quotaResetDate: this.chatEntitlementService.quotas.resetDate,
+									quotaResetDateHasTime: this.chatEntitlementService.quotas.resetDateHasTime,
+								}),
+							},
+						};
+					}
 
 					model.setResponse(request, rawResult);
 					completeResponseCreated();

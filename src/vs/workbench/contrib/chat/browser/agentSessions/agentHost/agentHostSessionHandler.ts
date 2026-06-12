@@ -58,7 +58,6 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -446,7 +445,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
-		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._config = config;
@@ -848,11 +846,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const completedTurn = await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 		const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 		const errorDetails = completedTurn?.state === TurnState.Error && completedTurn.error
-			? errorInfoToChatErrorDetails(completedTurn.error, {
-				entitlement: this._chatEntitlementService.entitlement,
-				quotaResetDate: this._chatEntitlementService.quotas.resetDate,
-				quotaResetDateHasTime: this._chatEntitlementService.quotas.resetDateHasTime,
-			})
+			? errorInfoToChatErrorDetails(completedTurn.error)
 			: undefined;
 
 		return {
