@@ -194,23 +194,28 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 			return import(pathToFileURL(entry).href);
 		}
 
-		// 2. Production path: downloader resolves from cache or fetches the
-		//    per-host tarball described by `product.agentSdks.claude`. In a
-		//    built/shipped VS Code this succeeds; in dev there's no product
-		//    config and it throws cleanly without any I/O.
-		try {
+		// 2. Built products: load via the downloader (cache → fetch the
+		//    per-host tarball described by `product.agentSdks.claude`). Errors
+		//    from this path propagate as-is so users see actionable diagnostics
+		//    on a CDN outage / corrupt cache / etc., not a misleading
+		//    "cannot find module" from a fallback that would never succeed in
+		//    a shipped build anyway.
+		//
+		//    We use `isAvailable` (env var || product config) — already false
+		//    in dev — to discriminate without injecting `INativeEnvironmentService`
+		//    here. The env-var branch above already returned, so reaching this
+		//    point with `isAvailable === true` means product config is present
+		//    and the downloader is the correct path.
+		if (this._downloader.isAvailable(ClaudeSdkPackage)) {
 			const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
 			const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
-			return await import(pathToFileURL(entry).href);
-		} catch {
-			// Fall through to the dev fallback.
+			return import(pathToFileURL(entry).href);
 		}
 
-		// 3. Dev fallback: bare import resolves via this repo's `node_modules`
-		//    where `@anthropic-ai/claude-agent-sdk` is a devDependency. Built
-		//    products don't bundle the SDK, so this path is dev-only — if it
-		//    fails here, the original downloader error from step 2 was the
-		//    real problem and the import error here will be the message.
+		// 3. Dev: bare import resolves via this repo's `node_modules` where
+		//    `@anthropic-ai/claude-agent-sdk` is a devDependency. Only reached
+		//    when neither the env var nor product config supplied a path —
+		//    i.e. exclusively in dev launches.
 		return import('@anthropic-ai/claude-agent-sdk');
 	}
 }
