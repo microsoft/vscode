@@ -7,9 +7,9 @@ import { Throttler } from '../../../base/common/async.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IManagedSettingPolicyDefinition, ManagedSettingsData } from '../../../base/common/policy.js';
+import { IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICopilotManagedSettingsService } from '../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, ICopilotManagedSettingsService } from '../common/copilotManagedSettings.js';
 import { PolicyDefinition, PolicyValue } from '../common/policy.js';
 import type { Watcher } from '@vscode/policy-watcher';
 
@@ -31,7 +31,7 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 	private readonly throttler = this._register(new Throttler());
 	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 	private readonly managedSettingsValues = new Map<string, PolicyValue>();
-	private watchedSettings: Record<string, IManagedSettingPolicyDefinition> = {};
+	private watchedSettings: IManagedSettingsPolicyDefinitions = {};
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
@@ -50,15 +50,7 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 	}
 
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData> {
-		const managedSettings: Record<string, IManagedSettingPolicyDefinition> = {};
-		for (const policyName in policyDefinitions) {
-			const policyManagedSettings = policyDefinitions[policyName].managedSettings;
-			if (policyManagedSettings) {
-				for (const key in policyManagedSettings) {
-					managedSettings[key] = policyManagedSettings[key];
-				}
-			}
-		}
+		const managedSettings = collectManagedSettingsDefinitions(policyDefinitions);
 
 		if (areManagedSettingDefinitionsEqual(this.watchedSettings, managedSettings)) {
 			return this.managedSettings;
@@ -140,7 +132,7 @@ export class CopilotManagedSettingsService extends Disposable implements ICopilo
 	}
 }
 
-function areManagedSettingDefinitionsEqual(a: Record<string, IManagedSettingPolicyDefinition>, b: Record<string, IManagedSettingPolicyDefinition>): boolean {
+function areManagedSettingDefinitionsEqual(a: IManagedSettingsPolicyDefinitions, b: IManagedSettingsPolicyDefinitions): boolean {
 	const aKeys = Object.keys(a);
 	const bKeys = Object.keys(b);
 	if (aKeys.length !== bKeys.length) {

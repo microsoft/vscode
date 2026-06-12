@@ -12,7 +12,7 @@ import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../..
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
 import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, ICopilotManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, ICopilotManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
@@ -138,6 +138,21 @@ suite('AccountPolicyService', () => {
 						[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
 					}
 				}
+			},
+			'setting.G': {
+				'type': 'object',
+				'additionalProperties': { 'type': 'boolean' },
+				'default': {},
+				policy: {
+					name: 'PolicySettingG',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } },
+					value: policyData => policyData.managedSettings?.[COPILOT_ENABLED_PLUGINS_KEY],
+					managedSettings: {
+						[COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' },
+					}
+				}
 			}
 		}
 	};
@@ -261,8 +276,61 @@ suite('AccountPolicyService', () => {
 		}, {
 			policy: false,
 			configuration: false,
-			registeredManagedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' } },
+			registeredManagedSettings: {
+				[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+				[COPILOT_ENABLED_PLUGINS_KEY]: { type: 'string' },
+			},
 		});
+	});
+
+	test('managed settings: native MDM value overrides the server value for the same declared key', async () => {
+		// MDM says 'disable', server says 'enable'. The merged, declaration-projected bag must
+		// let MDM win, so the gated policy resolves to `false`.
+		const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' }));
+		policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, copilotManagedSettingsService));
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaultConfiguration.initialize();
+		policyConfiguration = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
+
+		const policyData: IPolicyData = { managedSettings: { [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'enable' } };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+		await defaultAccountService.refresh();
+
+		await policyConfiguration.initialize();
+
+		assert.strictEqual(policyService.getPolicyValue('PolicySettingF'), false);
+	});
+
+	test('managed settings: an object-typed setting resolves identically from server and native MDM JSON strings', async () => {
+		// Structured-setting invariant: whether the canonical JSON string arrives via the server
+		// account policy bag or via native MDM, PolicyConfiguration must parse it back into the
+		// SAME typed object for an `object`-typed setting. The only difference is the source.
+		const json = '{"assign-issue@skills":true,"other@acme":false}';
+		const expected = { 'assign-issue@skills': true, 'other@acme': false };
+
+		const resolveEnabledPlugins = async (source: { server?: string; mdm?: string }): Promise<unknown> => {
+			const accountService = disposables.add(new DefaultAccountService(TestProductService));
+			const copilotManagedSettingsService = disposables.add(new FakeCopilotManagedSettingsService(
+				source.mdm !== undefined ? { [COPILOT_ENABLED_PLUGINS_KEY]: source.mdm } : {},
+			));
+			const svc = disposables.add(new AccountPolicyService(logService, accountService, undefined, copilotManagedSettingsService));
+			const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
+			await defaultConfiguration.initialize();
+			const config = disposables.add(new PolicyConfiguration(defaultConfiguration, svc, new NullLogService()));
+
+			const policyData: IPolicyData = source.server !== undefined
+				? { managedSettings: { [COPILOT_ENABLED_PLUGINS_KEY]: source.server } }
+				: {};
+			accountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
+			await accountService.refresh();
+			await config.initialize();
+			return config.configurationModel.getValue('setting.G');
+		};
+
+		const serverConfig = await resolveEnabledPlugins({ server: json });
+		const mdmConfig = await resolveEnabledPlugins({ mdm: json });
+
+		assert.deepStrictEqual({ serverConfig, mdmConfig }, { serverConfig: expected, mdmConfig: expected });
 	});
 
 	// ---------------------------------------------------------------------
