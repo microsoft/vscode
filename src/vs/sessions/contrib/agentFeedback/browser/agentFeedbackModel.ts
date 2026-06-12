@@ -37,7 +37,9 @@ export const enum AgentFeedbackKind {
 /**
  * Lifecycle state of an agent feedback item. An item is in exactly one state
  * at a time and progresses Created -> Accepted -> Submitted, and may move to
- * Resolved once the agent has acted on it.
+ * Resolved once the agent has acted on it. Providers without an agent loop
+ * (i.e. non-agent-host) resolve items directly on submit, skipping the
+ * visible Submitted state.
  */
 export const enum AgentFeedbackState {
 	/**
@@ -53,7 +55,11 @@ export const enum AgentFeedbackState {
 	Accepted = 'accepted',
 	/** Submitted to the agent for action. */
 	Submitted = 'submitted',
-	/** Resolved by the agent. Resolved items are hidden from the UI. */
+	/**
+	 * Resolved — by the agent for agent-host sessions, or directly on submit
+	 * for other providers that have no agent loop to resolve comments. Resolved
+	 * items are hidden from the UI.
+	 */
 	Resolved = 'resolved',
 }
 

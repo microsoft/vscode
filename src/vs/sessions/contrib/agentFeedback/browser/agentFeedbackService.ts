@@ -187,7 +187,11 @@ export interface IAgentFeedbackService {
 	/**
 	 * Mark all accepted feedback items for the session as submitted, firing
 	 * {@link onDidSubmitFeedback} with the per-kind counts of the items that
-	 * were submitted. No-op when there are no accepted items.
+	 * were submitted. Agent-host sessions move the items to
+	 * {@link AgentFeedbackState.Submitted} so they stay visible until the agent
+	 * resolves them; other providers have no such agent loop, so the items move
+	 * straight to {@link AgentFeedbackState.Resolved}. No-op when there are no
+	 * accepted items.
 	 */
 	markFeedbackSubmitted(sessionResource: URI): void;
 
@@ -647,6 +651,15 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		const backend = this._backendForSession(sessionResource);
 		const feedbackItems = backend.getItems(sessionResource);
 
+		// Agent-host sessions hand the feedback to an agent that resolves each
+		// comment (via the resolveComments tool) once it has acted on it, so the
+		// items stay visible in the submitted state until then. Other providers
+		// have no such agent loop, so submitting resolves the comments directly
+		// to hide them from the UI.
+		const submittedState = this._isAgentHostSession(sessionResource)
+			? AgentFeedbackState.Submitted
+			: AgentFeedbackState.Resolved;
+
 		let userCount = 0;
 		let codeReviewCount = 0;
 		let prReviewCount = 0;
@@ -662,7 +675,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				case AgentFeedbackKind.PRReview: prReviewCount++; break;
 			}
 			replyCount += item.replies?.length ?? 0;
-			submitted.push({ ...item, state: AgentFeedbackState.Submitted });
+			submitted.push({ ...item, state: submittedState });
 		}
 
 		if (!submitted.length) {
