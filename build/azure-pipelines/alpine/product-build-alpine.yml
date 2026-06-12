@@ -181,6 +181,10 @@ jobs:
 
       - template: ../common/install-builtin-extensions.yml@self
 
+      - template: ../common/agent-sdk-produce.yml@self
+        parameters:
+          vscodePlatform: alpine
+
       - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -195,10 +199,6 @@ jobs:
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX
-
-      - template: ../common/agent-sdk-produce.yml@self
-        parameters:
-          vscodePlatform: alpine
 
       - script: |
           set -e
