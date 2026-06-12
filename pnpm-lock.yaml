@@ -14,6 +14,7 @@ overrides:
   vscode-languageserver: 10.0.0-next.16
   vscode-languageserver-protocol: 3.17.6-next.16
   vscode-languageserver-types: 3.17.6-next.6
+  code-oss-dev>@types/sinon: 10.0.2
   eslint: 9.39.4
   node-gyp-build: 4.8.1
   node-gyp: 10.3.1
@@ -266,8 +267,8 @@ importers:
         specifier: 24.x
         version: 24.13.0
       '@types/sinon':
-        specifier: ^10.0.2
-        version: 10.0.20
+        specifier: 10.0.2
+        version: 10.0.2
       '@types/sinon-test':
         specifier: ^2.4.2
         version: 2.4.7
@@ -4852,6 +4853,9 @@ packages:
   '@sinonjs/fake-timers@15.4.0':
     resolution: {integrity: sha512-DsG+8/LscQIQg68J6Ef3dv10u6nVyetYn923s3/sus5eaGfTo1of5WMZSLf0UJc9KDuKPilPH0UDJCjvNbDNCA==}
 
+  '@sinonjs/fake-timers@7.1.2':
+    resolution: {integrity: sha512-iQADsW4LBMISqZ6Ci1dupJL9pprqwcVFTcOsEmQOEhW+KLCVn/Y4Jrvg2k19fIHCp+iFprriYPTdRcQR8NbUPg==}
+
   '@sinonjs/fake-timers@8.1.0':
     resolution: {integrity: sha512-OAPJUAtgeINhh/TAlUID4QTs53Njm7xzddaVlEs/SXwgtiD1tW22zAB/W1wdqfrpmikgaWQ9Fw6Ws+hsiRm5Vg==}
 
@@ -5369,8 +5373,8 @@ packages:
   '@types/sinon-test@2.4.7':
     resolution: {integrity: sha512-65eD6l9NBsFDGT5XIJQ605Qmk1sRcY9GFWj+BDmKPdDY1mMnPFr3dVOkMmm9CmAeZCREFJbDKsILVeqyIxH+5Q==}
 
-  '@types/sinon@10.0.20':
-    resolution: {integrity: sha512-2APKKruFNCAZgx3daAyACGzWuJ028VVCUDk6o2rw/Z4PXT0ogwdV4KUegW0MwVs0Zu59auPXbbuBJHF12Sx1Eg==}
+  '@types/sinon@10.0.2':
+    resolution: {integrity: sha512-BHn8Bpkapj8Wdfxvh2jWIUoaYB/9/XhsL0oOvBfRagJtKlSl9NWPcFOz2lRukI9szwGxFtYZCTejJSqsGDbdmw==}
 
   '@types/sinon@17.0.4':
     resolution: {integrity: sha512-RHnIrhfPO3+tJT0s7cFaXGZvsL4bbR3/k7z3P312qMS4JaS2Tk+KiwiLx1S0rQ56ERj00u1/BtdyVd0FY+Pdew==}
@@ -16852,6 +16856,10 @@ snapshots:
     dependencies:
       '@sinonjs/commons': 3.0.1
 
+  '@sinonjs/fake-timers@7.1.2':
+    dependencies:
+      '@sinonjs/commons': 1.8.6
+
   '@sinonjs/fake-timers@8.1.0':
     dependencies:
       '@sinonjs/commons': 1.8.6
@@ -17426,11 +17434,11 @@ snapshots:
 
   '@types/sinon-test@2.4.7':
     dependencies:
-      '@types/sinon': 10.0.20
+      '@types/sinon': 17.0.4
 
-  '@types/sinon@10.0.20':
+  '@types/sinon@10.0.2':
     dependencies:
-      '@types/sinonjs__fake-timers': 15.0.1
+      '@sinonjs/fake-timers': 7.1.2
 
   '@types/sinon@17.0.4':
     dependencies:

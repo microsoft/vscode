@@ -274,6 +274,7 @@
       "vscode-languageserver": "10.0.0-next.16",
       "vscode-languageserver-protocol": "3.17.6-next.16",
       "vscode-languageserver-types": "3.17.6-next.6",
+      "code-oss-dev>@types/sinon": "10.0.2",
       "eslint": "9.39.4",
       "node-gyp-build": "4.8.1",
       "node-gyp": "10.3.1",
