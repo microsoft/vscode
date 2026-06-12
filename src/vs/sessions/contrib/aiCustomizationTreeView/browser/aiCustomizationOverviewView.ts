@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -127,6 +128,7 @@ export class AICustomizationOverviewView extends ViewPane {
 			sectionElement.setAttribute('role', 'button');
 			sectionElement.setAttribute('aria-label', this.getSectionAriaLabel(section));
 			this.sectionElements.set(section.id, sectionElement);
+			this._register(Gesture.addTarget(sectionElement));
 
 			const iconElement = DOM.append(sectionElement, $('.section-icon'));
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(section.icon));
@@ -139,10 +141,13 @@ export class AICustomizationOverviewView extends ViewPane {
 			countElement.textContent = `${section.count}`;
 			this.countElements.set(section.id, countElement);
 
-			// Click handler to open the management editor section
-			this._register(DOM.addDisposableListener(sectionElement, 'click', () => {
+			const openSection = (e: Event) => {
+				DOM.EventHelper.stop(e, true);
 				void this.openSection(section.id);
-			}));
+			};
+			for (const eventType of [DOM.EventType.CLICK, TouchEventType.Tap]) {
+				this._register(DOM.addDisposableListener(sectionElement, eventType, openSection));
+			}
 
 			// Keyboard support
 			this._register(DOM.addDisposableListener(sectionElement, 'keydown', (e: KeyboardEvent) => {

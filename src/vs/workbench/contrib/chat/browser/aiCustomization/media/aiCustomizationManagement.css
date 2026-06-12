@@ -698,6 +698,7 @@
 	border: 1px solid var(--vscode-widget-border);
 	border-radius: 6px;
 	cursor: pointer;
+	touch-action: manipulation;
 	transition: background-color 0.1s ease;
 	flex: 1 1 120px;
 	min-width: 100px;
