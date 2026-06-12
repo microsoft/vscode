@@ -265,7 +265,9 @@
   },
   "pnpm": {
     "overrides": {
-      "@types/vscode-notebook-renderer": "1.72.0",
+      "builtin-notebook-renderers>@types/vscode-notebook-renderer": "1.60.0",
+      "markdown-language-features>@types/vscode-notebook-renderer": "1.60.0",
+      "markdown-math>@types/vscode-notebook-renderer": "1.60.0",
       "eslint": "9.39.4",
       "node-gyp-build": "4.8.1",
       "node-gyp": "10.3.1",

@@ -5,7 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@types/vscode-notebook-renderer': 1.72.0
+  builtin-notebook-renderers>@types/vscode-notebook-renderer: 1.60.0
+  markdown-language-features>@types/vscode-notebook-renderer: 1.60.0
+  markdown-math>@types/vscode-notebook-renderer: 1.60.0
   eslint: 9.39.4
   node-gyp-build: 4.8.1
   node-gyp: 10.3.1
@@ -273,7 +275,7 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7
       '@types/vscode-notebook-renderer':
-        specifier: 1.72.0
+        specifier: ^1.72.0
         version: 1.72.0
       '@types/wicg-file-system-access':
         specifier: ^2023.10.7
@@ -1383,8 +1385,8 @@ importers:
         specifier: ^2.3.0
         version: 2.3.0
       '@types/vscode-notebook-renderer':
-        specifier: 1.72.0
-        version: 1.72.0
+        specifier: 1.60.0
+        version: 1.60.0
       '@types/vscode-webview':
         specifier: ^1.57.0
         version: 1.57.5
@@ -1414,8 +1416,8 @@ importers:
         specifier: ^0.0.0
         version: 0.0.0
       '@types/vscode-notebook-renderer':
-        specifier: 1.72.0
-        version: 1.72.0
+        specifier: 1.60.0
+        version: 1.60.0
 
   extensions/media-preview:
     dependencies:
@@ -1471,7 +1473,7 @@ importers:
         specifier: 24.x
         version: 24.13.0
       '@types/vscode-notebook-renderer':
-        specifier: 1.72.0
+        specifier: ^1.72.0
         version: 1.72.0
       '@vscode/codicons':
         specifier: ^0.0.36
@@ -1523,8 +1525,8 @@ importers:
         specifier: 24.x
         version: 24.13.0
       '@types/vscode-notebook-renderer':
-        specifier: 1.72.0
-        version: 1.72.0
+        specifier: 1.60.0
+        version: 1.60.0
       jsdom:
         specifier: ^28.1.0
         version: 28.1.0
@@ -5416,6 +5418,9 @@ packages:
 
   '@types/vinyl@2.0.12':
     resolution: {integrity: sha512-Sr2fYMBUVGYq8kj3UthXFAu5UN6ZW+rYr4NACjZQJvHvj+c8lYv0CahmZ2P/r7iUkN44gGUBwqxZkrKXYPb7cw==}
+
+  '@types/vscode-notebook-renderer@1.60.0':
+    resolution: {integrity: sha512-u7TD2uuEZTVuitx0iijOJdKI0JLiQP6PsSBSRy2XmHXUOXcp5p1S56NrjOEDoF+PIHd3NL3eO6KTRSf5nukDqQ==}
 
   '@types/vscode-notebook-renderer@1.72.0':
     resolution: {integrity: sha512-5iTjb39DpLn03ULUwrDR3L2Dy59RV4blSUHy0oLdQuIY11PhgWO4mXIcoFS0VxY1GZQ4IcjSf3ooT2Jrrcahnw==}
@@ -17547,6 +17552,8 @@ snapshots:
     dependencies:
       '@types/expect': 1.20.4
       '@types/node': 22.19.19
+
+  '@types/vscode-notebook-renderer@1.60.0': {}
 
   '@types/vscode-notebook-renderer@1.72.0': {}
 
