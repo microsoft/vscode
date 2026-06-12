@@ -1806,17 +1806,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// Copilot Free / Student user), the picker shows a "No models available"
 		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
 		// CLI agent host) keep the Auto fallback. Derive this from the
-		// contribution's declarative `autoModelUnavailable` flag (keyed by the
+		// contribution's declarative `showAutoModel` flag (keyed by the
 		// session's resource scheme, which is the registered
 		// `agent-host-<provider>` chat session type) rather than hardcoding names.
 		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
-		const autoModelUnavailable = !!resourceScheme && this._chatSessionsService.autoModelUnavailableForSessionType(resourceScheme);
+		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
-			autoModelUnavailable,
+			showAutoModel,
 		};
 	}
 

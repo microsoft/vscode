@@ -1619,16 +1619,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// Copilot Free / Student user), the picker shows a "No models available"
 		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
 		// CLI agent) keep the Auto fallback. Derive this from the contribution's
-		// declarative `autoModelUnavailable` flag rather than hardcoding
+		// declarative `showAutoModel` flag rather than hardcoding
 		// session-type names.
 		const sessionType = this.getSession(sessionId)?.sessionType;
-		const autoModelUnavailable = !!sessionType && this.chatSessionsService.autoModelUnavailableForSessionType(sessionType);
+		const showAutoModel = !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
-			autoModelUnavailable,
+			showAutoModel,
 		};
 	}
 
