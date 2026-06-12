@@ -186,6 +186,15 @@ describe('nes-datagen cursor-jump pipeline e2e', () => {
 				}
 			}
 		});
+
+		test('does not emit a sample for the within-threshold row (negative case)', () => {
+			// Scenario C in the fixture: cursor at line 10, edit at line 12.
+			// Only 2 lines below — within the ±5 threshold — so neither the
+			// same-file nor the cross-file generator should pick it up even
+			// in `cursor-both` mode.
+			const withinThreshold = result.samples.find(s => s.metadata.filePath.includes(cursorJumpFixtures.withinThreshold.relativePath));
+			expect(withinThreshold).toBeUndefined();
+		});
 	});
 
 	describe('row offset', () => {

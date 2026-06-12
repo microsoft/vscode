@@ -144,6 +144,54 @@ const crossFileRecord = {
 };
 
 // ---------------------------------------------------------------------------
+// Scenario C – Within-threshold (negative)
+//   Cursor sits on line 10. The user's next edit lands on line 12, only 2
+//   lines below — within the default ±5-line threshold. Nothing should be
+//   emitted for this row regardless of sampleTask.
+// ---------------------------------------------------------------------------
+
+const withinThresholdDoc = makeFixedWidthDoc('// D', 30);
+const withinThresholdCursorOffset = lineStartOffset(10);
+const withinThresholdEditOffset = lineStartOffset(12);
+
+const withinThresholdRecordingEntries = [
+	{ kind: 'meta', data: { repoRootUri: 'file:///workspace' } },
+	{ kind: 'documentEncountered', id: 0, time: 5000000, relativePath: 'src/within_threshold.ts' },
+	{ kind: 'setContent', id: 0, time: 5000001, content: withinThresholdDoc, v: 0 },
+	{ kind: 'changed', id: 0, time: 5000002, edit: [[0, 0, '']], v: 1 },
+	{ kind: 'selectionChanged', id: 0, time: 5000003, selection: [[withinThresholdCursorOffset, withinThresholdCursorOffset]] },
+	// --- requestTime = 5000004 splits here ---
+	{ kind: 'changed', id: 0, time: 5000005, edit: [[withinThresholdEditOffset, withinThresholdEditOffset, 'Z']], v: 2 },
+];
+
+const withinThresholdAlternativeAction = {
+	text: withinThresholdDoc,
+	textLength: withinThresholdDoc.length,
+	selection: [{ start: withinThresholdCursorOffset, endExclusive: withinThresholdCursorOffset }],
+	edits: [],
+	tags: [],
+	recording: {
+		entries: withinThresholdRecordingEntries,
+		entriesSize: withinThresholdRecordingEntries.length,
+		requestTime: 5000004,
+	},
+};
+
+const withinThresholdOutcome = {
+	suggestedEdit: `[${withinThresholdCursorOffset}, ${withinThresholdCursorOffset}) -> "noop"`,
+	isInlineCompletion: false,
+};
+
+const withinThresholdRecord = {
+	status: 'notAccepted',
+	action: JSON.stringify(withinThresholdAlternativeAction),
+	input: JSON.stringify([]),
+	response: '',
+	outcome: JSON.stringify(withinThresholdOutcome),
+	language: 'typescript',
+};
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -164,7 +212,11 @@ export const cursorJumpFixtures = {
 		fromLine: 2,
 		toLine: 4,
 	},
+	withinThreshold: {
+		record: withinThresholdRecord,
+		relativePath: 'src/within_threshold.ts',
+	},
 } as const;
 
-/** Both records, in the order the pipeline will process them. */
-export const allCursorJumpRecords = [sameFileRecord, crossFileRecord];
+/** All records, in the order the pipeline will process them. */
+export const allCursorJumpRecords = [sameFileRecord, crossFileRecord, withinThresholdRecord];
