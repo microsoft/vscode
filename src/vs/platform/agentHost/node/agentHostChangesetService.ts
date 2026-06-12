@@ -344,10 +344,9 @@ export interface IAgentHostChangesetService {
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
 
 	/**
-	 * Installs a predicate the service consults before scheduling an
-	 * uncommitted changeset recompute from turn lifecycle hooks. Owned by
-	 * {@link ChangesetSessionCoordinator}, which tracks
-	 * `<session>/changeset/uncommitted` subscribers.
+	 * Installs a predicate the service consults before scheduling an uncommitted
+	 * changeset recompute. Owned by {@link ChangesetSessionCoordinator}, which
+	 * tracks `<session>/changeset/uncommitted` subscribers.
 	 */
 	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void;
 }
