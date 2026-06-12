@@ -16,7 +16,37 @@ export enum TokenizerName {
 
 const tokenizers = new Map<TokenizerName, Tokenizer>();
 
+/**
+ * Tokenizer implementation supplied by the embedding host via
+ * {@link setExternalTokenizerProvider}. Hosts that already have the
+ * cl100k/o200k BPE dictionaries in memory (e.g. a language server that
+ * bundles its own copy of this prompt library) can register a provider so
+ * this module never loads a duplicate dictionary set (~100 MB per encoder).
+ */
+export interface ExternalTokenizerProvider {
+	/** Returns a tokenizer for the given encoder. */
+	getTokenizer(name: TokenizerName): Tokenizer;
+	/**
+	 * Ensures the host's dictionaries are loaded. Awaited by
+	 * {@link initializeTokenizers}, which callers use as the
+	 * exact-tokenization gate before token counting.
+	 */
+	ensureLoaded(): Promise<void>;
+}
+
+let externalProvider: ExternalTokenizerProvider | undefined;
+
+/**
+ * Registers a host tokenizer used instead of loading this module's own BPE
+ * dictionaries. Call before the first {@link getTokenizer} /
+ * {@link initializeTokenizers} use, e.g. during host startup.
+ */
+export function setExternalTokenizerProvider(provider: ExternalTokenizerProvider): void {
+	externalProvider = provider;
+}
+
 export function getTokenizer(name: TokenizerName = TokenizerName.o200k): Tokenizer {
+	if (externalProvider) { return externalProvider.getTokenizer(name); }
 	let tokenizer = tokenizers.get(name);
 	if (tokenizer !== undefined) { return tokenizer; }
 	// Fallback to o200k
@@ -378,8 +408,39 @@ async function setTokenizer(name: TokenizerName) {
 	}
 }
 
-/** Load tokenizers on start. Export promise for to be awaited by initialization. */
-export const initializeTokenizers = (async () => {
-	tokenizers.set(TokenizerName.mock, new MockTokenizer());
-	await Promise.all([setTokenizer(TokenizerName.cl100k), setTokenizer(TokenizerName.o200k)]);
-})();
+tokenizers.set(TokenizerName.mock, new MockTokenizer());
+
+let ownLoadPromise: Promise<void> | undefined;
+
+function loadTokenizers(): Promise<void> {
+	if (externalProvider) { return externalProvider.ensureLoaded(); }
+	ownLoadPromise ??= Promise.all([setTokenizer(TokenizerName.cl100k), setTokenizer(TokenizerName.o200k)]).then(() => undefined);
+	return ownLoadPromise;
+}
+
+/**
+ * Loads the tokenizers. This is a lazy thenable rather than an eagerly
+ * started promise: the dictionary load starts the first time it is awaited
+ * (callers like ghostText await it before token counting) instead of at
+ * module evaluation. That gives an embedding host the chance to register an
+ * {@link setExternalTokenizerProvider | external provider} first, in which
+ * case awaiting this defers to the host's dictionaries and this module's own
+ * dictionaries are never loaded.
+ */
+export const initializeTokenizers: Promise<void> = {
+	then<TResult1 = void, TResult2 = never>(
+		onfulfilled?: ((value: void) => TResult1 | PromiseLike<TResult1>) | null,
+		onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+	): Promise<TResult1 | TResult2> {
+		return loadTokenizers().then(onfulfilled, onrejected);
+	},
+	catch<TResult = never>(
+		onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null
+	): Promise<void | TResult> {
+		return loadTokenizers().catch(onrejected);
+	},
+	finally(onfinally?: (() => void) | null): Promise<void> {
+		return loadTokenizers().finally(onfinally);
+	},
+	[Symbol.toStringTag]: 'Promise',
+} as Promise<void>;

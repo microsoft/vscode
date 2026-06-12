@@ -194,6 +194,14 @@ export interface INESProviderOptions {
 	 * {@link TestLanguageDiagnosticsService} that returns empty diagnostics
 	 */
 	readonly languageDiagnosticsService?: ILanguageDiagnosticsService;
+	/**
+	 * Tokenizer provider backing prompt rendering and token budgeting. When
+	 * omitted, falls back to the built-in {@link TokenizerProvider}, which
+	 * loads its own BPE dictionaries. Embedders that already have the
+	 * cl100k/o200k dictionaries in memory can supply a provider here to avoid
+	 * loading a second copy (~100 MB per encoder).
+	 */
+	readonly tokenizerProvider?: ITokenizerProvider;
 }
 
 export interface INESResult {
@@ -403,7 +411,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IChatQuotaService, new SyncDescriptor(ChatQuotaService));
 	builder.define(IInteractionService, new SyncDescriptor(InteractionService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
-	builder.define(ITokenizerProvider, new SyncDescriptor(TokenizerProvider, [false]));
+	builder.define(ITokenizerProvider, options.tokenizerProvider || new SyncDescriptor(TokenizerProvider, [false]));
 	builder.define(IConversationOptions, {
 		_serviceBrand: undefined,
 		maxResponseTokens: undefined,
