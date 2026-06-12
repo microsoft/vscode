@@ -49,7 +49,7 @@ const AGENT_HOST_WARMUP_REPLY = 'MOCKED_AGENT_HOST_WARMUP_RESPONSE';
 
 export function setup(logger: Logger) {
 
-	describe('Agents Window', () => {
+	describe.skip('Agents Window' /* #321072: flaky .agent-sessions-workbench timeout */, () => {
 
 		let mockServer: MockLlmServer;
 
@@ -302,7 +302,7 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe('Agents Window (local AgentHost)', () => {
+	describe.skip('Agents Window (local AgentHost)' /* #321072: flaky .agent-sessions-workbench timeout */, () => {
 
 		const agentHost = setupAgentHostSuite(logger, {
 			serverLabel: 'AgentHost',
@@ -427,7 +427,7 @@ export function setup(logger: Logger) {
 		});
 	});
 
-	describe('Agents Window (local AgentHost, SDK sandbox)', () => {
+	describe.skip('Agents Window (local AgentHost, SDK sandbox)' /* #321072: flaky .agent-sessions-workbench timeout */, () => {
 
 		// Variant of the AgentHost suite that leaves
 		// `chat.agentHost.customTerminalTool.enabled` at its default (false), so

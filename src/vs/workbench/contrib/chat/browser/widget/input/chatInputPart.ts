@@ -1914,7 +1914,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(isUserQuery?: boolean): Promise<void> {
+	async acceptInput(isUserQuery?: boolean, preserveFocus?: boolean): Promise<void> {
 		if (isUserQuery) {
 			const userQuery = this.getCurrentInputState();
 			this.history.append(this._getFilteredEntry(userQuery));
@@ -1936,6 +1936,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._onDidLoadInputState.fire();
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
+		} else if (preserveFocus) {
+			this._inputEditor.setValue('');
 		} else {
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
