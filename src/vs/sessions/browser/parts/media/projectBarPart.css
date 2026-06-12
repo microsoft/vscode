@@ -89,7 +89,7 @@
 
 /* Workspace entry icon - shows first letter */
 .monaco-workbench .projectbar .action-item.workspace-entry .action-label.workspace-icon {
-	font-weight: 600;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	font-size: 18px;
 	text-transform: uppercase;
 	background-color: var(--vscode-activityBar-inactiveForeground);

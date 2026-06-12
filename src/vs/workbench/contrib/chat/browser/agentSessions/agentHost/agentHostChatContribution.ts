@@ -24,7 +24,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AgentCustomizationItemProvider } from './agentCustomizationItemProvider.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from './agentHostAuth.js';
-import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
+import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -206,6 +206,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,

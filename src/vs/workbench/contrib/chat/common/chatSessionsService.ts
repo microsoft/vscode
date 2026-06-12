@@ -133,6 +133,17 @@ export interface IChatSessionsExtensionPoint {
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
 	/**
+	 * Whether this session type supports the synthetic "Auto" model fallback.
+	 * Defaults to true. When false and no models are available, the picker
+	 * shows a "No models available" state instead of "Auto".
+	 *
+	 * This is distinct from {@link requiresCustomModels}, which only controls
+	 * whether the picker is filtered to the session's own model pool — a
+	 * session can own a custom pool yet still support Auto (e.g. the Copilot
+	 * CLI agent host).
+	 */
+	readonly supportsAutoModel?: boolean;
+	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
 	 */
@@ -689,6 +700,15 @@ export interface IChatSessionsService {
 	 * Returns whether the session type requires custom models. When true, the model picker should show filtered custom models.
 	 */
 	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
+
+	/**
+	 * Returns whether the session type supports the synthetic "Auto" model
+	 * fallback. The built-in local chat always supports it; contributed session
+	 * types default to `false` unless they set `supportsAutoModel`. When false
+	 * and no models are available, the picker shows a "No models available"
+	 * state instead of "Auto".
+	 */
+	supportsAutoModelForSessionType(chatSessionType: string): boolean;
 
 	/**
 	 * Returns whether the session type supports delegation.
