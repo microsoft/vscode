@@ -98,10 +98,12 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 		super();
 	}
 
+	private static readonly _FALLBACK_WS_URL = 'wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice';
+
 	private _getWsUrl(): string {
 		const configured = this._configurationService.getValue<string>('agents.voice.backendUrl');
 		const url = typeof configured === 'string' ? configured.trim() : '';
-		return url || this._productService.voiceWsUrl || '';
+		return url || this._productService.voiceWsUrl || VoiceClientService._FALLBACK_WS_URL;
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
