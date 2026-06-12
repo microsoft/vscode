@@ -6682,6 +6682,7 @@
         "when": "config.github.copilot.chat.claudeAgent.enabled",
         "canDelegate": true,
         "requiresCustomModels": true,
+        "autoModelUnavailable": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true

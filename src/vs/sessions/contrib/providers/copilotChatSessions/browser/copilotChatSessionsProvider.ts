@@ -1614,13 +1614,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
-		// A session type that requires custom models cannot fall back to Auto.
-		// When it has no models (e.g. the Claude agent for a Copilot Free /
-		// Student user), the picker shows a "No models available" state instead
-		// of Auto. Derive this from the contribution's declarative
-		// `requiresCustomModels` flag rather than hardcoding session-type names.
+		// A session type that requires an explicit model selection cannot fall
+		// back to Auto. When it has no models (e.g. the Claude agent for a
+		// Copilot Free / Student user), the picker shows a "No models available"
+		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
+		// CLI agent) keep the Auto fallback. Derive this from the contribution's
+		// declarative `autoModelUnavailable` flag rather than hardcoding
+		// session-type names.
 		const sessionType = this.getSession(sessionId)?.sessionType;
-		const autoModelUnavailable = !!sessionType && this.chatSessionsService.requiresCustomModelsForSessionType(sessionType);
+		const autoModelUnavailable = !!sessionType && this.chatSessionsService.autoModelUnavailableForSessionType(sessionType);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,

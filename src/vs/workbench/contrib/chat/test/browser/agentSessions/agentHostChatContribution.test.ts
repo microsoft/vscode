@@ -31,6 +31,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatRequestQueueKind, ElicitationState, IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService, type IChatSessionRequestHistoryItem, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
@@ -448,6 +449,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IChatEditingService, {
 		registerEditingSessionProvider: () => toDisposable(() => { }),
 	});
+	instantiationService.stub(IChatEntitlementService, {
+		entitlement: ChatEntitlement.Free,
+		quotas: {},
+	} as Partial<IChatEntitlementService> as IChatEntitlementService);
 	const chatModels = new Map<string, IChatModel>();
 	const onDidCreateModel = disposables.add(new Emitter<IChatModel>());
 	const chatService = {
@@ -2136,7 +2141,7 @@ suite('AgentHostChatContribution', () => {
 		test('error event renders error message and finishes the request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			agentHostService.fireAction({
 				channel: session,
@@ -2149,12 +2154,38 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 
-			await turnPromise;
+			const result = await turnPromise;
 
-			// Should have received the error message and the request should have finished
-			assert.ok(collected.length >= 1);
-			const errorPart = collected.flat().find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong'));
-			assert.ok(errorPart, 'Should have found a markdownContent part containing the error message');
+			// A terminal turn error on the live invoke path is surfaced as
+			// structured `errorDetails` on the result (rendered by the chat
+			// error part), not as inline "Error: (...)" markdown.
+			assert.deepStrictEqual(result.errorDetails, { message: 'Something went wrong' });
+		}));
+
+		test('quota error surfaces structured isQuotaExceeded error details with a friendly message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			agentHostService.fireAction({
+				channel: session,
+				action: {
+					type: 'session/error',
+					turnId,
+					error: { errorType: 'quota', message: '402 {"error":{"message":"You have exceeded your monthly quota","code":"quota_exceeded"}}' },
+				} as SessionAction,
+				serverSeq: 99,
+				origin: undefined,
+			});
+
+			const result = await turnPromise;
+
+			// The raw server error string is replaced with a friendly, localized,
+			// plan-aware message (Free entitlement, no reset date in the stub).
+			assert.deepStrictEqual(result.errorDetails, {
+				message: 'You\'ve reached your monthly credit limit. Upgrade to Copilot Pro or wait for your credits to reset.',
+				isQuotaExceeded: true,
+			});
 		}));
 	});
 
