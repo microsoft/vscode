@@ -677,6 +677,32 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(connection.resolveCalls.length, 1, 'resourceResolve was called');
 	});
 
+	test('stat does not mark resolved files readonly so they remain editable', async () => {
+		const { provider, connection } = setup();
+		connection.nextResolveResult = { uri: '', type: ResourceType.File, size: 10, mtime: '2026-01-15T00:00:00.000Z' };
+		const wrapped = agentHostUri('remote', '/some/file.ts');
+
+		const stat = await provider.stat(wrapped);
+
+		assert.strictEqual(stat.permissions ?? 0, 0, 'resolved files must not carry the Readonly permission');
+	});
+
+	test('realpath re-encodes the connection canonical URI back into provider space', async () => {
+		const { provider, connection } = setup();
+		// Simulate a symlink: the resolve reports a canonical target that
+		// differs from the requested path.
+		connection.resourceResolve = async (params: ResourceResolveParams): Promise<ResourceResolveResult> => {
+			connection.resolveCalls.push(params);
+			return { uri: 'file:///real/target.ts', type: ResourceType.File };
+		};
+		const wrapped = agentHostUri('remote', '/link/source.ts');
+
+		const real = await provider.realpath(wrapped);
+
+		assert.strictEqual(real, agentHostUri('remote', '/real/target.ts').path);
+		assert.strictEqual(connection.resolveCalls.length, 1);
+	});
+
 	test('mkdir delegates to resourceMkdir', async () => {
 		const { provider, connection } = setup();
 		const wrapped = agentHostUri('remote', '/new/dir');
