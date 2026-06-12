@@ -344,6 +344,26 @@ export class WebClientServer {
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
+		// Resolve workspace URIs with fallback: if a workspace file is specified
+		// but does not exist on disk, fall back to the folder URI and set a flag
+		// so the client can notify the user.
+		const folderUri = resolveWorkspaceURI(this._environmentService.args['default-folder']);
+		let workspaceUri = resolveWorkspaceURI(this._environmentService.args['default-workspace']);
+		let workspaceFileFallback: boolean | undefined;
+
+		if (workspaceUri) {
+			const workspacePath = this._environmentService.args['default-workspace'];
+			if (workspacePath) {
+				try {
+					await promises.stat(resolve(workspacePath));
+				} catch {
+					this._logService.warn(`[WebClientServer] Workspace file not found: ${workspacePath}, falling back to folder`);
+					workspaceUri = undefined;
+					workspaceFileFallback = true;
+				}
+			}
+		}
+
 		const filePath = FileAccess.asFileUri(`vs/code/browser/workbench/workbench${this._environmentService.isBuilt ? '' : '-dev'}.html`).fsPath;
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
 			id: generateUuid(),
@@ -384,8 +404,9 @@ export class WebClientServer {
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
-			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
-			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
+			folderUri,
+			workspaceUri,
+			workspaceFileFallback,
 			productConfiguration,
 			callbackRoute: callbackRoute
 		};
