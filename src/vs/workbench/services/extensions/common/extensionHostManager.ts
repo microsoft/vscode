@@ -28,7 +28,7 @@ import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
 import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, IInternalExtensionService } from './extensions.js';
-import { Proxied, ProxyIdentifier } from './proxyIdentifier.js';
+import { Proxied, ProxyIdentifier, getStringIdentifierForProxy } from './proxyIdentifier.js';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol.js';
 
 // Enable to see detailed message communication between window and extension host
@@ -255,7 +255,11 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 			logger = new TelemetryRPCLogger(this._telemetryService);
 		}
 
-		this._rpcProtocol = new RPCProtocol(protocol, logger);
+		this._rpcProtocol = new RPCProtocol(protocol, {
+			identifierCount: ProxyIdentifier.count,
+			getStringIdentifier: getStringIdentifierForProxy,
+			logger,
+		});
 		this._register(this._rpcProtocol.onDidChangeResponsiveState((responsiveState: ResponsiveState) => this._onDidChangeResponsiveState.fire(responsiveState)));
 		let extensionHostProxy: IExtensionHostProxy | null = null as IExtensionHostProxy | null;
 		let mainProxyIdentifiers: ProxyIdentifier<any>[] = [];
