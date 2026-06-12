@@ -90,7 +90,19 @@ function makeEnvService(userDataPath: string): INativeEnvironmentService {
 	// `force-disable-user-env: true` short-circuits before spawning a shell —
 	// without it `shellEnv.ts:140` registers a cancellation listener that
 	// leaks across tests and trips ensureNoDisposablesAreLeakedInTestSuite.
-	return { userDataPath, args: { 'force-disable-user-env': true } as never } as unknown as INativeEnvironmentService;
+	//
+	// `isBuilt: true` so the downloader's dev-appRoot fallback is bypassed —
+	// these tests exercise the env-override + product-config + CDN paths and
+	// would otherwise resolve to the running test process's appRoot.
+	return { userDataPath, isBuilt: true, args: { 'force-disable-user-env': true } as never } as unknown as INativeEnvironmentService;
+}
+
+/**
+ * Build an env service that simulates a `!isBuilt` checkout with the given
+ * `appRoot`. Tests that exercise the dev-appRoot fallback use this.
+ */
+function makeDevEnvService(userDataPath: string, appRoot: string): INativeEnvironmentService {
+	return { userDataPath, isBuilt: false, appRoot, args: { 'force-disable-user-env': true } as never } as unknown as INativeEnvironmentService;
 }
 
 function makeProductService(config: { version: string; url: string; sha256: string } | undefined): IProductService {
@@ -198,6 +210,44 @@ suite('AgentSdkDownloader', () => {
 	test('isAvailable: true when product config is populated', () => {
 		const downloader = makeDownloader();
 		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), true);
+	});
+
+	test('isAvailable: true when running in dev (!isBuilt) with the npm package installed under appRoot', async () => {
+		// Synthesize an appRoot that contains node_modules/@anthropic-ai/claude-agent-sdk/package.json.
+		// In a real dev checkout, `npm install` puts this in place; the
+		// downloader treats its presence as "the SDK is locally available,
+		// skip the CDN" so contributors don't need to set the env var.
+		const appRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'sdk-approot-'));
+		disposables.add({ dispose: () => fsp.rm(appRoot, { recursive: true, force: true }) });
+		const pkgDir = path.join(appRoot, 'node_modules', ClaudeSdkPackage.npmModule);
+		await fsp.mkdir(pkgDir, { recursive: true });
+		await fsp.writeFile(path.join(pkgDir, 'package.json'), '{}');
+
+		const downloader = new AgentSdkDownloader(
+			makeDevEnvService(userDataPath, appRoot),
+			makeProductService(undefined),
+			makeRequestService(disposables),
+			makeFileService(disposables),
+			new NullLogService(),
+		);
+		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), true);
+		const root = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		assert.strictEqual(root, appRoot);
+	});
+
+	test('isAvailable: false in dev when the npm package is missing under appRoot', async () => {
+		const appRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'sdk-approot-'));
+		disposables.add({ dispose: () => fsp.rm(appRoot, { recursive: true, force: true }) });
+		// Deliberately do NOT install the package — appRoot exists but is empty.
+
+		const downloader = new AgentSdkDownloader(
+			makeDevEnvService(userDataPath, appRoot),
+			makeProductService(undefined),
+			makeRequestService(disposables),
+			makeFileService(disposables),
+			new NullLogService(),
+		);
+		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), false);
 	});
 
 	test('loadSdkRoot: dev override returns the path unchanged', async () => {

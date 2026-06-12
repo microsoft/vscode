@@ -44,6 +44,17 @@ export interface IAgentSdkPackage {
 	readonly id: string;
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */
 	readonly devOverrideEnvVar: string;
+	/**
+	 * npm package name (e.g. `'@anthropic-ai/claude-agent-sdk'`,
+	 * `'@openai/codex'`). When running in dev (`!isBuilt`), the downloader
+	 * uses `<appRoot>/node_modules/<npmModule>/package.json` as a probe to
+	 * decide whether the package is locally installed; if so, `appRoot` is
+	 * returned as the SDK root, skipping the CDN download.
+	 *
+	 * This is the fast-path for contributors: a fresh `npm install` is enough
+	 * to make the provider available, no env var setup required.
+	 */
+	readonly npmModule: string;
 }
 
 // #endregion
@@ -114,7 +125,11 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	) { }
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
-		return !!process.env[pkg.devOverrideEnvVar] || !!this._productService.agentSdks?.[pkg.id];
+		return (
+			!!process.env[pkg.devOverrideEnvVar]
+			|| !!this._resolveDevAppRoot(pkg)
+			|| !!this._productService.agentSdks?.[pkg.id]
+		);
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -125,7 +140,18 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			return override;
 		}
 
-		// 2. Negative cache: a recent failure short-circuits without I/O.
+		// 2. Dev appRoot fallback. In a `!isBuilt` checkout, the package is
+		//    already npm-installed at `<appRoot>/node_modules/<pkg.npmModule>`,
+		//    so we return `appRoot` and skip the CDN download. Contributors
+		//    get a working provider from `npm install` alone — no env-var or
+		//    setting required.
+		const devRoot = this._resolveDevAppRoot(pkg);
+		if (devRoot) {
+			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: using dev appRoot at ${devRoot}`);
+			return devRoot;
+		}
+
+		// 3. Negative cache: a recent failure short-circuits without I/O.
 		const latched = this._failureLatch.get(pkg.id);
 		if (latched && latched.expiresAt > Date.now()) {
 			throw latched.error;
@@ -147,6 +173,25 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			});
 			throw error;
 		}
+	}
+
+	/**
+	 * Returns the dev appRoot iff `!isBuilt` AND the package's `npmModule` is
+	 * installed under `appRoot/node_modules/`. Used as a startup-time gate by
+	 * `isAvailable` and as a resolution step by `loadSdkRoot`.
+	 *
+	 * Uses sync `fs.existsSync` because `isAvailable` is a cheap synchronous
+	 * gate by contract. A built VS Code never has its source `node_modules/`
+	 * shipped alongside, so the probe always returns `undefined` in built
+	 * environments — there's no production-mode I/O hit.
+	 */
+	private _resolveDevAppRoot(pkg: IAgentSdkPackage): string | undefined {
+		if (this._environmentService.isBuilt) {
+			return undefined;
+		}
+		const appRoot = this._environmentService.appRoot;
+		const probe = path.join(appRoot, 'node_modules', pkg.npmModule, 'package.json');
+		return fs.existsSync(probe) ? appRoot : undefined;
 	}
 
 	private async _resolveOrDownload(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
