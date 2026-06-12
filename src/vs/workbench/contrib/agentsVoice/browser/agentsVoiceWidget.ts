@@ -237,12 +237,33 @@ export class AgentsVoiceWidget extends Disposable {
 		if (this._options.focusable) {
 			this.container.tabIndex = 0;
 			const win = getWindow(this.container);
-			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
-				if (e.code === 'Space' && !_isTextInput(e.target)) {
+			// Track which key triggered PTT so keyup releases correctly
+			// even when the user rebinds pushToTalk to a different key.
+			let pttKeyCode: string | undefined;
+			let lastKeyDownCode: string | undefined;
+			const onDocKeydown = (e: KeyboardEvent) => { lastKeyDownCode = e.code; };
+			win.document.addEventListener('keydown', onDocKeydown, true);
+			this._register(toDisposable(() => win.document.removeEventListener('keydown', onDocKeydown, true)));
+
+			this.container.addEventListener('keydown', (e: KeyboardEvent) => {
+				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
 					e.preventDefault();
+				}
+			});
+			this.container.addEventListener('keyup', (e: KeyboardEvent) => {
+				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
+					e.preventDefault();
+					pttKeyCode = undefined;
 					this.callbacks.pttUp();
 				}
 			});
+
+			// Hook into pttDown to snapshot which key started PTT.
+			const origPttDown = this.callbacks.pttDown;
+			(this.callbacks as VoiceWidgetCallbacks).pttDown = () => {
+				pttKeyCode = lastKeyDownCode;
+				origPttDown.call(this.callbacks);
+			};
 			const onDocPointerUp = () => this.callbacks.pttUp();
 			win.document.addEventListener('pointerup', onDocPointerUp);
 			this._register(toDisposable(() => win.document.removeEventListener('pointerup', onDocPointerUp)));
