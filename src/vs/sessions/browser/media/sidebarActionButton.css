@@ -15,7 +15,7 @@
 	border: none;
 	padding: 6px;
 	margin: 0;
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1, 12px);
 	height: auto;
 	white-space: nowrap;
 	overflow: hidden;
