@@ -423,21 +423,9 @@ export interface IRawRemoteAgentHostEntry {
 	readonly sshHostName?: string;
 	readonly sshUser?: string;
 	readonly sshPort?: number;
-	readonly wslDistro?: string;
 }
 
 export function rawEntryToEntry(raw: IRawRemoteAgentHostEntry): IRemoteAgentHostEntry | undefined {
-	if (raw.wslDistro) {
-		return {
-			name: raw.name,
-			connectionToken: raw.connectionToken,
-			connection: {
-				type: RemoteAgentHostEntryType.WSL,
-				address: raw.address,
-				distro: raw.wslDistro,
-			},
-		};
-	}
 	if (raw.sshConfigHost || raw.sshHostName || raw.sshUser || raw.sshPort) {
 		return {
 			name: raw.name,
@@ -474,19 +462,13 @@ export function entryToRawEntry(entry: IRemoteAgentHostEntry): IRawRemoteAgentHo
 				sshUser: entry.connection.user,
 				sshPort: entry.connection.port,
 			};
-		case RemoteAgentHostEntryType.WSL:
-			return {
-				address: entry.connection.address,
-				name: entry.name,
-				connectionToken: entry.connectionToken,
-				wslDistro: entry.connection.distro,
-			};
 		case RemoteAgentHostEntryType.WebSocket:
 			return {
 				address: entry.connection.address,
 				name: entry.name,
 				connectionToken: entry.connectionToken,
 			};
+		case RemoteAgentHostEntryType.WSL:
 		case RemoteAgentHostEntryType.Tunnel:
 			return undefined;
 	}

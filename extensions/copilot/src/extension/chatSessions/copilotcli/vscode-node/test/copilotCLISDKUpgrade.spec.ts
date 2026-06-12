@@ -111,6 +111,24 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('ripgrep', 'bin', 'linux-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'linuxmusl-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'linuxmusl-x64', 'rg'),
+			// tgrep files
+			path.join('tgrep', 'bin', 'darwin-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'darwin-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linux-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linux-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linuxmusl-arm64', 'tgrep'),
+			path.join('tgrep', 'bin', 'linuxmusl-x64', 'tgrep'),
+			path.join('tgrep', 'bin', 'win32-arm64', 'tgrep.exe'),
+			path.join('tgrep', 'bin', 'win32-x64', 'tgrep.exe'),
+			// tgrep files
+			path.join('sdk', 'tgrep', 'bin', 'darwin-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'darwin-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linux-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linux-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linuxmusl-arm64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'linuxmusl-x64', 'tgrep'),
+			path.join('sdk', 'tgrep', 'bin', 'win32-arm64', 'tgrep.exe'),
+			path.join('sdk', 'tgrep', 'bin', 'win32-x64', 'tgrep.exe'),
 			// cli-native to be included
 			path.join('sdk', 'prebuilds', 'darwin-arm64', 'cli-native.node'),
 			path.join('sdk', 'prebuilds', 'darwin-x64', 'cli-native.node'),
@@ -118,13 +136,10 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('sdk', 'prebuilds', 'linux-x64', 'cli-native.node'),
 			path.join('sdk', 'prebuilds', 'win32-arm64', 'cli-native.node'),
 			path.join('sdk', 'prebuilds', 'win32-x64', 'cli-native.node'),
-			// sharp related files
-			path.join('sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
-			// sharp related files, files copied by us.
-			path.join('sdk', 'sharp', 'node_modules', '@img', 'sharp-wasm32', 'lib', 'sharp-wasm32.node.wasm'),
 			// foundry-local-sdk vendored native bindings.
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'darwin-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-x64', 'foundry_local_napi.node'),
+			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'linux-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-arm64', 'foundry_local_napi.node'),
 			path.join('foundry-local-sdk', 'node_modules', 'foundry-local-sdk', 'prebuilds', 'win32-x64', 'foundry_local_napi.node'),
 			// pvrecorder vendored native bindings.

@@ -9,10 +9,12 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { resolveCustomizationRefs } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { type SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 import { type IAgentPlugin, type IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -46,6 +48,28 @@ function makeAgentPluginService(plugins: readonly IAgentPlugin[] = []): IAgentPl
 	} as unknown as IAgentPluginService;
 }
 
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; mcpServers?: number } = {}): IAgentPlugin {
+	const { label = 'Plugin', enabled = true, mcpServers = 0 } = options;
+	return {
+		uri,
+		label,
+		enablement: observableValue('enablement', enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile),
+		mcpServerDefinitions: observableValue('mcpServers', new Array(mcpServers).fill({})),
+	} as unknown as IAgentPlugin;
+}
+
+function makeFileService(stats: ReadonlyMap<string, { mtime: number }> = new Map()): IFileService {
+	return {
+		async stat(uri: URI) {
+			const known = stats.get(uri.toString());
+			if (known) {
+				return known;
+			}
+			throw new Error(`no stat for ${uri.toString()}`);
+		},
+	} as unknown as IFileService;
+}
+
 type LocalSyncableFile = { readonly uri: URI; readonly type: PromptsType };
 
 class FakeBundler {
@@ -72,6 +96,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const bundler = new FakeBundler();
 
 		const refs = await resolveCustomizationRefs(
+			makeFileService(),
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
@@ -99,6 +124,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const bundler = new FakeBundler();
 
 		await resolveCustomizationRefs(
+			makeFileService(),
 			promptsService,
 			new FakeSyncProvider(new Set([disabled.toString()])),
 			makeAgentPluginService(),
@@ -119,6 +145,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const bundler = new FakeBundler();
 
 		await resolveCustomizationRefs(
+			makeFileService(),
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService(),
@@ -144,6 +171,7 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		const bundler = new FakeBundler();
 
 		const refs = await resolveCustomizationRefs(
+			makeFileService(),
 			promptsService,
 			new FakeSyncProvider(new Set([builtin.toString()])),
 			makeAgentPluginService(),
@@ -155,11 +183,75 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs, []);
 	});
 
+	test('includes plugins that only contribute MCP servers', async () => {
+		const pluginUri = URI.file('/plugins/mcp-only');
+		const promptsService = makePromptsService(new Map());
+		const bundler = new FakeBundler();
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'MCP Only', mcpServers: 1 })]),
+			bundler as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+
+		assert.strictEqual(bundler.received.length, 0);
+		assert.deepStrictEqual(refs.map(r => ({ uri: r.uri, name: r.name })), [
+			{ uri: pluginUri.toString(), name: 'MCP Only' },
+		]);
+	});
+
+	test('omits MCP-only plugins that are disabled by enablement', async () => {
+		const pluginUri = URI.file('/plugins/mcp-disabled');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { enabled: false, mcpServers: 1 })]),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		assert.deepStrictEqual(refs, []);
+	});
+
+	test('omits MCP-only plugins that the user opted out of syncing', async () => {
+		const pluginUri = URI.file('/plugins/mcp-opted-out');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(new Set([pluginUri.toString()])),
+			makeAgentPluginService([makePlugin(pluginUri, { mcpServers: 1 })]),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		assert.deepStrictEqual(refs, []);
+	});
+
+	test('does not duplicate a plugin that contributes both prompt files and MCP servers', async () => {
+		const pluginUri = URI.file('/plugins/combined');
+		const promptFile = URI.file('/plugins/combined/skills/foo.skill.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.plugin}`, [makePromptPath(promptFile, PromptsType.skill, PromptsStorage.plugin)]],
+		]));
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'Combined', mcpServers: 2 })]),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+		);
+		assert.deepStrictEqual(refs.map(r => r.uri), [pluginUri.toString()]);
+	});
+
 	test('we honor the cancellation token contract by passing it through to listPromptFilesForStorage', async () => {
 		// resolveCustomizationRefs uses `CancellationToken.None`, so we just
 		// assert that calling it does not throw and the call still resolves.
 		const promptsService = makePromptsService(new Map());
 		const refs = await resolveCustomizationRefs(
+			makeFileService(),
 			promptsService,
 			new FakeSyncProvider(),
 			makeAgentPluginService(),

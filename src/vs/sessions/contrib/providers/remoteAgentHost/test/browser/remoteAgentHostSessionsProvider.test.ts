@@ -453,8 +453,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
-		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/file/-/tmp/copilot-worktrees/vscode-feature');
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/tmp/copilot-worktrees/vscode-feature?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		connection.addSession(createSession('project-1', {
 			summary: 'Project Session',
 			project: { uri: projectUri, displayName: 'vscode' },
@@ -492,7 +492,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		const workspaces = provider.getSessions().map(session => session.workspace.get());
 		assert.deepStrictEqual(workspaces.map(workspace => workspace?.folders[0]?.root.toString()), [
-			'vscode-agent-host://localhost__4321/file/-/home/user/vscode',
+			'vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0',
 			'https://github.com/microsoft/vscode',
 		]);
 	});
@@ -926,7 +926,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	// ---- Session data adapter -------
 
 	test('session adapter has correct workspace from working directory', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo') }));
+		connection.addSession(createSession('ws-sess', { summary: 'WS Test', workingDirectory: URI.parse('vscode-agent-host://localhost__4321/home/user/myrepo?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0') }));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: true });
 		provider.getSessions();
@@ -1098,7 +1098,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('non-web: session workspace from project metadata includes [host] suffix', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/home/user/vscode?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
 		connection.addSession(createSession('project-1', {
 			summary: 'Project Session',
 			project: { uri: projectUri, displayName: 'vscode' },
@@ -1114,7 +1114,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	test('non-web: session workspace from working directory includes [host] suffix', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('ws-sess', {
 			summary: 'WS Test',
-			workingDirectory: URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/myrepo'),
+			workingDirectory: URI.parse('vscode-agent-host://localhost__4321/home/user/myrepo?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0'),
 		}));
 
 		const provider = createProvider(disposables, connection, { isWebPlatform: false });

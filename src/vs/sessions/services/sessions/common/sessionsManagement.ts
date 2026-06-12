@@ -132,6 +132,11 @@ export interface ISessionsManagementService {
 	getSession(resource: URI): ISession | undefined;
 
 	/**
+	 * Get the session and chat that own the given chat resource URI.
+	 */
+	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
+
+	/**
 	 * Get all session types from all registered providers.
 	 */
 	getAllSessionTypes(): ISessionType[];
@@ -208,6 +213,14 @@ export interface ISessionsManagementService {
 	 * callers (open a session via the view service instead).
 	 */
 	setActiveSession(session: IActiveSession | undefined): void;
+
+	/**
+	 * Replace the currently active session if it matches the given `from` session.
+	 *
+	 * @param from The session to be replaced.
+	 * @param to The session to replace with.
+	 */
+	replaceActiveSession(from: IActiveSession, to: IActiveSession): void;
 
 	/**
 	 * Observable for the in-progress new session (composed but not yet sent),

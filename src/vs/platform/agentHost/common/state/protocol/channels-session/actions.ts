@@ -10,7 +10,7 @@ import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, ErrorInfo, FileEdit, UsageInfo, URI } from '../common/state.js';
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ToolDefinition, type SessionActiveClient, type Customization, type McpServerState, type SessionInputAnswer, type SessionInputRequest, type SessionInputResponseKind, type ConfirmationOption, type AgentSelection, type ToolCallContributor } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
-import type { ChangesetSummary } from '../channels-changeset/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
 
@@ -478,14 +478,14 @@ export interface SessionActivityChangedAction {
 }
 
 /**
- * The {@link ChangesetSummary | catalogue of changesets} the agent host
+ * The {@link Changeset | catalogue of changesets} the agent host
  * advertises for this session changed. Replaces
- * `state.summary.changesets` entirely (full-replacement semantics) — set
- * to `undefined` to clear the catalogue.
+ * {@link SessionState.changesets | `state.changesets`} entirely
+ * (full-replacement semantics) — set to `undefined` to clear the
+ * catalogue.
  *
- * Producers dispatch this whenever entries are added, removed, or have
- * their aggregate counts (`additions` / `deletions` / `files`) refreshed.
- * The fan-out happens through this action so observers see catalogue
+ * Producers dispatch this whenever entries are added or removed. The
+ * fan-out happens through this action so observers see catalogue
  * mutations in the same {@link ChangesetAction | per-changeset} action
  * stream they already follow for file-level updates.
  *
@@ -495,7 +495,7 @@ export interface SessionActivityChangedAction {
 export interface SessionChangesetsChangedAction {
 	type: ActionType.SessionChangesetsChanged;
 	/** New catalogue, or `undefined` to clear it */
-	changesets: ChangesetSummary[] | undefined;
+	changesets: Changeset[] | undefined;
 }
 
 /**

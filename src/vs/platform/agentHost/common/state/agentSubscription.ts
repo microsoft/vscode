@@ -53,6 +53,38 @@ export interface IAgentSubscription<T> {
 	readonly onDidApplyAction: Event<ActionEnvelope>;
 }
 
+/**
+ * Read-only snapshot describing a single active resource subscription. Used by
+ * inspection/debug surfaces that enumerate everything a connection is currently
+ * subscribed to. Does not include the always-live root state.
+ */
+export interface IActiveSubscriptionInfo {
+	/** The protocol resource URI subscribed to. */
+	readonly resource: URI;
+	/** Which state component this subscription tracks. */
+	readonly kind: StateComponents;
+	/** Number of outstanding {@link IReference} holders. */
+	readonly refCount: number;
+	/**
+	 * The named owners currently holding a reference to this subscription,
+	 * with how many references each holds. Names come from the `owner`
+	 * argument passed to {@link AgentSubscriptionManager.getSubscription}.
+	 */
+	readonly holders: readonly IActiveSubscriptionHolder[];
+	/**
+	 * Lifecycle status derived from the subscription's value:
+	 * `pending` before the first snapshot, `error` if it failed, otherwise
+	 * `snapshot`.
+	 */
+	readonly status: 'pending' | 'snapshot' | 'error';
+}
+
+/** A named owner holding one or more references to a subscription. */
+export interface IActiveSubscriptionHolder {
+	readonly owner: string;
+	readonly count: number;
+}
+
 // --- Base Implementation -----------------------------------------------------
 
 /**
@@ -424,7 +456,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 
 type ManagedSubscription = SessionStateSubscription | TerminalStateSubscription | ChangesetStateSubscription;
 
-type ManagedSubscriptionEntry = { sub: ManagedSubscription; refCount: number };
+type ManagedSubscriptionEntry = { sub: ManagedSubscription; kind: StateComponents; refCount: number; holders: Map<number, string> };
 
 // --- Subscription Manager ----------------------------------------------------
 
@@ -442,6 +474,8 @@ type ManagedSubscriptionEntry = { sub: ManagedSubscription; refCount: number };
 export class AgentSubscriptionManager extends Disposable {
 
 	private readonly _subscriptions = new ResourceMap<ManagedSubscriptionEntry>();
+	private readonly _inflightCreates = new ResourceMap<Promise<unknown>>();
+	private _referenceOwnerIds = 0;
 	private readonly _rootState: RootStateSubscription;
 	private readonly _clientId: string;
 	private readonly _seqAllocator: () => number;
@@ -488,11 +522,30 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Register an in-flight `createSession` Promise for a session URI. Any
+	 * subscribe issued for this resource while the create is pending waits
+	 * for the Promise before issuing the wire-level subscribe.
+	 */
+	trackSessionCreate(resource: URI, promise: Promise<unknown>): void {
+		this._inflightCreates.set(resource, promise);
+		void promise.finally(() => {
+			if (this._inflightCreates.get(resource) === promise) {
+				this._inflightCreates.delete(resource);
+			}
+		});
+	}
+
+	/**
 	 * Get or create a refcounted subscription to any resource. Disposing
 	 * the returned reference decrements the refcount; when it reaches zero
 	 * the subscription is torn down and the server is notified.
+	 *
+	 * `owner` names the caller holding the reference so inspection surfaces
+	 * (see {@link getActiveSubscriptions}) can attribute who is retaining a
+	 * subscription. Use a stable, human-readable identifier such as the
+	 * acquiring class name.
 	 */
-	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+	getSubscription<T>(kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
 		const existing = this._subscriptions.get(resource);
 		if (existing) {
 			if (existing.sub.value instanceof Error) {
@@ -502,35 +555,66 @@ export class AgentSubscriptionManager extends Disposable {
 				this._disposeSubscriptionEntry(resource, existing);
 			} else {
 				existing.refCount++;
-				return {
-					object: existing.sub as unknown as IAgentSubscription<T>,
-					dispose: () => this._releaseSubscription(resource, existing),
-				};
+				return this._acquireReference<T>(resource, existing, owner);
 			}
 		}
 
 		// Create new subscription based on caller-specified kind
 		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
-		const entry = { sub, refCount: 1 };
+		const entry: ManagedSubscriptionEntry = { sub, kind, refCount: 1, holders: new Map() };
 		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
-		this._subscribe(resource).then(snapshot => {
-			if (this._subscriptions.get(resource) === entry) {
-				sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+		void (async () => {
+			const inflight = this._inflightCreates.get(resource);
+			if (inflight) {
+				try {
+					await inflight;
+				} catch {
+					// Swallow — fall through to subscribe so the error
+					// surfaces consistently via setError() on the
+					// subscription, matching the no-inflight path.
+				}
 			}
-		}).catch(err => {
-			if (this._subscriptions.get(resource) === entry) {
-				sub.setError(err instanceof Error ? err : new Error(String(err)));
+			try {
+				const snapshot = await this._subscribe(resource);
+				if (this._subscriptions.get(resource) === entry) {
+					sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
+				}
+			} catch (err) {
+				if (this._subscriptions.get(resource) === entry) {
+					sub.setError(err instanceof Error ? err : new Error(String(err)));
+				}
 			}
-		});
+		})();
 
+		return this._acquireReference<T>(resource, entry, owner);
+	}
+
+	/**
+	 * Register `owner` as a holder of `entry` and return a reference whose
+	 * disposal removes that holder and releases the subscription. The
+	 * caller is responsible for the matching refcount increment (a fresh
+	 * entry starts at 1; an existing entry is bumped before calling this).
+	 */
+	private _acquireReference<T>(resource: URI, entry: ManagedSubscriptionEntry, owner: string): IReference<IAgentSubscription<T>> {
+		const ownerId = ++this._referenceOwnerIds;
+		entry.holders.set(ownerId, owner);
+
+		let isDisposed = false;
 		return {
-			object: sub as unknown as IAgentSubscription<T>,
-			dispose: () => this._releaseSubscription(resource, entry),
+			object: entry.sub as unknown as IAgentSubscription<T>,
+			dispose: () => {
+				if (isDisposed) {
+					return;
+				}
+				isDisposed = true;
+				entry.holders.delete(ownerId);
+				this._releaseSubscription(resource, entry);
+			},
 		};
 	}
 
@@ -590,6 +674,32 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	currentSubscriptionUris(): URI[] {
 		return [...this._subscriptions.keys()];
+	}
+
+	/**
+	 * Read-only descriptors of every active resource subscription, for
+	 * inspection/debug surfaces. Does NOT include the always-live root
+	 * state, which the connection exposes separately via {@link rootState}.
+	 */
+	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
+		const out: IActiveSubscriptionInfo[] = [];
+		for (const [resource, entry] of this._subscriptions) {
+			const value = entry.sub.value;
+			const status = value === undefined ? 'pending' : value instanceof Error ? 'error' : 'snapshot';
+			out.push({ resource, kind: entry.kind, refCount: entry.refCount, holders: this._summarizeHolders(entry), status });
+		}
+		return out;
+	}
+
+	/** Group an entry's holders by owner name, sorted by descending count. */
+	private _summarizeHolders(entry: ManagedSubscriptionEntry): IActiveSubscriptionHolder[] {
+		const counts = new Map<string, number>();
+		for (const owner of entry.holders.values()) {
+			counts.set(owner, (counts.get(owner) ?? 0) + 1);
+		}
+		return [...counts.entries()]
+			.map(([owner, count]) => ({ owner, count }))
+			.sort((a, b) => b.count - a.count);
 	}
 
 	/**

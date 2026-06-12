@@ -75,7 +75,7 @@ export interface IEndpointBody {
 	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
-	reasoning?: { effort?: string; summary?: string };
+	reasoning?: { effort?: string; summary?: string; context?: 'current_turn' | 'all_turns' };
 	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
@@ -119,7 +119,8 @@ export interface IEndpointBody {
 		budget_tokens?: number;
 	};
 	output_config?: {
-		effort?: 'low' | 'medium' | 'high';
+		/** Validated against the endpoint's declared `reasoning_effort` levels, not a hardcoded set. */
+		effort?: string;
 	};
 
 	/** ChatCompletions API for Anthropic models */

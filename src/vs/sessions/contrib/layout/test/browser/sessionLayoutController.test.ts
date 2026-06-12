@@ -25,7 +25,7 @@ import { IPaneCompositePartService } from '../../../../../workbench/services/pan
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { IChat, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LayoutController } from '../../browser/sessionLayoutController.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';

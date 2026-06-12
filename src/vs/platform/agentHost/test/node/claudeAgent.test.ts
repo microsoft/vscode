@@ -50,6 +50,7 @@ import { ClaudeAgent } from '../../node/claude/claudeAgent.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeAgentSdkService, IClaudeAgentSdkService, IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
@@ -117,6 +118,11 @@ class FakeCopilotApiService implements ICopilotApiService {
 	responses(): Promise<Response> { throw new Error('not used in ClaudeAgent tests'); }
 	utilityChatCompletion(): Promise<never> { throw new Error('not used in ClaudeAgent tests'); }
 }
+
+const FakeProductService: IProductService = {
+	_serviceBrand: undefined,
+	version: '1.0.0-test',
+} as IProductService;
 
 // FakeClaudeSubagentResolver removed in the Phase 12 refactor (the
 // IClaudeSubagentResolver service no longer exists). Per-session
@@ -481,6 +487,8 @@ class FakeQuery implements AsyncGenerator<SDKMessage, void> {
 	setMcpServers(): never { throw new Error('FakeQuery: setMcpServers not modeled'); }
 	streamInput(): never { throw new Error('FakeQuery: streamInput not modeled'); }
 	stopTask(): never { throw new Error('FakeQuery: stopTask not modeled'); }
+	reloadSkills(): never { throw new Error('FakeQuery: reloadSkills not modeled'); }
+	backgroundTasks(): never { throw new Error('FakeQuery: backgroundTasks not modeled'); }
 	close(): void { /* no-op */ }
 	[Symbol.asyncDispose](): Promise<void> { return Promise.resolve(); }
 }
@@ -638,6 +646,7 @@ function createTestContext(
 		[IAgentPluginManager, new FakeAgentPluginManager()],
 		[IAgentHostGitService, createNoopGitService()],
 		[IAgentConfigurationService, configService],
+		[IProductService, FakeProductService],
 	);
 	const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 	const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -647,6 +656,19 @@ function createTestContext(
 /** Drains the microtask queue so awaited refresh writes settle. */
 function tick(): Promise<void> {
 	return new Promise(resolve => setImmediate(resolve));
+}
+
+/**
+ * Stub for {@link IAgentSdkDownloader} consumed by tests that need a real
+ * `ClaudeAgentSdkService` constructor but override `_loadSdk` themselves —
+ * the downloader is therefore never actually called.
+ */
+function stubAgentSdkDownloader(): IAgentSdkDownloader {
+	return {
+		_serviceBrand: undefined,
+		isAvailable: () => false,
+		loadSdkRoot: () => { throw new Error('test stub: downloader.loadSdkRoot should not be called'); },
+	};
 }
 
 // #endregion
@@ -917,6 +939,7 @@ suite('ClaudeAgent', () => {
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -978,6 +1001,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -1045,6 +1069,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -1981,6 +2006,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2578,6 +2604,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2648,6 +2675,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2731,6 +2759,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2777,6 +2806,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, sessionData],
 			[IClaudeAgentSdkService, sdk],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));
@@ -2897,7 +2927,10 @@ suite('ClaudeAgent', () => {
 			}
 		}
 
-		const services = new ServiceCollection([ILogService, new RecordingLogService()]);
+		const services = new ServiceCollection(
+			[ILogService, new RecordingLogService()],
+			[IAgentSdkDownloader, stubAgentSdkDownloader()],
+		);
 		const inst = disposables.add(new InstantiationService(services));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
 
@@ -2975,7 +3008,10 @@ suite('ClaudeAgent', () => {
 			}
 		}
 
-		const inst = disposables.add(new InstantiationService(new ServiceCollection([ILogService, new NullLogService()])));
+		const inst = disposables.add(new InstantiationService(new ServiceCollection(
+			[ILogService, new NullLogService()],
+			[IAgentSdkDownloader, stubAgentSdkDownloader()],
+		)));
 		const svc = inst.createInstance(TestableClaudeAgentSdkService);
 
 		const subagentIds = await svc.listSubagents('sess-1');
@@ -3082,6 +3118,7 @@ suite('ClaudeAgent', () => {
 			[ISessionDataService, createNullSessionDataService()],
 			[IClaudeAgentSdkService, new FakeClaudeAgentSdkService()],
 			[IAgentPluginManager, new FakeAgentPluginManager()],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services));
 		const agent = instantiationService.createInstance(ClaudeAgent);
@@ -3134,6 +3171,7 @@ suite('ClaudeAgent', () => {
 			[IAgentPluginManager, new FakeAgentPluginManager()],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent: ClaudeAgent = instantiationService.createInstance(ClaudeAgent);
@@ -4763,6 +4801,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentPluginManager, pluginManager],
 			[IAgentHostGitService, createNoopGitService()],
 			[IAgentConfigurationService, configService],
+			[IProductService, FakeProductService],
 		);
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		const agent = disposables.add(instantiationService.createInstance(ClaudeAgent));

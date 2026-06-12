@@ -339,6 +339,18 @@ export class BrowserView extends Disposable {
 
 		this.session.trust.installCertErrorHandler(webContents);
 
+		webContents.on('login', (event, _details, authInfo, callback) => {
+			// Automatically supply proxy auth credentials for the tunnel proxy.
+			if (this.session.remote.proxy) {
+				const { username, password } = this.session.remote.proxy.credentials;
+				const proxyPort = this.session.remote.proxy.port;
+				if (authInfo.isProxy && authInfo.host === '127.0.0.1' && authInfo.port === proxyPort) {
+					event.preventDefault();
+					callback(username, password);
+				}
+			}
+		});
+
 		webContents.on('render-process-gone', (_event, details) => {
 			this._lastError = {
 				url: webContents.getURL(),
@@ -522,6 +534,7 @@ export class BrowserView extends Disposable {
 			storageKeys: this.session.history.storageKeys,
 			browserZoomIndex: this._browserZoomIndex,
 			isElementSelectionActive: this.inspector.isElementSelectionActive,
+			isRemoteSession: !!this.session.remote.proxyId,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device
 		};
@@ -670,11 +683,12 @@ export class BrowserView extends Disposable {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
 			const visualViewportScale = await this.inspector.getVisualViewportScale();
+			const emulationScale = this.emulator.emulatedScaleFactor;
 			options.screenRect = {
-				x: options.pageRect.x * visualViewportScale * zoomFactor,
-				y: options.pageRect.y * visualViewportScale * zoomFactor,
-				width: options.pageRect.width * visualViewportScale * zoomFactor,
-				height: options.pageRect.height * visualViewportScale * zoomFactor
+				x: options.pageRect.x * visualViewportScale * zoomFactor * emulationScale,
+				y: options.pageRect.y * visualViewportScale * zoomFactor * emulationScale,
+				width: options.pageRect.width * visualViewportScale * zoomFactor * emulationScale,
+				height: options.pageRect.height * visualViewportScale * zoomFactor * emulationScale
 			};
 		}
 		if (options?.awaitNextPaint) {

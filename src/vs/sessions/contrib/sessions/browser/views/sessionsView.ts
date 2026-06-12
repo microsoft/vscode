@@ -39,14 +39,14 @@ import { IHostService } from '../../../../../workbench/services/host/browser/hos
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
