@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as tar from 'tar';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import * as path from '../../../base/common/path.js';
+import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
@@ -24,7 +24,9 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
 /**
  * One agent-SDK package the downloader can fetch. Holds the per-package
  * knowledge that varies between Claude, Codex, and any future provider —
- * just the package id and the env var that acts as a dev override.
+ * the package id, the env var that acts as a dev override, and the
+ * `(platform, arch, libc) → sdkTarget` mapping (which differs by SDK:
+ * Claude has separate `linux-*-musl` SKUs, Codex doesn't).
  *
  * The downloader itself is package-agnostic: it consumes this interface and
  * never branches on `id`. Concrete `IAgentSdkPackage` instances live in
@@ -34,16 +36,26 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
  * stays in those modules — the downloader doesn't name the providers it
  * serves.
  *
- * Platform discrimination is done at packaging time: the build sets
- * `product.agentSdks[pkg]` to the `{ version, url, sha256 }` appropriate
- * for the platform being packaged, so there is no per-target lookup at
- * runtime.
+ * Each shipped `product.json` carries one `{version, urlTemplate}` per
+ * SDK. The downloader substitutes `{sdkTarget}` (from
+ * `currentSdkTarget()`) into the template to get the per-target tarball
+ * URL. This shape supports macOS Universal builds, where the same
+ * `product.json` is shared by arm64 and x64 launches.
  */
 export interface IAgentSdkPackage {
 	/** Key under `product.agentSdks` — e.g. `'claude'`, `'codex'`. */
 	readonly id: string;
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */
 	readonly devOverrideEnvVar: string;
+	/**
+	 * Resolves the build's `sdkTarget` suffix for the current host:
+	 *   - claude: `'darwin-arm64'`, `'linux-x64'`, `'linux-x64-musl'`, …
+	 *   - codex:  `'darwin-arm64'`, `'linux-x64'`, …  (no musl SKU)
+	 * Returns `undefined` when no SDK applies (`armhf`, browser, …);
+	 * the downloader treats that the same as "no product config" and
+	 * never registers the provider.
+	 */
+	currentSdkTarget(): string | undefined;
 }
 
 // #endregion
@@ -62,8 +74,9 @@ export interface IAgentSdkDownloader {
 	 *
 	 * Resolution order:
 	 *   1. dev-override env var (returned unchanged)
-	 *   2. on-disk cache hit (re-verified against `product.json` sha256)
-	 *   3. download from `product.agentSdks?.[pkg.id]` and verify
+	 *   2. on-disk cache hit (`.complete` sentinel present)
+	 *   3. download from `product.agentSdks?.[pkg.id]` with
+	 *      `{sdkTarget}` substituted into the urlTemplate
 	 *
 	 * Repeated failures are latched for {@link LOAD_FAILURE_NEGATIVE_CACHE_MS}
 	 * so a misconfigured CDN doesn't get hammered on every SDK method call.
@@ -73,8 +86,9 @@ export interface IAgentSdkDownloader {
 	/**
 	 * Cheap, synchronous gate used at startup to decide whether to register
 	 * the corresponding agent provider. True iff the dev override is set, OR
-	 * `product.agentSdks?.[pkg.id]` is populated (which it only is on the
-	 * platform that build packaged for). Does NOT trigger a download.
+	 * (`product.agentSdks?.[pkg.id]` is populated AND `pkg.currentSdkTarget()`
+	 * resolves — i.e. an SDK exists for this host). Does NOT trigger a
+	 * download.
 	 */
 	isAvailable(pkg: IAgentSdkPackage): boolean;
 }
@@ -90,18 +104,20 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	declare readonly _serviceBrand: undefined;
 
 	/**
-	 * In-flight downloads keyed by `<pkg>/<sdkVersion>`. Concurrent
-	 * `loadSdkRoot` calls in the same process share the same promise so we
-	 * never download the same tarball twice.
+	 * In-flight downloads keyed by `<pkg>/<sdkVersion>/<sdkTarget>`.
+	 * Concurrent `loadSdkRoot` calls in the same process share the same
+	 * promise so we never download the same tarball twice. Includes
+	 * `sdkTarget` so macOS Universal builds (which can resolve to
+	 * different targets per launch) don't share a key.
 	 */
 	private readonly _pendingDownloads = new Map<string, Promise<string>>();
 
 	/**
 	 * Negative cache: most recent failure per package id, with an expiry. While
 	 * within the window, `loadSdkRoot` re-throws the cached error immediately
-	 * instead of re-attempting the download. Without this, a broken CDN /
-	 * mismatched sha causes every SDK method call (poll-driven UIs hit this
-	 * hard) to fire a fresh request.
+	 * instead of re-attempting the download. Without this, a broken CDN
+	 * causes every SDK method call (poll-driven UIs hit this hard) to fire
+	 * a fresh request.
 	 */
 	private readonly _failureLatch = new Map<string, { error: Error; expiresAt: number }>();
 
@@ -114,7 +130,10 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	) { }
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
-		return !!process.env[pkg.devOverrideEnvVar] || !!this._productService.agentSdks?.[pkg.id];
+		if (process.env[pkg.devOverrideEnvVar]) {
+			return true;
+		}
+		return !!this._productService.agentSdks?.[pkg.id] && pkg.currentSdkTarget() !== undefined;
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -157,27 +176,31 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 				`no ${pkg.devOverrideEnvVar} dev override set.`,
 			);
 		}
-		const expectedSha = config.sha256;
+		const sdkTarget = pkg.currentSdkTarget();
+		if (!sdkTarget) {
+			throw new Error(
+				`Cannot load ${pkg.id} SDK: no SDK target for this host ` +
+				`(${process.platform}/${process.arch}). ` +
+				`Set ${pkg.devOverrideEnvVar} to a local SDK root to bypass.`,
+			);
+		}
+		const url = format2(config.urlTemplate, { sdkTarget });
 
-		const cacheDir = this._cacheDir(pkg.id, config.version);
+		const cacheDir = this._cacheDir(pkg.id, config.version, sdkTarget);
 		const sentinel = URI.joinPath(URI.file(cacheDir), '.complete');
 
-		// Cache hit (always re-verify against product.json sha256).
-		if (await this._cacheHit(sentinel, expectedSha)) {
+		if (await this._cacheHit(sentinel)) {
 			return cacheDir;
-		}
-		// Drop a stale cache before re-downloading — covers the vscode-distro
-		// "same version, different sha" case.
-		if (await this._fileService.exists(sentinel)) {
-			this._logService.warn(`[AgentSdkDownloader] ${pkg.id}@${config.version}: cache sha mismatch, redownloading`);
-			await this._delIgnoringMissing(URI.file(cacheDir));
 		}
 
 		// Download (deduped across concurrent callers in the same process).
-		const key = `${pkg.id}/${config.version}`;
+		// Key includes sdkTarget so a Universal launch resolving to a
+		// different target than a previous launch doesn't share an in-flight
+		// promise pointing at the wrong tarball.
+		const key = `${pkg.id}/${config.version}/${sdkTarget}`;
 		let pending = this._pendingDownloads.get(key);
 		if (!pending) {
-			pending = this._download(pkg, config.url, expectedSha, cacheDir, sentinel, token).finally(() => {
+			pending = this._download(pkg, url, cacheDir, sentinel, token).finally(() => {
 				this._pendingDownloads.delete(key);
 			});
 			this._pendingDownloads.set(key, pending);
@@ -185,33 +208,34 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		return pending;
 	}
 
-	private _cacheDir(packageId: string, sdkVersion: string): string {
+	private _cacheDir(packageId: string, sdkVersion: string, sdkTarget: string): string {
+		// `sdkTarget` is in the path so macOS Universal builds keep two
+		// independent caches — one per resolved target — instead of
+		// thrashing a single shared one as launches alternate.
 		return path.join(
 			this._environmentService.userDataPath,
 			'agent-host',
 			'sdk-cache',
 			packageId,
 			sdkVersion,
+			sdkTarget,
 		);
 	}
 
 	/**
-	 * True iff the `.complete` sentinel at {@link sentinel} exists and contains
-	 * `expectedSha`. Shared by the fast-path cache check and the rename-loser
-	 * race recovery.
+	 * True iff the `.complete` sentinel at {@link sentinel} exists. The
+	 * sentinel's mere presence is the integrity signal — extracts that
+	 * crashed mid-way never write it, so a sentinel-bearing dir is known
+	 * to have completed. Shared by the fast-path cache check and the
+	 * rename-loser race recovery.
 	 */
-	private async _cacheHit(sentinel: URI, expectedSha: string): Promise<boolean> {
-		if (!(await this._fileService.exists(sentinel))) {
-			return false;
-		}
-		const recorded = await this._readFileText(sentinel);
-		return recorded.trim() === expectedSha;
+	private async _cacheHit(sentinel: URI): Promise<boolean> {
+		return this._fileService.exists(sentinel);
 	}
 
 	private async _download(
 		pkg: IAgentSdkPackage,
 		url: string,
-		expectedSha: string,
 		cacheDir: string,
 		sentinel: URI,
 		token: CancellationToken,
@@ -223,8 +247,9 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 
 		// Extract to a per-pid scratch dir alongside the final cache dir, then
 		// rename into place. If two windows of the same install race, the loser
-		// catches the `move`'s `FILE_MOVE_CONFLICT`, verifies the existing
-		// .complete sha, and uses that instead — see the rename-loser path below.
+		// catches the `move`'s `FILE_MOVE_CONFLICT`, checks the existing
+		// .complete sentinel, and uses that instead — see the rename-loser
+		// path below.
 		const tmpDir = `${cacheDir}.tmp.${process.pid}`;
 		const tmpDirUri = URI.file(tmpDir);
 		await this._delIgnoringMissing(tmpDirUri);
@@ -232,26 +257,26 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 
 		try {
 			const tarballPath = path.join(tmpDir, 'sdk.tgz');
-			await this._fetchAndVerify(url, tarballPath, expectedSha, token);
+			await this._fetch(url, tarballPath, token);
 			await this._extractTarGz(tarballPath, tmpDir);
 			await this._fileService.del(URI.file(tarballPath));
 
-			// Write the `.complete` sentinel inside the tmp dir BEFORE the move.
-			// That way the move atomically publishes a directory that already
-			// carries its sentinel — a crash between move and sentinel-write
-			// can't leave a wedged, sentinel-less cacheDir behind (which would
-			// trip `_handleRenameLoser` on the next attempt and require a
-			// manual cache wipe to recover).
+			// Write the `.complete` sentinel inside the tmp dir BEFORE the
+			// move. That way the move atomically publishes a directory that
+			// already carries its sentinel — a crash between move and
+			// sentinel-write can't leave a wedged, sentinel-less cacheDir
+			// behind. The sentinel's content (the source URL) is purely
+			// for debugging stale caches; the existence is what matters.
 			await this._fileService.writeFile(
 				URI.joinPath(tmpDirUri, '.complete'),
-				VSBuffer.fromString(expectedSha),
+				VSBuffer.fromString(url),
 			);
 
 			// Atomic publish of the completed extraction.
 			try {
 				await this._fileService.move(tmpDirUri, URI.file(cacheDir));
 			} catch (err) {
-				if (await this._handleRenameLoser(err, sentinel, expectedSha, tmpDirUri)) {
+				if (await this._handleRenameLoser(err, sentinel, tmpDirUri)) {
 					this._logService.info(`[AgentSdkDownloader] ${pkg.id}: lost rename race, using existing cache`);
 					return cacheDir;
 				}
@@ -259,7 +284,7 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			}
 
 			const elapsed = Math.round((Date.now() - start) / 1000);
-			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded + verified in ${elapsed}s`);
+			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded in ${elapsed}s`);
 			return cacheDir;
 		} catch (err) {
 			await this._delIgnoringMissing(tmpDirUri);
@@ -278,7 +303,6 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	private async _handleRenameLoser(
 		err: unknown,
 		sentinel: URI,
-		expectedSha: string,
 		tmpDirUri: URI,
 	): Promise<boolean> {
 		// `IFileService.move` with default (overwrite: false) throws a
@@ -287,21 +311,19 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		if (!(err instanceof FileOperationError) || err.fileOperationResult !== FileOperationResult.FILE_MOVE_CONFLICT) {
 			return false;
 		}
-		if (!(await this._cacheHit(sentinel, expectedSha))) {
+		if (!(await this._cacheHit(sentinel))) {
 			return false;
 		}
-		// Winner already published a matching cache. Drop our scratch dir.
+		// Winner already published a complete cache. Drop our scratch dir.
 		await this._delIgnoringMissing(tmpDirUri);
 		return true;
 	}
 
-	private async _fetchAndVerify(url: string, dest: string, expectedSha: string, token: CancellationToken): Promise<void> {
+	private async _fetch(url: string, dest: string, token: CancellationToken): Promise<void> {
 		// Delegate to IRequestService (corporate proxy, strictSSL, kerberos,
-		// retries, redirect follow). We tee the network stream through a
-		// sha256 hasher AND a write stream so the tarball is verified on
-		// the way in — one pass instead of writing then re-reading.
-		// `fs.createWriteStream` (not `IFileService.writeFile`) so that
-		// cancelling a multi-MB download aborts promptly via destroy().
+		// retries, redirect follow). `fs.createWriteStream` (not
+		// `IFileService.writeFile`) so that cancelling a multi-MB download
+		// aborts promptly via destroy().
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -321,7 +343,6 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			throw new Error(`HTTP ${statusCode} fetching ${url}`);
 		}
 
-		const hash = crypto.createHash('sha256');
 		await new Promise<void>((resolve, reject) => {
 			const out = fs.createWriteStream(dest);
 			let settled = false;
@@ -342,30 +363,16 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			const cancelSub = token.onCancellationRequested(() => settleReject(new CancellationError()));
 			out.on('error', settleReject);
 			out.on('finish', settleResolve);
-			context.stream.on('data', chunk => { hash.update(chunk.buffer); out.write(chunk.buffer); });
+			context.stream.on('data', chunk => { out.write(chunk.buffer); });
 			context.stream.on('end', () => out.end());
 			context.stream.on('error', settleReject);
 		});
-
-		const actualSha = hash.digest('hex');
-		if (actualSha !== expectedSha) {
-			throw new Error(`sha256 mismatch: expected ${expectedSha}, got ${actualSha}`);
-		}
 	}
 
 	private async _extractTarGz(tarball: string, dest: string): Promise<void> {
 		// `tar` (node-tar) is pure JS — works on every platform the agent host
 		// runs on without depending on a system `tar` binary.
 		await tar.x({ file: tarball, cwd: dest });
-	}
-
-	private async _readFileText(uri: URI): Promise<string> {
-		try {
-			const content = await this._fileService.readFile(uri);
-			return content.value.toString();
-		} catch {
-			return '';
-		}
 	}
 
 	private async _delIgnoringMissing(uri: URI): Promise<void> {

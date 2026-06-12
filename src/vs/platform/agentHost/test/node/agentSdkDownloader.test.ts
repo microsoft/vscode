@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import type * as httpType from 'http';
@@ -20,7 +19,7 @@ import type { IFileService } from '../../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { RequestService } from '../../../request/node/requestService.js';
-import { AgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { AgentSdkDownloader, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
 import { ClaudeSdkPackage } from '../../node/claude/claudeAgentSdkService.js';
 import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -28,7 +27,6 @@ import type { IProductService } from '../../../product/common/productService.js'
 
 interface ITestSdkDownloadFixture {
 	tarballPath: string;
-	tarballSha: string;
 	innerFile: string; // path that should exist inside the extracted root
 	innerContents: string;
 	cleanup: () => Promise<void>;
@@ -43,13 +41,8 @@ async function buildFixtureTarball(): Promise<ITestSdkDownloadFixture> {
 	await fsp.writeFile(path.join(stagingDir, innerRel), innerContents);
 	const tarballPath = path.join(stagingDir, 'fixture.tgz');
 	await tar.c({ file: tarballPath, cwd: stagingDir, gzip: true }, ['node_modules']);
-	const tarballSha = crypto
-		.createHash('sha256')
-		.update(await fsp.readFile(tarballPath))
-		.digest('hex');
 	return {
 		tarballPath,
-		tarballSha,
 		innerFile: innerRel,
 		innerContents,
 		cleanup: async () => fsp.rm(stagingDir, { recursive: true, force: true }),
@@ -59,15 +52,17 @@ async function buildFixtureTarball(): Promise<ITestSdkDownloadFixture> {
 interface ITestServer {
 	port: number;
 	requestCount: number;
+	lastPath: string | undefined;
 	close: () => Promise<void>;
 }
 
 async function startServer(body: Buffer): Promise<ITestServer> {
 	const http: typeof httpType = await import('http');
 	return new Promise(resolve => {
-		const state = { count: 0 };
-		const server = http.createServer((_req, res) => {
+		const state = { count: 0, lastPath: undefined as string | undefined };
+		const server = http.createServer((req, res) => {
 			state.count++;
+			state.lastPath = req.url;
 			res.statusCode = 200;
 			res.setHeader('content-type', 'application/octet-stream');
 			res.setHeader('content-length', String(body.length));
@@ -79,6 +74,7 @@ async function startServer(body: Buffer): Promise<ITestServer> {
 			resolve({
 				get port() { return port; },
 				get requestCount() { return state.count; },
+				get lastPath() { return state.lastPath; },
 				close: () => new Promise(res => server.close(() => res())),
 			});
 		});
@@ -93,7 +89,7 @@ function makeEnvService(userDataPath: string): INativeEnvironmentService {
 	return { userDataPath, args: { 'force-disable-user-env': true } as never } as unknown as INativeEnvironmentService;
 }
 
-function makeProductService(config: { version: string; url: string; sha256: string } | undefined): IProductService {
+function makeProductService(config: { version: string; urlTemplate: string } | undefined): IProductService {
 	return {
 		agentSdks: config ? { claude: config } : undefined,
 	} as unknown as IProductService;
@@ -119,6 +115,23 @@ function makeFileService(disposables: Pick<DisposableStore, 'add'>): IFileServic
 	const svc = disposables.add(new FileService(log));
 	disposables.add(svc.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(log))));
 	return svc;
+}
+
+/**
+ * Test package that lets us pin `currentSdkTarget()` from each test — the
+ * production `ClaudeSdkPackage` would resolve to whatever the test host
+ * is, which makes tests depend on `process.platform`.
+ *
+ * Reuses ClaudeSdkPackage's id + devOverrideEnvVar so the
+ * `process.env[AgentHostClaudeSdkRootEnvVar]` short-circuit still works
+ * and so the cache dir lands under `.../claude/...`.
+ */
+function makeTestPackage(currentSdkTarget: string | undefined): IAgentSdkPackage {
+	return {
+		id: ClaudeSdkPackage.id,
+		devOverrideEnvVar: ClaudeSdkPackage.devOverrideEnvVar,
+		currentSdkTarget: () => currentSdkTarget,
+	};
 }
 
 suite('AgentSdkDownloader', () => {
@@ -157,11 +170,13 @@ suite('AgentSdkDownloader', () => {
 		}
 	});
 
-	function makeDownloader(productConfig?: { version?: string; sha256?: string; url?: string }) {
+	function makeDownloader(productConfig?: { version?: string; urlTemplate?: string }) {
+		// Default urlTemplate references `{sdkTarget}` so we exercise the
+		// substitution path; tests that need a custom URL pass urlTemplate
+		// explicitly.
 		const config = {
 			version: productConfig?.version ?? '1.0.0',
-			url: productConfig?.url ?? `http://127.0.0.1:${server.port}/sdk.tgz`,
-			sha256: productConfig?.sha256 ?? fixture.tarballSha,
+			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/sdk-{sdkTarget}.tgz`,
 		};
 		return new AgentSdkDownloader(
 			makeEnvService(userDataPath),
@@ -180,7 +195,7 @@ suite('AgentSdkDownloader', () => {
 			makeFileService(disposables),
 			new NullLogService(),
 		);
-		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), false);
+		assert.strictEqual(downloader.isAvailable(makeTestPackage('linux-x64')), false);
 	});
 
 	test('isAvailable: true when env override set', () => {
@@ -192,12 +207,20 @@ suite('AgentSdkDownloader', () => {
 			makeFileService(disposables),
 			new NullLogService(),
 		);
-		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), true);
+		assert.strictEqual(downloader.isAvailable(makeTestPackage('linux-x64')), true);
 	});
 
-	test('isAvailable: true when product config is populated', () => {
+	test('isAvailable: true when product config populated and currentSdkTarget resolves', () => {
 		const downloader = makeDownloader();
-		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), true);
+		assert.strictEqual(downloader.isAvailable(makeTestPackage('linux-x64')), true);
+	});
+
+	test('isAvailable: false when product config populated but currentSdkTarget undefined', () => {
+		// armhf / unsupported-host case: product.json carries agentSdks
+		// (it would, on a Universal-style build) but the runtime has no
+		// matching SKU — we must NOT register the provider.
+		const downloader = makeDownloader();
+		assert.strictEqual(downloader.isAvailable(makeTestPackage(undefined)), false);
 	});
 
 	test('loadSdkRoot: dev override returns the path unchanged', async () => {
@@ -209,13 +232,19 @@ suite('AgentSdkDownloader', () => {
 			makeFileService(disposables),
 			new NullLogService(),
 		);
-		const root = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		const root = await downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken());
 		assert.strictEqual(root, '/path/to/dev/sdk');
 	});
 
-	test('loadSdkRoot: cache miss → downloads, verifies, extracts', async () => {
+	test('loadSdkRoot: substitutes {sdkTarget} into urlTemplate', async () => {
 		const downloader = makeDownloader();
-		const root = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		await downloader.loadSdkRoot(makeTestPackage('linux-arm64-musl'), newToken());
+		assert.strictEqual(server.lastPath, '/sdk-linux-arm64-musl.tgz');
+	});
+
+	test('loadSdkRoot: cache miss → downloads, extracts, writes sentinel', async () => {
+		const downloader = makeDownloader();
+		const root = await downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken());
 		assert.strictEqual(server.requestCount, 1);
 		const extracted = await fsp.readFile(path.join(root, fixture.innerFile), 'utf8');
 		assert.strictEqual(extracted, fixture.innerContents);
@@ -224,38 +253,28 @@ suite('AgentSdkDownloader', () => {
 
 	test('loadSdkRoot: cache hit returns immediately without re-downloading', async () => {
 		const downloader = makeDownloader();
-		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		await downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken());
 		assert.strictEqual(server.requestCount, 1);
 
 		// Second call hits the cache.
-		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		await downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken());
 		assert.strictEqual(server.requestCount, 1, 'cache hit should not re-download');
 	});
 
-	test('loadSdkRoot: stale cache (different sha) is invalidated and re-downloaded', async () => {
+	test('loadSdkRoot: different sdkTargets use separate cache dirs and trigger separate downloads', async () => {
+		// Simulates a macOS Universal build: one product.json, two arches
+		// over the lifetime of an install (or two Rosetta-vs-native users).
+		// Each resolved target gets its own cache, no thrash.
 		const downloader = makeDownloader();
-		const cacheDir = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 1);
+		const arm64Root = await downloader.loadSdkRoot(makeTestPackage('darwin-arm64'), newToken());
+		const x64Root = await downloader.loadSdkRoot(makeTestPackage('darwin-x64'), newToken());
+		assert.notStrictEqual(arm64Root, x64Root);
+		assert.strictEqual(server.requestCount, 2);
 
-		// Tamper with the cache: write a different sha into .complete.
-		await fsp.writeFile(path.join(cacheDir, '.complete'), 'a'.repeat(64));
-
-		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 2, 'sha mismatch must trigger re-download');
-		// Sentinel restored.
-		const recorded = (await fsp.readFile(path.join(cacheDir, '.complete'), 'utf8')).trim();
-		assert.strictEqual(recorded, fixture.tarballSha);
-	});
-
-	test('loadSdkRoot: sha256 mismatch → throws and leaves no cache dir', async () => {
-		const downloader = makeDownloader({ sha256: 'b'.repeat(64) });
-		await assert.rejects(
-			() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
-			/sha256 mismatch|Failed to download/,
-		);
-		// Cache dir absent — only its parent might exist.
-		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0');
-		assert.strictEqual(fs.existsSync(target), false);
+		// Re-fetching the arm64 target hits the cache; the x64 entry doesn't
+		// invalidate it.
+		await downloader.loadSdkRoot(makeTestPackage('darwin-arm64'), newToken());
+		assert.strictEqual(server.requestCount, 2, 'sibling target must not invalidate cache');
 	});
 
 	test('loadSdkRoot: missing product config and no env override throws actionable error', async () => {
@@ -267,8 +286,16 @@ suite('AgentSdkDownloader', () => {
 			new NullLogService(),
 		);
 		await assert.rejects(
-			() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
+			() => downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken()),
 			/no `product\.agentSdks\.claude` configured/,
+		);
+	});
+
+	test('loadSdkRoot: currentSdkTarget undefined throws actionable error', async () => {
+		const downloader = makeDownloader();
+		await assert.rejects(
+			() => downloader.loadSdkRoot(makeTestPackage(undefined), newToken()),
+			/no SDK target for this host/,
 		);
 	});
 
@@ -289,15 +316,14 @@ suite('AgentSdkDownloader', () => {
 				makeEnvService(userDataPath),
 				makeProductService({
 					version: '1.0.0',
-					url: `http://127.0.0.1:${port}/sdk.tgz`,
-					sha256: fixture.tarballSha,
+					urlTemplate: `http://127.0.0.1:${port}/sdk-{sdkTarget}.tgz`,
 				}),
 				makeRequestService(disposables),
 				makeFileService(disposables),
 				new NullLogService(),
 			);
 			const cts = disposables.add(new CancellationTokenSource());
-			const promise = downloader.loadSdkRoot(ClaudeSdkPackage, cts.token);
+			const promise = downloader.loadSdkRoot(makeTestPackage('linux-x64'), cts.token);
 			// Give the request a moment to start.
 			await new Promise(r => setTimeout(r, 50));
 			cts.cancel();
@@ -305,7 +331,7 @@ suite('AgentSdkDownloader', () => {
 			// No half-extracted dir left around.
 			const targetParent = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude');
 			const leftover = fs.existsSync(targetParent)
-				? (await fsp.readdir(targetParent)).filter(f => f.includes('.tmp.'))
+				? (await listLeftovers(targetParent))
 				: [];
 			assert.deepStrictEqual(leftover, []);
 		} finally {
@@ -322,9 +348,9 @@ suite('AgentSdkDownloader', () => {
 	test('loadSdkRoot: concurrent calls in same process share one download', async () => {
 		const downloader = makeDownloader();
 		const [a, b, c] = await Promise.all([
-			downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
-			downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
-			downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
+			downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken()),
+			downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken()),
+			downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken()),
 		]);
 		assert.strictEqual(a, b);
 		assert.strictEqual(b, c);
@@ -333,17 +359,52 @@ suite('AgentSdkDownloader', () => {
 
 	test('loadSdkRoot: rename-loser path returns existing cache when winner already published', async () => {
 		const downloader = makeDownloader();
-		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0');
+		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0', 'linux-x64');
 
 		// Pre-populate the cache as if a "winner" already extracted it.
 		await fsp.mkdir(target, { recursive: true });
 		await fsp.mkdir(path.dirname(path.join(target, fixture.innerFile)), { recursive: true });
 		await fsp.writeFile(path.join(target, fixture.innerFile), fixture.innerContents);
-		await fsp.writeFile(path.join(target, '.complete'), fixture.tarballSha);
+		await fsp.writeFile(path.join(target, '.complete'), 'http://example/anything');
 
 		// loadSdkRoot should hit the cache first and never invoke the server.
-		const root = await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
+		const root = await downloader.loadSdkRoot(makeTestPackage('linux-x64'), newToken());
 		assert.strictEqual(root, target);
 		assert.strictEqual(server.requestCount, 0);
 	});
 });
+
+/**
+ * Walks the `claude/` cache subtree looking for `*.tmp.*` scratch dirs —
+ * sdkTarget partitioning means leftovers live two levels deeper than they
+ * used to.
+ */
+async function listLeftovers(claudeCacheRoot: string): Promise<string[]> {
+	const found: string[] = [];
+	async function walk(dir: string) {
+		let entries: string[];
+		try {
+			entries = await fsp.readdir(dir);
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			if (entry.includes('.tmp.')) {
+				found.push(entry);
+				continue;
+			}
+			const full = path.join(dir, entry);
+			let stat;
+			try {
+				stat = await fsp.stat(full);
+			} catch {
+				continue;
+			}
+			if (stat.isDirectory()) {
+				await walk(full);
+			}
+		}
+	}
+	await walk(claudeCacheRoot);
+	return found;
+}

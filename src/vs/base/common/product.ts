@@ -65,22 +65,32 @@ export type ExtensionVirtualWorkspaceSupport = {
 };
 
 /**
- * Per-platform configuration for downloading an agent SDK on demand. When
- * `IProductConfiguration.agentSdks?.[pkg]` is set, the agent host GETs
- * `url`, verifies sha256 against `sha256`, and caches the extracted root
- * under `userDataPath/agent-host/sdk-cache/`.
+ * Per-SDK configuration for downloading an agent SDK on demand. Each
+ * shipped `product.json` carries one entry per supported SDK; the
+ * downloader resolves the actual per-target tarball URL at runtime by
+ * substituting `{sdkTarget}` in `urlTemplate` against the host's
+ * `(platform, arch, libc)` triple.
  *
- * The build pipeline patches `agentSdks` per-platform during packaging, so
- * each shipped product.json carries only the entry appropriate for the
- * platform it targets — there is no per-target sha lookup at runtime.
+ * `urlTemplate` uses `format2()`-style named placeholders. Today only
+ * `{sdkTarget}` is recognised; the build emits e.g.
+ * `https://main.vscode-cdn.net/agent-sdk/claude/0.3.168/{sdkTarget}.tgz`
+ * and the runtime substitutes `darwin-arm64`, `linux-x64-musl`, etc.
  *
- * The trust anchor for `sha256` is product.json's own integrity coverage
- * via `product.checksums` (computed in the same packaging step).
+ * Why a template (not a per-platform `{url, sha256}` pair):
+ *
+ *   - **macOS Universal builds** ship one `product.json` for both arm64
+ *     and x64 — a fixed url/sha could only be correct for one half.
+ *     The template lets the same bundle serve both halves.
+ *   - **Sha-based validation is redundant** here: `product.json` is
+ *     covered by `product.checksums` inside the signed app bundle, and
+ *     the URL is HTTPS to a Microsoft-controlled CDN. The transport +
+ *     content-addressed origin do the work; a `sha256` field would
+ *     only guard "trusted URL string, tampered edge bytes" — a much
+ *     harder attack than tampering with `product.json` itself.
  */
 export interface IAgentSdkProductConfig {
 	readonly version: string;
-	readonly url: string;
-	readonly sha256: string;
+	readonly urlTemplate: string;
 }
 
 export interface IProductConfiguration {

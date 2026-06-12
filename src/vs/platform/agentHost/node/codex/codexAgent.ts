@@ -266,15 +266,15 @@ interface IConnectionReady {
 
 /**
  * `@openai/codex` distribution descriptor. Lives in this file because it
- * encodes Codex-specific knowledge — the env-var name. Codex's Linux
- * binaries are statically musl-linked so a single `linux-*` SKU runs on
- * both glibc and musl hosts; the runtime never needs to know that — the
- * build picks the right SKU per platform. The downloader consumes this
- * through `IAgentSdkPackage` and never names Codex directly.
+ * encodes Codex-specific knowledge — the env-var name and the per-host
+ * SDK target lookup. Codex's Linux binaries are statically musl-linked
+ * so a single `linux-*` SKU runs on both glibc and musl hosts;
+ * `currentSdkTarget()` never returns a `-musl` suffix.
  */
 export const CodexSdkPackage: IAgentSdkPackage = {
 	id: 'codex',
 	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
+	currentSdkTarget: () => codexPackageSuffix(process.platform, process.arch),
 };
 
 export class CodexAgent extends Disposable implements IAgent {

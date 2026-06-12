@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { codexBinaryTriple, codexPackageSuffix } from '../../../node/codex/codexAgent.js';
+import { CodexSdkPackage, codexBinaryTriple, codexPackageSuffix } from '../../../node/codex/codexAgent.js';
 
 suite('codex package paths', () => {
 
@@ -82,6 +82,21 @@ suite('codex package paths', () => {
 			assert.strictEqual(codexBinaryTriple('linux-x64-musl'), undefined);
 			assert.strictEqual(codexBinaryTriple('darwin-arm'), undefined);
 			assert.strictEqual(codexBinaryTriple(''), undefined);
+		});
+	});
+
+	suite('CodexSdkPackage.currentSdkTarget', () => {
+
+		test('agrees with codexPackageSuffix(process.platform, process.arch) for the current host', () => {
+			// The downloader resolves the per-host SDK target through
+			// `CodexSdkPackage.currentSdkTarget()`; the build pipeline and
+			// _startConnection both still use `codexPackageSuffix` directly.
+			// They must agree so the cache directory and the spawn lookup
+			// stay in lockstep.
+			assert.strictEqual(
+				CodexSdkPackage.currentSdkTarget(),
+				codexPackageSuffix(process.platform, process.arch),
+			);
 		});
 	});
 });
