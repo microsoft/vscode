@@ -63,6 +63,9 @@ export function getTokenizer(name: TokenizerName = TokenizerName.o200k): Tokeniz
 	}
 	let tokenizer = tokenizers.get(name);
 	if (tokenizer !== undefined) { return tokenizer; }
+	// Kick the lazy dictionary load (fire-and-forget) so callers that never
+	// await initializeTokenizers still converge on exact tokenization.
+	void loadTokenizers();
 	// Fallback to o200k
 	tokenizer = tokenizers.get(TokenizerName.o200k);
 	if (tokenizer !== undefined) { return tokenizer; }

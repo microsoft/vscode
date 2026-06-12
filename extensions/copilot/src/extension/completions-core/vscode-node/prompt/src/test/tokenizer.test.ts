@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { resolve } from 'path';
-import { ApproximateTokenizer, getTokenizer, TokenizerName } from '../tokenization';
+import { ApproximateTokenizer, getTokenizer, initializeTokenizers, Tokenizer, TokenizerName } from '../tokenization';
 
 // Read the source files and normalize the line endings
 const source = fs.readFileSync(resolve(__dirname, 'testdata/example.py'), 'utf8').replace(/\r\n?/g, '\n');
@@ -62,7 +62,14 @@ suite('MockTokenizer', function () {
 });
 
 suite('Tokenizer Test Suite - cl100k', function () {
-	const tokenizer = getTokenizer(TokenizerName.cl100k);
+	// The dictionaries load lazily on the first initializeTokenizers await;
+	// fetch the tokenizer after that instead of at suite definition time,
+	// which would capture the approximate fallback.
+	let tokenizer: Tokenizer;
+	suiteSetup(async function () {
+		await initializeTokenizers;
+		tokenizer = getTokenizer(TokenizerName.cl100k);
+	});
 
 	test('empty string', function () {
 		const str = '';
@@ -262,7 +269,11 @@ with minor edits to make it`;
 });
 
 suite('Tokenizer Test Suite - o200k', function () {
-	const tokenizer = getTokenizer(TokenizerName.o200k);
+	let tokenizer: Tokenizer;
+	suiteSetup(async function () {
+		await initializeTokenizers;
+		tokenizer = getTokenizer(TokenizerName.o200k);
+	});
 
 	test('empty string', function () {
 		const str = '';
