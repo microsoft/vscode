@@ -1061,6 +1061,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
+	/** The workbench Output channel id carrying this host's agent host logs. */
+	protected abstract getLogOutputChannelId(): string | undefined;
+
 	get order(): number { return 0; }
 
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
@@ -1801,20 +1804,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
-		// A session type that requires custom models cannot fall back to Auto.
-		// When it has no models (e.g. the Claude agent host for a Copilot Free /
-		// Student user), the picker shows a "No models available" state instead of
-		// Auto. Derive this from the contribution's declarative `requiresCustomModels`
-		// flag (keyed by the session's resource scheme, which is the registered
+		// A session type that requires an explicit model selection cannot fall
+		// back to Auto. When it has no models (e.g. the Claude agent host for a
+		// Copilot Free / Student user), the picker shows a "No models available"
+		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
+		// CLI agent host) keep the Auto fallback. Derive this from the
+		// contribution's declarative `showAutoModel` flag (keyed by the
+		// session's resource scheme, which is the registered
 		// `agent-host-<provider>` chat session type) rather than hardcoding names.
 		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
-		const autoModelUnavailable = !!resourceScheme && this._chatSessionsService.requiresCustomModelsForSessionType(resourceScheme);
+		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
-			autoModelUnavailable,
+			showAutoModel,
 		};
 	}
 
@@ -1898,6 +1903,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return [];
 		}
 		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const logOutputChannelId = this.getLogOutputChannelId();
 		return (sessionState.customizations ?? [])
 			.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
@@ -1909,6 +1915,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;
 					if (!connection) {

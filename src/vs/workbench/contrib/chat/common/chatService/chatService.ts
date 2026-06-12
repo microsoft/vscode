@@ -6,6 +6,7 @@
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
@@ -1552,6 +1553,13 @@ export const enum ChatRequestQueueKind {
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
+	/**
+	 * The configuration (e.g. context size, thinking effort) for the selected
+	 * model as scoped to the requesting editor. When set, it takes precedence
+	 * over the global per-model configuration so the value sent matches what the
+	 * editor displays. See issue #320393.
+	 */
+	userSelectedModelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: IObservable<UserSelectedTools>;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;

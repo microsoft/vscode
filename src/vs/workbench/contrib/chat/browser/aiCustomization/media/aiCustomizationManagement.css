@@ -583,8 +583,7 @@
 .ai-customization-list-widget .section-title-header,
 .mcp-list-widget .section-title-header {
 	flex-shrink: 0;
-	padding: 0 0 32px;
-	border-bottom: 1px solid var(--vscode-panel-border);
+	padding: 0;
 }
 
 .ai-customization-list-widget .section-title-header .section-title-row,
