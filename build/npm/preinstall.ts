@@ -165,7 +165,7 @@ function installHeaders() {
 	// Install it with pnpm, ignoring the surrounding workspace so it stays
 	// isolated from the root install.
 	const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-	child_process.execSync(`${pnpm} install --ignore-workspace`, {
+	child_process.execSync(`${pnpm} install --ignore-workspace --frozen-lockfile`, {
 		env: process.env,
 		cwd: path.join(import.meta.dirname, 'gyp'),
 		stdio: 'inherit'
