@@ -1,0 +1,15 @@
+{
+	"enabledPlugins": {
+		"assign-issue-to-copilot@agent-skills": true,
+		"azure@agent-skills": true,
+		"blocked-plugin@acme": false
+	},
+	"extraKnownMarketplaces": {
+		"agent-skills": {
+			"source": {
+				"source": "github",
+				"repo": "github/agent-skills"
+			}
+		}
+	}
+}

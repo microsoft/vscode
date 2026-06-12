@@ -1,0 +1,7 @@
+{
+	"empty": "No enterprise policy — `{}`, the 'no settings.json present' signal.",
+	"enabled-plugins": "Enables two plugins, disables one. When this is set, only the true-mapped plugins pass the gate.",
+	"extra-marketplaces": "Adds two enterprise marketplaces (github + git source forms), unioned with the user's own.",
+	"strict-marketplaces": "strictKnownMarketplaces=true — only the enterprise marketplace is trusted; all others are blocked.",
+	"malformed": "Off-spec entries — core's adapter drops the bad ones and emits warnings."
+}
