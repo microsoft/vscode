@@ -48,6 +48,7 @@ suite('AgentFeedbackService - Ordering', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override getSession(_resource: URI) { return undefined; }
 		});
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
@@ -415,6 +416,7 @@ suite('AgentFeedbackService - State', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+			override getSession(_resource: URI) { return undefined; }
 		});
 
 		service = store.add(instantiationService.createInstance(AgentFeedbackService));
