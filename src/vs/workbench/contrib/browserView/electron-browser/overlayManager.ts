@@ -246,12 +246,11 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 	getOverlappingOverlays(element: HTMLElement): IBrowserOverlayInfo[] {
 		const elementRect = getDomNodePagePosition(element);
-		const overlappingOverlays: IBrowserOverlayInfo[] = [];
+		// Keyed by element so the same topmost overlay is only reported once.
+		const overlappingOverlays = new Map<HTMLElement, IBrowserOverlayInfo>();
 
-		// Materialize once so the z-index check can test whether the topmost
-		// element belongs to *any* overlay, not just the current one. Stacked
-		// overlays (e.g. a dropdown over a modal) would otherwise cancel each
-		// other out, leaving the browser wrongly reported as unobscured.
+		// Materialize once so the z-index check can resolve the topmost element
+		// to whichever overlay actually owns it, not just the one being tested.
 		const overlays = Array.from(this.overlays());
 
 		// Check against all precomputed overlay rectangles
@@ -264,25 +263,27 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			const overlayRect = this.getRect(overlay.element);
 			const overlapCenter = getOverlappingRectangleCenterPoint(elementRect, overlayRect);
 			if (overlapCenter) {
-				// z-index check: ignore this overlay unless the topmost element
-				// at the sample point belongs to some overlay.
 				const clientX = overlapCenter.x - this.targetWindow.scrollX;
 				const clientY = overlapCenter.y - this.targetWindow.scrollY;
 				let elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
 				// Account for shadow roots
-				if (elementAtPoint?.shadowRoot && !isElementInAnyOverlay(elementAtPoint, overlays)) {
+				if (elementAtPoint?.shadowRoot && !findOverlayContaining(elementAtPoint, overlays)) {
 					elementAtPoint = elementAtPoint.shadowRoot.elementFromPoint(clientX, clientY);
 				}
-				if (elementAtPoint && isElementInAnyOverlay(elementAtPoint, overlays)) {
-					overlappingOverlays.push({
-						type: overlay.type,
-						rect: overlayRect
+				// Report the overlay that is actually topmost at the sample point,
+				// not the one being tested. A covered overlay (e.g. a notification
+				// behind a modal) must not be reported as the obscuring overlay.
+				const topmostOverlay = elementAtPoint ? findOverlayContaining(elementAtPoint, overlays) : undefined;
+				if (topmostOverlay) {
+					overlappingOverlays.set(topmostOverlay.element, {
+						type: topmostOverlay.type,
+						rect: this.getRect(topmostOverlay.element)
 					});
 				}
 			}
 		}
 
-		return overlappingOverlays;
+		return Array.from(overlappingOverlays.values());
 	}
 
 	private stopTrackingElements(): void {
@@ -314,8 +315,8 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 }
 
-function isElementInAnyOverlay(elementAtPoint: Element, overlays: ReadonlyArray<{ element: HTMLElement; type: BrowserOverlayType }>): boolean {
-	return overlays.some(overlay => overlay.element.contains(elementAtPoint));
+function findOverlayContaining(elementAtPoint: Element, overlays: ReadonlyArray<{ element: HTMLElement; type: BrowserOverlayType }>): { element: HTMLElement; type: BrowserOverlayType } | undefined {
+	return overlays.find(overlay => overlay.element.contains(elementAtPoint));
 }
 
 function getOverlappingRectangleCenterPoint(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): { x: number; y: number } | null {

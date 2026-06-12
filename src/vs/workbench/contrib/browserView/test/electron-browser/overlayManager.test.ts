@@ -88,6 +88,26 @@ suite('BrowserOverlayManager', () => {
 
 		const overlays = manager.getOverlappingOverlays(browserContainer);
 
+		// The block (owned by `.context-view`) is topmost at the sample point.
+		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Unknown]);
+	});
+
+	// A notification toast fully covered by a modal must be reported as the
+	// dialog, not the notification, so callers don't treat a hidden toast as
+	// the active obscuring overlay.
+	test('reports the dialog, not a notification covered by it', () => {
+		const browserContainer = addElement('browser-container', {
+			position: 'absolute', left: '0px', top: '0px', width: '300px', height: '300px'
+		});
+		addElement('notification-toast-container', {
+			position: 'fixed', left: '0px', top: '0px', width: '200px', height: '200px', zIndex: '2000'
+		});
+		addElement('monaco-modal-editor-block', {
+			position: 'fixed', left: '0px', top: '0px', width: '400px', height: '400px', zIndex: '2540'
+		});
+
+		const overlays = manager.getOverlappingOverlays(browserContainer);
+
 		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
 	});
 });
