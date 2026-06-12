@@ -26,6 +26,7 @@ const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore')
 const allowedJavaScriptFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-javascript-files'), 'utf8')
 	.toString()
 	.split(/\r\n|\n/)
+	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
 export default defineConfig(
@@ -1545,6 +1546,7 @@ export default defineConfig(
 						'ssh2',
 						'stream',
 						'string_decoder',
+						'tar',
 						'tas-client',
 						'tls',
 						'undici',
