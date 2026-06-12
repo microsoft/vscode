@@ -601,6 +601,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	async computeUncommittedChangeset(session: ProtocolURI): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
+		if (!this._hasUncommittedSubscribers(session)) {
+			return uncommittedUri;
+		}
+
 		const statusBeforeCompute = this._stateManager.getChangesetState(uncommittedUri)?.status;
 		if (statusBeforeCompute !== ChangesetStatus.Computing) {
 			this._stateManager.dispatchServerAction(uncommittedUri, {
@@ -706,7 +710,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// debounces first so the final turn-complete computes supersede
 		// them. After that, schedule the final recomputes for the turn
 		// (when observed), the session-wide changeset with the changed
-		// turn id, and the uncommitted changeset with no turn id.
+		// turn id, and the uncommitted changeset when it is observed.
 		this._cancelDebouncedDiffComputation(session);
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
@@ -714,14 +718,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._scheduleTurnRecompute(session, turnId);
 			}
 		}
-		this._scheduleStaticRecompute(session, 'session', turnId);
+
 		if (this._hasUncommittedSubscribers(session)) {
-			void this.computeUncommittedChangeset(session);
+			this._scheduleUncommittedRecompute(session);
 		}
+
+		this._scheduleStaticRecompute(session, 'branch', turnId);
+		this._scheduleStaticRecompute(session, 'session', turnId);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
+		this._scheduleStaticRecompute(session, 'branch');
 		this._scheduleStaticRecompute(session, 'session');
 	}
 
@@ -736,6 +744,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
 		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedDiffTimers.deleteAndDispose(session);
+			this._scheduleStaticRecompute(session, 'branch', turnId);
 			this._scheduleStaticRecompute(session, 'session', turnId);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
@@ -780,6 +789,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 */
 	private _scheduleTurnRecompute(session: ProtocolURI, turnId: string): void {
 		this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this.computeTurnChangeset(session, turnId).then(() => undefined));
+	}
+
+	private _scheduleUncommittedRecompute(session: ProtocolURI): void {
+		this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this.computeUncommittedChangeset(session).then(() => undefined));
 	}
 
 	/**

@@ -88,7 +88,6 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * once restore / materialization has populated the session summary.
 	 */
 	private readonly _pendingSessionRefreshes = new Set<string>();
-
 	/**
 	 * Per-session set of turn ids that have at least one live subscriber to
 	 * `<sessionUri>/changeset/turn/<turnId>`. Drives the per-turn recompute
@@ -214,6 +213,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._pendingBranchRefreshes.delete(sessionStr);
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._pendingSessionRefreshes.delete(sessionStr);
+		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
 		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
@@ -272,10 +272,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// observing the session). Refresh both static changesets so
 			// the catalogue chip doesn't show a stale value just because
 			// no turn has run since process start, no one ever subscribed
-			// to the changeset URIs directly, and the user has been
-			// editing files manually in the working tree.
+			// to the session / branch changeset URIs directly, and the user
+			// has been editing files manually in the working tree.
 			this._triggerBranchRefresh(resourceStr);
-			this._triggerUncommittedRefresh(resourceStr);
 			this._triggerSessionRefresh(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 		}

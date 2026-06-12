@@ -28,12 +28,12 @@ function createSession(providerId: string): ISession {
  */
 function createProvidersService(providerId: string, opts: {
 	models: readonly ILanguageModelChatMetadataAndIdentifier[];
-	autoModelUnavailable?: boolean;
+	showAutoModel?: boolean;
 }): ISessionsProvidersService {
 	const provider = {
 		id: providerId,
 		getModels: () => opts.models,
-		getModelPickerOptions: (): ISessionModelPickerOptions => ({ ...DEFAULT_OPTIONS, autoModelUnavailable: opts.autoModelUnavailable }),
+		getModelPickerOptions: (): ISessionModelPickerOptions => ({ ...DEFAULT_OPTIONS, showAutoModel: opts.showAutoModel }),
 	} as unknown as ISessionsProvider;
 	return {
 		getProvider: (id: string) => (id === providerId ? provider : undefined),
@@ -52,17 +52,17 @@ suite('sessionHasNoSelectableModel', () => {
 	});
 
 	test('returns false when models are available', () => {
-		const service = createProvidersService('p', { models: [aModel], autoModelUnavailable: true });
+		const service = createProvidersService('p', { models: [aModel], showAutoModel: false });
 		assert.strictEqual(sessionHasNoSelectableModel(createSession('p'), service), false);
 	});
 
 	test('returns true when empty and Auto is unavailable', () => {
-		const service = createProvidersService('p', { models: [], autoModelUnavailable: true });
+		const service = createProvidersService('p', { models: [], showAutoModel: false });
 		assert.strictEqual(sessionHasNoSelectableModel(createSession('p'), service), true);
 	});
 
 	test('returns false when empty but Auto is available (fallback)', () => {
-		const service = createProvidersService('p', { models: [], autoModelUnavailable: false });
+		const service = createProvidersService('p', { models: [], showAutoModel: true });
 		assert.strictEqual(sessionHasNoSelectableModel(createSession('p'), service), false);
 	});
 });

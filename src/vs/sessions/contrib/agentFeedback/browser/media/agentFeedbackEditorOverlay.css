@@ -20,7 +20,7 @@
 
 .agent-feedback-editor-overlay-widget .action-item > .action-label {
 	padding: 4px 6px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 14px;
 	border-radius: var(--vscode-cornerRadius-small);
 }

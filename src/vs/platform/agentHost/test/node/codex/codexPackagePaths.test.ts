@@ -14,7 +14,7 @@ suite('codex package paths', () => {
 	suite('codexPackageSuffix', () => {
 
 		test('every supported (platform, arch) returns the npm optionalDependencies suffix', () => {
-			// The downloader and the build pipeline both rely on the runtime
+			// The build pipeline and codexBinaryTriple both rely on the runtime
 			// reaching exactly one of these strings. New supported platforms
 			// must update this table, the build's `getSdkTargetForBuild`, AND
 			// codexBinaryTriple in lockstep.

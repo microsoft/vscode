@@ -147,11 +147,23 @@ export class AgentsWindow {
 		for (let attempt = 1; attempt <= maxClickAttempts; attempt++) {
 			await this.code.waitAndClick(SEND_BUTTON_ENABLED);
 			// Verify the new-session view disappeared (confirms send took effect).
+			// Use a generous budget here because on slow dev machines / busy CI the
+			// transition can take well over 3 seconds and we don't want to fall
+			// through to a retry that then waits 20s for a send button that has
+			// since been torn down by the (actually successful) first click.
 			try {
-				await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 30 /* ~3 seconds */);
+				await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, 150 /* ~15 seconds */);
 				return; // View gone — send succeeded
 			} catch {
-				// View still present — click may not have fired; retry
+				// View still present — click may not have fired. Only retry if the
+				// send button is still around; if it's gone, the click did take
+				// effect and the view transition is merely lagging behind.
+				const sendButtonGone = await this.code
+					.waitForElement(SEND_BUTTON_ENABLED, result => !result, 1)
+					.then(() => true, () => false);
+				if (sendButtonGone) {
+					return;
+				}
 				if (attempt < maxClickAttempts) {
 					await new Promise(r => setTimeout(r, 1000));
 				}

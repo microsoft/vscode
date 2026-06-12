@@ -562,6 +562,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const deps = (await Promise.all([
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
+			glob('**/tgrep.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));

@@ -32,8 +32,10 @@ const MAX_CONCURRENT_TUNNEL_CONNECTS = 6;
 
 /**
  * A function that opens a TCP tunnel to a given host:port through the
- * remote agent. Returns an object with `getSocket()`, `readEntireBuffer()`,
- * and `dispose()` — a subset of {@link import('../../base/parts/ipc/common/ipc.net.js').PersistentProtocol}.
+ * remote agent. Resolves only once the remote has confirmed the target is
+ * reachable (via the tunnel handshake) and rejects otherwise. Returns an
+ * object with `getSocket()`, `readEntireBuffer()`, and `dispose()` — a
+ * subset of {@link import('../../base/parts/ipc/common/ipc.net.js').PersistentProtocol}.
  */
 export interface ITunnelConnectFn {
 	(host: string, port: number): Promise<{ getSocket(): ISocket; readEntireBuffer(): VSBuffer; dispose(): void }>;
@@ -374,21 +376,20 @@ export class TunnelProxy extends Disposable {
 
 			proxyReq.on('error', err => {
 				this._logService.error(`[TunnelProxy] Proxy request error for ${host}:${port}:`, err);
-				if (!res.headersSent) {
-					res.writeHead(502);
-					res.end();
-				} else {
-					res.destroy();
-				}
+				// Reset the client connection instead of returning a 502 body.
+				// Chromium renders a 502 body as a page, whereas a transport
+				// reset triggers `did-fail-load`, so the browser shows its
+				// native "failed to load" error page (consistent with the
+				// HTTPS/CONNECT path).
+				res.destroy();
 			});
 
 			req.pipe(proxyReq);
 		} catch (err) {
 			this._logService.error(`[TunnelProxy] Failed to tunnel to ${host}:${port}:`, err);
-			if (!res.headersSent) {
-				res.writeHead(502);
-			}
-			res.end();
+			// Reset the client connection so the browser shows its native
+			// "failed to load" page rather than rendering an HTTP error.
+			res.destroy();
 		}
 	}
 
@@ -398,6 +399,11 @@ export class TunnelProxy extends Disposable {
 	 * to a given host:port (i.e. no pooled socket is available).
 	 */
 	private async _createTunnelSocket(host: string, port: number): Promise<net.Socket> {
+		// The connect function resolves only once the remote has confirmed the
+		// target is reachable (via the tunnel handshake) and rejects otherwise.
+		// A rejection here lets the http.Agent fail the request (the client
+		// connection is reset) rather than hanging or silently returning
+		// nothing.
 		const protocol = await this._connectLimiter.queue(() => this._connectTunnel(host, port));
 		const tunnelStream = this._getRemoteNetSocket(protocol);
 		const dataChunk = protocol.readEntireBuffer();
@@ -406,7 +412,7 @@ export class TunnelProxy extends Disposable {
 		this._trackRemoteSocket(tunnelStream);
 
 		if (dataChunk.byteLength > 0) {
-			tunnelStream.unshift(Buffer.from(dataChunk.buffer));
+			tunnelStream.unshift(dataChunk.buffer);
 		}
 
 		return tunnelStream;

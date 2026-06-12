@@ -202,7 +202,7 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	border: 1px solid transparent;
+	border: var(--vscode-strokeThickness) solid transparent;
 	background: transparent;
 	color: var(--vscode-foreground, #cccccc);
 	display: inline-flex;
@@ -235,15 +235,15 @@
 	color: var(--vscode-icon-foreground, var(--vscode-foreground, #cccccc));
 }
 .agents-aquarium-toggle .codicon {
-	font-size: 14px;
+	font-size: var(--vscode-codiconFontSize);
 }
 
 /* Off-state icon: the agents window logo (same asset as the mobile chat
  * shell's workspace picker). Theme-swapped under `.vs` / `.hc-light`. */
 .agents-aquarium-toggle-logo {
 	display: inline-block;
-	width: 14px;
-	height: 14px;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
 	background: url('../../../../browser/media/sessions-logo-light.svg') center / contain no-repeat;
 	transform-origin: 50% 50%;
 	/* Brief attention-grabbing wiggle every 12s. Keyframes hold the rest

@@ -22,6 +22,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { IExtensionContribution } from '../../common/contributions';
 import { unificationStateObservable } from '../../completions/vscode-node/completionsUnificationContribution';
 import { TelemetrySender } from '../node/nextEditProviderTelemetry';
+import { ContinuousEnhancedTelemetrySender } from '../node/continuousEnhancedTelemetrySender';
 import { ExpectedEditCaptureController } from './components/expectedEditCaptureController';
 import { InlineEditDebugComponent, reportFeedbackCommandId } from './components/inlineEditDebugComponent';
 import { LogContextRecorder } from './components/logContextRecorder';
@@ -141,6 +142,12 @@ export class InlineEditProviderFeature {
 			const inlineEditDebugComponent = reader.store.add(new InlineEditDebugComponent(this._internalActionsEnabled, this.inlineEditsEnabled, model.debugRecorder, this._inlineEditsProviderId));
 
 			const telemetrySender = reader.store.add(this._instantiationService.createInstance(TelemetrySender, workspace));
+
+			reader.store.add(this._instantiationService.createInstance(
+				ContinuousEnhancedTelemetrySender,
+				model.debugRecorder,
+				workspace,
+			));
 
 			// Create the expected edit capture controller
 			const expectedEditCaptureController = reader.store.add(this._instantiationService.createInstance(

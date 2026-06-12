@@ -51,11 +51,11 @@ function getModelPickerOptionsForSession(session: ISession | undefined, sessions
 /**
  * Whether the session cannot currently produce a request because it has no
  * selectable model and cannot fall back to Auto (its provider reports
- * {@link ISessionModelPickerOptions.autoModelUnavailable}). Used to disable
- * sending — e.g. the Claude agent for a Copilot Free / Student user shows
- * "No models available" and must not send. Not reactive on its own; callers
- * should re-evaluate when the session provider's {@link ISessionsProvider.onDidChangeModels}
- * fires.
+ * {@link ISessionModelPickerOptions.showAutoModel} as `false`). Used to
+ * disable sending — e.g. the Claude agent for a Copilot Free / Student user
+ * shows "No models available" and must not send. Not reactive on its own;
+ * callers should re-evaluate when the session provider's
+ * {@link ISessionsProvider.onDidChangeModels} fires.
  */
 export function sessionHasNoSelectableModel(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): boolean {
 	if (!session) {
@@ -64,7 +64,7 @@ export function sessionHasNoSelectableModel(session: ISession | undefined, sessi
 	if (getModelsForSession(session, sessionsProvidersService).length > 0) {
 		return false;
 	}
-	return !!getModelPickerOptionsForSession(session, sessionsProvidersService).autoModelUnavailable;
+	return !getModelPickerOptionsForSession(session, sessionsProvidersService).showAutoModel;
 }
 
 const DEFAULT_MODEL_PICKER_OPTIONS: ISessionModelPickerOptions = {
@@ -136,7 +136,7 @@ export class ModelPicker extends Disposable {
 			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
-			autoModelUnavailable: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).autoModelUnavailable,
+			showAutoModel: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showAutoModel,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -271,7 +271,7 @@ export class ModelPicker extends Disposable {
 		if (getModelsForSession(session, this._sessionsProvidersService).length > 0) {
 			return true;
 		}
-		return !!getModelPickerOptionsForSession(session, this._sessionsProvidersService).autoModelUnavailable;
+		return !getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel;
 	}
 
 	private _updateVisibility(visible: boolean): void {

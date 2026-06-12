@@ -507,6 +507,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const deps = (await Promise.all([
 			promisify(glob)('**/*.node', { cwd }),
 			promisify(glob)('**/rg.exe', { cwd }),
+			promisify(glob)('**/tgrep.exe', { cwd }),
 		])).flatMap(o => o);
 		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
 		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));

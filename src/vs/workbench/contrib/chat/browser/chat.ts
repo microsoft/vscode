@@ -335,6 +335,7 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	preserveFocus?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {

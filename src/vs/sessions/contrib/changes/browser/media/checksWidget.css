@@ -27,15 +27,15 @@
 }
 
 .ci-status-widget-header:hover {
-	padding-right: 26px;
+	padding-right: 28px;
 }
 
 .ci-status-widget-header:focus-visible {
-	padding-right: 26px;
+	padding-right: 28px;
 }
 
 .ci-status-widget-header.collapsed {
-	padding-right: 26px;
+	padding-right: 28px;
 }
 
 /* Hover/keyboard focus promote the title to the strong foreground instead of
@@ -114,7 +114,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 1;
 }
 
