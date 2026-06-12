@@ -38,9 +38,12 @@ export interface IManagedSettingsResponse {
 /**
  * Adapt the `managed_settings` API response into the `managedSettings` slice of
  * {@link IPolicyData} that the policy framework consumes. This is the single
- * server-side normalizer: it produces the SAME canonical, declaration-driven
- * `managedSettings` bag that native MDM delivery produces, so policy `value()`
- * callbacks behave identically regardless of source.
+ * server-side normalizer: it encodes the response into the SAME canonical
+ * `managedSettings` shape an admin authors via native MDM, so downstream
+ * projection and policy `value()` callbacks behave identically regardless of
+ * source. It does not itself enforce the declared `managedSettings` schema —
+ * dropping undeclared or type-mismatched keys happens later, at the
+ * `projectManagedSettings` step.
  *
  * - Scalar leaves (`permissions.*`, `strictKnownMarketplaces`, and any
  *   forward-compatible scalar keys) are flattened into dot-separated keys.

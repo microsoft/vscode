@@ -248,7 +248,13 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 }
 
 function hasManagedSettingsPolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): boolean {
-	return Object.keys(collectManagedSettingsDefinitions(policyDefinitions)).length > 0;
+	for (const policyName in policyDefinitions) {
+		const policyManagedSettings = policyDefinitions[policyName].managedSettings;
+		if (policyManagedSettings && Object.keys(policyManagedSettings).length > 0) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function parseApprovedOrganizations(raw: PolicyValue | undefined): string[] {
