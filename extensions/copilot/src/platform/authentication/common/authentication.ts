@@ -311,8 +311,12 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 	}
 
 	resetCopilotToken(httpError?: number): void {
+		const hadToken = !!this._tokenStore.copilotToken;
 		this._tokenStore.copilotToken = undefined;
 		this._tokenManager.resetCopilotToken(httpError);
+		if (hadToken) {
+			this.fireCopilotTokenChange('resetCopilotToken');
+		}
 	}
 
 	//#endregion
