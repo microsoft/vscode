@@ -7,6 +7,8 @@ settings:
 overrides:
   path-scurry>lru-cache: 11.2.1
   yauzl: ^3.3.1
+  glob: ^7.2.3
+  '@vscode/vsce>glob': ^11.0.0
 
 importers:
 
