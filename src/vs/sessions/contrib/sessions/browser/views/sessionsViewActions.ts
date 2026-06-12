@@ -30,8 +30,8 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ActiveSessionContextKeys } from '../../../changes/common/changes.js';
 import { hasActiveSessionFailedCIChecks } from '../../../changes/browser/checksActions.js';
-import { ISessionsPartService } from '../../../../browser/parts/sessionsPartService.js';
-import { ISessionsViewService } from '../../../../browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsViewService } from '../../../../services/sessions/browser/sessionsViewService.js';
 
 //  Constants
 
@@ -117,16 +117,17 @@ CommandsRegistry.registerCommand({
 	handler: openSessionAtIndex
 });
 
-// Ctrl/Cmd+1..8 open the Nth session, Ctrl/Cmd+9 opens the last session
+// Open Nth session from the list. Windows/Linux: Alt+1..9 (Ctrl+1..9 is reserved
+// for focusing sessions in the grid). macOS: Ctrl+1..9 (WinCtrl) — the grid uses
+// Cmd+1..9 there, so Ctrl is free and avoids Option+digit typing symbols.
+// 1..8 open that session; 9 opens the last session.
 for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 	const sessionIndex = visibleIndex === 9 ? -1 : visibleIndex - 1;
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_SESSION_AT_INDEX_COMMAND_ID + visibleIndex,
-		// Higher than WorkbenchContrib to override `workbench.action.openEditorAtIndexN` (Ctrl+N on macOS)
 		weight: KeybindingWeight.WorkbenchContrib + 1,
 		when: IsSessionsWindowContext,
-		// Always use Ctrl (not Cmd on macOS) to avoid conflicting with Cmd+N view focus shortcuts
-		primary: KeyMod.CtrlCmd | digitToKeyCode(visibleIndex),
+		primary: KeyMod.Alt | digitToKeyCode(visibleIndex),
 		mac: { primary: KeyMod.WinCtrl | digitToKeyCode(visibleIndex) },
 		handler: accessor => openSessionAtIndex(accessor, sessionIndex)
 	});
@@ -767,11 +768,6 @@ registerAction2(class RenameSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemContextMenuId,
 				group: '1_edit',
-				order: 1,
-				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-			}, {
-				id: Menus.SessionHeaderContext,
-				group: '2_edit',
 				order: 1,
 				when: ContextKeyExpr.regex(ChatSessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}]

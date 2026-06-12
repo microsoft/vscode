@@ -13,7 +13,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { isWeb } from '../../../../base/common/platform.js';
@@ -21,23 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
-export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
-
-/**
- * Persist a preferred session type into the picker's stored preference.
- * Owned by this module so callers don't depend on the wire format.
- */
-export function writeStoredSessionTypePref(
-	storageService: IStorageService,
-	pick: { readonly providerId?: string; readonly sessionTypeId: string },
-): void {
-	storageService.store(
-		STORAGE_KEY_LAST_SESSION_TYPE,
-		JSON.stringify({ providerId: pick.providerId, sessionTypeId: pick.sessionTypeId }),
-		StorageScope.PROFILE,
-		StorageTarget.USER,
-	);
-}
+const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 /**
  * A picked session type, paired with the provider that serves it. Two
@@ -97,6 +81,7 @@ export class SessionTypePicker extends Disposable {
 	protected _triggerElement: HTMLElement | undefined;
 
 	constructor(
+		private readonly _session: IObservable<ISession | undefined>,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -128,22 +113,13 @@ export class SessionTypePicker extends Disposable {
 		};
 
 		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			refresh(session);
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
 		// (e.g. a remote agent host discovers a new agent).
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			refresh(this.sessionsManagementService.activeSession.get());
-		}));
-		// Re-read when the stored preference changes (e.g. handoff IPC from
-		// the main vscode window pre-seeds Copilot CLI when opening
-		// the agents window from an empty workspace).
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
-			if (!this.sessionsManagementService.activeSession.get()) {
-				this._picked = this._readStoredPick();
-				this._updateTriggerLabel();
-			}
+			refresh(this._session.get());
 		}));
 	}
 
@@ -195,7 +171,7 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			return;
 		}

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { EMPTY_TREE_OBJECT, formatGitError, getBranchCompletions, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { EMPTY_TREE_OBJECT, formatGitError, getBranchCompletions, parseChangedPaths, parseDefaultBranchRef, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -166,6 +166,51 @@ suite('AgentHostGitService', () => {
 			// must be skipped.
 			const out = '?? new.txt\x00 M edited.txt\x00R  to.txt\x00from.txt\x00?? other.txt\x00';
 			assert.deepStrictEqual(parseUntrackedPaths(out), ['new.txt', 'other.txt']);
+		});
+	});
+
+	suite('parseChangedPaths', () => {
+		test('returns every changed path including delete and index rename/copy sources', () => {
+			const out = [
+				' M modified.txt',
+				'A  added.txt',
+				' D deleted.txt',
+				'?? untracked.txt',
+				'R  renamed-new.txt',
+				'renamed-old.txt',
+				' C copied-new.txt',
+				'copied-old.txt',
+				' M modified.txt',
+				'',
+			].join('\x00');
+
+			assert.deepStrictEqual(parseChangedPaths(out), [
+				'modified.txt',
+				'added.txt',
+				'deleted.txt',
+				'untracked.txt',
+				'renamed-new.txt',
+				'renamed-old.txt',
+				'copied-new.txt',
+				'copied-old.txt',
+			]);
+		});
+
+		test('returns worktree rename/copy source paths too', () => {
+			const out = [
+				' R worktree-renamed-new.txt',
+				'worktree-renamed-old.txt',
+				' C worktree-copied-new.txt',
+				'worktree-copied-old.txt',
+				'',
+			].join('\x00');
+
+			assert.deepStrictEqual(parseChangedPaths(out), [
+				'worktree-renamed-new.txt',
+				'worktree-renamed-old.txt',
+				'worktree-copied-new.txt',
+				'worktree-copied-old.txt',
+			]);
 		});
 	});
 
@@ -344,4 +389,3 @@ suite('AgentHostGitService', () => {
 		});
 	});
 });
-

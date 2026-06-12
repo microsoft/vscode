@@ -57,7 +57,7 @@ import { ChatTelemetry, ChatTelemetryBuilder } from './chatParticipantTelemetry'
 import { IntentInvocationMetadata } from './conversation';
 import { IDocumentContext } from './documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation, IResponseProcessor, TelemetryData } from './intents';
-import { ConversationalBaseTelemetryData, createTelemetryWithId, sendModelMessageTelemetry } from './telemetry';
+import { ConversationalBaseTelemetryData, createTelemetryWithId, getModeNameForTelemetry, sendModelMessageTelemetry } from './telemetry';
 
 export interface IDefaultIntentRequestHandlerOptions {
 	maxToolCallIterations: number;
@@ -454,16 +454,16 @@ export class DefaultIntentRequestHandler {
 			requestId,
 			this.documentContext?.document,
 			baseModelTelemetry,
-			this.getModeNameForTelemetry()
+			this.resolveModeNameForTelemetry()
 		);
 
 		return chatResult;
 	}
 
-	private getModeNameForTelemetry(): string {
-		const modeInstructionsName = this.request.modeInstructions2?.name?.toLowerCase();
-		if (modeInstructionsName) {
-			return this.request.modeInstructions2?.isBuiltin ? this.request.modeInstructions2.name.toLowerCase() : 'custom';
+	private resolveModeNameForTelemetry(): string {
+		const modeName = getModeNameForTelemetry(this.request.modeInstructions2);
+		if (modeName !== undefined) {
+			return modeName;
 		}
 
 		if (this.intent.id === 'editAgent') {

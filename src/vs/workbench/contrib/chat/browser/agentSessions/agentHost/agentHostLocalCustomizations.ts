@@ -12,8 +12,11 @@ import { AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE } from '
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { isContributionEnabled } from '../../../common/enablement.js';
 import type { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { isDefined } from '../../../../../../base/common/types.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -128,6 +131,7 @@ export async function enumerateLocalCustomizationsForHarness(
  * remaining loose files are bundled into a synthetic Open Plugin.
  */
 export async function resolveCustomizationRefs(
+	fileService: IFileService,
 	promptsService: IPromptsService,
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
@@ -136,13 +140,34 @@ export async function resolveCustomizationRefs(
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
 	const enabled = enumerated.filter(e => !e.disabled);
-	if (enabled.length === 0) {
-		return [];
-	}
 
 	const plugins = agentPluginService.plugins.get();
-	const pluginRefs = new Map<string, ClientPluginCustomization>();
+	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
 	const looseFiles: { uri: URI; type: PromptsType }[] = [];
+
+	const addPluginRef = (plugin: IAgentPlugin) => {
+		const key = plugin.uri.toString();
+		if (!pluginRefs.has(key)) {
+			const promise = (async (): Promise<ClientPluginCustomization> => {
+				let nonce: number | undefined;
+				try {
+					nonce = (await fileService.stat(plugin.uri)).mtime;
+				} catch {
+					// ignored, sync will probably fail later though...
+				}
+
+				return {
+					type: CustomizationType.Plugin,
+					id: customizationId(key),
+					uri: key as ProtocolURI,
+					name: plugin.label,
+					nonce: nonce?.toString(16),
+					enabled: true,
+				};
+			})();
+			pluginRefs.set(key, promise);
+		}
+	};
 
 	for (const entry of enabled) {
 		if (entry.source === AICustomizationSources.plugin) {
@@ -153,27 +178,34 @@ export async function resolveCustomizationRefs(
 			if (syncProvider.isDisabled(plugin.uri)) {
 				continue;
 			}
-			const key = plugin.uri.toString();
-			if (!pluginRefs.has(key)) {
-				pluginRefs.set(key, {
-					type: CustomizationType.Plugin,
-					id: customizationId(key),
-					uri: key as ProtocolURI,
-					name: plugin.label,
-					enabled: true,
-				});
-			}
+			addPluginRef(plugin);
 		} else {
 			looseFiles.push({ uri: entry.uri, type: entry.type });
 		}
 	}
 
-	const refs: ClientPluginCustomization[] = [...pluginRefs.values()];
-	if (looseFiles.length > 0) {
-		const result = await bundler.bundle(looseFiles);
-		if (result) {
-			refs.push(result.ref);
+	// Plugins that only contribute MCP servers have no prompt files, so they
+	// are never surfaced by enumeration above. Include them explicitly so
+	// their servers are still synced to the harness.
+	for (const plugin of plugins) {
+		if (pluginRefs.has(plugin.uri.toString())) {
+			continue;
 		}
+		if (syncProvider.isDisabled(plugin.uri)) {
+			continue;
+		}
+		if (!isContributionEnabled(plugin.enablement.get())) {
+			continue;
+		}
+		if (plugin.mcpServerDefinitions.get().length === 0) {
+			continue;
+		}
+		addPluginRef(plugin);
 	}
-	return refs;
+
+	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
+	if (looseFiles.length > 0) {
+		refs.push(bundler.bundle(looseFiles).then(r => r?.ref));
+	}
+	return await Promise.all(refs).then(r => r.filter(isDefined));
 }
