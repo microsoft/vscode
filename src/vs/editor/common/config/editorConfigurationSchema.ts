@@ -76,6 +76,12 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document and from which documents they are computed."),
 			experiment: { mode: 'auto' },
 		},
+		'editor.gotoLine.autoReveal': {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.WINDOW,
+			markdownDescription: nls.localize('editor.gotoLine.autoReveal', "Controls whether the Go to Line/Column picker automatically reveals the target location while typing."),
+		},
 		'editor.semanticHighlighting.enabled': {
 			enum: [true, false, 'configuredByTheme'],
 			enumDescriptions: [
