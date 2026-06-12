@@ -248,8 +248,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		const elementRect = getDomNodePagePosition(element);
 		const overlappingOverlays: IBrowserOverlayInfo[] = [];
 
+		// Materialize once so the z-index check can test whether the topmost
+		// element belongs to *any* overlay, not just the current one. Stacked
+		// overlays (e.g. a dropdown over a modal) would otherwise cancel each
+		// other out, leaving the browser wrongly reported as unobscured.
+		const overlays = Array.from(this.overlays());
+
 		// Check against all precomputed overlay rectangles
-		for (const overlay of this.overlays()) {
+		for (const overlay of overlays) {
 			// Skip overlays that are ancestors of the target element,
 			// e.g., the modal editor backdrop when the browser is inside the modal
 			if (overlay.element.contains(element)) {
@@ -258,16 +264,16 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			const overlayRect = this.getRect(overlay.element);
 			const overlapCenter = getOverlappingRectangleCenterPoint(elementRect, overlayRect);
 			if (overlapCenter) {
-				// z-index check. If the overlay isn't the topmost element, ignore it
-				// (the overlay either doesn't cover the element, or is also covered by another overlay).
+				// z-index check: ignore this overlay unless the topmost element
+				// at the sample point belongs to some overlay.
 				const clientX = overlapCenter.x - this.targetWindow.scrollX;
 				const clientY = overlapCenter.y - this.targetWindow.scrollY;
 				let elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
 				// Account for shadow roots
-				if (elementAtPoint?.shadowRoot && !overlay.element.contains(elementAtPoint)) {
+				if (elementAtPoint?.shadowRoot && !isElementInAnyOverlay(elementAtPoint, overlays)) {
 					elementAtPoint = elementAtPoint.shadowRoot.elementFromPoint(clientX, clientY);
 				}
-				if (elementAtPoint && overlay.element.contains(elementAtPoint)) {
+				if (elementAtPoint && isElementInAnyOverlay(elementAtPoint, overlays)) {
 					overlappingOverlays.push({
 						type: overlay.type,
 						rect: overlayRect
@@ -306,6 +312,10 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 		super.dispose();
 	}
+}
+
+function isElementInAnyOverlay(elementAtPoint: Element, overlays: ReadonlyArray<{ element: HTMLElement; type: BrowserOverlayType }>): boolean {
+	return overlays.some(overlay => overlay.element.contains(elementAtPoint));
 }
 
 function getOverlappingRectangleCenterPoint(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): { x: number; y: number } | null {
