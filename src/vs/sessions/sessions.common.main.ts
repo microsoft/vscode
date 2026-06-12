@@ -211,9 +211,6 @@ import '../workbench/contrib/preferences/browser/preferencesSearch.js';
 // Performance
 import '../workbench/contrib/performance/browser/performance.contribution.js';
 
-// Style Overrides (experimental)
-import '../workbench/contrib/styleOverrides/browser/styleOverrides.contribution.js';
-
 // Notebook
 import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 
