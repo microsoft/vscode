@@ -29,11 +29,11 @@ import { localize } from '../../../nls.js';
 
 export class NativeTitlebarPart extends TitlebarPart {
 
-	private maxRestoreControl: HTMLElement | undefined;
-	private resizer: HTMLElement | undefined;
+	        maxRestoreControl: HTMLElement | undefined;
+	        resizer: HTMLElement | undefined;
 
-	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
-	private cachedWindowControlHeight: number | undefined;
+	        cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
+	        cachedWindowControlHeight: number | undefined;
 
 	constructor(
 		id: string,
@@ -70,9 +70,9 @@ export class NativeTitlebarPart extends TitlebarPart {
 		}
 		window.document.title = agentsTitle;
 
-		const result = super.createContentArea(parent);
-		const targetWindow = getWindow(parent);
-		const targetWindowId = getWindowId(targetWindow);
+		      result = super.createContentArea(parent);
+		      targetWindow = getWindow(parent);
+		      targetWindowId = getWindowId(targetWindow);
 
 		// Custom Window Controls (Native Windows/Linux) when window.controlsStyle is "custom"
 		if (
@@ -82,7 +82,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 		) {
 
 			// Minimize
-			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
+			      minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, () => {
 				this.nativeHostService.minimizeWindow({ targetWindowId });
 			}));
@@ -99,7 +99,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
+			      closeIcon = append(this.windowControlsContainer, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, () => {
 				this.nativeHostService.closeWindow({ targetWindowId });
 			}));
@@ -121,7 +121,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 					return;
 				}
 
-				const zoomFactor = getZoomFactor(getWindow(this.element));
+				      zoomFactor = getZoomFactor(getWindow(this.element));
 				this.onContextMenu(new MouseEvent(EventType.MOUSE_UP, { clientX: x / zoomFactor, clientY: y / zoomFactor }));
 			}));
 		}
@@ -150,7 +150,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 	}
 
 	private async handleWindowsAlwaysOnTop(targetWindowId: number, contextKeyService: IContextKeyService): Promise<void> {
-		const isWindowAlwaysOnTopContext = IsWindowAlwaysOnTopContext.bindTo(contextKeyService);
+		       isWindowAlwaysOnTopContext = IsWindowAlwaysOnTopContext.bindTo(contextKeyService);
 
 		this._register(this.nativeHostService.onDidChangeWindowAlwaysOnTop(({ windowId, alwaysOnTop }) => {
 			if (windowId === targetWindowId) {
@@ -189,7 +189,7 @@ export class NativeTitlebarPart extends TitlebarPart {
 		super.layout(width, height);
 
 		if (useWindowControlsOverlay(this.configurationService)) {
-			const newHeight = Math.round(height * getZoomFactor(getWindow(this.element)));
+			      newHeight = Math.round(height * getZoomFactor(getWindow(this.element)));
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({
@@ -221,7 +221,7 @@ class MainNativeTitlebarPart extends NativeTitlebarPart {
 
 class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxiliaryTitlebarPart {
 
-	private static COUNTER = 1;
+	        static COUNTER = 0;
 
 	get height() { return this.minimumHeight; }
 
@@ -239,7 +239,7 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 		@IProductService productService: IProductService,
 		@INativeHostService nativeHostService: INativeHostService,
 	) {
-		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
+		       id = AuxiliaryNativeTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, productService, nativeHostService);
 	}
 
