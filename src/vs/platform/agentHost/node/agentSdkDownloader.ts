@@ -11,6 +11,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import * as path from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
+import { detectLibc, type LibcFamily } from '../../../base/node/libc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { FileOperationError, FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -24,9 +25,10 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
 /**
  * One agent-SDK package the downloader can fetch. Holds the per-package
  * knowledge that varies between Claude, Codex, and any future provider —
- * the package id, the env var that acts as a dev override, and the
- * `(platform, arch, libc) → sdkTarget` mapping (which differs by SDK:
- * Claude has separate `linux-*-musl` SKUs, Codex doesn't).
+ * the package id, the env var that acts as a dev override, and one
+ * boolean covering the only mapping detail that differs between SDKs
+ * today (Claude has separate `linux-*-musl` SKUs; Codex's Linux binary
+ * is statically musl-linked and ships as a single `linux-*` SKU).
  *
  * The downloader itself is package-agnostic: it consumes this interface and
  * never branches on `id`. Concrete `IAgentSdkPackage` instances live in
@@ -37,10 +39,10 @@ import { IRequestContext } from '../../../base/parts/request/common/request.js';
  * serves.
  *
  * Each shipped `product.json` carries one `{version, urlTemplate}` per
- * SDK. The downloader substitutes `{sdkTarget}` (from
- * `currentSdkTarget()`) into the template to get the per-target tarball
- * URL. This shape supports macOS Universal builds, where the same
- * `product.json` is shared by arm64 and x64 launches.
+ * SDK. The downloader substitutes `{sdkTarget}` (resolved via
+ * `resolveSdkTarget(pkg)`) into the template to get the per-target
+ * tarball URL. This shape supports macOS Universal builds, where the
+ * same `product.json` is shared by arm64 and x64 launches.
  */
 export interface IAgentSdkPackage {
 	/** Key under `product.agentSdks` — e.g. `'claude'`, `'codex'`. */
@@ -48,14 +50,54 @@ export interface IAgentSdkPackage {
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */
 	readonly devOverrideEnvVar: string;
 	/**
-	 * Resolves the build's `sdkTarget` suffix for the current host:
-	 *   - claude: `'darwin-arm64'`, `'linux-x64'`, `'linux-x64-musl'`, …
-	 *   - codex:  `'darwin-arm64'`, `'linux-x64'`, …  (no musl SKU)
-	 * Returns `undefined` when no SDK applies (`armhf`, browser, …);
-	 * the downloader treats that the same as "no product config" and
-	 * never registers the provider.
+	 * True iff this SDK publishes separate `linux-{x64,arm64}-musl`
+	 * packages alongside the glibc default. Claude does; Codex doesn't
+	 * (its Linux binary is statically musl-linked and runs on both).
 	 */
-	currentSdkTarget(): string | undefined;
+	readonly hasSeparateMuslLinuxPackage: boolean;
+}
+
+/**
+ * Per-host info used by `resolveSdkTarget`. Defaulted from the running
+ * process; tests inject synthetic values to exercise targets the test
+ * host doesn't actually run on (Universal-launch case, musl, etc.).
+ */
+export interface ISdkTargetHost {
+	readonly platform: NodeJS.Platform;
+	readonly arch: string;
+	readonly libc: LibcFamily | undefined;
+}
+
+const SUPPORTED_PLATFORMS = new Set<NodeJS.Platform>(['linux', 'darwin', 'win32']);
+const SUPPORTED_ARCHES = new Set<string>(['x64', 'arm64']);
+
+/**
+ * Resolves the build's `sdkTarget` suffix for the current host:
+ *   - claude on glibc Linux: `linux-x64` / `linux-arm64`
+ *   - claude on musl Linux:  `linux-x64-musl` / `linux-arm64-musl`
+ *   - codex Linux (any libc): `linux-x64` / `linux-arm64`
+ *   - everywhere else:       `<platform>-<arch>`
+ *
+ * Returns `undefined` when no SDK applies (`armhf`, web, etc.); the
+ * downloader treats that the same as "no product config" and never
+ * registers the provider.
+ *
+ * Mirror of the build pipeline's `getSdkTargetForBuild` (in
+ * `build/agent-sdk/common.ts`) translated from build-time
+ * `vscodePlatform` to runtime `process.platform` + libc detection.
+ * Keep the two in sync when adding new target SKUs.
+ */
+export function resolveSdkTarget(
+	pkg: Pick<IAgentSdkPackage, 'hasSeparateMuslLinuxPackage'>,
+	host: ISdkTargetHost = { platform: process.platform, arch: process.arch, libc: detectLibc() },
+): string | undefined {
+	if (!SUPPORTED_PLATFORMS.has(host.platform) || !SUPPORTED_ARCHES.has(host.arch)) {
+		return undefined;
+	}
+	if (host.platform === 'linux' && pkg.hasSeparateMuslLinuxPackage && host.libc === 'musl') {
+		return `linux-${host.arch}-musl`;
+	}
+	return `${host.platform}-${host.arch}`;
 }
 
 // #endregion
@@ -104,36 +146,54 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	declare readonly _serviceBrand: undefined;
 
 	/**
-	 * In-flight downloads keyed by `<pkg>/<sdkVersion>/<sdkTarget>`.
-	 * Concurrent `loadSdkRoot` calls in the same process share the same
-	 * promise so we never download the same tarball twice. Includes
-	 * `sdkTarget` so macOS Universal builds (which can resolve to
-	 * different targets per launch) don't share a key.
+	 * In-flight downloads keyed by the destination `cacheDir` (which
+	 * already encodes `<pkg>/<sdkVersion>/<sdkTarget>`). Concurrent
+	 * `loadSdkRoot` calls in the same process share the same promise so
+	 * we never download the same tarball twice. Universal launches that
+	 * resolve to different targets get distinct entries because their
+	 * cacheDirs differ.
 	 */
 	private readonly _pendingDownloads = new Map<string, Promise<string>>();
 
 	/**
-	 * Negative cache: most recent failure per package id, with an expiry. While
-	 * within the window, `loadSdkRoot` re-throws the cached error immediately
-	 * instead of re-attempting the download. Without this, a broken CDN
-	 * causes every SDK method call (poll-driven UIs hit this hard) to fire
-	 * a fresh request.
+	 * Negative cache: most recent failure per package id, with an expiry.
+	 * While within the window, `loadSdkRoot` re-throws the cached error
+	 * immediately instead of re-attempting the download. Without this, a
+	 * broken CDN causes every SDK method call (poll-driven UIs hit this
+	 * hard) to fire a fresh request.
+	 *
+	 * Keyed by `pkg.id` (not the finer cacheDir): CDN failures are
+	 * effectively global per SDK (DNS, proxy auth, 5xx) and per-target
+	 * latching wouldn't protect against the actual failure modes — the
+	 * broader latch is intentional.
 	 */
 	private readonly _failureLatch = new Map<string, { error: Error; expiresAt: number }>();
 
+	private readonly _host: ISdkTargetHost;
+
 	constructor(
+		/**
+		 * Host info used to resolve `{sdkTarget}` per launch. Pass `undefined`
+		 * (or omit) in production to derive from `process`. Tests pass a
+		 * synthetic host (Universal launches, musl, …) without monkey-
+		 * patching the runtime. Per project convention non-service params
+		 * come before service ones.
+		 */
+		host: ISdkTargetHost | undefined,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		this._host = host ?? { platform: process.platform, arch: process.arch, libc: detectLibc() };
+	}
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
 		if (process.env[pkg.devOverrideEnvVar]) {
 			return true;
 		}
-		return !!this._productService.agentSdks?.[pkg.id] && pkg.currentSdkTarget() !== undefined;
+		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg, this._host) !== undefined;
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -176,11 +236,11 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 				`no ${pkg.devOverrideEnvVar} dev override set.`,
 			);
 		}
-		const sdkTarget = pkg.currentSdkTarget();
+		const sdkTarget = resolveSdkTarget(pkg, this._host);
 		if (!sdkTarget) {
 			throw new Error(
 				`Cannot load ${pkg.id} SDK: no SDK target for this host ` +
-				`(${process.platform}/${process.arch}). ` +
+				`(${this._host.platform}/${this._host.arch}). ` +
 				`Set ${pkg.devOverrideEnvVar} to a local SDK root to bypass.`,
 			);
 		}
@@ -189,21 +249,23 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		const cacheDir = this._cacheDir(pkg.id, config.version, sdkTarget);
 		const sentinel = URI.joinPath(URI.file(cacheDir), '.complete');
 
-		if (await this._cacheHit(sentinel)) {
+		// `.complete`'s mere presence is the integrity signal — extracts
+		// that crashed mid-way never write it. See `_download` for why
+		// the sentinel is written inside the tmp dir before the rename.
+		if (await this._fileService.exists(sentinel)) {
 			return cacheDir;
 		}
 
 		// Download (deduped across concurrent callers in the same process).
-		// Key includes sdkTarget so a Universal launch resolving to a
-		// different target than a previous launch doesn't share an in-flight
-		// promise pointing at the wrong tarball.
-		const key = `${pkg.id}/${config.version}/${sdkTarget}`;
-		let pending = this._pendingDownloads.get(key);
+		// cacheDir is already unique per (pkg, version, sdkTarget) — within
+		// a single downloader instance userDataPath is fixed, so it serves
+		// as the dedup key without an extra string allocation.
+		let pending = this._pendingDownloads.get(cacheDir);
 		if (!pending) {
 			pending = this._download(pkg, url, cacheDir, sentinel, token).finally(() => {
-				this._pendingDownloads.delete(key);
+				this._pendingDownloads.delete(cacheDir);
 			});
-			this._pendingDownloads.set(key, pending);
+			this._pendingDownloads.set(cacheDir, pending);
 		}
 		return pending;
 	}
@@ -220,17 +282,6 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			sdkVersion,
 			sdkTarget,
 		);
-	}
-
-	/**
-	 * True iff the `.complete` sentinel at {@link sentinel} exists. The
-	 * sentinel's mere presence is the integrity signal — extracts that
-	 * crashed mid-way never write it, so a sentinel-bearing dir is known
-	 * to have completed. Shared by the fast-path cache check and the
-	 * rename-loser race recovery.
-	 */
-	private async _cacheHit(sentinel: URI): Promise<boolean> {
-		return this._fileService.exists(sentinel);
 	}
 
 	private async _download(
@@ -262,14 +313,15 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			await this._fileService.del(URI.file(tarballPath));
 
 			// Write the `.complete` sentinel inside the tmp dir BEFORE the
-			// move. That way the move atomically publishes a directory that
+			// move so the move atomically publishes a directory that
 			// already carries its sentinel — a crash between move and
 			// sentinel-write can't leave a wedged, sentinel-less cacheDir
-			// behind. The sentinel's content (the source URL) is purely
-			// for debugging stale caches; the existence is what matters.
+			// behind. Content is intentionally empty: only existence
+			// matters, and the cache dir path already encodes
+			// `<pkg>/<version>/<sdkTarget>` for debugging.
 			await this._fileService.writeFile(
 				URI.joinPath(tmpDirUri, '.complete'),
-				VSBuffer.fromString(url),
+				VSBuffer.fromString(''),
 			);
 
 			// Atomic publish of the completed extraction.
@@ -311,7 +363,7 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		if (!(err instanceof FileOperationError) || err.fileOperationResult !== FileOperationResult.FILE_MOVE_CONFLICT) {
 			return false;
 		}
-		if (!(await this._cacheHit(sentinel))) {
+		if (!(await this._fileService.exists(sentinel))) {
 			return false;
 		}
 		// Winner already published a complete cache. Drop our scratch dir.

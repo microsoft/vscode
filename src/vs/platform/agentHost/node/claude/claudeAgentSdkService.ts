@@ -8,7 +8,6 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { pathToFileURL } from 'url';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { join } from '../../../../base/common/path.js';
-import { detectLibc } from '../../../../base/node/libc.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
@@ -17,31 +16,15 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 /**
  * `@anthropic-ai/claude-agent-sdk` distribution descriptor. Lives in this
  * file because it encodes Claude-specific knowledge — the env-var name
- * and the per-host SDK target lookup.
- *
- * Claude ships separate `linux-{x64,arm64}-musl` packages alongside the
- * default `linux-{x64,arm64}` (glibc) ones, so `currentSdkTarget()`
- * appends `-musl` on musl hosts. The downloader consumes this through
+ * and the fact that Claude ships separate `linux-{x64,arm64}-musl` SKUs
+ * alongside the default glibc ones. The downloader consumes this through
  * `IAgentSdkPackage` and never names Claude directly.
  */
 export const ClaudeSdkPackage: IAgentSdkPackage = {
 	id: 'claude',
 	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
-	currentSdkTarget: claudeSdkTarget,
+	hasSeparateMuslLinuxPackage: true,
 };
-
-function claudeSdkTarget(): string | undefined {
-	const platform = process.platform;
-	const arch = process.arch;
-	if ((platform !== 'linux' && platform !== 'darwin' && platform !== 'win32') ||
-		(arch !== 'x64' && arch !== 'arm64')) {
-		return undefined;
-	}
-	if (platform === 'linux' && detectLibc() === 'musl') {
-		return `linux-${arch}-musl`;
-	}
-	return `${platform}-${arch}`;
-}
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');
 

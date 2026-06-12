@@ -5,39 +5,35 @@
 
 import * as Platform from '../common/platform.js';
 
-/**
- * The libc family the current process is linked against. Only Linux
- * has a meaningful distinction; everywhere else the answer is
- * `'glibc'` by convention (these helpers are only consulted to pick a
- * Linux SKU suffix, where `'glibc'` means "no `-musl` suffix").
- */
+/** The libc family the current process is linked against. */
 export type LibcFamily = 'glibc' | 'musl';
 
 let _cached: LibcFamily | undefined;
+let _cacheValid = false;
 
 /**
- * Returns the libc family of the running Node process.
+ * Returns the libc family of the running Node process on Linux, or
+ * `undefined` on non-Linux platforms (where the question is meaningless).
  *
  * Mechanism: Node's process report exposes `glibcVersionRuntime` in the
- * header on glibc-linked builds and omits it on musl-linked builds. So
- * the field's presence is itself the signal — no `ldd` subprocess, no
+ * header on glibc-linked builds and omits it on musl-linked builds. The
+ * field's presence is itself the signal — no `ldd` subprocess, no
  * `/etc/os-release` parsing, no filesystem probe.
  *
- * Returns `'glibc'` on non-Linux platforms (the answer is unused there
- * but the type stays simple — callers always get a defined value and
- * can use it in a single equality check).
- *
- * Cached after first call. Node's libc never changes mid-process.
+ * Cached after first call. `process.report.getReport()` is expensive
+ * (serializes heap + native stack + libuv state) so the cache pays for
+ * itself; libc never changes mid-process.
  */
-export function detectLibc(): LibcFamily {
-	if (_cached !== undefined) {
+export function detectLibc(): LibcFamily | undefined {
+	if (_cacheValid) {
 		return _cached;
 	}
-	if (!Platform.isLinux) {
-		_cached = 'glibc';
-		return _cached;
+	if (Platform.isLinux) {
+		const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
+		_cached = report?.header?.glibcVersionRuntime ? 'glibc' : 'musl';
+	} else {
+		_cached = undefined;
 	}
-	const report = process.report?.getReport() as { header?: { glibcVersionRuntime?: string } } | undefined;
-	_cached = report?.header?.glibcVersionRuntime ? 'glibc' : 'musl';
+	_cacheValid = true;
 	return _cached;
 }

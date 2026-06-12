@@ -268,7 +268,7 @@ async function main(): Promise<void> {
 			process.env[AgentHostCodexAgentSdkRootEnvVar] = options.codexSdkRoot;
 		}
 		// Register the agent SDK downloader BEFORE any service that injects it.
-		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader);
+		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader, undefined);
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
 		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
 		diServices.set(IClaudeProxyService, claudeProxyService);

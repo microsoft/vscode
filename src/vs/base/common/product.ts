@@ -65,28 +65,18 @@ export type ExtensionVirtualWorkspaceSupport = {
 };
 
 /**
- * Per-SDK configuration for downloading an agent SDK on demand. Each
- * shipped `product.json` carries one entry per supported SDK; the
- * downloader resolves the actual per-target tarball URL at runtime by
- * substituting `{sdkTarget}` in `urlTemplate` against the host's
- * `(platform, arch, libc)` triple.
+ * Per-SDK configuration for downloading an agent SDK on demand. The
+ * runtime substitutes `{sdkTarget}` in `urlTemplate` against the host's
+ * `(platform, arch, libc)` triple via `resolveSdkTarget()` in the agent
+ * SDK downloader.
  *
  * `urlTemplate` uses `format2()`-style named placeholders. Today only
  * `{sdkTarget}` is recognised; the build emits e.g.
  * `https://main.vscode-cdn.net/agent-sdk/claude/0.3.168/{sdkTarget}.tgz`
  * and the runtime substitutes `darwin-arm64`, `linux-x64-musl`, etc.
  *
- * Why a template (not a per-platform `{url, sha256}` pair):
- *
- *   - **macOS Universal builds** ship one `product.json` for both arm64
- *     and x64 — a fixed url/sha could only be correct for one half.
- *     The template lets the same bundle serve both halves.
- *   - **Sha-based validation is redundant** here: `product.json` is
- *     covered by `product.checksums` inside the signed app bundle, and
- *     the URL is HTTPS to a Microsoft-controlled CDN. The transport +
- *     content-addressed origin do the work; a `sha256` field would
- *     only guard "trusted URL string, tampered edge bytes" — a much
- *     harder attack than tampering with `product.json` itself.
+ * See `src/vs/platform/agentHost/node/claude/roadmap.md` Phase 15 for
+ * the rationale (macOS Universal compatibility, trust model).
  */
 export interface IAgentSdkProductConfig {
 	readonly version: string;

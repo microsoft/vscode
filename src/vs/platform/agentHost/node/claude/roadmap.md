@@ -1298,10 +1298,10 @@ the download.
 - `product.agentSdks.{claude,codex}` ships a `version` and a
   `urlTemplate` — a `format2()`-style template with a `{sdkTarget}`
   placeholder. The runtime resolves `{sdkTarget}` per-launch from
-  `(process.platform, process.arch, libc)` via
-  `IAgentSdkPackage.currentSdkTarget()`. Claude has separate
-  `linux-{x64,arm64}-musl` SKUs; Codex's Linux binary is statically
-  musl-linked so its `currentSdkTarget()` never appends `-musl`.
+  `(process.platform, process.arch, libc)` via `resolveSdkTarget(pkg)`
+  in `agentSdkDownloader.ts`, gated by `IAgentSdkPackage`'s
+  `hasSeparateMuslLinuxPackage` flag (Claude: true, Codex: false — its
+  Linux binary is statically musl-linked so a single SKU runs on both).
   The build pipeline emits the same template across all platforms — no
   per-platform stamping at packaging time — so a single shipped
   `product.json` works for macOS Universal bundles that serve both
@@ -1324,7 +1324,7 @@ the download.
 - Provider registration is gated on
   `IAgentSdkDownloader.isAvailable(pkg)` — true iff the dev-override
   env var is set, OR (`product.agentSdks?.[pkg.id]` is populated AND
-  `pkg.currentSdkTarget()` resolves). If neither, the provider is not
+  `resolveSdkTarget(pkg)` resolves). If neither, the provider is not
   registered and never appears in the agent picker (matches the
   pre-CDN UX).
 

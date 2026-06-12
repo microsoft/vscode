@@ -11,14 +11,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 suite('libc', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns one of the two known values', () => {
-		const family = detectLibc();
-		assert.ok(family === 'glibc' || family === 'musl', `unexpected libc family: ${family}`);
+	test('non-Linux platforms return undefined', () => {
+		if (!Platform.isLinux) {
+			assert.strictEqual(detectLibc(), undefined);
+		}
 	});
 
-	test('non-Linux platforms are reported as glibc by convention', () => {
-		if (!Platform.isLinux) {
-			assert.strictEqual(detectLibc(), 'glibc');
+	test('Linux returns one of the two known values', () => {
+		if (Platform.isLinux) {
+			const family = detectLibc();
+			assert.ok(family === 'glibc' || family === 'musl', `unexpected libc family: ${family}`);
 		}
 	});
 
