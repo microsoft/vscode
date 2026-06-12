@@ -199,6 +199,7 @@ async function mainAsync(): Promise<void> {
 	// Apply cglicenses.json overrides (the manual "last ~4%" gap-fill file).
 	// CELA-approved: overrides come from human-authored entries, not the tool.
 	let overridesApplied = 0;
+	let overrideEntryCount = 0;
 	const unmatchedOverrides: string[] = [];
 	if (cglicensesPath) {
 		if (!fs.existsSync(cglicensesPath)) {
@@ -209,6 +210,7 @@ async function mainAsync(): Promise<void> {
 				console.log(`--- Applying ${overrides.length} cglicenses.json overrides ---`);
 				const result = await applyOverrides(merged, overrides, { fetchUris: true });
 				overridesApplied = result.appliedNames.length;
+				overrideEntryCount = result.appliedEntryCount;
 				unmatchedOverrides.push(...result.unmatchedNames);
 				for (const name of result.appliedNames.sort()) {
 					console.log(`    * ${name}`);
@@ -291,7 +293,7 @@ required to debug changes to any libraries licensed under the GNU Lesser General
 	console.log(`    From extension scanner: ${extAdded}`);
 	console.log(`    Extension duplicates skipped: ${extSkipped}`);
 	if (cglicensesPath) {
-		console.log(`    cglicenses overrides applied: ${overridesApplied}`);
+		console.log(`    cglicenses overrides applied: ${overridesApplied} (${overrideEntryCount} merged entries updated)`);
 		console.log(`    cglicenses overrides unmatched (possibly stale): ${unmatchedOverrides.length}`);
 	}
 	console.log(`  Output: ${outputPath} (${sizeMB} MB)`);
