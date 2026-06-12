@@ -185,10 +185,29 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 	}
 
 	protected async _loadSdk(): Promise<IClaudeSdkBindings> {
-		// Resolve the SDK root via the downloader: dev override → cache →
-		// download from `product.agentSdks.claude`. The known internal
-		// `sdk.mjs` entrypoint is hard-coded here because this file is the
-		// one place that owns knowledge of the Claude SDK's import surface.
+		// 1. Env-var override wins — both for the air-gapped server case
+		//    (`--claude-sdk-root` flag) and for developers who want to point
+		//    at an out-of-tree SDK build without touching `node_modules`.
+		const override = process.env[AgentHostClaudeSdkRootEnvVar];
+		if (override) {
+			const entry = join(override, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+			return import(pathToFileURL(entry).href);
+		}
+
+		// 2. Bare import — succeeds in dev where the SDK is a devDependency in
+		//    the repo's `node_modules`. Fails in built products (the SDK is
+		//    NOT bundled — it's distributed via `product.agentSdks.claude` and
+		//    fetched on demand by the downloader). We swallow the failure and
+		//    fall through to the downloader path so built products still work.
+		try {
+			return await import('@anthropic-ai/claude-agent-sdk');
+		} catch {
+			// Fall through.
+		}
+
+		// 3. Downloader: resolves from cache or fetches the per-host tarball
+		//    described by `product.agentSdks.claude`. This is the only path
+		//    that runs in built/shipped VS Code.
 		const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
 		const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
 		return import(pathToFileURL(entry).href);

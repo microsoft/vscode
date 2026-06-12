@@ -56,18 +56,6 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
- * Configuration key that holds the absolute path to the **SDK root directory**
- * — the directory that contains a `node_modules/@anthropic-ai/claude-agent-sdk`
- * subtree. When non-empty, the agent host treats it as a dev override and skips
- * the on-demand download from `product.agentSdks.claude` for the Claude SDK.
- *
- * Empty (the default) means: load the SDK from `product.agentSdks.claude` if
- * the build supplies one; otherwise the Claude provider is not registered.
- * The agent host process must be restarted for changes to take effect.
- */
-export const AgentHostClaudeAgentSdkRootSettingId = 'chat.agentHost.claudeAgent.sdkRoot';
-
-/**
  * Configuration key controlling whether the Claude provider is registered in
  * the agent host process. When `false`, the agent host skips registering the
  * Claude provider regardless of SDK availability. Defaults to `true`.
@@ -90,9 +78,13 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
- * Environment variable form of {@link AgentHostClaudeAgentSdkRootSettingId}.
- * Set by the agent host starters from the setting, and may also be set
- * directly by developers as an override.
+ * Optional override that points at an **SDK root directory** containing a
+ * `node_modules/@anthropic-ai/claude-agent-sdk` subtree. When set, the agent
+ * host loads the Claude SDK from that path instead of the bare import (which
+ * resolves via this repo's `node_modules` in dev) or the on-demand download
+ * from `product.agentSdks.claude` (built products). Mainly exists for the
+ * remote server's `--claude-sdk-root` CLI flag and for one-off developer
+ * overrides pointing at an out-of-tree SDK build.
  */
 export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
 
@@ -337,7 +329,6 @@ export function buildAgentHostOTelEnv(
  * the caller spreads into the spawned child's environment.
  */
 export interface IAgentSdkStarterSettings {
-	readonly claudeSdkRoot?: string;
 	readonly codexSdkRoot?: string;
 	readonly codexHome?: string;
 	readonly codexBinaryArgs?: readonly string[];
@@ -356,7 +347,6 @@ export function buildAgentSdkEnv(
 		}
 		out[key] = value;
 	};
-	setIfMissing(AgentHostClaudeSdkRootEnvVar, settings.claudeSdkRoot);
 	setIfMissing(AgentHostCodexAgentSdkRootEnvVar, settings.codexSdkRoot);
 	setIfMissing(AgentHostCodexAgentCodexHomeEnvVar, settings.codexHome);
 	if (Array.isArray(settings.codexBinaryArgs) && settings.codexBinaryArgs.length > 0) {
