@@ -397,7 +397,8 @@ export function toActiveAgentHostSession(resource: URI, title: string | undefine
 }
 
 function getRemoteConnectionForSession(sessionResource: URI, connections: readonly IRemoteAgentHostConnectionInfo[]): IRemoteAgentHostConnectionInfo | undefined {
-	return connections.find(connection => sessionResource.scheme.startsWith(`remote-${agentHostAuthority(connection.address)}-`));
+	const authority = parseRemoteAuthorityFromScheme(sessionResource.scheme);
+	return authority ? connections.find(connection => agentHostAuthority(connection.address) === authority) : undefined;
 }
 
 function sanitizeFilePart(value: string): string {
