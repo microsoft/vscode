@@ -116,7 +116,7 @@ async function mainAsync(): Promise<void> {
 	const extPath = args['extensions'] || '';
 	const outputPath = args['output'];
 	const cglicensesPath = args['cglicenses'] || '';
-	const strict = 'strict' in args;
+	const strict = process.argv.includes('--strict');
 
 	if (!outputPath) {
 		console.error('Usage: merge-notices.js --cg <path> --extensions <path> --output <path> [--cglicenses <path>] [--strict]');
@@ -135,11 +135,17 @@ async function mainAsync(): Promise<void> {
 	console.log(`  Entries parsed: ${extEntries.length}`);
 	console.log('');
 
-	// Build merged map — CG entries go in first (they win on conflicts)
+	// Build merged map — CG entries go in first (they win on conflicts).
+	// Key is `<name>@<version>` so multiple versions of the same package are
+	// preserved as separate entries (per CELA guidance: keep every shipped
+	// version's license text, even if license text is identical between versions).
+	// Entries with no version fall back to a name-only key to keep them distinct
+	// from versioned siblings.
 	const merged = new Map<string, NoticeEntry & { source: string }>();
+	const mergeKey = (e: NoticeEntry) => `${e.name.toLowerCase()}@${e.version || ''}`;
 
 	for (const entry of cgEntries) {
-		const key = entry.name.toLowerCase();
+		const key = mergeKey(entry);
 		if (!merged.has(key)) {
 			merged.set(key, { ...entry, source: 'component-governance' });
 		}
@@ -147,17 +153,17 @@ async function mainAsync(): Promise<void> {
 
 	const cgCount = merged.size;
 
-	// Add extension entries (only if not already covered by CG)
+	// Add extension entries (only if same name+version not already covered by CG)
 	let extAdded = 0;
 	let extSkipped = 0;
 	const extAddedNames: string[] = [];
 	const extSkippedNames: string[] = [];
 
 	for (const entry of extEntries) {
-		const key = entry.name.toLowerCase();
+		const key = mergeKey(entry);
 		if (merged.has(key)) {
 			extSkipped++;
-			extSkippedNames.push(entry.name);
+			extSkippedNames.push(`${entry.name}@${entry.version || '(no version)'}`);
 		} else {
 			merged.set(key, { ...entry, source: 'extension-scanner' });
 			extAdded++;
