@@ -43,6 +43,8 @@ export interface MergedEntry {
 
 export interface ApplyResult {
 	appliedNames: string[];
+	/** Count of (override × matching merged entry) applications. */
+	appliedEntryCount: number;
 	unmatchedNames: string[];
 	errors: string[];
 }
@@ -160,20 +162,36 @@ export async function applyOverrides(
 	const appliedNames: string[] = [];
 	const unmatchedNames: string[] = [];
 	const errors: string[] = [];
+	let appliedEntryCount = 0;
+
+	// Build a name -> entries[] index. The merged map is keyed by `name@version`
+	// (per CELA guidance to preserve every shipped version), but overrides in
+	// cglicenses.json are keyed by name only — a manual override applies to all
+	// versions of the named package.
+	const byName = new Map<string, MergedEntry[]>();
+	for (const entry of merged.values()) {
+		const k = entry.name.toLowerCase();
+		const list = byName.get(k);
+		if (list) {
+			list.push(entry);
+		} else {
+			byName.set(k, [entry]);
+		}
+	}
 
 	for (const override of overrides) {
 		const key = override.name.toLowerCase();
-		const target = merged.get(key);
-		if (!target) {
+		const targets = byName.get(key);
+		if (!targets || targets.length === 0) {
 			unmatchedNames.push(override.name);
 			continue;
 		}
 
-		// Compute the new license text. Order: full body wins, then prepend stacks on top.
-		let body = target.licenseText;
-
+		// Resolve fullLicenseText / fullLicenseTextUri once per override, then apply
+		// to every matching version.
+		let bodyOverride: string | undefined;
 		if (override.fullLicenseText && override.fullLicenseText.length > 0) {
-			body = override.fullLicenseText.join('\n');
+			bodyOverride = override.fullLicenseText.join('\n');
 		} else if (override.fullLicenseTextUri) {
 			if (options.fetchUris) {
 				const fetched = await fetchUriText(override.fullLicenseTextUri);
@@ -181,21 +199,28 @@ export async function applyOverrides(
 					errors.push(`Failed to fetch fullLicenseTextUri for "${override.name}" (${override.fullLicenseTextUri})`);
 					continue;
 				}
-				body = fetched.trim();
+				bodyOverride = fetched.trim();
 			} else {
 				errors.push(`Override for "${override.name}" uses fullLicenseTextUri but fetching is disabled`);
 				continue;
 			}
 		}
 
-		if (override.prependLicenseText && override.prependLicenseText.length > 0) {
-			const prefix = override.prependLicenseText.join('\n');
-			body = prefix + '\n\n' + body;
+		const prefix = override.prependLicenseText && override.prependLicenseText.length > 0
+			? override.prependLicenseText.join('\n')
+			: undefined;
+
+		for (const target of targets) {
+			let body = bodyOverride ?? target.licenseText;
+			if (prefix) {
+				body = prefix + '\n\n' + body;
+			}
+			target.licenseText = body;
+			appliedEntryCount++;
 		}
 
-		target.licenseText = body;
 		appliedNames.push(override.name);
 	}
 
-	return { appliedNames, unmatchedNames, errors };
+	return { appliedNames, appliedEntryCount, unmatchedNames, errors };
 }
