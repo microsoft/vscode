@@ -35,17 +35,27 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
+        # `npm config set` creates ~/.npmrc if missing — needed on
+        # cache-hit runs where the platform job's "Setup NPM" was
+        # skipped and the file doesn't exist yet. Idempotent on
+        # cache-miss runs (just rewrites the same registry line).
+        exec { npm config set registry "$env:NPM_REGISTRY" }
         $NpmrcPath = (npm config get userconfig)
         echo "##vso[task.setvariable variable=AGENT_SDK_NPMRC_PATH]$NpmrcPath"
       condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-      displayName: "Agent SDK: capture npmrc path"
+      displayName: "Agent SDK: prepare npmrc"
 
   - ${{ if ne(parameters.vscodePlatform, 'win32') }}:
     - script: |
         set -e
+        # `npm config set` creates ~/.npmrc if missing — needed on
+        # cache-hit runs where the platform job's "Setup NPM" was
+        # skipped and the file doesn't exist yet. Idempotent on
+        # cache-miss runs (just rewrites the same registry line).
+        npm config set registry "$NPM_REGISTRY"
         echo "##vso[task.setvariable variable=AGENT_SDK_NPMRC_PATH]$(npm config get userconfig)"
       condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
-      displayName: "Agent SDK: capture npmrc path"
+      displayName: "Agent SDK: prepare npmrc"
 
   - task: npmAuthenticate@0
     inputs:
