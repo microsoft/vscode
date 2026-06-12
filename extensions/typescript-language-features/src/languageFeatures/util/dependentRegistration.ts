@@ -128,7 +128,7 @@ export function requireSomeCapability(
 }
 
 export function requireHasVsCodeExtension(
-	...extensionIds: readonly string[]
+	extensionIds: readonly string[]
 ) {
 	return new Condition(
 		() => {
