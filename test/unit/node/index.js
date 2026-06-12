@@ -125,6 +125,8 @@ function main() {
 	process.on('unhandledRejection', function(reason) {
 		console.error('Unhandled promise rejection:');
 		console.error(reason && (/** @type {Error} */ (reason)).stack || reason);
+		try { process.report?.writeReport(); } catch { }
+		process.exit(1);
 	});
 
 	/**
