@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "@preact/signals-core",
+					"repositoryUrl": "https://github.com/preactjs/signals",
+					"commitHash": "8fab8fee90ffe67b16117e91b53b1e437c537fad"
+				}
+			},
+			"license": "MIT",
+			"version": "1.8.0"
+		}
+	],
+	"version": 1
+}
