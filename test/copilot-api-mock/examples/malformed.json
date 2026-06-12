@@ -1,0 +1,22 @@
+{
+	"enabledPlugins": {
+		"good@agent-skills": true,
+		"bad-value@acme": "yes"
+	},
+	"extraKnownMarketplaces": {
+		"good": {
+			"source": {
+				"source": "github",
+				"repo": "github/agent-skills"
+			}
+		},
+		"bad-no-source": {},
+		"bad-unknown-type": {
+			"source": {
+				"source": "ftp",
+				"url": "ftp://example"
+			}
+		}
+	},
+	"strictKnownMarketplaces": true
+}

@@ -1,0 +1,17 @@
+{
+	"extraKnownMarketplaces": {
+		"agent-skills": {
+			"source": {
+				"source": "github",
+				"repo": "github/agent-skills"
+			}
+		},
+		"acme-internal": {
+			"source": {
+				"source": "git",
+				"url": "https://git.acme.example/plugins.git",
+				"ref": "main"
+			}
+		}
+	}
+}

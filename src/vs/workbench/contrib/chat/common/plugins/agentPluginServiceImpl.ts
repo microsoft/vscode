@@ -148,55 +148,10 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 				: [];
 			transaction(tx => {
 				for (const plugin of plugins) {
-					setPolicyBlocked(plugin, this._isBlockedByPolicy(plugin, policy, strict, trustedExtras, pluginMarketplaceService, logService), tx);
+					setPolicyBlocked(plugin, isBlockedByPolicy(plugin, policy, strict, trustedExtras, pluginMarketplaceService, logService), tx);
 				}
 			});
 		}));
-	}
-
-	/**
-	 * Determines whether a plugin is blocked by enterprise policy:
-	 * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
-	 *   is set, only plugins whose ID appears with value `true` are allowed.
-	 * - If `chat.plugins.strictMarketplaces` is on, only plugins from a
-	 *   marketplace listed in `chat.plugins.extraMarketplaces` are allowed.
-	 *
-	 * Plugins without a marketplace provenance (e.g. user-configured filesystem
-	 * paths from `chat.pluginLocations`) are never blocked — they are user-side
-	 * concerns outside the enterprise enforcement boundary. Copilot-CLI-installed
-	 * plugins under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` are
-	 * gated using their install-path identity even when they lack rich
-	 * marketplace metadata.
-	 */
-	private _isBlockedByPolicy(
-		plugin: IAgentPlugin,
-		enabledPluginsPolicy: Record<string, boolean> | undefined,
-		strictMarketplaces: boolean,
-		trustedExtras: readonly IMarketplaceReference[],
-		pluginMarketplaceService: IPluginMarketplaceService,
-		logService: ILogService,
-	): boolean {
-		const identity = getPolicyIdentity(plugin);
-		if (!identity) {
-			return false;
-		}
-		const pluginId = `${identity.name}@${identity.marketplace}`;
-		if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
-			if (enabledPluginsPolicy[pluginId] !== true) {
-				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
-				return true;
-			}
-		}
-		if (strictMarketplaces) {
-			const trusted = identity.marketplaceReference
-				? pluginMarketplaceService.isMarketplaceTrusted(identity.marketplaceReference)
-				: isCliBucketTrusted(identity.marketplace, trustedExtras);
-			if (!trusted) {
-				logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — marketplace not trusted under strict mode`);
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private _dedupeAndSort(plugins: readonly IAgentPlugin[]): readonly IAgentPlugin[] {
@@ -250,17 +205,17 @@ interface IPolicyIdentity {
 	readonly marketplaceReference?: IMarketplaceReference;
 }
 
-/** Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by `_resolveEnterprisePluginId`. */
+/** Path fragment that identifies a Copilot-CLI-installed plugin. Mirrored by `resolveEnterprisePluginId`. */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
-function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
+export function getPolicyIdentity(plugin: Pick<IAgentPlugin, 'uri' | 'fromMarketplace'>): IPolicyIdentity | undefined {
 	const m = plugin.fromMarketplace;
 	if (m) {
 		return { name: m.name, marketplace: m.marketplace, marketplaceReference: m.marketplaceReference };
 	}
 	// Copilot-CLI-installed plugins live at `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
 	// We honor enterprise policy for those by deriving the identity from the install path,
-	// using the same convention as `_resolveEnterprisePluginId`. The reserved `_direct` bucket
+	// using the same convention as `resolveEnterprisePluginId`. The reserved `_direct` bucket
 	// means "not from a marketplace" and is therefore not gated.
 	if (plugin.uri.scheme !== 'file') {
 		return undefined;
@@ -287,7 +242,7 @@ function getPolicyIdentity(plugin: IAgentPlugin): IPolicyIdentity | undefined {
  * heuristics covering common CLI bucket-naming conventions (GitHub repo name,
  * shorthand `owner/repo`, raw reference value, canonical id tail).
  */
-function isCliBucketTrusted(bucket: string, trustedExtras: readonly IMarketplaceReference[]): boolean {
+export function isCliBucketTrusted(bucket: string, trustedExtras: readonly IMarketplaceReference[]): boolean {
 	return trustedExtras.some(ref => {
 		if (ref.githubRepo && ref.githubRepo.split('/').pop() === bucket) {
 			return true;
@@ -300,6 +255,68 @@ function isCliBucketTrusted(bucket: string, trustedExtras: readonly IMarketplace
 		}
 		return false;
 	});
+}
+
+/**
+ * Determines whether a plugin is blocked by enterprise policy:
+ * - If `chat.plugins.enabledPlugins` (policy-managed via `ChatEnabledPlugins`)
+ *   is set, only plugins whose ID appears with value `true` are allowed.
+ * - If `chat.plugins.strictMarketplaces` is on, only plugins from a
+ *   marketplace listed in `chat.plugins.extraMarketplaces` are allowed.
+ *
+ * Plugins without a marketplace provenance (e.g. user-configured filesystem
+ * paths from `chat.pluginLocations`) are never blocked — they are user-side
+ * concerns outside the enterprise enforcement boundary. Copilot-CLI-installed
+ * plugins under `~/.copilot/installed-plugins/<marketplace>/<plugin>/` are
+ * gated using their install-path identity even when they lack rich
+ * marketplace metadata.
+ *
+ * Pure (no `this`) so the gating logic can be unit-tested directly.
+ */
+export function isBlockedByPolicy(
+	plugin: Pick<IAgentPlugin, 'uri' | 'fromMarketplace'>,
+	enabledPluginsPolicy: Record<string, boolean> | undefined,
+	strictMarketplaces: boolean,
+	trustedExtras: readonly IMarketplaceReference[],
+	pluginMarketplaceService: Pick<IPluginMarketplaceService, 'isMarketplaceTrusted'>,
+	logService: ILogService,
+): boolean {
+	const identity = getPolicyIdentity(plugin);
+	if (!identity) {
+		return false;
+	}
+	const pluginId = `${identity.name}@${identity.marketplace}`;
+	if (enabledPluginsPolicy && Object.keys(enabledPluginsPolicy).length > 0) {
+		if (enabledPluginsPolicy[pluginId] !== true) {
+			logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — not enabled by ChatEnabledPlugins policy`);
+			return true;
+		}
+	}
+	if (strictMarketplaces) {
+		const trusted = identity.marketplaceReference
+			? pluginMarketplaceService.isMarketplaceTrusted(identity.marketplaceReference)
+			: isCliBucketTrusted(identity.marketplace, trustedExtras);
+		if (!trusted) {
+			logService.debug(`[AgentPluginService] Plugin '${pluginId}' blocked — marketplace not trusted under strict mode`);
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Resolves an enterprise plugin ID of the form `<plugin>@<marketplace>` to the
+ * Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
+ * Returns `undefined` for anything that doesn't match the ID shape. The inverse
+ * of the install-path parsing in `getPolicyIdentity`.
+ */
+export function resolveEnterprisePluginId(id: string, userHome: string): URI | undefined {
+	const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
+	if (!idMatch) {
+		return undefined;
+	}
+	const [, plugin, marketplace] = idMatch;
+	return URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`);
 }
 
 /**
@@ -723,7 +740,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 			if (!trimmed || enabled === false) {
 				continue;
 			}
-			const resource = this._resolveEnterprisePluginId(trimmed, userHome);
+			const resource = resolveEnterprisePluginId(trimmed, userHome);
 			if (!resource) {
 				this._logService.debug(`[ConfiguredAgentPluginDiscovery] Skipping enterprise plugin entry that is not in <plugin>@<marketplace> form: ${trimmed}`);
 				continue;
@@ -777,20 +794,6 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		return this._workspaceContextService.getWorkspace().folders.map(
 			folder => joinPath(folder.uri, path)
 		);
-	}
-
-	/**
-	 * Resolves an enterprise plugin ID of the form `<plugin>@<marketplace>` to
-	 * the Copilot CLI install convention `~/.copilot/installed-plugins/<marketplace>/<plugin>/`.
-	 * Returns `undefined` for anything that doesn't match the ID shape.
-	 */
-	private _resolveEnterprisePluginId(id: string, userHome: string): URI | undefined {
-		const idMatch = id.match(/^([^@/\\~]+)@([^@/\\~]+)$/);
-		if (!idMatch) {
-			return undefined;
-		}
-		const [, plugin, marketplace] = idMatch;
-		return URI.file(`${userHome}/.copilot/installed-plugins/${marketplace}/${plugin}`);
 	}
 
 	/**

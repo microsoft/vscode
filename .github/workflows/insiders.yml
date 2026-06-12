@@ -1,0 +1,6 @@
+{
+  insidersLabel: "insiders",
+  insidersColor: "006b75",
+  action: "remove",
+  perform: true,
+}

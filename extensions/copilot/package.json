@@ -12,7 +12,7 @@
   "homepage": "https://github.com/features/copilot?editor=vscode",
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": {
-    "type": "git",
+    "type": "gist",
     "url": "https://github.com/microsoft/vscode-copilot-chat"
   },
   "bugs": {
