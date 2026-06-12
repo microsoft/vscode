@@ -14,6 +14,7 @@ import {
 	levelToSeverityNumber,
 	logLevelToOtlpLevelName,
 	logLevelToOtlpSeverity,
+	OtelData,
 	OtlpEmitterLogger,
 	OtlpLogEmitter,
 	parseOtlpLogLevel,
@@ -125,6 +126,23 @@ suite('OtlpLogEmitter', () => {
 		const payload = toResourceLogsPayload(record);
 		const decoded = [...iterateOtlpLogRecords(payload)];
 		assert.deepStrictEqual(decoded, [record]);
+	});
+
+	test('OtelData attributes survive the OtlpEmitterLogger round-trip and stay out of the body', () => {
+		const emitter = disposables.add(new OtlpLogEmitter());
+		const logger = disposables.add(new OtlpEmitterLogger(emitter, LogLevel.Trace));
+		const received: IOtlpLogRecord[] = [];
+		disposables.add(emitter.onDidLog(record => received.push(record)));
+
+		logger.info('MCP server started', new OtelData({ infoType: 'mcp', attempt: 2, enabled: true }));
+		logger.warn('plain warning');
+
+		const roundTripped = received.map(r => [...iterateOtlpLogRecords(toResourceLogsPayload(r))][0]);
+		const sanitised = roundTripped.map(r => ({ severityText: r.severityText, body: r.body, attributes: r.attributes }));
+		assert.deepStrictEqual(sanitised, [
+			{ severityText: 'info', body: 'MCP server started', attributes: { infoType: 'mcp', attempt: 2, enabled: true } },
+			{ severityText: 'warn', body: 'plain warning', attributes: undefined },
+		]);
 	});
 
 	test('iterateOtlpLogRecords tolerates malformed shapes', () => {

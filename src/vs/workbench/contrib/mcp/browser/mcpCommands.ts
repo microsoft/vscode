@@ -46,6 +46,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IOutputService } from '../../../services/output/common/output.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -302,13 +303,16 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 	override async run(accessor: ServicesAccessor, agentHostSession: URI, customizationId: string): Promise<void> {
 		const agentHostCustomizations = accessor.get(IAgentHostCustomizationService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const outputService = accessor.get(IOutputService);
 
 		const server = agentHostCustomizations.getMcpServers(agentHostSession).find(s => s.id === customizationId);
 		if (!server) {
 			return;
 		}
 
-		type ItemType = { action: 'toggle' } & IQuickPickItem;
+		const logOutputChannelId = server.logOutputChannelId;
+
+		type ItemType = { action: 'toggle' | 'showOutput' } & IQuickPickItem;
 
 		const items: (ItemType | IQuickPickSeparator)[] = [
 			{ type: 'separator', label: localize('mcp.actions.status', 'Status') },
@@ -323,15 +327,31 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 			},
 		];
 
+		if (logOutputChannelId) {
+			items.push({
+				label: localize('mcp.showOutput', 'Show Output'),
+				action: 'showOutput',
+			});
+		}
+
 		const picked = await quickInputService.pick(items, {
 			placeHolder: server.name,
 		});
 
-		if (!picked || !hasKey(picked, { action: true }) || picked.action !== 'toggle') {
+		if (!picked || !hasKey(picked, { action: true })) {
 			return;
 		}
 
-		server.setEnabled(!server.enabled);
+		if (picked.action === 'showOutput') {
+			if (logOutputChannelId) {
+				outputService.showChannel(logOutputChannelId);
+			}
+			return;
+		}
+
+		if (picked.action === 'toggle') {
+			server.setEnabled(!server.enabled);
+		}
 	}
 }
 

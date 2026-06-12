@@ -27,6 +27,7 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -2482,7 +2483,15 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
+			const attributes: Record<string, OtelAttributeValue> = { infoType: e.data.infoType };
+			if (e.data.tip) {
+				attributes.tip = e.data.tip;
+			}
+			this._logService.info(`[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`, new OtelData(attributes));
+		}));
+
+		this._register(wrapper.onSessionWarning(e => {
+			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {

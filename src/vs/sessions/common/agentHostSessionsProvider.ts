@@ -30,6 +30,7 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	readonly enabled: boolean;
 	readonly status: McpServerStatus;
+	readonly logOutputChannelId?: string;
 	setEnabled(enabled: boolean): void;
 }
 
