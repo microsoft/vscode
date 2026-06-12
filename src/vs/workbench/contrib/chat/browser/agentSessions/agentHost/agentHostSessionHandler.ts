@@ -58,6 +58,7 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService, IToolInvocation, IToolResult, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -65,7 +66,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, errorInfoToChatErrorDetails, finalizeToolInvocation, getTerminalContentUri, isSubagentTool, makeAhpTerminalToolSessionId, messageToVariableData, parseAhpTerminalToolSessionId, rawMarkdownToString, stringOrMarkdownToString, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, usageInfoToChatUsage, type IToolCallFileEdit, type TurnModelLookup } from './stateToProgressAdapter.js';
 export { toolDataToDefinition };
 
 // =============================================================================
@@ -111,6 +112,16 @@ interface IObserveTurnOptions {
 	 * suppressed to preserve legacy behavior.
 	 */
 	readonly subAgentInvocationId?: string;
+	/**
+	 * When set, a terminal turn error is NOT emitted into {@link sink} as a
+	 * plain "Error: (...)" markdown part. Instead the caller is expected to
+	 * surface it as structured {@link IChatAgentResult.errorDetails} (see
+	 * {@link errorInfoToChatErrorDetails}). Used by the live invoke path so a
+	 * `quota` error (e.g. an upstream 402) renders the rich quota widget
+	 * rather than inline markdown. Reconnect / server-initiated paths leave
+	 * this unset and keep the markdown fallback.
+	 */
+	readonly errorsAsResult?: boolean;
 }
 
 interface IStartServerRequestOptions {
@@ -435,6 +446,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._config = config;
@@ -835,8 +847,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		const completedTurn = await this._handleTurn(resolvedSession, request, progress, cancellationToken);
 		const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
+		const errorDetails = completedTurn?.state === TurnState.Error && completedTurn.error
+			? errorInfoToChatErrorDetails(completedTurn.error, {
+				entitlement: this._chatEntitlementService.entitlement,
+				quotaResetDate: this._chatEntitlementService.quotas.resetDate,
+				quotaResetDateHasTime: this._chatEntitlementService.quotas.resetDateHasTime,
+			})
+			: undefined;
 
-		return details ? { details } : {};
+		return {
+			...(details ? { details } : {}),
+			...(errorDetails ? { errorDetails } : {}),
+		};
 	}
 
 	/**
@@ -1248,6 +1270,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				turnId,
 				sink: progress,
 				cancellationToken,
+				errorsAsResult: true,
 				onTurnEnded: (lastTurn) => {
 					store.dispose();
 					this._clientDispatchedTurnIds.delete(turnId);
@@ -1482,7 +1505,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (!seenActive) {
 				return;
 			}
-			if (lastTurn?.state === TurnState.Error && lastTurn.error) {
+			if (lastTurn?.state === TurnState.Error && lastTurn.error && !opts.errorsAsResult) {
 				opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
 			}
 			finish(lastTurn);
