@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n } from '../../../../../../../base/browser/dom.js';
+import { n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -456,7 +456,16 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	protected readonly _iconRef = n.ref<HTMLDivElement>();
 
-	public readonly isVisible = this._layout.map(l => !!l);
+	// Tracks the actual mounting of the icon node. `_iconRef` is assigned
+	// synchronously when the inner `n.div` below is constructed, but that only
+	// happens when the parent indicator's render autorun has run. Consumers that
+	// need to interact with the icon DOM (animations, hover targets, geometry)
+	// must gate on this signal — not on `_layout` truthiness, which only
+	// reflects data state and can be true while the icon DOM does not yet exist
+	// (race when both autoruns are scheduled in the same outer transaction).
+	private readonly _iconNode = observableValue<ObserverNodeWithElement<HTMLDivElement> | null>(this, null);
+
+	public readonly isVisible = derived(this, reader => !!this._layout.read(reader) && this._iconNode.read(reader) !== null);
 
 	protected readonly _hoverVisible = observableValue(this, false);
 	public readonly isHoverVisible: IObservable<boolean> = this._hoverVisible;
@@ -530,6 +539,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		n.div({
 			class: 'icon',
 			ref: this._iconRef,
+			obsRef: (elem) => this._iconNode.set(elem, undefined),
 
 			tabIndex: 0,
 			onclick: () => {
