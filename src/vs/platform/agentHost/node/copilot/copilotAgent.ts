@@ -582,6 +582,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			env['COPILOT_CLI_RUN_AS_NODE'] = '1';
 			env['USE_BUILTIN_RIPGREP'] = 'false';
+			env['COPILOT_MCP_APPS'] = 'true';
 
 			// Enable the rubber duck critic subagent in the CLI when the agent host
 			// config opts in. `RUBBER_DUCK_AGENT` is the SDK's required interface for

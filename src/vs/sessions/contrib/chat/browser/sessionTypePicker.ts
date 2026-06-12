@@ -19,31 +19,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
-import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { COPILOT_PROVIDER_ID } from '../../providers/copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
-export const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
-
-/**
- * Persist a preferred session type into the picker's stored preference.
- * Owned by this module so callers don't depend on the wire format.
- * Marks the selection as explicit if made from the dropdown, implicit otherwise.
- */
-export function writeStoredSessionTypePref(
-	storageService: IStorageService,
-	pick: { readonly providerId?: string; readonly sessionTypeId: string },
-	source: 'explicit' | 'implicit' = 'explicit',
-): void {
-	storageService.store(
-		STORAGE_KEY_LAST_SESSION_TYPE,
-		JSON.stringify({ providerId: pick.providerId, sessionTypeId: pick.sessionTypeId, source }),
-		StorageScope.PROFILE,
-		StorageTarget.USER,
-	);
-}
+const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 /**
  * A picked session type, paired with the provider that serves it. Two
@@ -65,13 +43,11 @@ export interface IPickedSessionType {
 export interface IPreferredSessionType {
 	readonly providerId?: string;
 	readonly sessionTypeId: string;
-	readonly source?: 'explicit' | 'implicit';
 }
 
 interface IStoredSessionTypePick {
 	readonly providerId?: string;
 	readonly sessionTypeId: string;
-	readonly source?: 'explicit' | 'implicit';
 }
 
 /**
@@ -111,12 +87,11 @@ export class SessionTypePicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService protected readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		super();
 
 		// Restore the previously selected session type from storage
-		this._picked = this._readDefaultPick();
+		this._picked = this._readStoredPick();
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
@@ -126,15 +101,13 @@ export class SessionTypePicker extends Disposable {
 				const changed = concrete.providerId !== this._picked?.providerId || concrete.sessionTypeId !== this._picked?.sessionTypeId;
 				this._picked = concrete;
 				if (changed) {
-					// Mark as implicit since it's from the active session, not an explicit user pick
-					this._writeStoredPick(concrete, 'implicit');
+					this._writeStoredPick(concrete);
 				}
 			} else {
 				this._folderSessionTypes = [];
-				// Preserve an explicit stored pick when no active session
-				// exists, so it can seed the next new session. Implicit picks
-				// are ignored here so the provider's default order wins.
-				this._picked = this._readDefaultPick();
+				// Preserve the stored pick when no active session exists,
+				// so it can be used as the default for the next new session.
+				this._picked = this._readStoredPick();
 			}
 			this._updateTriggerLabel();
 		};
@@ -147,15 +120,6 @@ export class SessionTypePicker extends Disposable {
 		// (e.g. a remote agent host discovers a new agent).
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			refresh(this._session.get());
-		}));
-		// Re-read when the stored preference changes (e.g. handoff IPC from
-		// the main vscode window pre-seeds Copilot CLI when opening
-		// the agents window from an empty workspace).
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, STORAGE_KEY_LAST_SESSION_TYPE, this._register(new DisposableStore()))(() => {
-			if (!this._session.get()) {
-				this._picked = this._readDefaultPick();
-				this._updateTriggerLabel();
-			}
 		}));
 	}
 
@@ -217,13 +181,9 @@ export class SessionTypePicker extends Disposable {
 		// agent discovery) shows up without waiting for the refresh event to
 		// land before the user clicks.
 		const folderUri = session.workspace.get()?.folders[0]?.root;
-		let folderTypes = folderUri
+		const folderTypes = folderUri
 			? this.sessionsManagementService.getSessionTypesForFolder(folderUri)
 			: this._folderSessionTypes;
-
-		// Filter based on Agents window hiding settings
-		folderTypes = folderTypes.filter(t => this._isVisible(t.providerId, t.sessionType.id));
-
 		this._folderSessionTypes = folderTypes;
 
 		if (folderTypes.length <= 1) {
@@ -323,22 +283,9 @@ export class SessionTypePicker extends Disposable {
 
 		const changed = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
 		if (changed) {
-			// Mark as explicit since the user selected it from the dropdown
-			this._writeStoredPick(pick, 'explicit');
+			this._writeStoredPick(pick);
 			this._onDidSelectSessionType.fire(pick);
 		}
-	}
-
-	/**
-	 * The stored pick to use as the default for a new session. Only an explicit
-	 * dropdown selection is honored; implicit picks (cemented from a previously
-	 * active session, or legacy picks recorded before the `source` field
-	 * existed) are ignored so the provider's default order wins. This lets an
-	 * ExP rollout re-default existing users who never opened the picker.
-	 */
-	private _readDefaultPick(): IPreferredSessionType | undefined {
-		const stored = this._readStoredPick();
-		return stored?.source === 'explicit' ? stored : undefined;
 	}
 
 	private _readStoredPick(): IPreferredSessionType | undefined {
@@ -351,11 +298,9 @@ export class SessionTypePicker extends Disposable {
 		try {
 			const parsed = JSON.parse(raw) as IStoredSessionTypePick;
 			if (parsed && typeof parsed.sessionTypeId === 'string') {
-				return {
-					...(typeof parsed.providerId === 'string' ? { providerId: parsed.providerId } : {}),
-					sessionTypeId: parsed.sessionTypeId,
-					source: parsed.source,
-				};
+				return typeof parsed.providerId === 'string'
+					? { providerId: parsed.providerId, sessionTypeId: parsed.sessionTypeId }
+					: { sessionTypeId: parsed.sessionTypeId };
 			}
 		} catch {
 			// Not JSON — fall through to legacy raw-string handling.
@@ -365,9 +310,9 @@ export class SessionTypePicker extends Disposable {
 		return { sessionTypeId: raw };
 	}
 
-	private _writeStoredPick(pick: IPickedSessionType, source: 'explicit' | 'implicit' = 'implicit'): void {
+	private _writeStoredPick(pick: IPickedSessionType): void {
 		this._picked = pick;
-		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId, source };
+		const stored: IStoredSessionTypePick = { providerId: pick.providerId, sessionTypeId: pick.sessionTypeId };
 		this.storageService.store(STORAGE_KEY_LAST_SESSION_TYPE, JSON.stringify(stored), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
@@ -405,25 +350,5 @@ export class SessionTypePicker extends Disposable {
 		chevron.classList.add('sessions-chat-dropdown-chevron');
 
 		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
-	}
-
-	/**
-	 * Check if a session type should be visible based on Agents window hiding settings.
-	 */
-	private _isVisible(providerId: string, sessionTypeId?: string): boolean {
-		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
-		const preferAhClaude = this.configurationService.getValue<boolean>(ChatConfiguration.ClaudePreferAgentHostAgents) ?? false;
-
-		// Hide the Extension Host Copilot CLI (served by the default Copilot provider).
-		if (hideEhCopilotCli && providerId === COPILOT_PROVIDER_ID && sessionTypeId === SessionType.CopilotCLI) {
-			return false;
-		}
-
-		// Preferring the Agent Host Claude hides the Extension Host Claude entry.
-		if (preferAhClaude && providerId === COPILOT_PROVIDER_ID && sessionTypeId === SessionType.ClaudeCode) {
-			return false;
-		}
-
-		return true;
 	}
 }

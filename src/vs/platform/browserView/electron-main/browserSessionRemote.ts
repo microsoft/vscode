@@ -5,6 +5,7 @@
 
 import { ILogService } from '../../log/common/log.js';
 import { ISharedProcessTunnelProxyService, ITunnelProxyInfo } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
+import { BrowserViewStorageScope } from '../common/browserView.js';
 import type { BrowserSession } from './browserSession.js';
 
 /**
@@ -85,7 +86,7 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 	}
 
 	async acquire(viewId: string, proxyId: string | undefined): Promise<void> {
-		if (!proxyId) {
+		if (!proxyId || this._session.storageScope === BrowserViewStorageScope.Global) {
 			return;
 		}
 

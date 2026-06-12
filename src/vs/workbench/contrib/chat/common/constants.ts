@@ -88,10 +88,8 @@ export enum ChatConfiguration {
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
 	CopilotCliHideExtensionHostAgents = 'chat.agents.copilotCli.hideExtensionHost',
-	ClaudePreferAgentHostAgents = 'chat.agents.claude.preferAgentHost',
 	EditorDefaultProvider = 'chat.editor.defaultProvider',
 	CopilotCliHideExtensionHostEditor = 'chat.editor.copilotCli.hideExtensionHost',
-	ClaudePreferAgentHostEditor = 'chat.editor.claude.preferAgentHost',
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',

@@ -112,8 +112,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EditorDefaultProvider) ||
-				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor) ||
-				e.affectsConfiguration(ChatConfiguration.ClaudePreferAgentHostEditor)) {
+				e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostEditor)) {
 				this._updateAgentSessionItems();
 				if (this.element) {
 					this.renderLabel(this.element);
@@ -228,12 +227,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		// Hide the Extension Host Copilot CLI in the editor picker when configured.
 		const hideEhCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostEditor) ?? false;
 		if (hideEhCopilotCli && type === AgentSessionProviders.Background) {
-			return false;
-		}
-
-		// Preferring the Agent Host Claude hides the Extension Host Claude entry.
-		const preferAhClaude = this.configurationService.getValue<boolean>(ChatConfiguration.ClaudePreferAgentHostEditor) ?? false;
-		if (preferAhClaude && type === AgentSessionProviders.Claude) {
 			return false;
 		}
 

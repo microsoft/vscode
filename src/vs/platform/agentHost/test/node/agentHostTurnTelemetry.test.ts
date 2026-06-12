@@ -36,6 +36,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshUncommittedChangeset(): void { }
 	refreshSessionChangeset(): void { }
 	setTurnSubscriberProbe(): void { }
+	setUncommittedSubscriberProbe(): void { }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
 	onToolCallEditsApplied(): void { }

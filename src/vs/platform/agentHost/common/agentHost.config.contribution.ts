@@ -42,13 +42,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
-		'chat.agents.claude.preferAgentHost': {
-			type: 'boolean',
-			description: nls.localize('chat.agents.claude.preferAgentHost', "When enabled, the Agent Host Claude is the default in the Agents window and the Extension Host Claude is hidden."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-		},
 		'chat.editor.defaultProvider': {
 			type: 'string',
 			enum: ['local', 'copilotEh', 'copilotAh'],
@@ -65,13 +58,6 @@ configurationRegistry.registerConfiguration({
 		'chat.editor.copilotCli.hideExtensionHost': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.copilotCli.hideExtensionHost', "When enabled, hides the Extension Host Copilot CLI entry from the editor window chat picker."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-		},
-		'chat.editor.claude.preferAgentHost': {
-			type: 'boolean',
-			description: nls.localize('chat.editor.claude.preferAgentHost', "When enabled, the Agent Host Claude is the default in the editor window and the Extension Host Claude is hidden."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

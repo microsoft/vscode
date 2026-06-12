@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtraKnownMarketplaceEntry } from './managedSettings.js';
+import type { ManagedSettingsData } from './policy.js';
 
 export interface IQuotaSnapshotData {
 	readonly overage_count: number;
+	readonly overage_entitlement: number;
 	readonly overage_permitted: boolean;
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
@@ -56,6 +58,12 @@ export interface IPolicyData {
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly mcpRegistryUrl?: string;
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
+
+	/**
+	 * Normalized enterprise-managed settings, keyed by dot-separated managed-settings
+	 * paths such as `permissions.disableBypassPermissionsMode`.
+	 */
+	readonly managedSettings?: ManagedSettingsData;
 
 	/**
 	 * Enterprise-managed plugin enablement, delivered via the Copilot
