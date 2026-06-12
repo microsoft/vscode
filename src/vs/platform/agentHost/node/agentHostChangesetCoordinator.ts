@@ -212,7 +212,6 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._pendingBranchRefreshes.delete(sessionStr);
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._pendingSessionRefreshes.delete(sessionStr);
-		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
 		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
