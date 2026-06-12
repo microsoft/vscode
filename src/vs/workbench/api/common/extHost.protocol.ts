@@ -2427,6 +2427,7 @@ export interface CheckboxUpdate {
 }
 
 export interface ExtHostTreeViewsShape {
+	$setFocusedTreeView(treeViewId: string | undefined): void;
 	/**
 	 * To reduce what is sent on the wire:
 	 * w

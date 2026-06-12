@@ -1093,6 +1093,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'browser');
 				return extHostBrowsers.openBrowserTab(url, options);
 			},
+			get focusedTreeView() {
+				return extHostTreeViews.focusedTreeView;
+			},
+			onDidChangeFocusedTreeView(listener, thisArg?, disposables?) {
+				return _asExtensionEvent(extHostTreeViews.onDidChangeFocusedTreeView)(listener, thisArg, disposables);
+			},
 		};
 
 		// namespace: workspace

@@ -16,7 +16,7 @@ import { NullTelemetryService } from '../../../../platform/telemetry/common/tele
 import { MainThreadTreeViews } from '../../browser/mainThreadTreeViews.js';
 import { DataTransferDTO, ExtHostTreeViewsShape } from '../../common/extHost.protocol.js';
 import { CustomTreeView } from '../../../browser/parts/views/treeView.js';
-import { Extensions, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { Extensions, ICustomViewDescriptor, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { ViewDescriptorService } from '../../../services/views/browser/viewDescriptorService.js';
@@ -25,6 +25,8 @@ import { TestExtensionService } from '../../../test/common/workbenchTestServices
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
+import * as sinon from 'sinon';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';
@@ -36,6 +38,8 @@ suite('MainThreadHostTreeView', function () {
 	}
 
 	class MockExtHostTreeViewsShape extends mock<ExtHostTreeViewsShape>() {
+		override $setFocusedTreeView(treeViewId: string | undefined): void { }
+
 		override async $getChildren(treeViewId: string, treeItemHandle?: string[]): Promise<(number | ITreeItem)[][]> {
 			return [[0, <CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }]];
 		}
@@ -51,6 +55,7 @@ suite('MainThreadHostTreeView', function () {
 	let mainThreadTreeViews: MainThreadTreeViews;
 	let extHostTreeViewsShape: MockExtHostTreeViewsShape;
 	let instantiationService: TestInstantiationService;
+	let viewsService: TestViewsService;
 
 	teardown(() => {
 		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
@@ -62,6 +67,7 @@ suite('MainThreadHostTreeView', function () {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		viewsService = new TestViewsService();
 		// eslint-disable-next-line local/code-no-any-casts
 		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: ITreeViewDescriptor = {
@@ -85,7 +91,7 @@ suite('MainThreadHostTreeView', function () {
 					return extHostTreeViewsShape;
 				}
 				drain(): any { return null; }
-			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService(), NullTelemetryService));
+			}, viewsService, new TestNotificationService(), testExtensionService, new NullLogService(), NullTelemetryService));
 		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, manuallyManageCheckboxes: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
@@ -183,5 +189,65 @@ suite('MainThreadHostTreeView', function () {
 		assert.strictEqual(uriListValue, URI.from({ scheme: 'file', authority: '', path: '/transformed/correct/path.txt', query: '', fragment: '' }).toString());
 	});
 
+	test('updates focused tree view', () => {
+		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
+
+		viewsService.setFocusedView(<ICustomViewDescriptor>{
+			id: testTreeViewId,
+			extensionId: new ExtensionIdentifier('test.extension'),
+			treeView: (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView
+		});
+
+		assert.strictEqual(proxy.callCount, 1);
+		assert.strictEqual(proxy.firstCall.args[0], testTreeViewId);
+
+		viewsService.setFocusedView(null);
+
+		assert.strictEqual(proxy.callCount, 2);
+		assert.strictEqual(proxy.secondCall.args[0], undefined);
+	});
+
+	test('ignores non-extension focused views', () => {
+		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
+
+		viewsService.setFocusedView(<IViewDescriptor>{
+			id: 'noTreeView'
+		});
+		viewsService.setFocusedView(<ITreeViewDescriptor>{
+			id: 'builtInTreeView',
+			treeView: (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView
+		});
+
+		assert.strictEqual(proxy.callCount, 0);
+	});
+
+	test('does not emit duplicate focused tree view values', () => {
+		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
+
+		const view1 = <ICustomViewDescriptor>{
+			id: testTreeViewId,
+			extensionId: new ExtensionIdentifier('test.extension'),
+			treeView: (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView
+		};
+
+		viewsService.setFocusedView(view1);
+		viewsService.setFocusedView(view1);
+		viewsService.setFocusedView(null);
+
+		assert.strictEqual(proxy.callCount, 2);
+		assert.strictEqual(proxy.firstCall.args[0], testTreeViewId);
+		assert.strictEqual(proxy.secondCall.args[0], undefined);
+	});
+
+	test('ignores extension-contributed non-tree views', () => {
+		const proxy = sinon.spy(extHostTreeViewsShape, '$setFocusedTreeView');
+
+		viewsService.setFocusedView(<ICustomViewDescriptor>{
+			id: 'webview',
+			extensionId: new ExtensionIdentifier('test.extension')
+		});
+
+		assert.strictEqual(proxy.callCount, 0);
+	});
 
 });
