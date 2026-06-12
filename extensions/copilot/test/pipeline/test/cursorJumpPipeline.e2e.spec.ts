@@ -110,24 +110,21 @@ describe('nes-datagen cursor-jump pipeline e2e', () => {
 			expect(result.samples.length).toBe(1);
 		});
 
-		test('sample is tagged as next-cursor-line-prediction with the same-file source', () => {
+		test('sample carries the expected metadata, jump, and assistant content', () => {
 			const s = result.samples[0];
 			expect(s.metadata.strategy).toBe('next-cursor-line-prediction');
 			expect(s.metadata.filePath).toContain(cursorJumpFixtures.sameFile.relativePath);
 			expect(s.metadata.task).toBe(NesDatagenSampleTask.CursorSameFile);
-		});
+			expect(s.metadata.jump).toEqual({
+				fromLine: cursorJumpFixtures.sameFile.fromLine,
+				toLine: cursorJumpFixtures.sameFile.toLine,
+				distance: cursorJumpFixtures.sameFile.toLine - cursorJumpFixtures.sameFile.fromLine,
+			});
 
-		test('modelResponse mirrors the assistant message (round-4 fix)', () => {
-			const s = result.samples[0];
 			const assistant = s.messages.find(m => m.role === 'assistant')!.content;
-			expect(assistant.length).toBeGreaterThan(0);
+			expect(assistant).toBe(String(cursorJumpFixtures.sameFile.toLine));
+			// `modelResponse` mirrors the assistant content (the round-4 fix).
 			expect(s.metadata.modelResponse).toBe(assistant);
-		});
-
-		test('assistant response targets the jumped-to line (line 25)', () => {
-			const assistant = result.samples[0].messages.find(m => m.role === 'assistant')!.content;
-			// Same-file response references the destination line number.
-			expect(assistant).toMatch(/25/);
 		});
 	});
 
@@ -142,20 +139,19 @@ describe('nes-datagen cursor-jump pipeline e2e', () => {
 			expect(result.samples.length).toBe(1);
 		});
 
-		test('sample is tagged as a cross-file cursor jump', () => {
+		test('sample carries the expected metadata, jump, and `<file>:<line>` assistant content', () => {
 			const s = result.samples[0];
 			expect(s.metadata.strategy).toBe('next-cursor-line-prediction');
 			expect(s.metadata.task).toBe(NesDatagenSampleTask.CursorCrossFile);
-		});
+			expect(s.metadata.jump).toEqual({
+				fromLine: cursorJumpFixtures.crossFile.fromLine,
+				toLine: cursorJumpFixtures.crossFile.toLine,
+				toFilePath: cursorJumpFixtures.crossFile.targetPath,
+				distance: 0,
+			});
 
-		test('assistant response references the target file', () => {
-			const assistant = result.samples[0].messages.find(m => m.role === 'assistant')!.content;
-			expect(assistant).toContain(cursorJumpFixtures.crossFile.targetPath);
-		});
-
-		test('modelResponse mirrors the assistant message', () => {
-			const s = result.samples[0];
 			const assistant = s.messages.find(m => m.role === 'assistant')!.content;
+			expect(assistant).toBe(`${cursorJumpFixtures.crossFile.targetPath}:${cursorJumpFixtures.crossFile.toLine}`);
 			expect(s.metadata.modelResponse).toBe(assistant);
 		});
 	});
@@ -171,26 +167,23 @@ describe('nes-datagen cursor-jump pipeline e2e', () => {
 			expect(result.samples.length).toBe(2);
 		});
 
-		test('produces both a same-file and a cross-file classification', () => {
-			const tasks = result.samples.map(s => s.metadata.task).sort();
-			expect(tasks).toEqual([
-				NesDatagenSampleTask.CursorCrossFile,
-				NesDatagenSampleTask.CursorSameFile,
-			].sort());
+		test('the same-file row produces the same-file classification, the cross-file row the cross-file one', () => {
+			// Pin by filePath so a row/classification swap would be caught.
+			const sameFile = result.samples.find(s => s.metadata.filePath.includes(cursorJumpFixtures.sameFile.relativePath));
+			const crossFile = result.samples.find(s => s.metadata.filePath.includes(cursorJumpFixtures.crossFile.activePath));
+
+			expect(sameFile?.metadata.task).toBe(NesDatagenSampleTask.CursorSameFile);
+			expect(sameFile?.messages.find(m => m.role === 'assistant')?.content).toBe(String(cursorJumpFixtures.sameFile.toLine));
+
+			expect(crossFile?.metadata.task).toBe(NesDatagenSampleTask.CursorCrossFile);
+			expect(crossFile?.messages.find(m => m.role === 'assistant')?.content).toBe(`${cursorJumpFixtures.crossFile.targetPath}:${cursorJumpFixtures.crossFile.toLine}`);
 		});
 
-		test('every sample uses the next-cursor-line-prediction strategy', () => {
+		test('every sample uses the next-cursor-line-prediction strategy and has all three roles populated', () => {
 			for (const s of result.samples) {
 				expect(s.metadata.strategy).toBe('next-cursor-line-prediction');
-			}
-		});
-
-		test('every sample has all three message roles populated', () => {
-			for (const s of result.samples) {
 				const roles = s.messages.map(m => m.role);
-				expect(roles).toContain('system');
-				expect(roles).toContain('user');
-				expect(roles).toContain('assistant');
+				expect(roles).toEqual(expect.arrayContaining(['system', 'user', 'assistant']));
 				for (const m of s.messages) {
 					expect(m.content.trim().length).toBeGreaterThan(0);
 				}

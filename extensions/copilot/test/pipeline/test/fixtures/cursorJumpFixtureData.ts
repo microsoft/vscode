@@ -161,6 +161,8 @@ export const cursorJumpFixtures = {
 		targetDocContent: targetDoc,
 		activePath: 'src/active.ts',
 		targetPath: 'src/target.ts',
+		fromLine: 2,
+		toLine: 4,
 	},
 } as const;
 
