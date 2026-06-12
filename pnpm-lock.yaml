@@ -74,8 +74,8 @@ importers:
         specifier: ^1.4.6
         version: 1.4.6
       '@vscode/policy-watcher':
-        specifier: ^1.3.2
-        version: 1.3.7
+        specifier: ^1.4.0
+        version: 1.4.0
       '@vscode/proxy-agent':
         specifier: ^0.42.0
         version: 0.42.0
@@ -1355,8 +1355,8 @@ importers:
         specifier: ^1.0.11
         version: 1.0.12
       vscode-markdown-languageserver:
-        specifier: 0.5.0-alpha.16
-        version: 0.5.0-alpha.16
+        specifier: 0.5.0
+        version: 0.5.0
       vscode-uri:
         specifier: ^3.0.3
         version: 3.1.0
@@ -1395,8 +1395,8 @@ importers:
         specifier: ^3.17.2
         version: 3.18.0
       vscode-markdown-languageservice:
-        specifier: ^0.5.0-alpha.13
-        version: 0.5.0-alpha.13
+        specifier: 0.5.0
+        version: 0.5.0
 
   extensions/markdown-math:
     dependencies:
@@ -5750,8 +5750,8 @@ packages:
   '@vscode/native-watchdog@1.4.6':
     resolution: {integrity: sha512-C2hsQFVYF2hBv7sa7OztRBimrMsEofGNh/lYs7MIPpKdhyJpYSpDb5iu/bilgLqSO61PLBCJ5xw6iFI21LI+9Q==}
 
-  '@vscode/policy-watcher@1.3.7':
-    resolution: {integrity: sha512-OvIczTbtGLZs7YU0ResbjM0KEB2ORBnlJ4ICxaB9fKHNVBwNVp4i2qIkDQGp3UBGtu7P8/+eg4/ZKk2oJGFcug==}
+  '@vscode/policy-watcher@1.4.0':
+    resolution: {integrity: sha512-QKTLV/UtV0HH5AJELfN5D3Jcxj2hB9CYT9GtG334I8bU5TdusaSGYSpDjumZBGWO2YxwVYpBNytA7mq/I3ZtzA==}
 
   '@vscode/prompt-tsx@0.4.0-alpha.8':
     resolution: {integrity: sha512-AJbRUgrGpJNl59uiV0lRa2FsZnO74Fjm4KVt7dQT0PN+ghQjFGJ6lY+w4kF8Gj+2HbOIXNpJvDdGBwa7yuL1+w==}
@@ -12809,12 +12809,13 @@ packages:
     resolution: {integrity: sha512-woByF3PDpkHFUreUa7Hos7+pUWdeWMXRd26+ZX2A8cFx6v/JPTtd4/uN0/jB6XQHYaOlHbio03NTHCqrgG5n7g==}
     hasBin: true
 
-  vscode-markdown-languageserver@0.5.0-alpha.16:
-    resolution: {integrity: sha512-UpjoYwCFcIcQL/vbIpTVy00p5WD3nO3lnrTrv0+wvS7mTDJVdQizkhc4iOTKSbIp5r0M1e+HeNWwSR2RlavMbA==}
+  vscode-markdown-languageserver@0.5.0:
+    resolution: {integrity: sha512-V4y0kJW766d+KyYSKdMJa/tMZ3qXVH6caFK2IGZr/M4jQQkDjk8hc4J7G5pnL3RTQrgCtsxo9RIf31gU5pj+jQ==}
+    engines: {node: '>=22'}
 
-  vscode-markdown-languageservice@0.5.0-alpha.13:
-    resolution: {integrity: sha512-uxEdsSXdh5Bi/q1kymcqv0JziAN4gi02YPOXhqlEahsgiVGd/5cWGSJIL6hIaRtql3wBgRDNqI7CrOsODh0Yqg==}
-    engines: {node: '>=18'}
+  vscode-markdown-languageservice@0.5.0:
+    resolution: {integrity: sha512-+DDXukKWtIHvJtj6tXeLqj8iREnylDQw4yRjY3ldv2J66/oiKRJyLLUy4YhMhfBm9Edjci6VhOSpE84AU3ZFXA==}
+    engines: {node: '>=22'}
 
   vscode-oniguruma@1.7.0:
     resolution: {integrity: sha512-L9WMGRfrjOhgHSdOYgCt/yRMsXzLDJSL7BPrOZt73gU0iWO4mpqzqQzOz5srxqTvMBaR0XZTSrVWo4j55Rc6cA==}
@@ -18062,7 +18063,7 @@ snapshots:
 
   '@vscode/native-watchdog@1.4.6': {}
 
-  '@vscode/policy-watcher@1.3.7':
+  '@vscode/policy-watcher@1.4.0':
     dependencies:
       bindings: 1.5.0
       node-addon-api: 8.8.0
@@ -26230,16 +26231,16 @@ snapshots:
     dependencies:
       vscode-languageserver-protocol: 3.17.5
 
-  vscode-markdown-languageserver@0.5.0-alpha.16:
+  vscode-markdown-languageserver@0.5.0:
     dependencies:
       '@vscode/l10n': 0.0.11
       vscode-languageserver: 9.0.1
       vscode-languageserver-textdocument: 1.0.12
       vscode-languageserver-types: 3.18.0
-      vscode-markdown-languageservice: 0.5.0-alpha.13
+      vscode-markdown-languageservice: 0.5.0
       vscode-uri: 3.1.0
 
-  vscode-markdown-languageservice@0.5.0-alpha.13:
+  vscode-markdown-languageservice@0.5.0:
     dependencies:
       '@vscode/l10n': 0.0.18
       node-html-parser: 6.1.13
