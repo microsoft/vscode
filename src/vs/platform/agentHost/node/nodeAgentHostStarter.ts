@@ -13,7 +13,7 @@ import { parseAgentHostDebugPort } from '../../environment/node/environmentServi
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostClaudeAgentSdkRootSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostClaudeAgentSdkRootSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 /**
@@ -82,6 +82,8 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			codexSdkRoot: this._configurationService.getValue<string>(AgentHostCodexAgentSdkRootSettingId),
 			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
+			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
 		}, process.env);
 		Object.assign(env, sdkEnv);
 
