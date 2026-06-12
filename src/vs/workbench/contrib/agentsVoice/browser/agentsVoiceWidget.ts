@@ -276,7 +276,7 @@ export class AgentsVoiceWidget extends Disposable {
 		const hasTitle = !!opts.title;
 
 		const titleRow = hasTitle ? html`
-			<div style="display:flex;align-items:baseline;gap:6px;padding:8px 14px 0;overflow:hidden;white-space:nowrap;position:relative;z-index:1;">
+			<d iv style="display:flex;align-items:baseline;gap:6px;padding:8px 14px 0;overflow:hidden;white-space:nowrap;position:relative;z-index:1;">
 				<span style="font-size:${FONT_SIZE.micro};font-weight:700;color:var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;user-select:none;">${opts.title}</span>
 				${opts.subtitle ? html`<span style="font-size:${FONT_SIZE.micro};font-weight:400;color:var(--vscode-descriptionForeground);overflow:hidden;text-overflow:ellipsis;">${opts.subtitle}</span>` : nothing}
 			</div>
