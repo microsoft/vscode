@@ -612,6 +612,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	private _runGit(workingDirectory: URI, args: readonly string[], options?: { readonly timeout?: number; readonly throwOnError?: boolean; readonly env?: Record<string, string>; readonly maxBuffer?: number }): Promise<string | undefined> {
+		this._logService.trace(`[agentHostGitService] > git ${args.join(' ')}`);
+
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
 			const timeoutMs = options?.timeout ?? 5000;
@@ -629,7 +631,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// it readable; log the full unmodified output here so the
 					// raw progress/diagnostic text is still available.
 					if (stderr) {
-						this._logService.warn(`[agentHostGitService] git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
 					}
 					if (options?.throwOnError) {
 						reject(new Error(formatGitError(args, timeoutMs, didTimeOut, error, stderr), { cause: error }));
