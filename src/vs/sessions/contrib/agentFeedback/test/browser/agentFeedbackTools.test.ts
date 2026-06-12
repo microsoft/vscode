@@ -29,11 +29,11 @@ suite('AgentFeedbackTools', () => {
 
 	class TestAgentFeedbackService extends mock<IAgentFeedbackService>() {
 		items: IAgentFeedback[] = [
-			{ id: 'comment-a', text: 'Fix this', resourceUri: fileA, range: new Range(3, 1, 3, 12), sessionResource, kind: 'codeReview', state: AgentFeedbackState.Accepted },
-			{ id: 'comment-b', text: 'Consider rename', resourceUri: fileB, range: new Range(8, 2, 8, 20), sessionResource, kind: 'user', state: AgentFeedbackState.Accepted },
+			{ id: 'comment-a', text: 'Fix this', resourceUri: fileA, range: new Range(3, 1, 3, 12), sessionResource, kind: AgentFeedbackKind.AgentReview, state: AgentFeedbackState.Accepted },
+			{ id: 'comment-b', text: 'Consider rename', resourceUri: fileB, range: new Range(8, 2, 8, 20), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
 		];
 
-		override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: unknown, _context?: unknown, _sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = 'user', state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
+		override addFeedback(sessionResource: URI, resourceUri: URI, range: IRange, text: string, _suggestion?: unknown, _context?: unknown, _sourcePRReviewCommentId?: string, kind: AgentFeedbackKind = AgentFeedbackKind.UserReview, state: AgentFeedbackState = AgentFeedbackState.Accepted): IAgentFeedback {
 			const feedback: IAgentFeedback = { id: `comment-${this.items.length + 1}`, text, resourceUri, range, sessionResource, kind, state };
 			this.items.push(feedback);
 			return feedback;
@@ -229,8 +229,8 @@ suite('AgentFeedbackTools', () => {
 		const sessionBChat2 = createChat(URI.parse('agent-chat:/session-b/chat-2'));
 		const feedbackService = new TestAgentFeedbackService();
 		feedbackService.items = [
-			{ id: 'session-a-comment', text: 'Wrong session', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: sessionAResource, kind: 'user', state: AgentFeedbackState.Accepted },
-			{ id: 'session-b-comment', text: 'Right session', resourceUri: fileB, range: new Range(2, 1, 2, 1), sessionResource: sessionBResource, kind: 'codeReview', state: AgentFeedbackState.Accepted },
+			{ id: 'session-a-comment', text: 'Wrong session', resourceUri: fileA, range: new Range(1, 1, 1, 1), sessionResource: sessionAResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
+			{ id: 'session-b-comment', text: 'Right session', resourceUri: fileB, range: new Range(2, 1, 2, 1), sessionResource: sessionBResource, kind: AgentFeedbackKind.AgentReview, state: AgentFeedbackState.Accepted },
 		];
 		const sessionsManagementService = new TestSessionsManagementService([
 			createSession(sessionAResource, [sessionAChat]),

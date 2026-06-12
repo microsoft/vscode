@@ -18,12 +18,12 @@ import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAsses
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
 
-export class ChatMissingSandboxDepsConfirmationSubPart extends AbstractToolConfirmationSubPart {
+export class ChatSandboxPrerequisiteConfirmationSubPart extends AbstractToolConfirmationSubPart {
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
-		_terminalData: IChatTerminalToolInvocationData,
+		terminalData: IChatTerminalToolInvocationData,
 		context: IChatContentPartRenderContext,
 		private readonly renderer: IMarkdownRenderer,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -35,12 +35,15 @@ export class ChatMissingSandboxDepsConfirmationSubPart extends AbstractToolConfi
 	) {
 		super(toolInvocation, context, instantiationService, keybindingService, contextKeyService, chatWidgetService, languageModelToolsService, riskAssessmentService);
 
+		const hasSandboxRemediations = !!terminalData.sandboxRemediations?.length;
 		this.render({
 			allowActionId: AcceptToolConfirmationActionId,
 			skipActionId: SkipToolConfirmationActionId,
-			allowLabel: localize('missingDeps.install', "Install"),
-			skipLabel: localize('missingDeps.cancel', "Cancel"),
-			partType: 'chatMissingSandboxDepsConfirmation',
+			allowLabel: hasSandboxRemediations
+				? localize('sandboxPrerequisite.applyFix', "Apply Fix and Retry")
+				: localize('missingDeps.install', "Install"),
+			skipLabel: localize('sandboxPrerequisite.cancel', "Cancel"),
+			partType: hasSandboxRemediations ? 'chatSandboxRemediationConfirmation' : 'chatMissingSandboxDepsConfirmation',
 		});
 	}
 
@@ -50,7 +53,7 @@ export class ChatMissingSandboxDepsConfirmationSubPart extends AbstractToolConfi
 			? state.confirmationMessages?.message
 			: undefined;
 
-		const container = dom.$('.chat-missing-sandbox-deps-confirmation');
+		const container = dom.$('.chat-sandbox-prerequisite-confirmation');
 		if (message) {
 			const mdMessage = typeof message === 'string' ? new MarkdownString(message) : message;
 			const rendered = this.renderer.render(mdMessage);

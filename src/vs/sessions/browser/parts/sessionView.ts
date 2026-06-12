@@ -272,6 +272,13 @@ export class SessionView extends Disposable implements ISerializableView {
 	}
 
 	/**
+	 * Attaches the given resources as context to the hosted chat view's input.
+	 */
+	attach(uris: URI[]): void {
+		this._currentView.value?.attach(uris);
+	}
+
+	/**
 	 * Updates the view's maximized context key so toolbars hosted within can react.
 	 * Called by the owning {@link SessionsPart} when the grid's maximized view changes.
 	 */

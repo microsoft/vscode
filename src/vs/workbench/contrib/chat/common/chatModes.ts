@@ -33,6 +33,7 @@ import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual as isURLEquals } from '../../../../base/common/resources.js';
 import { equals as objectEquals } from '../../../../base/common/objects.js';
 import { Delayer } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -281,6 +282,9 @@ class ChatModes extends Disposable implements IChatModes {
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
 		} catch (error) {
+			if (isCancellationError(token)) {
+				return;
+			}
 			this.logService.error(error, 'Failed to load custom agents');
 			this._customModeInstances.clear();
 			this.hasCustomModes.set(false);

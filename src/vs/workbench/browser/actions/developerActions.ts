@@ -794,6 +794,7 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '\n';
 
 			const managedSettingsData = {
+				managedSettings: policyData?.managedSettings,
 				enabledPlugins: policyData?.enabledPlugins,
 				extraKnownMarketplaces: policyData?.extraKnownMarketplaces,
 				strictKnownMarketplaces: policyData?.strictKnownMarketplaces,
@@ -867,16 +868,17 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += '### Applied Policy\n\n';
 			appliedPolicy.sort((a, b) => getPolicySource(a.name).localeCompare(getPolicySource(b.name)) || a.name.localeCompare(b.name));
 			if (appliedPolicy.length > 0) {
-				content += '| Setting Key | Policy Name | Policy Source | Default Value | Current Value | Policy Value |\n';
-				content += '|-------------|-------------|---------------|---------------|---------------|-------------|\n';
+				content += '| Setting Key | Policy Name | Policy Source | Managed Settings | Default Value | Current Value | Policy Value |\n';
+				content += '|-------------|-------------|---------------|------------------|---------------|---------------|-------------|\n';
 
 				for (const setting of appliedPolicy) {
 					const defaultValue = JSON.stringify(setting.property.default);
 					const currentValue = JSON.stringify(setting.inspection.value);
 					const policyValue = JSON.stringify(setting.inspection.policyValue);
 					const policySource = getPolicySource(setting.name);
+					const managedSettingsKeys = setting.property.policy?.managedSettings ? Object.keys(setting.property.policy.managedSettings).join(', ') : '';
 
-					content += `| ${setting.key} | ${setting.name} | ${policySource} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
+					content += `| ${setting.key} | ${setting.name} | ${policySource} | ${managedSettingsKeys || '*n/a*'} | \`${defaultValue}\` | \`${currentValue}\` | \`${policyValue}\` |\n`;
 				}
 				content += '\n';
 			} else {

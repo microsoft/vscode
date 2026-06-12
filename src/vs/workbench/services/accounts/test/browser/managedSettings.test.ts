@@ -11,11 +11,20 @@ suite('adaptManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('empty response yields all-undefined partial (no enterprise policy file present)', () => {
+	test('empty response yields empty managed settings and undefined legacy fields', () => {
 		assert.deepStrictEqual(adaptManagedSettings({}), {
+			managedSettings: {},
 			enabledPlugins: undefined,
 			extraKnownMarketplaces: undefined,
 			strictKnownMarketplaces: undefined,
+		});
+	});
+
+	test('normalizes permissions managed settings into dot-path policy data', () => {
+		assert.deepStrictEqual(adaptManagedSettings({
+			permissions: { disableBypassPermissionsMode: 'disable' },
+		}).managedSettings, {
+			'permissions.disableBypassPermissionsMode': 'disable',
 		});
 	});
 
@@ -85,6 +94,13 @@ suite('adaptManagedSettings', () => {
 			strictKnownMarketplaces: true,
 		});
 		assert.deepStrictEqual(result, {
+			managedSettings: {
+				'enabledPlugins.p@m': true,
+				'extraKnownMarketplaces.a.source.source': 'github',
+				'extraKnownMarketplaces.a.source.repo': 'a/b',
+				'extraKnownMarketplaces.a.source.ref': 'r',
+				strictKnownMarketplaces: true,
+			},
 			enabledPlugins: { 'p@m': true },
 			extraKnownMarketplaces: [
 				{ name: 'a', source: { source: 'github', repo: 'a/b', ref: 'r' } },
@@ -93,13 +109,18 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('resilience: unknown top-level keys are silently ignored', () => {
+	test('resilience: unknown top-level keys are preserved only in normalized managed settings', () => {
 		const result = adaptManagedSettings({
 			enabledPlugins: { 'p@m': true },
 			strictKnownMarketplaces: false,
 			joshsFakeSetting: true,
 		} as IManagedSettingsResponse);
 		assert.deepStrictEqual(result, {
+			managedSettings: {
+				'enabledPlugins.p@m': true,
+				strictKnownMarketplaces: false,
+				joshsFakeSetting: true,
+			},
 			enabledPlugins: { 'p@m': true },
 			extraKnownMarketplaces: undefined,
 			strictKnownMarketplaces: false,

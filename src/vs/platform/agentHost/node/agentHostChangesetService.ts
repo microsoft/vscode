@@ -10,7 +10,6 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
-	BASELINE_TURN_ID,
 	buildBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
@@ -284,7 +283,7 @@ export interface IAgentHostChangesetService {
 	refreshUncommittedChangeset(session: ProtocolURI): void;
 
 	/**
-	 * Lazy refresh of the session (branch) changeset, kicked off when a
+	 * Lazy refresh of the session changeset, kicked off when a
 	 * client first subscribes to `<session>/changeset/session` or the
 	 * session URI itself (e.g. Agents Window observing the session). Mirrors
 	 * {@link refreshUncommittedChangeset} so the catalogue chip stays fresh
@@ -510,11 +509,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		try {
 			const sessionUri = URI.parse(session);
-			const originalIsBaseline = originalTurnId === BASELINE_TURN_ID;
 			const [originalCurrentRef, modifiedPair] = await Promise.all([
-				originalIsBaseline
-					? this._checkpointService.getBaselineCheckpointRef(sessionUri)
-					: this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
 				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId),
 			]);
 			if (!originalCurrentRef || !modifiedPair) {
@@ -524,7 +520,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// exists for between-two-turns comparisons.
 				const missing = !originalCurrentRef && !modifiedPair
 					? 'both turns'
-					: !originalCurrentRef ? (originalIsBaseline ? 'baseline' : 'original turn') : 'modified turn';
+					: !originalCurrentRef
+						? 'original turn'
+						: 'modified turn';
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
 					status: ChangesetStatus.Error,
@@ -907,14 +905,46 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (!workingDirectory) {
 			return undefined;
 		}
+
 		let workingDirectoryUri: URI;
 		try {
 			workingDirectoryUri = URI.parse(workingDirectory);
 		} catch {
 			return undefined;
 		}
+
+		// Session
+		if (kind === 'session') {
+			// Get session checkpoints
+			const latestTurnId = this._stateManager.getSessionState(session)?.turns.at(-1)?.id;
+			if (!latestTurnId) {
+				return undefined;
+			}
+
+			const sessionUri = URI.parse(session);
+			const [baseline, pair] = await Promise.all([
+				this._checkpointService.getBaselineCheckpointRef(sessionUri),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
+			]);
+			if (!baseline || !pair) {
+				return undefined;
+			}
+
+			try {
+				return await this._gitService.computeFileDiffsBetweenRefs(workingDirectoryUri, {
+					sessionUri: session,
+					fromRef: baseline,
+					toRef: pair.current
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
+				return undefined;
+			}
+		}
+
+		// Branch & Uncommitted
 		let baseBranch: string | undefined;
-		if (kind === 'branch' || kind === 'session') {
+		if (kind === 'branch') {
 			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
 			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
 			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
@@ -922,8 +952,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
 			}
 		}
+
 		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
+			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
+				sessionUri: session,
+				baseBranch
+			});
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
 			return undefined;

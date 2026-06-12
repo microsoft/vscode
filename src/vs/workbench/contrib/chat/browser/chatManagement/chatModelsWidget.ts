@@ -37,18 +37,22 @@ import { ToolBar } from '../../../../../base/browser/ui/toolbar/toolbar.js';
 import { preferencesClearInputIcon } from '../../../preferences/browser/preferencesIcons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_MODELS_SEARCH_FOCUS } from '../../common/constants.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
+import { LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { formatTokenCount } from '../widget/input/chatModelPicker.js';
+import { formatTokenCount } from '../../../../../base/common/numbers.js';
 
 const $ = DOM.$;
 
 const HEADER_HEIGHT = 30;
 const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
+const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 
 export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -144,6 +148,52 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	}
 
 	return markdown;
+}
+
+/**
+ * Pure helper for building the dropdown actions shown by the **Add Models** button.
+ *
+ * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
+ * regardless of the other inputs so that the existing entitlement/managed-by-organization
+ * restriction is preserved.
+ */
+export function buildAddModelsDropdownActions(
+	configurableVendors: ILanguageModelProviderDescriptor[],
+	supportsAddingModels: boolean,
+	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
+): IAction[] {
+	if (!supportsAddingModels) {
+		return [];
+	}
+
+	// Sort vendors alphabetically by displayName, but pin "OpenAI Compatible (Deprecated)" (customoai)
+	// at the end of the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
+	const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
+	const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
+	const sortedVendors = configurableVendors
+		.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
+		.sort((a, b) => a.displayName.localeCompare(b.displayName));
+	if (customOaiVendor) {
+		sortedVendors.push(customOaiVendor);
+	}
+
+	const toVendorAction = (vendor: ILanguageModelProviderDescriptor) => toAction({
+		id: `enable-${vendor.vendor}`,
+		label: vendor.displayName,
+		run: async () => {
+			await runVendorAction(vendor);
+		}
+	});
+
+	const actions: IAction[] = sortedVendors.map(toVendorAction);
+	if (customEndpointVendor) {
+		if (actions.length > 0) {
+			actions.push(new Separator());
+		}
+		actions.push(toVendorAction(customEndpointVendor));
+	}
+
+	return actions;
 }
 
 class ModelsFilterAction extends Action {
@@ -1000,6 +1050,7 @@ export class ChatModelsWidget extends Disposable {
 	private tableMinWidth: number = 0;
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
+	private browseMarketplaceButton!: Button;
 	private dropdownActions: IAction[] = [];
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
@@ -1016,8 +1067,10 @@ export class ChatModelsWidget extends Disposable {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -1123,8 +1176,9 @@ export class ChatModelsWidget extends Disposable {
 			...defaultButtonStyles,
 			supportIcons: true,
 		};
+
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
+		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1135,6 +1189,14 @@ export class ChatModelsWidget extends Disposable {
 				});
 			}
 		}));
+
+		this.browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
+			...buttonOptions,
+			secondary: true,
+		}));
+		this.browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+		this.browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
+		this._register(this.browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
 
 		// Table container
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
@@ -1477,35 +1539,24 @@ export class ChatModelsWidget extends Disposable {
 				&& entitlement !== ChatEntitlement.Available
 				&& !isManagedEntitlement);
 
-		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
+		this.dropdownActions = buildAddModelsDropdownActions(
+			configurableVendors,
+			supportsAddingModels,
+			vendor => this.addModelsForVendor(vendor),
+		);
+
+		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
 		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
+	}
 
-		// Sort vendors alphabetically by displayName, but pin "OpenAI Compatible (Deprecated)" (customoai)
-		// at the end of the sorted list and "Custom Endpoint" (customendpoint) after a separator at the very end.
-		const customEndpointVendor = configurableVendors.find(v => v.vendor === 'customendpoint');
-		const customOaiVendor = configurableVendors.find(v => v.vendor === 'customoai');
-		const sortedVendors = configurableVendors
-			.filter(v => v.vendor !== 'customendpoint' && v.vendor !== 'customoai')
-			.sort((a, b) => a.displayName.localeCompare(b.displayName));
-		if (customOaiVendor) {
-			sortedVendors.push(customOaiVendor);
+	private async openLanguageModelProviderExtensionsSearch(): Promise<void> {
+		const activeModalEditorPart = this.editorGroupsService.activeModalEditorPart;
+		const isInModalEditor = !!activeModalEditorPart && this.editorGroupsService.getPart(this.editorGroupsService.activeGroup) === activeModalEditorPart;
+		if (isInModalEditor) {
+			await this.commandService.executeCommand(CLOSE_MODAL_EDITOR_COMMAND_ID);
 		}
 
-		const toVendorAction = (vendor: ILanguageModelProviderDescriptor) => toAction({
-			id: `enable-${vendor.vendor}`,
-			label: vendor.displayName,
-			run: async () => {
-				await this.addModelsForVendor(vendor);
-			}
-		});
-
-		this.dropdownActions = sortedVendors.map(toVendorAction);
-		if (customEndpointVendor) {
-			if (this.dropdownActions.length > 0) {
-				this.dropdownActions.push(new Separator());
-			}
-			this.dropdownActions.push(toVendorAction(customEndpointVendor));
-		}
+		await this.extensionsWorkbenchService.openSearch(`tag:"${LANGUAGE_MODEL_CHAT_PROVIDER_EXTENSION_TAG}"`, false);
 	}
 
 	private filterModels(): void {

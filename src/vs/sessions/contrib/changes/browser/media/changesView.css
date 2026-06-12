@@ -35,12 +35,6 @@
 	gap: 8px;
 }
 
-.changes-view-body .changes-welcome-icon.codicon {
-	font-size: 32px !important;
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.4;
-}
-
 .changes-view-body .changes-welcome-message {
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
