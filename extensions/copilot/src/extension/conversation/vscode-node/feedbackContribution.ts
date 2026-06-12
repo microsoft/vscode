@@ -7,20 +7,13 @@ import { IAuthenticationService } from '../../../platform/authentication/common/
 import { LogMemory } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
-type ReportIssueSource = 'vscode' | 'extension' | 'marketplace' | 'unknown';
-
-interface IReportCommandOptions {
-	readonly title?: string;
-}
-
 export class FeedbackCommandContribution extends Disposable {
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService
 	) {
 		super();
 
-		this._register(vscode.commands.registerCommand('github.copilot.report', async (options: string | IReportCommandOptions = '') => {
-			const title = typeof options === 'string' ? options : options.title ?? '';
+		this._register(vscode.commands.registerCommand('github.copilot.report', async (title: string = '') => {
 			const token = this.authenticationService.copilotToken;
 			const isTeamMember = token?.isVscodeTeamMember;
 			const output: string[] = isTeamMember ? [`<details><summary>Prompt Details</summary>`] : [`<details><summary>Logs</summary>`];
