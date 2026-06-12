@@ -255,11 +255,6 @@ export class ContextKeysContribution extends Disposable {
 
 	private async _onAuthenticationChange() {
 		this._inspectContext();
-		this._updateQuotaExceededContext();
-		this._updatePreviewFeaturesDisabledContext();
-		this._updateBlackbirdExternalIndexingDisabledContext();
-		this._updateClientByokEnabledContext();
-		this._updateShowLogViewContext();
 		this._updatePermissiveSessionContext();
 	}
 
