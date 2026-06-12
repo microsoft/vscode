@@ -28,6 +28,16 @@ import { DebugRecorder } from './debugRecorder';
 import { INesConfigs } from './nesConfigs';
 import { INextEditDisplayLocation, INextEditResult } from './nextEditResult';
 
+/**
+ * GitHub telemetry event name for NES (Next Edit Suggestion) telemetry.
+ *
+ * Used for both the standard event ({@link ITelemetryService.sendGHTelemetryEvent}) emitted per
+ * suggestion, and the enhanced events ({@link ITelemetryService.sendEnhancedGHTelemetryEvent})
+ * emitted both per-suggestion (here) and periodically (see `ContinuousEnhancedTelemetrySender`).
+ * Enhanced continuous events are disambiguated by a `continuous: 'true'` property.
+ */
+export const NES_GH_TELEMETRY_EVENT_NAME = 'copilot-nes/provideInlineEdit';
+
 export type NextEditTelemetryStatus = 'new' | 'requested' | `noEdit:${string}` | 'docChanged' | 'emptyEdits' | 'emptyEditsButHasNextCursorPosition' | 'previouslyRejected' | 'previouslyRejectedCache' | 'accepted' | 'notAccepted' | 'rejected';
 
 export type NesAcceptance = 'accepted' | 'notAccepted' | 'rejected';
@@ -1256,7 +1266,7 @@ export class TelemetrySender implements IDisposable {
 
 	private _sendTelemetryToBoth(properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
 		this._telemetryService.sendMSFTTelemetryEvent('provideInlineEdit', properties, measurements);
-		this._telemetryService.sendGHTelemetryEvent('copilot-nes/provideInlineEdit', properties, measurements);
+		this._telemetryService.sendGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME, properties, measurements);
 	}
 
 	private async _doSendEnhancedTelemetry(telemetry: INextEditProviderTelemetry, sendingReason: IEnhancedTelemetrySendingReason | undefined): Promise<void> {
@@ -1287,7 +1297,7 @@ export class TelemetrySender implements IDisposable {
 		const modelResponse = response === undefined ? response : await response;
 		const resolvedSimilarFilesContext = await similarFilesContext?.catch(() => undefined);
 
-		this._telemetryService.sendEnhancedGHTelemetryEvent('copilot-nes/provideInlineEdit',
+		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
 			multiplexProperties({
 				opportunityId,
 				headerRequestId,

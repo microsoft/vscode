@@ -13,11 +13,12 @@ import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecy
 import { autorun } from '../../../util/vs/base/common/observable';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { DebugRecorder } from './debugRecorder';
+import { NES_GH_TELEMETRY_EVENT_NAME } from './nextEditProviderTelemetry';
 
 /**
  * Periodically sends an enhanced GH telemetry event with a fixed-length slice of recent workspace activity.
  *
- * Each event is shipped on the existing `copilot-nes/provideInlineEdit` channel (so we reuse the existing
+ * Each event is shipped on the existing {@link NES_GH_TELEMETRY_EVENT_NAME} channel (so we reuse the existing
  * privacy/classification surface) and tagged with `continuous: 'true'` so the backend can route it.
  *
  * ## Timing
@@ -160,7 +161,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 
 		const repositoryUrls = this._collectWorkspaceRepositories();
 
-		this._telemetryService.sendEnhancedGHTelemetryEvent('copilot-nes/provideInlineEdit',
+		this._telemetryService.sendEnhancedGHTelemetryEvent(NES_GH_TELEMETRY_EVENT_NAME,
 			multiplexProperties({
 				continuous: 'true',
 				recording: JSON.stringify(recording),
