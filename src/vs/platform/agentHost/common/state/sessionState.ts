@@ -62,7 +62,7 @@ export {
 	type SessionConfigState, type SessionInputAnswer,
 	type SessionInputOption, type SessionInputQuestion, type SessionInputRequest, type SessionModelInfo,
 	type SessionState,
-	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState,
+	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,

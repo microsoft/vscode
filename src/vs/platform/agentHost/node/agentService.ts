@@ -38,6 +38,7 @@ import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostGitService } from './agentHostGitService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
+import { AgentFeedbackToolHost } from './shared/agentFeedbackToolHost.js';
 import { AgentHostChangesetService, IAgentHostChangesetService, META_CHANGES_SUMMARY } from './agentHostChangesetService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../common/agentHostCheckpointService.js';
@@ -129,6 +130,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _changesetOperationContributionService: AgentHostChangesetOperationContributionService;
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
+	/** Server-side host for the feedback ("comments") tools. */
+	private readonly _feedbackToolHost: AgentFeedbackToolHost;
 	private readonly _configurationService: IAgentConfigurationService;
 	/** Pluggable completion item providers (e.g. workspace file completions, agent-specific @-mentions). */
 	private readonly _completions: IAgentHostCompletions;
@@ -306,6 +309,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// Terminal management — the terminal manager listens to the state
 		// manager's action stream and dispatches PTY output back through it.
 		this._terminalManager = this._register(instantiationService.createInstance(AgentHostTerminalManager, this._stateManager));
+
+		// Server-side feedback ("comments") tools, executed against each
+		// session's annotations channel. Handed to providers that support it
+		// during registration (see registerProvider).
+		this._feedbackToolHost = new AgentFeedbackToolHost(this._stateManager);
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -316,6 +324,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
+		provider.setFeedbackToolHost?.(this._feedbackToolHost);
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));

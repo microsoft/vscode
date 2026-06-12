@@ -12,6 +12,7 @@ import { IAgentSubscription } from '../../../../platform/agentHost/common/state/
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
+import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../platform/agentHost/common/agentFeedbackAnnotations.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -145,7 +146,7 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 // --- Annotations-backed backend -----------------------------------------------
 
 /** Namespaced key under {@link Annotation._meta} carrying feedback semantics. */
-const FEEDBACK_META_KEY = 'vscode.agentFeedback';
+const FEEDBACK_META_KEY = FEEDBACK_ANNOTATION_META_KEY;
 
 /**
  * Feedback semantics carried in an annotation's {@link Annotation._meta}.

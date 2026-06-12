@@ -79,6 +79,8 @@ export interface ICopilotSessionRuntime {
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(): Tool<any>[];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	createServerSdkTools(): Tool<any>[];
 }
 
 export interface ICopilotSessionLauncher {
@@ -325,7 +327,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			systemMessage: COPILOT_AGENT_HOST_SYSTEM_MESSAGE,
 			pluginDirectories: coalesce(plugins.map(p => p.pluginDir))
 				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
-			tools: [...shellTools, ...runtime.createClientSdkTools()],
+			tools: [...shellTools, ...runtime.createClientSdkTools(), ...runtime.createServerSdkTools()],
 			// Pass the GitHub token at the session level. The SDK's
 			// client-level `gitHubToken` authenticates the CLI process,
 			// but each session also needs its own token resolved into a
