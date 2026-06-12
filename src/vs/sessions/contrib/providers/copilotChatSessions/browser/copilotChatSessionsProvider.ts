@@ -1667,22 +1667,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m);
 	}
 
-	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
-		// A session type that requires an explicit model selection cannot fall
-		// back to Auto. When it has no models (e.g. the Claude agent for a
-		// Copilot Free / Student user), the picker shows a "No models available"
-		// state instead of Auto. Harnesses that support Auto (e.g. the Copilot
-		// CLI agent) keep the Auto fallback. Derive this from the contribution's
-		// declarative `showAutoModel` flag rather than hardcoding
-		// session-type names.
-		const sessionType = this.getSession(sessionId)?.sessionType;
-		const showAutoModel = !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
+	getModelPickerOptions(_sessionId: string): ISessionModelPickerOptions {
 		return {
 			useGroupedModelPicker: true,
 			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
-			showAutoModel,
 		};
 	}
 
