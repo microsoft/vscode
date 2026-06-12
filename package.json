@@ -1,6 +1,10 @@
 {
   "name": "code-oss-dev",
+<<<<<<< HEAD
   "version": "1.125.0",
+=======
+  "version": "1.124.2",
+>>>>>>> 6928394f91b (bump version to 1.124.2 (#321047))
   "distro": "b85469481bdd242ea1c0b9c07894f86c2b6fa408",
   "author": {
     "name": "Microsoft Corporation"
