@@ -3297,12 +3297,16 @@ class RestoredTerminalExecution extends Disposable implements IActiveTerminalExe
 
 export class TerminalProfileFetcher {
 
+	private static readonly _posixShellFallbacks = ['/bin/bash', '/usr/bin/bash', '/bin/sh'];
+
 	readonly osBackend: Promise<OperatingSystem>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IFileService private readonly _fileService: IFileService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		this.osBackend = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 	}
@@ -3340,8 +3344,48 @@ export class TerminalProfileFetcher {
 			};
 		}
 
+		// Validate the resolved shell exists on disk; fall back to a known
+		// POSIX shell when it doesn't (e.g. profile resolves to zsh on a
+		// Linux system where zsh is not installed).
+		if (os !== OperatingSystem.Windows) {
+			const shellExists = await this._shellExists(defaultProfile.path);
+			if (!shellExists) {
+				const fallbackPath = await this._findFallbackShell();
+				if (fallbackPath) {
+					this._logService.warn(`TerminalProfileFetcher: resolved shell "${defaultProfile.path}" does not exist, falling back to "${fallbackPath}"`);
+					return {
+						...defaultProfile,
+						path: fallbackPath,
+						profileName: basename(fallbackPath),
+						icon: undefined,
+					};
+				}
+			}
+		}
+
 		// Setting icon: undefined allows the system to use the default AI terminal icon (not overridden or removed)
 		return { ...defaultProfile, icon: undefined };
+	}
+
+	private async _shellExists(shellPath: string): Promise<boolean> {
+		try {
+			const remoteAuthority = this._remoteAgentService.getConnection()?.remoteAuthority;
+			const resource = remoteAuthority
+				? URI.file(shellPath).with({ scheme: 'vscode-remote', authority: remoteAuthority })
+				: URI.file(shellPath);
+			return await this._fileService.exists(resource);
+		} catch {
+			return false;
+		}
+	}
+
+	private async _findFallbackShell(): Promise<string | undefined> {
+		for (const candidate of TerminalProfileFetcher._posixShellFallbacks) {
+			if (await this._shellExists(candidate)) {
+				return candidate;
+			}
+		}
+		return undefined;
 	}
 
 	async getCopilotShell(): Promise<string> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { html, render, nothing, type TemplateResult } from '../../../../../base/common/lit-html/lit-html.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
@@ -20,67 +20,103 @@ export interface FeedbackDialogState {
 	readonly submitted: boolean;
 }
 
-/**
- * Render the inline feedback form. This replaces the widget content while
- * active — no separate overlay or popup.
- */
-export function renderFeedbackDialog(props: FeedbackDialogProps, state: FeedbackDialogState): TemplateResult | typeof nothing {
-	if (state.submitted) {
-		return html`
-			<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 14px;gap:8px;flex:1;">
-				<span class="codicon codicon-check" style="font-size:20px;color:var(--vscode-charts-green);"></span>
-				<span style="font-size:${FONT_SIZE.body};color:var(--vscode-foreground);font-weight:500;text-align:center;">${localize('agentsVoice.feedbackThanks', "Thank you for your feedback!")}</span>
-			</div>
-		`;
-	}
+export interface FeedbackDialogComponent {
+	readonly element: HTMLElement;
+	update(props: FeedbackDialogProps, state: FeedbackDialogState): void;
+}
 
-	const submitDisabled = state.isSubmitting;
-	let textareaEl: HTMLTextAreaElement | null = null;
+export function createFeedbackDialog(): FeedbackDialogComponent {
+	const container = dom.$('div');
+	container.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:4px 0;';
 
-	return html`
-		<div style="display:flex;flex-direction:column;gap:8px;padding:4px 0;">
-			<div style="display:flex;align-items:center;gap:6px;">
-				<span class="codicon codicon-feedback" style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-foreground);"></span>
-				<span style="font-size:${FONT_SIZE.body};font-weight:600;color:var(--vscode-foreground);">${localize('agentsVoice.sendFeedback', "Send Feedback")}</span>
-			</div>
-			<textarea
-				rows="3"
-				placeholder="${localize('agentsVoice.feedbackPlaceholder', "What could we improve?")}"
-				style="
-					width:100%;box-sizing:border-box;
-					background:var(--vscode-input-background);
-					color:var(--vscode-input-foreground);
-					border:1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
-					border-radius:4px;padding:6px 8px;
-					font-family:inherit;font-size:${FONT_SIZE.body};
-					resize:vertical;min-height:48px;max-height:120px;
-					outline:none;-webkit-app-region:no-drag;
-				"
-				@focus=${(e: FocusEvent) => { textareaEl = e.target as HTMLTextAreaElement; (e.target as HTMLElement).style.borderColor = 'var(--vscode-focusBorder)'; }}
-				@blur=${(e: FocusEvent) => { (e.target as HTMLElement).style.borderColor = 'var(--vscode-input-border, var(--vscode-editorWidget-border))'; }}
-				@input=${(e: InputEvent) => { textareaEl = e.target as HTMLTextAreaElement; }}
-				?disabled=${submitDisabled}></textarea>
-			<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);line-height:1.3;">
-				${localize('agentsVoice.feedbackConsent', "By submitting, you agree that your session logs and transcript history will be included with your feedback.")}
-			</span>
-			${state.error ? html`<span style="font-size:${FONT_SIZE.micro};color:var(--vscode-errorForeground);">${state.error}</span>` : nothing}
-			<div style="display:flex;gap:6px;justify-content:flex-end;">
-				<button
-					style="-webkit-app-region:no-drag;background:transparent;border:1px solid var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-border));color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;"
-					@click=${props.onCancel}
-					?disabled=${submitDisabled}>${localize('agentsVoice.cancel', "Cancel")}</button>
-				<button
-					style="-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;font-weight:500;"
-					@mouseenter=${(e: MouseEvent) => { if (!submitDisabled) { (e.target as HTMLElement).style.background = 'var(--vscode-button-hoverBackground)'; } }}
-					@mouseleave=${(e: MouseEvent) => { (e.target as HTMLElement).style.background = 'var(--vscode-button-background)'; }}
-					@click=${() => {
-			const text = textareaEl?.value.trim() ?? '';
-			if (text) { props.onSubmit(text); }
-		}}
-					?disabled=${submitDisabled}>${state.isSubmitting ? localize('agentsVoice.submitting', "Submitting...") : localize('agentsVoice.submit', "Submit")}</button>
-			</div>
-		</div>
-	`;
+	// Success view
+	const successView = dom.$('div');
+	successView.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 14px;gap:8px;flex:1;';
+	const successIcon = dom.$('span.codicon.codicon-check');
+	successIcon.style.cssText = 'font-size:20px;color:var(--vscode-charts-green);';
+	const successText = dom.$('span');
+	successText.style.cssText = `font-size:${FONT_SIZE.body};color:var(--vscode-foreground);font-weight:500;text-align:center;`;
+	successText.textContent = localize('agentsVoice.feedbackThanks', "Thank you for your feedback!");
+	successView.append(successIcon, successText);
+
+	// Form view
+	const formView = dom.$('div');
+	formView.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:4px 0;';
+
+	const headerRow = dom.$('div');
+	headerRow.style.cssText = 'display:flex;align-items:center;gap:6px;';
+	const headerIcon = dom.$('span.codicon.codicon-feedback');
+	headerIcon.style.fontSize = FONT_SIZE.iconSm;
+	headerIcon.style.color = 'var(--vscode-foreground)';
+	const headerText = dom.$('span');
+	headerText.style.cssText = `font-size:${FONT_SIZE.body};font-weight:600;color:var(--vscode-foreground);`;
+	headerText.textContent = localize('agentsVoice.sendFeedback', "Send Feedback");
+	headerRow.append(headerIcon, headerText);
+
+	const textarea = document.createElement('textarea');
+	textarea.rows = 3;
+	textarea.placeholder = localize('agentsVoice.feedbackPlaceholder', "What could we improve?");
+	textarea.style.cssText = `width:100%;box-sizing:border-box;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));border-radius:4px;padding:6px 8px;font-family:inherit;font-size:${FONT_SIZE.body};resize:vertical;min-height:48px;max-height:120px;outline:none;-webkit-app-region:no-drag;`;
+	textarea.addEventListener('focus', () => { textarea.style.borderColor = 'var(--vscode-focusBorder)'; });
+	textarea.addEventListener('blur', () => { textarea.style.borderColor = 'var(--vscode-input-border, var(--vscode-editorWidget-border))'; });
+
+	const consent = dom.$('span');
+	consent.style.cssText = `font-size:${FONT_SIZE.micro};color:var(--vscode-descriptionForeground);line-height:1.3;`;
+	consent.textContent = localize('agentsVoice.feedbackConsent', "By submitting, you agree that your session logs and transcript history will be included with your feedback.");
+
+	const errorEl = dom.$('span');
+	errorEl.style.cssText = `font-size:${FONT_SIZE.micro};color:var(--vscode-errorForeground);`;
+
+	const buttonRow = dom.$('div');
+	buttonRow.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;';
+
+	const cancelBtn = document.createElement('button');
+	cancelBtn.style.cssText = `-webkit-app-region:no-drag;background:transparent;border:1px solid var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-border));color:var(--vscode-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;`;
+	cancelBtn.textContent = localize('agentsVoice.cancel', "Cancel");
+
+	const submitBtn = document.createElement('button');
+	submitBtn.style.cssText = `-webkit-app-region:no-drag;background:var(--vscode-button-background);border:none;color:var(--vscode-button-foreground);font-size:${FONT_SIZE.body};padding:3px 10px;border-radius:3px;cursor:pointer;font-weight:500;`;
+	submitBtn.addEventListener('mouseenter', () => { if (!submitBtn.disabled) { submitBtn.style.background = 'var(--vscode-button-hoverBackground)'; } });
+	submitBtn.addEventListener('mouseleave', () => { submitBtn.style.background = 'var(--vscode-button-background)'; });
+
+	buttonRow.append(cancelBtn, submitBtn);
+	formView.append(headerRow, textarea, consent, errorEl, buttonRow);
+
+	container.append(successView, formView);
+
+	return {
+		element: container,
+		update(props: FeedbackDialogProps, state: FeedbackDialogState) {
+			if (state.submitted) {
+				successView.style.display = 'flex';
+				formView.style.display = 'none';
+				return;
+			}
+
+			successView.style.display = 'none';
+			formView.style.display = 'flex';
+
+			const submitDisabled = state.isSubmitting;
+			textarea.disabled = submitDisabled;
+			cancelBtn.disabled = submitDisabled;
+			cancelBtn.onclick = () => props.onCancel();
+			submitBtn.disabled = submitDisabled;
+			submitBtn.textContent = state.isSubmitting
+				? localize('agentsVoice.submitting', "Submitting...")
+				: localize('agentsVoice.submit', "Submit");
+			submitBtn.onclick = () => {
+				const text = textarea.value.trim();
+				if (text) { props.onSubmit(text); }
+			};
+
+			if (state.error) {
+				errorEl.style.display = '';
+				errorEl.textContent = state.error;
+			} else {
+				errorEl.style.display = 'none';
+			}
+		}
+	};
 }
 
 /**
@@ -89,6 +125,7 @@ export function renderFeedbackDialog(props: FeedbackDialogProps, state: Feedback
  */
 export class FeedbackDialogController extends Disposable {
 	private _state: FeedbackDialogState = { isSubmitting: false, submitted: false };
+	private readonly _dialog: FeedbackDialogComponent;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -96,14 +133,16 @@ export class FeedbackDialogController extends Disposable {
 		private readonly _onClose: () => void,
 	) {
 		super();
+		this._dialog = createFeedbackDialog();
+		this._container.append(this._dialog.element);
 		this._render();
 	}
 
 	private _render(): void {
-		render(renderFeedbackDialog({
+		this._dialog.update({
 			onSubmit: (text) => this._handleSubmit(text),
 			onCancel: () => this._onClose(),
-		}, this._state), this._container);
+		}, this._state);
 	}
 
 	private async _handleSubmit(text: string): Promise<void> {
@@ -122,7 +161,7 @@ export class FeedbackDialogController extends Disposable {
 	}
 
 	override dispose(): void {
-		render(nothing, this._container);
+		dom.clearNode(this._container);
 		super.dispose();
 	}
 }

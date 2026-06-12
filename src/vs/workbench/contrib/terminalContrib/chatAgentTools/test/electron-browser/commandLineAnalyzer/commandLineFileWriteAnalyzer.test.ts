@@ -122,6 +122,11 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('percent-style variable - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
 		});
 
+		suite('tilde and environment-variable expansion', () => {
+			test('tilde home expansion - block', () => t('echo hello > ~/file.txt', 'outsideWorkspace', false, 1));
+			test('windows-style env-var expansion - block', () => t('echo hello > %HOME%/file.txt', 'outsideWorkspace', false, 1));
+		});
+
 		suite('blockDetectedFileWrites: all', () => {
 			test('inside workspace - block', () => t('echo hello > file.txt', 'all', false, 1));
 			test('outside workspace - block', () => t('echo hello > /tmp/file.txt', 'all', false, 1));
@@ -304,6 +309,11 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('subexpression - block', () => t('Write-Host "hello" > $(Get-Date).log', 'outsideWorkspace', false, 1));
 			test('percent-style variable - block', () => t('Write-Host "hello" > %APPDATA%\\file.txt', 'outsideWorkspace', false, 1));
 			test('tilde expansion - block', () => t('Write-Host "hello" > ~\\file.txt', 'outsideWorkspace', false, 1));
+		});
+
+		suite('tilde and environment-variable expansion', () => {
+			test('tilde home expansion - block', () => t('Write-Host "hello" > ~\\file.txt', 'outsideWorkspace', false, 1));
+			test('windows env-var expansion - block', () => t('Write-Host "hello" > %APPDATA%\\file.txt', 'outsideWorkspace', false, 1));
 		});
 
 		suite('blockDetectedFileWrites: all', () => {

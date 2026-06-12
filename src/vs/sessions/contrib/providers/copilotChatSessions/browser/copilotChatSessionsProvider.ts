@@ -1368,7 +1368,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly order = 0;
 
 	get sessionTypes(): readonly ISessionType[] {
-		const types: ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
+		const types: ISessionType[] = [];
+		if (this._isCopilotCliAvailable()) {
+			types.push(CopilotCLISessionType);
+		}
+		types.push(CopilotCloudSessionType);
 		if (this._isClaudeAvailable()) {
 			types.push(ClaudeCodeSessionType);
 		}
@@ -1417,6 +1421,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _multiChatEnabled: boolean;
 	private _claudeEnabled: boolean;
 	private _preferAgentHostClaude: boolean;
+	private _hideExtensionHostCopilotCli: boolean;
 
 	/**
 	 * Claude is offered by this (Copilot Chat sessions) provider only when the
@@ -1427,6 +1432,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private _isClaudeAvailable(): boolean {
 		return this._claudeEnabled && !this._preferAgentHostClaude;
+	}
+
+	/**
+	 * The Extension Host Copilot CLI is offered by this provider unless the user
+	 * has hidden it via `chat.agents.copilotCli.hideExtensionHost`, in which case
+	 * the Agents window picker only surfaces the Agent Host Copilot CLI entry.
+	 */
+	private _isCopilotCliAvailable(): boolean {
+		return !this._hideExtensionHostCopilotCli;
 	}
 
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -1452,21 +1466,27 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._multiChatEnabled = this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 		this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
 		this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
+		this._hideExtensionHostCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const claudeEnabledChanged = e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING);
 			const preferAgentHostChanged = e.affectsConfiguration(ClaudePreferAgentHostAgentsSettingId);
-			if (!claudeEnabledChanged && !preferAgentHostChanged) {
+			const hideCopilotCliChanged = e.affectsConfiguration(ChatConfiguration.CopilotCliHideExtensionHostAgents);
+			if (!claudeEnabledChanged && !preferAgentHostChanged && !hideCopilotCliChanged) {
 				return;
 			}
-			const wasAvailable = this._isClaudeAvailable();
+			const wasClaudeAvailable = this._isClaudeAvailable();
+			const wasCopilotCliAvailable = this._isCopilotCliAvailable();
 			if (claudeEnabledChanged) {
 				this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING);
 			}
 			if (preferAgentHostChanged) {
 				this._preferAgentHostClaude = this.configurationService.getValue<boolean>(ClaudePreferAgentHostAgentsSettingId) ?? false;
 			}
-			if (this._isClaudeAvailable() !== wasAvailable) {
+			if (hideCopilotCliChanged) {
+				this._hideExtensionHostCopilotCli = this.configurationService.getValue<boolean>(ChatConfiguration.CopilotCliHideExtensionHostAgents) ?? false;
+			}
+			if (this._isClaudeAvailable() !== wasClaudeAvailable || this._isCopilotCliAvailable() !== wasCopilotCliAvailable) {
 				this._onDidChangeSessionTypes.fire();
 				this._refreshSessionCache();
 			}
@@ -1494,7 +1514,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME || workspaceUri.scheme === SessionType.CopilotCloud) {
 			return [CopilotCloudSessionType];
 		}
-		const types: ISessionType[] = [CopilotCLISessionType];
+		const types: ISessionType[] = [];
+		if (this._isCopilotCliAvailable()) {
+			types.push(CopilotCLISessionType);
+		}
 		if (this._isClaudeAvailable()) {
 			types.push(ClaudeCodeSessionType);
 		}

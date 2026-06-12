@@ -28,3 +28,16 @@ export const COLOR = {
 	userTranscript: 'rgb(88,166,255)',       // listening / user voice
 	assistantTranscript: 'rgb(163,113,247)', // speaking / assistant voice
 } as const;
+
+/**
+ * Add Enter/Space keyboard activation to a non-native button element.
+ * Required for elements with role="button" + tabindex="0".
+ */
+export function addKeyboardActivation(el: HTMLElement): void {
+	el.addEventListener('keydown', (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			el.click();
+		}
+	});
+}

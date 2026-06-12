@@ -197,6 +197,7 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
+	readonly isBYOK?: boolean;
 	readonly pricing?: string;
 	readonly inputCost?: number;
 	readonly cacheCost?: number;
