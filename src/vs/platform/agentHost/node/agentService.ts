@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -199,6 +199,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _rootConfigResource?: URI,
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 		_fileMonitorService?: IAgentHostFileMonitorService,
+		copilotApiService?: ICopilotApiService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -239,7 +240,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
 		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, undefined);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
-		services.set(ICopilotApiService, instantiationService.createInstance(CopilotApiService, undefined));
+		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
+		services.set(ICopilotApiService, effectiveCopilotApiService);
 		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
 		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
 
@@ -288,6 +290,13 @@ export class AgentService extends Disposable implements IAgentService {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
+			copilotApiService: effectiveCopilotApiService,
+			getGitHubCopilotToken: () => {
+				return this.getAuthToken({
+					resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+					scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+				});
+			},
 			onTurnComplete: session => {
 				const workingDirStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
 				this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
@@ -443,18 +452,18 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		});
 
-		// Overlay any session that has been announced via `sessionAdded`
-		// but is missing from the providers' `listSessions` snapshot.
-		// Providers can briefly drop a just-materialized session (e.g.
-		// between firing `sessionAdded` and the SDK's session DB becoming
-		// visible to the next `listSessions` call), and immediately after
-		// `session/turnComplete` we've observed `CopilotAgent.listSessions`
-		// return an empty array transiently. Without this overlay,
-		// renderer-side session caches evict the live session, which
-		// closes the chat view holding the in-flight response bubble.
+		// Overlay any session known to state but missing from the providers'
+		// `listSessions` snapshot, so renderer-side caches don't evict a
+		// live/active session (which would close the chat view holding the
+		// in-flight response bubble). Two cases need this: a provider can
+		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
+		// an empty array right after `session/turnComplete`), and a
+		// provisional session (created but not yet materialized — see
+		// `createSession`) is absent for its entire provisional window. We use
+		// *all* tracked summaries (not just announced ones) to cover the latter.
 		const known = new Set(withStatus.map(s => s.session.toString()));
 		const additions: IAgentSessionMetadata[] = [];
-		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
+		for (const summary of this._stateManager.getAllSessionSummaries()) {
 			if (known.has(summary.resource)) {
 				continue;
 			}
@@ -807,9 +816,13 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 		}
 		this._changesetCoordinator.onSessionDisposed(session.toString());
+		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
+		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+		// performed by the provider above. No-op when the directory does not exist.
+		await this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------

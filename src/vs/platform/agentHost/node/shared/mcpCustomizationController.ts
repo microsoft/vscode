@@ -137,6 +137,40 @@ export class McpCustomizationController extends Disposable {
 	}
 
 	/**
+	 * Returns the customization id currently associated with the MCP
+	 * server named `serverName`, or `undefined` when no customization
+	 * exists. Top-level entries return the minted top-level id; child
+	 * entries return whatever {@link IMcpChildIdResolver} resolves to
+	 * for that server. Used by providers to tag
+	 * {@link ToolCallMcpContributor.customizationId | tool-call contributors}
+	 * so clients can correlate MCP tool calls with the originating
+	 * server customization.
+	 */
+	customizationIdForServer(serverName: string): string | undefined {
+		const live = this._live.get(serverName);
+		if (live?.topLevelId !== undefined) {
+			return live.topLevelId;
+		}
+		return this._options.resolveChildId(serverName);
+	}
+
+	/**
+	 * Returns the `mcp://` AHP channel URI currently advertised for the
+	 * MCP server named `serverName`, or `undefined` when the server is
+	 * not in {@link McpServerStatus.Ready}. Used by providers to attach
+	 * the channel to MCP App `_meta.ui` so clients can route App
+	 * sub-RPCs (tools/call, resources/read, sampling/createMessage)
+	 * back through {@link IAgentHostService.handleMcpRequest}.
+	 */
+	channelForServer(serverName: string): string | undefined {
+		const live = this._live.get(serverName);
+		if (!live || live.state.kind !== McpServerStatus.Ready) {
+			return undefined;
+		}
+		return this._buildChannel(serverName, live.state);
+	}
+
+	/**
 	 * Replaces the live inventory with `servers`. Servers no longer
 	 * present are removed; new servers and changed servers are upserted.
 	 */

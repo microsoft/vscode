@@ -148,7 +148,7 @@
 }
 
 .agent-sessions-workbench .part.sessionspart {
-	margin: 0 5px 5px 10px;
+	margin: 0 4px 4px 10px;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
@@ -178,7 +178,7 @@
 	 * container via `trackAttributes`, so without this scoping the styling
 	 * would leak into floating editor windows.
 	 */
-	margin: 0 0 5px 5px;
+	margin: 0 0 4px 4px;
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border, transparent);
 	border-right-width: 0;
@@ -198,7 +198,7 @@
  * corner radii so the editor still looks like a card.
  */
 .agent-sessions-workbench.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) {
-	border-right-width: 1px;
+	border-right-width: var(--vscode-strokeThickness);
 	border-top-right-radius: 8px;
 	border-bottom-right-radius: 8px;
 }
@@ -240,7 +240,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 	line-height: 22px;
 }
 
@@ -297,8 +297,8 @@
 	justify-content: center;
 	width: 16px;
 	min-width: 16px;
-	font-size: 11px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-body2);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	opacity: 0.9;
 }
 
@@ -324,8 +324,8 @@
 	background-color: transparent !important;
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: 12px;
-	font-weight: 500;
+	font-size: var(--vscode-agents-fontSize-label1);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
@@ -576,8 +576,14 @@
 	max-width: 950px;
 	margin: 0 auto;
 	display: inherit;
-	padding: 4px 32px 4px 32px;
+	padding: 4px 32px;
 	box-sizing: border-box;
+}
+
+/* Make sure when editing we don't give unnecessary padding. */
+.agent-sessions-workbench .part.sessionspart .interactive-session .chat-edit-input-container .interactive-input-part,
+.agent-sessions-workbench .chat-editor-relative .interactive-session .chat-edit-input-container .interactive-input-part {
+	padding: 4px 0;
 }
 
 /* Hide shared chat-session option-group pickers in the sessions app active chat UI.

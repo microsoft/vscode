@@ -14,6 +14,53 @@ import { binarySearch, log } from './util';
 
 export namespace Processor {
 
+	export interface ISplitRecording {
+		readonly currentFile: { readonly id: number; readonly relativePath: string };
+		readonly recordingPriorToRequest: LogEntry[];
+		readonly recordingAfterRequest: LogEntry[];
+		readonly idToFileMap: ReadonlyMap<number, string>;
+	}
+
+	/**
+	 * Split a recording at its NES request bookmark and resolve the active
+	 * document at that moment. Exposed so callers (in particular nes-datagen
+	 * cursor-jump detectors) can reason about what the user did *after* the request
+	 * without re-implementing the same splitting logic that
+	 * {@link createScoringForAlternativeAction} performs internally.
+	 *
+	 * Returns `undefined` if the recording cannot be split (missing
+	 * `requestTime`, empty entries, no resolvable active document, etc.).
+	 */
+	export function splitRecording(altAction: IAlternativeAction): ISplitRecording | undefined {
+		const processedRecording = splitRecordingAtRequestTime(altAction);
+		if (!processedRecording) {
+			return undefined;
+		}
+
+		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
+		if (currentFileId === undefined) {
+			return undefined;
+		}
+
+		// Pass the whole recording so cross-file targets in the post-request
+		// portion can be resolved by id even if the user only encountered the
+		// target document after the bookmark.
+		const idToFileMap = documentIndexMapping(wholeRecording);
+
+		const currentFilePath = idToFileMap.get(currentFileId);
+		if (!currentFilePath) {
+			return undefined;
+		}
+
+		return {
+			currentFile: { id: currentFileId, relativePath: currentFilePath },
+			recordingPriorToRequest,
+			recordingAfterRequest,
+			idToFileMap,
+		};
+	}
+
 	export function createScoringForAlternativeAction(
 		altAction: IAlternativeAction,
 		proposedEdits: IStringReplacement[],
@@ -26,7 +73,7 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const { recordingPriorToRequest, recordingAfterRequest } = processedRecording;
+		const { wholeRecording, recordingPriorToRequest, recordingAfterRequest } = processedRecording;
 
 		const currentFileId = determineCurrentFileId(recordingPriorToRequest);
 		if (currentFileId === undefined) {
@@ -34,7 +81,7 @@ export namespace Processor {
 			return undefined;
 		}
 
-		const idToFileMap = documentIndexMapping(recordingPriorToRequest);
+		const idToFileMap = documentIndexMapping(wholeRecording);
 
 		const currentFilePath = idToFileMap.get(currentFileId);
 
@@ -65,6 +112,7 @@ export namespace Processor {
 	}
 
 	function splitRecordingAtRequestTime(altAction: IAlternativeAction): {
+		wholeRecording: LogEntry[];
 		recordingPriorToRequest: LogEntry[];
 		recordingAfterRequest: LogEntry[];
 	} | undefined {
@@ -97,6 +145,7 @@ export namespace Processor {
 		const recordingAfterRequest = recording.slice(recordingIdxOfRequestTime + 1);
 
 		return {
+			wholeRecording: recording,
 			recordingPriorToRequest,
 			recordingAfterRequest
 		};

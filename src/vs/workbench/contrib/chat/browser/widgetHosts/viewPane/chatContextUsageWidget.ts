@@ -7,6 +7,7 @@ import './media/chatContextUsageWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { EventType, addDisposableListener } from '../../../../../../base/browser/dom.js';
 import { IDelayedHoverOptions } from '../../../../../../base/browser/ui/hover/hover.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -98,6 +99,9 @@ export class ChatContextUsageWidget extends Disposable {
 	get isVisible(): IObservable<boolean> { return this._isVisible; }
 
 	private readonly _lastRequestDisposable = this._register(new MutableDisposable());
+	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
+	private _currentResponse: IChatResponseModel | undefined;
+	private _currentModelId: string | undefined;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
 
@@ -109,6 +113,14 @@ export class ChatContextUsageWidget extends Disposable {
 	private readonly _contextUsageOpenedKey: IContextKey<boolean>;
 
 	private _enabled: boolean;
+
+	/**
+	 * Per-editor resolver for a model's configuration (e.g. user-selected
+	 * context size). When unset the widget falls back to the profile-global
+	 * value from {@link ILanguageModelsService.getModelConfiguration}, which can
+	 * lag the editor's actual selection (see issue #320393).
+	 */
+	private _modelConfigurationResolver: ((modelId: string) => IStringDictionary<unknown> | undefined) | undefined;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
@@ -232,6 +244,8 @@ export class ChatContextUsageWidget extends Disposable {
 	 */
 	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
+		this._currentResponse = undefined;
+		this._currentModelId = undefined;
 
 		if (!lastRequest) {
 			// New/empty chat session clear everything
@@ -250,6 +264,8 @@ export class ChatContextUsageWidget extends Disposable {
 
 		const response = lastRequest.response;
 		const modelId = lastRequest.modelId;
+		this._currentResponse = response;
+		this._currentModelId = modelId;
 
 		// Update immediately if usage data is already available
 		this.updateFromResponse(response, modelId);
@@ -260,10 +276,29 @@ export class ChatContextUsageWidget extends Disposable {
 		});
 	}
 
+	/**
+	 * Provides a per-editor resolver for the selected model's configuration
+	 * (notably the user-selected context size). The widget re-renders whenever
+	 * the supplied event fires for the currently displayed model. Without this,
+	 * the widget falls back to the profile-global value, which can drift from
+	 * the editor's actual selection (see issue #320393).
+	 */
+	setModelConfigurationResolver(
+		resolver: (modelId: string) => IStringDictionary<unknown> | undefined,
+		onDidChange: Event<string>,
+	): void {
+		this._modelConfigurationResolver = resolver;
+		this._modelConfigurationListener.value = onDidChange(modelId => {
+			if (this._currentResponse && this._currentModelId === modelId) {
+				this.updateFromResponse(this._currentResponse, modelId);
+			}
+		});
+	}
+
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
 		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const modelConfiguration = this.languageModelsService.getModelConfiguration(modelId);
+		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
 		const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
 		const maxInputTokens = configuredContextSize ?? modelMetadata?.maxInputTokens;
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;

@@ -9,7 +9,6 @@
 	flex-direction: column;
 	flex-shrink: 0;
 	box-sizing: border-box;
-	overflow: hidden;
 	font-size: var(--vscode-agents-fontSize-label1, 12px);
 }
 
@@ -19,24 +18,24 @@
 	display: flex;
 	align-items: center;
 	padding: 4px;
-	margin-top: 4px;
+	margin-top: 6px;
 	border-radius: var(--vscode-cornerRadius-medium);
-	min-height: 22px;
+	min-height: 20px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	cursor: pointer;
 	user-select: none;
 }
 
 .ci-status-widget-header:hover {
-	padding-right: 26px;
+	padding-right: 28px;
 }
 
 .ci-status-widget-header:focus-visible {
-	padding-right: 26px;
+	padding-right: 28px;
 }
 
 .ci-status-widget-header.collapsed {
-	padding-right: 26px;
+	padding-right: 28px;
 }
 
 /* Hover/keyboard focus promote the title to the strong foreground instead of
@@ -115,7 +114,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 1;
 }
 

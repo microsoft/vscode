@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual, ok } from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
-import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, TerminalSandboxService, type ISandboxDependencyInstallTerminal } from '../../common/terminalSandboxService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -160,6 +161,7 @@ suite('TerminalSandboxService - network domains', () => {
 		callCount = 0;
 		status: ISandboxDependencyStatus = {
 			bubblewrapInstalled: true,
+			bubblewrapUsable: true,
 			socatInstalled: true,
 		};
 		filesystemPolicy: IWindowsMxcFilesystemPolicy = {
@@ -302,6 +304,7 @@ suite('TerminalSandboxService - network domains', () => {
 	test('should report dependency prereq failures', async () => {
 		sandboxHelperService.status = {
 			bubblewrapInstalled: false,
+			bubblewrapUsable: false,
 			socatInstalled: true,
 		};
 
@@ -313,6 +316,54 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(result.missingDependencies?.length, 1, 'Missing dependency list should be included');
 		strictEqual(result.missingDependencies?.[0], 'bubblewrap', 'The missing dependency should be reported');
 		ok(result.sandboxConfigPath, 'Sandbox config path should still be returned when config creation succeeds');
+	});
+
+	test('should report the repair action when bubblewrap is unusable', async () => {
+		sandboxHelperService.status = {
+			bubblewrapInstalled: true,
+			bubblewrapUsable: false,
+			bubblewrapError: 'No permissions to create namespace',
+			socatInstalled: true,
+		};
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const result = await sandboxService.checkForSandboxingPrereqs();
+
+		strictEqual(result.failedCheck, TerminalSandboxPrerequisiteCheck.Bubblewrap);
+		deepStrictEqual(result.remediations, [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction]);
+		strictEqual(result.detail, 'No permissions to create namespace');
+	});
+
+	test('should run the approved bubblewrap remediation command', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const runAndCapture = async (remediation: TerminalSandboxPreCheckRemediation): Promise<string | undefined> => {
+			let sentCommand: string | undefined;
+			const commandFinishedEmitter = store.add(new Emitter<{ exitCode: number | undefined }>());
+			const terminal: ISandboxDependencyInstallTerminal = {
+				sendText: async command => {
+					sentCommand = command;
+					commandFinishedEmitter.fire({ exitCode: 0 });
+				},
+				focus: () => { },
+				capabilities: {
+					get: () => ({ onCommandFinished: commandFinishedEmitter.event }),
+					onDidAddCapability: Event.None,
+				},
+				onDidInputData: Event.None,
+				onDisposed: Event.None,
+			};
+			const result = await sandboxService.runSandboxRemediation(remediation, undefined, CancellationToken.None, {
+				createTerminal: async () => terminal,
+				focusTerminal: async () => { },
+			});
+			strictEqual(result.exitCode, 0);
+			return sentCommand;
+		};
+
+		strictEqual(
+			await runAndCapture(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction),
+			'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0',
+		);
 	});
 
 	test('should report successful sandbox prereq checks', async () => {
@@ -614,7 +665,7 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.allowRead.includes('/app/node_modules/@vscode/ripgrep'), 'Sandbox config should not redundantly include app root child paths');
 	});
 
-	test('should reallow reads from workspace storage', async () => {
+	test('should allow reads and writes from workspace storage', async () => {
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			workspaceStorageHome: URI.file('/home/user/.vscode-server/data/User/workspaceStorage')

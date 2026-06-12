@@ -28,7 +28,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { OpenSessionEventsFileAction } from '../../agentHost/browser/openSessionEventsFileActions.js';
 import { authenticateProtectedResources, AgentHostAuthTokenCache, resolveAuthenticationInteractively } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
-import { AgentHostLanguageModelProvider } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
+import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -812,6 +812,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsAutoModel: agentHostProviderSupportsAutoModel(agent.provider),
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,

@@ -12,7 +12,7 @@
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: var(--vscode-shadow-lg);
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label1);
 	line-height: 1.4;
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
@@ -88,7 +88,7 @@
 
 /* Title */
 .agent-feedback-widget-title {
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	line-height: 16px;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
@@ -126,7 +126,7 @@
 /* Body - collapsible */
 .agent-feedback-widget-body {
 	transition: max-height 0.2s ease-in-out, padding 0.2s ease-in-out;
-	border-radius: 0 0 8px 8px;
+	border-radius: 0 0 var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
@@ -192,10 +192,10 @@
 .agent-feedback-widget-item-type {
 	display: inline-flex;
 	align-items: center;
-	padding: 1px 6px;
+	padding: 2px 6px;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: 10px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	letter-spacing: 0.2px;
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 	color: var(--vscode-descriptionForeground);
@@ -208,8 +208,8 @@
 
 /* Line info */
 .agent-feedback-widget-line-info {
-	font-size: 10px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
@@ -230,7 +230,7 @@
 
 .agent-feedback-widget-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label3);
 	padding: 1px 4px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
@@ -249,8 +249,8 @@
 }
 
 .agent-feedback-widget-suggestion-header {
-	font-size: 10px;
-	font-weight: 600;
+	font-size: var(--vscode-agents-fontSize-label3);
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	text-transform: uppercase;
 	letter-spacing: 0.4px;
 	color: var(--vscode-descriptionForeground);
@@ -269,7 +269,7 @@
 	overflow-x: auto;
 	white-space: pre-wrap;
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label3);
 	line-height: 1.45;
 	background: var(--vscode-editorWidget-background);
 	user-select: text;
@@ -336,8 +336,8 @@
 
 .agent-feedback-widget-reply-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
-	padding: 1px 4px;
+	font-size: var(--vscode-agents-fontSize-label3);
+	padding: 2px 4px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }

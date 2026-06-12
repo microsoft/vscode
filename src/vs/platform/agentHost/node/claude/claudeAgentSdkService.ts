@@ -15,9 +15,9 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 
 /**
  * `@anthropic-ai/claude-agent-sdk` distribution descriptor. Lives in this
- * file because it encodes Claude-specific knowledge — the env-var name and
- * the fact that Claude ships separate `linux-*-musl` packages alongside
- * the regular `linux-*` ones. The downloader consumes this through
+ * file because it encodes Claude-specific knowledge — the env-var name
+ * and the fact that Claude ships separate `linux-{x64,arm64}-musl` SKUs
+ * alongside the default glibc ones. The downloader consumes this through
  * `IAgentSdkPackage` and never names Claude directly.
  */
 export const ClaudeSdkPackage: IAgentSdkPackage = {

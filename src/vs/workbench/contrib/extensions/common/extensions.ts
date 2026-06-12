@@ -187,14 +187,16 @@ export const enum ExtensionEditorTab {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const AutoUpdateDelayConfigurationKey = 'extensions.autoUpdateDelay';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 
-export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
+export type AutoUpdateConfigurationValue = 'on' | 'off';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: AutoUpdateConfigurationValue;
+	autoUpdateDelay: number;
 	autoCheckUpdates: boolean;
 	ignoreRecommendations: boolean;
 	closeExtensionDetailsOnViewChange: boolean;

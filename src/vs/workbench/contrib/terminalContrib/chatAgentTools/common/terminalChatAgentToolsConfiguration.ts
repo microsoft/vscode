@@ -657,7 +657,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
+				description: localize('agentSandbox.linuxFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
 				items: { type: 'string' },
 				default: []
 			},
@@ -695,7 +695,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			},
 			allowWrite: {
 				type: 'array',
-				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders and sandbox temp directory."),
+				description: localize('agentSandbox.macFileSystemSetting.allowWrite', "Array of additional paths to allow write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
 				items: { type: 'string' },
 				default: []
 			},

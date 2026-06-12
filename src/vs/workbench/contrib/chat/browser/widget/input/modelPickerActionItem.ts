@@ -9,6 +9,8 @@ import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hov
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
@@ -19,6 +21,24 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languag
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ModelPickerWidget } from './chatModelPicker.js';
 
+/**
+ * Read/write access to a model's configuration (e.g. context size, thinking
+ * effort). Implemented either by the global {@link ILanguageModelsService} or by
+ * a per-editor override layer so that one editor's changes do not sync to other
+ * already-open editors. Structurally satisfied by `ILanguageModelsService`.
+ */
+export interface IModelConfigurationAccess {
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	getModelConfigurationActions(modelId: string): IAction[];
+	/**
+	 * Fires when this access layer's configuration changes (e.g. user picks a
+	 * new context size). Implementations that always read the global value can
+	 * omit this and rely on `ILanguageModelsService.onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<string /* modelId */>;
+}
+
 export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
@@ -27,6 +47,19 @@ export interface IModelPickerDelegate {
 	showManageModelsAction(): boolean;
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
+	/**
+	 * Whether the synthetic "Auto" model is available for the current session,
+	 * so it can fall back to Auto. Defaults to `true` when omitted. When this
+	 * returns `false` and {@link getModels} is empty, the picker shows a
+	 * "No models available" entry (and an upgrade prompt for Copilot Free /
+	 * Student users) instead of an Auto entry.
+	 */
+	showAutoModel?(): boolean;
+	/**
+	 * Per-editor model configuration access. When omitted, the picker reads and
+	 * writes configuration through the global {@link ILanguageModelsService}.
+	 */
+	readonly modelConfiguration?: IModelConfigurationAccess;
 }
 
 /**

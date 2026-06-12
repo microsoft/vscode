@@ -81,7 +81,7 @@ suite('ChangesetSessionCoordinator', () => {
 			sessionRefreshes: environment.changesets.sessionRefreshes,
 		}, {
 			acquisitions: ['file:///repo'],
-			uncommittedRefreshes: [firstSession, secondSession],
+			uncommittedRefreshes: [secondSession],
 			sessionRefreshes: [firstSession, secondSession],
 		});
 	});
@@ -160,6 +160,34 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual(environment.changesets.sessionRefreshes, []);
 	});
 
+	test('git state changes refresh uncommitted only while uncommitted subscribers exist', () => {
+		const session = AgentSession.uri('mock', 'session-1').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		environment.changesets.clearRefreshes();
+		environment.coordinator.onSessionGitStateChanged(session);
+		assert.deepStrictEqual({
+			sessionRefreshes: environment.changesets.sessionRefreshes,
+			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
+		}, {
+			sessionRefreshes: [session],
+			uncommittedRefreshes: [],
+		});
+
+		environment.coordinator.onFirstSubscriber(URI.parse(buildUncommittedChangesetUri(session)));
+		environment.changesets.clearRefreshes();
+		environment.coordinator.onSessionGitStateChanged(session);
+		assert.deepStrictEqual({
+			sessionRefreshes: environment.changesets.sessionRefreshes,
+			uncommittedRefreshes: environment.changesets.uncommittedRefreshes,
+		}, {
+			sessionRefreshes: [session],
+			uncommittedRefreshes: [session],
+		});
+	});
+
 	test('does not attach root state when watcher acquisition fails', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();
@@ -174,7 +202,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo'],
-			refreshes: [session],
+			refreshes: [],
 		});
 	});
 
@@ -201,7 +229,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			refreshes: [session],
+			refreshes: [],
 		});
 	});
 
@@ -233,7 +261,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, uncommittedRefreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			uncommittedRefreshes: [firstSession, secondSession],
+			uncommittedRefreshes: [],
 		});
 	});
 
@@ -262,7 +290,7 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual({ acquisitions: environment.monitor.acquisitions, disposals: environment.monitor.disposals, refreshes: environment.changesets.uncommittedRefreshes }, {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
-			refreshes: [parentSession],
+			refreshes: [],
 		});
 	});
 
@@ -379,6 +407,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
+	private _hasUncommittedSubscribers: (session: string) => boolean = () => false;
+
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }
 	parsePersistedStaticChangesets(_sessionUri: string, _metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs { return {}; }
@@ -390,6 +420,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.branchRefreshes.push(session);
 	}
 	refreshUncommittedChangeset(session: string): void {
+		if (!this._hasUncommittedSubscribers(session)) {
+			return;
+		}
 		this.uncommittedRefreshes.push(session);
 	}
 	refreshSessionChangeset(session: string): void {
@@ -401,6 +434,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
 	setTurnSubscriberProbe(_probe: (session: string, turnId: string) => boolean): void { }
+	setUncommittedSubscriberProbe(probe: (session: string) => boolean): void {
+		this._hasUncommittedSubscribers = probe;
+	}
 
 	clearRefreshes(): void {
 		this.branchRefreshes.length = 0;

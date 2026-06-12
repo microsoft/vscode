@@ -66,13 +66,13 @@ suite('PluginAutoUpdate', () => {
 	}
 
 	test('does not trigger update on construction', async () => {
-		const { state } = createContribution(true);
+		const { state } = createContribution('on');
 		await flushMicrotasks();
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
 	test('triggers silent updateAllPlugins when hasUpdatesAvailable becomes true', async () => {
-		const { state } = createContribution(true);
+		const { state } = createContribution('on');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();
@@ -80,8 +80,8 @@ suite('PluginAutoUpdate', () => {
 		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
 	});
 
-	test('does not trigger update when extensions.autoUpdate is false', async () => {
-		const { state } = createContribution(false);
+	test('does not trigger update when extensions.autoUpdate is off', async () => {
+		const { state } = createContribution('off');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();
@@ -89,17 +89,13 @@ suite('PluginAutoUpdate', () => {
 		assert.deepStrictEqual(state.updateAllCalls, []);
 	});
 
-	test('does not trigger update for non-true auto-update values like onlyEnabledExtensions', async () => {
-		// Plugins have no per-item opt-in equivalent to extensions, so only
-		// `true` (update everything) opts plugins into auto-update.
-		for (const value of ['onlyEnabledExtensions', 'onlySelectedExtensions'] as const) {
-			const { state } = createContribution(value);
+	test('triggers update when extensions.autoUpdate is on', async () => {
+		const { state } = createContribution('on');
 
-			state.hasUpdatesAvailable.set(true, undefined);
-			await flushMicrotasks();
+		state.hasUpdatesAvailable.set(true, undefined);
+		await flushMicrotasks();
 
-			assert.deepStrictEqual(state.updateAllCalls, [], `expected no update for autoUpdate=${value}`);
-		}
+		assert.deepStrictEqual(state.updateAllCalls, [{ silent: true }]);
 	});
 
 	test('does not run a second update concurrently with one in flight', async () => {
@@ -107,7 +103,7 @@ suite('PluginAutoUpdate', () => {
 		const pendingUpdate = new Promise<IUpdateAllPluginsResult>(resolve => {
 			resolveUpdate = () => resolve({ updatedNames: [], failedNames: [] });
 		});
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: () => pendingUpdate,
 		});
 
@@ -127,7 +123,7 @@ suite('PluginAutoUpdate', () => {
 	});
 
 	test('continues running on subsequent cycles after the previous update finished', async () => {
-		const { state } = createContribution(true);
+		const { state } = createContribution('on');
 
 		state.hasUpdatesAvailable.set(true, undefined);
 		await flushMicrotasks();
@@ -144,7 +140,7 @@ suite('PluginAutoUpdate', () => {
 	});
 
 	test('swallows errors from updateAllPlugins', async () => {
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: async () => { throw new Error('boom'); },
 		});
 
@@ -167,7 +163,7 @@ suite('PluginAutoUpdate', () => {
 		// path in `PluginInstallService.updateAllPlugins`). Without our own
 		// clear in `finally`, the observable would stay stuck at `true` and
 		// the next periodic check's `set(true)` would not notify subscribers.
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: async () => ({ updatedNames: [], failedNames: ['plugin-a'] }),
 		});
 
@@ -188,7 +184,7 @@ suite('PluginAutoUpdate', () => {
 	});
 
 	test('clears the flag even when updateAllPlugins throws', async () => {
-		const { state } = createContribution(true, {
+		const { state } = createContribution('on', {
 			updateAllImpl: async () => { throw new Error('boom'); },
 		});
 
