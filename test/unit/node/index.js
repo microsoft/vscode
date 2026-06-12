@@ -116,6 +116,8 @@ function main() {
 
 	process.on('uncaughtException', function(e) {
 		console.error(e.stack || e);
+		try { process.report?.writeReport(); } catch { }
+		process.exit(1);
 	});
 
 	process.on('unhandledRejection', function(reason) {
