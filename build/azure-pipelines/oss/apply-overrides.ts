@@ -11,14 +11,18 @@
  *    - { name, fullLicenseText }
  *    - { name, fullLicenseTextUri, prependLicenseText? }
  *
+ *  Any shape may include an optional `version` field. When present, the override
+ *  applies only to the matching name+version. When absent, the override applies
+ *  to every version of the named package.
+ *
  *  CELA guidance (vscode-engineering#2142 comment 4624222337):
  *    Do NOT manufacture copyright statements automatically. Any prepend/full text
  *    must come from a human-authored override entry, not from the tool.
  *
- *  Override matching is case-insensitive on `name`. Overrides whose name does not
- *  match any merged entry are returned as `unmatchedNames` so the caller can warn
- *  (during the build) or hard-fail (during the PR check, when we know the package
- *  was just removed).
+ *  Override matching is case-insensitive on `name` and exact on `version`.
+ *  Overrides whose name/version do not match any merged entry are returned as
+ *  `unmatchedNames` so the caller can warn (during the build) or hard-fail
+ *  (during the PR check, when we know the package was just removed).
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
@@ -28,6 +32,12 @@ import { URL } from 'url';
 
 export interface CglicenseEntry {
 	name: string;
+	/**
+	 * Optional version filter. When present, the override applies only to merged
+	 * entries whose version matches exactly. When absent, the override applies to
+	 * every version of the named package.
+	 */
+	version?: string;
 	fullLicenseText?: string[];
 	fullLicenseTextUri?: string;
 	prependLicenseText?: string[];
@@ -181,9 +191,16 @@ export async function applyOverrides(
 
 	for (const override of overrides) {
 		const key = override.name.toLowerCase();
-		const targets = byName.get(key);
+		const allTargets = byName.get(key);
+		const targets = allTargets
+			? (override.version
+				? allTargets.filter(t => t.version === override.version)
+				: allTargets)
+			: undefined;
 		if (!targets || targets.length === 0) {
-			unmatchedNames.push(override.name);
+			unmatchedNames.push(
+				override.version ? `${override.name}@${override.version}` : override.name
+			);
 			continue;
 		}
 
@@ -219,7 +236,9 @@ export async function applyOverrides(
 			appliedEntryCount++;
 		}
 
-		appliedNames.push(override.name);
+		appliedNames.push(
+			override.version ? `${override.name}@${override.version}` : override.name
+		);
 	}
 
 	return { appliedNames, appliedEntryCount, unmatchedNames, errors };
