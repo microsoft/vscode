@@ -17,7 +17,7 @@ import { IRemoteAgentHostService, IRemoteAgentHostConnectionInfo } from '../../.
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -29,7 +29,7 @@ class MockAgentConnection {
 	declare readonly _serviceBrand: undefined;
 
 	public readonly clientId = 'mock-client';
-	public dispatched: (SessionAction | TerminalAction | IRootConfigChangedAction)[] = [];
+	public dispatched: (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] = [];
 
 	private _rootStateValue: RootState | undefined;
 	private readonly _rootStateOnDidChange = new Emitter<RootState>();
@@ -48,7 +48,7 @@ class MockAgentConnection {
 	readonly onDidAction: Event<ActionEnvelope> = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
 
-	dispatch(_channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	dispatch(_channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatched.push(action);
 	}
 
@@ -75,11 +75,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidNotification = this.inner.onDidNotification;
 	override readonly rootState = this.inner.rootState;
 
-	override dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.inner.dispatch(channel, action);
 	}
 
-	get dispatched(): readonly (SessionAction | TerminalAction | IRootConfigChangedAction)[] {
+	get dispatched(): readonly (SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction)[] {
 		return this.inner.dispatched;
 	}
 

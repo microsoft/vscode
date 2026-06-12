@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewState, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewOpenOptions, IBrowserViewOwner, IBrowserViewService, IBrowserViewState, IBrowserViewTheme, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserEditorViewState } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -112,36 +112,32 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 		this._mainWindowId = mainWindow.vscodeWindowId;
 
-		this.sendKeybindings();
-		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
-
 		// Keep the shared-process tunnel proxy's address provider up to date
 		// so the proxy can connect whenever the main process starts it.
 		this._updateProxyAddressPump();
 
-		this.sendTheme();
-		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
-
-		this.sendConfiguration();
+		// Send the full per-window configuration as a single unit, and resend it
+		// whenever any of its inputs change.
+		this._updateWindowConfiguration();
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
+		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
-				this.sendConfiguration();
+				this._updateWindowConfiguration();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId)) {
-				this.sendConfiguration();
+			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+				this._updateWindowConfiguration();
 			}
 			if (e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
 				this._updateProxyAddressPump();
 			}
 		}));
-
-		this.sendTrustedFileRoots();
-		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.sendTrustedFileRoots()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.sendTrustedFileRoots()));
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.sendTrustedFileRoots()));
 
 		// Track sharing availability from context keys
 		this._isSharingAvailable = this.contextKeyService.contextMatchesRules(BrowserViewWorkbenchService._sharingAvailableContext);
@@ -189,19 +185,21 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return true;
 	}
 
+	private get _remoteProxyId(): string | undefined {
+		return this.willUseRemoteProxy() ? String(this._mainWindowId) : undefined;
+	}
+
 	private readonly _proxyAddressPump = this._register(new MutableDisposable());
 	private _updateProxyAddressPump(): void {
 		const authority = this.environmentService.remoteAuthority;
-		if (!authority || !this.willUseRemoteProxy()) {
+		const proxyId = this._remoteProxyId;
+		if (!authority || !proxyId) {
 			this._proxyAddressPump.clear();
 			return;
 		}
 		if (this._proxyAddressPump.value) {
 			return;
 		}
-		// Window id alone is the proxy id: a window has at most one
-		// remote authority at any moment, so the authority is implied.
-		const proxyId = String(this._mainWindowId);
 		const push = () => {
 			const data = this.remoteAuthorityResolverService.getConnectionData(authority);
 			if (data) {
@@ -222,15 +220,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
-				const storageScope = await this._resolveStorageScope();
-				const proxyId = this.willUseRemoteProxy() ? String(this._mainWindowId) : undefined;
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
 						sessionOptions: {
-							scope: storageScope,
-							proxyId: storageScope === BrowserViewStorageScope.Global ? undefined : proxyId
+							scope: await this._resolveStorageScope()
 						},
 						initialState: {
 							url: initialState?.url,
@@ -379,7 +374,18 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return undefined;
 	}
 
-	private sendKeybindings(): void {
+	private _updateWindowConfiguration(): void {
+		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
+			theme: this._getTheme(),
+			keybindings: this._getKeybindings(),
+			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
+			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
+			proxyId: this._remoteProxyId,
+			trustedFileRoots: this._getTrustedFileRoots(),
+		});
+	}
+
+	private _getKeybindings(): { [commandId: string]: string } {
 		const keybindings: { [commandId: string]: string } = Object.create(null);
 		for (const commandId of browserViewContextMenuCommands) {
 			const binding = this.keybindingService.lookupKeybinding(commandId);
@@ -388,27 +394,20 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				keybindings[commandId] = accelerator;
 			}
 		}
-		void this._browserViewService.updateKeybindings(keybindings);
+		return keybindings;
 	}
 
-	private sendTheme(): void {
+	private _getTheme(): IBrowserViewTheme {
 		const theme = this.themeService.getColorTheme();
-		void this._browserViewService.updateTheme({
+		return {
 			focusBorder: theme.getColor(focusBorder)?.toString(),
 			buttonBackground: theme.getColor(buttonBackground)?.toString(),
 			buttonForeground: theme.getColor(buttonForeground)?.toString(),
 			font: DEFAULT_FONT_FAMILY,
-		});
+		};
 	}
 
-	private sendConfiguration(): void {
-		void this._browserViewService.updateConfiguration({
-			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
-			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-		});
-	}
-
-	private sendTrustedFileRoots(): void {
+	private _getTrustedFileRoots(): string[] {
 		const roots = new Set<string>();
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
@@ -422,6 +421,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				roots.add(uri.fsPath);
 			}
 		}
-		void this._browserViewService.updateTrustedFileRoots(this._mainWindowId, [...roots]);
+		return [...roots];
 	}
 }

@@ -7,6 +7,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { AgentSession, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LOG_OUTPUT_CHANNEL_ID, IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -17,7 +19,7 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 
 const AGENT_HOST_SESSION_SCHEME_PREFIX = 'agent-host-';
 
@@ -36,10 +38,11 @@ export interface IAgentHostCustomizationService {
 
 	/**
 	 * Returns the MCP servers exposed by an agent-host session. Each entry
-	 * carries the current status and a {@link IAgentHostMcpServer.setEnabled}
+	 * carries the current status, a {@link IAgentHostMcpServer.setEnabled}
 	 * method that dispatches the protocol-level toggle on behalf of the
-	 * caller. Returns an empty array for sessions not backed by an agent
-	 * host, or that don't expose any MCP servers.
+	 * caller, and the {@link IAgentHostMcpServer.logOutputChannelId} of the
+	 * host backing the session. Returns an empty array for sessions not
+	 * backed by an agent host, or that don't expose any MCP servers.
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
 }
@@ -75,6 +78,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IChatService chatService: IChatService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super();
 
@@ -131,6 +135,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 		}
 		const customizations = this._readSessionState(sessionResource)?.customizations ?? [];
 		const channel = backendSession.toString();
+		const logOutputChannelId = this._resolveLogOutputChannelId(backendSession);
 		return customizations
 			.filter((c): c is McpServerCustomization => c.type === CustomizationType.McpServer)
 			.map((c): IAgentHostMcpServer => ({
@@ -138,6 +143,7 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 				name: c.name,
 				enabled: c.enabled,
 				status: c.state.kind,
+				logOutputChannelId,
 				setEnabled: (enabled: boolean) => {
 					this._agentHostService.dispatch(channel, {
 						type: ActionType.SessionCustomizationToggled,
@@ -146,6 +152,19 @@ class WorkbenchAgentHostCustomizationService extends Disposable implements IAgen
 					});
 				},
 			}));
+	}
+
+	private _resolveLogOutputChannelId(backendSession: URI): string | undefined {
+		const providerId = AgentSession.provider(backendSession);
+		if (providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+			return AGENT_HOST_LOG_OUTPUT_CHANNEL_ID;
+		}
+		if (providerId?.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX)) {
+			const authority = providerId.substring(REMOTE_AGENT_HOST_PROVIDER_PREFIX.length);
+			const connection = this._remoteAgentHostService.connections.find(c => agentHostAuthority(c.address) === authority);
+			return connection ? remoteAgentHostLogOutputChannelId(connection.address) : undefined;
+		}
+		return undefined;
 	}
 
 	private _readSessionState(sessionResource: URI): SessionState | undefined {
