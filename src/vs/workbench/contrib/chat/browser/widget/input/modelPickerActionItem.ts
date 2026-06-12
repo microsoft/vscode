@@ -48,12 +48,13 @@ export interface IModelPickerDelegate {
 	showUnavailableFeatured(): boolean;
 	showFeatured(): boolean;
 	/**
-	 * Whether the Auto model is unavailable for the current session, so it cannot
-	 * fall back to Auto. When true and {@link getModels} is empty, the picker
-	 * shows a "No models available" entry (and an upgrade prompt for Copilot
-	 * Free / Student users) instead of an Auto entry.
+	 * Whether the synthetic "Auto" model is available for the current session,
+	 * so it can fall back to Auto. Defaults to `true` when omitted. When this
+	 * returns `false` and {@link getModels} is empty, the picker shows a
+	 * "No models available" entry (and an upgrade prompt for Copilot Free /
+	 * Student users) instead of an Auto entry.
 	 */
-	autoModelUnavailable?(): boolean;
+	showAutoModel?(): boolean;
 	/**
 	 * Per-editor model configuration access. When omitted, the picker reads and
 	 * writes configuration through the global {@link ILanguageModelsService}.

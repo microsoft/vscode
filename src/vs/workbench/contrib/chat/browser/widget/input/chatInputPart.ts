@@ -1027,7 +1027,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const sessionType = this.getCurrentSessionType();
 				return !sessionType || sessionType === localChatSessionType;
 			},
-			autoModelUnavailable: () => this._autoModelUnavailable(),
+			showAutoModel: () => this._showAutoModel(),
 			modelConfiguration: this._modelConfigStore,
 		};
 	}
@@ -1515,24 +1515,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * True when the current session type cannot fall back to the Auto model
-	 * (it `requiresCustomModels`). On its own this does not mean there is no
-	 * model — see {@link hasNoAvailableModel} for the "nothing to send with"
-	 * state that also requires an empty model list.
+	 * True when the current session type can fall back to the synthetic "Auto"
+	 * model. Defaults to `true` when no session type is set. See
+	 * {@link hasNoAvailableModel} for the "nothing to send with" state, which
+	 * additionally requires an empty model list.
 	 */
-	private _autoModelUnavailable(): boolean {
+	private _showAutoModel(): boolean {
 		const sessionType = this.getCurrentSessionType();
-		return !!sessionType && this.chatSessionsService.requiresCustomModelsForSessionType(sessionType);
+		return !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
 	}
 
 	/**
 	 * True when the current session type cannot fall back to the Auto model
-	 * (it `requiresCustomModels`) and no models are available to it — e.g. the
-	 * Claude agent host for a Copilot Free / Student user. In this state there
-	 * is no model to send a request with, so sending is blocked.
+	 * and no models are available to it — e.g. the Claude agent host for a
+	 * Copilot Free / Student user. In this state there is no model to send a
+	 * request with, so sending is blocked.
 	 */
 	private hasNoAvailableModel(): boolean {
-		return this._autoModelUnavailable() && this.getModels().length === 0;
+		return !this._showAutoModel() && this.getModels().length === 0;
 	}
 
 	private getModelsForSessionType(sessionType: string | undefined): ILanguageModelChatMetadataAndIdentifier[] {
