@@ -18,8 +18,7 @@ import { BrowserRemoteProxyEnabledSettingId } from '../browserViewWorkbenchServi
 
 class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 	private readonly _container: HTMLElement;
-
-	private _isRemoteConnected = false;
+	private _message = '';
 
 	constructor(
 		editor: BrowserEditor,
@@ -36,13 +35,11 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		this._register(hoverService.setupDelayedHover(
 			this._container,
 			() => ({
-				content: this._isRemoteConnected
-					? localize('browser.remoteSession', "Connected via remote")
-					: localize('browser.remoteSessionDisconnected', "Connected locally"),
+				content: this._message,
 			})
 		));
 
-		this.setRemoteConnected(false);
+		this.refresh(null);
 	}
 
 	override get widgets(): readonly IBrowserEditorWidget[] {
@@ -50,24 +47,38 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
-		this.setRemoteConnected(model.isRemoteSession && !model.url.startsWith('file://'));
-		if (model.isRemoteSession) {
-			store.add(model.onDidNavigate((event) => {
-				this.setRemoteConnected(!event.url.startsWith('file://'));
-			}));
-		}
+		this.refresh(model);
+		store.add(model.onDidNavigate(() => this.refresh(model)));
+		store.add(model.onDidChangeRemoteStatus(() => this.refresh(model)));
 	}
 
 	override onModelDetached(): void {
-		this.setRemoteConnected(false);
+		this.refresh(null);
 	}
 
-	private setRemoteConnected(isConnected: boolean): void {
-		this._isRemoteConnected = isConnected;
-		this._container.classList.toggle('connected', isConnected);
+	private refresh(model: IBrowserViewModel | null): void {
+		let statusMessage = '';
+		let isConnected = false;
+		let isWarning = false;
 
-		// Always display the icon in remote workspaces -- just update the state based on whether we're actually serving via remote.
+		if (model) {
+			if (model.url.startsWith('file://')) {
+				isConnected = false;
+				statusMessage = localize('browser.connectedLocally.file', "File URLs are served locally, not over the remote connection.");
+				isWarning = true;
+			} else if (model.isRemoteSession) {
+				isConnected = true;
+				statusMessage = localize('browser.connectedRemotely', "Connected via remote");
+			} else {
+				isConnected = false;
+				statusMessage = localize('browser.connectedLocally.generic', "Connected locally");
+			}
+		}
+
+		this._container.classList.toggle('connected', isConnected);
+		this._container.classList.toggle('warning', isWarning);
 		this._container.style.display = isConnected || this.browserViewWorkbenchService.willUseRemoteProxy() ? '' : 'none';
+		this._message = statusMessage;
 	}
 }
 
