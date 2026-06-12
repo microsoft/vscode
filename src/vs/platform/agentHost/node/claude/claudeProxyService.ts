@@ -17,6 +17,7 @@ import {
 	ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
 } from '../shared/copilotApiService.js';
+import { buildForwardedChatError, encodeForwardedChatError } from '../shared/forwardedChatError.js';
 import { filterSupportedBetas } from './anthropicBetas.js';
 import {
 	buildErrorEnvelope,
@@ -607,7 +608,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 					}
 					// Mid-stream error: emit Anthropic SSE error frame, then end.
 					const envelope = err instanceof CopilotApiError
-						? err.envelope
+						? embedForwardedChatError(err)
 						: buildErrorEnvelope('api_error', stringifyError(err));
 					if (!res.writableEnded) {
 						try {
@@ -659,7 +660,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			// don't ship a 520 with a JSON body that violates HTTP
 			// semantics for the consumer.
 			const status = err.status === COPILOT_API_ERROR_STATUS_STREAMING ? 502 : err.status;
-			writeUpstreamJsonError(res, status, err.envelope);
+			writeUpstreamJsonError(res, status, embedForwardedChatError(err));
 			return;
 		}
 		writeJsonError(res, 502, 'api_error', err instanceof Error ? err.message : String(err));
@@ -782,6 +783,25 @@ function stringifyError(err: unknown): string {
 		return err.message;
 	}
 	return String(err);
+}
+
+/**
+ * Returns a copy of a {@link CopilotApiError}'s Anthropic envelope with a
+ * `VSCODE_PROXY_ERROR:<base64>` marker appended to the error message. The
+ * marker carries the structured chat fetch error so the agent host can
+ * forward rich, localized error messaging to core once the SDK subprocess
+ * echoes the text back. The original message is preserved (the decoder stops
+ * at the first whitespace), so non-core consumers still read it verbatim.
+ */
+function embedForwardedChatError(err: CopilotApiError): Anthropic.ErrorResponse {
+	const marker = encodeForwardedChatError(buildForwardedChatError(err));
+	return {
+		...err.envelope,
+		error: {
+			...err.envelope.error,
+			message: `${err.envelope.error.message} ${marker}`,
+		},
+	};
 }
 
 // #endregion

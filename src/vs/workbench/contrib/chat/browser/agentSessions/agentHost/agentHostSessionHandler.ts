@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { getChatErrorDetailsFromMeta } from '../../../common/chatErrorMessages.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IReference, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -1483,7 +1484,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				return;
 			}
 			if (lastTurn?.state === TurnState.Error && lastTurn.error) {
-				opts.sink([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`) }]);
+				const forwarded = getChatErrorDetailsFromMeta(lastTurn.error._meta);
+				const content = forwarded
+					? new MarkdownString(`\n\n${forwarded.message}`)
+					: new MarkdownString(`\n\nError: (${lastTurn.error.errorType}) ${lastTurn.error.message}`);
+				opts.sink([{ kind: 'markdownContent', content }]);
 			}
 			finish(lastTurn);
 		}));

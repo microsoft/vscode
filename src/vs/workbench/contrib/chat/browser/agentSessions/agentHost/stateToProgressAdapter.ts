@@ -10,6 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { MessageKind, ToolCallContributorKind, ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type Message, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { getChatErrorDetailsFromMeta } from '../../../common/chatErrorMessages.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAttachment } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -253,7 +254,11 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Error message for failed turns
 		if (turn.state === TurnState.Error && turn.error) {
-			parts.push({ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`) });
+			const forwarded = getChatErrorDetailsFromMeta(turn.error._meta);
+			const content = forwarded
+				? new MarkdownString(`\n\n${forwarded.message}`)
+				: new MarkdownString(`\n\nError: (${turn.error.errorType}) ${turn.error.message}`);
+			parts.push({ kind: 'markdownContent', content });
 		}
 
 		history.push({ type: 'response', parts, participant: participantId, details });
