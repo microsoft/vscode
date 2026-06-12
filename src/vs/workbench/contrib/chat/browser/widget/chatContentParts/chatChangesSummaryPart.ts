@@ -17,6 +17,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../../nls.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -26,6 +27,8 @@ import { createFileIconThemableTreeContainerScope } from '../../../../files/brow
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -52,6 +55,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -154,13 +158,25 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				return;
 			}
 
-			const input = {
+			const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
+			const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+			const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+
+			if (!openInDiffEditor) {
+				const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
+				if (fileURI) {
+					this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
+					return;
+				}
+				// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
+				// fall back to the diff editor.
+			}
+
+			this.editorService.openEditor({
 				original: { resource: diff.originalURI },
 				modified: { resource: diff.modifiedURI },
 				options: { preserveFocus: true }
-			};
-
-			this.editorService.openEditor(input);
+			});
 		}));
 
 		store.add(this.list.onContextMenu(e => {
