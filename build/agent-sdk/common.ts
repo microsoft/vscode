@@ -121,6 +121,18 @@ export function buildCdnUrl(sdk: Sdk, sdkVersion: string, sdkTarget: string): st
 	return `https://main.vscode-cdn.net/agent-sdk/${sdk}/${sdkVersion}/${sdkTarget}.tgz`;
 }
 
+/**
+ * Builds the `format2`-style URL template stamped into
+ * `product.agentSdks.<sdk>.urlTemplate`. The runtime substitutes
+ * `{sdkTarget}` per launch via `resolveSdkTarget` in
+ * `src/vs/platform/agentHost/node/agentSdkDownloader.ts`. Matches the
+ * upload path written by `upload.ts` with `{sdkTarget}` in place of the
+ * concrete target suffix.
+ */
+export function buildCdnUrlTemplate(sdk: Sdk, sdkVersion: string): string {
+	return `https://main.vscode-cdn.net/agent-sdk/${sdk}/${sdkVersion}/{sdkTarget}.tgz`;
+}
+
 /** Streams `filePath` into a sha256 hasher. Avoids reading the whole file
  *  into memory — agent SDK tarballs are 50-100MB. */
 export function sha256OfFile(filePath: string): Promise<string> {
@@ -151,12 +163,16 @@ export function parseFlags(argv: readonly string[]): Map<string, string> {
  * gulpfiles' `packageTask`. Shape matches `IAgentSdkProductConfig` in
  * `src/vs/base/common/product.ts` so the values can be dropped straight
  * into `product.agentSdks`.
+ *
+ * Every platform job emits the SAME `{version, urlTemplate}` per SDK —
+ * the `{sdkTarget}` placeholder is resolved at runtime per launch (see
+ * `resolveSdkTarget` in `agentSdkDownloader.ts`). This is what lets a
+ * macOS Universal bundle share one `product.json` across arm64+x64.
  */
 export interface IAgentSdkResults {
 	[packageId: string]: {
 		readonly version: string;
-		readonly url: string;
-		readonly sha256: string;
+		readonly urlTemplate: string;
 	};
 }
 

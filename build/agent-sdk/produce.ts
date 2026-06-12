@@ -39,6 +39,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {
+	buildCdnUrlTemplate,
 	getSdkTargetForBuild,
 	type IAgentSdkResults,
 	KNOWN_VSCODE_PLATFORMS,
@@ -140,14 +141,18 @@ async function produceOne(
 	if (!upload) {
 		return undefined;
 	}
-	const { url } = await uploadOne({
+	// Upload returns the per-target URL; we discard it and emit the
+	// `{sdkTarget}` template instead. Every platform job ends up with
+	// the same `urlTemplate` per SDK — only the version differs across
+	// SDK bumps. The runtime substitutes `{sdkTarget}` per launch.
+	await uploadOne({
 		sdk,
 		sdkVersion: built.sdkVersion,
 		sdkTarget,
 		tgzPath: built.tgzPath,
 		sha256: built.sha256,
 	});
-	return { version: built.sdkVersion, url, sha256: built.sha256 };
+	return { version: built.sdkVersion, urlTemplate: buildCdnUrlTemplate(sdk, built.sdkVersion) };
 }
 
 main().catch(err => {

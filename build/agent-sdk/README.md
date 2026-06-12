@@ -1,12 +1,15 @@
 # build/agent-sdk
 
 Per-platform agent SDK production. Each VS Code build (`darwin-arm64`,
-`linux-x64`, Alpine REH, etc.) bakes its own `agentSdks` entry into the
-shipped `product.json` — one entry per SDK, carrying just the `url` +
-`sha256` for the platform this VS Code build targets.
+`linux-x64`, Alpine REH, etc.) uploads its own platform's SDK tarballs
+to `main.vscode-cdn.net` and stamps `agentSdks` into the shipped
+`product.json` with a `{version, urlTemplate}` per SDK. Every platform
+job emits the same `urlTemplate` per SDK — the runtime substitutes
+`{sdkTarget}` per launch via `resolveSdkTarget()`, which is what lets
+macOS Universal bundles share one `product.json` across arm64 + x64.
 
-The runtime side (`src/vs/platform/agentHost/`) downloads, sha-verifies,
-and caches the SDK tarball at first use. See `IAgentSdkProductConfig` in
+The runtime side (`src/vs/platform/agentHost/`) downloads and caches
+the SDK tarball at first use. See `IAgentSdkProductConfig` in
 `src/vs/base/common/product.ts` for the contract.
 
 ## How the pipeline uses this
@@ -87,8 +90,9 @@ gulp graph. As its own pipeline step:
 - `common.ts` — types, `getSdkVersion()` (reads pinned version from
   repo-root `package.json` devDeps; rejects `^`/`~` ranges),
   `getSdkTargetForBuild()` (`(vscodePlatform, arch, sdk) → npm-suffix`),
-  `buildCdnUrl()`, `sha256OfFile()`, `parseFlags()` for CLI flag parsing,
-  and `readAgentSdkResults()` for the gulpfile-side reader.
+  `buildCdnUrl()` / `buildCdnUrlTemplate()`, `sha256OfFile()`,
+  `parseFlags()` for CLI flag parsing, and `readAgentSdkResults()` for
+  the gulpfile-side reader.
 - `package.ts` — `buildOne({ sdk, sdkTarget, outDir })`. Runs on any
   OS: `npm install` with `npm_config_libc/os/cpu` fetches the foreign
   platform binary verbatim, then node-tar+gzip with reproducible flags.
@@ -109,7 +113,8 @@ gulp graph. As its own pipeline step:
 2. `npm install` to refresh the lockfile.
 3. Next pipeline run: each platform packaging job builds + uploads its
    own SDK tarballs at the new content-addressed CDN paths and stamps
-   its `product.json` with the new shas.
+   its `product.json` with the new `urlTemplate` pointing at the bumped
+   version.
 
 No human-paste step into vscode-distro. No coordination between jobs.
 
