@@ -245,3 +245,7 @@ jobs:
           name: ${{ format('logs-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
           if-no-files-found: ignore
+
+
+permissions:
+  contents: read

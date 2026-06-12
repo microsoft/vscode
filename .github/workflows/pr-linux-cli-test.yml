@@ -46,3 +46,7 @@ jobs:
       - name: 🧪 Run unit tests
         run: cargo test
         working-directory: cli
+
+
+permissions:
+  contents: read
