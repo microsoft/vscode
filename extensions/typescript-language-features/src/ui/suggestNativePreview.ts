@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { tsNativeExtensionId } from '../commands/useTsgo';
+import { getTsNativeExtension, tsNativeExtensionId } from '../commands/useTsgo';
 import { ExperimentationService } from '../experimentationService';
 
 const suggestNativePreviewStorageKey = 'typescript.suggestNativePreview.dismissed';
@@ -28,7 +28,7 @@ export async function suggestNativePreview(
 	}
 
 	// Don't show if the native preview extension is already installed
-	if (vscode.extensions.getExtension(tsNativeExtensionId)) {
+	if (getTsNativeExtension()) {
 		// Also don't prompt in the future
 		await context.globalState.update(suggestNativePreviewStorageKey, true);
 		return;
