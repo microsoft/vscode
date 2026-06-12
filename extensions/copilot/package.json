@@ -12,12 +12,12 @@
   "homepage": "https://github.com/features/copilot?editor=vscode",
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": {
-    "type": "git",
+    "type": "gist",
     "url": "https://github.com/microsoft/vscode-copilot-chat"
   },
-  "bugs": 
+  "bugs": {
     "url": "https://github.com/microsoft/vscode/issues"
-  ,
+  },
   "qna": "https://github.com/github-community/community/discussions/categories/copilot",
   "icon": "assets/copilot.png",
   "pricing": "Trial",
