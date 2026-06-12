@@ -20,7 +20,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get output from an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). Use this to inspect output from a terminal started in async mode or a sync command that timed out and moved to the background. If a background command has not yet completed, you will be automatically notified when it finishes — do NOT poll; end your turn and wait.`,
+	modelDescription: `Get output from a background terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). Use this ONLY when ${TerminalToolId.RunInTerminal} returned with state='running', 'timed_out', or 'idle_silent'. Do NOT use this after a command that completed normally — completed commands return full output inline. If the command has not yet completed, you will be automatically notified when it finishes — do NOT poll; end your turn and wait.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -28,7 +28,7 @@ export const GetTerminalOutputToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: `The ID of an active terminal execution to check (returned by ${TerminalToolId.RunInTerminal} for async executions, or for sync executions that timed out and were moved to the background). This must be the exact opaque UUID returned by that tool; terminal names, labels, or integers are invalid.`,
+				description: `The ID of a background terminal execution to check (returned by ${TerminalToolId.RunInTerminal} when state is 'running', 'timed_out', or 'idle_silent'). This must be the exact opaque UUID returned by that tool.`,
 				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
 			},
 		},
@@ -75,7 +75,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 			return {
 				content: [{
 					kind: 'text',
-					value: `Error: 'id' (the persistent terminal UUID returned by ${TerminalToolId.RunInTerminal} in async mode) must be provided.`
+					value: `Error: 'id' (the terminal UUID returned by ${TerminalToolId.RunInTerminal} for background executions) must be provided.`
 				}]
 			};
 		}
@@ -86,7 +86,7 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 			return {
 				content: [{
 					kind: 'text',
-					value: `Error: No active terminal execution found with ID ${args.id}. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal} in async mode.`
+					value: `Error: No active terminal execution found with ID ${args.id}. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal} for background executions.`
 				}]
 			};
 		}

@@ -107,7 +107,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'',
 		'Directory Management:',
 		'- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected',
-		'- By default (mode=sync), shell and cwd are reused by subsequent sync commands',
+		'- Shell and cwd are reused by subsequent commands in the same session',
 		'- Use $PWD or Get-Location for current directory',
 		'- Use Push-Location/Pop-Location for directory stack',
 		'',
@@ -116,10 +116,9 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Install modules via Install-Module, Install-Package',
 		'- Use Get-Command to verify cmdlet/function availability',
 		'',
-		'Async Mode:',
-		'- Use mode=async ONLY for processes that should keep running while you do other work (servers, watchers, dev daemons)',
-		'- For one-shot long-running commands where you have nothing to do until they finish (package installs, builds, downloads, test suites), use mode=sync with a generous timeout (e.g. 600000 / 10 min for installs, longer for big builds) so the command can complete before your turn ends',
-		'- Returns a terminal ID for checking status and runtime later',
+		'Background Processes:',
+		'- Set isBackground=true ONLY for processes that should keep running indefinitely while you do other work (servers, watchers, dev daemons)',
+		'- For all other commands (builds, tests, installs, scripts), omit isBackground or set it to false — the tool waits for completion and returns full output inline',
 		'- Use Start-Job for background PowerShell jobs',
 		'',
 		`Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`,
@@ -145,7 +144,7 @@ function createPowerShellModelDescription(shell: string, isSandboxEnabled: boole
 		'- Use Test-Path to check file/directory existence',
 		'- Be specific with Select-Object properties to avoid excessive output',
 		'- Avoid printing credentials unless absolutely required',
-		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Do NOT poll for completion.`,
+		`- NEVER run Start-Sleep or similar wait commands. You will be automatically notified on your next turn when background terminal commands complete or need input. Do NOT poll for completion.`,
 		'',
 		'Interactive Input Handling:',
 		'- When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.',
@@ -206,7 +205,7 @@ Command Execution:
 
 Directory Management:
 - Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected
-- By default (mode=sync), shell and cwd are reused by subsequent sync commands
+- Shell and cwd are reused by subsequent commands in the same session
 - Use $PWD for current directory references
 - Consider using pushd/popd for directory stack management
 - Supports directory shortcuts like ~ and -
@@ -216,10 +215,9 @@ Program Execution:
 - Install packages via package managers (brew, apt, etc.)
 - Use which or command -v to verify command availability
 
-Async Mode:
-- Use mode=async ONLY for processes that should keep running while you do other work (servers, watchers, dev daemons)
-- For one-shot long-running commands where you have nothing to do until they finish (package installs, builds, downloads, test suites), use mode=sync with a generous timeout (e.g. 600000 / 10 min for installs, longer for big builds) so the command can complete before your turn ends
-- Returns a terminal ID for checking status and runtime later
+Background Processes:
+- Set isBackground=true ONLY for processes that should keep running indefinitely while you do other work (servers, watchers, dev daemons)
+- For all other commands (builds, tests, installs, scripts), omit isBackground or set it to false — the tool waits for completion and returns full output inline
 
 Use ${TerminalToolId.SendToTerminal} to send commands or input to a terminal session.`];
 
@@ -240,7 +238,7 @@ Best Practices:
 - Use find with -exec or xargs for file operations
 - Be specific with commands to avoid excessive output
 - Avoid printing credentials unless absolutely required
-- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified on your next turn when async terminal commands or timed-out sync commands complete or need input. Do NOT poll for completion.
+- NEVER run sleep or similar wait commands in a terminal. You will be automatically notified on your next turn when background terminal commands complete or need input. Do NOT poll for completion.
 
 Interactive Input Handling:
 - When a terminal command is waiting for interactive input, do NOT suggest alternatives or ask the user whether to proceed. Instead, use the vscode_askQuestions tool to collect the needed values from the user, then send them.
@@ -365,7 +363,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion (optionally capped by timeout); if still running when timeout elapses, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTimeout parameter: For one-shot long-running commands, set a generous timeout as a safety net (e.g. 600000 for installs, longer for big builds). Omit timeout only for processes that should run indefinitely (servers, daemons). If the timeout elapses, you get a terminal ID and can check output later.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution behavior:\n- By default, the tool waits for the command to complete and returns full output inline. You do NOT need to call ${TerminalToolId.GetTerminalOutput} afterward — the output is already in the result.\n- Set isBackground=true ONLY for processes that must keep running indefinitely (servers, watchers, daemons). Background commands return a terminal ID for later inspection.\n- The tool automatically handles long-running commands, idle detection, and input prompts. You do not need to manage timeouts.\n- If the tool detects the command needs input, it returns with state='input_needed' — use ${TerminalToolId.SendToTerminal} to provide input.\n- If a background command completes, you will be automatically notified on your next turn. Do NOT poll or sleep to wait for completion.\n\nResult state: The result includes a 'state' field indicating what happened:\n- 'completed': Command finished. exitCode and full output are in the result.\n- 'running': Command is still running in background (isBackground=true). Use ${TerminalToolId.GetTerminalOutput} with the returned id to check later.\n- 'input_needed': Command is waiting for interactive input. Inspect the output and respond via ${TerminalToolId.SendToTerminal}.\n- 'timed_out': Command exceeded its internal time limit and was moved to background. You will be notified when it completes.\n- 'idle_silent': Command produced no output for an extended period and was moved to background. You will be notified when it completes.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -374,25 +372,12 @@ export async function createRunInTerminalToolData(
 			properties: {
 				...sharedProperties,
 				...sandboxProperties,
-				mode: {
-					type: 'string',
-					enum: ['sync', 'async'],
-					enumDescriptions: [
-						'Wait for completion up to timeout, then return with collected output. If still running at timeout, the terminal session continues in the background.',
-						'Wait for an initial idle/output signal, then return with a terminal ID and output snapshot while the session may continue running.'
-					],
-					description: 'Execution mode for this command.'
-				},
 				isBackground: {
 					type: 'boolean',
-					description: 'Legacy execution mode flag. Deprecated in favor of "mode". If true, equivalent to mode=async. If false, equivalent to mode=sync.'
-				},
-				timeout: {
-					type: 'number',
-					description: 'Optional. Hard cap in milliseconds before the tool returns. If you set a timeout, use a generous value (e.g. 600000 = 10 min for installs, 900000 = 15 min for big builds). Too-short timeouts cause the command to continue in the background, which wastes turns on unnecessary polling. Omit entirely to let the command run to completion. Use 0 to explicitly indicate no timeout.',
+					description: 'Set to true ONLY for processes that should keep running indefinitely while you do other work (servers, watchers, dev daemons). For all other commands (builds, tests, installs, scripts), omit this or set to false.'
 				},
 			},
-			required: ['command', 'explanation', 'goal', 'mode']
+			required: ['command', 'explanation', 'goal']
 		}
 	};
 }
@@ -678,14 +663,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _resolveExecutionOptions(args: IRunInTerminalInputParams): IResolvedExecutionOptions {
-		const mode = args.mode ?? (args.isBackground ? 'async' : 'sync');
-		switch (mode) {
-			case 'async':
-				return { mode: 'async', persistentSession: true, waitStrategy: 'idle' };
-			case 'sync':
-			default:
-				return { mode: 'sync', persistentSession: false, waitStrategy: 'completion' };
+		// isBackground is the primary signal. Legacy `mode` is accepted for
+		// backward compatibility but isBackground takes precedence.
+		const isBackground = args.isBackground ?? (args.mode === 'async');
+		if (isBackground) {
+			return { mode: 'async', persistentSession: true, waitStrategy: 'idle' };
 		}
+		return { mode: 'sync', persistentSession: false, waitStrategy: 'completion' };
 	}
 
 	private get _allowUnsandboxedCommands(): boolean {
@@ -1792,20 +1776,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const executionOptions = this._resolveExecutionOptions(args);
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
-		if (args.timeout !== undefined && (Number.isNaN(args.timeout) || args.timeout < 0)) {
-			return {
-				content: [{
-					kind: 'text',
-					value: 'Error: timeout must be a non-negative number of milliseconds (use 0 for no timeout).'
-				}]
-			};
-		}
-		if (executionOptions.mode === 'sync' && args.timeout === undefined) {
-			// Timeout is optional for mode=sync: when omitted, the tool waits for
-			// the command to complete with no hard cap. Models frequently pick
-			// timeouts that are too short for package installs, builds, and
-			// long-running scripts, which causes the command to be moved to the
-			// background unnecessarily.
+
+		// Backend owns timeout decisions. Ignore any model-supplied timeout for
+		// sync mode — the tool waits for completion with idle-silence as the
+		// safety net. For async mode, accept a timeout if supplied (legacy compat).
+		if (executionOptions.mode === 'sync') {
+			args.timeout = 0;
+		} else if (args.timeout !== undefined && (Number.isNaN(args.timeout) || args.timeout < 0)) {
 			args.timeout = 0;
 		}
 
@@ -2033,6 +2010,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						id: termId,
 						terminalId: toolTerminal.instance.instanceId,
 						cwd: endCwd?.toString(),
+						state: 'running',
 					},
 					content: [{
 						kind: 'text',
@@ -2171,6 +2149,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								id: termId,
 								terminalId: toolTerminal.instance.instanceId,
 								cwd: altBufferCwd?.toString(),
+								state: 'completed',
 							},
 							content: [{
 								kind: 'text',
@@ -2368,7 +2347,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Tell the model so it does not try to drive interactive programs through it.
 				const wasDetachedToBackground = /(^|\s)nohup\s|Start-Process\b/.test(command);
 				const stdinHint = wasDetachedToBackground
-					? ' Note that stdin is closed for detached background processes; do not try to send input via send_to_terminal — re-run with mode="sync" instead if interactive input is required.'
+					? ' Note that stdin is closed for detached background processes; do not try to send input via send_to_terminal — re-run without isBackground instead if interactive input is required.'
 					: '';
 				resultText.push(`Note: The tool simplified the command to \`${command}\` (terminal ID=${termId}).${stdinHint} This is the output of running that command instead:\n`);
 			}
@@ -2409,6 +2388,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				id: termId,
 				terminalId: toolTerminal.instance.instanceId,
 				cwd: endCwd?.toString(),
+				state: didInputNeeded ? 'input_needed'
+					: didTimeout ? 'timed_out'
+						: didIdleSilence ? 'idle_silent'
+							: isBackgroundExecution ? 'running'
+								: 'completed',
 				timedOut: didTimeout || undefined,
 				timeoutMs: didTimeout ? timeoutValue : undefined,
 				inputNeeded: didInputNeeded || undefined,
