@@ -175,7 +175,13 @@ export function rewriteRemoteLocalhostUrl(
 		return { url, rewritten: false };
 	}
 
-	const uri = URI.parse(url);
+	let uri = URI.parse(url);
+
+	// Hostnames are case-insensitive, but the localhost port-mapping matcher is
+	// case-sensitive. Normalize the authority so e.g. `http://LOCALHOST:3000` matches.
+	if (uri.authority) {
+		uri = uri.with({ authority: uri.authority.toLowerCase() });
+	}
 
 	const portMapping = extractLocalHostUriMetaDataForPortMapping(uri);
 	if (!portMapping) {
@@ -185,13 +191,14 @@ export function rewriteRemoteLocalhostUrl(
 	const tunnelModel = remoteExplorerService.tunnelModel;
 	const forwarded = mapHasAddressLocalhostOrAllInterfaces(tunnelModel.forwarded, portMapping.address, portMapping.port)
 		?? mapHasAddressLocalhostOrAllInterfaces(tunnelModel.detected, portMapping.address, portMapping.port);
-	if (!forwarded?.localAddress) {
+	if (!forwarded?.localUri) {
 		return { url, rewritten: false }; // The remote port has not been forwarded; leave the URL as-is
 	}
 
-	// localAddress is typically "host:port"; drop any scheme prefix.
-	const authority = forwarded.localAddress.replace(/^https?:\/\//, '');
-	return { url: uri.with({ authority }).toString(), rewritten: true };
+	// The forwarded tunnel's `localUri` carries the configured scheme (e.g. https)
+	// and local authority; keep the original request's path, query and fragment.
+	const rewritten = forwarded.localUri.with({ path: uri.path, query: uri.query, fragment: uri.fragment });
+	return { url: rewritten.toString(), rewritten: true };
 }
 
 /**
