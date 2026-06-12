@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createReadStream, promises } from 'fs';
+import { createReadStream, promises, readFileSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import * as url from 'url';
 import * as cookie from 'cookie';
@@ -115,9 +115,19 @@ const STATIC_PATH = `/static`;
 const CALLBACK_PATH = `/callback`;
 const WEB_EXTENSION_PATH = `/web-extension-resource`;
 
+/** Path handled by this server to mint the secret storage key (mirrors CLI's `_vscode-cli/mint-key`). */
+const SECRET_KEY_MINT_PATH = `/_vscode-server/mint-key`;
+/** Cookie whose value is the URL path of the mint endpoint; read by workbench.ts to build ServerKeyedAESCrypto. */
+const SECRET_KEY_PATH_COOKIE_NAME = `vscode-secret-key-path`;
+/** HttpOnly cookie carrying the client's 32-byte key half (base64url); echoed back by the mint endpoint. */
+const SECRET_KEY_CLIENT_COOKIE_NAME = `vscode-cli-secret-half`;
+const SECRET_KEY_BYTES = 32;
+
 export class WebClientServer {
 
 	private readonly _webExtensionResourceUrlTemplate: URI | undefined;
+	/** Per-instance server secret used to derive the server-side key half for secret storage encryption. */
+	private readonly _serverSecretKey: Buffer;
 
 	constructor(
 		private readonly _connectionToken: ServerConnectionToken,
@@ -130,6 +140,7 @@ export class WebClientServer {
 		@ICSSDevelopmentService private readonly _cssDevService: ICSSDevelopmentService
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
+		this._serverSecretKey = this._loadOrCreateServerSecretKey();
 	}
 
 	/**
@@ -154,6 +165,9 @@ export class WebClientServer {
 			if (pathname.startsWith(WEB_EXTENSION_PATH) && pathname.charCodeAt(WEB_EXTENSION_PATH.length) === CharCode.Slash) {
 				// extension resource support
 				return this._handleWebExtensionResource(req, res, pathname.substring(WEB_EXTENSION_PATH.length));
+			}
+			if (pathname === SECRET_KEY_MINT_PATH) {
+				return this._handleSecretMint(req, res);
 			}
 
 			return serveError(req, res, 404, 'Not found.');
@@ -267,20 +281,15 @@ export class WebClientServer {
 		// Prefix routes with basePath for clients
 		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
 
+		// Parse cookies early so we can set secret storage cookies on every root response (including redirects).
+		const cookies = cookie.parse(req.headers.cookie || '');
+		const clientKeyHalf = this._getOrCreateClientKeyHalf(cookies);
+		const mintPath = posix.join(basePath, this._productPath, SECRET_KEY_MINT_PATH);
+
 		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
 		if (typeof queryConnectionToken === 'string') {
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
-			const responseHeaders: Record<string, string> = Object.create(null);
-			responseHeaders['Set-Cookie'] = cookie.serialize(
-				connectionTokenCookieName,
-				queryConnectionToken,
-				{
-					sameSite: 'lax',
-					maxAge: 60 * 60 * 24 * 7 /* 1 week */
-				}
-			);
-
 			const newQuery = Object.create(null);
 			for (const key in parsedUrl.query) {
 				if (key !== connectionTokenQueryName) {
@@ -288,7 +297,13 @@ export class WebClientServer {
 				}
 			}
 			const newLocation = url.format({ pathname: basePath, query: newQuery });
-			responseHeaders['Location'] = newLocation;
+			const responseHeaders: http.OutgoingHttpHeaders = {
+				'Set-Cookie': [
+					cookie.serialize(connectionTokenCookieName, queryConnectionToken, { sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 /* 1 week */ }),
+					...this._buildSecretCookieHeaders(clientKeyHalf, mintPath)
+				],
+				'Location': newLocation
+			};
 
 			res.writeHead(302, responseHeaders);
 			return void res.end();
@@ -390,7 +405,6 @@ export class WebClientServer {
 			callbackRoute: callbackRoute
 		};
 
-		const cookies = cookie.parse(req.headers.cookie || '');
 		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
 		let WORKBENCH_NLS_BASE_URL: string | undefined;
 		let WORKBENCH_NLS_URL: string;
@@ -457,22 +471,91 @@ export class WebClientServer {
 			'Content-Type': 'text/html',
 			'Content-Security-Policy': cspDirectives
 		};
+		const setCookies: string[] = this._buildSecretCookieHeaders(clientKeyHalf, mintPath);
 		if (this._connectionToken.type !== ServerConnectionTokenType.None) {
 			// At this point we know the client has a valid cookie
 			// and we want to set it prolong it to ensure that this
 			// client is valid for another 1 week at least
-			headers['Set-Cookie'] = cookie.serialize(
+			setCookies.unshift(cookie.serialize(
 				connectionTokenCookieName,
 				this._connectionToken.value,
 				{
 					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
-			);
+			));
 		}
+		headers['Set-Cookie'] = setCookies;
 
 		res.writeHead(200, headers);
 		return void res.end(data);
+	}
+
+	/**
+	 * Loads the server-half of the secret storage key from disk, creating and persisting a new random
+	 * key if none exists. Mirrors the CLI's `get_server_key_half` in `cli/src/commands/serve_web.rs`.
+	 */
+	private _loadOrCreateServerSecretKey(): Buffer {
+		const keyPath = join(this._environmentService.userDataPath, 'serve-web-key-half');
+		try {
+			const raw = Buffer.from(readFileSync(keyPath, 'utf8').trim(), 'base64url');
+			if (raw.byteLength === SECRET_KEY_BYTES) {
+				return raw;
+			}
+		} catch { /* file absent or malformed — fall through to generate */ }
+		const key = crypto.randomBytes(SECRET_KEY_BYTES);
+		try {
+			writeFileSync(keyPath, key.toString('base64url'), { mode: 0o600 });
+		} catch (err) {
+			this._logService.warn(`[WebClientServer] Could not persist secret storage server key to ${keyPath}: ${err}`);
+		}
+		return key;
+	}
+
+	/**
+	 * Derives the server's half of the secret storage key from the server secret and the client's key half.
+	 * Returns SHA-256(serverSecret ‖ clientKeyHalf) truncated to SECRET_KEY_BYTES, matching the CLI's
+	 * `handle_secret_mint` implementation in `cli/src/commands/serve_web.rs`.
+	 */
+	private _handleSecretMint(req: http.IncomingMessage, res: http.ServerResponse): void {
+		const cookies = cookie.parse(req.headers.cookie || '');
+		const clientKeyHalf = this._getOrCreateClientKeyHalf(cookies);
+
+		const serverKeyPart = crypto.createHash('sha256')
+			.update(this._serverSecretKey)
+			.update(clientKeyHalf)
+			.digest()
+			.slice(0, SECRET_KEY_BYTES);
+
+		res.writeHead(200, {
+			'Content-Type': 'application/octet-stream',
+			'Cache-Control': 'no-store'
+		});
+		res.end(serverKeyPart);
+	}
+
+	/**
+	 * Reads the client's key half from the `vscode-cli-secret-half` cookie.
+	 * Generates a new random half if the cookie is absent or malformed.
+	 */
+	private _getOrCreateClientKeyHalf(cookies: Record<string, string>): Buffer {
+		try {
+			const raw = Buffer.from(cookies[SECRET_KEY_CLIENT_COOKIE_NAME] ?? '', 'base64url');
+			if (raw.byteLength === SECRET_KEY_BYTES) {
+				return raw;
+			}
+		} catch { /* fall through to generate a new key */ }
+		return crypto.randomBytes(SECRET_KEY_BYTES);
+	}
+
+	/**
+	 * Builds the two `Set-Cookie` header values that enable `ServerKeyedAESCrypto` in the browser workbench.
+	 */
+	private _buildSecretCookieHeaders(clientKeyHalf: Buffer, mintPath: string): string[] {
+		return [
+			`${SECRET_KEY_PATH_COOKIE_NAME}=${mintPath}; SameSite=Strict; Path=/`,
+			`${SECRET_KEY_CLIENT_COOKIE_NAME}=${clientKeyHalf.toString('base64url')}; SameSite=Strict; HttpOnly; Max-Age=2592000; Path=/`
+		];
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
