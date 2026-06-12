@@ -117,7 +117,6 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 	}
 
 	private _onDidFilesChange(event: FileChangesEvent): void {
-		this._logService.trace(`[AgentHostFileMonitorService] File changes: ${event.rawUpdated.join(', ')}`);
 		for (const key of this._entries.keys()) {
 			this._onDidFilesChangeEntry(key, event);
 		}
