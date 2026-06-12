@@ -16,7 +16,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatResponseErrorDetails } from '../../common/chatService/chatService.js';
 import { IChatErrorDetailsPart, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../../browser/chat.js';
 import { ChatQuotaExceededPart } from '../../browser/widget/chatContentParts/chatQuotaExceededPart.js';
 
 
@@ -86,7 +85,6 @@ suite('ChatQuotaExceededPart', () => {
 	function createWidget(entitlement: ChatEntitlement, errorDetails: IChatResponseErrorDetails): ChatQuotaExceededPart {
 		executedCommands = [];
 
-		const chatWidgetService = {} as IChatWidgetService;
 		const commandService = {
 			executeCommand(id: string) {
 				executedCommands.push(id);
@@ -106,7 +104,6 @@ suite('ChatQuotaExceededPart', () => {
 			element,
 			content,
 			renderer,
-			chatWidgetService,
 			commandService,
 			telemetryService,
 			entitlementService,
@@ -118,6 +115,10 @@ suite('ChatQuotaExceededPart', () => {
 
 	function getPrimaryButton(widget: ChatQuotaExceededPart): HTMLElement | null {
 		return widget.domNode.querySelector('.chat-quota-error-button');
+	}
+
+	function getRetryButton(widget: ChatQuotaExceededPart): HTMLElement | null {
+		return widget.domNode.querySelector('.chat-quota-error-secondary-button');
 	}
 
 	teardown(() => {
@@ -198,6 +199,7 @@ suite('ChatQuotaExceededPart', () => {
 			await new Promise(r => setTimeout(r, 0));
 
 			assert.strictEqual(executedCommands[0], 'workbench.action.chat.manageAdditionalSpend');
+			assert.strictEqual(getRetryButton(widget), null);
 		});
 
 		test('Free user clicks "Upgrade" -> upgradePlan', async () => {
