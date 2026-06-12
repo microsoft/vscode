@@ -152,18 +152,16 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		const result: IKeybindingItem[] = [];
 		let keybindingsLen = 0;
 		for (const rule of rules) {
-			if (rule.keybinding) {
-				result[keybindingsLen++] = {
-					keybinding: rule.keybinding,
-					command: rule.id,
-					commandArgs: rule.args,
-					when: rule.when,
-					weight1: rule.weight,
-					weight2: 0,
-					extensionId: rule.extensionId || null,
-					isBuiltinExtension: rule.isBuiltinExtension || false
-				};
-			}
+			result[keybindingsLen++] = {
+				keybinding: rule.keybinding,
+				command: rule.id,
+				commandArgs: rule.args,
+				when: rule.when,
+				weight1: rule.weight,
+				weight2: 0,
+				extensionId: rule.extensionId || null,
+				isBuiltinExtension: rule.isBuiltinExtension || false
+			};
 		}
 
 		this._extensionKeybindings = result;
