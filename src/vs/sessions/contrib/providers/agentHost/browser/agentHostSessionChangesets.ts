@@ -119,7 +119,10 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return false;
 			}
 
-			return changesetState.status === ChangesetStatus.Computing;
+			// For static changesets, that are persisted to the database, the
+			// cached state will be sent over the wire while the changeset is
+			// being computed.
+			return changesetState.status === ChangesetStatus.Computing && changesetState.files.length === 0;
 		});
 
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[] | undefined>(this, (reader, lastValue) => {
@@ -128,7 +131,14 @@ abstract class AbstractAgentHostChangeset implements ISessionChangeset {
 				return [];
 			}
 
-			if (changesetState === undefined || changesetState.status !== ChangesetStatus.Ready) {
+			if (changesetState === undefined) {
+				return lastValue;
+			}
+
+			// Render `state.files` when the changeset is `Ready`, or on the very
+			// first arrival (the initial snapshot contains the file list persisted
+			// from the previous session).
+			if (changesetState.status !== ChangesetStatus.Ready && lastValue !== undefined) {
 				return lastValue;
 			}
 
