@@ -1560,7 +1560,7 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
 		// Agent host sessions delegate queue management to the server.
-		// The server dispatches SessionTurnStarted with queuedMessageId when
+		// The server dispatches ChatTurnStarted with queuedMessageId when
 		// it consumes a queued message, so the client should not dequeue eagerly.
 		if (this._isServerManagedQueue(model.sessionResource)) {
 			return;

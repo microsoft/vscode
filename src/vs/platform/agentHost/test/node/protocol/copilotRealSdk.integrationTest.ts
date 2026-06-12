@@ -26,9 +26,9 @@ import assert from 'assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../base/common/uri.js';
-import { type SessionState } from '../../../common/state/sessionState.js';
+import { type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { SessionUsageAction } from '../../../common/state/sessionActions.js';
+import type { ChatUsageAction } from '../../../common/state/sessionActions.js';
 import {
 	createRealSession, defineSharedRealSdkTests, dispatchTurn,
 	type IRealSdkProviderConfig,
@@ -97,9 +97,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(tmpdir()).toString());
 		dispatchTurn(client, sessionUri, 'turn-usage', 'Reply with exactly "usage-ok" and do not use tools.', 1);
 
-		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'session/usage'), 90_000);
+		const usageNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/usage'), 90_000);
 		const usageEnvelope = getActionEnvelope(usageNotif);
-		const usageAction = usageEnvelope.action as SessionUsageAction;
+		const usageAction = usageEnvelope.action as ChatUsageAction;
 		assert.strictEqual(usageEnvelope.channel, sessionUri);
 		assert.strictEqual(usageAction.turnId, 'turn-usage');
 		assert.strictEqual(typeof usageAction.usage.model, 'string');
@@ -113,9 +113,9 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		}
 		assert.ok(cost > 0, `expected usage._meta.cost to be positive: ${JSON.stringify(usageAction.usage)}`);
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'), 90_000);
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const state = snapshot.snapshot!.state as SessionState;
+		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
 		const turn = state.turns.find(t => t.id === 'turn-usage');
 		assert.strictEqual(turn?.usage?._meta?.cost, cost);
 	});
@@ -134,7 +134,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 			1);
 
 		const toolReadyNotif = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'session/toolCallReady')) {
+			if (!isActionNotification(n, 'chat/toolCallReady')) {
 				return false;
 			}
 			const action = getActionEnvelope(n).action as { toolInput?: string };
@@ -161,7 +161,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 			client.notify('dispatchAction', {
 				clientSeq: 2,
 				action: {
-					type: 'session/toolCallConfirmed',
+					type: 'chat/toolCallConfirmed',
 					session: sessionUri, turnId: 'turn-cd-strip',
 					toolCallId: toolReadyAction.toolCallId, approved: true,
 				},
@@ -174,17 +174,17 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 		while (true) {
 			const next = await client.waitForNotification(
 				n => {
-					if (isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error')) {
+					if (isActionNotification(n, 'chat/turnComplete') || isActionNotification(n, 'chat/error')) {
 						return true;
 					}
-					if (!isActionNotification(n, 'session/toolCallReady')) {
+					if (!isActionNotification(n, 'chat/toolCallReady')) {
 						return false;
 					}
 					return !seenSeqs.has(getActionEnvelope(n).serverSeq);
 				},
 				90_000,
 			);
-			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
+			if (isActionNotification(next, 'chat/turnComplete') || isActionNotification(next, 'chat/error')) {
 				break;
 			}
 			const envelope = getActionEnvelope(next);
@@ -195,7 +195,7 @@ defineSharedRealSdkTests(COPILOT_CONFIG);
 					channel: envelope.channel,
 					clientSeq: ++teardownSeq,
 					action: {
-						type: 'session/toolCallConfirmed',
+						type: 'chat/toolCallConfirmed',
 						turnId: action.turnId,
 						toolCallId: action.toolCallId, approved: true,
 					},
