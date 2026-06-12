@@ -63,6 +63,10 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
+          # Ensure pnpm's bundled node-gyp has executable gyp_main.py.
+          # corepack sometimes extracts it without the +x bit.
+          # See build/npm/preinstall.ts for the in-process equivalent.
+          find "$HOME/.cache/node/corepack" -name gyp_main.py -exec chmod +x {} + 2>/dev/null || true
           pnpm install --frozen-lockfile
 
       - name: Download Playwright

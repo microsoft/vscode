@@ -49,37 +49,42 @@ if (process.env.npm_execpath?.includes('yarn')) {
 // Windows (the bit doesn't matter there).
 if (process.platform !== 'win32') {
 	try {
+		const fixPerms = (p: string) => {
+			if (fs.existsSync(p)) {
+				fs.chmodSync(p, 0o755);
+				console.log(`[preinstall] chmod +x ${p}`);
+			}
+		};
 		const candidates: string[] = [];
 		// When pnpm runs lifecycle scripts it sets npm_execpath to the real pnpm.cjs.
 		if (process.env.npm_execpath) {
 			candidates.push(process.env.npm_execpath);
 		}
-		// Fallback: resolve `pnpm` from PATH (may be a corepack shim but its
-		// directory is usually a sibling of the dist/ folder we want).
 		try {
 			candidates.push(child_process.execFileSync('which', ['pnpm']).toString().trim());
 		} catch { /* ignore */ }
-
+		// Walk ancestors of each candidate looking for the bundled gyp_main.py.
 		const seen = new Set<string>();
 		for (const candidate of candidates) {
 			let dir = path.dirname(path.resolve(candidate));
-			// Walk up to 5 ancestors looking for node-gyp/gyp/gyp_main.py
 			for (let i = 0; i < 5; i++) {
 				if (seen.has(dir)) { break; }
 				seen.add(dir);
-				const probe = path.join(dir, 'node_modules', 'node-gyp', 'gyp', 'gyp_main.py');
-				if (fs.existsSync(probe)) {
-					fs.chmodSync(probe, 0o755);
-					console.log(`[preinstall] fixed permissions on ${probe}`);
-					break;
-				}
+				fixPerms(path.join(dir, 'node_modules', 'node-gyp', 'gyp', 'gyp_main.py'));
 				const parent = path.dirname(dir);
 				if (parent === dir) { break; }
 				dir = parent;
 			}
 		}
-	} catch {
-		// best effort
+		// Fallback: brute-force walk `~/.cache/node/corepack/v1/pnpm/*/dist/node_modules/node-gyp/gyp/gyp_main.py`.
+		const corepackPnpm = path.join(os.homedir(), '.cache', 'node', 'corepack', 'v1', 'pnpm');
+		if (fs.existsSync(corepackPnpm)) {
+			for (const version of fs.readdirSync(corepackPnpm)) {
+				fixPerms(path.join(corepackPnpm, version, 'dist', 'node_modules', 'node-gyp', 'gyp', 'gyp_main.py'));
+			}
+		}
+	} catch (err) {
+		console.log(`[preinstall] gyp_main.py chmod failed: ${err}`);
 	}
 }
 
