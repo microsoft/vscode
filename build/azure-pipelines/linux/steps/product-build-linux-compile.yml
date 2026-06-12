@@ -172,6 +172,11 @@ steps:
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+    - template: ../../common/agent-sdk-produce.yml@self
+      parameters:
+        vscodePlatform: linux
+
   - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
