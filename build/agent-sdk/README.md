@@ -87,16 +87,23 @@ gulp graph. As its own pipeline step:
 
 ## Files
 
-- `common.ts` — types, `getSdkVersion()` (reads pinned version from
-  repo-root `package.json` devDeps; rejects `^`/`~` ranges),
-  `getSdkTargetForBuild()` (`(vscodePlatform, arch, sdk) → npm-suffix`),
-  `buildCdnUrl()` / `buildCdnUrlTemplate()`, `sha256OfFile()`,
-  `parseFlags()` for CLI flag parsing, and `readAgentSdkResults()` for
-  the gulpfile-side reader.
+- `agents/<sdk>/` — one folder per SDK we ship. Each contains a
+  `package.json` (single dependency: the SDK's own npm package, pinned
+  to an exact version) and a `package-lock.json` (full transitive
+  graph). Folder name = SDK id = key under `product.agentSdks` = path
+  segment in the CDN URL. The set of folders IS the SDK list — no
+  parallel array to keep in sync.
+- `common.ts` — types, `getSdks()` (discovers SDKs from `agents/`),
+  `getAgentMeta()` / `getSdkVersion()` (reads from `agents/<sdk>/package.json`,
+  rejects `^`/`~` ranges), `getSdkTargetForBuild()` (`(vscodePlatform,
+  arch, sdk) → npm-suffix`), `buildCdnUrl()` / `buildCdnUrlTemplate()`,
+  `sha256OfFile()`, `parseFlags()` for CLI flag parsing, and
+  `readAgentSdkResults()` for the gulpfile-side reader.
 - `package.ts` — `buildOne({ sdk, sdkTarget, outDir })`. Runs on any
-  OS: `npm install` with `npm_config_libc/os/cpu` fetches the foreign
-  platform binary verbatim, then node-tar+gzip with reproducible flags.
-  Has a thin CLI at bottom.
+  OS: copies `agents/<sdk>/{package.json,package-lock.json}` into a
+  scratch dir, `npm ci` with `npm_config_libc/os/cpu` fetches the
+  foreign platform binary verbatim from the locked graph, then
+  node-tar+gzip with reproducible flags. Has a thin CLI at bottom.
 - `upload.ts` — `uploadOne(...)`. HEAD-then-decide: absent → upload;
   matching sha → skip (idempotent re-runs); different / no-metadata sha
   → fail loud, refusing to overwrite content-addressed history. Thin CLI.
@@ -107,14 +114,19 @@ gulp graph. As its own pipeline step:
 
 ## Bumping an SDK version
 
-1. Edit the corresponding devDep in repo-root `package.json`
-   (`@anthropic-ai/claude-agent-sdk` or `@openai/codex`) to the new exact
-   version.
-2. `npm install` to refresh the lockfile.
-3. Next pipeline run: each platform packaging job builds + uploads its
-   own SDK tarballs at the new content-addressed CDN paths and stamps
-   its `product.json` with the new `urlTemplate` pointing at the bumped
-   version.
+1. Edit the `dependencies` version in `build/agent-sdk/agents/<sdk>/package.json`
+   to the new exact version.
+2. From that directory: `npm install --package-lock-only --ignore-scripts`
+   to refresh `package-lock.json`.
+3. Also bump the matching `devDependencies` entry in repo-root
+   `package.json` (the runtime imports types from that copy) so the
+   shipped types and the build-time pin stay in lockstep.
+4. `npm install` at repo root to refresh the root lockfile.
+5. Commit all four edits together.
+
+The next pipeline run rebuilds + uploads each platform tarball at the
+new content-addressed CDN path and re-stamps each `product.json` with
+the new `urlTemplate` pointing at the bumped version.
 
 No human-paste step into vscode-distro. No coordination between jobs.
 

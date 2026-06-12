@@ -40,12 +40,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {
 	buildCdnUrlTemplate,
+	getSdks,
 	getSdkTargetForBuild,
 	type IAgentSdkResults,
 	KNOWN_VSCODE_PLATFORMS,
 	parseFlags,
 	type Sdk,
-	SDKS,
 	type VscodeBuildPlatform,
 } from './common.ts';
 import { type IBuildResult, buildOne } from './package.ts';
@@ -91,13 +91,14 @@ async function main(): Promise<void> {
 	fs.mkdirSync(args.tarballsDir, { recursive: true });
 
 	const results: IAgentSdkResults = {};
+	const sdks = getSdks();
 	const produced = await Promise.all(
-		SDKS.map(sdk => produceOne(sdk, args.vscodePlatform, args.arch, args.tarballsDir, args.upload)),
+		sdks.map(sdk => produceOne(sdk, args.vscodePlatform, args.arch, args.tarballsDir, args.upload)),
 	);
-	for (let i = 0; i < SDKS.length; i++) {
+	for (let i = 0; i < sdks.length; i++) {
 		const entry = produced[i];
 		if (entry) {
-			results[SDKS[i]] = entry;
+			results[sdks[i]] = entry;
 		}
 	}
 

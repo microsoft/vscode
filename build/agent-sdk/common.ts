@@ -10,12 +10,19 @@
  * stamp its own `product.agentSdks.<sdk>` into the per-platform
  * `product.json` at packaging time.
  *
- * The pipeline DOES NOT keep a parallel list of supported targets.
- * `getSdkTargetForBuild()` hard-codes the `(vscodePlatform, arch, sdk) →
- * sdkTarget` table; the SDK's own `package.json` `optionalDependencies`
- * (e.g. `@anthropic-ai/claude-agent-sdk-darwin-arm64`) is the
- * canonical SKU set, and the table is kept in lockstep with it by
- * convention — there is no runtime lookup of npm metadata.
+ * Source of truth for the SDK list and version pins:
+ *   `build/agent-sdk/agents/<sdk>/{package.json,package-lock.json}`.
+ * Each subdirectory under `agents/` is one SDK. The folder name is the
+ * SDK id (the key under `product.agentSdks`); the `package.json` names
+ * exactly one npm dependency (the SDK's own package) and its exact
+ * version; the `package-lock.json` pins the full transitive graph for
+ * byte-deterministic `npm ci`. Add an SDK by adding a folder, run
+ * `npm install` inside it once to generate the lockfile, commit both.
+ *
+ * `getSdkTargetForBuild()` hard-codes the
+ * `(vscodePlatform, arch, sdk) → sdkTarget` table; the SDK's own npm
+ * `optionalDependencies` are the canonical SKU set, and the table is
+ * kept in lockstep with it by convention.
  */
 
 import * as crypto from 'crypto';
@@ -23,17 +30,90 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-/** SDKs distributed by `build/agent-sdk/`. */
-export type Sdk = 'claude' | 'codex';
+const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-/** All SDKs the pipeline knows about. Used by gulpfile iteration. */
-export const SDKS: readonly Sdk[] = ['claude', 'codex'];
+/** Root of the per-SDK `{package.json, package-lock.json}` directories. */
+export const AGENTS_DIR = path.join(THIS_DIR, 'agents');
 
-/** The npm registry package each SDK is published under. */
-export const PACKAGE_NAME: { readonly [K in Sdk]: string } = {
-	claude: '@anthropic-ai/claude-agent-sdk',
-	codex: '@openai/codex',
-};
+/**
+ * SDK identifier — the folder name under `agents/`, also the key under
+ * `product.agentSdks` and the path segment in the CDN URL. Open string
+ * type rather than a closed union so adding a new SDK is one folder, no
+ * compile-time list change required.
+ */
+export type Sdk = string;
+
+let _sdksCache: readonly Sdk[] | undefined;
+
+/**
+ * All SDKs the pipeline knows about, in stable sort order. Discovered
+ * at load time by listing `agents/`. Cached because the set never
+ * changes mid-process.
+ */
+export function getSdks(): readonly Sdk[] {
+	if (_sdksCache) {
+		return _sdksCache;
+	}
+	const entries = fs.readdirSync(AGENTS_DIR, { withFileTypes: true });
+	_sdksCache = entries
+		.filter(e => e.isDirectory())
+		.map(e => e.name)
+		.sort();
+	return _sdksCache;
+}
+
+/** Path to a given SDK's agents/ subdirectory (the one with package.json). */
+export function getAgentDir(sdk: Sdk): string {
+	const dir = path.join(AGENTS_DIR, sdk);
+	if (!fs.existsSync(dir)) {
+		throw new Error(`Unknown SDK '${sdk}': no directory at ${dir}. Add a folder under build/agent-sdk/agents/ with a package.json + package-lock.json.`);
+	}
+	return dir;
+}
+
+interface IAgentPackageJson {
+	readonly dependencies?: Readonly<Record<string, string>>;
+}
+
+let _agentMetaCache: Map<Sdk, { name: string; version: string }> | undefined;
+
+/**
+ * Returns the npm package name and pinned version this SDK ships. Read
+ * from `agents/<sdk>/package.json`'s single dependency.
+ *
+ * The agent's `package.json` MUST declare exactly one dependency (the SDK's
+ * own npm package) at an exact version — no `^` / `~` ranges. Ranges
+ * would let `npm install` resolve different versions across runs, which
+ * the CDN's HEAD-then-fail upload rejects.
+ */
+export function getAgentMeta(sdk: Sdk): { name: string; version: string } {
+	if (!_agentMetaCache) {
+		_agentMetaCache = new Map();
+	}
+	const cached = _agentMetaCache.get(sdk);
+	if (cached) {
+		return cached;
+	}
+	const pkgPath = path.join(getAgentDir(sdk), 'package.json');
+	const json = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as IAgentPackageJson;
+	const deps = json.dependencies ?? {};
+	const entries = Object.entries(deps);
+	if (entries.length !== 1) {
+		throw new Error(`Expected exactly one dependency in ${pkgPath}, found ${entries.length}: ${entries.map(([k]) => k).join(', ')}`);
+	}
+	const [name, version] = entries[0];
+	if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
+		throw new Error(`Refusing to use ${name}@${version} from ${pkgPath}: must be an exact version (no ^ or ~ ranges)`);
+	}
+	const meta = { name, version };
+	_agentMetaCache.set(sdk, meta);
+	return meta;
+}
+
+/** Convenience shortcut for `getAgentMeta(sdk).version`. */
+export function getSdkVersion(sdk: Sdk): string {
+	return getAgentMeta(sdk).version;
+}
 
 /** Strict subset of VS Code build platforms — the SDK pipeline only knows
  *  about platforms it can target. `web` is excluded (no SDK on web). */
@@ -87,31 +167,6 @@ export function getSdkTargetForBuild(
 		default:
 			return undefined;
 	}
-}
-
-/**
- * Resolves the pinned SDK version from the repo-root `package.json` devDeps.
- * Bumping the devDep is the entire "land a new SDK" workflow.
- *
- * Both SDKs MUST be pinned to exact versions (no `^` or `~` ranges) in
- * `package.json`. Ranges would let `npm install` resolve different versions
- * across runs, breaking the "this build is reproducible given the same
- * inputs" contract that the CDN's HEAD-then-fail upload depends on.
- */
-export function getSdkVersion(sdk: Sdk): string {
-	const thisDir = path.dirname(fileURLToPath(import.meta.url));
-	const packageJsonPath = path.resolve(thisDir, '..', '..', 'package.json');
-	const json = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
-		devDependencies?: Record<string, string>;
-	};
-	const version = json.devDependencies?.[PACKAGE_NAME[sdk]];
-	if (!version) {
-		throw new Error(`Cannot resolve ${sdk} SDK version: ${PACKAGE_NAME[sdk]} is not in repo-root package.json devDependencies`);
-	}
-	if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-		throw new Error(`Refusing to use ${PACKAGE_NAME[sdk]}@${version} from package.json: must be an exact version (no ^ or ~ ranges)`);
-	}
-	return version;
 }
 
 /**

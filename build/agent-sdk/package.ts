@@ -36,7 +36,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as tar from 'tar';
-import { getSdkVersion, PACKAGE_NAME, parseFlags, type Sdk, sha256OfFile } from './common.ts';
+import { getAgentDir, getAgentMeta, parseFlags, type Sdk, sha256OfFile } from './common.ts';
 
 const SCRIPT = 'package.ts';
 
@@ -54,31 +54,35 @@ export interface IBuildArgs {
 }
 
 /**
- * Build one tarball. Resolves the version from `package.json` devDeps,
- * `npm install`s the SDK + the matching foreign platform package into a
- * scratch dir, chmods+normalises+tars the result. Returns the produced
- * `.tgz` path and its sha256.
+ * Build one tarball. Copies the SDK's pinned `agents/<sdk>/{package.json,
+ * package-lock.json}` into a scratch dir, runs `npm ci` against the
+ * lockfile (byte-deterministic dep graph), chmods+normalises+tars the
+ * result. Returns the produced `.tgz` path and its sha256.
+ *
+ * Determinism comes from the lockfile + node-tar's portable mode. Two
+ * runs against the same lockfile on different hosts should produce the
+ * same bytes — that's what the CDN's HEAD-then-fail upload depends on.
  */
 export async function buildOne(args: IBuildArgs): Promise<IBuildResult> {
-	const packageName = PACKAGE_NAME[args.sdk];
-	const sdkVersion = getSdkVersion(args.sdk);
+	const { name: packageName, version: sdkVersion } = getAgentMeta(args.sdk);
+	const agentDir = getAgentDir(args.sdk);
 
 	const stagingDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-sdk-pkg-'));
 	try {
-		fs.writeFileSync(path.join(stagingDir, 'package.json'), JSON.stringify({
-			name: `agent-sdk-build-${args.sdk}-${args.sdkTarget}`,
-			private: true,
-			dependencies: { [packageName]: sdkVersion },
-		}, null, 2));
+		// Copy the pinned package.json + package-lock.json into the scratch
+		// dir. `npm ci` errors out if a node_modules is already present, so
+		// the scratch dir starts clean.
+		fs.copyFileSync(path.join(agentDir, 'package.json'), path.join(stagingDir, 'package.json'));
+		fs.copyFileSync(path.join(agentDir, 'package-lock.json'), path.join(stagingDir, 'package-lock.json'));
 
-		console.log(`[${SCRIPT}] Building ${args.sdk}@${sdkVersion} for ${args.sdkTarget} in ${stagingDir}`);
+		console.log(`[${SCRIPT}] Building ${packageName}@${sdkVersion} for ${args.sdkTarget} in ${stagingDir}`);
 
 		const { os: targetOs, cpu, libc } = parseTargetTriple(args.sdkTarget);
 		const npmEnv: NodeJS.ProcessEnv = { npm_config_os: targetOs, npm_config_cpu: cpu };
 		if (libc) {
 			npmEnv.npm_config_libc = libc;
 		}
-		npmInstall(stagingDir, npmEnv);
+		npmCi(stagingDir, npmEnv);
 
 		const nodeModulesDir = path.join(stagingDir, 'node_modules');
 		chmodPlatformBinaries(nodeModulesDir, args.sdk);
@@ -157,8 +161,10 @@ function chmodPlatformBinaries(nodeModulesDir: string, sdk: Sdk): void {
 	}
 }
 
-function npmInstall(workDir: string, env: NodeJS.ProcessEnv): void {
-	// `--no-package-lock` skips writing a lockfile we'd just throw away.
+function npmCi(workDir: string, env: NodeJS.ProcessEnv): void {
+	// `npm ci` instead of `npm install`: installs the EXACT graph from the
+	// committed package-lock.json without resolving versions, which is what
+	// makes the tarball bytes reproducible across pipeline runs.
 	// `--ignore-scripts` blocks any postinstall/preinstall the SDK or its
 	// transitive deps might ship.
 	// On Windows, npm is a `.cmd` shim. Two things matter:
@@ -167,17 +173,17 @@ function npmInstall(workDir: string, env: NodeJS.ProcessEnv): void {
 	//      refuses to spawn .cmd/.bat without it.
 	const isWindows = process.platform === 'win32';
 	const npm = isWindows ? 'npm.cmd' : 'npm';
-	const result = spawnSync(npm, ['install', '--no-package-lock', '--ignore-scripts'], {
+	const result = spawnSync(npm, ['ci', '--ignore-scripts'], {
 		cwd: workDir,
 		env: { ...process.env, ...env },
 		stdio: 'inherit',
 		shell: isWindows,
 	});
 	if (result.error) {
-		throw new Error(`[${SCRIPT}] npm install failed to spawn: ${result.error.message}`);
+		throw new Error(`[${SCRIPT}] npm ci failed to spawn: ${result.error.message}`);
 	}
 	if (result.status !== 0) {
-		throw new Error(`[${SCRIPT}] npm install exited ${result.status}`);
+		throw new Error(`[${SCRIPT}] npm ci exited ${result.status}`);
 	}
 }
 

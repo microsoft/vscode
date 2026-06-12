@@ -22,7 +22,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ClientAssertionCredential } from '@azure/identity';
 import { BlobServiceClient } from '@azure/storage-blob';
-import { buildCdnUrl, PACKAGE_NAME, parseFlags, type Sdk, sha256OfFile } from './common.ts';
+import { buildCdnUrl, getAgentMeta, parseFlags, type Sdk, sha256OfFile } from './common.ts';
 
 const SCRIPT = 'upload.ts';
 
@@ -82,7 +82,7 @@ export async function uploadOne(args: IUploadArgs): Promise<IUploadResult> {
 			`  remote: ${remoteSha ?? '<no metadata.sha256 — was this blob uploaded out-of-band?>'}\n` +
 			`  local:  ${sha256}\n` +
 			`If the local build is what should ship, delete the remote blob in Azure Portal and re-run. ` +
-			`Otherwise: investigate why the same ${PACKAGE_NAME[args.sdk]}@${args.sdkVersion} produced different bytes.`,
+			`Otherwise: investigate why the same ${getAgentMeta(args.sdk).name}@${args.sdkVersion} produced different bytes.`,
 		);
 	}
 
