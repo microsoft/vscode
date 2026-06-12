@@ -906,7 +906,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 			if (ex instanceof CopilotCLIQuotaExceededError) {
-				return { errorDetails: { message: ex.message, isQuotaExceeded: true } };
+				return { errorDetails: { message: ex.message, isQuotaExceeded: true, ...(ex.code ? { quotaExceededCode: ex.code } : {}) } };
 			}
 			throw ex;
 		} finally {

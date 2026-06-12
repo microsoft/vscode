@@ -2129,6 +2129,7 @@ export class CopilotAgentSession extends Disposable {
 					errorType: e.data.errorType,
 					message: e.data.message,
 					stack: e.data.stack,
+					code: e.data.errorCode,
 				},
 			});
 		}));

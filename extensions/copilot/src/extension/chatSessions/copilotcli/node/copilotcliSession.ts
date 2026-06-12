@@ -61,7 +61,7 @@ export type CopilotCLICommand = 'compact' | 'plan' | 'fleet' | 'remote';
 export const copilotCLICommands: readonly CopilotCLICommand[] = ['compact', 'plan', 'fleet', 'remote'] as const;
 
 export class CopilotCLIQuotaExceededError extends Error {
-	constructor(message: string) {
+	constructor(message: string, readonly code?: string) {
 		super(message);
 		this.name = 'CopilotCLIQuotaExceededError';
 	}
@@ -1174,6 +1174,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		let isQuotaError = false;
+		let quotaErrorCode: string | undefined;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
 		const remoteMode = isMissionControlCommandSource(input.source) ? this._mcState?.mcMode : undefined;
 		const effectivePermissionLevel = remoteMode ? (remoteMode === 'autopilot' ? 'autopilot' : undefined) : this._permissionLevel;
@@ -1564,6 +1565,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				if (event.data.errorType === 'quota' || event.data.statusCode === 402) {
 					isQuotaError = true;
+					quotaErrorCode = event.data.errorCode;
 				} else {
 					requestStream?.markdown(l10n.t('\n\nError: ({0}) {1}', event.data.errorType, event.data.message));
 				}
@@ -1631,7 +1633,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					isUsageBasedBilling = copilotToken.tokenBasedBilling;
 					quotaResetDate = copilotToken.quotaInfo.quota_reset_date;
 				} catch { /* token unavailable */ }
-				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan, isUsageBasedBilling, quotaResetDate));
+				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan, isUsageBasedBilling, quotaResetDate), quotaErrorCode);
 			}
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
 			const resolvedToolIdEditMap: Record<string, string> = {};
@@ -1674,7 +1676,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					isUsageBasedBilling = copilotToken.tokenBasedBilling;
 					quotaResetDate = copilotToken.quotaInfo.quota_reset_date;
 				} catch { /* token unavailable */ }
-				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan, isUsageBasedBilling, quotaResetDate));
+				throw new CopilotCLIQuotaExceededError(getQuotaMessageForPlan(plan, isUsageBasedBilling, quotaResetDate), quotaErrorCode);
 			}
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
