@@ -82,19 +82,22 @@ export class BaseTelemetryService implements ITelemetryService {
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
-		const sku = this._tokenStore.copilotToken?.sku;
-		properties = { ...properties, ...this._sharedProperties, sku: sku ?? '' };
+		properties = this._addSku({ ...properties, ...this._sharedProperties });
 		this._ghTelemetrySender.sendEnhancedTelemetryEvent(eventName, properties, measurements);
 	}
 	sendEnhancedGHTelemetryErrorEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
-		const sku = this._tokenStore.copilotToken?.sku;
-		properties = { ...properties, ...this._sharedProperties, sku: sku ?? '' };
+		properties = this._addSku({ ...properties, ...this._sharedProperties });
 		this._ghTelemetrySender.sendEnhancedTelemetryErrorEvent(eventName, properties, measurements);
 	}
 
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryEventProperties | undefined, measurements?: TelemetryEventMeasurements | undefined): void {
 		properties = { ...properties, ...this._sharedProperties };
 		this._microsoftTelemetrySender.sendInternalTelemetryEvent(eventName, properties, measurements);
+	}
+
+	private _addSku(properties: TelemetryEventProperties): TelemetryEventProperties {
+		const sku = this._tokenStore.copilotToken?.sku;
+		return sku ? { ...properties, sku } : properties;
 	}
 
 	private _getEventName(eventName: string, github: boolean | { eventNamePrefix: string }): string {
