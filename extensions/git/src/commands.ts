@@ -2958,6 +2958,16 @@ export class CommandCenter {
 					return false;
 				}
 
+				const config = workspace.getConfiguration('git', Uri.file(repository.root));
+				const autoStash = config.get<boolean>('autoStash');
+
+				if (autoStash) {
+					await repository.createStash(undefined, true);
+					await item.run(repository, opts);
+					await repository.popStash();
+					return true;
+				}
+
 				const stash = l10n.t('Stash & Checkout');
 				const migrate = l10n.t('Migrate Changes');
 				const force = l10n.t('Force Checkout');
