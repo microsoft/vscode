@@ -65,7 +65,7 @@ function checkFunctionForObservableGetCalls(
 				message: `Observable '.get()' should not be used in reactive context. Use '.read(${readerName})' instead to properly track dependencies or '.read(undefined)' to be explicit about an untracked read.`,
 				fix: (fixer) => {
 					const memberExpression = node.callee as TSESTree.MemberExpression;
-					return fixer.replaceText(node, `${context.getSourceCode().getText(memberExpression.object as ESTree.Node)}.read(undefined)`);
+					return fixer.replaceText(node, `${context.sourceCode.getText(memberExpression.object as ESTree.Node)}.read(undefined)`);
 				}
 			});
 		}
