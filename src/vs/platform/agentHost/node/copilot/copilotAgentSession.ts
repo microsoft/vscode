@@ -1037,15 +1037,15 @@ export class CopilotAgentSession extends Disposable {
 	 * `file` path. Prefers `contentType` (authoritative), then path-derived MIME, then the `'image'` displayKind hint
 	 * (falls back to `image/png`). Never propagates a non-image MIME under an `'image'` hint.
 	 */
-	private _getImageMimeType(attachment: MessageResourceAttachment, path: string): string | undefined {
-		if (attachment.contentType?.startsWith('image/')) {
-			return attachment.contentType;
+	private _getImageMimeType({ contentType, displayKind }: MessageResourceAttachment, path: string): string | undefined {
+		if (contentType) {
+			return contentType.startsWith('image/') ? contentType : undefined;
 		}
 		const mime = getMediaMime(path);
 		if (mime?.startsWith('image/')) {
 			return mime;
 		}
-		if (attachment.displayKind === 'image') {
+		if (displayKind === 'image') {
 			return 'image/png';
 		}
 		return undefined;
