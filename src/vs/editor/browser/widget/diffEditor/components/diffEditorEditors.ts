@@ -148,6 +148,9 @@ export class DiffEditorEditors extends Disposable {
 		} else {
 			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
+			result.wordWrapOverride2 =
+				this._options.editorOptions.get().wordWrapOverride2
+				?? EditorOptions.wordWrapOverride2.defaultValue;
 		}
 		result.glyphMargin = this._options.renderSideBySide.get();
 
@@ -168,6 +171,9 @@ export class DiffEditorEditors extends Disposable {
 		}
 		result.ariaLabel = this._updateAriaLabel(result.ariaLabel);
 		result.wordWrapOverride1 = this._options.diffWordWrap.get();
+		result.wordWrapOverride2 =
+			this._options.editorOptions.get().wordWrapOverride2
+			?? EditorOptions.wordWrapOverride2.defaultValue;
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
