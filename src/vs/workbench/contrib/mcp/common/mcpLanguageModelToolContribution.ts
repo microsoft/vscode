@@ -252,6 +252,7 @@ class McpToolImplementation implements IToolImpl {
 				kind: 'input',
 				rawInput: context.parameters,
 				mcpAppData: mcpUiEnabled && tool.uiResourceUri ? {
+					kind: 'local',
 					resourceUri: tool.uiResourceUri,
 					serverDefinitionId: server.definition.id,
 					collectionId: server.collection.id,

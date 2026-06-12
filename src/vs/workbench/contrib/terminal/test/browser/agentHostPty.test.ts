@@ -60,6 +60,7 @@ class MockAgentConnection implements IAgentConnection {
 	}
 
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
+	async handleMcpRequest(): Promise<unknown> { throw new Error('Not implemented'); }
 
 	/** Simulate the server sending an action to the client */
 	fireAction(channel: URI, action: StateAction, serverSeq = 1): void {

@@ -461,6 +461,10 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.sendQuery(text);
 	}
 
+	attach(uris: URI[]): void {
+		this._newChatInput.attach(uris);
+	}
+
 	selectWorkspace(folderUri: URI, providerId?: string): void {
 		this._workspacePicker.setSelectedWorkspace(folderUri, { providerId });
 	}
