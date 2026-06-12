@@ -43,14 +43,10 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		const info = response.body;
 		const result = new vscode.SignatureHelp();
 		result.signatures = info.items.map(signature => this.convertSignature(signature, document.uri));
-		result.activeSignature = this.getActiveSignature(context, info, result.signatures);
+		result.activeSignature = info.selectedItemIndex;
 		result.activeParameter = this.getActiveParameter(info);
 
 		return result;
-	}
-
-	private getActiveSignature(_context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, _signatures: readonly vscode.SignatureInformation[]): number {
-		return computeActiveSignatureIndex(info.selectedItemIndex);
 	}
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
@@ -91,11 +87,6 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 	}
 }
 
-/** @internal exported for unit testing only */
-export function computeActiveSignatureIndex(tsSelectedItemIndex: number): number {
-	return tsSelectedItemIndex;
-}
-
 function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.SignatureHelpTriggerReason {
 	switch (context.triggerKind) {
 		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
@@ -117,6 +108,8 @@ function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.Signatur
 			return { kind: 'invoked' };
 	}
 }
+export { TypeScriptSignatureHelpProvider as _TypeScriptSignatureHelpProvider };
+
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,

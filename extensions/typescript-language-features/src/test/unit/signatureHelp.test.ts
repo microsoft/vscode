@@ -5,38 +5,114 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { computeActiveSignatureIndex } from '../../languageFeatures/signatureHelp';
+import * as vscode from 'vscode';
+import type * as Proto from '../../tsServer/protocol/protocol';
+import { ITypeScriptServiceClient } from '../../typescriptService';
+import { _TypeScriptSignatureHelpProvider } from '../../languageFeatures/signatureHelp';
 
-// --- Historical context: behaviour BEFORE the fix for #268728 ---
-//
-// The original getActiveSignature matched the previously-shown overload by label
-// and returned its index whenever a retrigger occurred:
-//
-//   const existingIndex = signatures.findIndex(s => s.label === previousLabel);
-//   if (existingIndex >= 0) { return existingIndex; }   // BUG: ignores TS's new index
-//   return info.selectedItemIndex;
-//
-// This meant that when typed arguments narrowed the overload set — e.g. a string
-// first argument causes TypeScript to change selectedItemIndex from 0 (number overload)
-// to 1 (string overload) on the comma retrigger — VS Code would still return the stale
-// index (0) and the signature help widget would never switch overloads.
-//
-// The fix: always defer to TypeScript's selectedItemIndex.
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-suite('computeActiveSignatureIndex', () => {
+function makeSigItem(): Proto.SignatureHelpItem {
+	return {
+		prefixDisplayParts: [],
+		suffixDisplayParts: [],
+		separatorDisplayParts: [],
+		parameters: [],
+		documentation: [],
+		tags: [],
+		isVariadic: false,
+	};
+}
 
-	test('returns TypeScript selectedItemIndex for first overload', () => {
-		assert.strictEqual(computeActiveSignatureIndex(0), 0);
-	});
+function makeClient(selectedItemIndex: number): ITypeScriptServiceClient {
+	return {
+		toOpenTsFilePath: () => '/test.ts',
+		interruptGetErr: (fn: () => unknown) => fn(),
+		execute: () => Promise.resolve({
+			type: 'response' as const,
+			body: {
+				items: [makeSigItem(), makeSigItem()],
+				selectedItemIndex,
+				argumentIndex: 1,
+				argumentCount: 2,
+			} as Proto.SignatureHelpItems,
+		}),
+	} as unknown as ITypeScriptServiceClient;
+}
 
-	test('returns TypeScript selectedItemIndex for second overload', () => {
-		assert.strictEqual(computeActiveSignatureIndex(1), 1);
-	});
+function makeContext(opts: { isRetrigger: boolean; previousActiveSignature?: number }): vscode.SignatureHelpContext {
+	return {
+		triggerKind: vscode.SignatureHelpTriggerKind.TriggerCharacter,
+		triggerCharacter: ',',
+		isRetrigger: opts.isRetrigger,
+		activeSignatureHelp: opts.previousActiveSignature !== undefined
+			? {
+				signatures: [
+					new vscode.SignatureInformation('foo(a: number): number'),
+					new vscode.SignatureInformation('foo(a: string): string'),
+				],
+				activeSignature: opts.previousActiveSignature,
+				activeParameter: 0,
+			}
+			: undefined,
+	} as vscode.SignatureHelpContext;
+}
 
-	test('overload narrowing is honoured (#268728)', () => {
-		// Before fix: on a comma retrigger where previously showing overload 0,
-		// the old code returned 0 even after TS updated selectedItemIndex to 1.
-		// After fix: tsSelectedItemIndex is returned directly, so 1 is returned.
-		assert.strictEqual(computeActiveSignatureIndex(1), 1);
+const doc = { uri: vscode.Uri.parse('file:///test.ts') } as vscode.TextDocument;
+const pos = new vscode.Position(0, 0);
+const token = new vscode.CancellationTokenSource().token;
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+suite('TypeScriptSignatureHelpProvider', () => {
+	suite('provideSignatureHelp — activeSignature selection', () => {
+
+		test('fresh trigger uses TypeScript selectedItemIndex', async () => {
+			const provider = new _TypeScriptSignatureHelpProvider(makeClient(0));
+			const result = await provider.provideSignatureHelp(doc, pos, token, makeContext({ isRetrigger: false }));
+			assert.strictEqual(result?.activeSignature, 0);
+		});
+
+		test('BUG (#268728): old retrigger guard returned stale index when TS updated selectedItemIndex', () => {
+			// The original getActiveSignature found the previously-shown overload by label
+			// and returned its index unconditionally, regardless of what TS now recommended.
+			// Reproduced here to document what the old code did.
+			const oldGetActiveSignature = (
+				context: { isRetrigger: boolean; activeSignatureHelp?: { signatures: vscode.SignatureInformation[]; activeSignature: number } },
+				tsSelectedItemIndex: number,
+				signatures: vscode.SignatureInformation[],
+			): number => {
+				const prev = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
+				if (prev && context.isRetrigger) {
+					const idx = signatures.findIndex(s => s.label === prev.label);
+					if (idx >= 0) { return idx; }
+				}
+				return tsSelectedItemIndex;
+			};
+
+			const ctx = makeContext({ isRetrigger: true, previousActiveSignature: 0 });
+			const sigs = ctx.activeSignatureHelp!.signatures;
+			// TS updated selectedItemIndex to 1 (string overload), but old code returned 0.
+			assert.strictEqual(oldGetActiveSignature(ctx, 1, sigs), 0);
+		});
+
+		test('FIX (#268728): retrigger now follows TypeScript when arguments narrow the overload set', async () => {
+			// Previously showing overload 0 (number). TS now returns selectedItemIndex=1 (string).
+			// Fixed code sets result.activeSignature = info.selectedItemIndex → must return 1.
+			const provider = new _TypeScriptSignatureHelpProvider(makeClient(1));
+			const result = await provider.provideSignatureHelp(doc, pos, token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
+			assert.strictEqual(result?.activeSignature, 1);
+		});
+
+		test('retrigger with unchanged TypeScript selection uses selectedItemIndex', async () => {
+			// TS still recommends overload 0 — result should be 0.
+			const provider = new _TypeScriptSignatureHelpProvider(makeClient(0));
+			const result = await provider.provideSignatureHelp(doc, pos, token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
+			assert.strictEqual(result?.activeSignature, 0);
+		});
 	});
 });
