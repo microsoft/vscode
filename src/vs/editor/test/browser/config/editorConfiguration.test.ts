@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
 import { migrateOptions } from '../../../browser/config/migrateOptions.js';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { EditorZoom } from '../../../common/config/editorZoom.js';
 import { TestConfiguration } from './testConfiguration.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
@@ -197,6 +197,18 @@ suite('Common Editor Config', () => {
 			wordWrapColumn: -1
 		});
 		assertWrapping(config, true, 1);
+		config.dispose();
+	});
+
+	test('wrappingIndent is respected in accessibility mode', () => {
+		const config = new TestConfiguration({
+			wrappingIndent: 'indent',
+			envConfig: {
+				accessibilitySupport: AccessibilitySupport.Enabled
+			}
+		});
+
+		assert.strictEqual(config.options.get(EditorOption.wrappingIndent), WrappingIndent.Indent);
 		config.dispose();
 	});
 
