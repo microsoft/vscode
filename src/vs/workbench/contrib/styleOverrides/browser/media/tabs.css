@@ -26,7 +26,7 @@
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
 	font-size: 12px;
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
 	--tab-border-top-color: transparent !important;
@@ -62,10 +62,47 @@
 }
 
 .style-override-tabs .part.editor .tabs-container > .tab.active {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 15%, transparent) !important;
 }
 
 .style-override-tabs .part.editor .tabs-container > .tab .tab-border-top-container,
 .style-override-tabs .part.editor .tabs-container > .tab .tab-border-bottom-container {
 	display: none !important;
+}
+
+/*
+ * Panel tabs (TERMINAL, PROBLEMS, OUTPUT, DEBUG CONSOLE ...). These are
+ * composite-bar action items rather than editor `.tab` elements, with an
+ * underline `.active-item-indicator`. Give them the same rounded-pill look as
+ * the editor tabs: normal case, 12px/500 type, a subtle background on the
+ * active tab and no underline.
+ */
+.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	text-transform: none !important;
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	padding: 0 8px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
+}
+
+/*
+ * Drop the underline active indicator in favour of the pill background. The
+ * default rules set the border with `!important`, so match their specificity
+ * (with the extra `.style-override-tabs` class winning) for the checked and
+ * focused states.
+ */
+.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
+.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+	border-top-color: transparent !important;
+	border-top-width: 0 !important;
+	border-bottom-color: transparent !important;
+	border-bottom-width: 0 !important;
+}
+
+.style-override-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar, .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar {
+	line-height: 22px;
 }
