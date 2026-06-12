@@ -62,6 +62,13 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 			throw new Error('Model already exists');
 		}
 
+		// If the model promise rejects, remove the entry so that
+		// subsequent attempts can create a fresh model instead of
+		// reusing the rejected promise forever. (See #268301)
+		model.catch(() => {
+			this._references.delete(key);
+		});
+
 		this._references.set(key, { viewType, model, counter: 0 });
 		return this.tryRetain(resource, viewType)!;
 	}
