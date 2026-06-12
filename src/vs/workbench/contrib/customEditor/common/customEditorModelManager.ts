@@ -59,7 +59,14 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		const key = this.key(resource, viewType);
 		const existing = this._references.get(key);
 		if (existing) {
-			throw new Error('Model already exists');
+			// Allow replacing entries whose model promise has been rejected
+			// or whose reference count has dropped to zero (stale entries
+			// left behind after file deletion)
+			if (existing.counter <= 0) {
+				this._references.delete(key);
+			} else {
+				throw new Error('Model already exists');
+			}
 		}
 
 		this._references.set(key, { viewType, model, counter: 0 });
