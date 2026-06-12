@@ -4,45 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
-import { isWindows } from '../../../../base/common/platform.js';
-import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IPathService } from '../../../services/path/common/pathService.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 
+// Bundle the CSS for every style-override module. Each file gates all of its
+// rules behind a `.style-override-<id>` ancestor class, so the styles are inert
+// until the matching class is toggled onto the workbench container(s) below.
+import './media/roundedButtons.css';
+
 const SETTING_ID = 'workbench.experimental.styleOverrides';
 
+interface IStyleOverrideModule {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+}
+
 /**
- * A development-only contribution that loads one or more CSS files referenced by the
- * `workbench.experimental.styleOverrides` setting and injects their contents into the
- * workbench so they override the shipped product CSS.
+ * The fixed catalog of available style-override experiments. The CSS for each
+ * module ships with the product (imported above) and is gated behind the
+ * `.style-override-<id>` class. Users can only enable modules from this list;
+ * arbitrary CSS cannot be injected.
+ */
+const STYLE_OVERRIDE_MODULES: readonly IStyleOverrideModule[] = [
+	{
+		id: 'roundedButtons',
+		label: localize('styleOverrides.roundedButtons', "Rounded Buttons"),
+		description: localize('styleOverrides.roundedButtons.description', "Renders workbench buttons as fully rounded pills.")
+	}
+];
+
+function classNameFor(moduleId: string): string {
+	return `style-override-${moduleId}`;
+}
+
+/**
+ * A development-oriented contribution that toggles built-in CSS style-override
+ * modules on or off based on the `workbench.experimental.styleOverrides` setting.
  *
- * The files are concatenated in the order they are listed (so later files win over
- * earlier ones) and are watched for changes, allowing style ideas to be iterated on
- * live without reloading the window.
+ * Unlike a free-form CSS loader, the available styles are fixed and shipped with
+ * the product. The setting merely selects which of the predefined modules are
+ * active, so the styling itself cannot be changed by end users.
  */
 export class StyleOverridesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.styleOverrides';
 
-	private readonly styleElement = this._register(new MutableDisposable<DisposableStore>());
-	private readonly fileWatchers = this._register(new DisposableStore());
+	private readonly knownClassNames = STYLE_OVERRIDE_MODULES.map(m => classNameFor(m.id));
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IPathService private readonly pathService: IPathService,
-		@ILogService private readonly logService: ILogService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 	) {
 		super();
 
@@ -52,118 +70,43 @@ export class StyleOverridesContribution extends Disposable implements IWorkbench
 			}
 		}));
 
-		this._register(this.fileService.onDidFilesChange(e => {
-			const uris = this.resolveUris();
-			if (uris.some(uri => e.contains(uri))) {
-				this.applyOverrides(uris);
-			}
+		// Apply to windows that are opened after startup (e.g. auxiliary windows).
+		this._register(this.layoutService.onDidAddContainer(({ container, disposables }) => {
+			this.applyTo(container, this.activeClassNames());
+			disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(SETTING_ID)) {
+					this.applyTo(container, this.activeClassNames());
+				}
+			}));
 		}));
 
 		this.update();
 	}
 
+	private activeClassNames(): Set<string> {
+		const selection = this.configurationService.getValue<string[]>(SETTING_ID);
+		const active = new Set<string>();
+		if (Array.isArray(selection)) {
+			for (const id of selection) {
+				if (STYLE_OVERRIDE_MODULES.some(m => m.id === id)) {
+					active.add(classNameFor(id));
+				}
+			}
+		}
+		return active;
+	}
+
 	private update(): void {
-		const uris = this.resolveUris();
-
-		this.logService.info(`[styleOverrides] Setting '${SETTING_ID}' resolved to ${uris.length} file(s): ${uris.map(u => u.toString(true)).join(', ')}`);
-
-		// Refresh the set of watched files
-		this.fileWatchers.clear();
-		for (const uri of uris) {
-			this.fileWatchers.add(this.fileService.watch(uri));
+		const active = this.activeClassNames();
+		for (const container of this.layoutService.containers) {
+			this.applyTo(container, active);
 		}
-
-		this.applyOverrides(uris);
 	}
 
-	private resolveUris(): URI[] {
-		const entries = this.configurationService.getValue<string[]>(SETTING_ID);
-		if (!Array.isArray(entries)) {
-			return [];
+	private applyTo(container: HTMLElement, active: Set<string>): void {
+		for (const className of this.knownClassNames) {
+			container.classList.toggle(className, active.has(className));
 		}
-
-		const result: URI[] = [];
-		for (const entry of entries) {
-			if (typeof entry !== 'string' || entry.trim().length === 0) {
-				continue;
-			}
-
-			const uri = this.toUri(entry.trim());
-			if (uri) {
-				result.push(uri);
-			}
-		}
-
-		return result;
-	}
-
-	private toUri(entry: string): URI | undefined {
-		// Home directory: ~ or ~/relative/path
-		if (entry === '~' || entry.startsWith('~/')) {
-			const home = this.pathService.resolvedUserHome;
-			if (!home) {
-				this.logService.warn(`[styleOverrides] Cannot resolve '~' before the user home is known: ${entry}`);
-				return undefined;
-			}
-			const rest = entry.slice(1).replace(/^\/+/, '');
-			return rest ? URI.joinPath(home, rest) : home;
-		}
-
-		// Full URI with a scheme (e.g. file:///, vscode-userdata:/)
-		if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(entry) && !this.looksLikeWindowsPath(entry)) {
-			try {
-				return URI.parse(entry);
-			} catch {
-				this.logService.warn(`[styleOverrides] Ignoring malformed URI: ${entry}`);
-				return undefined;
-			}
-		}
-
-		// Absolute filesystem path
-		if (entry.startsWith('/') || this.looksLikeWindowsPath(entry)) {
-			return URI.file(entry);
-		}
-
-		// Relative path: resolve against the first workspace folder
-		const folder = this.contextService.getWorkspace().folders[0];
-		if (folder) {
-			return URI.joinPath(folder.uri, entry);
-		}
-
-		this.logService.warn(`[styleOverrides] Cannot resolve relative path without an open workspace: ${entry}`);
-		return undefined;
-	}
-
-	private looksLikeWindowsPath(entry: string): boolean {
-		return isWindows && /^[a-zA-Z]:[\\/]/.test(entry);
-	}
-
-	private async applyOverrides(uris: URI[]): Promise<void> {
-		if (uris.length === 0) {
-			this.styleElement.clear();
-			return;
-		}
-
-		const sections: string[] = [];
-		for (const uri of uris) {
-			try {
-				const content = await this.fileService.readFile(uri);
-				sections.push(`/* ${uri.toString(true)} */\n${content.value.toString()}`);
-				this.logService.info(`[styleOverrides] Loaded CSS override: ${uri.toString(true)}`);
-			} catch (error) {
-				this.logService.warn(`[styleOverrides] Failed to read CSS override file ${uri.toString(true)}: ${error}`);
-			}
-		}
-
-		const css = sections.join('\n\n');
-
-		// Re-create the style element so it is appended last in <head> and therefore
-		// takes precedence over the product CSS for rules of equal specificity.
-		const store = new DisposableStore();
-		createStyleSheet(undefined, style => style.textContent = css, store);
-		this.styleElement.value = store;
-
-		this.logService.info(`[styleOverrides] Applied ${sections.length} CSS override file(s), ${css.length} bytes.`);
 	}
 }
 
@@ -173,12 +116,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[SETTING_ID]: {
 			type: 'array',
 			items: {
-				type: 'string'
+				type: 'string',
+				enum: STYLE_OVERRIDE_MODULES.map(m => m.id),
+				enumDescriptions: STYLE_OVERRIDE_MODULES.map(m => `${m.label}: ${m.description}`)
 			},
+			uniqueItems: true,
 			default: [],
-			scope: ConfigurationScope.MACHINE_OVERRIDABLE,
 			tags: ['experimental'],
-			markdownDescription: localize('styleOverrides', "A list of CSS files whose contents are injected into the workbench to override the built-in product styles. Useful for prototyping style ideas. Entries can be absolute paths, home-relative paths (starting with `~/`), URIs, or paths relative to the first workspace folder. Files are applied in order (later files override earlier ones) and are watched for live changes. This is an experimental, development-only setting.")
+			markdownDescription: localize('styleOverrides', "Enables one or more built-in style-override modules that adjust the appearance of the workbench. Each module is a predefined set of styles that ships with the product; only modules from this list can be enabled and the styles themselves cannot be customized. Leave empty to disable all overrides. This is an experimental setting intended for trying out style ideas.")
 		}
 	}
 });
