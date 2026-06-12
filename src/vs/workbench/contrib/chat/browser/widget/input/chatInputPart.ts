@@ -452,11 +452,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Cleared on session-type change so the next read re-seeds from the new
 	 * bucket. See issue #320393.
 	 */
-	private readonly _modelConfigStore = this._register(new ChatModelConfigurationStore(
-		() => this.getModelConfigurationStorageKey(),
-		this.languageModelsService,
-		this.storageService,
-	));
+	private readonly _modelConfigStore: ChatModelConfigurationStore;
 
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
@@ -607,6 +603,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatPhoneInputPresenter private readonly chatPhoneInputPresenter: IChatPhoneInputPresenter,
 	) {
 		super();
+
+		this._modelConfigStore = this._register(new ChatModelConfigurationStore(
+			() => this.getModelConfigurationStorageKey(),
+			this.languageModelsService,
+			this.storageService,
+		));
 
 		// Initialize debounced text sync scheduler
 		this._syncTextDebounced = this._register(new RunOnceScheduler(() => {
