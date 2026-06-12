@@ -178,7 +178,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.CustomReadonlyEditorProvider | vscode.CustomTextEditorProvider,
-		options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean; readonly?: boolean },
+		options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
 		const disposables = new DisposableStore();
 		if (isCustomTextEditorProvider(provider)) {
@@ -187,7 +187,6 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				supportsMove: !!provider.moveCustomTextEditor,
 				supportsInlineDiff: isProposedApiEnabled(extension, 'customEditorDiffs') && isCustomTextEditorProviderWithInlineDiffCapability(provider),
 				supportsSideBySideDiff: isProposedApiEnabled(extension, 'customEditorDiffs') && isCustomTextEditorProviderWithSideBySideDiffCapability(provider),
-				readonly: options.readonly,
 			}, shouldSerializeBuffersForPostMessage(extension));
 		} else {
 			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));

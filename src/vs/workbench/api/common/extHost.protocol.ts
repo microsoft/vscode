@@ -1031,7 +1031,6 @@ export interface CustomEditorProviderCapabilities {
 	readonly supportsMove?: boolean;
 	readonly supportsInlineDiff?: boolean;
 	readonly supportsSideBySideDiff?: boolean;
-	readonly readonly?: boolean;
 }
 
 export interface CustomEditorDiffInitData {

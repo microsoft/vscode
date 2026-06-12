@@ -266,9 +266,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public override isReadonly(): boolean | IMarkdownString {
-		if (this.customEditorService.getCustomEditorCapabilities(this.viewType)?.readonly) {
-			return true;
-		}
 		if (!this._modelRef) {
 			return this.filesConfigurationService.isReadonly(this.resource);
 		}

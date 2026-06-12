@@ -107,9 +107,8 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
 
 		this._register(vscode.window.registerCustomEditorProvider(StaticMarkdownPreview.customEditorViewType, this, {
-			webviewOptions: { enableFindWidget: true },
-			readonly: true, // Preview is a read-only view of the document
-		} as any /* readonly is an internal option not in the public API */));
+			webviewOptions: { enableFindWidget: true }
+		}));
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
 			// When at a markdown file, apply existing scroll settings
