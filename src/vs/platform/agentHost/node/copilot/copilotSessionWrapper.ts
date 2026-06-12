@@ -68,6 +68,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionInfo ??= this._sdkEvent('session.info');
 	}
 
+	private _onSessionWarning: Event<SessionEventPayload<'session.warning'>> | undefined;
+	get onSessionWarning(): Event<SessionEventPayload<'session.warning'>> {
+		return this._onSessionWarning ??= this._sdkEvent('session.warning');
+	}
+
 	private _onSessionModelChange: Event<SessionEventPayload<'session.model_change'>> | undefined;
 	get onSessionModelChange(): Event<SessionEventPayload<'session.model_change'>> {
 		return this._onSessionModelChange ??= this._sdkEvent('session.model_change');

@@ -27,6 +27,7 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -43,6 +44,8 @@ import { buildCopilotSystemNotification } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from './copilotSlashCommandCompletionProvider.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
 import { buildSandboxConfigForSdk } from './sandboxConfigForSdk.js';
+import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
+import { feedbackServerToolDefinitions, feedbackServerToolNames } from '../shared/agentFeedbackServerTools.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, synthesizeSkillToolCall, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { McpCustomizationController, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
@@ -302,6 +305,13 @@ export interface ICopilotAgentSessionOptions {
 	 * {@link clientSnapshot} is used (test / standalone path).
 	 */
 	readonly activeClientState?: ActiveClientState;
+	/**
+	 * Server-side host for the feedback ("comments") tools. When provided,
+	 * the session advertises the feedback tools as server tools and exposes
+	 * SDK tool handlers that execute them against this session's annotations
+	 * channel.
+	 */
+	readonly feedbackToolHost?: IAgentFeedbackToolHost;
 }
 
 /**
@@ -400,6 +410,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellManager: ShellManager | undefined;
 	private readonly _workingDirectory: URI | undefined;
 	private readonly _customizationDirectory: URI | undefined;
+	private readonly _feedbackToolHost: IAgentFeedbackToolHost | undefined;
 	/** Bridges SDK-reported MCP server state into AHP customization actions. */
 	private readonly _mcpCustomizations: McpCustomizationController;
 
@@ -452,6 +463,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._workingDirectory = options.workingDirectory;
 		this._customizationDirectory = options.customizationDirectory;
+		this._feedbackToolHost = options.feedbackToolHost;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -783,6 +795,37 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Builds SDK tool handlers for the agent host's feedback ("comments")
+	 * server tools. Each handler executes the tool against this session's
+	 * annotations channel via the {@link IAgentFeedbackToolHost} and returns
+	 * its textual result. Returns an empty list when no feedback tool host is
+	 * wired (e.g. test / standalone construction).
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	private _createServerSdkTools(): Tool<any>[] {
+		const host = this._feedbackToolHost;
+		if (!host) {
+			return [];
+		}
+		const sessionUri = this.sessionUri.toString();
+		return feedbackServerToolDefinitions.map(def => ({
+			name: def.name,
+			description: def.description ?? '',
+			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
+			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
+				try {
+					const text = host.executeTool(sessionUri, def.name, args);
+					return { textResultForLlm: text, resultType: 'success' };
+				} catch (error) {
+					const message = error instanceof Error ? error.message : String(error);
+					this._logService.error(error, `[Copilot:${this.sessionId}] Failed in feedback server tool handler: tool=${def.name}`);
+					return { textResultForLlm: message, resultType: 'failure', error: message };
+				}
+			},
+		}));
+	}
+
+	/**
 	 * Resolves a pending client tool call. If the SDK handler has not yet
 	 * registered for `toolCallId`, the result is buffered so the handler
 	 * resolves immediately once it does.
@@ -831,6 +874,11 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._subscribeToEvents();
 		this._subscribeForLogging();
+
+		// Advertise the feedback ("comments") server tools for this session so
+		// clients see them as server-provided. Execution happens in-process via
+		// the SDK tool handlers built in `_createServerSdkTools`.
+		this._feedbackToolHost?.advertise(this.sessionUri.toString());
 	}
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
@@ -841,6 +889,7 @@ export class CopilotAgentSession extends Disposable {
 			handleElicitationRequest: context => this._handleElicitationRequest(context),
 			requestUnsandboxedCommandConfirmation: request => this._requestUnsandboxedCommandConfirmation(request),
 			createClientSdkTools: () => this._createClientSdkTools(),
+			createServerSdkTools: () => this._createServerSdkTools(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 		};
@@ -1218,6 +1267,17 @@ export class CopilotAgentSession extends Disposable {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return { kind: 'approve-once' };
 				}
+			}
+
+			// Auto-approve the agent host's feedback ("comments") server tools.
+			// They only read or mutate the session's own annotations channel
+			// (server-held feedback state) and never touch the workspace, shell,
+			// or network, so prompting for them is redundant noise.
+			if (request.kind === 'custom-tool' && typeof request.toolName === 'string'
+				&& feedbackServerToolNames.includes(request.toolName)
+			) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving feedback server tool ${request.toolName}`);
+				return { kind: 'approve-once' };
 			}
 
 			const isShellRequest = request.kind === 'shell'
@@ -2482,7 +2542,15 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
+			const attributes: Record<string, OtelAttributeValue> = { infoType: e.data.infoType };
+			if (e.data.tip) {
+				attributes.tip = e.data.tip;
+			}
+			this._logService.info(`[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`, new OtelData(attributes));
+		}));
+
+		this._register(wrapper.onSessionWarning(e => {
+			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {
