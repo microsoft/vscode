@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
-const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
+const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType';
 
 /**
  * A picked session type, paired with the provider that serves it. Two
@@ -279,10 +279,11 @@ export class SessionTypePicker extends Disposable {
 
 	/**
 	 * Handles the user picking a session type. Emits `newChatPickerClosed`
-	 * telemetry (with the previously selected type read from storage, or
-	 * the in-memory field when nothing is stored), and — when the
-	 * selection actually changed — persists the new pick and fires
-	 * {@link onDidSelectSessionType}.
+	 * telemetry (with the previously selected type read from storage, or the
+	 * in-memory field when nothing is stored). The explicit selection is always
+	 * persisted — picking the preferred (first) type clears the stored
+	 * preference, any other pick stores it — while {@link onDidSelectSessionType}
+	 * fires only when the visible pick actually changed.
 	 *
 	 * Shared between desktop (action-widget popup) and mobile (bottom
 	 * sheet) presentations so both surfaces report identical telemetry.
@@ -303,18 +304,23 @@ export class SessionTypePicker extends Disposable {
 			isPII: false,
 		});
 
-		const changed = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
-		if (changed) {
-			// Picking the preferred (first) type means "no explicit
-			// preference": clear the stored pick so the session keeps
-			// tracking the preferred type as the folder's list changes.
-			const preferred = this._folderSessionTypes[0];
-			const isDefault = !!preferred && preferred.providerId === pick.providerId && preferred.sessionType.id === pick.sessionTypeId;
-			if (isDefault) {
-				this._clearStoredPick(pick);
-			} else {
-				this._writeStoredPick(pick);
-			}
+		// Persist the explicit selection regardless of whether the visible
+		// pick changed (the visible pick may reflect the active session rather
+		// than the stored preference): picking the preferred (first) type means
+		// "no explicit preference" and clears the stored pick so the session
+		// keeps tracking the preferred type as the folder's list changes; any
+		// other explicit pick is stored.
+		const preferred = this._folderSessionTypes[0];
+		const isDefault = !!preferred && preferred.providerId === pick.providerId && preferred.sessionType.id === pick.sessionTypeId;
+		const visiblePickChanged = pick.providerId !== this._picked?.providerId || pick.sessionTypeId !== this._picked?.sessionTypeId;
+		if (isDefault) {
+			this._clearStoredPick(pick);
+		} else {
+			this._writeStoredPick(pick);
+		}
+		// Only notify (and trigger draft recreation) when the visible pick
+		// actually changed, to avoid unnecessary work.
+		if (visiblePickChanged) {
 			this._onDidSelectSessionType.fire(pick);
 		}
 	}

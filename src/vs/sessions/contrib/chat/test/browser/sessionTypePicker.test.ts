@@ -186,4 +186,28 @@ suite('SessionTypePicker', () => {
 		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
 		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
 	});
+
+	test('explicit pick is persisted even when the visible pick is unchanged', () => {
+		management.setSessionTypes([
+			sessionType('local-1', 'local', 'Local'),
+			sessionType('copilot', 'copilot-cli', 'Copilot CLI'),
+		]);
+		const picker = createPicker(disposables, session, management, storage);
+
+		// An active session of a non-default type is current, so the visible
+		// pick reflects it even though nothing has been stored yet.
+		session.set(createFakeSession('copilot', 'copilot-cli', folder), undefined);
+		assert.deepStrictEqual(picker.selectedPick, { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+
+		// Explicitly picking that same (already-visible) non-default type still
+		// persists the preference.
+		picker.pick({ providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
+
+		// Explicitly picking the (already-visible) default type clears it again.
+		session.set(createFakeSession('local-1', 'local', folder), undefined);
+		picker.pick({ providerId: 'local-1', sessionTypeId: 'local' });
+		assert.strictEqual(picker.getUserPickedSessionType(), undefined);
+	});
 });
