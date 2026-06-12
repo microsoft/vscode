@@ -117,7 +117,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Keep the shared-process tunnel proxy's address provider up to date
 		// so the proxy can connect whenever the main process starts it.
-		this._register(this._proxyAddressPump);
 		this._updateProxyAddressPump();
 
 		this.sendTheme();
@@ -223,14 +222,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
+				const storageScope = await this._resolveStorageScope();
 				const proxyId = this.willUseRemoteProxy() ? String(this._mainWindowId) : undefined;
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
 						sessionOptions: {
-							scope: await this._resolveStorageScope(),
-							proxyId
+							scope: storageScope,
+							proxyId: storageScope === BrowserViewStorageScope.Global ? undefined : proxyId
 						},
 						initialState: {
 							url: initialState?.url,

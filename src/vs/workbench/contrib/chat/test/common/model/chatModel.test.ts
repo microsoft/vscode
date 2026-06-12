@@ -26,7 +26,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, IChatRequestModeInfo, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response, serializeSendOptions } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ChatRequestQueueKind, IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ResponseModelState } from '../../../common/chatService/chatService.js';
@@ -302,7 +302,7 @@ suite('ChatModel', () => {
 		const modeInfo: IChatRequestModeInfo = {
 			kind: ChatModeKind.Agent,
 			isBuiltin: false,
-			modeId: 'custom',
+			telemetryModeId: 'custom',
 			modeInstructions: {
 				name: 'plan',
 				content: 'You are a planning agent',
@@ -1520,6 +1520,22 @@ suite('ChatModel - Pending Requests', () => {
 
 		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
 		assert.strictEqual(pending.sendOptions.attempt, 3);
+	});
+});
+
+suite('serializeSendOptions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves userSelectedModelConfiguration so per-editor config survives persist/restore (issue #320393)', () => {
+		// A pending/queued request is serialized and later restored (e.g. window
+		// reload). The editor-scoped model configuration must round-trip, otherwise
+		// the restored request falls back to the profile-global value.
+		const serialized = serializeSendOptions({
+			userSelectedModelId: 'copilot/gpt',
+			userSelectedModelConfiguration: { thinkingEffort: 'high', contextSize: 2000 },
+		});
+
+		assert.deepStrictEqual(serialized.userSelectedModelConfiguration, { thinkingEffort: 'high', contextSize: 2000 });
 	});
 });
 

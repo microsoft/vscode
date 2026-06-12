@@ -30,6 +30,7 @@ class MockAgentConnection implements IAgentConnection {
 	readonly onDidAction: Event<ActionEnvelope> = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
+	readonly onMcpNotification: Event<import('../../../../../platform/agentHost/common/agentService.js').IMcpNotification> = Event.None;
 
 	readonly dispatchedActions: { channel: string; action: SessionAction | TerminalAction | IRootConfigChangedAction }[] = [];
 	readonly createdTerminals: CreateTerminalParams[] = [];
@@ -59,6 +60,7 @@ class MockAgentConnection implements IAgentConnection {
 	}
 
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
+	async handleMcpRequest(): Promise<unknown> { throw new Error('Not implemented'); }
 
 	/** Simulate the server sending an action to the client */
 	fireAction(channel: URI, action: StateAction, serverSeq = 1): void {

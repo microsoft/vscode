@@ -358,6 +358,50 @@
             "included": true
         },
         {
+            "key": "extensions.autoUpdate",
+            "name": "ExtensionsAutoUpdate",
+            "category": "Extensions",
+            "minimumVersion": "1.125",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdate",
+                    "value": "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.autoUpdate.on",
+                        "value": "Download and install updates automatically only for enabled extensions."
+                    },
+                    {
+                        "key": "extensions.autoUpdate.off",
+                        "value": "Extensions are not automatically updated."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "on",
+            "enum": [
+                "on",
+                "off"
+            ],
+            "included": true
+        },
+        {
+            "key": "extensions.autoUpdateDelay",
+            "name": "ExtensionsAutoUpdateDelay",
+            "category": "Extensions",
+            "minimumVersion": "1.125",
+            "localization": {
+                "description": {
+                    "key": "extensions.autoUpdateDelay",
+                    "value": "Controls the delay in hours after an extension update is published before it is automatically installed. Only applies when `#extensions.autoUpdate#` is set to `on`. This delay helps avoid installing potentially problematic updates immediately after release."
+                }
+            },
+            "type": "number",
+            "default": 2,
+            "included": true
+        },
+        {
             "key": "chat.tools.terminal.enableAutoApprove",
             "name": "ChatToolsTerminalEnableAutoApprove",
             "category": "IntegratedTerminal",

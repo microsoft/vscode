@@ -56,11 +56,11 @@ function message(text: string, kind = MessageKind.User): Message {
 }
 
 function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
-	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), undefined);
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), 'local');
 }
 
 function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
-	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), undefined);
+	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'), 'local');
 }
 
 function turnsToHistory(backendSession: Parameters<typeof rawTurnsToHistory>[0], turns: Parameters<typeof rawTurnsToHistory>[1], participantId: Parameters<typeof rawTurnsToHistory>[2], lookup?: Parameters<typeof rawTurnsToHistory>[4]) {
@@ -88,11 +88,11 @@ function makeLookup(prefix: string, displayNames: Record<string, string>, fallba
 }
 
 function activeTurnToProgress(sessionResource: Parameters<typeof rawActiveTurnToProgress>[0], activeTurn: Parameters<typeof rawActiveTurnToProgress>[1], connectionAuthority?: Parameters<typeof rawActiveTurnToProgress>[2]) {
-	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority);
+	return rawActiveTurnToProgress(sessionResource, activeTurn, connectionAuthority || 'local');
 }
 
 function updateRunningToolSpecificData(existing: Parameters<typeof rawUpdateRunningToolSpecificData>[0], tc: Parameters<typeof rawUpdateRunningToolSpecificData>[1]) {
-	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), undefined);
+	return rawUpdateRunningToolSpecificData(existing, tc, URI.file('/'), 'local');
 }
 
 function assertInputOutputDetails(details: unknown): asserts details is IToolResultInputOutputDetails {
@@ -236,7 +236,12 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(details.output.length, 2);
 			assert.deepStrictEqual(details.output[0], { type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' });
 			assert.strictEqual(details.output[1].type, 'ref');
-			assert.strictEqual(details.output[1].uri.toString(), 'agenthost-content:/session/result.txt');
+			// Resource URI is wrapped via toAgentHostUri so it resolves through the
+			// agent host filesystem provider on the client when the session is backed
+			// by a remote agent host.
+			assert.strictEqual(details.output[1].uri.scheme, 'vscode-agent-host');
+			assert.strictEqual(details.output[1].uri.authority, 'local');
+			assert.strictEqual(details.output[1].uri.path, '/session/result.txt');
 			assert.strictEqual(details.output[1].mimeType, 'text/plain');
 		});
 
@@ -711,6 +716,24 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'terminal');
 			const termData = invocation.toolSpecificData as { kind: 'terminal'; terminalCommandOutput?: { text: string } };
 			assert.strictEqual(termData.terminalCommandOutput?.text, 'hi\r\n', 'normalizes \\n to \\r\\n for xterm');
+		});
+
+		test('does not render terminal pill for terminal toolKind without a command (falls back to invocationMessage)', () => {
+			// The built-in bash tool advertises `_meta.toolKind === 'terminal'`
+			// from the tool-open seam, but the command only arrives once the
+			// tool input has streamed in. Until then there is nothing to show in
+			// the terminal pill, so we must fall back to the generic tool widget
+			// (the `invocationMessage`) rather than rendering an empty command.
+			const tc = createToolCallState({
+				toolName: 'bash',
+				invocationMessage: 'Running shell command',
+				_meta: { toolKind: 'terminal' },
+				status: ToolCallStatus.Running,
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData, undefined, 'no terminal pill without a command');
+			assert.strictEqual(invocation.invocationMessage, 'Running shell command');
 		});
 
 		test('creates invocation without toolArguments', () => {
