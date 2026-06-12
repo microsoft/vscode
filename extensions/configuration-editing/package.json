@@ -6,7 +6,7 @@
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
-    "vscode": "^1.0.0"
+    "vscode": "^1.122.0"
   },
   "icon": "images/icon.png",
   "activationEvents": [
@@ -31,9 +31,9 @@
     "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "@octokit/rest": "^21.1.1",
+    "@octokit/rest": "^22.0.1",
     "jsonc-parser": "^3.2.0",
-    "tunnel": "^0.0.6"
+    "undici": "^7.25.0"
   },
   "capabilities": {
     "virtualWorkspaces": true,

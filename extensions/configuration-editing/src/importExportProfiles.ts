@@ -6,7 +6,7 @@
 import { Octokit } from '@octokit/rest';
 import * as vscode from 'vscode';
 import { basename } from 'path';
-import { agent } from './node/net';
+import { proxyFetch } from './node/net';
 
 class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 
@@ -23,7 +23,7 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 				const { Octokit } = await import('@octokit/rest');
 
 				return new Octokit({
-					request: { agent },
+					request: { fetch: proxyFetch },
 					userAgent: 'GitHub VSCode',
 					auth: `token ${token}`
 				});
@@ -54,7 +54,7 @@ class GitHubGistProfileContentHandler implements vscode.ProfileContentHandler {
 		if (!this._public_octokit) {
 			this._public_octokit = (async () => {
 				const { Octokit } = await import('@octokit/rest');
-				return new Octokit({ request: { agent }, userAgent: 'GitHub VSCode' });
+				return new Octokit({ request: { fetch: proxyFetch }, userAgent: 'GitHub VSCode' });
 			})();
 		}
 		return this._public_octokit;

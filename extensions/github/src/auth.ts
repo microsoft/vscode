@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AuthenticationSession, EventEmitter, authentication, window } from 'vscode';
-import { Agent, globalAgent } from 'https';
 import { graphql } from '@octokit/graphql/types';
 import { Octokit } from '@octokit/rest';
-import { httpsOverHttp } from 'tunnel';
+import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import { URL } from 'url';
 import { DisposableStore, sequentialize } from './util.js';
 
 export class AuthenticationError extends Error { }
 
-function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
+function getProxyFetch(url: string | undefined = process.env.HTTPS_PROXY): typeof undiciFetch {
 	if (!url) {
-		return globalAgent;
+		return undiciFetch;
 	}
 
 	try {
-		const { hostname, port, username, password } = new URL(url);
-		const auth = username && password && `${username}:${password}`;
-		return httpsOverHttp({ proxy: { host: hostname, port, proxyAuth: auth } });
+		const { username, password } = new URL(url);
+		const token = username && password ? `Basic ${Buffer.from(`${decodeURIComponent(username)}:${decodeURIComponent(password)}`).toString('base64')}` : undefined;
+		const dispatcher = new ProxyAgent(token ? { uri: url, token } : url);
+		return (input, init) => undiciFetch(input, { ...init, dispatcher });
 	} catch (e) {
 		window.showErrorMessage(`HTTPS_PROXY environment variable ignored: ${e.message}`);
-		return globalAgent;
+		return undiciFetch;
 	}
 }
 
@@ -40,12 +40,12 @@ export function getOctokit(): Promise<Octokit> {
 	if (!_octokit) {
 		_octokit = getSession().then(async session => {
 			const token = session.accessToken;
-			const agent = getAgent();
+			const proxyFetch = getProxyFetch();
 
 			const { Octokit } = await import('@octokit/rest');
 
 			return new Octokit({
-				request: { agent },
+				request: { fetch: proxyFetch },
 				userAgent: 'GitHub VSCode',
 				auth: `token ${token}`
 			});
@@ -94,7 +94,7 @@ export class OctokitService {
 						authorization: `token ${token}`
 					},
 					request: {
-						agent: getAgent()
+						fetch: getProxyFetch()
 					}
 				});
 
