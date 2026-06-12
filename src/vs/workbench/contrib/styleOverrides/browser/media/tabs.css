@@ -25,7 +25,7 @@
 	background-color: transparent !important;
 	border-right: none !important;
 	border-radius: var(--vscode-cornerRadius-small);
-	font-size: 12px;
+	font-size: 12px !important;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	box-shadow: none !important;
 	padding: 0 0 0 4px !important;
@@ -79,10 +79,19 @@
  */
 .style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
 	text-transform: none !important;
-	font-size: 12px;
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	padding: 0 8px;
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/*
+ * The text lives in `.action-label`, which carries its own `font-size: 11px`
+ * from the base action bar styles. Setting the size on `.action-item` alone
+ * does not reach the label (an explicit font-size on the element wins over the
+ * inherited value), so the type must be set on the label itself.
+ */
+.style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
 
 .style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
@@ -101,8 +110,4 @@
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;
 	border-bottom-width: 0 !important;
-}
-
-.style-override-tabs .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar, .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar {
-	line-height: 22px;
 }
