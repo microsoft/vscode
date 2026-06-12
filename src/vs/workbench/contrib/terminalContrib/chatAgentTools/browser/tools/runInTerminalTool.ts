@@ -2015,7 +2015,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						id: termId,
 						terminalId: toolTerminal.instance.instanceId,
 						cwd: endCwd?.toString(),
-						state: 'running',
+						state: idleTimedOut ? 'timed_out' : 'running',
 					},
 					content: [{
 						kind: 'text',
@@ -2154,7 +2154,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 								id: termId,
 								terminalId: toolTerminal.instance.instanceId,
 								cwd: altBufferCwd?.toString(),
-								state: 'completed',
+								state: 'input_needed',
+								inputNeeded: true,
 							},
 							content: [{
 								kind: 'text',
