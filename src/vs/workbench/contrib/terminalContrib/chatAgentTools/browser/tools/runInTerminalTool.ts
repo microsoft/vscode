@@ -79,8 +79,8 @@ import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer, outputLooksSandboxBlocked, outputLooksSandboxNetworkBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
-import { ILanguageModelsService, LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
+import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -615,6 +615,23 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private static readonly _activeExecutions = new Map<string, IActiveTerminalExecution & { dispose(): void }>();
 
 	/**
+	 * Per-instance disposables that unregister `_activeExecutions` entries from the
+	 * `ITerminalChatService` execution-id map. Keyed by the same `termId` as `_activeExecutions`
+	 * so registrations and active executions share a lifecycle.
+	 */
+	private readonly _executionRegistrations = this._register(new DisposableMap<string, IDisposable>());
+
+	private _setActiveExecution(termId: string, execution: IActiveTerminalExecution & { dispose(): void }): void {
+		RunInTerminalTool._activeExecutions.set(termId, execution);
+		this._executionRegistrations.set(termId, this._terminalChatService.registerTerminalInstanceWithExecutionId(termId, execution.instance));
+	}
+
+	private _deleteActiveExecution(termId: string): boolean {
+		this._executionRegistrations.deleteAndDispose(termId);
+		return RunInTerminalTool._activeExecutions.delete(termId);
+	}
+
+	/**
 	 * Terminal IDs being programmatically disposed (by `kill_terminal` or
 	 * automatic background-terminal cleanup). Used to suppress the redundant
 	 * "terminal exited" steering message in `_registerCompletionNotification`'s
@@ -731,7 +748,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
@@ -870,6 +886,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
 			: undefined;
+		const sandboxRemediations = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && sandboxPrereqs.remediations?.length
+			? [...sandboxPrereqs.remediations]
+			: undefined;
+		const sandboxPrerequisiteFailure = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && !sandboxRemediations
+			? localize('runInTerminal.bubblewrap.unusable', "Bubblewrap is installed but cannot create the required sandbox namespace on this system. The command was not executed.")
+			: undefined;
 
 		const terminalToolSessionId = generateUuid();
 		// Generate a custom command ID to link the command between renderer and pty host
@@ -959,14 +981,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			requestAllowNetwork: requiresAllowNetworkConfirmation,
 			requestAllowNetworkReason,
 			missingSandboxDependencies: missingDependencies,
+			sandboxRemediations,
+			sandboxPrerequisiteFailure,
 		};
 
-		let sandboxConfirmationMessageForMissingDeps: IToolConfirmationMessages | undefined = undefined;
+		let sandboxPrerequisiteConfirmation: IToolConfirmationMessages | undefined = undefined;
 		// If sandbox dependencies are missing, show a confirmation asking the user to install them.
 		// This is handled before the tool is invoked so the model never sees the dependency error.
 		if (missingDependencies) {
 			const depsList = missingDependencies.join(', ');
-			sandboxConfirmationMessageForMissingDeps = {
+			sandboxPrerequisiteConfirmation = {
 				title: localize('runInTerminal.missingDeps.title', "Missing Sandbox Dependencies"),
 				message: new MarkdownString(localize(
 					'runInTerminal.missingDeps.message',
@@ -977,6 +1001,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					{ id: 'install', label: localize('runInTerminal.missingDeps.install', "Install"), kind: ConfirmationOptionKind.Approve },
 					{ id: 'cancel', label: localize('runInTerminal.missingDeps.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
 				],
+			};
+		} else if (sandboxRemediations) {
+			const customOptions = [];
+			if (sandboxRemediations.includes(TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction)) {
+				customOptions.push({ id: TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction, label: localize('runInTerminal.bubblewrap.applyFix', "Apply Fix and Retry"), kind: ConfirmationOptionKind.Approve });
+			}
+			customOptions.push({ id: 'cancel', label: localize('runInTerminal.bubblewrap.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny });
+			sandboxPrerequisiteConfirmation = {
+				title: localize('runInTerminal.bubblewrap.title', "Repair Bubblewrap Sandbox"),
+				message: new MarkdownString(localize('runInTerminal.bubblewrap.message', "Bubblewrap cannot create the sandbox environment.")),
+				customOptions,
 			};
 		}
 
@@ -1178,7 +1213,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return {
 			invocationMessage,
 			icon: toolSpecificData.commandLine.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal,
-			confirmationMessages: sandboxConfirmationMessageForMissingDeps ?? confirmationMessages,
+			confirmationMessages: sandboxPrerequisiteConfirmation ?? confirmationMessages,
 			toolSpecificData,
 		};
 	}
@@ -1634,6 +1669,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 
+		const sandboxPrerequisiteTerminalOptions = {
+			createTerminal: async () => this._terminalService.createTerminal({}),
+			focusTerminal: async (terminal: { focus(): void }) => {
+				this._terminalService.setActiveInstance(terminal as ITerminalInstance);
+				await this._terminalService.revealTerminal(terminal as ITerminalInstance, true);
+				terminal.focus();
+			},
+		};
+
+		if (toolSpecificData.sandboxPrerequisiteFailure) {
+			return {
+				content: [{ kind: 'text', value: toolSpecificData.sandboxPrerequisiteFailure }],
+			};
+		}
+
 		const isSandboxAllowNetworkEnabled = isSandboxEnabled && await this._terminalSandboxService.isSandboxAllowNetworkEnabled();
 		if (this._shouldRejectAllowNetworkRequest(isSandboxEnabled, isSandboxAllowNetworkEnabled, args)) {
 			const message = this._getAllowNetworkRequestDisabledMessage();
@@ -1657,14 +1707,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (invocation.selectedCustomButton === 'install') {
 				// Install dependencies, focus terminal for sudo password, wait for completion
 				const sessionResource = invocation.context.sessionResource;
-				const { exitCode } = await this._terminalSandboxService.installMissingSandboxDependencies(toolSpecificData.missingSandboxDependencies, sessionResource, token, {
-					createTerminal: async () => this._terminalService.createTerminal({}),
-					focusTerminal: async (terminal) => {
-						this._terminalService.setActiveInstance(terminal as ITerminalInstance);
-						await this._terminalService.revealTerminal(terminal as ITerminalInstance, true);
-						terminal.focus();
-					},
-				});
+				const { exitCode } = await this._terminalSandboxService.installMissingSandboxDependencies(toolSpecificData.missingSandboxDependencies, sessionResource, token, sandboxPrerequisiteTerminalOptions);
 				if (exitCode !== undefined && exitCode !== 0) {
 					return {
 						content: [{
@@ -1688,7 +1731,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						}],
 					};
 				}
-				// Installation succeeded — fall through to execute the original command
+				const refreshedPrereqs = await this._terminalSandboxService.checkForSandboxingPrereqs(true, sandboxPrecheckInputs);
+				if (refreshedPrereqs.failedCheck !== undefined) {
+					return {
+						content: [{
+							kind: 'text',
+							value: refreshedPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap && refreshedPrereqs.remediations?.length
+								? localize('runInTerminal.missingDeps.bubblewrapFailed', "Sandbox dependencies were installed, but bubblewrap cannot create the required sandbox namespace. Run the command again to choose an available repair option.")
+								: refreshedPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Bubblewrap
+									? localize('runInTerminal.missingDeps.bubblewrapFailedNoRepair', "Sandbox dependencies were installed, but bubblewrap cannot create the required sandbox namespace on this system. The command was not executed.")
+									: localize('runInTerminal.missingDeps.recheckFailed', "Sandbox prerequisites are still not satisfied after installation. The command was not executed."),
+						}],
+					};
+				}
+				// Installation and verification succeeded — fall through to execute the original command.
 				this._logService.info('RunInTerminalTool: Sandbox dependency installation succeeded, proceeding with command execution');
 			} else {
 				// User chose to cancel — do not run the command
@@ -1703,6 +1759,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}],
 				};
 			}
+		}
+
+		if (toolSpecificData.sandboxRemediations?.length) {
+			const selectedRemediation = invocation.selectedCustomButton as TerminalSandboxPreCheckRemediation | undefined;
+			if (!selectedRemediation || !toolSpecificData.sandboxRemediations.includes(selectedRemediation)) {
+				return {
+					content: [{ kind: 'text', value: localize('runInTerminal.bubblewrap.cancelled', "Bubblewrap sandbox repair was cancelled by the user.") }],
+				};
+			}
+			const { exitCode } = await this._terminalSandboxService.runSandboxRemediation(selectedRemediation, invocation.context.sessionResource, token, sandboxPrerequisiteTerminalOptions);
+			if (exitCode !== 0) {
+				return {
+					content: [{
+						kind: 'text', value: exitCode === undefined
+							? localize('runInTerminal.bubblewrap.repairUnknown', "Could not determine whether the bubblewrap repair succeeded. The command was not executed.")
+							: localize('runInTerminal.bubblewrap.repairFailed', "Bubblewrap repair failed (exit code {0}). The command was not executed.", exitCode)
+					}],
+				};
+			}
+			const refreshedPrereqs = await this._terminalSandboxService.checkForSandboxingPrereqs(true, sandboxPrecheckInputs);
+			if (refreshedPrereqs.failedCheck !== undefined) {
+				return {
+					content: [{
+						kind: 'text', value: localize('runInTerminal.bubblewrap.stillUnavailable', "Bubblewrap still cannot create the required sandbox namespace after remediation. The command was not executed.")
+					}],
+				};
+			}
+			this._logService.info('RunInTerminalTool: Bubblewrap remediation succeeded, proceeding with command execution');
 		}
 
 		const executionOptions = this._resolveExecutionOptions(args);
@@ -1850,7 +1934,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			);
 			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
-			RunInTerminalTool._activeExecutions.set(termId, execution);
+			this._setActiveExecution(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
 			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
@@ -2152,7 +2236,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				// Clean up the execution on error
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				toolTerminal.instance.dispose();
 				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 				throw e;
@@ -2183,7 +2267,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} else {
 				// Foreground completed or error - clean up execution and output monitor
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				outputMonitor?.dispose();
 			}
 			store.dispose();
@@ -2386,15 +2470,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return lines.join('\n');
 	}
 
-	/**
-	 * Resolves the `copilot/copilot-utility-small` model identifier for
-	 * steering messages. Returns `undefined` if unavailable.
-	 */
-	private async _resolveUtilitySmallModelId(): Promise<string | undefined> {
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-		return models[0];
-	}
-
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
 		for (const analyzer of this._outputAnalyzers) {
 			const message = await analyzer.analyze({ exitCode, exitResult, commandLine, isSandboxWrapped });
@@ -2567,7 +2642,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._addSessionTerminalAssociation(chatSessionResource, toolTerminal);
 						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);
 						if (association.id) {
-							RunInTerminalTool._activeExecutions.set(association.id, this._register(new RestoredTerminalExecution(instance)));
+							this._setActiveExecution(association.id, this._register(new RestoredTerminalExecution(instance)));
 						}
 
 						// Listen for terminal disposal to clean up storage
@@ -2666,7 +2741,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		for (const termId of terminalToRemove) {
-			RunInTerminalTool._activeExecutions.delete(termId);
+			this._deleteActiveExecution(termId);
 		}
 	}
 
@@ -2732,7 +2807,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		for (const termId of executionIdsToRemove) {
-			RunInTerminalTool._activeExecutions.delete(termId);
+			this._deleteActiveExecution(termId);
 		}
 	}
 
@@ -2772,36 +2847,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return;
 		}
 
-		// Capture mode/tools from the last request. The model is resolved
-		// separately via the utility-small alias (falling back to conversation model).
+		// Capture agent/model/mode/tools so the notification resumes the same
+		// agent context that started the background terminal command. The
+		// notification message starts a full agent turn, so it must run on a
+		// real conversation model — a weaker utility model cannot reliably
+		// assess the command output or continue the agentic tool loop, which
+		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools> } = {};
+		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
+			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
 		}
-
-		// Resolve the utility-small alias eagerly and cache it so steering
-		// dispatch stays synchronous. Falls back to the conversation model if
-		// an event fires before resolution completes (rare — events require
-		// the terminal to produce output first).
-		let cachedUtilitySmallId: string | undefined;
-		this._resolveUtilitySmallModelId().then(utilitySmallId => {
-			cachedUtilitySmallId = utilitySmallId;
-			if (utilitySmallId) {
-				this._logService.debug(`RunInTerminalTool: Steering messages for background terminal ${termId} will use model '${utilitySmallId}'`);
-			} else {
-				this._logService.debug(`RunInTerminalTool: 'copilot/copilot-utility-small' alias unavailable; steering messages for background terminal ${termId} will use conversation model '${sendOptions.userSelectedModelId ?? '<default>'}'`);
-			}
-		}, err => {
-			this._logService.warn(`RunInTerminalTool: Failed to resolve 'copilot/copilot-utility-small' alias for terminal ${termId}; steering messages will use conversation model`, err);
-		});
-		const buildSendOptions = (): typeof sendOptions => {
-			return cachedUtilitySmallId ? { ...sendOptions, userSelectedModelId: cachedUtilitySmallId } : sendOptions;
-		};
 
 		// Continue the output monitor in background mode for prompt-for-input detection.
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
@@ -2919,7 +2980,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
 				this._chatService.sendRequest(chatSessionResource, message, {
-					...buildSendOptions(),
+					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
 					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
@@ -2960,7 +3021,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disposeNotification();
 
 			const exitCode = command.exitCode;
-			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
+			// A successful completion is already conveyed by "command completed";
+			// only surface an exit code in chat when it provides failure context.
+			const exitCodeText = exitCode !== undefined && exitCode !== 0 ? ` with exit code ${exitCode}` : '';
 			const currentOutput = execution.getOutput();
 			// Only dispose if the terminal is still hidden from the user. Once the
 			// user reveals it (via the "Show" link), it joins `foregroundInstances`
@@ -2973,7 +3036,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
 			this._chatService.sendRequest(chatSessionResource, message, {
-				...buildSendOptions(),
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalCommandCompleted', "{0} completed", commandDisplay),
@@ -3001,7 +3064,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// send a redundant "terminal exited" steering message.
 				RunInTerminalTool._killedByTool.add(termId);
 				execution.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				terminalInstance.dispose();
 			});
 		}));
@@ -3042,12 +3105,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			const currentOutput = executionForDisposal?.getOutput() ?? '';
 			const exitCode = terminalInstance.exitCode;
-			const exitCodeText = exitCode !== undefined ? ` with exit code ${exitCode}` : '';
+			// Avoid reporting a successful exit code as diagnostic information in chat.
+			const exitCodeText = exitCode !== undefined && exitCode !== 0 ? ` with exit code ${exitCode}` : '';
 			disposeNotification();
 			const message = `[Terminal ${termId} notification: terminal exited${exitCodeText}. The terminal process ended before the command could complete normally; further commands cannot be sent to this terminal ID.]\nTerminal output:\n${currentOutput}`;
 			this._logService.debug(`RunInTerminalTool: Background terminal ${termId} disposed${exitCodeText}, notifying chat session`);
 			this._chatService.sendRequest(chatSessionResource, message, {
-				...buildSendOptions(),
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('terminalProcessExited', "{0} terminal exited", commandDisplay),
@@ -3064,7 +3128,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (e.kind === 'removeRequest') {
 				this._logService.debug(`RunInTerminalTool: Request removed from session, cleaning up background terminal ${termId}`);
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
-				RunInTerminalTool._activeExecutions.delete(termId);
+				this._deleteActiveExecution(termId);
 				disposeNotification();
 				terminalInstance.dispose();
 			}

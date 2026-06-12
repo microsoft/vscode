@@ -28,7 +28,7 @@ The sessions layer sits above `vs/workbench` in the VS Code source code hierarch
       │               │                │
       ▼               ▼                ▼
 ┌─────────────────────────────────────────────────────┐
-│  sessions/~  (core: browser/, common/)              │
+│  sessions/~  (core: browser/, common/, electron-browser/) │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -36,9 +36,9 @@ The sessions layer sits above `vs/workbench` in the VS Code source code hierarch
 
 ### `sessions/~` — Sessions Core
 
-**Path:** `src/vs/sessions/{browser,common}/**`
+**Path:** `src/vs/sessions/{browser,common,electron-browser}/**`
 
-The foundational layer. Cannot import from any `contrib/` or `services/` code above it.
+The foundational layer. It may import from the sessions **services** layer, but not from any `contrib/` code above it.
 
 **Can import from:**
 - `vs/base/~`, `vs/base/parts/*/~`
@@ -46,6 +46,8 @@ The foundational layer. Cannot import from any `contrib/` or `services/` code ab
 - `vs/editor/~`, `vs/editor/contrib/*/~`
 - `vs/workbench/~`, `vs/workbench/browser/**`, `vs/workbench/services/*/~`
 - `vs/sessions/~` (self), `vs/sessions/services/*/~`
+
+> **Note:** The desktop bootstrap entry `src/vs/sessions/electron-browser/sessions.ts` has its own, **more restrictive** rule: it may import only `vs/base/~`, `vs/base/parts/*/~`, `vs/platform/*/~`, `vs/sessions/~`, and `vs/sessions/sessions.desktop.main.js`.
 
 **Cannot import from:**
 - ❌ `vs/sessions/contrib/*` — no contrib dependencies
@@ -60,7 +62,7 @@ The foundational layer. Cannot import from any `contrib/` or `services/` code ab
 Service layer sits alongside core. Provides shared service interfaces and implementations.
 
 **Can import from:**
-- Everything `sessions/~` can import, plus:
+- Everything `sessions/~` can import (**except** `vs/workbench/browser/**`, which is not granted to services), plus:
 - `vs/sessions/services/*/~` (sibling services)
 - `vs/workbench/contrib/*/~`
 

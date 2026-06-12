@@ -523,6 +523,19 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 // Register as "Close All Browser Tabs" action in editor title menu to align with the regular "Close All" action
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserViewCommandId.CloseAllInGroup, title: localize('browser.closeAllInGroupShort', "Close All Browser Tabs") }, group: '1_close', order: 55, when: BROWSER_EDITOR_ACTIVE });
 
+// Agents window: surface New Tab as a primary editor title toolbar icon so the
+// browser editor title bar isn't left showing only the overflow (...) menu.
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: BrowserViewCommandId.NewTab,
+		title: localize2('browser.newTabAction', "New Tab"),
+		icon: Codicon.add
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, IsSessionsWindowContext)
+});
+
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(OpenFileInIntegratedBrowserAction);
@@ -570,16 +583,22 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
+		}
+
+		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
+		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
+			href = ctx.sourceUri.toString();
 		}
 
 		try {

@@ -125,7 +125,12 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		// Backward compat: older persisted rounds use `phaseModelId` instead of `modelId`. Read both.
 		const roundModelId = round.modelId ?? (round as IToolCallRound & { phaseModelId?: string }).phaseModelId;
 		const sameModelAsEndpoint = roundModelId === this.promptEndpoint.model;
-		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses';
+		// Replaying historical thinking preserves the prompt-cache prefix on the
+		// Messages API, but only adaptive-thinking models accept replayed blocks —
+		// budget-mode models (e.g. Haiku 4.5) 400 on them (#318076).
+		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
+		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
+			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
 		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
 		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
@@ -604,6 +609,11 @@ async function appendHookContext(
 
 	// Skip postToolUse hook if preToolUse denied the tool — no tool actually ran
 	if (preHookResult?.permissionDecision === 'deny') {
+		return;
+	}
+
+	// Skip postToolUse hook if the request was cancelled - the response stream is closed
+	if (props.token.isCancellationRequested) {
 		return;
 	}
 

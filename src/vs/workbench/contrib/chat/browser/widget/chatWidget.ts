@@ -10,7 +10,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -66,6 +66,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
+import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -312,6 +313,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _sessionHasDebugDataContextKey: IContextKey<boolean>;
 	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 
+	// Autopilot goal banner state — token source cancels in-flight goal-summary
+	// requests when the user starts a new submission or the run completes.
+	private _goalSummaryTokenSource: CancellationTokenSource | undefined;
+	private _goalBannerDismissedForCurrentRequest = false;
+	private readonly _goalBannerDismissListener = this._register(new MutableDisposable<IDisposable>());
+
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 
@@ -418,6 +425,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IChatGoalSummaryService private readonly chatGoalSummaryService: IChatGoalSummaryService,
 	) {
 		super();
 
@@ -525,6 +533,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
+
+		// Clear the autopilot goal banner whenever the active request finishes.
+		this._register(autorun(r => {
+			const viewModel = viewModelObs.read(r);
+			const inProgress = viewModel?.model.requestInProgress.read(r) ?? false;
+			if (!inProgress) {
+				this._cancelGoalSummary();
+				this.inputPartDisposable.value?.clearGoalBanner();
+			}
+		}));
 
 		this._register(autorun(r => {
 			const viewModel = viewModelObs.read(r);
@@ -1286,8 +1304,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modes = this.input.currentChatModesObs.get();
 		if (modeInfo?.modeInstructions?.name) {
 			responseMode = modes.findModeByName(modeInfo.modeInstructions.name);
-		} else if (modeInfo?.modeId) {
-			responseMode = modes.findModeById(modeInfo.modeId);
 		} else {
 			responseMode = this.input.currentModeObs.get();
 		}
@@ -2388,6 +2404,60 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 	}
 
+	private _cancelGoalSummary(): void {
+		this._goalSummaryTokenSource?.dispose(true);
+		this._goalSummaryTokenSource = undefined;
+	}
+
+	private _maybeStartGoalSummary(prompt: string): void {
+		const inputPart = this.inputPartDisposable.value;
+		if (!inputPart) {
+			return;
+		}
+
+		const permissionLevel = inputPart.currentModeInfo?.permissionLevel;
+		const goalModeOn = this.configurationService.getValue<boolean>(ChatConfiguration.AutopilotAdvancedEnabled) === true;
+		if (permissionLevel !== ChatPermissionLevel.Autopilot || !goalModeOn) {
+			this._cancelGoalSummary();
+			inputPart.clearGoalBanner();
+			return;
+		}
+
+		// Reset per-request dismissal state and (re)bind the dismiss listener to the
+		// current input part. A MutableDisposable disposes any prior binding, so this
+		// stays correct even if the input part is recreated.
+		this._goalBannerDismissedForCurrentRequest = false;
+		this._goalBannerDismissListener.value = inputPart.onDidDismissGoalBanner(() => {
+			this._goalBannerDismissedForCurrentRequest = true;
+			this._cancelGoalSummary();
+		});
+
+		this._cancelGoalSummary();
+		const cts = new CancellationTokenSource();
+		this._goalSummaryTokenSource = cts;
+		inputPart.showGoalBannerLoading();
+
+		this.chatGoalSummaryService.summarize(prompt, cts.token).then(summary => {
+			if (cts.token.isCancellationRequested || this._goalBannerDismissedForCurrentRequest) {
+				return;
+			}
+			const current = this.inputPartDisposable.value;
+			if (!current) {
+				return;
+			}
+			if (summary) {
+				current.setGoalBanner(summary);
+			} else {
+				current.clearGoalBanner();
+			}
+		}, () => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			this.inputPartDisposable.value?.clearGoalBanner();
+		});
+	}
+
 	/**
 	 * @returns `false` when the prompt metadata requested an agent switch that the
 	 * user cancelled, signalling that input submission should be aborted.
@@ -2570,10 +2640,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.viewModel.model.setCheckpoint(undefined);
 		}
-		// Capture instruction-collection parameters synchronously — the service
-		// will collect instructions asynchronously after showing the request in the UI.
-		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
-		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
 
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
@@ -2584,22 +2650,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
+		const modeKind = this.input.currentModeKind;
+		const modeInfo = this.input.currentModeInfo;
+
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
+			parserContext: { selectedAgent: this._lastSelectedAgent, mode: modeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
 			...this.getModeRequestOptions(),
-			modeInfo: this.input.currentModeInfo,
+			modeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
 			instructionContext: autoAttachEnabled ? {
-				modeKind: this.input.currentModeKind,
-				enabledTools,
-				enabledSubAgents,
+				modeKind,
+				enabledTools: modeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined,
+				enabledSubAgents: modeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined
 			} : undefined,
 		});
 
@@ -2612,6 +2681,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
 		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
+
+		this._maybeStartGoalSummary(requestInputs.input);
 
 		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 		if (!ChatSendResult.isSent(sent)) {

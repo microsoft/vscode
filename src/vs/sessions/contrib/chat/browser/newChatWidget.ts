@@ -6,24 +6,27 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived } from '../../../../base/common/observable.js';
+import { constObservable, derived, derivedObservableWithCache, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { localize } from '../../../../nls.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPreferredSessionType } from './sessionTypePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { sessionHasNoSelectableModel } from './modelPicker.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
+import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 
 // #region --- New Chat Widget ---
 
@@ -44,7 +47,18 @@ export class NewChatWidget extends Disposable {
 	 */
 	private _activeEmptyState: NoAgentHostEmptyState | undefined;
 
+	/**
+	 * Whether to render the session type ("harness") picker below the input
+	 * (in the controls) instead of next to the workspace picker. Read once from
+	 * the view options at construction time; the widget does not react to later
+	 * changes of the source observable.
+	 */
+	private readonly _renderHarnessPickerInControls: boolean;
+
+	private readonly _session: IObservable<IActiveSession | undefined>;
+
 	constructor(
+		private readonly options: IChatViewOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -52,8 +66,10 @@ export class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
 		@IAgentHostFilterService private readonly agentHostFilterService: IAgentHostFilterService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+		this._renderHarnessPickerInControls = this.options.renderSessionTypePickerInControls.get();
 		// On web (vscode.dev / insiders.vscode.dev), use {@link WebWorkspacePicker}
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
@@ -62,26 +78,48 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor));
 		this._register(this._pendingPreferredUpgrade);
 
+		// TODO: @sandy081 The session/chat should be passed down. There should not be sessionsManagementService.activeSession read in the widget.
+		this._session = derivedObservableWithCache<IActiveSession | undefined>(this, (reader, prev) => {
+			const activeSession = this.sessionsManagementService.activeSession.read(reader);
+			if (activeSession && activeSession.isCreated.read(reader)) {
+				return prev;
+			}
+			return activeSession;
+		});
+
 		const canSendRequest = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			if (!session) {
 				return false;
 			}
-			return !session.loading.read(reader);
+			if (session.loading.read(reader)) {
+				return false;
+			}
+			// Re-evaluate the no-available-model gate whenever the active
+			// session's provider reports a model-list change. The provider
+			// aggregates both language-model registry changes and (for cloud
+			// sessions) option-group changes, matching the model picker's own
+			// reactivity so the gate never goes stale.
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider) {
+				observableSignalFromEvent(this, provider.onDidChangeModels).read(reader);
+			}
+			return !sessionHasNoSelectableModel(session, this.sessionsProvidersService);
 		});
 
 		const loading = derived(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+			const session = this._session.read(reader);
 			return session?.loading.read(reader) ?? false;
 		});
 
 		this._newChatInput = this._register(this.instantiationService.createInstance(NewChatInputWidget, {
+			session: this._session,
 			getContextFolderUri: () => this._getContextFolderUri(),
 			sendRequest: async ({ query, attachments, background }) => this._send(query, attachments, background),
 			canSendRequest,
 			loading,
-			historyKey: derived(reader => this.sessionsManagementService.activeSession.read(reader)?.sessionId),
-			renderSessionTypePickerInControls: false,
+			historyKey: constObservable(undefined), // no persisted history for the new-session view
+			renderSessionTypePickerInControls: this._renderHarnessPickerInControls,
 			supportsBackground: true,
 		}));
 
@@ -141,7 +179,7 @@ export class NewChatWidget extends Disposable {
 	 * @returns `true` if an active session was found and the picker was synced.
 	 */
 	private _syncWorkspacePickerFromActiveSession(): boolean {
-		const activeSession = this.sessionsManagementService.activeSession.get();
+		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;
 		}
@@ -195,7 +233,7 @@ export class NewChatWidget extends Disposable {
 		const store = new DisposableStore();
 		store.add(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			if (created) {
-				const active = this.sessionsManagementService.activeSession.get();
+				const active = this._session.get();
 				if (active?.sessionId !== created.sessionId || active.isCreated.get()) {
 					return; // the draft was sent or is no longer the active session
 				}
@@ -223,9 +261,12 @@ export class NewChatWidget extends Disposable {
 			: localize('newSessionChooseWorkspace', "Start by picking a");
 
 		this._workspacePicker.render(pickersRow);
-		const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
-		withLabel.textContent = localize('newSessionWith', "with");
-		this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
+
+		if (!this._renderHarnessPickerInControls) {
+			const withLabel = dom.append(pickersRow, dom.$('.session-workspace-picker-label.session-workspace-picker-with-label'));
+			withLabel.textContent = localize('newSessionWith', "with");
+			this._newChatInput.sessionTypePicker.render(pickersRow, { className: 'sessions-chat-session-type-picker' });
+		}
 		return this._workspacePicker.onDidSelectWorkspace(() => {
 			const folderUri = this._workspacePicker.selectedFolderUri;
 			pickersLabel.textContent = folderUri
@@ -322,7 +363,7 @@ export class NewChatWidget extends Disposable {
 	// --- Send ---
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean): Promise<void> {
-		const session = this.sessionsManagementService.activeSession.get();
+		const session = this._session.get();
 		if (!session) {
 			this._workspacePicker.showPicker();
 			return;
@@ -418,6 +459,10 @@ export class NewChatWidget extends Disposable {
 
 	sendQuery(text: string): void {
 		this._newChatInput.sendQuery(text);
+	}
+
+	attach(uris: URI[]): void {
+		this._newChatInput.attach(uris);
 	}
 
 	selectWorkspace(folderUri: URI, providerId?: string): void {
