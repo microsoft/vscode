@@ -44,7 +44,7 @@ import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
-import { AgentHostClaudeSdkRootEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostClaudeSdkRootEnvVar, AgentHostCodexAgentEnabledEnvVar, IAgentService, AgentHostCodexAgentSdkRootEnvVar, isAgentEnabled } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -281,15 +281,20 @@ async function main(): Promise<void> {
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
-		// Claude and Codex providers are gated on the SDK being reachable —
-		// either via the CLI flag / env var dev override, or via a
-		// `product.agentSdks.<pkg>` entry shipped with this build.
-		if (agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
+		// Claude and Codex providers are gated on two things:
+		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
+		//     forwarded as an env var by the renderer-side starters; the remote
+		//     server reads the env directly). Claude defaults to on, Codex
+		//     defaults to off.
+		//  2. The SDK being reachable — either via the CLI flag / env var dev
+		//     override, or via a `product.agentSdks.<pkg>` entry shipped with
+		//     this build.
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
 			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 			agentService.registerProvider(claudeAgent);
 			log('ClaudeAgent registered');
 		}
-		if (agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && agentSdkDownloader.isAvailable(CodexSdkPackage)) {
 			const codexAgent = disposables.add(instantiationService.createInstance(CodexAgent));
 			agentService.registerProvider(codexAgent);
 			log('CodexAgent registered');

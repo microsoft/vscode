@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -181,15 +181,19 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(IAgentConfigurationService, agentService.configurationService);
 		diServices.set(IAgentHostCompletions, agentService.completionsService);
 		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
-		// Claude and Codex providers are gated on the SDK being reachable —
-		// either via the dev-override env var (`VSCODE_AGENT_HOST_*_SDK_ROOT`) or
-		// via a `product.agentSdks.<pkg>` entry that ships with this build.
-		// If neither is present, the provider is not registered and never
-		// appears in the agent picker (matches the pre-CDN UX exactly).
-		if (agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
+		// Claude and Codex providers are gated on two things:
+		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
+		//     forwarded as an env var by the starters). Claude defaults to on,
+		//     Codex defaults to off.
+		//  2. The SDK being reachable — either via the dev-override env var
+		//     (`VSCODE_AGENT_HOST_*_SDK_ROOT`) or via a `product.agentSdks.<pkg>`
+		//     entry that ships with this build.
+		// If either gate fails, the provider is not registered and never appears
+		// in the agent picker (matches the pre-CDN UX exactly).
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
 			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
 		}
-		if (agentSdkDownloader.isAvailable(CodexSdkPackage)) {
+		if (isAgentEnabled(process.env[AgentHostCodexAgentEnabledEnvVar], false) && agentSdkDownloader.isAvailable(CodexSdkPackage)) {
 			agentService.registerProvider(instantiationService.createInstance(CodexAgent));
 		}
 	} catch (err) {
