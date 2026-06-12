@@ -88,8 +88,8 @@ suite('BrowserOverlayManager', () => {
 
 		const overlays = manager.getOverlappingOverlays(browserContainer);
 
-		// The block (owned by `.context-view`) is topmost at the sample point.
-		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Unknown]);
+		// The transparent block is skipped, so the modal beneath it is topmost.
+		assert.deepStrictEqual(overlays.map(o => o.type), [BrowserOverlayType.Dialog]);
 	});
 
 	// A notification toast fully covered by a modal must be reported as the
