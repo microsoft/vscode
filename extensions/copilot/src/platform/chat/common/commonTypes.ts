@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as l10n from '@vscode/l10n';
+import * as foobar from '@vscode/foobar';
 import type { ChatErrorDetails, ChatResult } from 'vscode';
 import { secondsToHumanReadableTime } from '../../../util/common/time';
 import { ChatErrorLevel } from '../../../vscodeTypes';
@@ -204,7 +204,7 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	}
 	const retryAfterString = fetchResult.retryAfter ? secondsToHumanReadableTime(fetchResult.retryAfter) : 'a moment';
 	if (fetchResult.capiError?.code?.startsWith('agent_mode_limit_exceeded')) { // Rate limited in agent mode
-		return l10n.t({
+		return foobar.t({
 			message: 'Sorry, you have exceeded the agent mode rate limit. Please switch to ask mode and try again in {0}. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
@@ -212,13 +212,13 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	}
 	if (fetchResult.capiError?.code?.startsWith('model_overloaded') || fetchResult.capiError?.code?.startsWith('upstream_provider_rate_limit')) {
 		if (fetchResult.isAuto) {
-			return l10n.t({
+			return foobar.t({
 				message: 'Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0}. [Learn More]({1})',
 				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 				comment: [`{Locked=']({'}`]
 			});
 		}
-		return l10n.t({
+		return foobar.t({
 			message: 'Sorry, the upstream model provider is currently experiencing high demand. Please try again in {0} or consider switching to Auto. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
@@ -226,14 +226,14 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	}
 	if (fetchResult.capiError?.code?.startsWith('user_global_rate_limited')) {
 		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
-			return l10n.t({
+			return foobar.t({
 				message: 'You\'ve hit your session rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})',
 				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 				comment: [`{Locked=']({'}`]
 			});
 		}
 
-		return l10n.t({
+		return foobar.t({
 			message: 'You\'ve hit your session rate limit. Please wait {0} for your limit to reset. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
@@ -244,14 +244,14 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 			const resetDate = new Date(Date.now() + fetchResult.retryAfter * 1000);
 			const resetDateString = resetDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 			if (fetchResult.isAuto) {
-				return l10n.t({
+				return foobar.t({
 					message: 'You\'ve reached your weekly rate limit. Please wait for your limit to reset on {0}. [Learn More]({1})',
 					args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
 					comment: [`{Locked=']({'}`]
 				});
 			}
 
-			return l10n.t({
+			return foobar.t({
 				message: 'You\'ve reached your weekly rate limit. Please switch to the Auto model to continue working or wait for your limit to reset on {0}. [Learn More]({1})',
 				args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
 				comment: [`{Locked=']({'}`]
@@ -259,14 +259,14 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 		}
 
 		if (fetchResult.isAuto) {
-			return l10n.t({
+			return foobar.t({
 				message: 'You\'ve reached your weekly rate limit. Please wait {0} for your limit to reset. [Learn More]({1})',
 				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 				comment: [`{Locked=']({'}`]
 			});
 		}
 
-		return l10n.t({
+		return foobar.t({
 			message: 'You\'ve reached your weekly rate limit. Please switch to the Auto model to continue working or wait {0} for your limit to reset. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
@@ -274,20 +274,20 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	}
 	if (fetchResult.capiError?.code?.startsWith('user_model_rate_limited')) {
 		if (fetchResult.isAuto) {
-			return l10n.t({
+			return foobar.t({
 				message: 'You\'ve hit the rate limit for this model. Please try again in {0}. [Learn More]({1})',
 				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 				comment: [`{Locked=']({'}`]
 			});
 		}
-		return l10n.t({
+		return foobar.t({
 			message: 'You\'ve hit the rate limit for this model. Please try switching to Auto or try again in {0}. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
 		});
 	}
 	if (fetchResult.capiError?.code?.startsWith('integration_rate_limited')) {
-		return l10n.t({
+		return foobar.t({
 			message: 'Sorry, GitHub Copilot Chat is currently experiencing high demand. Please try again in {0}. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
@@ -296,13 +296,13 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 
 	if (fetchResult?.capiError?.code && fetchResult?.capiError?.message) {
 		if (fetchResult.isAuto) {
-			return l10n.t({
+			return foobar.t({
 				message: 'Sorry, you have been rate-limited. Please wait {0} before trying again. [Learn More]({1})\n\nServer Error: {2}\nError Code: {3}',
 				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error', fetchResult.capiError.message, fetchResult.capiError.code],
 				comment: [`{Locked=']({'}`]
 			});
 		}
-		return l10n.t({
+		return foobar.t({
 			message: 'Sorry, you have been rate-limited. Please wait {0} before trying again or consider switching to Auto. [Learn More]({1})\n\nServer Error: {2}\nError Code: {3}',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error', fetchResult.capiError.message, fetchResult.capiError.code],
 			comment: [`{Locked=']({'}`]
@@ -310,13 +310,13 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 	}
 
 	if (fetchResult.isAuto) {
-		return l10n.t({
+		return foobar.t({
 			message: 'Sorry, your request was rate-limited. Please wait {0} before trying again. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
 		});
 	}
-	return l10n.t({
+	return foobar.t({
 		message: 'Sorry, your request was rate-limited. Please wait {0} before trying again or consider switching to Auto. [Learn More]({1})',
 		args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 		comment: [`{Locked=']({'}`]
@@ -332,42 +332,42 @@ export function getQuotaMessageForPlan(copilotPlan: string | undefined, isUsageB
 		switch (copilotPlan) {
 			case 'free':
 				return resetDateString
-					? l10n.t(`You've reached your monthly credit limit. Upgrade to Copilot Pro or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your monthly credit limit. Upgrade to Copilot Pro or wait for your credits to reset.`);
+					? foobar.t(`You've reached your monthly credit limit. Upgrade to Copilot Pro or wait until your credits reset on {0}.`, resetDateString)
+					: foobar.t(`You've reached your monthly credit limit. Upgrade to Copilot Pro or wait for your credits to reset.`);
 			case 'individual':
 				return resetDateString
-					? l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait for your credits to reset.`);
+					? foobar.t(`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait until your credits reset on {0}.`, resetDateString)
+					: foobar.t(`You've reached your monthly credit limit. Please enable additional paid credits, upgrade to Copilot Pro+, or wait for your credits to reset.`);
 			case 'individual_pro':
 			case 'individual_max':
 				return resetDateString
-					? l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your monthly credit limit. Please enable additional paid credits or wait for your credits to reset.`);
+					? foobar.t(`You've reached your monthly credit limit. Please enable additional paid credits or wait until your credits reset on {0}.`, resetDateString)
+					: foobar.t(`You've reached your monthly credit limit. Please enable additional paid credits or wait for your credits to reset.`);
 			case 'business':
 			case 'enterprise':
 				return resetDateString
-					? l10n.t(`You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait for your credits to reset.`);
+					? foobar.t(`You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
+					: foobar.t(`You've reached your credit limit. To continue working, please contact your organization's Copilot admin or wait for your credits to reset.`);
 			default:
 				return resetDateString
-					? l10n.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
-					: l10n.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.`);
+					? foobar.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait until your credits reset on {0}.`, resetDateString)
+					: foobar.t(`You've reached your credit limit. To continue working, switch to Auto. For additional paid credits, please reach out to your organization's Copilot admin or wait for your credits to reset.`);
 		}
 	}
 
 	switch (copilotPlan) {
 		case 'free':
-			return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
+			return foobar.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
 		case 'individual':
-			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
+			return foobar.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
 		case 'individual_pro':
 		case 'individual_max':
-			return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
+			return foobar.t(`You've exhausted your premium model quota. Please enable additional paid premium requests or wait for your allowance to renew.`);
 		case 'business':
 		case 'enterprise':
-			return l10n.t(`You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.`);
+			return foobar.t(`You've exhausted your credits. To continue working, please contact your organization's Copilot admin or wait for your allowance to renew.`);
 		default:
-			return l10n.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
+			return foobar.t(`You've exhausted your premium model quota. To continue working, switch to Auto. For additional paid premium requests, please reach out to your organization's Copilot admin or wait for your allowance to renew.`);
 	}
 }
 
@@ -381,16 +381,16 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	if (fetchResult.capiError?.code === 'quota_exceeded') {
 		return getQuotaMessageForPlan(copilotPlan, isUsageBasedBilling, quotaResetDate);
 	} else if (fetchResult.capiError?.code === 'overage_limit_reached') {
-		return l10n.t({
+		return foobar.t({
 			message: 'You cannot accrue additional premium requests at this time. Please contact [GitHub Support]({0}) to continue using Copilot.',
 			args: ['https://support.github.com/contact'],
 			comment: [`{Locked=']({'}`]
 		});
 	} else if (fetchResult.capiError?.code === 'additional_spend_limit_reached') {
 		if (copilotPlan === 'business' || copilotPlan === 'enterprise') {
-			return l10n.t(`You've reached your additional usage limit for your plan. Please contact your admin.`);
+			return foobar.t(`You've reached your additional usage limit for your plan. Please contact your admin.`);
 		}
-		return l10n.t({
+		return foobar.t({
 			message: `You've reached your additional usage limit for your plan. [Manage Budget]({0})`,
 			args: ['https://github.com/settings/copilot/features'],
 			comment: [`{Locked=']({'}`]
@@ -398,13 +398,13 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	} else if (fetchResult.capiError?.code === 'billing_not_configured' && fetchResult.capiError?.message) {
 		return fetchResult.capiError.message;
 	} else if (fetchResult.capiError?.code && fetchResult.capiError?.message) {
-		return l10n.t({
+		return foobar.t({
 			message: 'Quota Exceeded\n\nServer Error: {0}\nError Code: {1}',
 			args: [fetchResult.capiError.message, fetchResult.capiError.code],
 			comment: ''
 		});
 	} else {
-		return l10n.t('Quota Exceeded');
+		return foobar.t('Quota Exceeded');
 	}
 }
 
@@ -453,31 +453,31 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			};
 			break;
 		case ChatFetchResponseType.AgentUnauthorized:
-			details = { message: l10n.t(`Sorry, something went wrong.`) };
+			details = { message: foobar.t(`Sorry, something went wrong.`) };
 			break;
 		case ChatFetchResponseType.AgentFailedDependency:
 			details = { message: fetchResult.reason };
 			break;
 		case ChatFetchResponseType.Length:
-			details = { message: l10n.t(`Sorry, the response hit the length limit. Please rephrase your prompt.`) };
+			details = { message: foobar.t(`Sorry, the response hit the length limit. Please rephrase your prompt.`) };
 			break;
 		case ChatFetchResponseType.NotFound:
-			details = { message: l10n.t('Sorry, the resource was not found.') };
+			details = { message: foobar.t('Sorry, the resource was not found.') };
 			break;
 		case ChatFetchResponseType.Unknown:
-			details = { message: l10n.t(`Sorry, no response was returned.`) };
+			details = { message: foobar.t(`Sorry, no response was returned.`) };
 			break;
 		case ChatFetchResponseType.ExtensionBlocked:
-			details = { message: l10n.t(`Sorry, something went wrong.`) };
+			details = { message: foobar.t(`Sorry, something went wrong.`) };
 			break;
 		case ChatFetchResponseType.InvalidStatefulMarker:
 			// should be unreachable, retried within the endpoint
-			details = { message: l10n.t(`Your chat session state is invalid, please start a new chat.`) };
+			details = { message: foobar.t(`Your chat session state is invalid, please start a new chat.`) };
 			break;
 	}
 
 	if (gitHubOutageStatus !== GitHubOutageStatus.None) {
-		const outageMsg = l10n.t({
+		const outageMsg = foobar.t({
 			message: 'Note: GitHub is currently experiencing a service disruption. This may be affecting Copilot. Check [GitHub Status]({0}) for details.',
 			args: ['https://www.githubstatus.com'],
 			comment: [`{Locked=']({'}`]
@@ -493,33 +493,33 @@ export function getFilteredMessage(category: FilterReason, supportsMarkdown: boo
 	switch (category) {
 		case FilterReason.Copyright:
 			if (supportsMarkdown) {
-				return l10n.t({
+				return foobar.t({
 					message:
 						`Sorry, the response matched public code so it was blocked. Please rephrase your prompt. [Learn more](https://aka.ms/copilot-chat-filtered-docs).`,
 					comment: [`{Locked='](https://aka.ms/copilot-chat-filtered-docs)'}`]
 				});
 			} else {
-				return l10n.t(`Sorry, the response matched public code so it was blocked. Please rephrase your prompt.`);
+				return foobar.t(`Sorry, the response matched public code so it was blocked. Please rephrase your prompt.`);
 			}
 		case FilterReason.Prompt:
 			if (supportsMarkdown) {
-				return l10n.t({
+				return foobar.t({
 					message:
 						`Sorry, your prompt was filtered by the Responsible AI Service. Please rephrase your prompt and try again. [Learn more](https://aka.ms/copilot-chat-filtered-docs).`,
 					comment: [`{Locked='](https://aka.ms/copilot-chat-filtered-docs)'}`]
 				});
 			} else {
-				return l10n.t(`Sorry, your prompt was filtered by the Responsible AI Service. Please rephrase your prompt and try again.`);
+				return foobar.t(`Sorry, your prompt was filtered by the Responsible AI Service. Please rephrase your prompt and try again.`);
 			}
 		default:
 			if (supportsMarkdown) {
-				return l10n.t({
+				return foobar.t({
 					message:
 						`Sorry, the response was filtered by the Responsible AI Service. Please rephrase your prompt and try again. [Learn more](https://aka.ms/copilot-chat-filtered-docs).`,
 					comment: [`{Locked='](https://aka.ms/copilot-chat-filtered-docs)'}`]
 				});
 			} else {
-				return l10n.t(`Sorry, the response was filtered by the Responsible AI Service. Please rephrase your prompt and try again.`);
+				return foobar.t(`Sorry, the response was filtered by the Responsible AI Service. Please rephrase your prompt and try again.`);
 			}
 	}
 }
