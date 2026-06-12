@@ -683,11 +683,12 @@ export class BrowserView extends Disposable {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
 			const visualViewportScale = await this.inspector.getVisualViewportScale();
+			const emulationScale = this.emulator.emulatedScaleFactor;
 			options.screenRect = {
-				x: options.pageRect.x * visualViewportScale * zoomFactor,
-				y: options.pageRect.y * visualViewportScale * zoomFactor,
-				width: options.pageRect.width * visualViewportScale * zoomFactor,
-				height: options.pageRect.height * visualViewportScale * zoomFactor
+				x: options.pageRect.x * visualViewportScale * zoomFactor * emulationScale,
+				y: options.pageRect.y * visualViewportScale * zoomFactor * emulationScale,
+				width: options.pageRect.width * visualViewportScale * zoomFactor * emulationScale,
+				height: options.pageRect.height * visualViewportScale * zoomFactor * emulationScale
 			};
 		}
 		if (options?.awaitNextPaint) {

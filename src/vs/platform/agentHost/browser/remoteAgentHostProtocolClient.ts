@@ -841,6 +841,14 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	}
 
 	/**
+	 * Send a request on an `mcp://` AHP side channel. The agent-host
+	 * routes by `params.channel` so we inject it automatically.
+	 */
+	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		return await this._dispatchRequest<unknown>(method, { ...(params ?? {}), channel });
+	}
+
+	/**
 	 * List all sessions from the remote agent host.
 	 */
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

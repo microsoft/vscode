@@ -67,7 +67,8 @@
 .ai-customization-toolbar .ai-customization-header-total {
 	display: none;
 	opacity: 0.7;
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-weight: var(--vscode-agents-fontWeight-regular);
 	line-height: 1;
 	margin-left: auto;
 }
@@ -139,7 +140,7 @@
 	chevron lines up with the per-item count numbers (which use
 	`right: 14px` inside their 10px-inset container). */
 .ai-customization-toolbar .ai-customization-header .customization-link-button {
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 	justify-content: space-between;
 	gap: 0;
 	padding: 6px 16px 6px 10px;
@@ -170,12 +171,12 @@
 }
 
 .ai-customization-toolbar .source-count-icon {
-	font-size: 12px;
+	font-size: var(--vscode-agents-fontSize-label2, 12px);
 	opacity: 0.6;
 }
 
 .ai-customization-toolbar .source-count-num {
-	font-size: 11px;
+	font-size: var(--vscode-agents-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	opacity: 0.8;
 }
