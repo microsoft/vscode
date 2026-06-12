@@ -238,8 +238,21 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					return;
 				}
 
-				const openInDiffEditor = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
-				if (e.element.diff && openInDiffEditor) {
+				const altKey = (dom.isMouseEvent(e.browserEvent) || dom.isKeyboardEvent(e.browserEvent)) && e.browserEvent.altKey;
+				const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+				const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+
+				if (e.element.diff && !openInDiffEditor) {
+					const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(e.element.diff.modifiedURI);
+					if (fileURI) {
+						this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
+						return;
+					}
+					// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
+					// fall back to the diff editor.
+				}
+
+				if (e.element.diff) {
 					this.editorService.openEditor({
 						original: { resource: e.element.diff.originalURI },
 						modified: { resource: e.element.diff.modifiedURI },

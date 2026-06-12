@@ -158,12 +158,18 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				return;
 			}
 
-			if (!this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor)) {
+			const altKey = (dom.isMouseEvent(item.browserEvent) || dom.isKeyboardEvent(item.browserEvent)) && item.browserEvent.altKey;
+			const openInDiffEditorByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.OpenChangedFileInDiffEditor);
+			const openInDiffEditor = altKey ? !openInDiffEditorByDefault : openInDiffEditorByDefault;
+
+			if (!openInDiffEditor) {
 				const fileURI = ChatEditingSnapshotTextModelContentProvider.getOriginalFileURI(diff.modifiedURI);
 				if (fileURI) {
 					this.editorService.openEditor({ resource: fileURI, options: { preserveFocus: true } });
 					return;
 				}
+				// The file's origin cannot be recovered (e.g. legacy snapshot URIs):
+				// fall back to the diff editor.
 			}
 
 			this.editorService.openEditor({
