@@ -2487,7 +2487,13 @@ export class CopilotAgentSession extends Disposable {
 			if (e.data.tip) {
 				attributes.tip = e.data.tip;
 			}
-			this._logService.info(`[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`, new OtelData(attributes));
+			const message = `[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`;
+			const otelData = new OtelData(attributes);
+			if (e.data.infoType === 'mcp') {
+				this._logService.info(message, otelData);
+			} else {
+				this._logService.trace(message, otelData);
+			}
 		}));
 
 		this._register(wrapper.onSessionWarning(e => {
