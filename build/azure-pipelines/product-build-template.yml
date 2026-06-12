@@ -1,32 +1,3 @@
-pr: none
-
-schedules:
-  - cron: "0 5 * * Mon-Fri"
-    displayName: Mon-Fri at 5:00 UTC (build, publish, and release)
-    branches:
-      include:
-        - main
-  - cron: "0 11 * * Mon-Fri"
-    displayName: Mon-Fri at 11:00 UTC (build, and publish)
-    branches:
-      include:
-        - main
-  - cron: "0 17 * * Mon-Fri"
-    displayName: Mon-Fri at 17:00 UTC (build, publish, and release)
-    branches:
-      include:
-        - main
-  - cron: "0 23 * * Mon-Fri"
-    displayName: Mon-Fri at 23:00 UTC (build, and publish)
-    branches:
-      include:
-        - main
-
-trigger:
-  batch: true
-  branches:
-    include: ["main", "release/*"]
-
 parameters:
   - name: VSCODE_QUALITY
     displayName: Quality
@@ -111,106 +82,11 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
-  - name: VSCODE_RUN_TSA
-    displayName: "Run TSA checks"
+  - name: VSCODE_RUN_APISCAN
     type: boolean
-    default: false
+    default: true
 
-variables:
-  - name: VSCODE_PRIVATE_BUILD
-    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
-  - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
-  - name: CARGO_REGISTRY
-    value: ${{ parameters.CARGO_REGISTRY }}
-  - name: VSCODE_QUALITY
-    value: ${{ parameters.VSCODE_QUALITY }}
-  - name: VSCODE_BUILD_STAGE_WINDOWS
-    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
-  - name: VSCODE_BUILD_STAGE_LINUX
-    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
-  - name: VSCODE_BUILD_STAGE_ALPINE
-    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
-  - name: VSCODE_BUILD_STAGE_MACOS
-    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
-  - name: VSCODE_BUILD_STAGE_WEB
-    value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
-  - name: VSCODE_CIBUILD
-    value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
-  - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
-  - name: VSCODE_SCHEDULEDBUILD
-    value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
-  - name: VSCODE_PUBLISH_COUNTER_PREFIX
-    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
-  - name: VSCODE_PUBLISH_COUNTER
-    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
-  - name: VSCODE_STEP_ON_IT
-    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
-  - name: VSCODE_BUILD_MACOS_UNIVERSAL
-    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
-  - name: VSCODE_STAGING_BLOB_STORAGE_ACCOUNT_NAME
-    value: vscodeesrp
-  - name: PRSS_CDN_URL
-    value: https://vscode.download.prss.microsoft.com/dbazure/download
-  - name: VSCODE_ESRP_SERVICE_CONNECTION_ID
-    value: fe07e6ce-6ffb-4df9-8d27-d129523a3f3e
-  - name: VSCODE_ESRP_TENANT_ID
-    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
-  - name: VSCODE_ESRP_CLIENT_ID
-    value: 4ac7ed59-b5e9-4f66-9c30-8d1afa72d32d
-  - name: ESRP_TENANT_ID
-    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
-  - name: ESRP_CLIENT_ID
-    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
-  - name: AZURE_DOCUMENTDB_ENDPOINT
-    value: https://vscode.documents.azure.com/
-  - name: VSCODE_MIXIN_REPO
-    value: microsoft/vscode-distro
-  - name: skipComponentGovernanceDetection
-    value: true
-  - name: ComponentDetection.Timeout
-    value: 600
-  - name: Codeql.SkipTaskAutoInjection
-    value: true
-  - name: ARTIFACT_PREFIX
-    value: ''
-
-name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
-
-resources:
-  repositories:
-    - repository: 1esPipelines
-      type: git
-      name: 1ESPipelineTemplates/1ESPipelineTemplates
-      ref: refs/tags/release
-
-extends:
-  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
-  parameters:
-    sdl:
-      tsa:
-        enabled: ${{ parameters.VSCODE_RUN_TSA }}
-        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
-      binskim:
-        analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'
-      codeql:
-        runSourceLanguagesInSourceAnalysis: true
-        compiled:
-          enabled: false
-          justificationForDisabling: "CodeQL breaks ESRP CodeSign on macOS (ICM #520035761, githubcustomers/microsoft-codeql-support#198)"
-      credscan:
-        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
-      eslint:
-        enabled: true
-        enableExclusions: true
-        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      sourceAnalysisPool: 1es-windows-2022-x64
-      createAdoIssuesForJustificationsForDisablement: false
-    containers:
-      ubuntu-2004-arm64:
-        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
-    stages:
+stages:
 
       - stage: Quality
         dependsOn: []
@@ -784,7 +660,7 @@ extends:
                 VSCODE_ARCH: x64
             - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_TSA, true)) }}:
+      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_RUN_APISCAN, true)) }}:
         - stage: APIScan
           dependsOn: []
           pool:

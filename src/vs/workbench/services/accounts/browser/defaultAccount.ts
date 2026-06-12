@@ -422,10 +422,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 	private async whenDefaultAccountAuthenticationProviderAvailable(): Promise<void> {
 		const provider = this.getDefaultAccountAuthenticationProvider();
-		const isAvailable = () => {
-			return this.authenticationService.declaredProviders.some(p => p.id === provider.id)
-				|| this.authenticationService.isAuthenticationProviderRegistered(provider.id);
-		};
 
 		this.logService.debug('[DefaultAccount] Waiting for default account authentication provider to be available.');
 		const disposables = new DisposableStore();
@@ -433,7 +429,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			await new Promise<void>(resolve => {
 				// Check if the provider is available.
 				// If available, resolve immediately. Otherwise, wait for it to be declared or registered.
-				if (isAvailable()) {
+				if (this.isAccountProviderAvailable(provider)) {
 					this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
 					resolve();
 					return;
@@ -442,7 +438,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				// Resolve as soon as the default account authentication provider is declared or
 				// registered, but wait no longer than installed extensions being registered.
 				disposables.add(Event.any(this.authenticationService.onDidChangeDeclaredProviders, this.authenticationService.onDidRegisterAuthenticationProvider)(() => {
-					if (isAvailable()) {
+					if (this.isAccountProviderAvailable(provider)) {
 						this.logService.debug('[DefaultAccount] Default account authentication provider is now available.');
 						resolve();
 					}
@@ -513,13 +509,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProvider.id);
 
-		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === defaultAccountProvider.id);
-		if (!declaredProvider) {
-			this.logService.info(`[DefaultAccount] Authentication provider is not declared.`, defaultAccountProvider);
+		if (!this.isAccountProviderAvailable(defaultAccountProvider)) {
+			this.logService.info(`[DefaultAccount] Authentication provider is not available.`, defaultAccountProvider);
 			return null;
 		}
 
 		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, options);
+	}
+
+	private isAccountProviderAvailable(accountProvider: IDefaultAccountAuthenticationProvider): boolean {
+		return this.authenticationService.declaredProviders.some(p => p.id === accountProvider.id)
+			|| this.authenticationService.isAuthenticationProviderRegistered(accountProvider.id);
 	}
 
 	private setDefaultAccount(account: IDefaultAccountData | null): void {
@@ -875,6 +875,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this._managedSettingsFetchStatus = 'ok';
 			return {
 				data: {
+					managedSettings: accountPolicyData.policyData.managedSettings,
 					enabledPlugins: accountPolicyData.policyData.enabledPlugins,
 					extraKnownMarketplaces: accountPolicyData.policyData.extraKnownMarketplaces,
 					strictKnownMarketplaces: accountPolicyData.policyData.strictKnownMarketplaces,
@@ -920,7 +921,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
 			const marketplaceCount = adapted.extraKnownMarketplaces?.length ?? 0;
 			const strictSet = adapted.strictKnownMarketplaces !== undefined;
-			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet) {
+			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;
+			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet && managedSettingsCount === 0) {
 				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
 			} else {
 				this.logService.info('[DefaultAccount] Managed settings applied');

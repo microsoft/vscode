@@ -138,6 +138,7 @@ function callBuild(
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
 		opts.languageModelsService ?? stubLanguageModelsService,
+		opts.languageModelsService ?? stubLanguageModelsService,
 		undefined,
 		opts.isUBB,
 		opts.autoModelUnavailable ?? false,
@@ -670,6 +671,7 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
+			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -758,6 +760,7 @@ suite('buildModelPickerItems', () => {
 			true,
 			true,
 			stubLanguageModelsService,
+			stubLanguageModelsService,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -845,6 +848,7 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
+			stubLanguageModelsService,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
