@@ -15,6 +15,25 @@ const CHAT_LIB_DIR = path.join(REPO_ROOT, 'chat-lib');
 const TARGET_DIR = path.join(CHAT_LIB_DIR, 'src');
 const execAsync = promisify(exec);
 
+/**
+ * Returns true if versionA is strictly newer than versionB.
+ * Strips leading range specifiers (^, ~, >=, etc.) and compares major.minor.patch numerically.
+ */
+function isVersionNewer(versionA: string, versionB: string): boolean {
+	const parseVersion = (v: string): [number, number, number] => {
+		const stripped = v.replace(/^[^\d]*/, ''); // strip leading non-numeric characters
+		const parts = stripped.split(/[-+]/)[0].split('.').map(p => parseInt(p, 10));
+		return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+	};
+
+	const [aMajor, aMinor, aPatch] = parseVersion(versionA);
+	const [bMajor, bMinor, bPatch] = parseVersion(versionB);
+
+	if (aMajor !== bMajor) { return aMajor > bMajor; }
+	if (aMinor !== bMinor) { return aMinor > bMinor; }
+	return aPatch > bPatch;
+}
+
 // Entry point - follow imports from the main chat-lib file
 // Note: All *.ts files in src/lib/node/test/ are automatically included
 const entryPoints = [
@@ -731,8 +750,6 @@ class ChatLibExtractor {
 
 		const rootPackageJsonPath = path.join(REPO_ROOT, 'package.json');
 		const chatLibPackageJsonPath = path.join(CHAT_LIB_DIR, 'package.json');
-		const rootPackageLockPath = path.join(REPO_ROOT, 'package-lock.json');
-		const chatLibPackageLockPath = path.join(CHAT_LIB_DIR, 'package-lock.json');
 
 		// Read both package.json files
 		const rootPackageJson = JSON.parse(await fs.promises.readFile(rootPackageJsonPath, 'utf-8'));
@@ -747,30 +764,38 @@ class ChatLibExtractor {
 		let updatedCount = 0;
 		let removedCount = 0;
 		const changes: string[] = [];
-		const updatedPackages = new Set<string>();
+		let packageJsonChanged = false;
 
-		// Update existing dependencies in chat-lib with versions from root
+		// Update existing dependencies in chat-lib with versions from root.
+		// Only update when the root has a newer version to prevent downgrading
+		// dependencies that chat-lib has independently bumped to a newer version.
 		for (const depType of ['dependencies', 'devDependencies']) {
 			if (chatLibPackageJson[depType]) {
 				const dependencyNames = Object.keys(chatLibPackageJson[depType]);
 
 				for (const depName of dependencyNames) {
 					if (rootDependencies[depName]) {
-						// Update version if it exists in root
 						const oldVersion = chatLibPackageJson[depType][depName];
 						const newVersion = rootDependencies[depName];
 
 						if (oldVersion !== newVersion) {
-							chatLibPackageJson[depType][depName] = newVersion;
-							changes.push(`  Updated ${depName}: ${oldVersion} → ${newVersion}`);
-							updatedCount++;
-							updatedPackages.add(depName);
+							if (isVersionNewer(newVersion, oldVersion)) {
+								// Root has a newer version — update chat-lib
+								chatLibPackageJson[depType][depName] = newVersion;
+								changes.push(`  Updated ${depName}: ${oldVersion} → ${newVersion}`);
+								updatedCount++;
+								packageJsonChanged = true;
+							} else {
+								// Chat-lib has a newer version — keep it as-is
+								changes.push(`  Kept ${depName} at ${oldVersion} (root has older ${newVersion})`);
+							}
 						}
 					} else {
 						// Remove dependency if it no longer exists in root
 						delete chatLibPackageJson[depType][depName];
 						changes.push(`  Removed ${depName} (no longer in root package.json)`);
 						removedCount++;
+						packageJsonChanged = true;
 					}
 				}
 
@@ -781,102 +806,32 @@ class ChatLibExtractor {
 			}
 		}
 
-		// Write the updated chat-lib package.json
-		await fs.promises.writeFile(
-			chatLibPackageJsonPath,
-			JSON.stringify(chatLibPackageJson, null, '\t') + '\n'
-		);
-
-		console.log(`Chat-lib dependencies updated: ${updatedCount} updated, ${removedCount} removed`);
-		if (changes.length > 0) {
-			console.log('Changes made:');
-			changes.forEach(change => console.log(change));
-		}
-
-		// Update package-lock.json for changed dependencies and their transitive dependencies
-		if (updatedPackages.size > 0 && fs.existsSync(rootPackageLockPath) && fs.existsSync(chatLibPackageLockPath)) {
-			console.log('Updating chat-lib package-lock.json for changed dependencies...');
-
-			const rootPackageLock = JSON.parse(await fs.promises.readFile(rootPackageLockPath, 'utf-8'));
-			const chatLibPackageLock = JSON.parse(await fs.promises.readFile(chatLibPackageLockPath, 'utf-8'));
-
-			// Update the root package entry with new dependencies
-			if (chatLibPackageLock.packages && chatLibPackageLock.packages['']) {
-				chatLibPackageLock.packages[''].dependencies = chatLibPackageJson.dependencies || {};
-				chatLibPackageLock.packages[''].devDependencies = chatLibPackageJson.devDependencies || {};
-			}
-
-			// Collect all packages to update (direct dependencies + their transitive dependencies)
-			const packagesToUpdate = new Set<string>();
-			const queue: string[] = [];
-
-			// Start with updated packages
-			for (const pkgName of updatedPackages) {
-				const pkgPath = `node_modules/${pkgName}`;
-				queue.push(pkgPath);
-				packagesToUpdate.add(pkgPath);
-			}
-
-			// Traverse dependency tree from root package-lock to find all transitive dependencies
-			while (queue.length > 0) {
-				const pkgPath = queue.shift()!;
-				const pkgInfo = rootPackageLock.packages?.[pkgPath];
-
-				if (pkgInfo) {
-					// Collect all dependency types
-					const deps = {
-						...pkgInfo.dependencies,
-						...pkgInfo.optionalDependencies,
-						...pkgInfo.devDependencies
-					};
-
-					for (const depName of Object.keys(deps)) {
-						// Handle nested dependencies
-						const nestedDepPath = `${pkgPath}/node_modules/${depName}`;
-						const topLevelDepPath = `node_modules/${depName}`;
-
-						let actualDepPath: string | null = null;
-						if (rootPackageLock.packages[nestedDepPath]) {
-							actualDepPath = nestedDepPath;
-						} else if (rootPackageLock.packages[topLevelDepPath]) {
-							actualDepPath = topLevelDepPath;
-						} else {
-							// Walk up the parent chain
-							const pathParts = pkgPath.split('/node_modules/');
-							for (let i = pathParts.length - 1; i >= 0; i--) {
-								const parentPath = pathParts.slice(0, i).join('/node_modules/');
-								const candidatePath = parentPath ? `${parentPath}/node_modules/${depName}` : `node_modules/${depName}`;
-								if (rootPackageLock.packages[candidatePath]) {
-									actualDepPath = candidatePath;
-									break;
-								}
-							}
-						}
-
-						if (actualDepPath && !packagesToUpdate.has(actualDepPath)) {
-							packagesToUpdate.add(actualDepPath);
-							queue.push(actualDepPath);
-						}
-					}
-				}
-			}
-
-			// Update package entries in chat-lib lock file
-			let lockUpdatedCount = 0;
-			for (const pkgPath of packagesToUpdate) {
-				if (rootPackageLock.packages[pkgPath] && chatLibPackageLock.packages[pkgPath]) {
-					chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
-					lockUpdatedCount++;
-				}
-			}
-
-			// Write the updated chat-lib package-lock.json
+		if (packageJsonChanged) {
+			// Write the updated chat-lib package.json
 			await fs.promises.writeFile(
-				chatLibPackageLockPath,
-				JSON.stringify(chatLibPackageLock, null, '\t') + '\n'
+				chatLibPackageJsonPath,
+				JSON.stringify(chatLibPackageJson, null, '\t') + '\n'
 			);
 
-			console.log(`Chat-lib package-lock.json updated: ${lockUpdatedCount} package entries updated`);
+			console.log(`Chat-lib dependencies updated: ${updatedCount} updated, ${removedCount} removed`);
+			if (changes.length > 0) {
+				console.log('Changes made:');
+				changes.forEach(change => console.log(change));
+			}
+
+			// Regenerate chat-lib package-lock.json to match updated package.json
+			console.log('Regenerating chat-lib package-lock.json...');
+			await execAsync('npm install --package-lock-only --ignore-scripts', {
+				cwd: CHAT_LIB_DIR,
+				timeout: 120000 // 2 minute timeout
+			});
+			console.log('Chat-lib package-lock.json regenerated.');
+		} else {
+			console.log('No dependency updates needed.');
+			if (changes.length > 0) {
+				console.log('Skipped changes (chat-lib has newer versions):');
+				changes.forEach(change => console.log(change));
+			}
 		}
 	}
 
