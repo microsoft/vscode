@@ -5108,6 +5108,34 @@ export class CommandCenter {
 		env.clipboard.writeText(historyItem.message);
 	}
 
+	@command('git.graph.review', { repository: true })
+	async graphReview(repository: Repository, historyItem?: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		const commit = await repository.getCommit(historyItem.id);
+		const parentId = commit.parents.length > 0 ? commit.parents[0] : await repository.getEmptyTree();
+
+		const changes = await repository.diffBetweenWithStats(parentId, historyItem.id);
+		const files = changes
+			.filter(c => c.status !== Status.DELETED)
+			.map(c => {
+				const currentUri = toGitUri(c.uri, historyItem.id);
+				const baseUri = c.status === Status.INDEX_ADDED
+					? undefined
+					: toGitUri(c.status === Status.INDEX_RENAMED ? c.originalUri : c.uri, parentId);
+				return { currentUri, baseUri };
+			});
+
+		if (files.length === 0) {
+			window.showInformationMessage(l10n.t('There are no changes to review in this commit.'));
+			return;
+		}
+
+		await commands.executeCommand('github.copilot.chat.codeReview.run', { files });
+	}
+
 	@command('git.viewCommit', { repository: true })
 	async viewCommit(repository: Repository, historyItemId: string, revealUri?: Uri): Promise<void> {
 		if (!repository || !historyItemId) {

@@ -1033,6 +1033,12 @@
         "enablement": "!operationInProgress && scmCurrentHistoryItemRefHasBase"
       },
       {
+        "command": "git.graph.review",
+        "title": "%command.graphReview%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.repositories.checkout",
         "title": "%command.graphCheckout%",
         "icon": "$(target)",
@@ -2723,6 +2729,11 @@
           "command": "git.graph.compareRef",
           "when": "scmProvider == git",
           "group": "5_compare@3"
+        },
+        {
+          "command": "git.graph.review",
+          "when": "scmProvider == git && !listMultiSelection && config.github.copilot.chat.reviewAgent.enabled && github.copilot.chat.reviewDiff.enabled",
+          "group": "6_review@1"
         },
         {
           "command": "git.copyCommitId",
