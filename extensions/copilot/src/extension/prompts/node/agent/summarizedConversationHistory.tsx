@@ -650,8 +650,14 @@ class ConversationHistorySummarizer {
 
 		const summary = await summaryPromise;
 		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
+		// The summarization prompt asks the model to reason inside <analysis>
+		// tags and wrap the final summary in <summary> tags. The background
+		// paths (agentIntent.ts) already extract the summary; without doing
+		// the same here the raw response — analysis block and tags included —
+		// is stored on the round and rendered verbatim in the chat.
+		const summaryText = extractSummary(summary.result.value) ?? summary.result.value;
 		return {
-			summary: this.appendTranscriptHint(summary.result.value),
+			summary: this.appendTranscriptHint(summaryText),
 			toolCallRoundId: propsInfo.summarizedToolCallRoundId,
 			thinking: propsInfo.summarizedThinking,
 			usage: summary.result.usage,
