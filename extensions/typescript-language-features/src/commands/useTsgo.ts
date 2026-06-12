@@ -7,8 +7,8 @@ import * as vscode from 'vscode';
 import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
 import { Command } from './commandManager';
 
-export const tsNativeExtensionId = 'typescriptteam.vscode-typescript';
-export const tsNativeExtensionIds = [tsNativeExtensionId, 'typescriptteam.native-preview'] as const;
+export const tsNativeExtensionOldId = 'typescriptteam.native-preview';
+export const tsNativeExtensionIds = ['typescriptteam.vscode-typescript', tsNativeExtensionOldId] as const;
 
 export function getTsNativeExtension(): vscode.Extension<unknown> | undefined {
 	for (const extensionId of tsNativeExtensionIds) {
