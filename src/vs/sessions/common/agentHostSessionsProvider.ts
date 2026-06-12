@@ -8,7 +8,7 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, Customization, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, Customization, McpServerStatus, RootConfigState } from '../../platform/agentHost/common/state/protocol/state.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 
@@ -18,6 +18,19 @@ import { ISessionAgentRef } from '../services/sessions/common/session.js';
 export interface IAgentHostConnectProgress {
 	readonly connectionKey: string;
 	readonly message: string;
+}
+
+/**
+ * A rich view of a single MCP server exposed by an agent host session.
+ * Encapsulates the dispatch plumbing so consumers can present and toggle
+ * servers without depending on the low-level protocol action surface.
+ */
+export interface IAgentHostMcpServer {
+	readonly id: string;
+	readonly name: string;
+	readonly enabled: boolean;
+	readonly status: McpServerStatus;
+	setEnabled(enabled: boolean): void;
 }
 
 /**
@@ -142,6 +155,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * Returns the working directory for the session, if provided by the host.
 	 */
 	getWorkingDirectory(sessionId: string): string | undefined;
+
+	/**
+	 * Returns the MCP servers exposed by the session as rich objects whose
+	 * {@link IAgentHostMcpServer.setEnabled} dispatches the appropriate
+	 * protocol-level toggle. Returns an empty array when the session is
+	 * unknown or exposes no MCP servers.
+	 */
+	getMcpServers(sessionId: string): readonly IAgentHostMcpServer[];
 
 	/**
 	 * Set (or clear) the selected custom agent for a session. Optional so

@@ -6679,9 +6679,10 @@
         "inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
         "order": 3,
         "description": "%github.copilot.session.providerDescription.claude%",
-        "when": "config.github.copilot.chat.claudeAgent.enabled",
+        "when": "config.github.copilot.chat.claudeAgent.enabled && ((isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
         "canDelegate": true,
         "requiresCustomModels": true,
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6741,6 +6742,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
+        "supportsAutoModel": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
@@ -7088,7 +7090,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@anthropic-ai/sdk": "^0.82.0",
     "@github/blackbird-external-ingest-utils": "^0.3.0",
-    "@github/copilot": "^1.0.60",
+    "@github/copilot": "^1.0.61",
     "@google/genai": "^1.22.0",
     "@humanwhocodes/gitignore-to-minimatch": "1.0.2",
     "@microsoft/tiktokenizer": "^1.0.10",

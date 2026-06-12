@@ -1540,6 +1540,7 @@ export default defineConfig(
 						'ssh2',
 						'stream',
 						'string_decoder',
+						'tar',
 						'tas-client',
 						'tls',
 						'undici',

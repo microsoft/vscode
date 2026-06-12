@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import type { SessionView } from './sessionView.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
-import { Event } from '../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import type { SessionView } from '../../../browser/parts/sessionView.js';
+import { IActiveSession } from '../common/sessionsManagement.js';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 

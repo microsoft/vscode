@@ -119,8 +119,8 @@ export class AgentHostStateManager extends Disposable {
 		return [...this._sessionStates.keys()];
 	}
 
-	getAnnouncedSessionSummaries(): SessionSummary[] {
-		return [...this._lastNotifiedSummaries.values()];
+	getAllSessionSummaries(): SessionSummary[] {
+		return [...this._sessionStates.values()].map(state => state.summary);
 	}
 
 	/**

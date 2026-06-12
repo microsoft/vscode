@@ -48,6 +48,25 @@ function getModelPickerOptionsForSession(session: ISession | undefined, sessions
 	return provider?.getModelPickerOptions(session!.sessionId) ?? DEFAULT_MODEL_PICKER_OPTIONS;
 }
 
+/**
+ * Whether the session cannot currently produce a request because it has no
+ * selectable model and cannot fall back to Auto (its provider reports
+ * {@link ISessionModelPickerOptions.showAutoModel} as `false`). Used to
+ * disable sending — e.g. the Claude agent for a Copilot Free / Student user
+ * shows "No models available" and must not send. Not reactive on its own;
+ * callers should re-evaluate when the session provider's
+ * {@link ISessionsProvider.onDidChangeModels} fires.
+ */
+export function sessionHasNoSelectableModel(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): boolean {
+	if (!session) {
+		return false;
+	}
+	if (getModelsForSession(session, sessionsProvidersService).length > 0) {
+		return false;
+	}
+	return !getModelPickerOptionsForSession(session, sessionsProvidersService).showAutoModel;
+}
+
 const DEFAULT_MODEL_PICKER_OPTIONS: ISessionModelPickerOptions = {
 	useGroupedModelPicker: true,
 	showFeatured: true,
@@ -117,6 +136,7 @@ export class ModelPicker extends Disposable {
 			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
+			showAutoModel: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showAutoModel,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -160,12 +180,28 @@ export class ModelPicker extends Disposable {
 		}
 
 		const models = getModelsForSession(session, this._sessionsProvidersService);
-		this._modelPicker.setEnabled(models.length > 0);
-		// Drive the picker's visibility directly from the provider's model
-		// list rather than mirroring this state into a context key. The picker
-		// hides itself when the active session's provider offers no models.
-		this._updateVisibility(models.length > 0);
+		// When a session type's Auto model is unavailable (e.g. the Claude
+		// agent for a Copilot Free / Student user), keep the picker visible even
+		// with no models so the shared widget can render its "No models
+		// available" state (with an upgrade prompt). Otherwise fall back to the
+		// historical behavior of hiding the picker when the provider offers no
+		// models.
+		const showPicker = this._shouldShowPicker(session);
+		this._modelPicker.setEnabled(showPicker);
+		this._updateVisibility(showPicker);
 		if (models.length === 0) {
+			// Clear any stale selection so the shared picker widget re-renders
+			// its label (it refreshes on `currentModel` changes). Without this a
+			// carried-over "Auto" selection would keep showing instead of the
+			// "No models available" empty state.
+			if (this._currentModel.get() !== undefined) {
+				this._settingModelInternally = true;
+				try {
+					this._currentModel.set(undefined, undefined);
+				} finally {
+					this._settingModelInternally = false;
+				}
+			}
 			return;
 		}
 
@@ -222,12 +258,25 @@ export class ModelPicker extends Disposable {
 	render(container: HTMLElement): void {
 		this._container = container;
 		this._modelPicker.render(container);
-		this._updateVisibility(getModelsForSession(this._session.get(), this._sessionsProvidersService).length > 0);
+		this._updateVisibility(this._shouldShowPicker(this._session.get()));
 	}
 
-	private _updateVisibility(hasModels: boolean): void {
+	/**
+	 * Whether the model picker should be shown for the given session. Visible
+	 * when the session has models, or when its Auto model is unavailable (so the
+	 * widget can render the "No models available" empty state). Otherwise hidden,
+	 * matching the historical behavior for providers that offer no models.
+	 */
+	private _shouldShowPicker(session: ISession | undefined): boolean {
+		if (getModelsForSession(session, this._sessionsProvidersService).length > 0) {
+			return true;
+		}
+		return !getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel;
+	}
+
+	private _updateVisibility(visible: boolean): void {
 		if (this._container) {
-			this._container.style.display = hasModels ? '' : 'none';
+			this._container.style.display = visible ? '' : 'none';
 		}
 	}
 }

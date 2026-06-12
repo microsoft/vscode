@@ -20,7 +20,7 @@ import { FileChangeType, FileOperationError, FileOperationResult, FileSystemProv
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentHostAuthTokenRequest, IAgentMaterializeSessionEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agentService.js';
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { buildDefaultChangesetCatalogue, parseChangesetUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
@@ -29,7 +29,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment } from '../common/state/protocol/state.js';
 import type { SessionPendingMessageSetAction, SessionTurnStartedAction } from '../common/state/protocol/actions.js';
-import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, hostBuildInfoFromProduct, isSubagentSession, parseResourceWatchChannelUri, parseSubagentSessionUri, readSessionGitState, type SessionConfigState, type SessionSummary, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { IProductService } from '../../product/common/productService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
@@ -48,6 +48,7 @@ import { AgentHostRenameCompletionProvider } from './agentHostRenameCommand.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { AgentHostWorkspaceFiles } from './agentHostWorkspaceFiles.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { parseMcpChannelUri } from './shared/mcpCustomizationController.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostChangesetOperationContributionService } from './agentHostChangesetOperationContributionService.js';
 import { registerDefaultChangesetOperationContributions } from './agentHostChangesetOperationContributions.js';
@@ -91,6 +92,10 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Protocol: fires for ephemeral notifications (sessionAdded/Removed). */
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	/** Protocol: fires for MCP server-originated notifications routed over `mcp://` channels. */
+	private readonly _onMcpNotification = this._register(new Emitter<IMcpNotification>());
+	readonly onMcpNotification = this._onMcpNotification.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
@@ -194,6 +199,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _rootConfigResource?: URI,
 		private readonly _telemetryService: ITelemetryService = NullTelemetryService,
 		_fileMonitorService?: IAgentHostFileMonitorService,
+		copilotApiService?: ICopilotApiService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -234,7 +240,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const instantiationService = this._register(new InstantiationService(services, /*strict*/ true));
 		const agentHostOctoKitService = instantiationService.createInstance(AgentHostOctoKitService, undefined);
 		services.set(IAgentHostOctoKitService, agentHostOctoKitService);
-		services.set(ICopilotApiService, instantiationService.createInstance(CopilotApiService, undefined));
+		const effectiveCopilotApiService = copilotApiService ?? instantiationService.createInstance(CopilotApiService, undefined);
+		services.set(ICopilotApiService, effectiveCopilotApiService);
 		this._sessionGitStateService = this._register(instantiationService.createInstance(AgentHostSessionGitStateService, this._stateManager));
 		this._changesetOperationContributionService = this._register(instantiationService.createInstance(AgentHostChangesetOperationContributionService, this._stateManager, this._sessionGitStateService));
 
@@ -283,6 +290,13 @@ export class AgentService extends Disposable implements IAgentService {
 			getAgent: session => this._findProviderForSession(session),
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
+			copilotApiService: effectiveCopilotApiService,
+			getGitHubCopilotToken: () => {
+				return this.getAuthToken({
+					resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
+					scopes: GITHUB_COPILOT_PROTECTED_RESOURCE.scopes_supported,
+				});
+			},
 			onTurnComplete: session => {
 				const workingDirStr = this._stateManager.getSessionState(session)?.summary.workingDirectory;
 				this._attachGitState(URI.parse(session), workingDirStr ? URI.parse(workingDirStr) : undefined);
@@ -305,6 +319,9 @@ export class AgentService extends Disposable implements IAgentService {
 		this._providerSubscriptions.add(this._sideEffects.registerProgressListener(provider));
 		if (provider.onDidMaterializeSession) {
 			this._providerSubscriptions.add(provider.onDidMaterializeSession(e => this._onDidMaterializeSession(e)));
+		}
+		if (provider.onMcpNotification) {
+			this._providerSubscriptions.add(provider.onMcpNotification(e => this._onMcpNotification.fire(e)));
 		}
 		this._registerSkillCompletionProvider();
 		if (!this._defaultProvider) {
@@ -340,6 +357,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._changesetOperationContributionService.invokeChangesetOperation(params);
+	}
+
+	// ---- MCP `mcp://` channel routing --------------------------------------
+
+	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const route = parseMcpChannelUri(channel);
+		if (!route) {
+			throw new Error(`Method not found: invalid mcp:// channel ${channel}`);
+		}
+		const provider = this._providers.get(route.providerId);
+		if (!provider || !provider.handleMcpRequest) {
+			throw new Error(`Method not found: no provider for mcp:// channel ${channel}`);
+		}
+		const sessionUri = AgentSession.uri(route.providerId, route.sessionId);
+		return provider.handleMcpRequest(sessionUri, route.serverName, method, params);
 	}
 
 	// ---- session management -------------------------------------------------
@@ -420,19 +452,24 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		});
 
-		// Overlay any session that has been announced via `sessionAdded`
-		// but is missing from the providers' `listSessions` snapshot.
-		// Providers can briefly drop a just-materialized session (e.g.
-		// between firing `sessionAdded` and the SDK's session DB becoming
-		// visible to the next `listSessions` call), and immediately after
-		// `session/turnComplete` we've observed `CopilotAgent.listSessions`
-		// return an empty array transiently. Without this overlay,
-		// renderer-side session caches evict the live session, which
-		// closes the chat view holding the in-flight response bubble.
+		// Overlay any session known to state but missing from the providers'
+		// `listSessions` snapshot, so renderer-side caches don't evict a
+		// live/active session (which would close the chat view holding the
+		// in-flight response bubble). Two cases need this: a provider can
+		// transiently drop a session (e.g. `CopilotAgent.listSessions` returns
+		// an empty array right after `session/turnComplete`), and a
+		// provisional session (created but not yet materialized — see
+		// `createSession`) is absent for its entire provisional window. We use
+		// *all* tracked summaries (not just announced ones) to cover the latter.
 		const known = new Set(withStatus.map(s => s.session.toString()));
 		const additions: IAgentSessionMetadata[] = [];
-		for (const summary of this._stateManager.getAnnouncedSessionSummaries()) {
+		for (const summary of this._stateManager.getAllSessionSummaries()) {
 			if (known.has(summary.resource)) {
+				continue;
+			}
+			// Subagent sessions are nested under their parent and must never
+			// surface as top-level entries in the session list.
+			if (isSubagentSession(summary.resource)) {
 				continue;
 			}
 			additions.push({
@@ -779,9 +816,13 @@ export class AgentService extends Disposable implements IAgentService {
 			this._sessionToProvider.delete(session.toString());
 		}
 		this._changesetCoordinator.onSessionDisposed(session.toString());
+		this._sideEffects.cancelSessionTitleGeneration(session.toString());
 		// Remove all subagent sessions for this parent
 		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
+		// Remove the VS Code per-session data directory (metadata DB + checkpoints) to mirror the SDK-side cleanup
+		// performed by the provider above. No-op when the directory does not exist.
+		await this._sessionDataService.deleteSessionData(session);
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
