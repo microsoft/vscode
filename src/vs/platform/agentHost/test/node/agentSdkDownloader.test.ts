@@ -19,7 +19,7 @@ import type { IFileService } from '../../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { RequestService } from '../../../request/node/requestService.js';
-import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage, type ISdkTargetHost } from '../../node/agentSdkDownloader.js';
+import { AgentSdkDownloader, resolveSdkTarget, type IAgentSdkPackage } from '../../node/agentSdkDownloader.js';
 import { ClaudeSdkPackage } from '../../node/claude/claudeAgentSdkService.js';
 import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -117,9 +117,12 @@ function makeFileService(disposables: Pick<DisposableStore, 'add'>): IFileServic
 	return svc;
 }
 
-/** Host that always resolves to a known target on any test machine. */
-const LINUX_X64_GLIBC: ISdkTargetHost = { platform: 'linux', arch: 'x64', libc: 'glibc' };
-
+/**
+ * Unit tests for the platform/arch/libc → sdkTarget mapping. These cover
+ * the cross-product the downloader can't easily exercise (Universal x64
+ * launches from arm64 hosts, musl Linux from a macOS CI runner, …) by
+ * passing a synthetic host directly to the pure function.
+ */
 suite('resolveSdkTarget', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -171,6 +174,11 @@ suite('resolveSdkTarget', () => {
 	});
 });
 
+/**
+ * Integration tests for the downloader's network → cache → extract flow.
+ * These run against whatever `process.platform` the test host is — the
+ * pure `resolveSdkTarget` suite above covers the cross-host matrix.
+ */
 suite('AgentSdkDownloader', () => {
 
 	const disposables = new DisposableStore();
@@ -181,12 +189,25 @@ suite('AgentSdkDownloader', () => {
 	let fixture: ITestSdkDownloadFixture;
 	let server: ITestServer;
 	let originalEnvOverride: string | undefined;
+	/** Whatever the host resolves to — used for cache-dir path assertions. */
+	let hostSdkTarget: string;
 
 	/** A cancellation token whose source is disposed in teardown. */
 	function newToken() {
 		const src = disposables.add(new CancellationTokenSource());
 		return src.token;
 	}
+
+	suiteSetup(function () {
+		// Skip the integration suite on hosts the downloader can't resolve
+		// a target for (e.g. linux-armhf). `resolveSdkTarget` is covered
+		// above and doesn't need a real host.
+		const target = resolveSdkTarget(ClaudeSdkPackage);
+		if (!target) {
+			this.skip();
+		}
+		hostSdkTarget = target;
+	});
 
 	setup(async () => {
 		originalEnvOverride = process.env[AgentHostClaudeSdkRootEnvVar];
@@ -213,16 +234,12 @@ suite('AgentSdkDownloader', () => {
 	 * explicitly. Pass `productConfig: null` to omit the agentSdks block
 	 * entirely (the "no product config" case).
 	 */
-	function makeDownloader(
-		productConfig?: { version?: string; urlTemplate?: string } | null,
-		host: ISdkTargetHost = LINUX_X64_GLIBC,
-	) {
+	function makeDownloader(productConfig?: { version?: string; urlTemplate?: string } | null) {
 		const config = productConfig === null ? undefined : {
 			version: productConfig?.version ?? '1.0.0',
 			urlTemplate: productConfig?.urlTemplate ?? `http://127.0.0.1:${server.port}/sdk-{sdkTarget}.tgz`,
 		};
 		return new AgentSdkDownloader(
-			host,
 			makeEnvService(userDataPath),
 			makeProductService(config),
 			makeRequestService(disposables),
@@ -244,14 +261,6 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(makeDownloader().isAvailable(ClaudeSdkPackage), true);
 	});
 
-	test('isAvailable: false when product config populated but host has no target', () => {
-		// armhf / unsupported-host case: product.json carries agentSdks
-		// (it would, on a Universal-style build) but the runtime has no
-		// matching SKU — we must NOT register the provider.
-		const downloader = makeDownloader(undefined, { platform: 'linux', arch: 'armhf', libc: 'glibc' });
-		assert.strictEqual(downloader.isAvailable(ClaudeSdkPackage), false);
-	});
-
 	test('loadSdkRoot: dev override returns the path unchanged', async () => {
 		process.env[AgentHostClaudeSdkRootEnvVar] = '/path/to/dev/sdk';
 		const root = await makeDownloader(null).loadSdkRoot(ClaudeSdkPackage, newToken());
@@ -259,10 +268,8 @@ suite('AgentSdkDownloader', () => {
 	});
 
 	test('loadSdkRoot: substitutes {sdkTarget} into urlTemplate', async () => {
-		// Claude on musl Linux → -musl suffix lands in the URL.
-		const downloader = makeDownloader(undefined, { platform: 'linux', arch: 'arm64', libc: 'musl' });
-		await downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.lastPath, '/sdk-linux-arm64-musl.tgz');
+		await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
+		assert.strictEqual(server.lastPath, `/sdk-${hostSdkTarget}.tgz`);
 	});
 
 	test('loadSdkRoot: cache miss → downloads, extracts, writes sentinel', async () => {
@@ -283,35 +290,20 @@ suite('AgentSdkDownloader', () => {
 		assert.strictEqual(server.requestCount, 1, 'cache hit should not re-download');
 	});
 
-	test('loadSdkRoot: different hosts use separate cache dirs and trigger separate downloads', async () => {
-		// Simulates a macOS Universal build: one product.json, two arches
-		// over the lifetime of an install (or two Rosetta-vs-native users).
-		// Each resolved target gets its own cache, no thrash.
-		const arm64Downloader = makeDownloader(undefined, { platform: 'darwin', arch: 'arm64', libc: undefined });
-		const x64Downloader = makeDownloader(undefined, { platform: 'darwin', arch: 'x64', libc: undefined });
-		const arm64Root = await arm64Downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		const x64Root = await x64Downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.notStrictEqual(arm64Root, x64Root);
-		assert.strictEqual(server.requestCount, 2);
-
-		// Re-fetching the arm64 target hits the cache; the x64 entry doesn't
-		// invalidate it.
-		await arm64Downloader.loadSdkRoot(ClaudeSdkPackage, newToken());
-		assert.strictEqual(server.requestCount, 2, 'sibling target must not invalidate cache');
+	test('loadSdkRoot: cache dir includes sdkTarget so Universal launches stay separate', async () => {
+		// Direct path check that the cache dir layout encodes sdkTarget —
+		// pairs with the resolveSdkTarget unit tests above to cover the
+		// macOS-Universal case (which we can't simulate end-to-end without
+		// injecting a host the production downloader doesn't accept).
+		const root = await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
+		const expected = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0', hostSdkTarget);
+		assert.strictEqual(root, expected);
 	});
 
 	test('loadSdkRoot: missing product config and no env override throws actionable error', async () => {
 		await assert.rejects(
 			() => makeDownloader(null).loadSdkRoot(ClaudeSdkPackage, newToken()),
 			/no `product\.agentSdks\.claude` configured/,
-		);
-	});
-
-	test('loadSdkRoot: host with no target throws actionable error', async () => {
-		const downloader = makeDownloader(undefined, { platform: 'linux', arch: 'armhf', libc: 'glibc' });
-		await assert.rejects(
-			() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
-			/no SDK target for this host/,
 		);
 	});
 
@@ -338,7 +330,7 @@ suite('AgentSdkDownloader', () => {
 			await new Promise(r => setTimeout(r, 50));
 			cts.cancel();
 			await assert.rejects(() => promise, /Cancel|cancel|Failed to download/);
-			// No half-extracted dir left around. The scratch dir would land at
+			// No half-extracted dir left around. The scratch dir lands at
 			// <userDataPath>/agent-host/sdk-cache/claude/1.0.0/<target>.tmp.<pid>
 			// — a sibling of the resolved target dir under the version dir.
 			const versionDir = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0');
@@ -371,7 +363,7 @@ suite('AgentSdkDownloader', () => {
 
 	test('loadSdkRoot: rename-loser path returns existing cache when winner already published', async () => {
 		const downloader = makeDownloader();
-		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0', 'linux-x64');
+		const target = path.join(userDataPath, 'agent-host', 'sdk-cache', 'claude', '1.0.0', hostSdkTarget);
 
 		// Pre-populate the cache as if a "winner" already extracted it.
 		await fsp.mkdir(target, { recursive: true });

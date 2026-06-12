@@ -72,7 +72,12 @@ const SUPPORTED_PLATFORMS = new Set<NodeJS.Platform>(['linux', 'darwin', 'win32'
 const SUPPORTED_ARCHES = new Set<string>(['x64', 'arm64']);
 
 /**
- * Resolves the build's `sdkTarget` suffix for the current host:
+ * Resolves the build's `sdkTarget` suffix for the given host. Defaults
+ * to the current Node process — production callers omit `host`; tests
+ * pass a synthetic host to cover targets the test machine can't reach
+ * (Universal launches from a single-arch host, musl Linux on macOS CI,
+ * etc.).
+ *
  *   - claude on glibc Linux: `linux-x64` / `linux-arm64`
  *   - claude on musl Linux:  `linux-x64-musl` / `linux-arm64-musl`
  *   - codex Linux (any libc): `linux-x64` / `linux-arm64`
@@ -169,31 +174,19 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 	 */
 	private readonly _failureLatch = new Map<string, { error: Error; expiresAt: number }>();
 
-	private readonly _host: ISdkTargetHost;
-
 	constructor(
-		/**
-		 * Host info used to resolve `{sdkTarget}` per launch. Pass `undefined`
-		 * (or omit) in production to derive from `process`. Tests pass a
-		 * synthetic host (Universal launches, musl, …) without monkey-
-		 * patching the runtime. Per project convention non-service params
-		 * come before service ones.
-		 */
-		host: ISdkTargetHost | undefined,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-	) {
-		this._host = host ?? { platform: process.platform, arch: process.arch, libc: detectLibc() };
-	}
+	) { }
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
 		if (process.env[pkg.devOverrideEnvVar]) {
 			return true;
 		}
-		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg, this._host) !== undefined;
+		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg) !== undefined;
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -236,11 +229,11 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 				`no ${pkg.devOverrideEnvVar} dev override set.`,
 			);
 		}
-		const sdkTarget = resolveSdkTarget(pkg, this._host);
+		const sdkTarget = resolveSdkTarget(pkg);
 		if (!sdkTarget) {
 			throw new Error(
 				`Cannot load ${pkg.id} SDK: no SDK target for this host ` +
-				`(${this._host.platform}/${this._host.arch}). ` +
+				`(${process.platform}/${process.arch}). ` +
 				`Set ${pkg.devOverrideEnvVar} to a local SDK root to bypass.`,
 			);
 		}

@@ -158,7 +158,7 @@ async function startAgentHost(): Promise<void> {
 		// Register the agent SDK downloader BEFORE any service that injects it
 		// (ClaudeAgentSdkService and CodexAgent below). The downloader resolves
 		// dev-override env var → on-disk cache → product.agentSdks download.
-		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader, undefined);
+		const agentSdkDownloader = instantiationService.createInstance(AgentSdkDownloader);
 		diServices.set(IAgentSdkDownloader, agentSdkDownloader);
 		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
 		diServices.set(ICopilotApiService, copilotApiService);
