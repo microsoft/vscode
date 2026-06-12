@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Shared helpers for the per-platform agent SDK build pipeline (`package.ts`,
- * `upload.ts`, `drift-check.ts`). Called from those scripts and from the
- * gulpfiles' `packageTask` so each VS Code build can stamp its own
- * `product.agentSdks.<sdk>` into the per-platform `product.json` at
- * packaging time.
+ * Shared helpers for the per-platform agent SDK build pipeline. Called
+ * from `package.ts`, `upload.ts`, and `produce.ts`, plus the gulpfiles'
+ * `packageTask` (via `readAgentSdkResults`) so each VS Code build can
+ * stamp its own `product.agentSdks.<sdk>` into the per-platform
+ * `product.json` at packaging time.
  *
- * The pipeline DOES NOT keep a parallel list of supported targets. The single
- * source of truth is the SDK's own `package.json` `optionalDependencies`
- * (e.g. `@anthropic-ai/claude-agent-sdk-darwin-arm64`), looked up via
- * `getSdkTargetForBuild()` for a `(vscodePlatform, arch, sdk)` triple.
+ * The pipeline DOES NOT keep a parallel list of supported targets.
+ * `getSdkTargetForBuild()` hard-codes the `(vscodePlatform, arch, sdk) →
+ * sdkTarget` table; the SDK's own `package.json` `optionalDependencies`
+ * (e.g. `@anthropic-ai/claude-agent-sdk-darwin-arm64`) is the
+ * canonical SKU set, and the table is kept in lockstep with it by
+ * convention — there is no runtime lookup of npm metadata.
  */
 
 import * as crypto from 'crypto';

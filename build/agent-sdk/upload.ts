@@ -109,7 +109,11 @@ function requireEnv(name: string): string {
 // #region CLI entry point
 
 function isCliInvocation(): boolean {
-	return import.meta.url === `file://${process.argv[1]}`;
+	// `import.meta.filename` is already a real filesystem path; comparing
+	// it directly to `process.argv[1]` works on Windows (where the
+	// manual `file://${argv}` construction breaks because Node URL-encodes
+	// drive letters and spaces). Pattern matches `build/npm/installStateHash.ts:143`.
+	return import.meta.filename === process.argv[1];
 }
 
 function parseCliArgs(): IUploadArgs {

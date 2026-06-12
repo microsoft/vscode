@@ -7,8 +7,9 @@
  * Builds one per-target tarball for one agent SDK. Callable as both a Node
  * library function (`buildOne(...)`) and a thin CLI (the bottom of this file).
  *
- * The library form is what the gulpfile-side packaging tasks use; the CLI
- * form is for local one-off builds during development.
+ * The library form is what `produce.ts` calls during the per-platform
+ * "Agent SDK: build + upload" pipeline step; the CLI form is for local
+ * one-off builds during development.
  *
  * Runs on any OS — `npm install` with `npm_config_libc/os/cpu` set fetches
  * the foreign platform's pre-built binary package as-is from the registry,
@@ -205,7 +206,11 @@ async function buildTarball(stagingDir: string, outTgz: string): Promise<void> {
 // The gulpfile-side packaging uses `buildOne()` directly.
 
 function isCliInvocation(): boolean {
-	return import.meta.url === `file://${process.argv[1]}`;
+	// `import.meta.filename` is already a real filesystem path; comparing
+	// it directly to `process.argv[1]` works on Windows (where the
+	// manual `file://${argv}` construction breaks because Node URL-encodes
+	// drive letters and spaces). Pattern matches `build/npm/installStateHash.ts:143`.
+	return import.meta.filename === process.argv[1];
 }
 
 function parseCliArgs(): IBuildArgs {
