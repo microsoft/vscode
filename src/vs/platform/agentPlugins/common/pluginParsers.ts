@@ -781,43 +781,51 @@ export async function readSkills(pluginRoot: URI, dirs: readonly URI[], fileServ
 	const seen = new Set<string>();
 	const skills: INamedPluginResource[] = [];
 
-	const addSkill = (name: string, skillMd: URI) => {
-		if (!seen.has(name)) {
-			seen.add(name);
-			skills.push({ uri: skillMd, name });
+	const addSkill = async (name: string, skillMd: URI) => {
+		if (seen.has(name)) {
+			return;
 		}
+		seen.add(name);
+
+		let description: string | undefined;
+		try {
+			description = (await parseSkillFile(skillMd, fileService)).description;
+		} catch {
+			// Keep the existing best-effort discovery behavior for malformed skills.
+		}
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
 	};
 
-	for (const dir of dirs) {
+	await Promise.all(dirs.map(async dir => {
 		const skillMd = URI.joinPath(dir, 'SKILL.md');
 		if (await pathExists(skillMd, fileService)) {
-			addSkill(basename(dir), skillMd);
-			continue;
+			await addSkill(basename(dir), skillMd);
+			return;
 		}
 
 		let stat;
 		try {
 			stat = await fileService.resolve(dir);
 		} catch {
-			continue;
+			return;
 		}
 
 		if (!stat.isDirectory || !stat.children) {
-			continue;
+			return;
 		}
 
-		for (const child of stat.children) {
+		await Promise.all(stat.children.map(async child => {
 			const childSkillMd = URI.joinPath(child.resource, 'SKILL.md');
 			if (await pathExists(childSkillMd, fileService)) {
-				addSkill(basename(child.resource), childSkillMd);
+				await addSkill(basename(child.resource), childSkillMd);
 			}
-		}
-	}
+		}));
+	}));
 
 	if (skills.length === 0) {
 		const rootSkillMd = URI.joinPath(pluginRoot, 'SKILL.md');
 		if (await pathExists(rootSkillMd, fileService)) {
-			addSkill(basename(pluginRoot), rootSkillMd);
+			await addSkill(basename(pluginRoot), rootSkillMd);
 		}
 	}
 
@@ -1161,4 +1169,3 @@ function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
 function toParsedRule(resource: INamedPluginResource): IParsedRule {
 	return { ...resource, customization: makeRuleCustomization(resource) };
 }
-

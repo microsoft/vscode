@@ -598,6 +598,11 @@
 			font-family: var(--monaco-monospace-font);
 			font-size: 12px;
 		}
+
+		&.hint {
+			color: var(--vscode-descriptionForeground);
+			font-style: italic;
+		}
 	}
 
 	.browser-find-widget-wrapper {

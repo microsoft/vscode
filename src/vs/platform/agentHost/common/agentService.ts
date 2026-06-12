@@ -13,12 +13,13 @@ import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
+import type { IAgentFeedbackToolHost } from './agentFeedbackAnnotations.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from './state/sessionActions.js';
+import type { ActionEnvelope, INotification, IRootConfigChangedAction, SessionAction, TerminalAction, ClientAnnotationsAction } from './state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ClientPluginCustomization, type Customization, type PendingMessage, type RootState, type SessionInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
@@ -56,23 +57,119 @@ export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLogging
 export const AgentHostCustomTerminalToolEnabledSettingId = 'chat.agentHost.customTerminalTool.enabled';
 
 /**
- * Configuration key that holds the absolute path to the **SDK root directory**
- * — the directory that contains a `node_modules/@anthropic-ai/claude-agent-sdk`
- * subtree. When non-empty, the agent host treats it as a dev override and skips
- * the on-demand download from `product.agentSdks.claude` for the Claude SDK.
+ * Configuration key controlling whether the Claude provider is registered in
+ * the agent host process. When `false`, the agent host skips registering the
+ * Claude provider regardless of SDK availability. Defaults to `true`.
  *
- * Empty (the default) means: load the SDK from `product.agentSdks.claude` if
- * the build supplies one; otherwise the Claude provider is not registered.
- * The agent host process must be restarted for changes to take effect.
+ * Independent of {@link ClaudePreferAgentHostAgentsSettingId} /
+ * {@link ClaudePreferAgentHostEditorSettingId}, which control whether the
+ * workbench surfaces the agent host's Claude provider (vs. the GitHub Copilot
+ * Chat extension's). This setting is strictly about whether the agent host
+ * advertises Claude at all. The agent host process must be restarted for
+ * changes to take effect.
  */
-export const AgentHostClaudeAgentSdkRootSettingId = 'chat.agentHost.claudeAgent.sdkRoot';
+export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.enabled';
 
 /**
- * Environment variable form of {@link AgentHostClaudeAgentSdkRootSettingId}.
- * Set by the agent host starters from the setting, and may also be set
- * directly by developers as an override.
+ * Configuration key controlling whether the Codex provider is registered in
+ * the agent host process. When `false` (the default), the agent host skips
+ * registering the Codex provider regardless of SDK availability. The agent
+ * host process must be restarted for changes to take effect.
+ */
+export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
+
+/**
+ * Optional override that points at an **SDK root directory** containing a
+ * `node_modules/@anthropic-ai/claude-agent-sdk` subtree. When set, the agent
+ * host loads the Claude SDK from that path instead of the bare import (which
+ * resolves via this repo's `node_modules` in dev) or the on-demand download
+ * from `product.agentSdks.claude` (built products). Mainly exists for the
+ * remote server's `--claude-sdk-root` CLI flag and for one-off developer
+ * overrides pointing at an out-of-tree SDK build.
  */
 export const AgentHostClaudeSdkRootEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_SDK_ROOT';
+
+/**
+ * Environment variable form of {@link AgentHostClaudeAgentEnabledSettingId}.
+ * Set by the agent host starters from the setting. Accepts `'true'` /
+ * `'false'`; absent means "default" (`true` for Claude, `false` for Codex).
+ */
+export const AgentHostClaudeAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CLAUDE_AGENT_ENABLED';
+
+/**
+ * Environment variable form of {@link AgentHostCodexAgentEnabledSettingId}.
+ * Set by the agent host starters from the setting. Accepts `'true'` /
+ * `'false'`; absent means "default" (`false`).
+ */
+export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_ENABLED';
+
+/**
+ * Resolves the effective enable state for a Claude/Codex provider from the
+ * env-var value forwarded by the starter. Recognized values (case- and
+ * whitespace-insensitive):
+ *
+ *  - `'true'`  / `'1'` → enabled
+ *  - `'false'` / `'0'` → disabled
+ *  - `undefined`, empty string, or any other value → falls through to
+ *    {@link defaultEnabled}
+ */
+export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boolean): boolean {
+	if (envValue === undefined || envValue === '') {
+		return defaultEnabled;
+	}
+	const normalized = envValue.trim().toLowerCase();
+	if (normalized === 'false' || normalized === '0') {
+		return false;
+	}
+	if (normalized === 'true' || normalized === '1') {
+		return true;
+	}
+	return defaultEnabled;
+}
+
+/**
+ * Configuration key that controls the sandbox mode for the Copilot SDK's built-in
+ * shell tool (the path taken when {@link AgentHostCustomTerminalToolEnabledSettingId}
+ * is `false`). Values mirror {@link AgentSandboxEnabledValue}:
+ *
+ *  - `'off'` (the default): no sandbox policy is forwarded for the SDK shell
+ *    path \u2014 commands run unsandboxed.
+ *  - `'on'`: the Agent Host runs the SDK\u2019s shell tool inside a sandbox
+ *    using the user's `chat.agent.sandbox.fileSystem.*` filesystem policy.
+ *    Outbound network is enforced via the user's allow/deny host lists.
+ *  - `'allowNetwork'`: same as `'on'` but with unrestricted outbound network.
+ *
+ * Has no effect when {@link AgentHostCustomTerminalToolEnabledSettingId} is
+ * `true` \u2014 the host\u2019s own terminal sandbox engine then handles shell
+ * commands and reads `chat.agent.sandbox.enabled` directly.
+ */
+export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
+
+/**
+ * Selects which Claude integration fulfills Claude sessions opened from the
+ * **Agents Window**:
+ *  - `true` — Claude is provided by the agent host process.
+ *  - `false` (default) — Claude is provided by the GitHub Copilot Chat extension.
+ *
+ * The agent host always registers Claude when its SDK is reachable; this
+ * setting only controls whether the per-window bridge in
+ * `AgentHostContribution` actually surfaces the AH provider in the Agents
+ * Window. The extension's `chatSessions` contribution mirrors the rule
+ * declaratively (its `when` clause hides the EH provider when this is `true`),
+ * so flipping the setting takes effect live without a window reload.
+ *
+ * Paired with {@link ClaudePreferAgentHostEditorSettingId} which governs the
+ * regular workbench (sidebar). EXP-backed (`experiment: { mode: 'startup' }`).
+ */
+export const ClaudePreferAgentHostAgentsSettingId = 'chat.agents.claude.preferAgentHost';
+
+/**
+ * Sibling of {@link ClaudePreferAgentHostAgentsSettingId} that selects the
+ * Claude implementation for the **regular workbench** (sidebar chat in a
+ * non-Agents-Window window). Same shape, same semantics — just a different
+ * surface scope.
+ */
+export const ClaudePreferAgentHostEditorSettingId = 'chat.editor.claude.preferAgentHost';
 
 // -- Codex agent settings --------------------------------------------------------
 //
@@ -233,10 +330,11 @@ export function buildAgentHostOTelEnv(
  * the caller spreads into the spawned child's environment.
  */
 export interface IAgentSdkStarterSettings {
-	readonly claudeSdkRoot?: string;
 	readonly codexSdkRoot?: string;
 	readonly codexHome?: string;
 	readonly codexBinaryArgs?: readonly string[];
+	readonly claudeAgentEnabled?: boolean;
+	readonly codexAgentEnabled?: boolean;
 }
 
 export function buildAgentSdkEnv(
@@ -250,11 +348,16 @@ export function buildAgentSdkEnv(
 		}
 		out[key] = value;
 	};
-	setIfMissing(AgentHostClaudeSdkRootEnvVar, settings.claudeSdkRoot);
 	setIfMissing(AgentHostCodexAgentSdkRootEnvVar, settings.codexSdkRoot);
 	setIfMissing(AgentHostCodexAgentCodexHomeEnvVar, settings.codexHome);
 	if (Array.isArray(settings.codexBinaryArgs) && settings.codexBinaryArgs.length > 0) {
 		setIfMissing(AgentHostCodexAgentBinaryArgsEnvVar, JSON.stringify(settings.codexBinaryArgs));
+	}
+	if (settings.claudeAgentEnabled !== undefined) {
+		setIfMissing(AgentHostClaudeAgentEnabledEnvVar, settings.claudeAgentEnabled ? 'true' : 'false');
+	}
+	if (settings.codexAgentEnabled !== undefined) {
+		setIfMissing(AgentHostCodexAgentEnabledEnvVar, settings.codexAgentEnabled ? 'true' : 'false');
 	}
 	return out;
 }
@@ -693,6 +796,15 @@ export interface IAgent {
 	 */
 	readonly onDidMaterializeSession?: Event<IAgentMaterializeSessionEvent>;
 
+	/**
+	 * Provides the agent host's feedback tool host so the provider can
+	 * advertise and execute the feedback ("comments") server tools against a
+	 * session's annotations channel. Optional: providers that do not support
+	 * server-side feedback tools simply omit it. Called once during
+	 * registration with the {@link IAgentService}.
+	 */
+	setFeedbackToolHost?(host: IAgentFeedbackToolHost): void;
+
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
@@ -1035,7 +1147,7 @@ export interface IAgentService {
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
+	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1147,7 +1259,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | TerminalAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
@@ -1159,6 +1271,20 @@ export interface IAgentConnection {
 	 * matching {@link McpServerCustomization}.
 	 */
 	readonly onMcpNotification: Event<IMcpNotification>;
+
+	// ---- MCP side-channel ---------------------------------------------------
+	/**
+	 * Send a request on an `mcp://` AHP side channel. `channel` is the
+	 * `mcp://` URI advertised by the matching {@link McpServerCustomization}
+	 * (only available while the server is `ready`). `method` is the raw MCP
+	 * JSON-RPC method (e.g. `tools/call`, `resources/read`,
+	 * `sampling/createMessage`); `params` are the JSON-RPC params (the
+	 * connection adds the routing envelope's `channel` field automatically).
+	 *
+	 * Rejects with an `Error` whose message begins with `Method not found`
+	 * when the channel is unknown or the host doesn't recognise the method.
+	 */
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	// ---- Session lifecycle --------------------------------------------------
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;

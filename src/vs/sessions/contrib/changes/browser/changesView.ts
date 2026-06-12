@@ -18,7 +18,6 @@ import { autorun, derived, derivedObservableWithCache, derivedOpts, IObservable,
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
@@ -230,8 +229,6 @@ export class ChangesViewPane extends ViewPane {
 	private filesHeaderNode: HTMLElement | undefined;
 	private fileHeaderToolbarContainer: HTMLElement | undefined;
 	private contentContainer: HTMLElement | undefined;
-	private overviewContainer: HTMLElement | undefined;
-	private summaryContainer: HTMLElement | undefined;
 	private listContainer: HTMLElement | undefined;
 	// Actions container is positioned outside the card for this layout experiment
 	private actionsContainer: HTMLElement | undefined;
@@ -405,10 +402,6 @@ export class ChangesViewPane extends ViewPane {
 			},
 		}));
 
-		// Overview section (header with summary only - actions moved outside card)
-		this.overviewContainer = dom.append(this.contentContainer, $('.chat-editing-session-overview'));
-		this.summaryContainer = dom.append(this.overviewContainer, $('.changes-summary'));
-
 		// Changes card progress bar
 		const progressContainer = dom.append(this.contentContainer, $('.changes-progress'));
 		this.changesProgressBar = this._register(new ProgressBar(progressContainer, defaultProgressBarStyles));
@@ -421,8 +414,6 @@ export class ChangesViewPane extends ViewPane {
 		this.welcomeContainer = dom.append(this.contentContainer, $('.changes-welcome'));
 		this.welcomeContainer.style.display = 'none';
 
-		const welcomeIcon = dom.append(this.welcomeContainer, $('.changes-welcome-icon'));
-		welcomeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		const welcomeMessage = dom.append(this.welcomeContainer, $('.changes-welcome-message'));
 		welcomeMessage.textContent = localize('changesView.noChanges', "Changed files and other session artifacts will appear here.");
 
@@ -555,7 +546,12 @@ export class ChangesViewPane extends ViewPane {
 		});
 
 		// Changes statistics
-		const topLevelStats = derived(reader => {
+		const topLevelStats = derivedObservableWithCache<{ files: number; added: number; removed: number } | undefined>(this, (reader, lastValue) => {
+			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
+			if (isLoading) {
+				return lastValue;
+			}
+
 			const entries = changesObs.read(reader);
 
 			let added = 0, removed = 0;
@@ -599,8 +595,8 @@ export class ChangesViewPane extends ViewPane {
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
 
-			const { files } = topLevelStats.read(reader);
-			const hasEntries = files > 0;
+			const stats = topLevelStats.read(reader);
+			const hasEntries = stats !== undefined && stats.files > 0;
 
 			// Show the files header whenever the session is git-backed (so users
 			// can switch version modes) or there are session-provided entries to
@@ -616,28 +612,6 @@ export class ChangesViewPane extends ViewPane {
 
 			this.layoutSplitView();
 		}));
-
-		// Update summary text (line counts only, file count is shown in badge)
-		if (this.summaryContainer) {
-			dom.clearNode(this.summaryContainer);
-
-			const linesAddedSpan = dom.$('.working-set-lines-added');
-			const linesRemovedSpan = dom.$('.working-set-lines-removed');
-
-			this.summaryContainer.appendChild(linesAddedSpan);
-			this.summaryContainer.appendChild(linesRemovedSpan);
-
-			this.renderDisposables.add(autorun(reader => {
-				if (this.viewModel.activeSessionIsLoadingObs.read(reader)) {
-					return;
-				}
-
-				const { added, removed } = topLevelStats.read(reader);
-
-				linesAddedSpan.textContent = `+${added}`;
-				linesRemovedSpan.textContent = `-${removed}`;
-			}));
-		}
 
 		// Create the tree
 		if (!this.tree && this.listContainer) {
@@ -718,7 +692,7 @@ export class ChangesViewPane extends ViewPane {
 		}));
 	}
 
-	private _bindContextKeys(topLevelStats: IObservable<{ files: number }>): void {
+	private _bindContextKeys(topLevelStats: IObservable<{ files: number } | undefined>): void {
 		// Request in progress (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.requestInProgress, this.scopedContextKeyService, reader => {
 			const activeSessionStatus = this.sessionManagementService.activeSession.read(reader)?.status.read(reader);
@@ -727,8 +701,8 @@ export class ChangesViewPane extends ViewPane {
 
 		// Has changes (can be updated independently since it only affects action enablement, and not visibility)
 		this.renderDisposables.add(bindContextKey(ChatContextKeys.hasAgentSessionChanges, this.scopedContextKeyService, reader => {
-			const { files } = topLevelStats.read(reader);
-			return files > 0;
+			const stats = topLevelStats.read(reader);
+			return stats !== undefined && stats.files > 0;
 		}));
 
 		// Bulk update the context keys
@@ -762,10 +736,10 @@ export class ChangesViewPane extends ViewPane {
 		if (!this.tree) {
 			return;
 		}
-		// Subtract overview/padding within the content container
-		const overviewHeight = this.overviewContainer?.offsetHeight ?? 0;
+
+		// Subtract the files header height within the content container
 		const filesHeaderHeight = this.filesHeaderNode?.offsetHeight ?? 0;
-		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight - overviewHeight);
+		const treeHeight = Math.max(0, paneHeight - filesHeaderHeight);
 		this.tree.layout(treeHeight, this.currentBodyWidth);
 		this.tree.getHTMLElement().style.height = `${treeHeight}px`;
 	}

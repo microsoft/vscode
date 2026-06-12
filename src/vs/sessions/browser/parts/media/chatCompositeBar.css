@@ -76,7 +76,7 @@
 	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	font-size: var(--vscode-agents-fontSize-heading3, 13px);
 	color: var(--chat-tab-active-foreground, var(--session-view-foreground));
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	min-height: 22px;
 	/* Match the input's inner padding so the rendered text and the rename
 		input's text occupy the same horizontal position. */
@@ -125,8 +125,8 @@
 	color: var(--vscode-input-foreground, inherit);
 	background-color: var(--vscode-input-background, transparent);
 	border: 1px solid var(--vscode-focusBorder, var(--vscode-input-border, transparent));
-	border-radius: 4px;
-	padding: 0 3px;
+	border-radius: var(--vscode-cornerRadius-small);
+	padding: 0 4px;
 	margin: 0;
 	outline: none;
 	min-height: 22px;
@@ -170,7 +170,7 @@
 .chat-composite-bar-meta-branch {
 	display: inline-flex;
 	align-items: center;
-	gap: 3px;
+	gap: 4px;
 	min-width: 0;
 	overflow: hidden;
 }
@@ -244,6 +244,7 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	height: 35px;
 	flex-direction: row;
 	align-items: center;
 	padding: 0 4px;
