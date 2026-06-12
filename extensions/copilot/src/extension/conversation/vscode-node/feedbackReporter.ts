@@ -196,6 +196,7 @@ export class FeedbackReporter extends Disposable implements IFeedbackReporter {
 export async function openIssueReporter(args: { title: string; issueBody?: string; data: string; public?: boolean }) {
 	await vscode.commands.executeCommand('workbench.action.openIssueReporter', {
 		issueTitle: args.title,
+		issueSource: 'vscode',
 		data: args.data,
 		issueBody: args.issueBody ?? '',
 		uri: vscode.Uri.parse(args.public ? 'https://github.com/microsoft/vscode' : 'https://github.com/microsoft/vscode-internalbacklog'),
