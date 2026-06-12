@@ -703,8 +703,10 @@ export interface IChatSessionsService {
 
 	/**
 	 * Returns whether the session type supports the synthetic "Auto" model
-	 * fallback. Defaults to true. When false and no models are available, the
-	 * picker shows a "No models available" state instead of "Auto".
+	 * fallback. The built-in local chat always supports it; contributed session
+	 * types default to `false` unless they set `supportsAutoModel`. When false
+	 * and no models are available, the picker shows a "No models available"
+	 * state instead of "Auto".
 	 */
 	supportsAutoModelForSessionType(chatSessionType: string): boolean;
 
