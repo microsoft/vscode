@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  '@types/vscode-notebook-renderer': 1.72.0
   eslint: 9.39.4
   node-gyp-build: 4.8.1
   node-gyp: 10.3.1
@@ -272,8 +273,8 @@ importers:
         specifier: ^2.0.7
         version: 2.0.7
       '@types/vscode-notebook-renderer':
-        specifier: ^1.72.0
-        version: 1.72.4
+        specifier: 1.72.0
+        version: 1.72.0
       '@types/wicg-file-system-access':
         specifier: ^2023.10.7
         version: 2023.10.7
@@ -1382,8 +1383,8 @@ importers:
         specifier: ^2.3.0
         version: 2.3.0
       '@types/vscode-notebook-renderer':
-        specifier: ^1.60.0
-        version: 1.72.4
+        specifier: 1.72.0
+        version: 1.72.0
       '@types/vscode-webview':
         specifier: ^1.57.0
         version: 1.57.5
@@ -1413,8 +1414,8 @@ importers:
         specifier: ^0.0.0
         version: 0.0.0
       '@types/vscode-notebook-renderer':
-        specifier: ^1.60.0
-        version: 1.72.4
+        specifier: 1.72.0
+        version: 1.72.0
 
   extensions/media-preview:
     dependencies:
@@ -1470,8 +1471,8 @@ importers:
         specifier: 24.x
         version: 24.13.0
       '@types/vscode-notebook-renderer':
-        specifier: ^1.72.0
-        version: 1.72.4
+        specifier: 1.72.0
+        version: 1.72.0
       '@vscode/codicons':
         specifier: ^0.0.36
         version: 0.0.36
@@ -1522,8 +1523,8 @@ importers:
         specifier: 24.x
         version: 24.13.0
       '@types/vscode-notebook-renderer':
-        specifier: ^1.60.0
-        version: 1.72.4
+        specifier: 1.72.0
+        version: 1.72.0
       jsdom:
         specifier: ^28.1.0
         version: 28.1.0
@@ -5416,8 +5417,8 @@ packages:
   '@types/vinyl@2.0.12':
     resolution: {integrity: sha512-Sr2fYMBUVGYq8kj3UthXFAu5UN6ZW+rYr4NACjZQJvHvj+c8lYv0CahmZ2P/r7iUkN44gGUBwqxZkrKXYPb7cw==}
 
-  '@types/vscode-notebook-renderer@1.72.4':
-    resolution: {integrity: sha512-bdKO41c6Dc24pH/O/eM/jqfCwGH4zc76o/g/6Gt1y/eg/bvvqP2/VpbV+Sa5Te2sZekFRcbYnSSFTKo3wcVGUg==}
+  '@types/vscode-notebook-renderer@1.72.0':
+    resolution: {integrity: sha512-5iTjb39DpLn03ULUwrDR3L2Dy59RV4blSUHy0oLdQuIY11PhgWO4mXIcoFS0VxY1GZQ4IcjSf3ooT2Jrrcahnw==}
 
   '@types/vscode-webview@1.57.5':
     resolution: {integrity: sha512-iBAUYNYkz+uk1kdsq05fEcoh8gJmwT3lqqFPN7MGyjQ3HVloViMdo7ZJ8DFIP8WOK74PjOEilosqAyxV2iUFUw==}
@@ -17547,7 +17548,7 @@ snapshots:
       '@types/expect': 1.20.4
       '@types/node': 22.19.19
 
-  '@types/vscode-notebook-renderer@1.72.4': {}
+  '@types/vscode-notebook-renderer@1.72.0': {}
 
   '@types/vscode-webview@1.57.5': {}
 
