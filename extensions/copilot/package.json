@@ -7152,7 +7152,8 @@
       "@types/node": "22.16.3",
       "vscode-languageserver-protocol": "3.17.5",
       "openai": "6.7.0",
-      "ws": "8.20.1"
+      "ws": "8.20.1",
+      "eslint": "9.39.4"
     },
     "onlyBuiltDependencies": [
       "@google/genai",
