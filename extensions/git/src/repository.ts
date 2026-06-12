@@ -1636,6 +1636,11 @@ export class Repository implements Disposable {
 		}
 
 		if (discardUntrackedChangesToTrash) {
+			// Snapshot file contents (capped) so we can offer an in-product Undo action
+			// after a successful move-to-trash. Files exceeding the per-file or total
+			// budget are still discarded but excluded from the snapshot.
+			const snapshots = await this._snapshotUntrackedForUndo(resources);
+
 			try {
 				// Attempt to move the first resource to the recycle bin/trash to check
 				// if it is supported. If it fails, we show a confirmation dialog and
@@ -1645,6 +1650,8 @@ export class Repository implements Disposable {
 				const limiter = new Limiter<void>(5);
 				await Promise.all(resources.slice(1).map(fsPath => limiter.queue(
 					async () => await workspace.fs.delete(Uri.file(fsPath), { useTrash: true }))));
+
+				this._showDiscardUntrackedUndoNotification(resources, snapshots);
 			} catch {
 				const message = isWindows
 					? l10n.t('Failed to delete using the Recycle Bin. Do you want to permanently delete instead?')
@@ -1662,6 +1669,72 @@ export class Repository implements Disposable {
 		} else {
 			await this.repository.clean(resources);
 		}
+	}
+
+	private static readonly _DiscardUntrackedUndoMaxFileSize = 5 * 1024 * 1024;
+	private static readonly _DiscardUntrackedUndoMaxTotalSize = 50 * 1024 * 1024;
+
+	private async _snapshotUntrackedForUndo(resources: string[]): Promise<Map<string, Buffer>> {
+		const snapshots = new Map<string, Buffer>();
+		let total = 0;
+
+		const limiter = new Limiter<void>(5);
+		await Promise.all(resources.map(fsPath => limiter.queue(async () => {
+			try {
+				const stat = await fsPromises.stat(fsPath);
+				if (!stat.isFile()) {
+					return;
+				}
+				if (stat.size > Repository._DiscardUntrackedUndoMaxFileSize) {
+					return;
+				}
+				if (total + stat.size > Repository._DiscardUntrackedUndoMaxTotalSize) {
+					return;
+				}
+				const buffer = await fsPromises.readFile(fsPath);
+				snapshots.set(fsPath, buffer);
+				total += buffer.length;
+			} catch {
+				// File may be inaccessible (permissions, symlink, etc.) - skip it.
+			}
+		})));
+
+		return snapshots;
+	}
+
+	private _showDiscardUntrackedUndoNotification(resources: string[], snapshots: Map<string, Buffer>): void {
+		if (snapshots.size === 0) {
+			return;
+		}
+
+		const message = resources.length === 1
+			? l10n.t("Discarded untracked file '{0}'.", path.basename(resources[0]))
+			: l10n.t('Discarded {0} untracked files.', resources.length);
+
+		const undo = l10n.t('Undo');
+
+		void window.showInformationMessage(message, undo).then(async pick => {
+			if (pick !== undo) {
+				return;
+			}
+
+			const failures: string[] = [];
+			const limiter = new Limiter<void>(5);
+			await Promise.all(Array.from(snapshots.entries()).map(([fsPath, buffer]) => limiter.queue(async () => {
+				try {
+					await fsPromises.mkdir(path.dirname(fsPath), { recursive: true });
+					await fsPromises.writeFile(fsPath, buffer, { flag: 'wx' });
+				} catch {
+					failures.push(fsPath);
+				}
+			})));
+
+			if (failures.length > 0) {
+				void window.showWarningMessage(failures.length === 1
+					? l10n.t("Could not restore '{0}'. The file may already exist or the location is no longer writable.", path.basename(failures[0]))
+					: l10n.t('Could not restore {0} of {1} files. They may already exist or their locations are no longer writable.', failures.length, snapshots.size));
+			}
+		});
 	}
 
 	closeDiffEditors(indexResources: string[] | undefined, workingTreeResources: string[] | undefined, ignoreSetting = false): void {
