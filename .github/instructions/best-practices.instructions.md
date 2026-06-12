@@ -13,12 +13,13 @@ applyTo: src/vs/**
 - Never add a separator while rendering an action. Add separators with the existing `Separator` class.
 - If a `MenuWorkbenchToolBar` lives in a widget/view that can be rendered multiple times at once, give the toolbar a scoped `IContextKeyService` which is scoped to the dom element of that widget/view and set the context keys per individual widget/view instance.
 
-## Editor Actions
+## Editor/Session Actions
 
-- Don't assume the action runs on the active editor. An editor action (e.g. one contributed to `MenuId.EditorTitle` or a tab context menu) can be triggered for an editor that isn't active. The `run` method receives arguments describing the invocation context (such as the originating editor group).
-- Resolve those arguments with `resolveCommandsContext` (`vs/workbench/browser/parts/editor/editorCommandsContext.ts`) to get the correct editor(s) instead of reading `editorService.activeEditor`. Use `EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })` to get the resource.
-- Support multi-selection. The resolved context can contain several editors (e.g. multi-selected tabs), so use `filter`/`flatMap` rather than `find` and act on all of them. Design the receiving APIs to accept an array (e.g. `attach(uris: URI[])`).
+- Don't assume the action runs on the active editor/session. An action (e.g. one contributed to some editor or session related toolbar) can be triggered for an editor/session that isn't active. The `run` method receives arguments describing the invocation context (such as the originating editor group or the originating session).
+- Resolve editor action arguments with `resolveCommandsContext` (`vs/workbench/browser/parts/editor/editorCommandsContext.ts`) to get the correct editor(s) instead of reading `editorService.activeEditor`.
+- Support multi-selection. The resolved editor actions context can contain several editors (e.g. multi-selected tabs).
 
-## URI Schemes
+## URI
 
 - Don't hardcode URI scheme strings like `'file'`, `'untitled'`, or `'vscode-remote'`. Use the `Schemas` constants from `vs/base/common/network.ts` (e.g. `Schemas.file`, `Schemas.untitled`, `Schemas.vscodeRemote`).
+- Don't compare URIs with `===` or `uri.toString()`. Use the comparison utilities from `vs/base/common/resources.ts`: `isEqual` for equality, `isEqualOrParent` for containment, and `getComparisonKey` when a URI is used as a map/set key. These handle path-case sensitivity and fragment/authority correctly. When you need explicit control over case sensitivity, use an `ExtUri` instance (`extUri`, `extUriIgnorePathCase`, or `extUriBiasedIgnorePathCase`) instead of the bound helpers.
