@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
-const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.lastSelectedSessionType1';
+const STORAGE_KEY_LAST_SESSION_TYPE = 'sessions.userSelectedSessionType';
 
 /**
  * A picked session type, paired with the provider that serves it. Two
