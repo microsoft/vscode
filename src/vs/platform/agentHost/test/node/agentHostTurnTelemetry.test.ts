@@ -27,16 +27,16 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	declare readonly _serviceBrand: undefined;
 	registerStaticChangesets(): void { }
 	restoreStaticChangeset(): void { }
-	parsePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	parsePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	applyPersistedStaticChangesets(): void { }
-	restorePersistedStaticChangesets(): { uncommitted?: undefined; session?: undefined } { return {}; }
+	restorePersistedStaticChangesets(): { session?: undefined } { return {}; }
 	persistChangesSummary(): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshBranchChangeset(): void { }
-	refreshUncommittedChangeset(): void { }
 	refreshSessionChangeset(): void { }
 	setTurnSubscriberProbe(): void { }
 	setUncommittedSubscriberProbe(): void { }
+	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
 	onToolCallEditsApplied(): void { }

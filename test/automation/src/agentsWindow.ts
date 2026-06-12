@@ -36,14 +36,15 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Start a new session from inside the Agents Window via the
-	 * `workbench.action.sessions.newChat` keybinding (Ctrl+L). The action
-	 * is not exposed in the command palette, so we drive it through its
-	 * key chord which works cross-platform (mac uses WinCtrl+L as the
-	 * secondary binding, which maps to plain Ctrl+L).
+	 * Start a new session from inside the Agents Window by executing
+	 * `workbench.action.sessions.newChat` via the command palette. We
+	 * avoid a raw keybinding dispatch because the action's Ctrl+L
+	 * binding is gated on `!editorAreaFocus`, which is false after
+	 * interacting with the chat editor.
 	 */
 	async startNewSession(): Promise<void> {
-		await this.code.dispatchKeybinding('ctrl+l', async () => this.waitForNewSessionView());
+		await this.quickaccess.runCommand('workbench.action.sessions.newChat');
+		await this.waitForNewSessionView();
 	}
 
 	/**
