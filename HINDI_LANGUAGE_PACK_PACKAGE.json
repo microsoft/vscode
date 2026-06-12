@@ -1,0 +1,275 @@
+{
+  "name": "vscode-language-pack-hi",
+  "displayName": "Hindi Language Pack",
+  "description": "हिंदी भाषा में Visual Studio Code का उपयोग करें",
+  "longDescription": "Visual Studio Code के लिए हिंदी भाषा पैकेज। इस पैकेज को स्थापित करने के बाद, आप VS Code को हिंदी में उपयोग कर सकते हैं।",
+  "version": "1.88.0",
+  "publisher": "ms-ceintl",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "homepage": "https://github.com/microsoft/vscode-language-packs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode-language-packs.git",
+    "directory": "i18n/vscode-language-pack-hi"
+  },
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode-language-packs/issues"
+  },
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Language Packs"
+  ],
+  "keywords": [
+    "hi",
+    "Hindi",
+    "हिंदी",
+    "Language Pack",
+    "भाषा पैकेज",
+    "Localization",
+    "स्थानीयकरण",
+    "India",
+    "Indian",
+    "भारत"
+  ],
+  "tags": [
+    "lp-hi"
+  ],
+  "galleryBanner": {
+    "color": "#FF9500",
+    "theme": "dark"
+  },
+  "icon": "icon.png",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "properties": {
+    "localizedLanguages": [
+      "हिंदी"
+    ]
+  },
+  "contributes": {
+    "localizations": [
+      {
+        "languageId": "hi",
+        "languageName": "हिंदी",
+        "localizedLanguageName": "Hindi",
+        "languageNameRecommendedOrder": 1,
+        "translations": [
+          {
+            "id": "vscode",
+            "path": "./translations/main.i18n.json"
+          },
+          {
+            "id": "vscode.bat",
+            "path": "./translations/extensions/bat.i18n.json"
+          },
+          {
+            "id": "vscode.clojure",
+            "path": "./translations/extensions/clojure.i18n.json"
+          },
+          {
+            "id": "vscode.coffeescript",
+            "path": "./translations/extensions/coffeescript.i18n.json"
+          },
+          {
+            "id": "vscode.cpp",
+            "path": "./translations/extensions/cpp.i18n.json"
+          },
+          {
+            "id": "vscode.csharp",
+            "path": "./translations/extensions/csharp.i18n.json"
+          },
+          {
+            "id": "vscode.css",
+            "path": "./translations/extensions/css.i18n.json"
+          },
+          {
+            "id": "vscode.css-language-features",
+            "path": "./translations/extensions/css-language-features.i18n.json"
+          },
+          {
+            "id": "vscode.dart",
+            "path": "./translations/extensions/dart.i18n.json"
+          },
+          {
+            "id": "vscode.debug-auto-launch",
+            "path": "./translations/extensions/debug-auto-launch.i18n.json"
+          },
+          {
+            "id": "vscode.debug-server-ready",
+            "path": "./translations/extensions/debug-server-ready.i18n.json"
+          },
+          {
+            "id": "vscode.diff",
+            "path": "./translations/extensions/diff.i18n.json"
+          },
+          {
+            "id": "vscode.docker",
+            "path": "./translations/extensions/docker.i18n.json"
+          },
+          {
+            "id": "vscode.dotenv",
+            "path": "./translations/extensions/dotenv.i18n.json"
+          },
+          {
+            "id": "vscode.emmet",
+            "path": "./translations/extensions/emmet.i18n.json"
+          },
+          {
+            "id": "vscode.extension-editing",
+            "path": "./translations/extensions/extension-editing.i18n.json"
+          },
+          {
+            "id": "vscode.fsharp",
+            "path": "./translations/extensions/fsharp.i18n.json"
+          },
+          {
+            "id": "vscode.git",
+            "path": "./translations/extensions/git.i18n.json"
+          },
+          {
+            "id": "vscode.git-base",
+            "path": "./translations/extensions/git-base.i18n.json"
+          },
+          {
+            "id": "vscode.go",
+            "path": "./translations/extensions/go.i18n.json"
+          },
+          {
+            "id": "vscode.groovy",
+            "path": "./translations/extensions/groovy.i18n.json"
+          },
+          {
+            "id": "vscode.gulp",
+            "path": "./translations/extensions/gulp.i18n.json"
+          },
+          {
+            "id": "vscode.html",
+            "path": "./translations/extensions/html.i18n.json"
+          },
+          {
+            "id": "vscode.html-language-features",
+            "path": "./translations/extensions/html-language-features.i18n.json"
+          },
+          {
+            "id": "vscode.java",
+            "path": "./translations/extensions/java.i18n.json"
+          },
+          {
+            "id": "vscode.javascript",
+            "path": "./translations/extensions/javascript.i18n.json"
+          },
+          {
+            "id": "vscode.json",
+            "path": "./translations/extensions/json.i18n.json"
+          },
+          {
+            "id": "vscode.json-language-features",
+            "path": "./translations/extensions/json-language-features.i18n.json"
+          },
+          {
+            "id": "vscode.markdown-language-features",
+            "path": "./translations/extensions/markdown-language-features.i18n.json"
+          },
+          {
+            "id": "vscode.markdown-math",
+            "path": "./translations/extensions/markdown-math.i18n.json"
+          },
+          {
+            "id": "vscode.merge-conflict",
+            "path": "./translations/extensions/merge-conflict.i18n.json"
+          },
+          {
+            "id": "vscode.npm",
+            "path": "./translations/extensions/npm.i18n.json"
+          },
+          {
+            "id": "vscode.php",
+            "path": "./translations/extensions/php.i18n.json"
+          },
+          {
+            "id": "vscode.php-language-features",
+            "path": "./translations/extensions/php-language-features.i18n.json"
+          },
+          {
+            "id": "vscode.powershell",
+            "path": "./translations/extensions/powershell.i18n.json"
+          },
+          {
+            "id": "vscode.python",
+            "path": "./translations/extensions/python.i18n.json"
+          },
+          {
+            "id": "vscode.ruby",
+            "path": "./translations/extensions/ruby.i18n.json"
+          },
+          {
+            "id": "vscode.rust",
+            "path": "./translations/extensions/rust.i18n.json"
+          },
+          {
+            "id": "vscode.scss",
+            "path": "./translations/extensions/scss.i18n.json"
+          },
+          {
+            "id": "vscode.shellscript",
+            "path": "./translations/extensions/shellscript.i18n.json"
+          },
+          {
+            "id": "vscode.sql",
+            "path": "./translations/extensions/sql.i18n.json"
+          },
+          {
+            "id": "vscode.swift",
+            "path": "./translations/extensions/swift.i18n.json"
+          },
+          {
+            "id": "vscode.typescript-basics",
+            "path": "./translations/extensions/typescript-basics.i18n.json"
+          },
+          {
+            "id": "vscode.typescript-language-features",
+            "path": "./translations/extensions/typescript-language-features.i18n.json"
+          },
+          {
+            "id": "vscode.xml",
+            "path": "./translations/extensions/xml.i18n.json"
+          },
+          {
+            "id": "vscode.yaml",
+            "path": "./translations/extensions/yaml.i18n.json"
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node build.js",
+    "test": "node test.js",
+    "compile": "npm run build",
+    "watch": "npm run build -- --watch",
+    "validate": "node validate.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.88.0",
+    "typescript": "^5.0.0",
+    "vsce": "^2.15.0"
+  },
+  "extensionPack": [],
+  "sponsors": [
+    {
+      "url": "https://github.com/microsoft",
+      "title": "Microsoft"
+    }
+  ],
+  "__metadata": {
+    "id": "language-pack-hi-8b7e4c8d-9f2a-4e1c-b5d6-7a3e8c1b9f2a",
+    "publisherDisplayName": "Microsoft",
+    "publisherId": "5f5636e7-69ed-4aadf-b0a6-6213757146d2",
+    "targetPlatform": "universal"
+  }
+}

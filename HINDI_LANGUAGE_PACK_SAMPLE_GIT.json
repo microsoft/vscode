@@ -1,0 +1,95 @@
+{
+  "vs/workbench/contrib/git/browser/gitActions": {
+    "clone": "क्लोन करें",
+    "openRepository": "भंडार खोलें",
+    "init": "भंडार आरंभ करें"
+  },
+  "vs/workbench/contrib/git/browser/gitStatus": {
+    "changes": "परिवर्तन",
+    "modified": "संशोधित",
+    "deleted": "हटाया गया",
+    "untracked": "ट्रैक नहीं किया गया",
+    "added": "जोड़ा गया",
+    "renamed": "नाम बदला गया"
+  },
+  "vs/workbench/contrib/git/browser/gitSCMProvider": {
+    "commit": "प्रतिबद्ध करें",
+    "push": "धकेलें",
+    "pull": "खींचें",
+    "sync": "सिंक करें",
+    "discard": "छोड़ दें",
+    "unstage": "अस्थिर करें",
+    "stage": "मंच करें"
+  },
+  "vs/workbench/contrib/git/browser/gitTimeline": {
+    "timeline": "समयरेखा",
+    "commit": "प्रतिबद्ध {0}",
+    "commitDetails": "प्रतिबद्धता विवरण"
+  },
+  "vs/workbench/contrib/git/browser/branches": {
+    "create": "शाखा बनाएं",
+    "delete": "शाखा हटाएं",
+    "rename": "शाखा का नाम बदलें",
+    "publish": "शाखा प्रकाशित करें",
+    "checkout": "शाखा की जांच करें"
+  },
+  "vs/workbench/contrib/git/common/gitCommands": {
+    "clone.label": "भंडार क्लोन करें...",
+    "init.label": "भंडार को आरंभ करें",
+    "openRepository.label": "भंडार खोलें",
+    "close.label": "भंडार बंद करें",
+    "refresh.label": "रीफ्रेश",
+    "openChange.label": "परिवर्तन खोलें",
+    "openFile.label": "फ़ाइल खोलें",
+    "openHEAD.label": "HEAD संस्करण खोलें",
+    "stage.label": "मंच में परिवर्तन",
+    "stageAll.label": "सभी परिवर्तनों को मंच में करें",
+    "unstage.label": "परिवर्तन को अस्थिर करें",
+    "unstageAll.label": "सभी परिवर्तनों को अस्थिर करें",
+    "commit.label": "प्रतिबद्ध करें",
+    "commitAll.label": "सभी परिवर्तनों को प्रतिबद्ध करें",
+    "undoCommit.label": "अंतिम प्रतिबद्धता को पूर्ववत् करें",
+    "push.label": "धकेलें",
+    "pushTo.label": "में धकेलें",
+    "pull.label": "खींचें",
+    "sync.label": "सिंक करें",
+    "publish.label": "प्रकाशित करें",
+    "createBranch.label": "शाखा बनाएं",
+    "deleteBranch.label": "शाखा हटाएं",
+    "renameBranch.label": "शाखा का नाम बदलें"
+  },
+  "vs/workbench/contrib/git/browser/dirtydiffDecorator": {
+    "diff.insertedLines": "जोड़ी गई पंक्तियां",
+    "diff.deletedLines": "हटाई गई पंक्तियां",
+    "diff.modifiedLines": "संशोधित पंक्तियां"
+  },
+  "vs/workbench/contrib/git/browser/gitDecorations": {
+    "deleted": "हटाया गया",
+    "modified": "संशोधित",
+    "added": "जोड़ा गया",
+    "renamed": "नाम बदला गया",
+    "untracked": "ट्रैक नहीं किया गया"
+  },
+  "vs/workbench/contrib/git/browser/gitHistoryQuickPick": {
+    "log": "प्रतिबद्धता इतिहास"
+  },
+  "vs/workbench/contrib/git/browser/gitInputBox": {
+    "commitMessage": "प्रतिबद्धता संदेश",
+    "addUntracked": "अनुपयोगी फ़ाइलें जोड़ें"
+  },
+  "vs/workbench/contrib/git/browser/tags": {
+    "create": "टैग बनाएं",
+    "delete": "टैग हटाएं",
+    "deleteMultiple": "टैग हटाएं"
+  },
+  "vs/workbench/contrib/git/browser/remotes": {
+    "add": "दूरवर्ती जोड़ें",
+    "remove": "दूरवर्ती हटाएं",
+    "rename": "दूरवर्ती का नाम बदलें"
+  },
+  "vs/workbench/contrib/git/browser/stashActions": {
+    "stash": "परिवर्तन स्टैश करें",
+    "stashAll": "सभी परिवर्तनों को स्टैश करें",
+    "stashUntracked": "अनुपयोगी फ़ाइलों को स्टैश करें"
+  }
+}

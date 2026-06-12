@@ -1,0 +1,130 @@
+{
+  "vs/base/browser/ui/actionbar/actionbar": {
+    "moreActions": "अन्य कार्यों को प्रदर्शित करें"
+  },
+  "vs/base/browser/ui/button/button": {
+    "ok": "ठीक है",
+    "cancel": "रद्द करें"
+  },
+  "vs/base/browser/ui/contextmenu/contextmenu": {
+    "entries.more": "अधिक"
+  },
+  "vs/base/browser/ui/dropdown/dropdown": {
+    "error": "त्रुटि"
+  },
+  "vs/base/browser/ui/findinput/findinput": {
+    "notebookFindInSelection": "चयन में ही खोजें"
+  },
+  "vs/base/browser/ui/menu/menu": {
+    "mnemonic": "{0} ({1})"
+  },
+  "vs/base/browser/ui/notebook/notebookLogoRenderer": {
+    "title": "नोटबुक"
+  },
+  "vs/workbench/browser/actions/windowActions": {
+    "exitFullScreen": "पूर्ण स्क्रीन से बाहर निकलें",
+    "toggleFullScreen": "पूर्ण स्क्रीन को वैकल्पिक करें"
+  },
+  "vs/workbench/browser/layout/layoutController": {
+    "openActivityBar": "गतिविधि बार खोलें",
+    "closeActivityBar": "गतिविधि बार बंद करें"
+  },
+  "vs/workbench/browser/parts/editor/editorPart": {
+    "close": "बंद करें",
+    "closeAll": "सभी को बंद करें",
+    "closeOthers": "अन्य को बंद करें",
+    "closeToTheRight": "दाईं ओर के को बंद करें",
+    "revert": "प्रतिवर्त करें"
+  },
+  "vs/workbench/browser/parts/globalCommentingThread": {
+    "globalCommentingThreadTitle": "वैश्विक टिप्पणियां"
+  },
+  "vs/workbench/browser/parts/notifications/notificationsCenter": {
+    "notifications": "सूचनाएं"
+  },
+  "vs/workbench/browser/parts/sidebarscontroller": {
+    "hideSidebar": "साइडबार छिपाएं",
+    "showLeftSidebar": "बाएं साइडबार दिखाएं",
+    "showRightSidebar": "दाएं साइडबार दिखाएं"
+  },
+  "vs/workbench/browser/parts/statusbar/statusbar": {
+    "tooltip": "स्थिति पट्टी"
+  },
+  "vs/workbench/browser/parts/titlebar/titlebarPart": {
+    "prefixLabel": "{0}"
+  },
+  "vs/workbench/browser/workbench": {
+    "quickOpen": "शीघ्र खोलें"
+  },
+  "vs/workbench/contrib/accessibility/browser/accessibilityStatus": {
+    "singleTabFocusMode": "एकल टैब फ़ोकस मोड",
+    "screenReaderDetected": "स्क्रीन रीडर पहचाना गया"
+  },
+  "vs/workbench/contrib/debug/browser/debugConsolePanel": {
+    "debugConsole": "डीबग कंसोल"
+  },
+  "vs/workbench/contrib/debug/browser/debugViewlet": {
+    "debug": "डीबग करें"
+  },
+  "vs/workbench/contrib/extensions/browser/extensionsViewlet": {
+    "extensions": "एक्सटेंशन"
+  },
+  "vs/workbench/contrib/files/browser/explorerViewlet": {
+    "files": "फ़ाइलें"
+  },
+  "vs/workbench/contrib/scm/browser/scmViewlet": {
+    "scm": "स्रोत नियंत्रण"
+  },
+  "vs/workbench/contrib/search/browser/searchViewlet": {
+    "search": "खोजें"
+  },
+  "vs/editor/browser/services/command": {
+    "title": "शीर्षक",
+    "keybinding": "कुंजी संयोजन",
+    "source": "स्रोत"
+  },
+  "vs/editor/browser/widget/codeEditorWidget": {
+    "actions.editor.goto": "लाइन {0}, कॉलम {1} पर जाएं"
+  },
+  "vs/editor/contrib/command/commandPalette": {
+    "commands.open": "कमांड पैलेट खोलें"
+  },
+  "vs/editor/contrib/find/findWidget": {
+    "find": "खोजें",
+    "nextMatchFindAction": "अगला खोजें",
+    "prevMatchFindAction": "पिछला खोजें",
+    "toggleSelectionFind": "चयन में खोजें",
+    "replace": "बदलें",
+    "replaceAll": "सभी को बदलें"
+  },
+  "vs/editor/contrib/goToDefinition/goToDefinition": {
+    "goToDefinition": "परिभाषा पर जाएं"
+  },
+  "vs/editor/contrib/indentation/indentation": {
+    "indentationToSpaces": "इंडेंटेशन को स्पेस में परिवर्तित करें",
+    "indentationToTabs": "इंडेंटेशन को टैब में परिवर्तित करें"
+  },
+  "vs/editor/contrib/lineNumbers/lineNumbers": {
+    "lineNumbers": "लाइन संख्या"
+  },
+  "vs/platform/actions/common/actions": {
+    "label": "लेबल",
+    "category": "श्रेणी",
+    "when": "कब"
+  },
+  "vs/platform/configuration/common/configurationRegistry": {
+    "defaultLanguage": "डिफ़ॉल्ट भाषा"
+  },
+  "vs/platform/files/common/files": {
+    "exclude": "बहिष्कृत करें",
+    "encoding": "एन्कोडिंग",
+    "autoGuessEncoding": "एन्कोडिंग का स्वचालित अनुमान लगाएं"
+  },
+  "vs/platform/quickinput/browser/commandsQuickAccess": {
+    "noCommandsMatching": "कोई मेल खाने वाली कमांड नहीं"
+  },
+  "vs/platform/theme/common/themingRegistry": {
+    "colors": "रंग",
+    "textBlockQuoteBackground": "टेक्स्ट ब्लॉक कोट की पृष्ठभूमि"
+  }
+}
