@@ -38,15 +38,29 @@ let externalProvider: ExternalTokenizerProvider | undefined;
 
 /**
  * Registers a host tokenizer used instead of loading this module's own BPE
- * dictionaries. Call before the first {@link getTokenizer} /
- * {@link initializeTokenizers} use, e.g. during host startup.
+ * dictionaries. Must be called once, before the first
+ * {@link initializeTokenizers} await (e.g. during host startup) — throws on
+ * re-registration or after this module's own dictionary load has started, so
+ * the load strategy cannot silently switch mid-session.
  */
 export function setExternalTokenizerProvider(provider: ExternalTokenizerProvider): void {
+	if (externalProvider) {
+		throw new Error('External tokenizer provider is already registered');
+	}
+	if (ownLoadPromise) {
+		throw new Error('Cannot register an external tokenizer provider after the built-in tokenizers started loading');
+	}
 	externalProvider = provider;
 }
 
 export function getTokenizer(name: TokenizerName = TokenizerName.o200k): Tokenizer {
-	if (externalProvider) { return externalProvider.getTokenizer(name); }
+	if (externalProvider) {
+		try {
+			return externalProvider.getTokenizer(name);
+		} catch {
+			// Preserve this function's never-throws contract; fall back below.
+		}
+	}
 	let tokenizer = tokenizers.get(name);
 	if (tokenizer !== undefined) { return tokenizer; }
 	// Fallback to o200k
@@ -411,9 +425,20 @@ async function setTokenizer(name: TokenizerName) {
 tokenizers.set(TokenizerName.mock, new MockTokenizer());
 
 let ownLoadPromise: Promise<void> | undefined;
+let externalLoadPromise: Promise<void> | undefined;
 
 function loadTokenizers(): Promise<void> {
-	if (externalProvider) { return externalProvider.ensureLoaded(); }
+	if (externalProvider) {
+		const provider = externalProvider;
+		// Single-flight: concurrent awaits share one ensureLoaded() call. Like
+		// the built-in path (setTokenizer swallows load errors), the gate never
+		// rejects — but a failed attempt clears the memo so a later await can
+		// retry instead of pinning approximate tokenization forever.
+		externalLoadPromise ??= Promise.resolve().then(() => provider.ensureLoaded()).catch(() => {
+			externalLoadPromise = undefined;
+		});
+		return externalLoadPromise;
+	}
 	ownLoadPromise ??= Promise.all([setTokenizer(TokenizerName.cl100k), setTokenizer(TokenizerName.o200k)]).then(() => undefined);
 	return ownLoadPromise;
 }
@@ -425,7 +450,9 @@ function loadTokenizers(): Promise<void> {
  * module evaluation. That gives an embedding host the chance to register an
  * {@link setExternalTokenizerProvider | external provider} first, in which
  * case awaiting this defers to the host's dictionaries and this module's own
- * dictionaries are never loaded.
+ * dictionaries are never loaded. Like before, awaiting never rejects — load
+ * failures (built-in or external) resolve and leave the approximate
+ * tokenizer fallback in place.
  */
 export const initializeTokenizers: Promise<void> = {
 	then<TResult1 = void, TResult2 = never>(

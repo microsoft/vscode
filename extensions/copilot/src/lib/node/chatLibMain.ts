@@ -411,7 +411,7 @@ function setupServices(options: INESProviderOptions) {
 	builder.define(IChatQuotaService, new SyncDescriptor(ChatQuotaService));
 	builder.define(IInteractionService, new SyncDescriptor(InteractionService));
 	builder.define(IRequestLogger, new SyncDescriptor(NullRequestLogger));
-	builder.define(ITokenizerProvider, options.tokenizerProvider || new SyncDescriptor(TokenizerProvider, [false]));
+	builder.define(ITokenizerProvider, options.tokenizerProvider ?? new SyncDescriptor(TokenizerProvider, [false]));
 	builder.define(IConversationOptions, {
 		_serviceBrand: undefined,
 		maxResponseTokens: undefined,
