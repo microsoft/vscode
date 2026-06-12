@@ -283,8 +283,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private getTopmostElementAt(clientX: number, clientY: number, overlays: ReadonlyArray<{ element: HTMLElement; type: BrowserOverlayType }>): Element | null {
-		// `elementsFromPoint` returns hits front-to-back; skip the transparent
-		// `.context-view-block` so the overlay painted beneath it is found.
+		// `elementsFromPoint` returns hits front-to-back. Get the first relevant one.
 		let elementAtPoint = this.targetWindow.document.elementsFromPoint(clientX, clientY)
 			.find(el => !el.classList.contains(CONTEXT_VIEW_BLOCK_CLASS)) ?? null;
 		// `elementsFromPoint` does not pierce shadow DOM, so drill into the host
