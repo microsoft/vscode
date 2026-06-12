@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from '../../../../base/common/collections.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { Event } from '../../../../base/common/event.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from '../../../../platform/policy/common/policy.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
 

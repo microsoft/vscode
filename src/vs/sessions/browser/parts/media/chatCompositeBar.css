@@ -244,6 +244,7 @@
 	position: absolute;
 	top: 0px;
 	right: 0px;
+	height: 35px;
 	flex-direction: row;
 	align-items: center;
 	padding: 0 4px;
