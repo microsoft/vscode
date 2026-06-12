@@ -10,7 +10,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { isSessionTypeLockedForEntitlement } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeUpgrade.js';
+import { getSessionTypeAvailability, getSessionTypeUnavailableLabel, SessionTypeAvailability } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -90,14 +90,14 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		for (const { providerId, sessionType } of this._folderSessionTypes) {
 			const isFirstInGroup = providerId !== lastProviderId;
 			lastProviderId = providerId;
-			const lockedForEntitlement = isSessionTypeLockedForEntitlement(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.id);
+			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.id);
 			sheetItems.push({
 				id: `${providerId}\u0000${sessionType.id}`,
 				label: sessionType.label,
 				icon: sessionType.icon,
 				checked: providerId === this._picked?.providerId && sessionType.id === this._picked?.sessionTypeId,
-				disabled: lockedForEntitlement,
-				description: lockedForEntitlement ? localize('mobileSessionTypePicker.upgradeRequired', "Requires GitHub Copilot Pro") : undefined,
+				disabled: availability !== SessionTypeAvailability.Available,
+				description: getSessionTypeUnavailableLabel(availability),
 				sectionTitle: providersWithDuplicates.has(providerId) && isFirstInGroup ? (this._sessionsProvidersService.getProvider(providerId)?.label ?? providerId) : undefined,
 			});
 		}

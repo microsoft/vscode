@@ -24,7 +24,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { getSessionTypeUpgradeDescription, getSessionTypeUpgradeHover, isSessionTypeLockedForEntitlement } from '../../agentSessions/sessionTypeUpgrade.js';
+import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { ChatConfiguration, getDefaultNewChatSessionType } from '../../../common/constants.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
@@ -71,18 +71,19 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
-					const lockedForEntitlement = isSessionTypeLockedForEntitlement(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
+					const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionTypeItem.type);
+					const unavailable = availability !== SessionTypeAvailability.Available;
 					actions.push({
 						...action,
 						id: sessionTypeItem.commandId,
 						label: sessionTypeItem.label,
 						checked: currentType === sessionTypeItem.type,
 						icon: this._getSessionIcon(sessionTypeItem),
-						enabled: lockedForEntitlement ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
+						enabled: unavailable ? false : this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
-						description: lockedForEntitlement ? getSessionTypeUpgradeDescription() : this._getSessionDescription(sessionTypeItem),
+						description: getSessionTypeUnavailableDescription(availability) ?? this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: lockedForEntitlement ? getSessionTypeUpgradeHover() : sessionTypeItem.hoverDescription },
+						hover: { content: getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},

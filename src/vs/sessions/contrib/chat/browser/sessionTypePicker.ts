@@ -22,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { getSessionTypeUpgradeDescription, getSessionTypeUpgradeHover, isSessionTypeLockedForEntitlement } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeUpgrade.js';
+import { getSessionTypeAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../../../workbench/contrib/chat/browser/agentSessions/sessionTypeAvailability.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 
@@ -242,17 +242,18 @@ export class SessionTypePicker extends Disposable {
 			const isFirstInGroup = providerId !== lastProviderId;
 			lastProviderId = providerId;
 			const isCurrent = this._picked?.providerId === providerId && this._picked?.sessionTypeId === sessionType.id;
-			const lockedForEntitlement = isSessionTypeLockedForEntitlement(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.id);
+			const availability = getSessionTypeAvailability(this.chatSessionsService, this.chatEntitlementService, this.languageModelsService, sessionType.id);
+			const unavailable = availability !== SessionTypeAvailability.Available;
 			const item: ISessionTypePickerItem = isCurrent
 				? { providerId, sessionTypeId: sessionType.id, label: sessionType.label, checked: true }
 				: { providerId, sessionTypeId: sessionType.id, label: sessionType.label };
 			groupedItems.push({
 				kind: ActionListItemKind.Action,
 				label: sessionType.label,
-				disabled: lockedForEntitlement,
-				...(lockedForEntitlement ? {
-					description: getSessionTypeUpgradeDescription(),
-					hover: { content: getSessionTypeUpgradeHover() },
+				disabled: unavailable,
+				...(unavailable ? {
+					description: getSessionTypeUnavailableDescription(availability),
+					hover: { content: getSessionTypeUnavailableHover(availability) },
 				} : {}),
 				group: providersWithDuplicates.has(providerId) ? {
 					title: isFirstInGroup ? groupTitle : '',
