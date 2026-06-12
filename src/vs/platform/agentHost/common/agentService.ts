@@ -112,9 +112,13 @@ export const AgentHostCodexAgentEnabledEnvVar = 'VSCODE_AGENT_HOST_CODEX_AGENT_E
 
 /**
  * Resolves the effective enable state for a Claude/Codex provider from the
- * env-var value forwarded by the starter. `'false'` (case-insensitive) is
- * the only value that disables; everything else — including the empty string
- * and `undefined` — falls through to {@link defaultEnabled}.
+ * env-var value forwarded by the starter. Recognized values (case- and
+ * whitespace-insensitive):
+ *
+ *  - `'true'`  / `'1'` → enabled
+ *  - `'false'` / `'0'` → disabled
+ *  - `undefined`, empty string, or any other value → falls through to
+ *    {@link defaultEnabled}
  */
 export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boolean): boolean {
 	if (envValue === undefined || envValue === '') {
