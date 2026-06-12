@@ -93,7 +93,10 @@ onlyBuiltDependencies:
   - '@vscode/windows-mutex'
   - '@vscode/windows-process-tree'
   - '@vscode/windows-registry'
-  - 'bufferutil'
+  # bufferutil and utf-8-validate are optional peer dependencies of `ws`. They
+  # are never required at runtime by the product and npm (legacy) does not
+  # install optional peers, so they were never built. pnpm DOES install them,
+  # so we keep them out of the allowlist to avoid spurious native compiles.
   - 'cpu-features'
   - 'electron'
   - 'esbuild'
@@ -114,7 +117,6 @@ onlyBuiltDependencies:
   - 'tree-sitter'
   - 'tree-sitter-javascript'
   - 'tree-sitter-typescript'
-  - 'utf-8-validate'
   # windows-foreground-love is an OS-specific optional dependency (Windows
   # only) but its package.json lacks the `os: ['win32']` constraint, so pnpm
   # tries to install it on all platforms. Excluding it from the build

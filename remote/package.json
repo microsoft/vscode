@@ -69,13 +69,11 @@
       "@vscode/sqlite3",
       "@vscode/windows-process-tree",
       "@vscode/windows-registry",
-      "bufferutil",
       "cpu-features",
       "kerberos",
       "node-gyp-build",
       "node-pty",
-      "ssh2",
-      "utf-8-validate"
+      "ssh2"
     ]
   }
 }
