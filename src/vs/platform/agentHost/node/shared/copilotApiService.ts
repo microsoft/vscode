@@ -798,6 +798,9 @@ export class CopilotApiService implements ICopilotApiService {
 		this._clientsByToken.delete(githubToken);
 	}
 
+	protected getIntegrationId(): string | undefined {
+		return COPILOT_INTEGRATION_ID;
+	}
 	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
 		const { extensionInfo, userUrl } = await this._getCapiBase();
 		const fetch = this._fetch;
@@ -808,7 +811,7 @@ export class CopilotApiService implements ICopilotApiService {
 				body: options.body,
 				signal: options.signal as AbortSignal | undefined,
 			}),
-		}, undefined, COPILOT_INTEGRATION_ID);
+		}, undefined, this.getIntegrationId());
 
 		this._logService.debug('[CopilotApiService] Discovering CAPI endpoints via /copilot_internal/user');
 
