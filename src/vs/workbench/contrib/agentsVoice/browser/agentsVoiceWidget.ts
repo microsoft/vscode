@@ -239,6 +239,8 @@ export class AgentsVoiceWidget extends Disposable {
 			const win = getWindow(this.container);
 			// Track which key triggered PTT so keyup releases correctly
 			// even when the user rebinds pushToTalk to a different key.
+			// We capture the last keydown code at the document level (capture
+			// phase) before the VS Code keybinding handler fires pttDown.
 			let pttKeyCode: string | undefined;
 			let lastKeyDownCode: string | undefined;
 			const onDocKeydown = (e: KeyboardEvent) => { lastKeyDownCode = e.code; };
@@ -247,6 +249,8 @@ export class AgentsVoiceWidget extends Disposable {
 
 			this.container.addEventListener('keydown', (e: KeyboardEvent) => {
 				if (!_isTextInput(e.target) && pttKeyCode && e.code === pttKeyCode) {
+					// Prevent repeat keydowns from activating focused child
+					// buttons (role="button" elements fire click on Space).
 					e.preventDefault();
 				}
 			});
@@ -264,6 +268,7 @@ export class AgentsVoiceWidget extends Disposable {
 				pttKeyCode = lastKeyDownCode;
 				origPttDown.call(this.callbacks);
 			};
+			// Catch pointerup outside the container too (mirrors the chat view pane behavior)
 			const onDocPointerUp = () => this.callbacks.pttUp();
 			win.document.addEventListener('pointerup', onDocPointerUp);
 			this._register(toDisposable(() => win.document.removeEventListener('pointerup', onDocPointerUp)));
