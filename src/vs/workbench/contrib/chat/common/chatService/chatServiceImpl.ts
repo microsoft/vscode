@@ -1481,8 +1481,11 @@ export class ChatService extends Disposable implements IChatService {
 								...rawResult.errorDetails,
 								message: buildQuotaExceededMessage({
 									entitlement: this.chatEntitlementService.entitlement,
+									usageBasedBilling: this.chatEntitlementService.quotas.usageBasedBilling,
 									quotaResetDate: this.chatEntitlementService.quotas.resetDate,
 									quotaResetDateHasTime: this.chatEntitlementService.quotas.resetDateHasTime,
+									code: rawResult.errorDetails.quotaExceededCode,
+									serverMessage: rawResult.errorDetails.message,
 								}),
 							},
 						};

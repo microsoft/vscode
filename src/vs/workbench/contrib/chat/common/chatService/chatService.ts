@@ -61,6 +61,12 @@ export interface IChatResponseErrorDetails {
 	isQuotaExceeded?: boolean;
 	isRateLimited?: boolean;
 	/**
+	 * Backend (CAPI) quota error code (e.g. `overage_limit_reached`), forwarded
+	 * verbatim by the provider so core can render the exact, plan-aware quota
+	 * message. Only meaningful when {@link isQuotaExceeded} is set.
+	 */
+	quotaExceededCode?: string;
+	/**
 	 * If true, the error is an expected operational condition (e.g. user-actionable
 	 * configuration, network connectivity, missing dependency) and should not be
 	 * logged as a `chatAgentError` telemetry event.

@@ -1467,6 +1467,11 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(details, { message: 'Credit limit reached', isQuotaExceeded: true });
 		});
 
+		test('quota error forwards the backend code', () => {
+			const details = errorInfoToChatErrorDetails({ errorType: 'quota', message: 'Credit limit reached', code: 'overage_limit_reached' });
+			assert.deepStrictEqual(details, { message: 'Credit limit reached', isQuotaExceeded: true, quotaExceededCode: 'overage_limit_reached' });
+		});
+
 		test('rate_limit error maps to isRateLimited', () => {
 			const details = errorInfoToChatErrorDetails({ errorType: 'rate_limit', message: 'Slow down' });
 			assert.deepStrictEqual(details, { message: 'Slow down', isRateLimited: true });

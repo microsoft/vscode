@@ -161,7 +161,7 @@ const enum AgentHostErrorType {
 export function errorInfoToChatErrorDetails(error: ErrorInfo): IChatResponseErrorDetails {
 	return {
 		message: error.message,
-		...(error.errorType === AgentHostErrorType.Quota ? { isQuotaExceeded: true } : {}),
+		...(error.errorType === AgentHostErrorType.Quota ? { isQuotaExceeded: true, ...(error.code ? { quotaExceededCode: error.code } : {}) } : {}),
 		...(error.errorType === AgentHostErrorType.RateLimit ? { isRateLimited: true } : {}),
 	};
 }

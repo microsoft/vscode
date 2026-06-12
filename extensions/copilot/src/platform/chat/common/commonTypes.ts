@@ -425,7 +425,7 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			details = {
 				message: getQuotaHitMessage(fetchResult, copilotPlan, isUsageBasedBilling, quotaResetDate),
 				isQuotaExceeded: true,
-				...(fetchResult.capiError?.code && { code: fetchResult.capiError.code }),
+				...(fetchResult.capiError?.code && { code: fetchResult.capiError.code, quotaExceededCode: fetchResult.capiError.code }),
 			};
 			break;
 		case ChatFetchResponseType.BadRequest:
