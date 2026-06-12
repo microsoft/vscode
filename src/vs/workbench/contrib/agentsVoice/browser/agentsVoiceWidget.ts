@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { html, render, nothing } from '../../../../base/common/lit-html/lit-html.js';
-import { signal, effect, computed } from '../../../../base/common/signals-core/signals-core.js';
+import { observableValue, derived, autorun, type ISettableObservable, type IReader } from '../../../../base/common/observable.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { getWindow } from '../../../../base/browser/dom.js';
@@ -112,32 +112,32 @@ const DEFAULT_OPTIONS: Required<VoiceWidgetOptions> = {
 export class AgentsVoiceWidget extends Disposable {
 
 	// --- Reactive state ---
-	private readonly _isConnected = signal(false);
-	private readonly _isConnecting = signal(false);
-	private readonly _isReconnecting = signal(false);
-	private readonly _voiceState = signal<VoiceState>('idle');
-	private readonly _expanded = signal(false);
-	private readonly _workingCount = signal(0);
-	private readonly _needsInputCount = signal(0);
-	private readonly _doneCount = signal(0);
-	private readonly _pendingToolConfirmations = signal<readonly IPendingToolConfirmation[]>([]);
-	private readonly _speakingSession = signal<URI | undefined>(undefined);
-	private readonly _speakingSessionLabel = signal<string | undefined>(undefined);
-	private readonly _sessions = signal<readonly SessionRowData[]>([]);
-	private readonly _sessionGroups = signal<readonly SessionGroupData[] | undefined>(undefined);
-	private readonly _selectedTargetSession = signal<URI | undefined>(undefined);
-	private readonly _glowIntensity = signal(0);
-	private readonly _glowPhase = signal(0);
-	private readonly _transcriptTurns = signal<readonly ITranscriptTurn[]>([]);
-	private readonly _pttKeyLabel = signal<string | undefined>(undefined);
-	private readonly _statusText = signal('');
-	private readonly _popoutAvailable = signal(true);
-	private readonly _feedbackDialogState = signal<FeedbackDialogState | null>(null);
-	private readonly _showOnboarding = signal(false);
-	private readonly _onboardingPendingConnect = signal(false);
+	private readonly _isConnected: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _isConnecting: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _isReconnecting: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _voiceState: ISettableObservable<VoiceState> = observableValue(this, 'idle');
+	private readonly _expanded: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _workingCount: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _needsInputCount: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _doneCount: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _pendingToolConfirmations: ISettableObservable<readonly IPendingToolConfirmation[]> = observableValue(this, []);
+	private readonly _speakingSession: ISettableObservable<URI | undefined> = observableValue(this, undefined);
+	private readonly _speakingSessionLabel: ISettableObservable<string | undefined> = observableValue(this, undefined);
+	private readonly _sessions: ISettableObservable<readonly SessionRowData[]> = observableValue(this, []);
+	private readonly _sessionGroups: ISettableObservable<readonly SessionGroupData[] | undefined> = observableValue(this, undefined);
+	private readonly _selectedTargetSession: ISettableObservable<URI | undefined> = observableValue(this, undefined);
+	private readonly _glowIntensity: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _glowPhase: ISettableObservable<number> = observableValue(this, 0);
+	private readonly _transcriptTurns: ISettableObservable<readonly ITranscriptTurn[]> = observableValue(this, []);
+	private readonly _pttKeyLabel: ISettableObservable<string | undefined> = observableValue(this, undefined);
+	private readonly _statusText: ISettableObservable<string> = observableValue(this, '');
+	private readonly _popoutAvailable: ISettableObservable<boolean> = observableValue(this, true);
+	private readonly _feedbackDialogState: ISettableObservable<FeedbackDialogState | null> = observableValue(this, null);
+	private readonly _showOnboarding: ISettableObservable<boolean> = observableValue(this, false);
+	private readonly _onboardingPendingConnect: ISettableObservable<boolean> = observableValue(this, false);
 
 	// --- Derived state ---
-	private readonly _shouldShowExpanded = computed(() => this._expanded.value);
+	private readonly _shouldShowExpanded = derived(this, reader => this._expanded.read(reader));
 
 	// --- Animation ---
 	private _animationFrameId: number | undefined;
@@ -152,8 +152,8 @@ export class AgentsVoiceWidget extends Disposable {
 		super();
 
 		this._options = { ...DEFAULT_OPTIONS, ...options };
-		this._showOnboarding.value = this._options.showOnboarding;
-		this._expanded.value = this._options.defaultExpanded;
+		this._showOnboarding.set(this._options.showOnboarding, undefined);
+		this._expanded.set(this._options.defaultExpanded, undefined);
 
 		if (this._options.focusable) {
 			this.container.tabIndex = 0;
@@ -181,15 +181,15 @@ export class AgentsVoiceWidget extends Disposable {
 		this._register(toDisposable(() => pttChannel.close()));
 
 		// Auto-render on signal changes
-		const disposeRender = effect(() => {
-			render(this._view(), this.container);
+		const renderDisposable = autorun(reader => {
+			render(this._view(reader), this.container);
 			// Schedule resize + overflow detection after render
 			getWindow(this.container).requestAnimationFrame(() => {
 				updateTranscriptOverflowState(this.container);
 				this.callbacks.onResize();
 			});
 		});
-		this._register(toDisposable(disposeRender));
+		this._register(renderDisposable);
 		this._register(toDisposable(() => render(nothing, this.container)));
 
 		// Handle the onboarding "Get Started → connect" flow: dismiss once
@@ -200,19 +200,19 @@ export class AgentsVoiceWidget extends Disposable {
 		let sawConnecting = false;
 		let failureCheckPending = false;
 		let disposed = false;
-		const disposeOnboardingConnect = effect(() => {
-			if (!this._onboardingPendingConnect.value) {
+		const onboardingConnectDisposable = autorun(reader => {
+			if (!this._onboardingPendingConnect.read(reader)) {
 				sawConnecting = false;
 				return;
 			}
-			if (this._isConnected.value) {
-				this._onboardingPendingConnect.value = false;
+			if (this._isConnected.read(reader)) {
+				this._onboardingPendingConnect.set(false, undefined);
 				sawConnecting = false;
-				this._showOnboarding.value = false;
+				this._showOnboarding.set(false, undefined);
 				this.callbacks.onOnboardingCompleted?.();
 				return;
 			}
-			if (this._isConnecting.value) {
+			if (this._isConnecting.read(reader)) {
 				sawConnecting = true;
 				return;
 			}
@@ -221,17 +221,15 @@ export class AgentsVoiceWidget extends Disposable {
 				queueMicrotask(() => {
 					failureCheckPending = false;
 					if (disposed) { return; }
-					if (this._onboardingPendingConnect.value && !this._isConnected.value && !this._isConnecting.value) {
-						this._onboardingPendingConnect.value = false;
+					if (this._onboardingPendingConnect.read(undefined) && !this._isConnected.read(undefined) && !this._isConnecting.read(undefined)) {
+						this._onboardingPendingConnect.set(false, undefined);
 						sawConnecting = false;
 					}
 				});
 			}
 		});
-		this._register(toDisposable(() => {
-			disposed = true;
-			disposeOnboardingConnect();
-		}));
+		this._register(toDisposable(() => { disposed = true; }));
+		this._register(onboardingConnectDisposable);
 
 		// Always-on-when-disconnected onboarding: when the host opts in via
 		// ``reshowOnboardingOnDisconnect``, the onboarding card re-appears any
@@ -241,18 +239,18 @@ export class AgentsVoiceWidget extends Disposable {
 		// the Get Started button; that dismissal is honored until the next
 		// disconnect transition.
 		if (this._options.reshowOnboardingOnDisconnect) {
-			const disposeReshow = effect(() => {
-				const connected = this._isConnected.value;
-				const connecting = this._isConnecting.value;
-				const reconnecting = this._isReconnecting.value;
-				const pendingConnect = this._onboardingPendingConnect.value;
+			const reshowDisposable = autorun(reader => {
+				const connected = this._isConnected.read(reader);
+				const connecting = this._isConnecting.read(reader);
+				const reconnecting = this._isReconnecting.read(reader);
+				const pendingConnect = this._onboardingPendingConnect.read(reader);
 				if (!connected && !connecting && !reconnecting && !pendingConnect) {
-					if (!this._showOnboarding.value) {
-						this._showOnboarding.value = true;
+					if (!this._showOnboarding.read(reader)) {
+						this._showOnboarding.set(true, undefined);
 					}
 				}
 			});
-			this._register(toDisposable(disposeReshow));
+			this._register(reshowDisposable);
 		}
 
 		// Start waveform animation
@@ -260,19 +258,19 @@ export class AgentsVoiceWidget extends Disposable {
 		this._register(toDisposable(() => this._stopWaveformAnimation()));
 	}
 
-	private _view() {
-		const onboarding = this._showOnboarding.value;
-		const glowActive = onboarding || this._voiceState.value === 'speaking' || this._voiceState.value === 'listening';
-		const intensity = onboarding ? 0.6 : this._glowIntensity.value;
+	private _view(reader: IReader) {
+		const onboarding = this._showOnboarding.read(reader);
+		const glowActive = onboarding || this._voiceState.read(reader) === 'speaking' || this._voiceState.read(reader) === 'listening';
+		const intensity = onboarding ? 0.6 : this._glowIntensity.read(reader);
 		const baseOpacity = 0.15 + intensity * 0.4;
-		const r = (onboarding || this._voiceState.value === 'speaking') ? '163,113,247' : '88,166,255';
+		const r = (onboarding || this._voiceState.read(reader) === 'speaking') ? '163,113,247' : '88,166,255';
 		const opts = this._options;
 
 		const widthStyle = opts.width === 'auto'
 			? 'width:100%;position:relative;'
 			: `position:absolute;top:0;left:0;width:${opts.width}px;min-height:${AGENTS_VOICE_WINDOW_DEFAULT_HEIGHT}px;`;
 
-		const showExpanded = this._shouldShowExpanded.value && opts.showExpandChevron;
+		const showExpanded = this._shouldShowExpanded.read(reader) && opts.showExpandChevron;
 		const hasTitle = !!opts.title;
 
 		const titleRow = hasTitle ? html`
@@ -287,9 +285,9 @@ export class AgentsVoiceWidget extends Disposable {
 				${glowActive ? html`<div style="position:absolute;top:0;left:0;right:0;height:50px;pointer-events:none;background:radial-gradient(ellipse 40% 70% at 50% 0%, rgba(${r},${baseOpacity}) 0%, transparent 100%), radial-gradient(ellipse 70% 100% at 50% 0%, rgba(${r},${baseOpacity * 0.4}) 0%, transparent 100%);z-index:0;"></div>` : nothing}
 				${onboarding ? nothing : titleRow}
 				<div style="display:flex;flex-direction:column;flex:1;padding:8px 14px 2px;position:relative;z-index:1;">
-					${this._showOnboarding.value ? renderOnboarding({
-			pttKeyLabel: this._pttKeyLabel.value,
-			isConnecting: this._onboardingPendingConnect.value || this._isConnecting.value,
+					${this._showOnboarding.read(reader) ? renderOnboarding({
+			pttKeyLabel: this._pttKeyLabel.read(reader),
+			isConnecting: this._onboardingPendingConnect.read(reader) || this._isConnecting.read(reader),
 			onGetStarted: (e) => { e.preventDefault(); e.stopPropagation(); this._dismissOnboarding(true); },
 			onOpenPttKeySettings: (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
 			onOpenPopout: this.callbacks.openPopout ? (e) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); } : undefined,
@@ -297,21 +295,21 @@ export class AgentsVoiceWidget extends Disposable {
 					${renderHeader({
 			copilotIconSrc: this.callbacks.copilotIconSrc,
 			showCopilotIcon: opts.showCopilotIcon,
-			isConnected: this._isConnected.value,
-			isConnecting: this._isConnecting.value,
-			isReconnecting: this._isReconnecting.value,
-			voiceState: this._voiceState.value,
+			isConnected: this._isConnected.read(reader),
+			isConnecting: this._isConnecting.read(reader),
+			isReconnecting: this._isReconnecting.read(reader),
+			voiceState: this._voiceState.read(reader),
 			draggable: opts.draggable,
 			showClose: opts.showClose,
-			showPopout: !!this.callbacks.openPopout && this._popoutAvailable.value,
+			showPopout: !!this.callbacks.openPopout && this._popoutAvailable.read(reader),
 			centerConnectButton: opts.centerConnectButton,
 			onMicDown: (e: MouseEvent) => { e.preventDefault(); this.callbacks.pttDown(); },
 			onMicUp: () => { this.callbacks.pttUp(); },
 			onConnectClick: (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
-				if (this._isConnecting.value) { return; }
-				if (this._isConnected.value) {
+				if (this._isConnecting.get()) { return; }
+				if (this._isConnected.get()) {
 					this.callbacks.disconnect();
 				} else {
 					this.callbacks.connect();
@@ -319,40 +317,40 @@ export class AgentsVoiceWidget extends Disposable {
 			},
 			onDisconnectClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.disconnect(); },
 			onCloseClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.closeWindow(); },
-			onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.value = !this._expanded.value; },
+			onToggleClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); },
 			onPttKeyClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPttKeySettings(); },
 			onPopoutClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this.callbacks.openPopout?.(); },
 			onFeedbackClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._toggleFeedbackDialog(); },
-			pttKeyLabel: this._pttKeyLabel.value,
+			pttKeyLabel: this._pttKeyLabel.read(reader),
 			expanded: showExpanded,
 		})}
-					${this._feedbackDialogState.value ? renderFeedbackDialog({
+					${this._feedbackDialogState.read(reader) ? renderFeedbackDialog({
 			onSubmit: (text) => this._submitFeedback(text),
-			onCancel: () => { this._feedbackDialogState.value = null; },
-		}, this._feedbackDialogState.value) : html`
-					${opts.showStatusText && this._statusText.value
-				? html`<div style="text-align:center;font-size:${FONT_SIZE.body};font-weight:500;color:var(--vscode-foreground);padding:2px 0;">${this._statusText.value}</div>`
+			onCancel: () => { this._feedbackDialogState.set(null, undefined); },
+		}, this._feedbackDialogState.read(reader)!) : html`
+					${opts.showStatusText && this._statusText.read(reader)
+				? html`<div style="text-align:center;font-size:${FONT_SIZE.body};font-weight:500;color:var(--vscode-foreground);padding:2px 0;">${this._statusText.read(reader)}</div>`
 				: nothing}
-					${renderTranscript({ turns: this._transcriptTurns.value })}
+					${renderTranscript({ turns: this._transcriptTurns.read(reader) })}
 					${!showExpanded ? renderStatusRows({
-					workingCount: this._workingCount.value,
-					needsInputCount: this._needsInputCount.value,
-					doneCount: this._doneCount.value,
+					workingCount: this._workingCount.read(reader),
+					needsInputCount: this._needsInputCount.read(reader),
+					doneCount: this._doneCount.read(reader),
 					showCounters: opts.showStatusCounters,
-					speakingSessionLabel: this._speakingSessionLabel.value,
-					pendingToolConfirmations: this._pendingToolConfirmations.value,
+					speakingSessionLabel: this._speakingSessionLabel.read(reader),
+					pendingToolConfirmations: this._pendingToolConfirmations.read(reader),
 					onOpenSession: (r) => this.callbacks.openSession(r),
 				}) : nothing}
 					${showExpanded ? html`
 						<div style="display:flex;flex-direction:column;">
 							${renderSessionList({
-					sessions: this._sessions.value,
-					groups: this._sessionGroups.value,
-					selectedTarget: this._selectedTargetSession.value,
+					sessions: this._sessions.read(reader),
+					groups: this._sessionGroups.read(reader),
+					selectedTarget: this._selectedTargetSession.read(reader),
 					onOpenSession: (r) => this.callbacks.openSession(r),
 					onStopSession: (r) => this.callbacks.stopSession(r),
 					onCancelSession: (r) => this.callbacks.cancelSession(r),
-					onSelectTarget: (r) => { this._selectedTargetSession.value = r; this.callbacks.selectTargetSession(r); },
+					onSelectTarget: (r) => { this._selectedTargetSession.set(r, undefined); this.callbacks.selectTargetSession(r); },
 					onNewSession: () => this.callbacks.newSessionAsTarget(),
 				})}
 						</div>
@@ -360,7 +358,7 @@ export class AgentsVoiceWidget extends Disposable {
 					<div style="flex:1;"></div>
 					${opts.showExpandChevron ? html`<div style="display:flex;justify-content:center;cursor:pointer;-webkit-app-region:no-drag;"
 						title="${showExpanded ? 'Collapse sessions' : 'Expand sessions'}"
-						@click=${(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.value = !this._expanded.value; }}>
+						@click=${(e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); this._expanded.set(!this._expanded.get(), undefined); }}>
 						<span
 							class="codicon codicon-${showExpanded ? 'chevron-up' : 'chevron-down'}"
 							style="font-size:${FONT_SIZE.iconSm};color:var(--vscode-descriptionForeground);"
@@ -376,72 +374,72 @@ export class AgentsVoiceWidget extends Disposable {
 	// --- Public state setters (called by the service) ---
 
 	setConnected(connected: boolean): void {
-		this._isConnected.value = connected;
+		this._isConnected.set(connected, undefined);
 	}
 
 	setConnecting(connecting: boolean): void {
-		this._isConnecting.value = connecting;
+		this._isConnecting.set(connecting, undefined);
 	}
 
 	setReconnecting(reconnecting: boolean): void {
-		this._isReconnecting.value = reconnecting;
+		this._isReconnecting.set(reconnecting, undefined);
 	}
 
 	setVoiceState(state: VoiceState): void {
-		this._voiceState.value = state;
+		this._voiceState.set(state, undefined);
 	}
 
 	setStatusCounts(working: number, needsInput: number, done: number): void {
-		this._workingCount.value = working;
-		this._needsInputCount.value = needsInput;
-		this._doneCount.value = done;
+		this._workingCount.set(working, undefined);
+		this._needsInputCount.set(needsInput, undefined);
+		this._doneCount.set(done, undefined);
 	}
 
 	setPendingToolConfirmations(confirmations: readonly IPendingToolConfirmation[]): void {
-		this._pendingToolConfirmations.value = confirmations;
+		this._pendingToolConfirmations.set(confirmations, undefined);
 	}
 
 	setSpeakingSession(session: URI | undefined, label: string | undefined): void {
-		this._speakingSession.value = session;
-		this._speakingSessionLabel.value = label;
+		this._speakingSession.set(session, undefined);
+		this._speakingSessionLabel.set(label, undefined);
 	}
 
 	setSessions(sessions: readonly SessionRowData[]): void {
-		this._sessions.value = sessions;
+		this._sessions.set(sessions, undefined);
 	}
 
 	setSelectedTargetSession(resource: URI | undefined): void {
-		this._selectedTargetSession.value = resource;
+		this._selectedTargetSession.set(resource, undefined);
 	}
 
 	setSessionGroups(groups: readonly SessionGroupData[] | undefined): void {
-		this._sessionGroups.value = groups;
+		this._sessionGroups.set(groups, undefined);
 	}
 
 	setPttKeyLabel(label: string | undefined): void {
-		this._pttKeyLabel.value = label;
+		this._pttKeyLabel.set(label, undefined);
 	}
 
 	setTranscriptTurns(turns: readonly ITranscriptTurn[]): void {
-		this._transcriptTurns.value = turns;
+		this._transcriptTurns.set(turns, undefined);
 	}
 
 	setStatusText(text: string): void {
-		this._statusText.value = text;
+		this._statusText.set(text, undefined);
 	}
 
 	setPopoutAvailable(available: boolean): void {
-		this._popoutAvailable.value = available;
+		this._popoutAvailable.set(available, undefined);
 	}
 
 	// --- Feedback dialog ---
 
 	private _toggleFeedbackDialog(): void {
-		if (this._feedbackDialogState.value) {
-			this._feedbackDialogState.value = null;
+		if (this._feedbackDialogState.get()) {
+			this._feedbackDialogState.set(null, undefined);
 		} else {
-			this._showOnboarding.value = false;
-			this._feedbackDialogState.value = { isSubmitting: false, submitted: false };
+			this._showOnboarding.set(false, undefined);
+			this._feedbackDialogState.set({ isSubmitting: false, submitted: false }, undefined);
 		}
 	}
 
@@ -451,18 +449,18 @@ export class AgentsVoiceWidget extends Disposable {
 		if (connect) {
 			// Don't dismiss yet — kick off connection, wait for it to succeed
 			// via the effect that watches isConnected/isConnecting.
-			if (this._isConnected.value) {
+			if (this._isConnected.get()) {
 				// Already connected somehow — just dismiss.
-				this._showOnboarding.value = false;
+				this._showOnboarding.set(false, undefined);
 				this.callbacks.onOnboardingCompleted?.();
 				return;
 			}
-			if (!this._isConnecting.value && !this._onboardingPendingConnect.value) {
-				this._onboardingPendingConnect.value = true;
+			if (!this._isConnecting.get() && !this._onboardingPendingConnect.get()) {
+				this._onboardingPendingConnect.set(true, undefined);
 				this.callbacks.connect();
 			}
 		} else {
-			this._showOnboarding.value = false;
+			this._showOnboarding.set(false, undefined);
 			this.callbacks.onOnboardingCompleted?.();
 		}
 	}
@@ -474,20 +472,20 @@ export class AgentsVoiceWidget extends Disposable {
 	 * doesn't re-trigger the completion callback.
 	 */
 	dismissOnboarding(): void {
-		this._onboardingPendingConnect.value = false;
-		if (this._showOnboarding.value) {
-			this._showOnboarding.value = false;
+		this._onboardingPendingConnect.set(false, undefined);
+		if (this._showOnboarding.get()) {
+			this._showOnboarding.set(false, undefined);
 		}
 	}
 
 	private _submitFeedback(text: string): void {
-		this._feedbackDialogState.value = { isSubmitting: true, submitted: false };
+		this._feedbackDialogState.set({ isSubmitting: true, submitted: false }, undefined);
 		this.callbacks.submitFeedback(text).then(result => {
 			if (result.ok) {
-				this._feedbackDialogState.value = { isSubmitting: false, submitted: true };
-				setTimeout(() => { this._feedbackDialogState.value = null; }, 3000);
+				this._feedbackDialogState.set({ isSubmitting: false, submitted: true }, undefined);
+				setTimeout(() => { this._feedbackDialogState.set(null, undefined); }, 3000);
 			} else {
-				this._feedbackDialogState.value = { isSubmitting: false, submitted: false, error: result.error ?? 'Failed to submit' };
+				this._feedbackDialogState.set({ isSubmitting: false, submitted: false, error: result.error ?? 'Failed to submit' }, undefined);
 			}
 		});
 	}
@@ -500,7 +498,7 @@ export class AgentsVoiceWidget extends Disposable {
 			this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 			const analyser = this.callbacks.getAnalyserNode();
 			if (!analyser) {
-				this._glowIntensity.value = 0;
+				this._glowIntensity.set(0, undefined);
 				return;
 			}
 			const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -510,8 +508,8 @@ export class AgentsVoiceWidget extends Disposable {
 				sum += dataArray[i];
 			}
 			const avg = sum / dataArray.length;
-			this._glowIntensity.value = Math.min(1, avg / 80);
-			this._glowPhase.value += 0.02;
+			this._glowIntensity.set(Math.min(1, avg / 80), undefined);
+			this._glowPhase.set(this._glowPhase.get() + 0.02, undefined);
 		};
 		this._animationFrameId = getWindow(this.container).requestAnimationFrame(animate);
 	}
