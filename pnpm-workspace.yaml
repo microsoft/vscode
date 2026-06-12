@@ -98,7 +98,12 @@ onlyBuiltDependencies:
   - 'electron'
   - 'esbuild'
   - 'fsevents'
-  - 'keytar'
+  # keytar is intentionally NOT built: it is only a transitive optional dependency of
+  # @azure/msal-node-extensions / @azure/msal-node-runtime, and the
+  # microsoft-authentication extension replaces it with a no-op mock at
+  # extensions/microsoft-authentication/packageMocks/keytar. Real keytar is never
+  # used at runtime by the product, so its native binding (which requires
+  # libsecret-1-dev on Linux) must not be compiled during CI installs.
   - 'kerberos'
   - 'native-is-elevated'
   - 'native-keymap'

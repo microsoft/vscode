@@ -7161,7 +7161,6 @@
       "@vscode/vsce-sign",
       "electron",
       "esbuild",
-      "keytar",
       "protobufjs",
       "sqlite3"
     ]

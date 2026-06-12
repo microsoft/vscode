@@ -74,7 +74,7 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            pnpm install --frozen-lockfile && break
+            pnpm install --frozen-lockfile --ignore-workspace && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1

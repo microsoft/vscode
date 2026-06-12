@@ -41,6 +41,14 @@ jobs:
 
       - name: Setup pnpm
         run: corepack enable
+
+      - name: Install system dependencies
+        # Required for native module compilation (kerberos needs libkrb5-dev /
+        # gssapi headers). Previously hidden by always-hot node_modules cache.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libkrb5-dev libxkbfile-dev
+
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
 
