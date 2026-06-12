@@ -110,7 +110,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				const allEndpoints = await this.endpointProvider.getAllChatEndpoints();
 				const searchAgentEndpoints = allEndpoints.filter(e => e.family === SEARCH_AGENT_FAMILY);
 				const searchAgentEndpoint = modelName
-					? searchAgentEndpoints.find(e => e.model === modelName)
+					? (searchAgentEndpoints.find(e => e.model === modelName) ?? searchAgentEndpoints[0])
 					: searchAgentEndpoints[0];
 				if (searchAgentEndpoint instanceof ChatEndpoint) {
 					return this.instantiationService.createInstance(SearchAgentChatEndpoint, searchAgentEndpoint.modelMetadata);
