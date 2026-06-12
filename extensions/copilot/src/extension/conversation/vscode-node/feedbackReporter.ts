@@ -199,7 +199,7 @@ export async function openIssueReporter(args: { title: string; issueBody?: strin
 		data: args.data,
 		issueBody: args.issueBody ?? '',
 		// team -> vscode-copilot
-		uri: vscode.Uri.parse(args.public ? 'https://github.com/microsoft/vscode' : 'https://github.com/microsoft/vscode-copilot-issues'),
+		uri: vscode.Uri.parse(args.public ? 'https://github.com/microsoft/vscode' : 'https://github.com/microsoft/vscode-internalbacklog'),
 	});
 }
 
