@@ -49,19 +49,37 @@ if (process.env.npm_execpath?.includes('yarn')) {
 // Windows (the bit doesn't matter there).
 if (process.platform !== 'win32') {
 	try {
-		const pnpmExec = process.env.PNPM_HOME
-			? path.join(process.env.PNPM_HOME, 'pnpm')
-			: child_process.execFileSync('which', ['pnpm']).toString().trim();
-		const realPnpm = fs.realpathSync(pnpmExec);
-		// realPnpm is like .../corepack/v1/pnpm/<ver>/dist/bin/pnpm.cjs
-		const gypMain = path.resolve(path.dirname(realPnpm), '..', 'node_modules', 'node-gyp', 'gyp', 'gyp_main.py');
-		if (fs.existsSync(gypMain)) {
-			fs.chmodSync(gypMain, 0o755);
+		const candidates: string[] = [];
+		// When pnpm runs lifecycle scripts it sets npm_execpath to the real pnpm.cjs.
+		if (process.env.npm_execpath) {
+			candidates.push(process.env.npm_execpath);
+		}
+		// Fallback: resolve `pnpm` from PATH (may be a corepack shim but its
+		// directory is usually a sibling of the dist/ folder we want).
+		try {
+			candidates.push(child_process.execFileSync('which', ['pnpm']).toString().trim());
+		} catch { /* ignore */ }
+
+		const seen = new Set<string>();
+		for (const candidate of candidates) {
+			let dir = path.dirname(path.resolve(candidate));
+			// Walk up to 5 ancestors looking for node-gyp/gyp/gyp_main.py
+			for (let i = 0; i < 5; i++) {
+				if (seen.has(dir)) { break; }
+				seen.add(dir);
+				const probe = path.join(dir, 'node_modules', 'node-gyp', 'gyp', 'gyp_main.py');
+				if (fs.existsSync(probe)) {
+					fs.chmodSync(probe, 0o755);
+					console.log(`[preinstall] fixed permissions on ${probe}`);
+					break;
+				}
+				const parent = path.dirname(dir);
+				if (parent === dir) { break; }
+				dir = parent;
+			}
 		}
 	} catch {
-		// best effort; if pnpm location can't be determined we'll fall through
-		// and native builds may fail with permission denied -- but that's the
-		// status quo so we don't want to break the install.
+		// best effort
 	}
 }
 
