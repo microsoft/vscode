@@ -11,7 +11,6 @@ type ReportIssueSource = 'vscode' | 'extension' | 'marketplace' | 'unknown';
 
 interface IReportCommandOptions {
 	readonly title?: string;
-	readonly issueSource?: ReportIssueSource;
 }
 
 export class FeedbackCommandContribution extends Disposable {
@@ -28,8 +27,7 @@ export class FeedbackCommandContribution extends Disposable {
 			appendPromptDetailsSection(output, LogMemory.getLogs().join('\n'), LogMemory.getRequestIds().join('\n'));
 			await vscode.commands.executeCommand('workbench.action.openIssueReporter', {
 				issueTitle: title,
-				issueSource: typeof options === 'string' ? 'vscode' : options.issueSource ?? 'vscode',
-				uri: vscode.Uri.parse('https://github.com/microsoft/vscode'),
+				issueSource: 'vscode',
 				data: output.join('\n'),
 				privateUri: isTeamMember ? vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog') : undefined,
 			});
