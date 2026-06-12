@@ -90,6 +90,8 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 * once restore / materialization has populated the session summary.
 	 */
 	private readonly _pendingSessionRefreshes = new Set<string>();
+	/** Sessions that currently have at least one uncommitted changeset subscriber. */
+	private readonly _subscribedUncommittedSessions = new Set<string>();
 
 	/**
 	 * Per-session set of turn ids that have at least one live subscriber to
@@ -113,6 +115,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		super();
 		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
 		this._changesets.setTurnSubscriberProbe((session, turnId) => this.hasTurnSubscribers(session, turnId));
+		this._changesets.setUncommittedSubscriberProbe(session => this.hasUncommittedSubscribers(session));
 	}
 
 	/**
@@ -122,6 +125,15 @@ export class ChangesetSessionCoordinator extends Disposable {
 	 */
 	hasTurnSubscribers(session: string, turnId: string): boolean {
 		return this._subscribedTurns.get(session)?.has(turnId) ?? false;
+	}
+
+	/**
+	 * Returns `true` when at least one client is subscribed to
+	 * `<session>/changeset/uncommitted`. Consulted by the changeset service
+	 * before triggering uncommitted refresh work.
+	 */
+	hasUncommittedSubscribers(session: string): boolean {
+		return this._subscribedUncommittedSessions.has(session);
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
@@ -193,6 +205,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		this._pendingBranchRefreshes.delete(sessionStr);
 		this._pendingUncommittedRefreshes.delete(sessionStr);
 		this._pendingSessionRefreshes.delete(sessionStr);
+		this._subscribedUncommittedSessions.delete(sessionStr);
 		this._subscribedTurns.delete(sessionStr);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
 	}
@@ -221,6 +234,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
+			this._subscribedUncommittedSessions.add(parsed.sessionUri);
 			this._triggerUncommittedRefresh(parsed.sessionUri);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
 			return;
@@ -249,10 +263,9 @@ export class ChangesetSessionCoordinator extends Disposable {
 			// observing the session). Refresh both static changesets so
 			// the catalogue chip doesn't show a stale value just because
 			// no turn has run since process start, no one ever subscribed
-			// to the changeset URIs directly, and the user has been
-			// editing files manually in the working tree.
+			// to the session / branch changeset URIs directly, and the user
+			// has been editing files manually in the working tree.
 			this._triggerBranchRefresh(resourceStr);
-			this._triggerUncommittedRefresh(resourceStr);
 			this._triggerSessionRefresh(resourceStr);
 			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
 		}
@@ -273,6 +286,7 @@ export class ChangesetSessionCoordinator extends Disposable {
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
 			this._pendingUncommittedRefreshes.delete(parsed.sessionUri);
+			this._subscribedUncommittedSessions.delete(parsed.sessionUri);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
