@@ -13,6 +13,7 @@ import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../nls.js';
 import { getFlatActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
@@ -28,7 +29,7 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSource, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
@@ -151,11 +152,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		};
 
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+			const sourceLabel = getAgentSourceLabel(mode.source);
+			const hoverContent = mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
-				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
+				hover: { content: hoverContent },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
+				description: sourceLabel,
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
 		};
@@ -322,6 +326,13 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 		return true;
 	}
 	return !isOrganizationPromptFile(modeUri, mode.source.extensionId, productService);
+}
+
+function getAgentSourceLabel(source: IAgentSource | undefined): MarkdownString | undefined {
+	if (source?.storage === PromptsStorage.user) {
+		return new MarkdownString('$(account)', { supportThemeIcons: true });
+	}
+	return undefined;
 }
 
 function shouldShowBuiltInMode(mode: IChatMode, assignments: { showOldAskMode: boolean }, agentModeDisabledViaPolicy: boolean): boolean {
