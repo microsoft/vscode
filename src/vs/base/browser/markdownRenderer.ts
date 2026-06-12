@@ -22,6 +22,7 @@ import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
+import { EventType as TouchEventType, Gesture } from './touch.js';
 import { renderIcon, renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
 export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
@@ -291,15 +292,21 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Add event listeners for links
 	if (options.actionHandler) {
-		const clickCb = (e: PointerEvent) => {
+		disposables.add(Gesture.addTarget(outElement));
+
+		const clickCb = (e: MouseEvent) => {
 			const mouseEvent = new StandardMouseEvent(DOM.getWindow(outElement), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
 			activateLink(markdown, options, mouseEvent);
 		};
+		const tapCb = (e: CustomEvent) => {
+			activateLink(markdown, options, e);
+		};
 		disposables.add(DOM.addDisposableListener(outElement, 'click', clickCb));
 		disposables.add(DOM.addDisposableListener(outElement, 'auxclick', clickCb));
+		disposables.add(DOM.addDisposableListener(outElement, TouchEventType.Tap, tapCb));
 
 		disposables.add(DOM.addDisposableListener(outElement, 'keydown', (e) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
@@ -442,7 +449,11 @@ function preprocessMarkdownString(markdown: IMarkdownString) {
 	return value;
 }
 
-function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent): void {
+function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, event: StandardMouseEvent | StandardKeyboardEvent | CustomEvent): void {
+	if (!DOM.isHTMLElement(event.target)) {
+		return;
+	}
+
 	const target = event.target.closest('a[data-href]');
 	if (!DOM.isHTMLElement(target)) {
 		return;
