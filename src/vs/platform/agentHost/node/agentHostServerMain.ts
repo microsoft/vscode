@@ -286,10 +286,13 @@ async function main(): Promise<void> {
 		//     forwarded as an env var by the renderer-side starters; the remote
 		//     server reads the env directly). Claude defaults to on, Codex
 		//     defaults to off.
-		//  2. The SDK being reachable — either via the CLI flag / env var dev
-		//     override, or via a `product.agentSdks.<pkg>` entry shipped with
-		//     this build.
-		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && agentSdkDownloader.isAvailable(ClaudeSdkPackage)) {
+		//  2. The SDK being reachable. Claude is a devDependency of this repo
+		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
+		//     always succeeds in dev; in built/shipped server installs the
+		//     SDK comes from the CLI flag / env var dev override or a
+		//     `product.agentSdks.claude` entry. Codex still requires the
+		//     env-var override or product config.
+		if (isAgentEnabled(process.env[AgentHostClaudeAgentEnabledEnvVar], true) && (!environmentService.isBuilt || agentSdkDownloader.isAvailable(ClaudeSdkPackage))) {
 			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
 			agentService.registerProvider(claudeAgent);
 			log('ClaudeAgent registered');
