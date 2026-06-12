@@ -115,4 +115,8 @@ onlyBuiltDependencies:
   - 'tree-sitter-javascript'
   - 'tree-sitter-typescript'
   - 'utf-8-validate'
-  - 'windows-foreground-love'
+  # windows-foreground-love is an OS-specific optional dependency (Windows
+  # only) but its package.json lacks the `os: ['win32']` constraint, so pnpm
+  # tries to install it on all platforms. Excluding it from the build
+  # allowlist prevents the failing `node-gyp rebuild` on Linux/macOS;
+  # Windows-only product code that needs it is guarded by os checks.
