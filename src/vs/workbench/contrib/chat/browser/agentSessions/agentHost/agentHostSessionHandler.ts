@@ -2829,10 +2829,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isImageVariableEntry(v)) {
 			return this._toImageAttachment(v, sessionResource, referenceRange);
 		}
-		// Agent-host feedback ("comments") is no longer serialized into a message
-		// attachment: it lives in the session's annotations channel which the
-		// agent reads directly via its server-side feedback tools. The legacy
-		// `agentFeedback` variable entry is therefore intentionally dropped here.
 		// Pasted code, prompt text, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
