@@ -104,8 +104,7 @@ export interface SessionRemovedParams {
  *   {@link SessionSummary | `SessionSummary`} changes for a session the
  *   server has surfaced via `listSessions()` or `root/sessionAdded`.
  *   Servers MAY coalesce or debounce updates for noisy fields (for example,
- *   `modifiedAt` bumps while a turn is streaming, or rapidly changing
- *   `changesets`) at their discretion.
+ *   `modifiedAt` bumps while a turn is streaming) at their discretion.
  * - Clients that have no cached entry for `session` MAY ignore the
  *   notification; it is not a substitute for `root/sessionAdded`.
  *

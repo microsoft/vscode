@@ -25,7 +25,7 @@
  * `--session-view-background` on top of the water layer and hide everything.
  * Clear those backgrounds so the fish are visible behind the chat content. */
 .monaco-workbench .part.sessionspart.aquarium-active .session-view,
-.monaco-workbench .part.sessionspart.aquarium-active .session-view > .session-view-content {
+.monaco-workbench .part.sessionspart.aquarium-active .session-view .session-view-content {
 	background-color: transparent;
 }
 

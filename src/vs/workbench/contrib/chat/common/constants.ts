@@ -130,6 +130,15 @@ export function isAutoApproveLevel(level: ChatPermissionLevel | undefined): bool
 	return level === ChatPermissionLevel.AutoApprove || level === ChatPermissionLevel.Autopilot;
 }
 
+/**
+ * True for {@link ChatPermissionLevel.Autopilot} only. Unlike {@link isAutoApproveLevel}, this
+ * excludes {@link ChatPermissionLevel.AutoApprove}, so it can gate Autopilot-only behavior such as
+ * risk-based skipping of tool calls.
+ */
+export function isAutopilotLevel(level: ChatPermissionLevel | undefined): boolean {
+	return level === ChatPermissionLevel.Autopilot;
+}
+
 // Thinking display modes for pinned content
 export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',

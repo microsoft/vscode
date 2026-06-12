@@ -10,7 +10,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { localize } from '../../../../nls.js';
 import { FOCUS_AI_CUSTOMIZATION_VIEW_ID } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeView.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {

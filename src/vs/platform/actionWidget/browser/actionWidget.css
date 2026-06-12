@@ -139,6 +139,21 @@
 	font-size: 16px;
 }
 
+/* Compact icon modifier: render the leading row codicon at the compact size */
+.action-widget .actionList.compact-icons .monaco-list-row.action .codicon {
+	font-size: var(--vscode-codiconFontSize-compact, 12px);
+}
+
+/* Toolbar codicons keep the regular codicon size even in compact lists */
+.action-widget .actionList.compact-icons .monaco-list-row.action .action-list-item-toolbar .codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
+/* The submenu indicator keeps the regular codicon size even in compact lists */
+.action-widget .actionList.compact-icons .monaco-list-row.action .action-list-submenu-indicator.codicon {
+	font-size: var(--vscode-codiconFontSize, 16px);
+}
+
 .action-widget .monaco-list-row.action.option-disabled,
 .action-widget .monaco-list:focus .monaco-list-row.focused.action.option-disabled,
 .action-widget .monaco-list-row.action.option-disabled .codicon,

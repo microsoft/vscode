@@ -371,6 +371,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 		this.harnessContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS.bindTo(contextKeyService);
+		this.updateHarnessLabelPresentation();
 
 		// Track workspace changes for embedded editor
 		this._register(autorun(reader => {
@@ -517,6 +518,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return false; //this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationHarnessSelectorEnabled) !== false;
 	}
 
+	private getActiveHarnessLabel(): string {
+		return this.harnessService.getActiveDescriptor().label || localize('localHarnessLabel', "Local");
+	}
+
+	private updateHarnessLabelPresentation(): void {
+		const harnessLabel = this.getActiveHarnessLabel();
+		AICustomizationManagementEditorInput.getOrCreate().setHarnessLabel(harnessLabel);
+		this.welcomePage?.setHarnessLabel(harnessLabel);
+	}
+
 	/**
 	 * Rebuilds the visible sections list based on the active harness's
 	 * `hiddenSections`. If the current selection falls into a hidden
@@ -637,7 +648,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		homeIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
 		homeIcon.setAttribute('aria-hidden', 'true');
 		const homeLabel = this.homeButtonLabel = DOM.append(homeButton, $('span.sidebar-home-label'));
-		homeLabel.textContent = localize('overview', "Overview");
+		homeLabel.textContent = localize('homeButtonLabel', "Overview");
 		this.editorDisposables.add(DOM.addDisposableListener(homeButton, 'click', () => {
 			this.showWelcomePage();
 		}));
@@ -707,25 +718,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateHomeButtonHarnessPresentation(): void {
-		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel || this.isHarnessSelectorEnabled) {
-			return;
-		}
+		this.updateHarnessLabelPresentation();
 
-		const descriptor = this.harnessService.getActiveDescriptor();
-		if (!descriptor) {
-			this.homeButtonIcon.className = 'sidebar-home-icon';
-			this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
-			this.homeButtonLabel.textContent = localize('overview', "Overview");
-			this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
-			this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
+		if (!this.homeButton || !this.homeButtonIcon || !this.homeButtonLabel) {
 			return;
 		}
 
 		this.homeButtonIcon.className = 'sidebar-home-icon';
-		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(descriptor.icon));
-		this.homeButtonLabel.textContent = descriptor.label;
-		this.homeButton.setAttribute('aria-label', localize('homeButtonWithHarness', "{0}, Back to overview", descriptor.label));
-		this.homeButton.title = localize('homeButtonTooltipWithHarness', "Current harness: {0}. Click to go to overview", descriptor.label);
+		this.homeButtonIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.home));
+		this.homeButtonLabel.textContent = localize('homeButtonLabel', "Overview");
+		this.homeButton.setAttribute('aria-label', localize('homeButton', "Overview"));
+		this.homeButton.title = localize('homeButtonTooltip', "Back to overview");
 	}
 
 	private updateHarnessDropdown(): void {
@@ -808,6 +811,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.commandService,
 			this.workspaceService,
 			this.hoverService,
+			this.getActiveHarnessLabel(),
 		));
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 	}

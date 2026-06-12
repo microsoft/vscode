@@ -285,7 +285,7 @@ export class SessionHeader extends Disposable {
 			// Mirror the sessions list / hover icon logic: cloud for virtual workspaces,
 			// folder when the session runs in the repo checkout, worktree otherwise.
 			const isWorkspaceFolder = workspace.folders.length > 0 && workspace.folders[0]?.gitRepository?.workTreeUri === undefined;
-			const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloud : isWorkspaceFolder ? Codicon.folder : Codicon.worktree;
+			const workspaceIcon = workspace.isVirtualWorkspace ? Codicon.cloudCompact : isWorkspaceFolder ? Codicon.folderCompact : Codicon.worktreeCompact;
 			const workspaceEl = $('span.chat-composite-bar-meta-workspace');
 			workspaceEl.appendChild($('span.chat-composite-bar-meta-workspace-icon' + ThemeIcon.asCSSSelector(workspaceIcon)));
 			const workspaceLabel = $('span.chat-composite-bar-meta-workspace-label');
@@ -298,7 +298,7 @@ export class SessionHeader extends Disposable {
 		if (branch) {
 			appendSeparator();
 			const branchEl = $('span.chat-composite-bar-meta-branch');
-			branchEl.appendChild($('span.chat-composite-bar-meta-branch-icon' + ThemeIcon.asCSSSelector(Codicon.gitBranch)));
+			branchEl.appendChild($('span.chat-composite-bar-meta-branch-icon' + ThemeIcon.asCSSSelector(Codicon.gitBranchCompact)));
 			const branchLabel = $('span.chat-composite-bar-meta-branch-label');
 			branchLabel.textContent = branch;
 			branchEl.appendChild(branchLabel);

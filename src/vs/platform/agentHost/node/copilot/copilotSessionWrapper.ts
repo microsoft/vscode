@@ -218,6 +218,21 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionModeChanged ??= this._sdkEvent('session.mode_changed');
 	}
 
+	private _onMcpServersLoaded: Event<SessionEventPayload<'session.mcp_servers_loaded'>> | undefined;
+	get onMcpServersLoaded(): Event<SessionEventPayload<'session.mcp_servers_loaded'>> {
+		return this._onMcpServersLoaded ??= this._sdkEvent('session.mcp_servers_loaded');
+	}
+
+	private _onMcpServerStatusChanged: Event<SessionEventPayload<'session.mcp_server_status_changed'>> | undefined;
+	get onMcpServerStatusChanged(): Event<SessionEventPayload<'session.mcp_server_status_changed'>> {
+		return this._onMcpServerStatusChanged ??= this._sdkEvent('session.mcp_server_status_changed');
+	}
+
+	private _onToolsUpdated: Event<SessionEventPayload<'session.tools_updated'>> | undefined;
+	get onToolsUpdated(): Event<SessionEventPayload<'session.tools_updated'>> {
+		return this._onToolsUpdated ??= this._sdkEvent('session.tools_updated');
+	}
+
 	private _sdkEvent<K extends SessionEventType>(eventType: K): Event<SessionEventPayload<K>> {
 		const emitter = this._register(new Emitter<SessionEventPayload<K>>());
 		const unsubscribe = this.session.on(eventType, (data: SessionEventPayload<K>) => emitter.fire(data));

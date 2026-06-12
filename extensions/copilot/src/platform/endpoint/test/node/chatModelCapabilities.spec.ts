@@ -42,7 +42,7 @@ describe('modelSupportsPDFDocuments', () => {
 });
 
 describe('modelSupportsToolSearch', () => {
-	test('supports Claude Sonnet/Opus 4.5 and up', () => {
+	test('supports Claude Sonnet/Opus 4.5 and up, including new and future families', () => {
 		expect(modelSupportsToolSearch('claude-sonnet-4-5')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4.5')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4-5-20250929')).toBe(true);
@@ -56,6 +56,9 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-opus-4.7')).toBe(true);
 		expect(modelSupportsToolSearch('claude-opus-4-7@1.0.0')).toBe(true);
 		expect(modelSupportsToolSearch('claude-sonnet-4-6@1.0.0')).toBe(true);
+		// Denylist: newer/future Claude families are picked up automatically.
+		expect(modelSupportsToolSearch('claude-opus-4-8')).toBe(true);
+		expect(modelSupportsToolSearch('claude-future-version')).toBe(true);
 	});
 
 	test('rejects pre-4.5 models, including date-suffixed ones', () => {
@@ -63,13 +66,16 @@ describe('modelSupportsToolSearch', () => {
 		expect(modelSupportsToolSearch('claude-sonnet-4-20250514')).toBe(false);
 		expect(modelSupportsToolSearch('claude-sonnet-4')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4')).toBe(false);
+		expect(modelSupportsToolSearch('claude-opus-4-20250514')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4-1')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4.1')).toBe(false);
 		expect(modelSupportsToolSearch('claude-opus-4-1-20250805')).toBe(false);
 	});
 
-	test('rejects non-Sonnet/Opus Claude families', () => {
+	test('rejects Haiku and legacy Claude families', () => {
+	// Haiku is current-gen but has no tool search support — denied explicitly.
 		expect(modelSupportsToolSearch('claude-haiku-4-5')).toBe(false);
+		expect(modelSupportsToolSearch('claude-haiku-4.5')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-5-sonnet-20241022')).toBe(false);
 		expect(modelSupportsToolSearch('claude-3-opus')).toBe(false);
 	});

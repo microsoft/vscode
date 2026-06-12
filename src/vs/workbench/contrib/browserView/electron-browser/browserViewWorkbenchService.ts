@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -34,6 +34,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { ISharedProcessTunnelProxyService } from '../../../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 
 /**
  * When enabled, integrated browser tools are exposed as client-provided tools
@@ -42,6 +45,7 @@ import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
  */
 export const AgentHostChatToolsEnabledSettingId = 'workbench.browser.agentHostChatToolsEnabled';
 export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEntries';
+export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -97,6 +101,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ISharedProcessTunnelProxyService private readonly tunnelProxyService: ISharedProcessTunnelProxyService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
@@ -107,6 +114,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		this.sendKeybindings();
 		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
+
+		// Keep the shared-process tunnel proxy's address provider up to date
+		// so the proxy can connect whenever the main process starts it.
+		this._updateProxyAddressPump();
 
 		this.sendTheme();
 		this._register(this.themeService.onDidColorThemeChange(() => this.sendTheme()));
@@ -121,6 +132,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId)) {
 				this.sendConfiguration();
+			}
+			if (e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
+				this._updateProxyAddressPump();
 			}
 		}));
 
@@ -165,6 +179,42 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}));
 	}
 
+	willUseRemoteProxy(): boolean {
+		if (!this.environmentService.remoteAuthority) {
+			return false;
+		}
+		if (!this.configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)) {
+			return false;
+		}
+		return true;
+	}
+
+	private readonly _proxyAddressPump = this._register(new MutableDisposable());
+	private _updateProxyAddressPump(): void {
+		const authority = this.environmentService.remoteAuthority;
+		if (!authority || !this.willUseRemoteProxy()) {
+			this._proxyAddressPump.clear();
+			return;
+		}
+		if (this._proxyAddressPump.value) {
+			return;
+		}
+		// Window id alone is the proxy id: a window has at most one
+		// remote authority at any moment, so the authority is implied.
+		const proxyId = String(this._mainWindowId);
+		const push = () => {
+			const data = this.remoteAuthorityResolverService.getConnectionData(authority);
+			if (data) {
+				void this.tunnelProxyService.setAddress(proxyId, {
+					connectTo: data.connectTo,
+					connectionToken: data.connectionToken
+				}).catch(err => this.logService.error('[BrowserViewWorkbenchService] Failed to update tunnel proxy address:', err));
+			}
+		};
+		push();
+		this._proxyAddressPump.value = this.remoteAuthorityResolverService.onDidChangeConnectionData(push);
+	}
+
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this._known;
 	}
@@ -172,11 +222,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	getOrCreateLazy(id: string, initialState?: IBrowserEditorViewState, model?: IBrowserViewModel): BrowserEditorInput {
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, { id, ...initialState }, async () => {
+				const storageScope = await this._resolveStorageScope();
+				const proxyId = this.willUseRemoteProxy() ? String(this._mainWindowId) : undefined;
 				const state = await this._browserViewService.getOrCreateBrowserView(
 					id,
 					{
 						owner: this._getDefaultOwner(),
-						scope: await this._resolveStorageScope(),
+						sessionOptions: {
+							scope: storageScope,
+							proxyId: storageScope === BrowserViewStorageScope.Global ? undefined : proxyId
+						},
 						initialState: {
 							url: initialState?.url,
 							title: initialState?.title,
@@ -214,9 +269,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private async _resolveStorageScope(): Promise<BrowserViewStorageScope> {
-		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
+		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
-		) ?? BrowserViewStorageScope.Global;
+		) ?? 'default';
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
@@ -224,7 +279,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY &&
 			!this.workspaceTrustManagementService.isWorkspaceTrusted();
 
-		return isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
+		if (isWorkspaceUntrusted) {
+			// Always use ephemeral sessions for untrusted workspaces
+			dataStorage = BrowserViewStorageScope.Ephemeral;
+		} else if (dataStorage === 'default') {
+			// Workspace-scoped for remote workspaces.
+			dataStorage = this.environmentService.remoteAuthority
+				? BrowserViewStorageScope.Workspace
+				: BrowserViewStorageScope.Global;
+		}
+
+		return dataStorage;
 	}
 
 	/**

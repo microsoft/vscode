@@ -731,7 +731,7 @@ export class ChatService extends Disposable implements IChatService {
 					kind: ChatModeKind.Agent,
 					isBuiltin: message.modeInstructions.isBuiltin ?? false,
 					modeInstructions: message.modeInstructions,
-					modeId: 'custom',
+					telemetryModeId: 'custom',
 					applyCodeBlockSuggestionId: undefined,
 				} satisfies IChatRequestModeInfo : undefined;
 				lastRequest = model.addRequest(parsedRequest,

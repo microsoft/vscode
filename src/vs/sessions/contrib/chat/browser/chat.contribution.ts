@@ -10,8 +10,8 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsPartService } from '../../../browser/parts/sessionsPartService.js';
-import { ISessionsViewService } from '../../../browser/sessionsViewService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';

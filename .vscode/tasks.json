@@ -472,9 +472,9 @@
 		{
 			"label": "Install & Watch",
 			"type": "shell",
-			"command": "npm ci && npm run watch",
+			"command": "npm install && npm run watch",
 			"windows": {
-				"command": "cmd /c \"npm ci && npm run watch\""
+				"command": "cmd /c \"npm install && npm run watch-transpile\""
 			},
 			"inAgents": true,
 			"runOptions": {

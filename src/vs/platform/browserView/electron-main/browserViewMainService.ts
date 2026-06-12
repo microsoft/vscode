@@ -76,11 +76,16 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		const browserSession = BrowserSession.getOrCreate(
+			this.instantiationService,
 			id,
-			options.scope,
+			options.sessionOptions,
 			this.environmentMainService.workspaceStorageHome,
 			ownerWindow.openedWorkspace?.id
 		);
+
+		// Acquire the proxy reference before creating the view so the Electron session
+		// is configured (or reconfigured) with the latest proxy URL/credentials.
+		await browserSession.remote.acquire(id, options.sessionOptions.proxyId);
 
 		const view = this.createBrowserView(id, options.owner, browserSession);
 
@@ -292,13 +297,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async clearGlobalStorage(): Promise<void> {
-		const browserSession = BrowserSession.getOrCreateGlobal();
+		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
 		await browserSession.clearData();
 	}
 
 	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateWorkspace(
+			this.instantiationService,
 			workspaceId,
 			this.environmentMainService.workspaceStorageHome
 		);
@@ -385,6 +391,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			browserSession.history.setMaxEntries(this._configuration.maxHistoryEntries);
 		}
 
+		// Hold a ref to the tunnel proxy for as long as this view is alive.
+		void browserSession.remote.acquire(id, browserSession.remote.proxyId);
+
 		const view = this.instantiationService.createInstance(
 			BrowserView,
 			id,
@@ -415,6 +424,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		Event.once(view.onDidClose)(() => {
+			browserSession.remote.release(id);
 			this.browserViews.deleteAndDispose(id);
 		});
 
@@ -436,7 +446,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	): Promise<BrowserView> {
 		const targetId = generateUuid();
-		const view = this.createBrowserView(targetId, owner, session || BrowserSession.getOrCreateEphemeral(targetId));
+		const view = this.createBrowserView(targetId, owner, session || BrowserSession.getOrCreateEphemeral(this.instantiationService, targetId));
 
 		if (url) {
 			void view.loadURL(url).catch(() => { });

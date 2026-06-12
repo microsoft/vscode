@@ -78,6 +78,8 @@ import { ISharedTunnelsService } from '../../../platform/tunnel/common/tunnel.js
 import { SharedTunnelsService } from '../../../platform/tunnel/node/tunnelService.js';
 import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from '../../../platform/remote/common/sharedProcessTunnelService.js';
 import { SharedProcessTunnelService } from '../../../platform/tunnel/node/sharedProcessTunnelService.js';
+import { ISharedProcessTunnelProxyService, ipcSharedProcessTunnelProxyChannelName } from '../../../platform/tunnel/common/sharedProcessTunnelProxyService.js';
+import { SharedProcessTunnelProxyService } from '../../../platform/tunnel/node/sharedProcessTunnelProxyService.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -371,7 +373,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Extension Gallery
-		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, productService));
+		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, logService, productService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
 		// Extension Tips
@@ -408,6 +410,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		remoteSocketFactoryService.register(RemoteConnectionType.WebSocket, nodeSocketFactory);
 		services.set(ISharedTunnelsService, new SyncDescriptor(SharedTunnelsService));
 		services.set(ISharedProcessTunnelService, new SyncDescriptor(SharedProcessTunnelService));
+		services.set(ISharedProcessTunnelProxyService, new SyncDescriptor(SharedProcessTunnelProxyService));
 
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
@@ -488,6 +491,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Tunnel
 		const sharedProcessTunnelChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelService), this._store);
 		this.server.registerChannel(ipcSharedProcessTunnelChannelName, sharedProcessTunnelChannel);
+
+		// Tunnel Proxy
+		const sharedProcessTunnelProxyChannel = ProxyChannel.fromService(accessor.get(ISharedProcessTunnelProxyService), this._store);
+		this.server.registerChannel(ipcSharedProcessTunnelProxyChannelName, sharedProcessTunnelProxyChannel);
 
 		// Remote Tunnel
 		const remoteTunnelChannel = ProxyChannel.fromService(accessor.get(IRemoteTunnelService), this._store);

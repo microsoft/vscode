@@ -14,6 +14,8 @@ import type { SessionReadyAction, SessionCreationFailedAction, SessionTurnStarte
 
 import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
+import type { AnnotationsSetAction, AnnotationsUpdatedAction, AnnotationsRemovedAction, AnnotationsEntrySetAction, AnnotationsEntryRemovedAction } from '../channels-annotations/actions.js';
+
 import type { TerminalDataAction, TerminalInputAction, TerminalResizedAction, TerminalClaimedAction, TerminalTitleChangedAction, TerminalCwdChangedAction, TerminalExitedAction, TerminalClearedAction, TerminalCommandDetectionAvailableAction, TerminalCommandExecutedAction, TerminalCommandFinishedAction } from '../channels-terminal/actions.js';
 
 import type { ResourceWatchChangedAction } from '../channels-resource-watch/actions.js';
@@ -75,6 +77,11 @@ export const enum ActionType {
 	ChangesetOperationsChanged = 'changeset/operationsChanged',
 	ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
 	ChangesetCleared = 'changeset/cleared',
+	AnnotationsSet = 'annotations/set',
+	AnnotationsUpdated = 'annotations/updated',
+	AnnotationsRemoved = 'annotations/removed',
+	AnnotationsEntrySet = 'annotations/entrySet',
+	AnnotationsEntryRemoved = 'annotations/entryRemoved',
 	RootTerminalsChanged = 'root/terminalsChanged',
 	RootConfigChanged = 'root/configChanged',
 	TerminalData = 'terminal/data',
@@ -176,6 +183,11 @@ export type StateAction =
 	| ChangesetOperationsChangedAction
 	| ChangesetOperationStatusChangedAction
 	| ChangesetClearedAction
+	| AnnotationsSetAction
+	| AnnotationsUpdatedAction
+	| AnnotationsRemovedAction
+	| AnnotationsEntrySetAction
+	| AnnotationsEntryRemovedAction
 	| TerminalDataAction
 	| TerminalInputAction
 	| TerminalResizedAction

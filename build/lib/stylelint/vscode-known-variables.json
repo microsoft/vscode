@@ -952,6 +952,7 @@
 		"--mobile-diff-tok-number",
 		"--session-view-background",
 		"--session-view-foreground",
+		"--session-view-centered-content-max-width",
 		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
 		"--chat-smooth-delay",
