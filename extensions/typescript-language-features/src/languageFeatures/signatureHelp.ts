@@ -108,6 +108,7 @@ function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.Signatur
 			return { kind: 'invoked' };
 	}
 }
+/** @internal test-only export — do not use outside of unit tests */
 export { TypeScriptSignatureHelpProvider as _TypeScriptSignatureHelpProvider };
 
 export function register(

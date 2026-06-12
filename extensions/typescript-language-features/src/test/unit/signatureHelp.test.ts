@@ -32,6 +32,8 @@ function makeClient(selectedItemIndex: number): ITypeScriptServiceClient {
 		interruptGetErr: (fn: () => unknown) => fn(),
 		execute: () => Promise.resolve({
 			type: 'response' as const,
+			success: true,
+			message: '',
 			body: {
 				items: [makeSigItem(), makeSigItem()],
 				selectedItemIndex,
@@ -62,7 +64,6 @@ function makeContext(opts: { isRetrigger: boolean; previousActiveSignature?: num
 
 const doc = { uri: vscode.Uri.parse('file:///test.ts') } as vscode.TextDocument;
 const pos = new vscode.Position(0, 0);
-const token = new vscode.CancellationTokenSource().token;
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -70,10 +71,14 @@ const token = new vscode.CancellationTokenSource().token;
 
 suite('TypeScriptSignatureHelpProvider', () => {
 	suite('provideSignatureHelp — activeSignature selection', () => {
+		let tokenSource: vscode.CancellationTokenSource;
+
+		setup(() => { tokenSource = new vscode.CancellationTokenSource(); });
+		teardown(() => { tokenSource.dispose(); });
 
 		test('fresh trigger uses TypeScript selectedItemIndex', async () => {
 			const provider = new _TypeScriptSignatureHelpProvider(makeClient(0));
-			const result = await provider.provideSignatureHelp(doc, pos, token, makeContext({ isRetrigger: false }));
+			const result = await provider.provideSignatureHelp(doc, pos, tokenSource.token, makeContext({ isRetrigger: false }));
 			assert.strictEqual(result?.activeSignature, 0);
 		});
 
@@ -104,14 +109,14 @@ suite('TypeScriptSignatureHelpProvider', () => {
 			// Previously showing overload 0 (number). TS now returns selectedItemIndex=1 (string).
 			// Fixed code sets result.activeSignature = info.selectedItemIndex → must return 1.
 			const provider = new _TypeScriptSignatureHelpProvider(makeClient(1));
-			const result = await provider.provideSignatureHelp(doc, pos, token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
+			const result = await provider.provideSignatureHelp(doc, pos, tokenSource.token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
 			assert.strictEqual(result?.activeSignature, 1);
 		});
 
 		test('retrigger with unchanged TypeScript selection uses selectedItemIndex', async () => {
 			// TS still recommends overload 0 — result should be 0.
 			const provider = new _TypeScriptSignatureHelpProvider(makeClient(0));
-			const result = await provider.provideSignatureHelp(doc, pos, token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
+			const result = await provider.provideSignatureHelp(doc, pos, tokenSource.token, makeContext({ isRetrigger: true, previousActiveSignature: 0 }));
 			assert.strictEqual(result?.activeSignature, 0);
 		});
 	});
