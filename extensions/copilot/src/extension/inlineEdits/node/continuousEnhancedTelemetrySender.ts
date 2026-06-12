@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
+import { getUpstreamRemote } from '../../../platform/git/common/utils';
 import { ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { ITelemetryService, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
 import { LogEntry } from '../../../platform/workspaceRecorder/common/workspaceLog';
@@ -186,8 +187,7 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 
 		const remoteUrlSet = new Set<string>();
 		for (const repository of git.repositories) {
-			const remoteName = repository.state.HEAD?.upstream?.remote;
-			const remote = repository.state.remotes.find(r => r.name === remoteName);
+			const remote = getUpstreamRemote(repository);
 			if (remote?.fetchUrl) { remoteUrlSet.add(remote.fetchUrl); }
 			if (remote?.pushUrl) { remoteUrlSet.add(remote.pushUrl); }
 		}

@@ -5,6 +5,7 @@
 
 import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
+import { getUpstreamRemote } from '../../../platform/git/common/utils';
 import { DebugRecorderBookmark } from '../../../platform/inlineEdits/common/debugRecorderBookmark';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
 import { IStatelessNextEditTelemetry, StatelessNextEditRequest } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -172,8 +173,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 			if (git) {
 				const activeDocRepository = git.getRepository(Uri.parse(activeDoc.id.uri));
 				if (activeDocRepository) {
-					const remoteName = activeDocRepository.state.HEAD?.upstream?.remote;
-					const remote = activeDocRepository.state.remotes.find(r => r.name === remoteName);
+					const remote = getUpstreamRemote(activeDocRepository);
 					if (remote?.fetchUrl) {
 						activeDocumentRepository = remote.pushUrl || remote.fetchUrl;
 					}
@@ -182,8 +182,7 @@ export class LlmNESTelemetryBuilder extends Disposable {
 				const remoteUrlSet = new Set<string>();
 				const repositories = [...new Set(this._request.documents.map(doc => git.getRepository(Uri.parse(doc.id.uri))).filter(Boolean))];
 				for (const repository of repositories) {
-					const remoteName = repository?.state.HEAD?.upstream?.remote;
-					const remote = repository?.state.remotes.find(r => r.name === remoteName);
+					const remote = repository ? getUpstreamRemote(repository) : undefined;
 					if (remote?.fetchUrl) {
 						remoteUrlSet.add(remote.fetchUrl);
 					}
