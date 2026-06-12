@@ -21,6 +21,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
@@ -65,7 +66,9 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const nativeHostService = accessor.get(INativeHostService);
-		await nativeHostService.openAgentsWindow();
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+		await nativeHostService.openAgentsWindow({ folderUri: folderUri?.scheme === Schemas.file ? folderUri : undefined });
 	}
 }
 
@@ -103,7 +106,7 @@ export class OpenAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, args?: { sessionResource?: UriComponents }) {
+	async run(accessor: ServicesAccessor, args?: { folderUri?: UriComponents; sessionResource?: UriComponents }) {
 		const nativeHostService = accessor.get(INativeHostService);
 		await nativeHostService.openAgentsWindow(args);
 	}
@@ -143,6 +146,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...rest: unknown[]): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const nativeHostService = accessor.get(INativeHostService);
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
 
 		let sessionResource: URI | undefined;
 		const arg = rest[0];
@@ -158,13 +162,16 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 		}
 
-		// Only hand off a real (persisted, non-untitled) session so the agents
-		// window opens that same session. Opening it establishes its own
-		// workspace, so nothing else is forwarded; otherwise just open the window.
+		// Hand off a real (persisted, non-untitled) session so the agents window
+		// opens that same session (it carries its own workspace). Otherwise fall
+		// back to forwarding the workspace folder so the agents window scopes its
+		// new-session composer to it.
 		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource);
-		await nativeHostService.openAgentsWindow(hasRealSession
-			? { sessionResource: sessionResource?.toJSON() }
-			: undefined);
+		const folderUri = workspaceContextService.getWorkspace().folders[0]?.uri;
+		await nativeHostService.openAgentsWindow({
+			folderUri: !hasRealSession && folderUri?.scheme === Schemas.file ? folderUri.toJSON() : undefined,
+			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
+		});
 	}
 }
 

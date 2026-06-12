@@ -9,35 +9,53 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsViewService } from '../../../services/sessions/browser/sessionsViewService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { SessionsView, SessionsViewId as SessionsListViewId } from '../../sessions/browser/views/sessionsView.js';
+import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
+import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
-class OpenAgentsSessionContribution extends Disposable implements IWorkbenchContribution {
+class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'sessions.openAgentsSession';
+	static readonly ID = 'sessions.selectAgentsFolder';
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsViewService private readonly sessionsViewService: ISessionsViewService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ISessionsSetUpService private readonly sessionsSetUpService: ISessionsSetUpService,
 		@ILogService private readonly logService: ILogService,
+		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 	) {
 		super();
-		// Handoff from the main vscode window: open the given session (which
-		// carries its own workspace) once the agents window is ready.
-		const handleOpenAgentsSession = (_: unknown, ...args: unknown[]) => {
-			const sessionResource = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			this.logService.info(`[AgentsHandoff] IPC received: sessionResource=${sessionResource?.toString() ?? '(none)'}`);
-			if (!sessionResource) {
-				return;
-			}
-			this.openExistingSession(sessionResource)
-				.catch(err => this.logService.error('[AgentsHandoff] openExistingSession failed', err));
+		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
+			const folderUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
+			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
+			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${folderUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
+
+			this.handleOpenIntent(folderUri, sessionResource)
+				.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
 		};
-		ipcRenderer.on('vscode:openAgentsSession', handleOpenAgentsSession);
-		this._register({ dispose: () => ipcRenderer.removeListener('vscode:openAgentsSession', handleOpenAgentsSession) });
+		ipcRenderer.on('vscode:selectAgentsFolder', handleSelectAgentsFolder);
+		this._register({ dispose: () => ipcRenderer.removeListener('vscode:selectAgentsFolder', handleSelectAgentsFolder) });
+	}
+
+	private async handleOpenIntent(folderUri: URI | undefined, sessionResource: URI | undefined): Promise<void> {
+		// Opening an existing session establishes its own workspace context, so
+		// the folder selection is only needed for the folder-only handoff (no
+		// session to restore).
+		if (sessionResource) {
+			await this.openExistingSession(sessionResource);
+			return;
+		}
+		if (folderUri) {
+			await this.selectFolder(folderUri);
+		}
 	}
 
 	private async openExistingSession(sessionResource: URI): Promise<void> {
@@ -98,6 +116,43 @@ class OpenAgentsSessionContribution extends Disposable implements IWorkbenchCont
 			}));
 		});
 	}
+
+	private async selectFolder(folderUri: URI): Promise<void> {
+		// Wait for the welcome/setup flow to complete before selecting the folder
+		await this.sessionsSetUpService.whenWelcomeDone();
+
+		this.sessionsViewService.openNewSession();
+
+		// Tell the sessions list this folder is the open-window source folder
+		// so it ranks the matching folder section first. Get the view if it
+		// already exists — do not open it just for this side-effect.
+		const sessionsView = this.viewsService.getViewWithId<SessionsView>(SessionsListViewId);
+		sessionsView?.sessionsControl?.setOpenWindowSourceFolder(folderUri);
+
+		if (this.tryResolveAndSelect(folderUri)) {
+			return;
+		}
+
+		// Provider not registered yet — wait for it, but give up at Eventually phase
+		const disposable = this.sessionsProvidersService.onDidChangeProviders(() => {
+			if (this.tryResolveAndSelect(folderUri)) {
+				disposable.dispose();
+			}
+		});
+		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => disposable.dispose());
+	}
+
+	private tryResolveAndSelect(folderUri: URI): boolean {
+		const resolved = this.sessionsManagementService.resolveWorkspace(folderUri);
+		if (!resolved) {
+			return false;
+		}
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (activeSession === undefined || activeSession.status.get() === SessionStatus.Untitled) {
+			this.sessionsPartService.getSessionView(activeSession?.sessionId)?.selectWorkspace(folderUri, resolved.providerId);
+		}
+		return true;
+	}
 }
 
-registerWorkbenchContribution2(OpenAgentsSessionContribution.ID, OpenAgentsSessionContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
