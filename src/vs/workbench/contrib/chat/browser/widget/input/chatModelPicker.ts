@@ -441,7 +441,7 @@ export function buildModelPickerItems(
 	languageModelsService?: ILanguageModelsService,
 	openerService?: IOpenerService,
 	isUBB?: boolean,
-	showAutoModel: boolean = true,
+	showAutoModel: boolean = false,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	if (models.length === 0) {
@@ -1135,7 +1135,7 @@ export class ModelPickerWidget extends Disposable {
 			this._languageModelsService,
 			this._openerService,
 			isUBB,
-			this._delegate.showAutoModel?.() ?? true,
+			this._delegate.showAutoModel?.() ?? false,
 		);
 
 		// Collect all hover disposables so they are properly cleaned up when the
@@ -1232,7 +1232,7 @@ export class ModelPickerWidget extends Disposable {
 		// stale/carried-over selection (e.g. an "Auto" model from another
 		// session type) so the label matches the dropdown's "No models
 		// available" entry.
-		const noModelsAvailable = !(this._delegate.showAutoModel?.() ?? true) && this._delegate.getModels().length === 0;
+		const noModelsAvailable = !(this._delegate.showAutoModel?.() ?? false) && this._delegate.getModels().length === 0;
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];

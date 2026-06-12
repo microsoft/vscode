@@ -64,7 +64,7 @@ export function sessionHasNoSelectableModel(session: ISession | undefined, sessi
 	if (getModelsForSession(session, sessionsProvidersService).length > 0) {
 		return false;
 	}
-	return getModelPickerOptionsForSession(session, sessionsProvidersService).showAutoModel === false;
+	return !getModelPickerOptionsForSession(session, sessionsProvidersService).showAutoModel;
 }
 
 const DEFAULT_MODEL_PICKER_OPTIONS: ISessionModelPickerOptions = {
@@ -136,7 +136,7 @@ export class ModelPicker extends Disposable {
 			showManageModelsAction: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showManageModelsAction,
 			showUnavailableFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showUnavailableFeatured,
 			showFeatured: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showFeatured,
-			showAutoModel: () => getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showAutoModel !== false,
+			showAutoModel: () => !!getModelPickerOptionsForSession(this._session.get(), this._sessionsProvidersService).showAutoModel,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -271,7 +271,7 @@ export class ModelPicker extends Disposable {
 		if (getModelsForSession(session, this._sessionsProvidersService).length > 0) {
 			return true;
 		}
-		return getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel === false;
+		return !getModelPickerOptionsForSession(session, this._sessionsProvidersService).showAutoModel;
 	}
 
 	private _updateVisibility(visible: boolean): void {
