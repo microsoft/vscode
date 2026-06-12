@@ -15,7 +15,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
+import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionStatus {
@@ -235,6 +235,12 @@ export type IChatSessionHistoryItem = {
 	parts: IChatProgress[];
 	participant: string;
 	details?: string;
+	/**
+	 * Error details for a failed response. Rendered as a proper chat error
+	 * (including the quota-exceeded upgrade affordance), mirroring the live
+	 * agent result's `errorDetails`.
+	 */
+	errorDetails?: IChatResponseErrorDetails;
 };
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;

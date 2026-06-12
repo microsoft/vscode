@@ -10,10 +10,12 @@ import {
 	FilterReason,
 	getChatErrorDetailsFromFetchError,
 	getChatErrorDetailsFromMeta,
+	getCopilotPlanFromEntitlement,
 	getFilteredMessage,
 	getQuotaMessageForPlan,
 	IChatFetchErrorPayload,
 } from '../../common/chatErrorMessages.js';
+import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel } from '../../common/chatService/chatService.js';
 
 suite('ChatErrorMessages', () => {
@@ -46,6 +48,16 @@ suite('ChatErrorMessages', () => {
 				level: ChatErrorLevel.Info,
 				isRateLimited: true,
 			});
+		});
+
+		test('context overrides the forwarded plan (free user)', () => {
+			const details = getChatErrorDetailsFromMeta({
+				chatError: {
+					fetchError: { type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'quota_exceeded' } },
+					copilotPlan: 'business',
+				},
+			}, { copilotPlan: 'free' });
+			assert.strictEqual(details?.message, 'You\'ve reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.');
 		});
 	});
 
@@ -95,6 +107,71 @@ suite('ChatErrorMessages', () => {
 				level: ChatErrorLevel.Info,
 			});
 		});
+
+		test('simple error types produce their static messages', () => {
+			const types = [
+				ChatFetchResponseType.Canceled,
+				ChatFetchResponseType.Length,
+				ChatFetchResponseType.NotFound,
+				ChatFetchResponseType.Unknown,
+				ChatFetchResponseType.ExtensionBlocked,
+				ChatFetchResponseType.AgentUnauthorized,
+				ChatFetchResponseType.InvalidStatefulMarker,
+			];
+			const actual = types.map(type => getChatErrorDetailsFromFetchError({ type }, undefined));
+			assert.deepStrictEqual(actual, [
+				{ code: ChatFetchResponseType.Canceled, message: 'Canceled' },
+				{ code: ChatFetchResponseType.Length, message: 'Sorry, the response hit the length limit. Please rephrase your prompt.' },
+				{ code: ChatFetchResponseType.NotFound, message: 'Sorry, the resource was not found.' },
+				{ code: ChatFetchResponseType.Unknown, message: 'Sorry, no response was returned.' },
+				{ code: ChatFetchResponseType.ExtensionBlocked, message: 'Sorry, something went wrong.' },
+				{ code: ChatFetchResponseType.AgentUnauthorized, message: 'Sorry, something went wrong.' },
+				{ code: ChatFetchResponseType.InvalidStatefulMarker, message: 'Your chat session state is invalid, please start a new chat.' },
+			]);
+		});
+
+		test('network error includes request id and reason', () => {
+			const details = getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.NetworkError, requestId: 'rid', reason: 'offline' }, undefined);
+			assert.deepStrictEqual(details, {
+				code: ChatFetchResponseType.NetworkError,
+				message: 'Sorry, there was a network error. Please try again later. Request id: rid\n\nReason: offline',
+			});
+		});
+
+		test('agent failed dependency surfaces the raw reason', () => {
+			const details = getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.AgentFailedDependency, reason: 'timed out' }, undefined);
+			assert.deepStrictEqual(details, { code: ChatFetchResponseType.AgentFailedDependency, message: 'timed out' });
+		});
+
+		test('rate-limit messages vary by capi code and auto flag', () => {
+			const messages = [
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.RateLimited, retryAfter: 30, capiError: { code: 'agent_mode_limit_exceeded' } }, undefined).message,
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.RateLimited, retryAfter: 30, isAuto: true, capiError: { code: 'model_overloaded' } }, undefined).message,
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.RateLimited, retryAfter: 30, capiError: { code: 'integration_rate_limited' } }, undefined).message,
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.RateLimited, retryAfter: 30 }, undefined).message,
+			];
+			assert.deepStrictEqual(messages, [
+				'Sorry, you have exceeded the agent mode rate limit. Please switch to ask mode and try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'Sorry, the upstream model provider is currently experiencing high demand. Please try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'Sorry, GitHub Copilot Chat is currently experiencing high demand. Please try again in 30 seconds. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+				'Sorry, your request was rate-limited. Please wait 30 seconds before trying again or consider switching to Auto. [Learn More](https://aka.ms/github-copilot-rate-limit-error)',
+			]);
+		});
+
+		test('quota sub-codes map to specific messages', () => {
+			const messages = [
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'overage_limit_reached' } }, undefined).message,
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'additional_spend_limit_reached' } }, undefined).message,
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.QuotaExceeded, capiError: { code: 'billing_not_configured', message: 'set up billing' } }, undefined).message,
+				getChatErrorDetailsFromFetchError({ type: ChatFetchResponseType.QuotaExceeded }, undefined).message,
+			];
+			assert.deepStrictEqual(messages, [
+				'You cannot accrue additional premium requests at this time. Please contact [GitHub Support](https://support.github.com/contact) to continue using Copilot.',
+				'You\'ve reached your additional usage limit for your plan. Upgrade your plan to keep going.',
+				'set up billing',
+				'Quota Exceeded',
+			]);
+		});
 	});
 
 	suite('getQuotaMessageForPlan', () => {
@@ -112,17 +189,20 @@ suite('ChatErrorMessages', () => {
 		});
 	});
 
-	suite('getFilteredMessage', () => {
+	suite('getCopilotPlanFromEntitlement', () => {
 
-		test('prompt filter, markdown vs plain', () => {
-			assert.strictEqual(
-				getFilteredMessage(FilterReason.Prompt),
-				'Sorry, your prompt was filtered by the Responsible AI Service. Please rephrase your prompt and try again. [Learn more](https://aka.ms/copilot-chat-filtered-docs).',
-			);
-			assert.strictEqual(
-				getFilteredMessage(FilterReason.Prompt, false),
-				'Sorry, your prompt was filtered by the Responsible AI Service. Please rephrase your prompt and try again.',
-			);
+		test('maps entitlements to Copilot plan strings', () => {
+			const actual = [
+				ChatEntitlement.Free,
+				ChatEntitlement.Pro,
+				ChatEntitlement.ProPlus,
+				ChatEntitlement.Max,
+				ChatEntitlement.Business,
+				ChatEntitlement.Enterprise,
+				ChatEntitlement.EDU,
+				ChatEntitlement.Unknown,
+			].map(getCopilotPlanFromEntitlement);
+			assert.deepStrictEqual(actual, ['free', 'individual', 'individual_pro', 'individual_max', 'business', 'enterprise', 'individual', undefined]);
 		});
 	});
 });

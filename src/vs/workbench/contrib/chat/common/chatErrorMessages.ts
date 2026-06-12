@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { ChatEntitlement } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel, IChatResponseErrorDetails } from './chatService/chatService.js';
 
 /**
@@ -340,11 +341,57 @@ function isForwardedChatError(value: unknown): value is IForwardedChatError {
  * forwarded by an agent host harness, if present. Returns `undefined` when no
  * forwarded chat error is found so callers can fall back to their existing
  * error handling.
+ *
+ * The agent host does not know the signed-in user's plan, so callers in core
+ * pass an {@link IChatErrorContext} (resolved from `IChatEntitlementService`)
+ * whose fields take precedence over the values forwarded in `_meta`.
  */
-export function getChatErrorDetailsFromMeta(meta: Record<string, unknown> | undefined): IChatResponseErrorDetails | undefined {
+export function getChatErrorDetailsFromMeta(meta: Record<string, unknown> | undefined, context?: IChatErrorContext): IChatResponseErrorDetails | undefined {
 	const chatError = meta?.chatError;
 	if (!isForwardedChatError(chatError)) {
 		return undefined;
 	}
-	return getChatErrorDetailsFromFetchError(chatError.fetchError, chatError.copilotPlan, chatError.isUsageBasedBilling, chatError.quotaResetDate);
+	return getChatErrorDetailsFromFetchError(
+		chatError.fetchError,
+		context?.copilotPlan ?? chatError.copilotPlan,
+		context?.isUsageBasedBilling ?? chatError.isUsageBasedBilling,
+		context?.quotaResetDate ?? chatError.quotaResetDate,
+	);
+}
+
+/**
+ * User-context overrides for {@link getChatErrorDetailsFromMeta}. When a field
+ * is set it takes precedence over the value forwarded by the agent host. Core
+ * resolves these from `IChatEntitlementService`.
+ */
+export interface IChatErrorContext {
+	readonly copilotPlan?: string;
+	readonly isUsageBasedBilling?: boolean;
+	readonly quotaResetDate?: string;
+}
+
+/**
+ * Maps a core {@link ChatEntitlement} to the Copilot plan string understood by
+ * the quota/rate-limit message helpers (mirrors the Copilot extension's
+ * `CopilotToken.copilotPlan` values).
+ */
+export function getCopilotPlanFromEntitlement(entitlement: ChatEntitlement): string | undefined {
+	switch (entitlement) {
+		case ChatEntitlement.Free:
+			return 'free';
+		case ChatEntitlement.Pro:
+			return 'individual';
+		case ChatEntitlement.ProPlus:
+			return 'individual_pro';
+		case ChatEntitlement.Max:
+			return 'individual_max';
+		case ChatEntitlement.Business:
+			return 'business';
+		case ChatEntitlement.Enterprise:
+			return 'enterprise';
+		case ChatEntitlement.EDU:
+			return 'individual';
+		default:
+			return undefined;
+	}
 }

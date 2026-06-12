@@ -2149,12 +2149,13 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 
-			await turnPromise;
+			const result = await turnPromise;
 
-			// Should have received the error message and the request should have finished
-			assert.ok(collected.length >= 1);
-			const errorPart = collected.flat().find(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong'));
-			assert.ok(errorPart, 'Should have found a markdownContent part containing the error message');
+			// The error is surfaced as the agent result's errorDetails (so the
+			// chat renders a proper error / quota upgrade affordance) rather
+			// than an inline markdown progress part.
+			assert.strictEqual(result.errorDetails?.message, 'Error: (test_error) Something went wrong');
+			assert.ok(!collected.flat().some(p => p.kind === 'markdownContent' && (p as IChatMarkdownContent).content.value.includes('Something went wrong')), 'Error should not be duplicated as a markdown progress part');
 		}));
 	});
 

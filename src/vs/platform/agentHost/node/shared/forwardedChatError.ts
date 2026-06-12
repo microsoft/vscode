@@ -106,6 +106,65 @@ export function encodeForwardedChatError(forwarded: IForwardedChatError): string
 }
 
 /**
+ * Fields from a structured agent-SDK error (notably the Copilot CLI SDK's
+ * `ErrorData`) used to build a forwarded chat error directly, without a
+ * {@link PROXY_ERROR_PREFIX} marker. The Copilot CLI authenticates with CAPI
+ * itself (no VS Code proxy to embed a marker), but its `session.error` event
+ * already carries the structured classification we need.
+ */
+export interface ISdkChatErrorFields {
+	readonly errorType: string;
+	readonly errorCode?: string;
+	readonly message: string;
+	readonly statusCode?: number;
+	readonly providerCallId?: string;
+	readonly serviceRequestId?: string;
+}
+
+/**
+ * Maps an agent-SDK error category (and optional HTTP status) to the
+ * extension's `ChatFetchResponseType` string value, or `undefined` when the
+ * error is not a model/CAPI error we can render richly. Categories mirror the
+ * Copilot CLI SDK's `ErrorData.errorType` values.
+ */
+function sdkErrorTypeToFetchType(errorType: string, statusCode: number | undefined): string | undefined {
+	switch (errorType) {
+		case 'quota':
+			return 'quotaExceeded';
+		case 'rate_limit':
+			return 'rateLimited';
+		case 'context_limit':
+			return 'length';
+		case 'authentication':
+		case 'authorization':
+			return 'agent_unauthorized';
+	}
+	return statusCode !== undefined ? statusToFetchType(statusCode) : undefined;
+}
+
+/**
+ * Builds a {@link IForwardedChatError} from a structured agent-SDK error.
+ * Returns `undefined` when the error cannot be classified as a model/CAPI
+ * error, so callers can fall back to the raw message.
+ */
+export function buildForwardedChatErrorFromFields(data: ISdkChatErrorFields): IForwardedChatError | undefined {
+	const type = sdkErrorTypeToFetchType(data.errorType, data.statusCode);
+	if (!type) {
+		return undefined;
+	}
+	const capiError = (data.errorCode || data.message) ? { code: data.errorCode, message: data.message } : undefined;
+	return {
+		fetchError: {
+			type,
+			reason: data.message,
+			requestId: data.providerCallId ?? '',
+			serverRequestId: data.serviceRequestId,
+			...(capiError && { capiError }),
+		},
+	};
+}
+
+/**
  * Attempts to decode a {@link IForwardedChatError} from arbitrary error text
  * that may contain a {@link PROXY_ERROR_PREFIX} marker. Returns `undefined`
  * when no marker is present or the payload cannot be parsed.
@@ -151,5 +210,15 @@ export function toChatErrorMeta(forwarded: IForwardedChatError): Record<string, 
  */
 export function tryBuildChatErrorMeta(errorText: string | undefined): Record<string, unknown> | undefined {
 	const forwarded = tryParseForwardedChatError(errorText);
+	return forwarded ? toChatErrorMeta(forwarded) : undefined;
+}
+
+/**
+ * Convenience: build the protocol `ErrorInfo._meta` record from a structured
+ * agent-SDK error. Returns `undefined` when the error cannot be classified as
+ * a model/CAPI error, so callers can fall back to the raw message.
+ */
+export function tryBuildChatErrorMetaFromFields(data: ISdkChatErrorFields): Record<string, unknown> | undefined {
+	const forwarded = buildForwardedChatErrorFromFields(data);
 	return forwarded ? toChatErrorMeta(forwarded) : undefined;
 }
