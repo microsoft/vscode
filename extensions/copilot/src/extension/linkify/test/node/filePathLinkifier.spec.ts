@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { suite, test } from 'vitest';
+import { expect, suite, test } from 'vitest';
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
+import { Location, Position, Range } from '../../../../vscodeTypes';
 import { PromptReference } from '../../../prompt/common/conversation';
 import { LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { assertPartsEqual, createTestLinkifierService, linkify, workspaceFile } from './util';
@@ -303,5 +304,52 @@ suite('File Path Linkifier', () => {
 		assertPartsEqual(result.parts, [
 			'config.${TerminalSettingId'  // Should remain as plain text
 		]);
+	});
+
+	test(`Should linkify inline code paths with line numbers`, async () => {
+		const linkifier = createTestLinkifierService('src/file.ts');
+		const result = await linkify(linkifier, '`src/file.ts:42`');
+		const anchor = result.parts[0] as LinkifyLocationAnchor;
+		const expected = new LinkifyLocationAnchor(
+			new Location(workspaceFile('src/file.ts'), new Range(new Position(41, 0), new Position(41, 0)))
+		);
+		expect(anchor.title).toBe('src/file.ts#L42');
+		assertPartsEqual([anchor], [expected]);
+	});
+
+	test(`Should linkify plain text paths with line numbers`, async () => {
+		const linkifier = createTestLinkifierService('src/file.ts');
+		const result = await linkify(linkifier, 'src/file.ts:10');
+		const anchor = result.parts[0] as LinkifyLocationAnchor;
+		const expected = new LinkifyLocationAnchor(
+			new Location(workspaceFile('src/file.ts'), new Range(new Position(9, 0), new Position(9, 0)))
+		);
+		expect(anchor.title).toBe('src/file.ts#L10');
+		assertPartsEqual([anchor], [expected]);
+	});
+
+	test(`Should linkify paths with line and column numbers`, async () => {
+		const linkifier = createTestLinkifierService('src/file.ts');
+		const result = await linkify(linkifier, '`src/file.ts:10:5`');
+		const anchor = result.parts[0] as LinkifyLocationAnchor;
+		const expected = new LinkifyLocationAnchor(
+			new Location(workspaceFile('src/file.ts'), new Range(new Position(9, 4), new Position(9, 4)))
+		);
+		expect(anchor.title).toBe('src/file.ts#L10');
+		assertPartsEqual([anchor], [expected]);
+	});
+
+	test(`Should not linkify paths with line numbers when file does not exist`, async () => {
+		const linkifier = createTestLinkifierService();
+		const result = await linkify(linkifier, '`noSuchFile.ts:42`');
+		assertPartsEqual(result.parts, ['`noSuchFile.ts:42`']);
+	});
+
+	test(`Should still linkify paths without line numbers normally`, async () => {
+		const linkifier = createTestLinkifierService('src/file.ts');
+		assertPartsEqual(
+			(await linkify(linkifier, '`src/file.ts`')).parts,
+			[new LinkifyLocationAnchor(workspaceFile('src/file.ts'))]
+		);
 	});
 });
