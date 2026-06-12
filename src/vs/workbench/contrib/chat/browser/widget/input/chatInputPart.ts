@@ -15,6 +15,7 @@ import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/ho
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -87,6 +88,7 @@ import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatS
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel, logChangesToStateModel } from '../../../common/model/chatModel.js';
 import { filterModelsForSession, findBestMatchingModel, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -444,6 +446,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('_currentLanguageModel', undefined);
 
+	/**
+	 * Per-editor store of each model's configuration (e.g. context size, thinking
+	 * effort), persisted to a `(location, sessionType)`-scoped storage bucket.
+	 * Cleared on session-type change so the next read re-seeds from the new
+	 * bucket. See issue #320393.
+	 */
+	private readonly _modelConfigStore: ChatModelConfigurationStore;
+
 	get currentLanguageModel() {
 		return this._currentLanguageModel.get()?.identifier;
 	}
@@ -593,6 +603,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatPhoneInputPresenter private readonly chatPhoneInputPresenter: IChatPhoneInputPresenter,
 	) {
 		super();
+
+		this._modelConfigStore = this._register(new ChatModelConfigurationStore(
+			() => this.getModelConfigurationStorageKey(),
+			this.languageModelsService,
+			this.storageService,
+		));
 
 		// Initialize debounced text sync scheduler
 		this._syncTextDebounced = this._register(new RunOnceScheduler(() => {
@@ -856,6 +872,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// initSelectedModel is scoped to the current storage key/session type.
 		// Do not let a delayed restore from a previous session type apply later.
 		this._waitForPersistedLanguageModel.clear();
+		// Drop the per-editor configuration snapshot so the next read re-seeds
+		// from the new (location, sessionType)-scoped storage bucket.
+		this._modelConfigStore.clear();
 
 		const selectedModelStorageKey = this.getSelectedModelStorageKey();
 		const selectedModelIsDefaultStorageKey = this.getSelectedModelIsDefaultStorageKey();
@@ -1009,7 +1028,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return !sessionType || sessionType === localChatSessionType;
 			},
 			autoModelUnavailable: () => this._autoModelUnavailable(),
+			modelConfiguration: this._modelConfigStore,
 		};
+	}
+
+	/**
+	 * Returns this editor's snapshot of the given model's configuration (e.g.
+	 * context size, thinking effort), scoped to this editor rather than the
+	 * profile-global value. Delegates to {@link ChatModelConfigurationStore}.
+	 * See issue #320393.
+	 */
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
+		return this._modelConfigStore.getModelConfiguration(modelId);
+	}
+
+	private getModelConfigurationStorageKey(): string {
+		const sessionType = this._currentSessionType;
+		if (sessionType && this.sessionTypeHasOwnModelPool(sessionType)) {
+			return `chat.modelConfiguration.${this.location}.${sessionType}`;
+		}
+		return `chat.modelConfiguration.${this.location}`;
 	}
 
 	private _createModePickerDelegate(): IModePickerDelegate {
@@ -2584,6 +2622,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Context usage widget — will be positioned in the toolbar after toolbars are created
 		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
+		this.contextUsageWidget.setModelConfigurationResolver(
+			modelId => this.getModelConfiguration(modelId),
+			this._modelConfigStore.onDidChange,
+		);
 		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
