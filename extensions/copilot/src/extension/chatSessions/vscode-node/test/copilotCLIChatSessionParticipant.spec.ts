@@ -393,6 +393,9 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			override async summarize(context: vscode.ChatContext, token: vscode.CancellationToken): Promise<string | undefined> {
 				return undefined;
 			}
+			override async trackSummaryUsage(_sessionId: string, _summary: string): Promise<vscode.ChatPromptReference | undefined> {
+				return undefined;
+			}
 		}();
 		const fileSystem = new MockFileSystemService();
 		class FakeUserQuestionHandler implements IUserQuestionHandler {
@@ -1088,7 +1091,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('summarizes structural response history when delegating from another chat', async () => {
-		vi.mocked(delegationService.summarize).mockResolvedValue('summary text');
+		const summarizeSpy = vi.spyOn(delegationService, 'summarize').mockResolvedValue('summary text');
 		const request = new TestChatRequest('Explain this');
 		const context = {
 			chatSessionContext: undefined,
@@ -1102,12 +1105,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 
 		await participant.createHandler()(request, context, stream, token);
 
-		expect(delegationService.summarize).toHaveBeenCalledWith(context, token);
-		expect(cliSessions).toHaveLength(1);
-		expect(cliSessions[0].requests).toHaveLength(1);
-		expect(cliSessions[0].requests[0].input).toEqual(expect.objectContaining({
-			prompt: 'Explain this\n**Summary**\nsummary text'
-		}));
+		expect(summarizeSpy).toHaveBeenCalledWith(context, token);
+		expect(vi.mocked(promptResolver.resolvePrompt).mock.calls[0]?.[1]).toBe('Explain this\n**Summary**\nsummary text');
 	});
 
 	it('handles existing session with acceptedConfirmationData (no longer triggers cloud delegation)', async () => {
