@@ -42,6 +42,29 @@ if (process.env.npm_execpath?.includes('yarn')) {
 	throw new Error();
 }
 
+// corepack-extracted pnpm bundles node-gyp but `gyp/gyp_main.py` is often
+// extracted without the executable bit, causing native builds (run via pnpm's
+// bundled node-gyp on Linux/macOS) to fail with `Permission denied`. Fix it
+// in place so all subsequent install scripts can invoke gyp. Harmless on
+// Windows (the bit doesn't matter there).
+if (process.platform !== 'win32') {
+	try {
+		const pnpmExec = process.env.PNPM_HOME
+			? path.join(process.env.PNPM_HOME, 'pnpm')
+			: child_process.execFileSync('which', ['pnpm']).toString().trim();
+		const realPnpm = fs.realpathSync(pnpmExec);
+		// realPnpm is like .../corepack/v1/pnpm/<ver>/dist/bin/pnpm.cjs
+		const gypMain = path.resolve(path.dirname(realPnpm), '..', 'node_modules', 'node-gyp', 'gyp', 'gyp_main.py');
+		if (fs.existsSync(gypMain)) {
+			fs.chmodSync(gypMain, 0o755);
+		}
+	} catch {
+		// best effort; if pnpm location can't be determined we'll fall through
+		// and native builds may fail with permission denied -- but that's the
+		// status quo so we don't want to break the install.
+	}
+}
+
 // This repository uses pnpm as its package manager. Reject npm so that
 // contributors do not accidentally create a package-lock.json or an
 // incompatible node_modules layout.
