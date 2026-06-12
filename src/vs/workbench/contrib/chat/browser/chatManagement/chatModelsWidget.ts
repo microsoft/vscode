@@ -1195,13 +1195,14 @@ export class ChatModelsWidget extends Disposable {
 		// The marketplace button is hidden in the Agents window where installing
 		// model provider extensions is not supported.
 		if (!this.environmentService.isSessionsWindow) {
-			this.browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
+			const browseMarketplaceButton = this._register(new Button(this.addButtonContainer, {
 				...buttonOptions,
 				secondary: true,
 			}));
-			this.browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
-			this.browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
-			this._register(this.browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
+			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
+			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
+			this.browseMarketplaceButton = browseMarketplaceButton;
 		}
 
 		// Table container
