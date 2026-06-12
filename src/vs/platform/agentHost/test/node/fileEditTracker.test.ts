@@ -19,6 +19,7 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
 import { createZeroDiffComputeService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/shared/fileEditTracker.js';
 
 suite('FileEditTracker', () => {
@@ -40,6 +41,7 @@ suite('FileEditTracker', () => {
 		services.set(ILogService, new NullLogService());
 		services.set(IFileService, fileService);
 		services.set(IDiffComputeService, createZeroDiffComputeService());
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
 		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 	});
@@ -118,6 +120,7 @@ suite('FileEditTracker', () => {
 		// output observed in the live-E2E run; the tracker should clamp
 		// `removed` to 0 for create.
 		services.set(IDiffComputeService, new TestDiffComputeService({ added: 1, removed: 1 }));
+		services.set(IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory());
 		const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 		const localTracker = inst.createInstance(FileEditTracker, 'copilot:/test-session', db);
 
