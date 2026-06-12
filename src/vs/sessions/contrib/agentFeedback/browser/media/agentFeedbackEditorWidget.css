@@ -337,7 +337,7 @@
 .agent-feedback-widget-reply-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-agents-fontSize-label3);
-	padding: 1px 4px;
+	padding: 2px 4px;
 	border-radius: var(--vscode-cornerRadius-small);
 	background: color-mix(in srgb, var(--vscode-editorWidget-border, var(--vscode-widget-border)) 25%, transparent);
 }
