@@ -22,7 +22,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { AICustomizationManagementSection, AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -30,14 +31,12 @@ import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 const $ = DOM.$;
 
 export const AI_CUSTOMIZATION_OVERVIEW_VIEW_ID = 'workbench.view.aiCustomizationOverview';
-
-function isWelcomePageEditor(editor: unknown): editor is { showWelcomePage(): void } {
-	return typeof (editor as { showWelcomePage?: unknown })?.showWelcomePage === 'function';
-}
 
 interface ISectionSummary {
 	readonly id: AICustomizationManagementSection;
@@ -76,6 +75,8 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -138,16 +139,16 @@ export class AICustomizationOverviewView extends ViewPane {
 			countElement.textContent = `${section.count}`;
 			this.countElements.set(section.id, countElement);
 
-			// Click handler to open the management editor overview
+			// Click handler to open the management editor section
 			this._register(DOM.addDisposableListener(sectionElement, 'click', () => {
-				this.openOverview();
+				void this.openSection(section.id);
 			}));
 
 			// Keyboard support
 			this._register(DOM.addDisposableListener(sectionElement, 'keydown', (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
-					this.openOverview();
+					void this.openSection(section.id);
 				}
 			}));
 
@@ -235,14 +236,17 @@ export class AICustomizationOverviewView extends ViewPane {
 		}
 	}
 
-	private async openOverview(): Promise<void> {
+	private async openSection(section: AICustomizationManagementSection): Promise<void> {
+		const sessionResource = this.sessionsManagementService.activeSession.get()?.resource;
+		if (sessionResource) {
+			this.harnessService.setActiveSession(sessionResource);
+		}
+
 		const input = AICustomizationManagementEditorInput.getOrCreate();
 		const editor = await this.editorService.openEditor(input, { pinned: true });
 
-		// Always reset to the welcome page when opening from the sidebar,
-		// so we don't restore the previously selected section.
-		if (editor?.getId() === AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID && isWelcomePageEditor(editor)) {
-			editor.showWelcomePage();
+		if (editor instanceof AICustomizationManagementEditor) {
+			editor.selectSectionById(section);
 		}
 	}
 

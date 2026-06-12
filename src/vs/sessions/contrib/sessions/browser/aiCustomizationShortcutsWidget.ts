@@ -68,8 +68,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._renderForCurrentMode();
 
 		// Re-render only when crossing the single<->non-single boundary. The
-		// `welcome` and `section` modes produce identical DOM (only click
-		// behavior differs, resolved at click-time in the contribution), so
+		// `welcome` and `section` modes produce identical DOM and behavior, so
 		// toggling between them needs no re-render.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SESSIONS_CUSTOMIZATIONS_SIDEBAR_MODE_SETTING)) {
