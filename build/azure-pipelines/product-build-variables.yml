@@ -113,4 +113,3 @@ variables:
     value: true
   - name: ARTIFACT_PREFIX
     value: ''
-
