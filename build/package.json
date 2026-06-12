@@ -78,8 +78,7 @@
   "pnpm": {
     "overrides": {
       "path-scurry>lru-cache": "11.2.1",
-      "yauzl": "^3.3.1",
-      "glob": "^7.2.3"
+      "yauzl": "^3.3.1"
     },
     "onlyBuiltDependencies": [
       "@vscode/ripgrep",
