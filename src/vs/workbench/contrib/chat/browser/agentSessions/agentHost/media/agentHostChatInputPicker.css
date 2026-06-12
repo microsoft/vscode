@@ -99,7 +99,7 @@
 	container-type: inline-size;
 }
 
-@container (max-width: 480px) {
+@container (max-width: 400px) {
 	.agent-host-chat-input-picker-label {
 		display: none;
 	}

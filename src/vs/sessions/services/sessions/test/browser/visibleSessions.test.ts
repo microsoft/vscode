@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -12,8 +11,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { VisibleSessions } from '../../browser/visibleSessions.js';
 import { IChat, ISession } from '../../common/session.js';
 
@@ -60,21 +57,6 @@ function stubSession(sessionId: string): ISession {
 	};
 }
 
-class TestAgentSessionsService extends mock<IAgentSessionsService>() {
-	override readonly onDidChangeSessionArchivedState = Event.None;
-	override readonly model: IAgentSessionsModel = {
-		onWillResolve: Event.None,
-		onDidResolve: Event.None,
-		onDidChangeSessions: Event.None,
-		onDidChangeSessionArchivedState: Event.None,
-		resolved: true,
-		sessions: [],
-		getSession: () => undefined,
-		observeSession: () => constObservable<IAgentSession | undefined>(undefined),
-		resolve: async () => { },
-	};
-}
-
 suite('VisibleSessions', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,11 +65,9 @@ suite('VisibleSessions', () => {
 		const uriIdentity = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		};
-		const agentSessions = new TestAgentSessionsService();
 		const model = disposables.add(new VisibleSessions(
 			session => session.mainChat.get(),
 			uriIdentity,
-			agentSessions,
 		));
 		return model;
 	}

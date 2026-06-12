@@ -24,6 +24,9 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
+import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -49,6 +52,7 @@ interface ISessionsSlashCommandData {
 	readonly execute: (args: string) => void;
 }
 
+
 /**
  * Manages slash commands for the sessions new-chat input widget — registration,
  * autocompletion, decorations (syntax highlighting + placeholder text), and execution.
@@ -71,6 +75,7 @@ export class SlashCommandHandler extends Disposable {
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 		this._registerSlashCommands();
@@ -263,6 +268,13 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const activeSession = this.sessionsManagementService.activeSession.get();
+				if (activeSession && isAgentHostTarget(getChatSessionType(activeSession.resource))) {
+					// Agent-host sessions delegate completions to the host
+					// process via `AgentHostInputCompletions`.
+					return null;
+				}
+
 				const range = this._computeCompletionRanges(model, position, /\/[\p{L}0-9_.:-]*/gu);
 				if (!range) {
 					return null;

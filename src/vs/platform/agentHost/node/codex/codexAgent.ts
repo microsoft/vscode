@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { createSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
-import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentBinaryPathEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
+import { AgentHostCodexAgentBinaryArgsEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentSdkRootEnvVar, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, IAgent, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMaterializeSessionEvent, IAgentModelInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, type AgentProvider } from '../../common/agentService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType, type SessionAction } from '../../common/state/sessionActions.js';
@@ -26,6 +26,8 @@ import { type ClientPluginCustomization, type MessageAttachment, type PendingMes
 import type { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { CodexAppServerClient, JsonRpcError, transportFromChildProcess, type ICodexAppServerClient } from './codexAppServerClient.js';
 import { ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
@@ -261,6 +263,19 @@ interface IConnectionReady {
  * 10 (no cwd → reject), 15 (cancel, keep streamed content), 16 (steering),
  * 17 (attachments), 18 (apikey auth).
  */
+
+/**
+ * `@openai/codex` distribution descriptor. Lives in this file because it
+ * encodes Codex-specific knowledge — the env-var name and the fact that
+ * Codex's Linux binaries are statically musl-linked and ship as a single
+ * `linux-*` SKU regardless of host libc.
+ */
+export const CodexSdkPackage: IAgentSdkPackage = {
+	id: 'codex',
+	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
+	hasSeparateMuslLinuxPackage: false,
+};
+
 export class CodexAgent extends Disposable implements IAgent {
 
 	readonly id: AgentProvider = 'codex';
@@ -288,6 +303,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@ICodexProxyService private readonly _codexProxyService: ICodexProxyService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentSdkDownloader private readonly _agentSdkDownloader: IAgentSdkDownloader,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -517,10 +533,24 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _startConnection(token: string): Promise<IConnectionReady> {
-		const binaryPath = process.env[AgentHostCodexAgentBinaryPathEnvVar];
-		if (!binaryPath) {
-			throw new Error(`Codex binary path not configured. Set 'chat.agentHost.codexAgent.path' to an absolute path to the codex CLI.`);
+		// Resolve the Codex SDK root via the downloader: dev override → cache →
+		// download from `product.agentSdks.codex`. We spawn the native codex
+		// binary inside the platform package directly (the same shape the JS
+		// shim at `node_modules/@openai/codex/bin/codex.js` would resolve to)
+		// — going through the shim adds a launcher hop and forces an
+		// `ELECTRON_RUN_AS_NODE` round-trip when the agent host runs as an
+		// Electron utility process.
+		const root = await this._agentSdkDownloader.loadSdkRoot(CodexSdkPackage, CancellationToken.None);
+		const codexTarget = codexPackageSuffix(process.platform, process.arch);
+		if (!codexTarget) {
+			throw new Error(`Codex: unsupported platform ${process.platform}-${process.arch}`);
 		}
+		const triple = codexBinaryTriple(codexTarget);
+		if (!triple) {
+			throw new Error(`Codex: no binary triple known for sdkTarget '${codexTarget}'`);
+		}
+		const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+		const binaryPath = join(root, 'node_modules', `@openai/codex-${codexTarget}`, 'vendor', triple, 'bin', binaryName);
 		try {
 			fs.accessSync(binaryPath, fs.constants.X_OK);
 		} catch (err) {
@@ -559,11 +589,7 @@ export class CodexAgent extends Disposable implements IAgent {
 
 		// Extra args forwarded as JSON from the workbench setting.
 		const extraArgs = parseBinaryArgs(process.env[AgentHostCodexAgentBinaryArgsEnvVar]);
-		const args = ['app-server'];
-		for (const kv of providerOverrides) {
-			args.push('-c', kv);
-		}
-		args.push(...extraArgs);
+		const args = ['app-server', ...providerOverrides.flatMap(kv => ['-c', kv]), ...extraArgs];
 
 		this._logService.info(`[Codex] spawning ${binaryPath} ${args.join(' ')}`);
 		const child = spawn(binaryPath, args, { env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -1366,7 +1392,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		};
 	}
 
-	setClientTools(_session: URI, _clientId: string, _tools: ToolDefinition[]): void {
+	setClientTools(_session: URI, _clientId: string | undefined, _tools: ToolDefinition[]): void {
 		// Phase 6+: in-process MCP client tools. Not implemented in Phase 2.
 	}
 
@@ -1472,5 +1498,39 @@ function parseBinaryArgs(json: string | undefined): string[] {
 		return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
 	} catch {
 		return [];
+	}
+}
+
+/**
+ * The suffix Codex uses for its platform `optionalDependencies` packages
+ * (`@openai/codex-${suffix}`). Codex's Linux binaries are statically
+ * musl-linked and ship under the same `linux-<arch>` package regardless of
+ * host libc, so this never returns a `-musl` suffix.
+ *
+ * Returns undefined for unsupported `(platform, arch)` combinations — the
+ * caller surfaces the error.
+ */
+export function codexPackageSuffix(platform: NodeJS.Platform, arch: string): string | undefined {
+	if ((platform !== 'linux' && platform !== 'darwin' && platform !== 'win32') ||
+		(arch !== 'x64' && arch !== 'arm64')) {
+		return undefined;
+	}
+	return `${platform}-${arch}`;
+}
+
+/**
+ * Mirrors the triple table inside `@openai/codex/bin/codex.js` so we can spawn
+ * the native binary at `vendor/<triple>/bin/codex` directly without going
+ * through the JS shim launcher.
+ */
+export function codexBinaryTriple(sdkTarget: string): string | undefined {
+	switch (sdkTarget) {
+		case 'linux-x64': return 'x86_64-unknown-linux-musl';
+		case 'linux-arm64': return 'aarch64-unknown-linux-musl';
+		case 'darwin-x64': return 'x86_64-apple-darwin';
+		case 'darwin-arm64': return 'aarch64-apple-darwin';
+		case 'win32-x64': return 'x86_64-pc-windows-msvc';
+		case 'win32-arm64': return 'aarch64-pc-windows-msvc';
+		default: return undefined;
 	}
 }

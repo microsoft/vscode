@@ -45,7 +45,7 @@
 	color: var(--vscode-foreground);
 	cursor: pointer;
 	font-size: 12px;
-	font-weight: 600;
+	font-weight: 400;
 	line-height: 18px;
 	font-family: inherit;
 	transition: background-color 0.1s ease;
@@ -313,12 +313,6 @@
 	gap: 8px;
 	text-align: center;
 	flex: 1;
-}
-
-.ai-customization-list-widget .list-empty-state .empty-state-icon {
-	font-size: 48px;
-	opacity: 0.4;
-	margin-bottom: 8px;
 }
 
 .ai-customization-list-widget .list-empty-state .empty-state-text {
@@ -969,12 +963,6 @@
 	gap: 8px;
 	text-align: center;
 	flex: 1;
-}
-
-.mcp-list-widget .mcp-empty-state .empty-icon {
-	font-size: 48px;
-	opacity: 0.4;
-	margin-bottom: 8px;
 }
 
 .mcp-list-widget .mcp-empty-state .empty-text {

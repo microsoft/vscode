@@ -384,37 +384,28 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
 				const sdkPackage = await this.getSDKPackage();
-				const { internal, createLocalFeatureFlagService } = sdkPackage;
-				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
-				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
-				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
-				if (!process.env['COPILOT_OTEL_ENABLED']) {
-					process.env['COPILOT_OTEL_ENABLED'] = 'true';
-				}
-				// Default content capture to 'true' for the debug panel. When user OTel
-				// is enabled, their captureContent setting overrides this default below.
-				// When user OTel is disabled, the default gives debug panel content.
-				// If the user explicitly set the env var, respect their choice.
-				if (!process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT']) {
-					process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] = 'true';
-				}
-				if (this._otelService.config.enabled) {
+				const { internal, createLocalFeatureFlagServiceCreator } = sdkPackage;
+				// The SDK reads OTel config from process.env at startup. Snapshot
+				// the originals so disposal restores them and subprocesses don't
+				// inherit our mutations.
+				this._registerOTelEnvSnapshot();
+				if (this._otelService.config.enabledExplicitly) {
 					const otelEnv = deriveCopilotCliOTelEnv(this._otelService.config);
 					for (const [key, value] of Object.entries(otelEnv)) {
 						process.env[key] = value;
 					}
-					// When user OTel is enabled, their captureContent config takes
-					// precedence over the debug-panel default set above.
 					process.env['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] = String(this._otelService.config.captureContent);
 				} else {
-					// User OTel disabled: ensure SDK doesn't export to any external collector.
-					// Use file exporter to /dev/null so the SDK creates OtelSessionTracker
-					// (for debug panel) but writes spans nowhere.
-					process.env['COPILOT_OTEL_EXPORTER_TYPE'] = 'file';
+					// User opted out. Keep the SDK's OtelSessionTracker alive for the
+					// debug panel by setting only the file exporter path (the SDK
+					// auto-derives exporterType='file' from it), pointed at /dev/null.
+					// Clear any inherited OTLP endpoint so the SDK can't fall back to it.
 					process.env['COPILOT_OTEL_FILE_EXPORTER_PATH'] = devNull;
+					delete process.env['OTEL_EXPORTER_OTLP_ENDPOINT'];
+					delete process.env['COPILOT_OTEL_ENDPOINT'];
 				}
 				return new internal.LocalSessionManager({
-					featureFlagService: createLocalFeatureFlagService(),
+					createFeatureFlagService: createLocalFeatureFlagServiceCreator(),
 					telemetryService: new internal.NoopTelemetryService(),
 					autoModeManager: this.createAutoModeManager(sdkPackage),
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
@@ -429,6 +420,39 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private async getSDKPackage(): Promise<SDKPackage> {
 		return this.copilotCLISDK.getPackage();
+	}
+
+	/**
+	 * Snapshot OTel env vars before SDK mutation and restore them on disposal,
+	 * so subprocesses spawned later don't inherit our mutations.
+	 */
+	private _otelEnvSnapshotted = false;
+	private _registerOTelEnvSnapshot(): void {
+		if (this._otelEnvSnapshotted) {
+			return;
+		}
+		this._otelEnvSnapshotted = true;
+		const keys = [
+			'COPILOT_OTEL_ENABLED',
+			'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+			'OTEL_EXPORTER_OTLP_ENDPOINT',
+			'COPILOT_OTEL_ENDPOINT',
+			'COPILOT_OTEL_EXPORTER_TYPE',
+			'COPILOT_OTEL_FILE_EXPORTER_PATH',
+		];
+		const originals = new Map<string, string | undefined>();
+		for (const key of keys) {
+			originals.set(key, process.env[key]);
+		}
+		this._register(toDisposable(() => {
+			for (const [key, value] of originals) {
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+		}));
 	}
 
 	private createAutoModeManager(sdkPackage: SDKPackage): SDKAutoModeSessionManager {
@@ -871,6 +895,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			// Navigate: ProxyTracerProvider._delegate → BasicTracerProvider._activeSpanProcessor → MultiSpanProcessor._spanProcessors
 			const delegate = (globalProvider as unknown as Record<string, unknown>)._delegate ?? globalProvider;
+
+			// The in-process Copilot CLI SDK does not register its own JS OTel
+			// provider — its tracing is emitted by a native runtime. As a result the global provider
+			// resolves to the extension's own provider. Attaching the bridge there would re-forward
+			// the extension's own spans and produce duplicate entries in the chat debug logs view.
+			// In this case we skip the bridge entirely: native CLI tool calls and agent responses are
+			// synthesized directly from the SDK event stream in `copilotcliSession.ts`.
+			if ((delegate as Record<string, unknown>).__copilotChatOwnProvider) {
+				this.logService.info('[CopilotCLISession] Global OTel provider is the extension provider; skipping bridge install (debug entries are synthesized from SDK events)');
+				return;
+			}
+
 			const activeProcessor = (delegate as unknown as Record<string, unknown>)._activeSpanProcessor as Record<string, unknown> | undefined;
 			const processorArray = activeProcessor?._spanProcessors;
 

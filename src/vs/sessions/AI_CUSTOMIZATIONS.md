@@ -63,6 +63,12 @@ src/vs/sessions/contrib/sessions/browser/
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
+### Management Editor Shell
+
+The management editor opens as a compact modal editor. The modal title and welcome page heading use `Agent Customizations for {harness label}` so the active harness is visible throughout the overview experience. If no harness descriptor is available yet, the UI falls back to `Local`.
+
+The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
+
 ### IAICustomizationWorkspaceService
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:

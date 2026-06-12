@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, isAgentHostEnabled, IMcpNotification } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostIpcChannelTransport } from '../../../../platform/agentHost/browser/agentHostIpcChannelTransport.js';
 import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -165,6 +165,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.onDidAction ?? Event.None;
 	}
 
+	get onMcpNotification(): Event<IMcpNotification> {
+		return this._protocolClient?.onMcpNotification ?? Event.None;
+	}
+
 	getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 		return this._requireClient().getSubscription<ComponentToState[T]>(kind, resource, owner);
 	}
@@ -223,6 +227,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
 		return this._requireClient().invokeChangesetOperation(params);
+	}
+
+	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		return this._requireClient().handleMcpRequest(channel, method, params);
 	}
 
 	resourceList(uri: URI): Promise<ResourceListResult> {

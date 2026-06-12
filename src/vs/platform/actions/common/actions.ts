@@ -98,6 +98,7 @@ export class MenuId {
 	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
 	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
+	static readonly EditorGroupWatermarkToolbar = new MenuId('EditorGroupWatermarkToolbar');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
 	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
@@ -261,6 +262,7 @@ export class MenuId {
 	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSecondary = new MenuId('ChatInputSecondary');
+	static readonly ChatInputStatus = new MenuId('ChatInputStatus');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly ChatModePicker = new MenuId('ChatModePicker');
 	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
