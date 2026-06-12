@@ -577,17 +577,27 @@ export class SessionsViewService extends Disposable implements ISessionsViewServ
 		const folderUri = options?.folderUri;
 		if (folderUri) {
 			this._startOpenSession();
-			const session = this.sessionsManagementService.createNewSession(folderUri, options);
-			this._activate(session);
-			return session;
+			try {
+				const session = this.sessionsManagementService.createNewSession(folderUri, options);
+				this._activate(session);
+				return session;
+			} catch (e) {
+				// When the folder cannot be resolved (e.g. the active session's
+				// workspace uses an unsupported scheme like 'unknown:/'), fall
+				// through to the folder-less composer view.
+				this.logService.trace(`[SessionsView] openNewSession: createNewSession failed for folder ${folderUri.toString()}, falling back to composer view`);
+			}
 		}
 
-		// Without a folder: switch to the new-session composer view.
+		// Without a folder (or when folder resolution failed above): switch to
+		// the new-session composer view.
 		// No-op when no session is active (empty new-session placeholder showing).
 		if (this._visibility.activeSession.get() === undefined) {
 			return undefined;
 		}
-		this._startOpenSession();
+		if (!folderUri) {
+			this._startOpenSession();
+		}
 
 		// Restore the in-progress new session if one exists, so pickers re-derive
 		// their state from the still-alive session object. Otherwise clear the
