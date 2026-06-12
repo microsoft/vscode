@@ -199,7 +199,7 @@ export async function openIssueReporter(args: { title: string; issueBody?: strin
 		issueSource: 'vscode',
 		data: args.data,
 		issueBody: args.issueBody ?? '',
-		privateUri: args.public ? undefined : vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog'),
+		privateUri: args.public === false ? vscode.Uri.parse('https://github.com/microsoft/vscode-internalbacklog') : undefined,
 	});
 }
 
