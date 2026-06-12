@@ -307,6 +307,20 @@ suite('AgentSdkDownloader', () => {
 		);
 	});
 
+	test('loadSdkRoot: urlTemplate with unknown placeholder throws config error', async () => {
+		// vscode-distro typo guard: `{sdkTaret}` left untouched by format2
+		// would otherwise yield a 404 from the CDN with no hint at the
+		// real cause.
+		const downloader = makeDownloader({
+			urlTemplate: `http://127.0.0.1:${server.port}/sdk-{sdkTaret}.tgz`,
+		});
+		await assert.rejects(
+			() => downloader.loadSdkRoot(ClaudeSdkPackage, newToken()),
+			/unknown placeholder \{sdkTaret\}/,
+		);
+		assert.strictEqual(server.requestCount, 0, 'should fail before any HTTP call');
+	});
+
 	test('loadSdkRoot: cancel before download completes cleans up scratch dir', async function () {
 		this.timeout(15_000);
 		// Replace server with one that hangs forever.

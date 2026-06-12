@@ -238,6 +238,17 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			);
 		}
 		const url = format2(config.urlTemplate, { sdkTarget });
+		// `format2` leaves unknown `{placeholder}` segments untouched; catch
+		// vscode-distro typos like `{sdkTaret}` here instead of letting the
+		// CDN return a 404 against a clearly-broken URL.
+		const stray = /{[^}]+}/.exec(url);
+		if (stray) {
+			throw new Error(
+				`Cannot load ${pkg.id} SDK: \`product.agentSdks.${pkg.id}.urlTemplate\` ` +
+				`contains an unknown placeholder ${stray[0]} — only {sdkTarget} is substituted. ` +
+				`Template: ${config.urlTemplate}`,
+			);
+		}
 
 		const cacheDir = this._cacheDir(pkg.id, config.version, sdkTarget);
 		const sentinel = URI.joinPath(URI.file(cacheDir), '.complete');
@@ -368,7 +379,9 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 		// Delegate to IRequestService (corporate proxy, strictSSL, kerberos,
 		// retries, redirect follow). `fs.createWriteStream` (not
 		// `IFileService.writeFile`) so that cancelling a multi-MB download
-		// aborts promptly via destroy().
+		// aborts promptly via destroy(). Manual pipe (not `stream.pipeline`)
+		// because the source is a VSBufferReadableStream — not a Node
+		// Readable — so node-stream utilities can't introspect it.
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -408,7 +421,17 @@ export class AgentSdkDownloader implements IAgentSdkDownloader {
 			const cancelSub = token.onCancellationRequested(() => settleReject(new CancellationError()));
 			out.on('error', settleReject);
 			out.on('finish', settleResolve);
-			context.stream.on('data', chunk => { out.write(chunk.buffer); });
+			// Backpressure: tarballs are 70-95MB; if the disk is slower
+			// than the network (Windows AV scan, network home dir, …) an
+			// unthrottled pipe buffers the whole thing in memory. Pause the
+			// source when the sink's internal buffer hits highWaterMark and
+			// resume on 'drain'.
+			out.on('drain', () => context.stream.resume());
+			context.stream.on('data', chunk => {
+				if (!out.write(chunk.buffer)) {
+					context.stream.pause();
+				}
+			});
 			context.stream.on('end', () => out.end());
 			context.stream.on('error', settleReject);
 		});
