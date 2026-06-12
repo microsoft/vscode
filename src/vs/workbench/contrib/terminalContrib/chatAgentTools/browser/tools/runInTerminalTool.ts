@@ -3369,7 +3369,11 @@ export class TerminalProfileFetcher {
 
 	private async _shellExists(shellPath: string): Promise<boolean> {
 		try {
-			return await this._fileService.exists(URI.file(shellPath));
+			const remoteAuthority = this._remoteAgentService.getConnection()?.remoteAuthority;
+			const resource = remoteAuthority
+				? URI.file(shellPath).with({ scheme: 'vscode-remote', authority: remoteAuthority })
+				: URI.file(shellPath);
+			return await this._fileService.exists(resource);
 		} catch {
 			return false;
 		}
