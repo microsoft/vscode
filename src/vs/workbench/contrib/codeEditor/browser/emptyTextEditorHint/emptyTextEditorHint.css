@@ -13,4 +13,10 @@
 .monaco-editor .contentWidgets .empty-editor-hint a {
 	color: var(--vscode-textLink-foreground);
 	pointer-events: auto;
+	cursor: pointer;
+	outline: none;
+}
+
+.monaco-editor .contentWidgets .empty-editor-hint a:focus {
+	text-decoration: underline;
 }
