@@ -46,11 +46,11 @@ import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobil
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../../browser/parts/mobile/mobileSortGroupSheet.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
-const ACTION_ID_NEW_SESSION = 'workbench.action.sessions.newChat';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 
@@ -110,7 +110,7 @@ export class SessionsView extends ViewPane {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -340,8 +340,7 @@ export class SessionsView extends ViewPane {
 		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.sessionsViewService.openNewSession();
-			this.sessionsPartService.focusSession(this.sessionsManagementService.activeSession.get());
+			this.commandService.executeCommand(NEW_SESSION_ACTION_ID);
 		}));
 
 		const newSessionLabel = localize('newCompact', "New");
@@ -358,8 +357,8 @@ export class SessionsView extends ViewPane {
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
-			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.scopedContextKeyService, true);
+			const resolvedKeybindings = this.keybindingService.lookupKeybindings(NEW_SESSION_ACTION_ID);
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
