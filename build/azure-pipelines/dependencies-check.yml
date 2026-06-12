@@ -18,7 +18,7 @@ jobs:
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 1300
+    timeoutInMinutes: 120
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -77,7 +77,7 @@ jobs:
       - script: |
           set -e
 
-          for attempt in {1..120}; do
+          for attempt in {1..11}; do
             if [ $attempt -gt 1 ]; then
               echo "Attempt $attempt: Waiting for 10 minutes before retrying..."
               sleep 600
@@ -96,7 +96,7 @@ jobs:
             fi
           done
 
-          echo "giving up after 120 attempts (20 hours)"
+          echo "giving up after 11 attempts (2 hours)"
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -104,7 +104,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 1300
+        timeoutInMinutes: 120
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: |
