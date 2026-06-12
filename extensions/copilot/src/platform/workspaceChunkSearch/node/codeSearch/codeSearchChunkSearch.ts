@@ -16,7 +16,7 @@ import { Iterable } from '../../../../util/vs/base/common/iterator';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../../util/vs/base/common/map';
-import { isEqual, isEqualOrParent } from '../../../../util/vs/base/common/resources';
+import { extUriBiasedIgnorePathCase } from '../../../../util/vs/base/common/resources';
 import { StopWatch } from '../../../../util/vs/base/common/stopwatch';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -327,11 +327,11 @@ export class CodeSearchChunkSearch extends Disposable {
 		if (codeSearchCheckResult.isOk()) {
 			const workspaceFolder = this._workspaceService.getWorkspaceFolders();
 			for (const repo of codeSearchCheckResult.val.indexedRepos) {
-				if (workspaceFolder.some(folder => isEqual(repo.repoInfo.rootUri, folder))) {
+				if (workspaceFolder.some(folder => extUriBiasedIgnorePathCase.isEqual(repo.repoInfo.rootUri, folder))) {
 					indexedRepoLocation.workspaceFolder++;
-				} else if (workspaceFolder.some(folder => isEqualOrParent(folder, repo.repoInfo.rootUri))) {
+				} else if (workspaceFolder.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(folder, repo.repoInfo.rootUri))) {
 					indexedRepoLocation.parentFolder++;
-				} else if (workspaceFolder.some(folder => isEqualOrParent(repo.repoInfo.rootUri, folder))) {
+				} else if (workspaceFolder.some(folder => extUriBiasedIgnorePathCase.isEqualOrParent(repo.repoInfo.rootUri, folder))) {
 					indexedRepoLocation.subFolder++;
 				} else {
 					indexedRepoLocation.unknownFolder++;
@@ -852,7 +852,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		// Skip repos that aren't relevant to the workspace (e.g. worktrees at external paths)
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
 		const isRelevantToWorkspace = workspaceFolders.some(folder =>
-			isEqualOrParent(repo.rootUri, folder) || isEqualOrParent(folder, repo.rootUri));
+			extUriBiasedIgnorePathCase.isEqualOrParent(repo.rootUri, folder) || extUriBiasedIgnorePathCase.isEqualOrParent(folder, repo.rootUri));
 		if (!isRelevantToWorkspace) {
 			this._logService.trace(`CodeSearchChunkSearch.openGitRepo(${repo.rootUri}): skipping, not relevant to workspace`);
 			return;
