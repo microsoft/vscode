@@ -175,7 +175,12 @@ export class InlineChatIntent implements IIntent {
 			return {
 				errorDetails: {
 					message: details.message,
-					responseIsFiltered: details.responseIsFiltered
+					responseIsFiltered: details.responseIsFiltered,
+					// Forward the structured quota signal so core builds the
+					// single, plan-aware quota message (rendered by the inline
+					// chat controller from `errorDetails.message`).
+					isQuotaExceeded: details.isQuotaExceeded,
+					quotaExceededCode: details.quotaExceededCode,
 				}
 			};
 		}
