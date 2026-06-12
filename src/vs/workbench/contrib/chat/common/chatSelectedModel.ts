@@ -50,6 +50,22 @@ export function getSelectedModelIdentifier(
 	}
 
 	// Step 2: Persisted storage (survives reload, written by chatInputPart)
+	return getPersistedSelectedModelIdentifier(contextKeyService, storageService);
+}
+
+/**
+ * Reads the persisted, fully-qualified model identifier written by
+ * `chatInputPart` (e.g. `"copilot/gpt-4.1"` or `"customendpoint/ANT/gpt-4.1"`).
+ *
+ * Unlike the `chatModelId` context key (which holds only the short, lower-cased
+ * model id), the persisted identifier carries the vendor and therefore
+ * disambiguates the same model served via BYOK vs CAPI. Returns `undefined`
+ * when no selection has been persisted.
+ */
+export function getPersistedSelectedModelIdentifier(
+	contextKeyService: IContextKeyService,
+	storageService: IStorageService,
+): string | undefined {
 	const location = contextKeyService.getContextKeyValue<string>(ChatContextKeys.location.key) ?? 'panel';
 	const sessionType = contextKeyService.getContextKeyValue<string>(ChatContextKeys.chatSessionType.key) ?? '';
 	const candidateKeys = sessionType
@@ -69,8 +85,13 @@ export function getSelectedModelIdentifier(
 /**
  * Resolves the registered metadata of the currently selected chat model.
  *
- * Looks the selected identifier up in the language model registry (handling
- * both short ids like `"gpt-4.1"` and qualified ids like `"copilot/gpt-4.1"`).
+ * The selected identifier may be a fully-qualified id (e.g. `"copilot/gpt-4.1"`
+ * from persisted storage) or a short, lower-cased model id (e.g. `"gpt-4.1"`
+ * from the `chatModelId` context key, which is set to `metadata.id`). The short
+ * id cannot disambiguate the same model served via BYOK vs CAPI, so when a
+ * direct registry lookup fails we fall back to the persisted, fully-qualified
+ * identifier (which carries the vendor) rather than matching on the short id.
+ *
  * Returns `undefined` when no model is selected or the selection cannot be
  * resolved to a registered model (e.g. the provider has not been activated
  * yet); callers that only need the vendor can fall back to
@@ -86,10 +107,22 @@ export function getSelectedModelMetadata(
 		return undefined;
 	}
 
-	// Try registry lookup (handles both short and qualified IDs)
-	const shortId = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
-	return languageModelsService.lookupLanguageModel(shortId)
-		?? languageModelsService.lookupLanguageModel(modelId);
+	// Direct registry lookup (handles fully-qualified identifiers).
+	const direct = languageModelsService.lookupLanguageModel(modelId);
+	if (direct) {
+		return direct;
+	}
+
+	// The selected id was likely the short, lower-cased model id from the
+	// `chatModelId` context key, which cannot distinguish a BYOK-served model
+	// from the same model served via CAPI. Fall back to the persisted,
+	// fully-qualified identifier which carries the vendor.
+	const persistedId = getPersistedSelectedModelIdentifier(contextKeyService, storageService);
+	if (persistedId && persistedId !== modelId) {
+		return languageModelsService.lookupLanguageModel(persistedId);
+	}
+
+	return undefined;
 }
 
 /**

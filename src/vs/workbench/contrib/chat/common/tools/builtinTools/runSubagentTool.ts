@@ -510,7 +510,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		if (subagent && !explicitModelResolved) {
 			const modeModelQualifiedNames = subagent.model;
 			if (modeModelQualifiedNames) {
-				// When the main model is BYOK (a resolvable, non-Copilot vendor), skip Copilot/CAPI fallback models
+				// When the main model is BYOK (flagged via `metadata.isBYOK`), skip Copilot/CAPI fallback models
 				// for built-in agents (e.g. Explore), whose model list is a curated convenience fallback. A
 				// user-authored agent's model list is a deliberate choice and is always honored as-is.
 				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;

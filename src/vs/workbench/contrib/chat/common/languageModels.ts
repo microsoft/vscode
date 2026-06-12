@@ -197,11 +197,6 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
-	/**
-	 * Whether this model is a "bring your own key" (BYOK) model, i.e. served
-	 * using user-supplied credentials rather than the built-in Copilot (CAPI)
-	 * service. When unset, the model is treated as non-BYOK / CAPI-served.
-	 */
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
 	readonly inputCost?: number;
