@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -181,6 +182,123 @@ suite('SessionCustomizationDiscovery', () => {
 
 		assert.strictEqual(watchCalls.length, watchCallsAfterFirstScan, 'expected no new watch registrations for unchanged roots');
 		assert.strictEqual(watchDisposeCalls, 0, 'expected existing watchers to remain active for unchanged roots');
+	});
+
+	test('fires onDidChange when a new agent file is added under a non-recursively watched root', async () => {
+		// Seed an existing agent so `.github/agents` is discovered and watched.
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+
+		// Flush buffered file change events from the initial seed/scan so the
+		// assertion below only observes the event triggered by the new file.
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await seed('/workspace/.github/agents/bar.agent.md', 'new workspace agent');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire for a new agent file inside the watched directory');
+	});
+
+	test('fires onDidChange when an existing agent file is modified under a non-recursively watched root', async () => {
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		// Overwrite the existing agent file to produce an UPDATED event.
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent (updated)');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when an existing agent file is modified');
+	});
+
+	test('fires onDidChange when an existing agent file is deleted under a non-recursively watched root', async () => {
+		const agentUri = await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+		// Seed a second agent so the parent directory still exists after the deletion.
+		await seed('/workspace/.github/agents/bar.agent.md', 'workspace agent bar');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await fileService.del(agentUri);
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when an existing agent file is deleted');
+	});
+
+	test('fires onDidChange when AGENTS.md in the workspace root is modified', async () => {
+		// AGENTS.md lives directly under the workspace root, which is watched non-recursively.
+		await seed('/workspace/AGENTS.md', 'agents instructions');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+			fired.complete();
+		}));
+
+		await seed('/workspace/AGENTS.md', 'agents instructions (updated)');
+		await raceTimeout(fired.p, 500);
+
+		assert.strictEqual(changeCount, 1, 'expected onDidChange to fire when AGENTS.md at the workspace root is modified');
+	});
+
+	test('does not fire onDidChange for files outside any trigger URI', async () => {
+		// Seed a customization so the workspace + `.github` dirs get watchers.
+		await seed('/workspace/.github/agents/foo.agent.md', 'workspace agent');
+
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, workspace, userHome));
+		await discovery.scan(CancellationToken.None);
+		await timeout(50);
+
+		let changeCount = 0;
+		disposables.add(discovery.onDidChange(() => {
+			changeCount++;
+		}));
+
+		// None of these paths intersect any trigger URI:
+		//  - `.git/HEAD`             : `.git` is unrelated (not `.github`)
+		//  - `.vscode/settings.json` : `.vscode` is unrelated
+		//  - `README.md`             : at workspace root but not AGENTS.md/CLAUDE.md/GEMINI.md
+		//  - `src/index.ts`          : unrelated top-level directory
+		await seed('/workspace/.git/HEAD', 'ref: refs/heads/main');
+		await seed('/workspace/.vscode/settings.json', '{}');
+		await seed('/workspace/README.md', '# project');
+		await seed('/workspace/src/index.ts', 'export {};');
+
+		// Give the in-memory provider time to deliver any (stray) events.
+		await timeout(100);
+
+		assert.strictEqual(changeCount, 0, 'expected onDidChange not to fire for paths outside any trigger URI');
 	});
 
 	test('cancellation of one caller does not affect another concurrent caller', async () => {

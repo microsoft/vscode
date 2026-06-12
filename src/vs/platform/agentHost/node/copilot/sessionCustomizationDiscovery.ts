@@ -150,6 +150,28 @@ function throwIfCancelled(token: CancellationToken): void {
 	}
 }
 
+interface IWatchSpec {
+	readonly recursive: boolean;
+	readonly resourcesToWatch: ResourceSet;
+}
+
+/**
+ * Register a watcher for `watchUri` and add `resourceToWatch` to its set of
+ * trigger URIs. If a non-recursive entry already exists and `recursive` is
+ * true, upgrade it to recursive while preserving the accumulated trigger URIs.
+ */
+function addWatch(map: ResourceMap<IWatchSpec>, watchUri: URI, recursive: boolean, resourceToWatch: URI): void {
+	let entry = map.get(watchUri);
+	if (!entry) {
+		entry = { recursive, resourcesToWatch: new ResourceSet() };
+		map.set(watchUri, entry);
+	} else if (recursive && !entry.recursive) {
+		entry = { recursive: true, resourcesToWatch: entry.resourcesToWatch };
+		map.set(watchUri, entry);
+	}
+	entry.resourcesToWatch.add(resourceToWatch);
+}
+
 /**
  * Discovers customization files (agents, skills, and instructions)
  * under well-known directories of the session's working directory and the
@@ -165,8 +187,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly _watchers = new ResourceMap<{ readonly recursive: boolean; readonly disposable: IDisposable }>();
-	private readonly _watchRootUris = new ResourceMap<boolean>();
+	private readonly _watchers = new ResourceMap<IWatchSpec & { readonly disposable: IDisposable }>();
 
 	constructor(
 		private readonly _workingDirectory: URI,
@@ -176,12 +197,13 @@ export class SessionCustomizationDiscovery extends Disposable {
 	) {
 		super();
 		this._register({ dispose: () => this._disposeAllWatchers() });
-		this._watchRootUris.clear();
 		this._register(this._fileService.onDidFilesChange(e => {
-			for (const [uri, recursive] of this._watchRootUris.entries()) {
-				if (recursive ? e.affects(uri) : e.contains(uri)) {
-					this._scheduleRefresh();
-					break;
+			for (const watcher of this._watchers.values()) {
+				for (const uri of watcher.resourcesToWatch) {
+					if (e.affects(uri)) {
+						this._scheduleRefresh();
+						return;
+					}
 				}
 			}
 		}));
@@ -199,7 +221,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 	public async scan(token: CancellationToken): Promise<readonly IDiscoveredDirectory[]> {
 		throwIfCancelled(token);
 
-		const nextWatchRootUris = new ResourceMap<boolean>();
+		const nextWatchRootUris = new ResourceMap<IWatchSpec>();
 		const seen = new ResourceSet();
 		const result: IDiscoveredDirectory[] = [];
 
@@ -217,30 +239,65 @@ export class SessionCustomizationDiscovery extends Disposable {
 		return result.sort(compareDiscoveredDirectory);
 	}
 
-	private _reconcileWatchers(nextWatchRootUris: ResourceMap<boolean>): void {
+	/**
+	 * Walk the ancestor chain of `path` from `base`. For every ancestor
+	 * directory that exists, register a non-recursive watcher whose trigger
+	 * URI is the next path segment, so the handler fires when an intermediate
+	 * directory (e.g. `.github`, `.github/agents`, `.copilot`) is created and
+	 * a re-scan is needed to pick up newly-discoverable content.
+	 *
+	 * Returns true when every ancestor exists as a directory (i.e. the leaf
+	 * may exist). Returns false when an ancestor is missing or not a directory,
+	 * in which case the caller can short-circuit.
+	 */
+	private async _watchAncestors(base: URI, path: readonly string[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<boolean> {
+		let current = base;
+		for (const segment of path) {
+			const parent = current;
+			const child = joinPath(parent, segment);
+			if (!watchRootUris.has(parent)) {
+				throwIfCancelled(token);
+				try {
+					const stat = await this._fileService.resolve(parent);
+					if (!stat.isDirectory) {
+						return false;
+					}
+				} catch {
+					return false;
+				}
+			}
+			addWatch(watchRootUris, parent, false, child);
+			current = child;
+		}
+		return true;
+	}
+
+	private _reconcileWatchers(nextWatchRootUris: ResourceMap<IWatchSpec>): void {
+		// Dispose watchers that are gone or whose recursive flag changed.
 		for (const [rootUri, watcher] of this._watchers.entries()) {
-			const nextRecursive = nextWatchRootUris.get(rootUri);
-			if (typeof nextRecursive !== 'boolean' || nextRecursive !== watcher.recursive) {
+			const next = nextWatchRootUris.get(rootUri);
+			if (!next || next.recursive !== watcher.recursive) {
 				watcher.disposable.dispose();
 				this._watchers.delete(rootUri);
 			}
 		}
 
-		for (const [rootUri, recursive] of nextWatchRootUris.entries()) {
-			if (this._watchers.has(rootUri)) {
+		for (const [rootUri, next] of nextWatchRootUris.entries()) {
+			const existing = this._watchers.get(rootUri);
+			if (existing) {
+				// Refresh trigger URIs in place; the underlying watcher is unchanged.
+				existing.resourcesToWatch.clear();
+				for (const uri of next.resourcesToWatch) {
+					existing.resourcesToWatch.add(uri);
+				}
 				continue;
 			}
 			try {
-				const disposable = this._fileService.watch(rootUri, { recursive, excludes: [] });
-				this._watchers.set(rootUri, { recursive, disposable });
+				const disposable = this._fileService.watch(rootUri, { recursive: next.recursive, excludes: [] });
+				this._watchers.set(rootUri, { recursive: next.recursive, resourcesToWatch: next.resourcesToWatch, disposable });
 			} catch (err) {
 				this._logService.warn(`[SessionCustomizationDiscovery] Failed to watch '${rootUri.toString()}': ${err instanceof Error ? err.message : String(err)}`);
 			}
-		}
-
-		this._watchRootUris.clear();
-		for (const [rootUri, recursive] of nextWatchRootUris.entries()) {
-			this._watchRootUris.set(rootUri, recursive);
 		}
 	}
 
@@ -254,10 +311,14 @@ export class SessionCustomizationDiscovery extends Disposable {
 	/**
 	 * For agent instructions, create a single root for the base directory.
 	 */
-	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>, token: CancellationToken): Promise<void> {
+	private async _scanAgentInstructions(base: URI, roots: IInstructionFile[], seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
 		const files: IDiscoveredFile[] = [];
 		for (const root of roots) {
 			throwIfCancelled(token);
+
+			if (!await this._watchAncestors(base, root.path, watchRootUris, token)) {
+				continue;
+			}
 
 			const rootUri = joinPath(base, ...root.path);
 			let stat: IFileStatWithMetadata;
@@ -271,8 +332,10 @@ export class SessionCustomizationDiscovery extends Disposable {
 				continue;
 			}
 
-			if (!watchRootUris.has(rootUri)) {
-				watchRootUris.set(rootUri, false); // set up non recursive watcher
+			// Trigger refresh only for the specific filenames this root cares about
+			// (e.g. AGENTS.md at the workspace root) — not for every direct child.
+			for (const filename of root.filenames) {
+				addWatch(watchRootUris, rootUri, false, joinPath(rootUri, filename));
 			}
 			for (const entry of stat.children) {
 				throwIfCancelled(token);
@@ -291,8 +354,12 @@ export class SessionCustomizationDiscovery extends Disposable {
 		}
 	}
 
-	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<boolean>, token: CancellationToken): Promise<void> {
+	private async _scanRoot(base: URI, root: ISearchRoot, seen: ResourceSet, result: IDiscoveredDirectory[], watchRootUris: ResourceMap<IWatchSpec>, token: CancellationToken): Promise<void> {
 		throwIfCancelled(token);
+
+		if (!await this._watchAncestors(base, root.path, watchRootUris, token)) {
+			return;
+		}
 
 		const rootUri = joinPath(base, ...root.path);
 		let stat: IFileStatWithMetadata;
@@ -306,8 +373,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 			return;
 		}
 
-		const recursive = root.recursive || watchRootUris.get(rootUri) === true;
-		watchRootUris.set(rootUri, recursive);
+		// Filenames are dynamic for these roots, so we watch the whole directory.
+		// `addWatch` upgrades to recursive if any root requests it.
+		addWatch(watchRootUris, rootUri, root.recursive ?? false, rootUri);
 
 		if (root.type === DiscoveredType.Skill) {
 			const files: IDiscoveredFile[] = [];

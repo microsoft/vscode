@@ -56,6 +56,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }
 	async invokeChangesetOperation(_params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> { return notSupported(); }
+	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { return notSupported(); }
 	async resourceList(_uri: URI): Promise<ResourceListResult> { return notSupported(); }
 	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return notSupported(); }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return notSupported(); }

@@ -125,16 +125,39 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
  * .moduleignore strips @github/copilot/prebuilds/** globally because the
  * internal extension SDK uses a copied sdk/prebuilds layout. Agent Host uses
  * the public SDK, whose runtime addon loader expects runtime.node in the root
- * prebuilds layout.
+ * prebuilds layout. The SDK's built-in shell tool additionally spawns commands
+ * through node-pty, whose native binaries live in the same root prebuilds
+ * layout, so those must be preserved too (otherwise the sandboxed shell fails
+ * with `Cannot find module './prebuilds/<platform>/pty.node'` — or conpty.node
+ * on Windows).
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const targetPlatformArch = `${nodePlatform}-${nodeArch}`;
 	const prebuildDir = path.posix.join(nodeModulesRoot, '@github', 'copilot', 'prebuilds', targetPlatformArch);
 
-	return [
+	const files = [
 		path.posix.join(prebuildDir, 'runtime.node'),
 	];
+
+	// node-pty native binaries for the SDK's built-in shell tool. Windows uses
+	// ConPTY (conpty.node plus the conpty/ helpers); darwin/linux use pty.node,
+	// and darwin additionally ships the spawn-helper executable.
+	if (nodePlatform === 'win32') {
+		files.push(
+			path.posix.join(prebuildDir, 'conpty.node'),
+			path.posix.join(prebuildDir, 'conpty_console_list.node'),
+			path.posix.join(prebuildDir, 'conpty', 'OpenConsole.exe'),
+			path.posix.join(prebuildDir, 'conpty', 'conpty.dll'),
+		);
+	} else {
+		files.push(path.posix.join(prebuildDir, 'pty.node'));
+		if (nodePlatform === 'darwin') {
+			files.push(path.posix.join(prebuildDir, 'spawn-helper'));
+		}
+	}
+
+	return files;
 }
 
 /**

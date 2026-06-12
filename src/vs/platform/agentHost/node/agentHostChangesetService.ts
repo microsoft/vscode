@@ -10,7 +10,6 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import {
-	BASELINE_TURN_ID,
 	buildBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
@@ -284,7 +283,7 @@ export interface IAgentHostChangesetService {
 	refreshUncommittedChangeset(session: ProtocolURI): void;
 
 	/**
-	 * Lazy refresh of the session (branch) changeset, kicked off when a
+	 * Lazy refresh of the session changeset, kicked off when a
 	 * client first subscribes to `<session>/changeset/session` or the
 	 * session URI itself (e.g. Agents Window observing the session). Mirrors
 	 * {@link refreshUncommittedChangeset} so the catalogue chip stays fresh
@@ -343,6 +342,13 @@ export interface IAgentHostChangesetService {
 	 * `onLastSubscriber`. Called exactly once at coordinator construction.
 	 */
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
+
+	/**
+	 * Installs a predicate the service consults before scheduling an uncommitted
+	 * changeset recompute. Owned by {@link ChangesetSessionCoordinator}, which
+	 * tracks `<session>/changeset/uncommitted` subscribers.
+	 */
+	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void;
 }
 
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
@@ -372,6 +378,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * constructor.
 	 */
 	private _hasTurnSubscribers: (session: ProtocolURI, turnId: string) => boolean = () => false;
+	/**
+	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
+	 * `true` when at least one client is subscribed to
+	 * `<session>/changeset/uncommitted`. Defaults to `() => false` so
+	 * unwired test instances don't accidentally fire uncommitted computes;
+	 * the coordinator overrides this in its constructor.
+	 */
+	private _hasUncommittedSubscribers: (session: ProtocolURI) => boolean = () => false;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -386,6 +400,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void {
 		this._hasTurnSubscribers = probe;
+	}
+
+	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void {
+		this._hasUncommittedSubscribers = probe;
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -452,6 +470,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshUncommittedChangeset(session: ProtocolURI): void {
+		if (!this._hasUncommittedSubscribers(session)) {
+			return;
+		}
 		this._scheduleStaticRecompute(session, 'uncommitted', undefined, this._markStaticChangesetComputing(session, 'uncommitted'));
 	}
 
@@ -510,11 +531,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 		try {
 			const sessionUri = URI.parse(session);
-			const originalIsBaseline = originalTurnId === BASELINE_TURN_ID;
 			const [originalCurrentRef, modifiedPair] = await Promise.all([
-				originalIsBaseline
-					? this._checkpointService.getBaselineCheckpointRef(sessionUri)
-					: this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, originalTurnId).then(p => p?.current),
 				this._checkpointService.getTurnCheckpointPair(sessionUri, modifiedTurnId),
 			]);
 			if (!originalCurrentRef || !modifiedPair) {
@@ -524,7 +542,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// exists for between-two-turns comparisons.
 				const missing = !originalCurrentRef && !modifiedPair
 					? 'both turns'
-					: !originalCurrentRef ? (originalIsBaseline ? 'baseline' : 'original turn') : 'modified turn';
+					: !originalCurrentRef
+						? 'original turn'
+						: 'modified turn';
 				this._stateManager.dispatchServerAction(compareUri, {
 					type: ActionType.ChangesetStatusChanged,
 					status: ChangesetStatus.Error,
@@ -631,7 +651,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// debounces first so the final turn-complete computes supersede
 		// them. After that, schedule the final recomputes for the turn
 		// (when observed), the session-wide changeset with the changed
-		// turn id, and the uncommitted changeset with no turn id.
+		// turn id, and the uncommitted changeset when it is observed.
 		this._cancelDebouncedDiffComputation(session);
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
@@ -639,12 +659,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._scheduleTurnRecompute(session, turnId);
 			}
 		}
+
+		this._scheduleStaticRecompute(session, 'branch', turnId);
 		this._scheduleStaticRecompute(session, 'session', turnId);
-		this._scheduleStaticRecompute(session, 'uncommitted');
+
+		this.refreshUncommittedChangeset(session);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
+		this._scheduleStaticRecompute(session, 'branch');
 		this._scheduleStaticRecompute(session, 'session');
 	}
 
@@ -659,6 +683,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
 		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedDiffTimers.deleteAndDispose(session);
+			this._scheduleStaticRecompute(session, 'branch', turnId);
 			this._scheduleStaticRecompute(session, 'session', turnId);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}
@@ -907,14 +932,46 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (!workingDirectory) {
 			return undefined;
 		}
+
 		let workingDirectoryUri: URI;
 		try {
 			workingDirectoryUri = URI.parse(workingDirectory);
 		} catch {
 			return undefined;
 		}
+
+		// Session
+		if (kind === 'session') {
+			// Get session checkpoints
+			const latestTurnId = this._stateManager.getSessionState(session)?.turns.at(-1)?.id;
+			if (!latestTurnId) {
+				return undefined;
+			}
+
+			const sessionUri = URI.parse(session);
+			const [baseline, pair] = await Promise.all([
+				this._checkpointService.getBaselineCheckpointRef(sessionUri),
+				this._checkpointService.getTurnCheckpointPair(sessionUri, latestTurnId),
+			]);
+			if (!baseline || !pair) {
+				return undefined;
+			}
+
+			try {
+				return await this._gitService.computeFileDiffsBetweenRefs(workingDirectoryUri, {
+					sessionUri: session,
+					fromRef: baseline,
+					toRef: pair.current
+				});
+			} catch (err) {
+				this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
+				return undefined;
+			}
+		}
+
+		// Branch & Uncommitted
 		let baseBranch: string | undefined;
-		if (kind === 'branch' || kind === 'session') {
+		if (kind === 'branch') {
 			const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
 			const gitStateBaseBranch = readSessionGitState(this._stateManager.getSessionState(session)?._meta)?.baseBranchName;
 			baseBranch = persistedBaseBranch ?? gitStateBaseBranch;
@@ -922,8 +979,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._logService.debug(`[AgentHostChangesetService] Using _meta.git base branch fallback for Branch Changes in ${session}: ${gitStateBaseBranch}`);
 			}
 		}
+
 		try {
-			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, { sessionUri: session, baseBranch });
+			return await this._gitService.computeSessionFileDiffs(workingDirectoryUri, {
+				sessionUri: session,
+				baseBranch
+			});
 		} catch (err) {
 			this._logService.warn(`[AgentHostChangesetService] git-driven ${kind} diff computation failed; falling back to edit-tracker`, err);
 			return undefined;

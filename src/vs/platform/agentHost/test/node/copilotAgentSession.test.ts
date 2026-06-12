@@ -312,6 +312,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getRootValue: () => undefined,
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
+		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
 	const environmentService = {
@@ -493,13 +494,16 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			cacheReadTokens: 5,
 			cost: 2,
-		});
+			// `copilotUsage` is marked `asInternal` in the SDK schema so it is not on the public type, but is present at runtime.
+			copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 		mockSession.fire('assistant.usage', {
 			model: 'claude-sonnet-4.6',
 			inputTokens: 30,
 			outputTokens: 40,
 			cost: 2,
-		});
+			copilotUsage: { totalNanoAiu: 750_000_000, tokenDetails: [] },
+		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
 		const usageActions = signals
 			.filter((s): s is IAgentActionSignal => s.kind === 'action')
@@ -514,6 +518,7 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: 5,
 				_meta: {
 					cost: 2,
+					copilotUsage: { totalNanoAiu: 500_000_000, tokenDetails: [] },
 				},
 			},
 			{
@@ -523,6 +528,7 @@ suite('CopilotAgentSession', () => {
 				cacheReadTokens: undefined,
 				_meta: {
 					cost: 2,
+					copilotUsage: { totalNanoAiu: 1_250_000_000, tokenDetails: [] },
 				},
 			},
 		]);

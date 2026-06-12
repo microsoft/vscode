@@ -40,7 +40,7 @@ import { ChatAgentLocation, ChatPermissionLevel } from '../../../../chat/common/
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatRequestTextPart } from '../../../../chat/common/requestParser/chatParserTypes.js';
-import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../../../chat/common/tools/toolResultCompressor.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -221,6 +221,7 @@ suite('RunInTerminalTool', () => {
 				await terminal.sendText(`sudo apt install -y ${missingDependencies.join(' ')}`, true);
 				return { exitCode: 0 };
 			},
+			runSandboxRemediation: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 
@@ -284,7 +285,8 @@ suite('RunInTerminalTool', () => {
 	}
 
 	async function invokeToolTest(
-		params: Partial<IRunInTerminalInputParams>
+		params: Partial<IRunInTerminalInputParams>,
+		selectedCustomButton?: string,
 	): Promise<IToolResult> {
 		const parameters = {
 			command: 'echo hello',
@@ -303,6 +305,7 @@ suite('RunInTerminalTool', () => {
 			parameters,
 			context: { sessionResource: LocalChatSessionUri.forSession('run-in-terminal-test') },
 			toolSpecificData: preparedInvocation.toolSpecificData,
+			selectedCustomButton,
 		} as IToolInvocation, countTokens, noProgress, CancellationToken.None);
 	}
 
@@ -532,6 +535,63 @@ suite('RunInTerminalTool', () => {
 			ok(result?.confirmationMessages?.customOptions?.length === 2, 'Expected two custom options');
 			// missingDependencies should be in toolSpecificData so invoke can handle it
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
+		});
+
+		test('should show repair choices when bubblewrap is installed but unusable on Linux', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+				remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+			};
+
+			const result = await executeToolTest({ command: 'echo hello' });
+			const terminalData = result?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+
+			ok(result?.confirmationMessages, 'Expected confirmation messages for bubblewrap repair');
+			strictEqual(result?.confirmationMessages?.customOptions?.length, 2, 'Expected repair and cancel choices');
+			strictEqual(terminalData?.sandboxRemediations?.length, 1, 'Expected one repair option in terminal invocation data');
+			strictEqual(terminalData?.missingSandboxDependencies, undefined, 'Should not classify unusable bubblewrap as missing');
+		});
+
+		test('should recheck bubblewrap after dependency installation and not execute when it remains unavailable', async () => {
+			let forceRefreshCalled = false;
+			terminalSandboxService.checkForSandboxingPrereqs = async forceRefresh => {
+				if (forceRefresh) {
+					forceRefreshCalled = true;
+					return {
+						enabled: true,
+						sandboxConfigPath: '/tmp/sandbox.json',
+						failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+						remediations: [TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction],
+					};
+				}
+				return {
+					enabled: true,
+					sandboxConfigPath: '/tmp/sandbox.json',
+					failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+					missingDependencies: ['bubblewrap'],
+				};
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' }, 'install');
+
+			strictEqual(forceRefreshCalled, true, 'Expected dependency installation to force a new prerequisite check');
+			strictEqual(createTerminalCallCount, 1, 'Expected only the installation terminal, not original command execution');
+			ok((result.content[0] as { value?: string }).value?.includes('bubblewrap'), 'Expected result to identify the failed bubblewrap verification');
+		});
+
+		test('should not execute when bubblewrap is unusable and no supported remediation is available', async () => {
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Bubblewrap,
+			};
+
+			const result = await invokeToolTest({ command: 'echo hello' });
+
+			strictEqual(createTerminalCallCount, 0, 'Expected no terminal execution for unusable bubblewrap');
+			ok((result.content[0] as { value?: string }).value?.includes('Bubblewrap'), 'Expected a bubblewrap capability failure message');
 		});
 
 		test('should include allowed and denied network domains in model description', async () => {
@@ -2622,7 +2682,7 @@ suite('RunInTerminalTool', () => {
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
-	test('should suppress background input-needed notification when the terminal is disposed', () => {
+	test('should suppress input-needed after disposal and omit successful exit code from terminal-exited notice', () => {
 		const termId = 'test-input-needed-disposed-term';
 		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-disposed-session');
 		const output = 'Press ENTER or type command to continue';
@@ -2639,6 +2699,7 @@ suite('RunInTerminalTool', () => {
 			},
 			onDisposed: terminalDisposedEmitter.event,
 			onDidInputData: inputDataEmitter.event,
+			exitCode: 0,
 			get isDisposed() { return isDisposed; },
 		} as unknown as ITerminalInstance;
 
@@ -2666,6 +2727,11 @@ suite('RunInTerminalTool', () => {
 		isDisposed = true;
 		inputNeededEmitter.fire();
 		strictEqual(capturedSteeringRequests.length, 0, 'Closing the terminal should not produce a spurious input-needed chat turn');
+
+		terminalDisposedEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 1, 'Closing the terminal should send one terminal-exited notification');
+		ok(capturedSteeringRequests[0].message.includes('terminal exited.'), 'Successful terminal exit should be reported without qualification');
+		ok(!capturedSteeringRequests[0].message.includes('exit code 0'), 'Successful terminal exit should not print exit code 0 to chat');
 	});
 
 	test('should suppress redundant input-needed notification for output already returned via foreground inputNeeded', () => {
@@ -2773,6 +2839,9 @@ suite('RunInTerminalTool', () => {
 
 		// After command finishes, the fg association still persists
 		commandFinishedEmitter.fire({ exitCode: 0 });
+		strictEqual(capturedSteeringRequests.length, 2, 'Should send a completion steering request');
+		ok(capturedSteeringRequests[1].message.includes('command completed.'), 'Successful completion should be reported without qualification');
+		ok(!capturedSteeringRequests[1].message.includes('exit code 0'), 'Successful completion should not print exit code 0 to chat');
 		ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Session terminal association should still be preserved after command finishes');
 		strictEqual(runInTerminalTool.sessionTerminalAssociations.get(sessionResource)!.isBackground, false, 'Terminal should still be foreground after command finishes');
 	});
@@ -3188,6 +3257,7 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 			getResolvedNetworkDomains: () => ({ allowedDomains: [], deniedDomains: [] }),
 			getMissingSandboxDependencies: async () => [],
 			installMissingSandboxDependencies: async () => ({ exitCode: 0 }),
+			runSandboxRemediation: async () => ({ exitCode: 0 }),
 		};
 		instantiationService.stub(ITerminalSandboxService, terminalSandboxService);
 

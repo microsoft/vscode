@@ -51,7 +51,7 @@ import { SlashCommandHandler } from './slashCommands.js';
 import { VariableCompletionHandler } from './variableCompletions.js';
 import { AgentHostInputCompletionHandler } from './agentHostInputCompletions.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, toFileVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -597,6 +597,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 
+		// Respect the same gate as the send button (e.g. a session with no
+		// usable model). The Enter keybinding and slash-command paths reach
+		// here directly, bypassing the button's disabled state.
+		if (!this.options.canSendRequest.get()) {
+			return;
+		}
+
 		// Check for slash commands first
 		if (query && this._slashCommandHandler?.tryExecuteSlashCommand(query)) {
 			this._editor.getModel()?.setValue('');
@@ -705,6 +712,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			model.setValue(text);
 			this._send();
 		}
+	}
+
+	attach(uris: URI[]): void {
+		this._contextAttachments.addAttachments(...uris.map(uri => toFileVariableEntry(uri)));
 	}
 }
 
