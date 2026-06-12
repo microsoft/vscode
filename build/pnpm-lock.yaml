@@ -152,6 +152,9 @@ importers:
       extract-zip:
         specifier: ^2.0.1
         version: 2.0.1
+      glob:
+        specifier: ^7.2.3
+        version: 7.2.3
       gulp-merge-json:
         specifier: ^2.1.1
         version: 2.2.1
