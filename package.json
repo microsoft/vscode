@@ -271,6 +271,7 @@
       "glob": "^7.2.3",
       "copilot-chat>glob": "^11.1.0",
       "@vscode/vsce>glob": "^11.0.0",
+      "vscode-languageserver-types": "3.17.5",
       "eslint": "9.39.4",
       "node-gyp-build": "4.8.1",
       "node-gyp": "10.3.1",

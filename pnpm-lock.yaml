@@ -11,6 +11,7 @@ overrides:
   glob: ^7.2.3
   copilot-chat>glob: ^11.1.0
   '@vscode/vsce>glob': ^11.0.0
+  vscode-languageserver-types: 3.17.5
   eslint: 9.39.4
   node-gyp-build: 4.8.1
   node-gyp: 10.3.1
@@ -1012,8 +1013,8 @@ importers:
         specifier: ^1.0.12
         version: 1.0.12
       vscode-languageserver-types:
-        specifier: ^3.17.5
-        version: 3.18.0
+        specifier: 3.17.5
+        version: 3.17.5
       yaml:
         specifier: ^2.8.0
         version: 2.9.0
@@ -1400,8 +1401,8 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       vscode-languageserver-types:
-        specifier: ^3.17.2
-        version: 3.18.0
+        specifier: 3.17.5
+        version: 3.17.5
       vscode-markdown-languageservice:
         specifier: 0.5.0
         version: 0.5.0
@@ -12753,14 +12754,8 @@ packages:
   vscode-languageserver-textdocument@1.0.13:
     resolution: {integrity: sha512-nx0ZHwMGIsVkzFG3/VLeJYBLTaFBRuNdGDvevvjuoayU5EOS2fEYazOhtCM3PI9ClMMg5igc0uwXtAq4tJj+Dw==}
 
-  vscode-languageserver-types@3.17.3:
-    resolution: {integrity: sha512-SYU4z1dL0PyIMd4Vj8YOqFvHu7Hz/enbWtpfnVbJHU4Nd1YNYx8u0ennumc6h48GQNeOLxmwySmnADouT/AuZA==}
-
   vscode-languageserver-types@3.17.5:
     resolution: {integrity: sha512-Ld1VelNuX9pdF39h2Hgaeb5hEZM2Z3jUrrMgWQAu82jMtZp7p3vJT3BzToKtZI7NgQssZje5o0zryOrhQvzQAg==}
-
-  vscode-languageserver-types@3.18.0:
-    resolution: {integrity: sha512-8TsGPNMIMiiBdkORgRSvLjuiEIiAFtO+KssmYWxQ+uSVvlf7RjK8YKCOjPzZ+YA04jXEV7+7LvkSmHkhpNS99g==}
 
   vscode-languageserver@10.0.0:
     resolution: {integrity: sha512-KOdOVuBnNO5EZSejlEDdRPJWpJn/X87vR2TmOXneHsxSYY7mYjgc1SxeZPMoHICcBKTUnM0V19+WP4J92zDd1w==}
@@ -17908,7 +17903,7 @@ snapshots:
       emmet: 2.4.11
       jsonc-parser: 2.3.1
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.18.0
+      vscode-languageserver-types: 3.17.5
       vscode-uri: 3.1.0
 
   '@vscode/esm-url-webpack-plugin@1.0.1-11(webpack@5.107.2(lightningcss@1.32.0))':
@@ -17990,7 +17985,7 @@ snapshots:
 
   '@vscode/lsif-protocol@0.6.0-next.9':
     dependencies:
-      vscode-languageserver-types: 3.18.0
+      vscode-languageserver-types: 3.17.5
 
   '@vscode/markdown-editor@0.0.2-1':
     dependencies:
@@ -26055,7 +26050,7 @@ snapshots:
     dependencies:
       '@vscode/l10n': 0.0.18
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.18.0
+      vscode-languageserver-types: 3.17.5
       vscode-uri: 3.1.0
 
   vscode-json-languageservice@6.0.0-next.1:
@@ -26063,7 +26058,7 @@ snapshots:
       '@vscode/l10n': 0.0.18
       jsonc-parser: 4.0.0-next.1
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.18.0
+      vscode-languageserver-types: 3.17.5
       vscode-uri: 3.1.0
 
   vscode-jsonrpc@4.0.0: {}
@@ -26092,7 +26087,7 @@ snapshots:
   vscode-languageserver-protocol@3.17.3:
     dependencies:
       vscode-jsonrpc: 8.1.0
-      vscode-languageserver-types: 3.17.3
+      vscode-languageserver-types: 3.17.5
 
   vscode-languageserver-protocol@3.17.5:
     dependencies:
@@ -26102,17 +26097,13 @@ snapshots:
   vscode-languageserver-protocol@3.18.0:
     dependencies:
       vscode-jsonrpc: 9.0.0
-      vscode-languageserver-types: 3.18.0
+      vscode-languageserver-types: 3.17.5
 
   vscode-languageserver-textdocument@1.0.12: {}
 
   vscode-languageserver-textdocument@1.0.13: {}
 
-  vscode-languageserver-types@3.17.3: {}
-
   vscode-languageserver-types@3.17.5: {}
-
-  vscode-languageserver-types@3.18.0: {}
 
   vscode-languageserver@10.0.0:
     dependencies:
@@ -26127,7 +26118,7 @@ snapshots:
       '@vscode/l10n': 0.0.11
       vscode-languageserver: 9.0.1
       vscode-languageserver-textdocument: 1.0.12
-      vscode-languageserver-types: 3.18.0
+      vscode-languageserver-types: 3.17.5
       vscode-markdown-languageservice: 0.5.0
       vscode-uri: 3.1.0
 
