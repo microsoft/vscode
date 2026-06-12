@@ -112,7 +112,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 function stylelint(sources: string[] = Array.from(stylelintFilter), explicit = false): NodeJS.ReadWriteStream {
 	let fileCount = 0;
 	return vfs
-		.src(sources, { base: '.', follow: true, allowEmpty: true })
+		.src(sources, { base: '.', follow: true, allowEmpty: true } as any)
 		.pipe(gulpstylelint((message, isError) => {
 			if (isError) {
 				console.error(message);

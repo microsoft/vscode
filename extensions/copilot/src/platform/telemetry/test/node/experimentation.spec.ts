@@ -30,11 +30,11 @@ class TestExperimentationService extends BaseExperimentationService {
 		@ILogService logService: ILogService
 	) {
 		const delegateFn: TASClientDelegateFn = (globalState: any, userInfoStore: UserInfoStore) => {
-			return new MockTASExperimentationService(userInfoStore);
+			return new MockTASExperimentationService(userInfoStore) as unknown as ITASExperimentationService;
 		};
 
 		super(delegateFn, extensionContext, tokenStore, configurationService, logService);
-		this._mockTasService = this._delegate as MockTASExperimentationService;
+		this._mockTasService = this._delegate as unknown as MockTASExperimentationService;
 	}
 
 	get mockTasService(): MockTASExperimentationService {
@@ -45,6 +45,7 @@ class TestExperimentationService extends BaseExperimentationService {
 	}
 }
 
+// @ts-expect-error - vscode-tas-client added methods we don't need to mock; we cast at use sites.
 class MockTASExperimentationService implements ITASExperimentationService {
 	private _initializePromise: Promise<void> | undefined;
 	private _initialFetch: Promise<void> | undefined;

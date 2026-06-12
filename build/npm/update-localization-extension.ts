@@ -95,7 +95,7 @@ function update(options: Options) {
 		gulp.src([
 			path.join(location!, '**', languageId, '*.xlf'),
 			...i18n.EXTERNAL_EXTENSIONS.map((extensionId: string) => path.join(externalExtensionsLocation!, extensionId, languageId, '*-new.xlf'))
-		], { silent: false })
+		], { silent: false } as any)
 			.pipe(i18n.prepareI18nPackFiles(translationPaths))
 			.on('error', (error: unknown) => {
 				console.log(`Error occurred while importing translations:`);
