@@ -238,11 +238,12 @@ class DocumentHistory {
 	 * Framing (`documentEncountered`, `setContent`, `opened`) reflects the document state at the
 	 * effective base time. If `fromTimeMs > _baseValueTime`, the base value is fast-forwarded by
 	 * applying edits in `[_baseValueTime, fromTimeMs)` so the emitted `setContent` represents the
-	 * document state at `fromTimeMs` (or `_baseValueTime` when it's later).
+	 * document state at the latest base time `<= fromTimeMs`.
 	 *
-	 * **Times invariant**: every emitted entry's `time` lies in `[fromTimeMs, toTimeMs]`. The "true"
-	 * creation/base-value times can be much older than `fromTimeMs` (the doc may have been open for
-	 * hours), so framing times are clamped up to `fromTimeMs` to keep the slice self-consistent.
+	 * Framing entries carry their **true** times (`creationTime` for `documentEncountered`,
+	 * `baseValueTime` for `setContent`/`opened`), even when those times pre-date `fromTimeMs`.
+	 * This matches what production `WorkspaceRecorder` emits and keeps sorting deterministic by
+	 * real timestamps. Consumers should treat any entry whose `time < fromTimeMs` as framing.
 	 */
 	getDocumentLogInRange(fromTimeMs: number, toTimeMs: number): { entry: LogEntry; sortTime: number }[] {
 		this.cleanUpHistory();
@@ -265,18 +266,11 @@ class DocumentHistory {
 			}
 		}
 
-		// Clamp framing times into [fromTimeMs, toTimeMs]. baseValueTime and creationTime can both
-		// pre-date the slice window. Without this, an emitted `documentEncountered.time` of e.g.
-		// "an hour ago" would violate the per-event "time is in slice" contract that consumers
-		// (e.g. stitching across overlapping slices) reasonably expect.
-		const framingTime = Math.max(baseValueTime, fromTimeMs);
-		const encounteredTime = Math.max(this.creationTime, fromTimeMs);
-
 		const log: { entry: LogEntry; sortTime: number }[] = [];
-		log.push({ entry: { kind: 'documentEncountered', id: this.id, relativePath: this.relativePath, time: encounteredTime }, sortTime: encounteredTime });
+		log.push({ entry: { kind: 'documentEncountered', id: this.id, relativePath: this.relativePath, time: this.creationTime }, sortTime: this.creationTime });
 		let docVersion = 1;
-		log.push({ entry: { kind: 'setContent', id: this.id, v: docVersion, content: baseValue.value, time: framingTime }, sortTime: framingTime });
-		log.push({ entry: { kind: 'opened', id: this.id, time: framingTime }, sortTime: framingTime });
+		log.push({ entry: { kind: 'setContent', id: this.id, v: docVersion, content: baseValue.value, time: baseValueTime }, sortTime: baseValueTime });
+		log.push({ entry: { kind: 'opened', id: this.id, time: baseValueTime }, sortTime: baseValueTime });
 
 		for (const e of inRange) {
 			if (e.kind === 'selections') {
