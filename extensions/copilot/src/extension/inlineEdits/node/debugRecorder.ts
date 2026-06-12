@@ -109,8 +109,6 @@ export class DebugRecorder extends Disposable {
 	 * Returns log entries whose recorded instant falls within `[fromTimeMs, toTimeMs]`.
 	 * Each document's framing (`documentEncountered`, `setContent`, `opened`) is still emitted
 	 * so the returned log is self-contained, even when the document's edits started before `fromTimeMs`.
-	 *
-	 * Used by continuous enhanced telemetry to slice fixed-length, overlapping windows of activity.
 	 */
 	public getLogInRange(fromTimeMs: number, toTimeMs: number): LogEntry[] | undefined {
 		if (!this._workspaceRoot) {
