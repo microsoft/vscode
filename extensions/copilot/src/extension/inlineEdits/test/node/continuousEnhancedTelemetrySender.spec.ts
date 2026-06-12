@@ -189,4 +189,39 @@ describe('ContinuousEnhancedTelemetrySender', () => {
 		await vi.advanceTimersByTimeAsync(IDLE_MS + HARD_CAP_MS);
 		expect(telemetry.enhancedEvents).toHaveLength(0);
 	});
+
+	test('a throw from the telemetry service does not kill the loop', async () => {
+		// First call throws, subsequent calls succeed — emulates a transient failure.
+		let calls = 0;
+		const throwingTelemetry = new (class extends RecordingTelemetryService {
+			override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
+				calls++;
+				if (calls === 1) {
+					throw new Error('boom');
+				}
+				super.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
+			}
+		})();
+		sender = new ContinuousEnhancedTelemetrySender(
+			recorder,
+			workspace,
+			throwingTelemetry,
+			new NullGitExtensionService(),
+		);
+
+		addDocAndEdit('a');
+
+		// First tick — _sendNow throws, but reschedule() must still fire.
+		await expect(vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS)).rejects.toThrow('boom');
+		expect(calls).toBe(1);
+		expect(throwingTelemetry.enhancedEvents).toHaveLength(0);
+
+		// Type something so the next slice has content and produce another full cycle.
+		editExistingDoc();
+		await vi.advanceTimersByTimeAsync(INTERVAL_MS + IDLE_MS);
+
+		// Second tick succeeded — loop kept ticking.
+		expect(calls).toBe(2);
+		expect(throwingTelemetry.enhancedEvents).toHaveLength(1);
+	});
 });

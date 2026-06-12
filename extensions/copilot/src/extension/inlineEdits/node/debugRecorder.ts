@@ -246,7 +246,11 @@ class DocumentHistory {
 	 * real timestamps. Consumers should treat any entry whose `time < fromTimeMs` as framing.
 	 */
 	getDocumentLogInRange(fromTimeMs: number, toTimeMs: number): { entry: LogEntry; sortTime: number }[] {
-		this.cleanUpHistory();
+		// Intentionally no `cleanUpHistory()` call here. Cleanup uses `getNow() - 5min` as the
+		// cutoff, which can be slightly later than `fromTimeMs` (we computed `fromTimeMs` a few
+		// instants ago in the caller). In that race, cleanup would rotate an edit at the leading
+		// edge of `[fromTimeMs, toTimeMs]` into `baseValue` and we'd silently drop it from the
+		// emitted slice. The buffer is still bounded by the per-edit cleanup in `handleEdit`.
 
 		const inRange = this._edits.filter(e => e.instant >= fromTimeMs && e.instant <= toTimeMs);
 		if (inRange.length === 0) {

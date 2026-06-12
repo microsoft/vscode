@@ -42,6 +42,9 @@ import { NES_GH_TELEMETRY_EVENT_NAME } from './nextEditProviderTelemetry';
  * - Empty slices are skipped (see below), so `sequenceNumber + 1` does **not** imply contiguous windows.
  * - Extension-host stalls, machine sleep, or delayed timers can produce arbitrarily large gaps between
  *   adjacent slices. Treat `windowStart`/`windowEnd` as authoritative and detect gaps explicitly.
+ * - The next tick is scheduled after `_sendNow()` returns, so the synchronous cost of building the
+ *   slice (`JSON.stringify` on up to ~200 KB of entries) is added to the inter-send spacing — in
+ *   practice well below 1 % of `OVERLAP_MS`, but it does eat into the overlap budget under load.
  *
  * ## Empty slices are skipped
  *
@@ -109,9 +112,19 @@ export class ContinuousEnhancedTelemetrySender extends Disposable {
 		const fireAndReset = () => {
 			if (fired) { return; }
 			fired = true;
-			idleStore.dispose();
-			this._sendNow();
-			reschedule();
+			// `loopStore.delete(idleStore)` (not just `idleStore.dispose()`) so the disposed inner
+			// store is also removed from `loopStore`'s tracking set — otherwise dead Sets would
+			// accumulate one per tick over the sender's lifetime.
+			loopStore.delete(idleStore);
+			// try/finally so reschedule() always runs even if `_sendNow` throws — a single transient
+			// failure (e.g. an unexpected throw from `JSON.stringify` or the telemetry service) would
+			// otherwise permanently kill the continuous loop for the rest of the sender's lifetime,
+			// because RunOnceScheduler's runner has no internal try/catch.
+			try {
+				this._sendNow();
+			} finally {
+				reschedule();
+			}
 		};
 
 		const idleScheduler = idleStore.add(new RunOnceScheduler(fireAndReset, ContinuousEnhancedTelemetrySender.IDLE_MS));

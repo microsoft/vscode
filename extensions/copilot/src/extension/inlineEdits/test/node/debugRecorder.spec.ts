@@ -270,6 +270,23 @@ suite('Debug recorder', () => {
 			expect(log.filter(e => e.kind !== 'header')).toHaveLength(0);
 		});
 
+		test('returns empty when document was created after toTimeMs', () => {
+			const workspace = new MutableObservableWorkspace();
+			let nowMs = 5000;
+			const recorder = new DebugRecorder(workspace, () => nowMs);
+			const workspaceRoot = URI.parse('file:///workspace');
+
+			// Document opens at t=5000 — well after the requested slice [1000, 4000].
+			const doc = workspace.addDocument({ id: DocumentId.create('file:///workspace/late.ts'), workspaceRoot, initialValue: 'hello' });
+			doc.applyEdit(new StringEdit([StringReplacement.replace(new OffsetRange(5, 5), '!')]));
+
+			nowMs = 6000;
+			const log = recorder.getLogInRange(1000, 4000);
+
+			assert(log);
+			expect(log.filter(e => e.kind !== 'header')).toHaveLength(0);
+		});
+
 		test('fast-forwards baseValue when fromTimeMs > baseValueTime', () => {
 			const { recorder, setNow, insertEdit } = setup();
 
