@@ -204,6 +204,7 @@ export class CommitCommandsCenter {
 
 		return [
 			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commitNoVerify', title: l10n.t('{0} Commit (No Verify)', icon ?? '$(check)'), tooltip: l10n.t('Commit Changes (Skip Hooks)'), arguments: [this.repository.sourceControl] },
 			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
 		];
 	}
