@@ -9,13 +9,14 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { ILogService } from '../../log/common/log.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, ChangesetAction, isRootAction, isSessionAction, isChangesetAction } from '../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, RootAction, StateAction, TerminalAction, ChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChangesetAction, isAnnotationsAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { rootReducer, sessionReducer, changesetReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo } from '../common/state/sessionState.js';
+import { rootReducer, sessionReducer, changesetReducer, annotationsReducer } from '../common/state/sessionReducers.js';
+import { createRootState, createSessionState, isAhpRootChannel, SessionLifecycle, withHostBuildInfo, type Changeset, type ChangesetState, type AnnotationsState, type RootState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, IHostBuildInfo } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
+import { buildAnnotationsUri, isAnnotationsUri } from '../common/annotationsUri.js';
 import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOptions } from './agentHostChangesetStateCache.js';
 import { ChangesSummary } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
@@ -46,6 +47,13 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Expanded changeset states, separated from protocol sequencing so cache policy stays local. */
 	private readonly _changesets: AgentHostChangesetStateCache;
+
+	/**
+	 * Per-channel annotation states for the `<session>/annotations` channel.
+	 * Unlike changesets (server-owned), annotation actions are
+	 * client-dispatchable and lazily create their state on first write.
+	 */
+	private readonly _annotations = new Map<string, AnnotationsState>();
 
 	/**
 	 * Sessions whose authoritative state has an active turn. Derived from
@@ -161,6 +169,17 @@ export class AgentHostStateManager extends Disposable {
 			return {
 				resource,
 				state: changesetState,
+				fromSeq: this._serverSeq,
+			};
+		}
+
+		// Annotation URIs are nested under their session URI as well. They are
+		// client-dispatchable and lazily created, so return an empty state for
+		// a well-formed annotations URI even before the first write.
+		if (isAnnotationsUri(resource)) {
+			return {
+				resource,
+				state: this._annotations.get(resource) ?? { annotations: [] },
 				fromSeq: this._serverSeq,
 			};
 		}
@@ -370,6 +389,7 @@ export class AgentHostStateManager extends Disposable {
 		// else, so callers observing `onDidEmitEnvelope` get a deterministic
 		// order: changeset/cleared (per changeset) → session removal.
 		this.disposeSessionChangesets(session);
+		this.disposeSessionAnnotations(session);
 		this.removeSession(session);
 		if (wasAnnounced) {
 			this._onDidEmitNotification.fire({
@@ -530,6 +550,16 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	/**
+	 * Drops the annotation state nested under `session` (i.e. the
+	 * `<session>/annotations` channel). Used to cascade cleanup when a
+	 * session itself is removed. Subscriptions are released via the
+	 * forthcoming `sessionRemoved` notification.
+	 */
+	disposeSessionAnnotations(session: URI): void {
+		this._annotations.delete(buildAnnotationsUri(session));
+	}
+
 	// ---- Turn tracking ------------------------------------------------------
 
 	/**
@@ -562,7 +592,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(channel: URI, action: SessionAction | TerminalAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
+	dispatchClientAction(channel: URI, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, origin: ActionOrigin): unknown {
 		return this._applyAndEmit(channel, action, origin);
 	}
 
@@ -645,6 +675,19 @@ export class AgentHostStateManager extends Disposable {
 			const newState = changesetReducer(state, changesetAction, this._log);
 			if (newState !== state) {
 				this._changesets.set(key, newState);
+			}
+			resultingState = newState;
+		}
+
+		if (isAnnotationsAction(action)) {
+			const annotationsAction = action as AnnotationsAction;
+			const key = channel;
+			// Annotations are client-dispatchable and lazily created: seed an
+			// empty state on first write rather than dropping the action.
+			const state = this._annotations.get(key) ?? { annotations: [] };
+			const newState = annotationsReducer(state, annotationsAction, this._log);
+			if (newState !== state) {
+				this._annotations.set(key, newState);
 			}
 			resultingState = newState;
 		}
