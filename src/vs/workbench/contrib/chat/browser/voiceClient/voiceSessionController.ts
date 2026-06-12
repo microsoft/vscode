@@ -808,10 +808,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				// Periodic fallback: check session state changes every 5s
 				// to catch transitions missed when the chat model isn't loaded
 				// (e.g. remote agent host sessions that haven't been opened).
-				this._voiceAutorunDisposable.value = new DisposableStore();
-				this._voiceAutorunDisposable.value.add(sessionChangeListener);
-				this._voiceAutorunDisposable.value.add(autorunDisposable);
-				this._voiceAutorunDisposable.value.add(disposableWindowInterval(this._window!, () => this._checkSessionStateChanges(), 5000));
+				const connectionDisposables = new DisposableStore();
+				connectionDisposables.add(sessionChangeListener);
+				connectionDisposables.add(autorunDisposable);
+				connectionDisposables.add(disposableWindowInterval(this._window!, () => this._checkSessionStateChanges(), 5000));
+				this._voiceAutorunDisposable.value = connectionDisposables;
 
 				this.micCaptureService.isMuted = false;
 				this._statusText.set('Hold to speak...', undefined);
