@@ -194,23 +194,24 @@ export class ClaudeAgentSdkService implements IClaudeAgentSdkService {
 			return import(pathToFileURL(entry).href);
 		}
 
-		// 2. Bare import — succeeds in dev where the SDK is a devDependency in
-		//    the repo's `node_modules`. Fails in built products (the SDK is
-		//    NOT bundled — it's distributed via `product.agentSdks.claude` and
-		//    fetched on demand by the downloader). We swallow the failure and
-		//    fall through to the downloader path so built products still work.
+		// 2. Production path: downloader resolves from cache or fetches the
+		//    per-host tarball described by `product.agentSdks.claude`. In a
+		//    built/shipped VS Code this succeeds; in dev there's no product
+		//    config and it throws cleanly without any I/O.
 		try {
-			return await import('@anthropic-ai/claude-agent-sdk');
+			const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
+			const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
+			return await import(pathToFileURL(entry).href);
 		} catch {
-			// Fall through.
+			// Fall through to the dev fallback.
 		}
 
-		// 3. Downloader: resolves from cache or fetches the per-host tarball
-		//    described by `product.agentSdks.claude`. This is the only path
-		//    that runs in built/shipped VS Code.
-		const root = await this._downloader.loadSdkRoot(ClaudeSdkPackage, CancellationToken.None);
-		const entry = join(root, 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'sdk.mjs');
-		return import(pathToFileURL(entry).href);
+		// 3. Dev fallback: bare import resolves via this repo's `node_modules`
+		//    where `@anthropic-ai/claude-agent-sdk` is a devDependency. Built
+		//    products don't bundle the SDK, so this path is dev-only — if it
+		//    fails here, the original downloader error from step 2 was the
+		//    real problem and the import error here will be the message.
+		return import('@anthropic-ai/claude-agent-sdk');
 	}
 }
 
