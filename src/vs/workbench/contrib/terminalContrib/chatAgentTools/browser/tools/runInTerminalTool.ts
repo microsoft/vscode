@@ -401,11 +401,21 @@ export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
 	goal: string;
-	mode?: 'sync' | 'async';
 	/**
-	 * @deprecated Use `mode` instead.
+	 * Advisory hint: set to true for processes that should keep running
+	 * indefinitely (servers, watchers, daemons). The backend decides
+	 * execution strategy.
 	 */
 	isBackground?: boolean;
+	/**
+	 * @deprecated No longer advertised to models. Silently ignored —
+	 * the backend owns all timeout decisions.
+	 */
+	mode?: 'sync' | 'async';
+	/**
+	 * @deprecated No longer advertised to models. Silently ignored —
+	 * the backend owns all timeout decisions.
+	 */
 	timeout?: number;
 	requestUnsandboxedExecution?: boolean;
 	requestUnsandboxedExecutionReason?: string;
@@ -663,10 +673,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	}
 
 	private _resolveExecutionOptions(args: IRunInTerminalInputParams): IResolvedExecutionOptions {
-		// isBackground is the primary signal. Legacy `mode` is accepted for
-		// backward compatibility but isBackground takes precedence.
-		const isBackground = args.isBackground ?? (args.mode === 'async');
-		if (isBackground) {
+		// isBackground is the only advertised signal. The backend decides
+		// everything else. Legacy `mode` is silently ignored.
+		if (args.isBackground) {
 			return { mode: 'async', persistentSession: true, waitStrategy: 'idle' };
 		}
 		return { mode: 'sync', persistentSession: false, waitStrategy: 'completion' };
@@ -1777,14 +1786,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 
-		// Backend owns timeout decisions. Ignore any model-supplied timeout for
-		// sync mode — the tool waits for completion with idle-silence as the
-		// safety net. For async mode, accept a timeout if supplied (legacy compat).
-		if (executionOptions.mode === 'sync') {
-			args.timeout = 0;
-		} else if (args.timeout !== undefined && (Number.isNaN(args.timeout) || args.timeout < 0)) {
-			args.timeout = 0;
-		}
+		// Backend owns timeout decisions unconditionally. Any model-supplied
+		// timeout is silently ignored — the tool waits for completion with
+		// idle-silence as the only safety net.
+		args.timeout = 0;
 
 		const chatSessionResource = invocation.context.sessionResource;
 		// Subagent-initiated terminals cannot receive steering messages; the subagent

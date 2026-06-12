@@ -663,7 +663,6 @@ suite('RunInTerminalTool', () => {
 					command: 'echo hello',
 					explanation: 'Print hello',
 					goal: 'Print hello',
-					mode: 'sync',
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
 			} as IToolInvocationPreparationContext, CancellationToken.None);
@@ -701,7 +700,6 @@ suite('RunInTerminalTool', () => {
 						command: 'echo hello',
 						explanation: 'Print hello',
 						goal: 'Print hello',
-						mode: 'sync',
 					} as IRunInTerminalInputParams,
 					chatSessionResource: sessionResource,
 				} as IToolInvocationPreparationContext, CancellationToken.None);
@@ -737,7 +735,6 @@ suite('RunInTerminalTool', () => {
 					command: 'echo hello',
 					explanation: 'Print hello',
 					goal: 'Print hello',
-					mode: 'sync',
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
 				chatRequestId: requestId,
@@ -762,7 +759,7 @@ suite('RunInTerminalTool', () => {
 				isSandboxWrapped: true,
 			});
 
-			const preparedInvocation = await executeToolTest({ command: 'echo hello', mode: 'async' });
+			const preparedInvocation = await executeToolTest({ command: 'echo hello', isBackground: true });
 
 			ok(preparedInvocation, 'Expected prepared invocation to be defined');
 			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
@@ -885,7 +882,6 @@ suite('RunInTerminalTool', () => {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
 					goal: 'Remove a file',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
@@ -1565,7 +1561,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				mode: 'async'
+				isBackground: true
 			});
 			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
@@ -1593,7 +1589,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				mode: 'async'
+				isBackground: true
 			});
 			assertAutoApproved(result);
 		});
@@ -1607,7 +1603,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
 				goal: 'Start watching for file changes',
-				mode: 'async'
+				isBackground: true
 			});
 			assertAutoApproved(result);
 
@@ -1717,7 +1713,7 @@ suite('RunInTerminalTool', () => {
 				command: 'npm run watch',
 				explanation: 'Start watching',
 				goal: 'Start watching',
-				mode: 'async'
+				isBackground: true
 			});
 			assertConfirmationRequired(result, 'Run command in `bash`?');
 		});
@@ -1736,7 +1732,7 @@ suite('RunInTerminalTool', () => {
 				command: 'node -e "console.log(1)"',
 				explanation: 'Run node command',
 				goal: 'Run node command',
-				mode: 'async'
+				isBackground: true
 			});
 			assertConfirmationRequired(result, 'Run `Node.js` command in `bash`?');
 		});
@@ -1757,7 +1753,6 @@ suite('RunInTerminalTool', () => {
 					command: 'cd /tmp && rm file.txt',
 					explanation: 'Remove a file in /tmp',
 					goal: 'Remove a file in /tmp',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
@@ -1794,7 +1789,6 @@ suite('RunInTerminalTool', () => {
 					command: 'cd /tmp && node -e "console.log(1)"',
 					explanation: 'Run node command in /tmp',
 					goal: 'Run node command in /tmp',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
@@ -2951,7 +2945,6 @@ suite('RunInTerminalTool', () => {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
 					goal: 'Remove a file',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource
@@ -2987,7 +2980,6 @@ suite('RunInTerminalTool', () => {
 					command: 'curl https://example.com',
 					explanation: 'Fetch a URL',
 					goal: 'Download content',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
@@ -3015,7 +3007,6 @@ suite('RunInTerminalTool', () => {
 					command: 'curl https://example.com',
 					explanation: 'Fetch a URL',
 					goal: 'Download content',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource,
@@ -3159,7 +3150,6 @@ suite('RunInTerminalTool', () => {
 					command: 'ping google.com',
 					explanation: 'Ping google.com',
 					goal: 'Ping google.com',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
@@ -3180,7 +3170,6 @@ suite('RunInTerminalTool', () => {
 					command: 'echo hello',
 					explanation: 'Print hello',
 					goal: 'Print hello',
-					mode: 'sync',
 					timeout: 30000,
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
