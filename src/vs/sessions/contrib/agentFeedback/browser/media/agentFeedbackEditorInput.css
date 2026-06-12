@@ -69,7 +69,7 @@
 	overflow: hidden;
 	white-space: pre;
 	font: inherit;
-	font-size: 13px;
+	font-size: var(--vscode-agents-fontSize-body1);
 }
 
 .agent-feedback-input-widget .agent-feedback-input-actions {
