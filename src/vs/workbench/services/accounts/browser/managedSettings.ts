@@ -6,6 +6,7 @@
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { IExtraKnownMarketplaceEntry } from '../../../../base/common/managedSettings.js';
 import { isObject, isString } from '../../../../base/common/types.js';
+import { flattenManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 
 /**
  * Response shape from the Copilot `/copilot_internal/managed_settings` endpoint.
@@ -13,12 +14,15 @@ import { isObject, isString } from '../../../../base/common/types.js';
  * enterprise's source org. An empty response (`{}`) is success and means
  * "no policy file present".
  *
- * Unknown keys are silently ignored via the index signature so the client is
+ * Unknown keys are accepted via the index signature so the client is
  * forward-compatible with future additions to the registry schema.
  *
  * Exported for unit-testing the {@link adaptManagedSettings} shape transformation.
  */
 export interface IManagedSettingsResponse {
+	readonly permissions?: {
+		readonly disableBypassPermissionsMode?: string;
+	};
 	readonly enabledPlugins?: Record<string, boolean>;
 	readonly extraKnownMarketplaces?: Record<string, {
 		readonly source:
@@ -26,14 +30,18 @@ export interface IManagedSettingsResponse {
 		| { readonly source: 'git'; readonly url: string; readonly ref?: string };
 	}>;
 	readonly strictKnownMarketplaces?: boolean;
-	/** Any unknown keys in the response are silently ignored for forward compatibility. */
+	/** Any unknown keys in the response are accepted for forward compatibility. */
 	readonly [key: string]: unknown;
 }
 
 /**
  * Adapt the `managed_settings` API response into the slice of {@link IPolicyData}
- * that the policy framework consumes. `extraKnownMarketplaces` is converted from
- * the API's `Record<id, { source }>` map shape to a flat array of
+ * that the policy framework consumes. Primitive leaves are also normalized into
+ * dot-separated `managedSettings` paths so policy definitions can evaluate the
+ * same managed-settings keys across server and MDM delivery.
+ *
+ * `extraKnownMarketplaces` is converted from the API's `Record<id, { source }>`
+ * map shape to a flat array of
  * {@link IExtraKnownMarketplaceEntry} objects, preserving the marketplace `name`
  * (used downstream as `displayLabel` so that `enabledPlugins["plugin@<name>"]`
  * keys resolve correctly), the source discriminator, and any `ref`.
@@ -75,6 +83,7 @@ export function adaptManagedSettings(response: IManagedSettingsResponse, onWarn?
 	}
 
 	return {
+		managedSettings: flattenManagedSettings(response),
 		enabledPlugins: isObject(response.enabledPlugins) ? response.enabledPlugins as Record<string, boolean> : undefined,
 		extraKnownMarketplaces,
 		strictKnownMarketplaces: typeof response.strictKnownMarketplaces === 'boolean' ? response.strictKnownMarketplaces : undefined,

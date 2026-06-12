@@ -342,6 +342,13 @@ export interface IAgentHostChangesetService {
 	 * `onLastSubscriber`. Called exactly once at coordinator construction.
 	 */
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void;
+
+	/**
+	 * Installs a predicate the service consults before scheduling an uncommitted
+	 * changeset recompute. Owned by {@link ChangesetSessionCoordinator}, which
+	 * tracks `<session>/changeset/uncommitted` subscribers.
+	 */
+	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void;
 }
 
 export class AgentHostChangesetService extends Disposable implements IAgentHostChangesetService {
@@ -371,6 +378,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * constructor.
 	 */
 	private _hasTurnSubscribers: (session: ProtocolURI, turnId: string) => boolean = () => false;
+	/**
+	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
+	 * `true` when at least one client is subscribed to
+	 * `<session>/changeset/uncommitted`. Defaults to `() => false` so
+	 * unwired test instances don't accidentally fire uncommitted computes;
+	 * the coordinator overrides this in its constructor.
+	 */
+	private _hasUncommittedSubscribers: (session: ProtocolURI) => boolean = () => false;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -385,6 +400,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	setTurnSubscriberProbe(probe: (session: ProtocolURI, turnId: string) => boolean): void {
 		this._hasTurnSubscribers = probe;
+	}
+
+	setUncommittedSubscriberProbe(probe: (session: ProtocolURI) => boolean): void {
+		this._hasUncommittedSubscribers = probe;
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -451,6 +470,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshUncommittedChangeset(session: ProtocolURI): void {
+		if (!this._hasUncommittedSubscribers(session)) {
+			return;
+		}
 		this._scheduleStaticRecompute(session, 'uncommitted', undefined, this._markStaticChangesetComputing(session, 'uncommitted'));
 	}
 
@@ -629,7 +651,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// debounces first so the final turn-complete computes supersede
 		// them. After that, schedule the final recomputes for the turn
 		// (when observed), the session-wide changeset with the changed
-		// turn id, and the uncommitted changeset with no turn id.
+		// turn id, and the uncommitted changeset when it is observed.
 		this._cancelDebouncedDiffComputation(session);
 		if (turnId !== undefined) {
 			this._cancelDebouncedTurnDiffComputation(session, turnId);
@@ -637,12 +659,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._scheduleTurnRecompute(session, turnId);
 			}
 		}
+
+		this._scheduleStaticRecompute(session, 'branch', turnId);
 		this._scheduleStaticRecompute(session, 'session', turnId);
-		this._scheduleStaticRecompute(session, 'uncommitted');
+
+		this.refreshUncommittedChangeset(session);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
 		// Turns were removed — recompute from scratch (no changedTurnId).
+		this._scheduleStaticRecompute(session, 'branch');
 		this._scheduleStaticRecompute(session, 'session');
 	}
 
@@ -657,6 +683,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
 		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
 			this._debouncedDiffTimers.deleteAndDispose(session);
+			this._scheduleStaticRecompute(session, 'branch', turnId);
 			this._scheduleStaticRecompute(session, 'session', turnId);
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
 	}

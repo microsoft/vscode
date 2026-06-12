@@ -11,12 +11,45 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatSessionTiming } from './chatService/chatService.js';
 import { Target } from './promptSyntax/promptTypes.js';
+
+export const enum ChatSessionsExtensions {
+	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
+}
+
+export interface IAsyncChatSessionActivationContribution {
+	matchSessionType(sessionType: string): boolean;
+	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
+}
+
+export interface IAsyncChatSessionActivationRegistry {
+	register(contribution: IAsyncChatSessionActivationContribution): IDisposable;
+	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[];
+}
+
+class AsyncChatSessionActivationRegistry implements IAsyncChatSessionActivationRegistry {
+	private readonly _contributions = new Set<IAsyncChatSessionActivationContribution>();
+
+	register(contribution: IAsyncChatSessionActivationContribution): IDisposable {
+		this._contributions.add(contribution);
+		return {
+			dispose: () => this._contributions.delete(contribution)
+		};
+	}
+
+	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[] {
+		return Array.from(this._contributions).filter(contribution => contribution.matchSessionType(sessionType));
+	}
+}
+
+Registry.add(ChatSessionsExtensions.AsyncActivation, new AsyncChatSessionActivationRegistry());
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -132,6 +165,17 @@ export interface IChatSessionsExtensionPoint {
 	 */
 	readonly customAgentTarget?: Target;
 	readonly requiresCustomModels?: boolean;
+	/**
+	 * Whether this session type supports the synthetic "Auto" model fallback.
+	 * Defaults to true. When false and no models are available, the picker
+	 * shows a "No models available" state instead of "Auto".
+	 *
+	 * This is distinct from {@link requiresCustomModels}, which only controls
+	 * whether the picker is filtered to the session's own model pool — a
+	 * session can own a custom pool yet still support Auto (e.g. the Copilot
+	 * CLI agent host).
+	 */
+	readonly supportsAutoModel?: boolean;
 	/**
 	 * When false, the delegation picker is hidden for this session type.
 	 * Defaults to true.
@@ -265,7 +309,7 @@ export function isLocalAgentHostTarget(target: string): boolean {
  * are NOT agent hosts need a different prefix, this function must be updated.
  */
 export function isRemoteAgentHostTarget(target: string): boolean {
-	return target.startsWith('remote-');
+	return isRemoteAgentHostSessionType(target);
 }
 
 /**
@@ -689,6 +733,15 @@ export interface IChatSessionsService {
 	 * Returns whether the session type requires custom models. When true, the model picker should show filtered custom models.
 	 */
 	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
+
+	/**
+	 * Returns whether the session type supports the synthetic "Auto" model
+	 * fallback. The built-in local chat always supports it; contributed session
+	 * types default to `false` unless they set `supportsAutoModel`. When false
+	 * and no models are available, the picker shows a "No models available"
+	 * state instead of "Auto".
+	 */
+	supportsAutoModelForSessionType(chatSessionType: string): boolean;
 
 	/**
 	 * Returns whether the session type supports delegation.

@@ -8,8 +8,10 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
+	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeAgentSdkRootSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
+	AgentHostCodexAgentEnabledSettingId,
 	AgentHostCodexAgentSdkRootSettingId,
 	AgentHostCodexAgentCodexHomeSettingId,
 	AgentHostOTelCaptureContentSettingId,
@@ -42,6 +44,18 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
 	type: 'object',
 	properties: {
+		[AgentHostClaudeAgentEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.claudeAgent.enabled', "When enabled, the agent host registers the Claude provider (subject to the Claude SDK being reachable). Independent of `#chat.agents.claude.preferAgentHost#` and `#chat.editor.claude.preferAgentHost#`, which choose which integration surfaces Claude. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			default: true,
+			tags: ['experimental', 'advanced'],
+		},
+		[AgentHostCodexAgentEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.codexAgent.enabled', "When enabled, the agent host registers the Codex provider (subject to the Codex SDK being reachable). Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+		},
 		[AgentHostClaudeAgentSdkRootSettingId]: {
 			type: 'string',
 			description: nls.localize('chat.agentHost.claudeAgent.sdkRoot', "Experimental, for local SDK development only. Absolute path to a directory containing `node_modules/@anthropic-ai/claude-agent-sdk`. When set, the agent host loads Claude from this tree instead of downloading the SDK. Empty (the default) falls through to the SDK distribution shipped with this build. Requires `#chat.agentHost.enabled#`. The agent host process must be restarted for changes to take effect."),

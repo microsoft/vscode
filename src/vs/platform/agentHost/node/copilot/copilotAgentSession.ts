@@ -27,6 +27,7 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { AgentSignal, IMcpNotification } from '../../common/agentService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import type { LanguageModelToolInvokedClassification, LanguageModelToolInvokedEvent } from '../../../telemetry/common/languageModelToolTelemetry.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ISessionDatabase, ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
@@ -316,7 +317,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: ToolResultContent[]; parentToolCallId: string | undefined; startTimeMs: number; mcpServerName: string | undefined; meta: Record<string, unknown> | undefined }>();
 	private readonly _parentToolCallIdsByAgentId = new Map<string, string>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
@@ -1902,14 +1903,19 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [], parentToolCallId, startTimeMs: Date.now(), mcpServerName: e.data.mcpServerName, meta: undefined });
 			const toolKind = getToolKind(e.data.toolName);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 
-			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | undefined;
+			let contributor: { readonly kind: ToolCallContributorKind.Client; readonly clientId: string } | { readonly kind: ToolCallContributorKind.MCP; readonly customizationId: string } | undefined;
 			const isClientTool = this._clientToolNames.has(e.data.toolName);
 			if (isClientTool && this._activeClientState.clientId) {
 				contributor = { kind: ToolCallContributorKind.Client, clientId: this._activeClientState.clientId };
+			} else if (e.data.mcpServerName) {
+				const customizationId = this._mcpCustomizations.customizationIdForServer(e.data.mcpServerName);
+				if (customizationId !== undefined) {
+					contributor = { kind: ToolCallContributorKind.MCP, customizationId };
+				}
 			}
 
 			// A new tool call invalidates the current markdown and reasoning
@@ -1935,6 +1941,21 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.data.mcpToolName) {
 				meta.mcpToolName = e.data.mcpToolName;
+			}
+			// TODO(sdk-gap): the Copilot SDK doesn't yet surface MCP App
+			// `_meta.ui.resourceUri` on `tool.execution_start`; we attach
+			// it on `tool.execution_complete` below so the App webview
+			// mounts on completion. Drop-in once the SDK exposes it here:
+			//   const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
+			//   if (resourceUri) { meta.ui = { resourceUri }; }
+
+			// Stash the start-time meta on the tracked tool call so the
+			// `tool.execution_complete` emission below can merge any
+			// additional namespaces (e.g. `ui`) on top without dropping
+			// what we already published at start time.
+			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+			if (tracked) {
+				tracked.meta = meta;
 			}
 
 			this._emitAction({
@@ -1983,8 +2004,9 @@ export class CopilotAgentSession extends Disposable {
 
 			// For client tools, do NOT auto-ready — the tool handler will fire
 			// a separate tool_ready signal once the deferred is in place (or
-			// the permission flow fires it first).
-			if (contributor) {
+			// the permission flow fires it first). MCP tools have no such
+			// handler and are auto-readied below alongside built-in tools.
+			if (contributor?.kind === ToolCallContributorKind.Client) {
 				return;
 			}
 
@@ -2045,6 +2067,22 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			this._sendToolInvokedTelemetry(e.data.success, e.data.error?.code, tracked);
+			const resourceUri = e.data.toolDescription?._meta?.ui?.resourceUri;
+			let completeMeta: Record<string, unknown> | undefined = tracked.meta;
+			if (resourceUri) {
+				const ui: Record<string, unknown> = { resourceUri };
+				if (tracked.mcpServerName) {
+					const channel = this._mcpCustomizations.channelForServer(tracked.mcpServerName);
+					if (channel !== undefined) {
+						ui.channel = channel;
+					}
+				}
+				// Merge the `ui` namespace on top of whatever meta we
+				// emitted at start time (`toolKind`, `subagentDescription`,
+				// `toolArguments`, …). Reducers replace the whole `_meta`
+				// blob, so we must do the merge here.
+				completeMeta = { ...(tracked.meta ?? {}), ui };
+			}
 			this._emitAction({
 				type: ActionType.SessionToolCallComplete,
 				turnId: this._turnId,
@@ -2055,6 +2093,7 @@ export class CopilotAgentSession extends Disposable {
 					content: content.length > 0 ? content : undefined,
 					error: e.data.error,
 				},
+				_meta: completeMeta,
 			}, parentToolCallId);
 		}));
 
@@ -2444,7 +2483,15 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSessionInfo(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Session info [${e.data.infoType}]: ${e.data.message}`);
+			const attributes: Record<string, OtelAttributeValue> = { infoType: e.data.infoType };
+			if (e.data.tip) {
+				attributes.tip = e.data.tip;
+			}
+			this._logService.info(`[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`, new OtelData(attributes));
+		}));
+
+		this._register(wrapper.onSessionWarning(e => {
+			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {

@@ -6679,9 +6679,10 @@
         "inputPlaceholder": "Run local tasks with Claude, type `#` for adding context",
         "order": 3,
         "description": "%github.copilot.session.providerDescription.claude%",
-        "when": "config.github.copilot.chat.claudeAgent.enabled",
+        "when": "config.github.copilot.chat.claudeAgent.enabled && ((isSessionsWindow && !config.chat.agents.claude.preferAgentHost) || (!isSessionsWindow && !config.chat.editor.claude.preferAgentHost))",
         "canDelegate": true,
         "requiresCustomModels": true,
+        "supportsAutoModel": false,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsImageAttachments": true
@@ -6741,6 +6742,7 @@
         "canDelegate": true,
         "description": "%github.copilot.session.providerDescription.background%",
         "when": "config.github.copilot.chat.backgroundAgent.enabled",
+        "supportsAutoModel": true,
         "capabilities": {
           "supportsFileAttachments": true,
           "supportsProblemAttachments": true,
