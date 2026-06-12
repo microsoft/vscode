@@ -92,10 +92,11 @@
 .style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	font-size: 12px;
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	line-height: 22px; /* match the editor tab height for vertical centering */
 }
 
 .style-override-tabs .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
-	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent) !important;
 }
 
 /*
@@ -110,4 +111,9 @@
 	border-top-width: 0 !important;
 	border-bottom-color: transparent !important;
 	border-bottom-width: 0 !important;
+}
+
+.style-override-tabs .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
+	font-size: 12px;
+	font-weight: var(--vscode-agents-fontWeight-semiBold);
 }
