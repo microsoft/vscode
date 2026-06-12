@@ -407,7 +407,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly uncommittedRefreshes: string[] = [];
 	readonly sessionRefreshes: string[] = [];
 
-	private _hasUncommittedSubscribers: (session: string) => boolean = () => true;
+	private _hasUncommittedSubscribers: (session: string) => boolean = () => false;
 
 	registerStaticChangesets(_session: string): void { }
 	restoreStaticChangeset(_session: string, _kind: StaticChangesetKind, _diffs: readonly ISessionFileDiff[]): void { }

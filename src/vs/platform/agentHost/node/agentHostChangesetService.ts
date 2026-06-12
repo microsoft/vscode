@@ -382,10 +382,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/**
 	 * Subscriber probe set by {@link ChangesetSessionCoordinator}. Returns
 	 * `true` when at least one client is subscribed to
-	 * `<session>/changeset/uncommitted`. Defaults to `() => true` to
-	 * preserve historical behavior for unwired test instances.
+	 * `<session>/changeset/uncommitted`. Defaults to `() => false` so
+	 * unwired test instances don't accidentally fire uncommitted computes;
+	 * the coordinator overrides this in its constructor.
 	 */
-	private _hasUncommittedSubscribers: (session: ProtocolURI) => boolean = () => true;
+	private _hasUncommittedSubscribers: (session: ProtocolURI) => boolean = () => false;
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
