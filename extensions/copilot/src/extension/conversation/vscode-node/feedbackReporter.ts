@@ -17,7 +17,6 @@ import { IObservable } from '../../../util/vs/base/common/observableInternal';
 import { basename } from '../../../util/vs/base/common/resources';
 import { splitLinesIncludeSeparators } from '../../../util/vs/base/common/strings';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { EXTENSION_ID } from '../../common/constants';
 import { InteractionOutcome, PromptQuery } from '../../inlineChat/node/promptCraftingTypes';
 import { Conversation, RequestDebugInformation, Turn } from '../../prompt/common/conversation';
 import { IntentInvocationMetadata } from '../../prompt/node/conversation';
@@ -196,7 +195,6 @@ export class FeedbackReporter extends Disposable implements IFeedbackReporter {
 
 export async function openIssueReporter(args: { title: string; issueBody?: string; data: string; public?: boolean }) {
 	await vscode.commands.executeCommand('workbench.action.openIssueReporter', {
-		extensionId: EXTENSION_ID,
 		issueTitle: args.title,
 		data: args.data,
 		issueBody: args.issueBody ?? '',
