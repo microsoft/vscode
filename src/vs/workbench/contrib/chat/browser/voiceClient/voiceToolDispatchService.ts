@@ -24,7 +24,7 @@ export interface IVoiceToolDispatchDelegate {
 	/** Accept input text in the current chat widget. Returns false if no widget available. */
 	acceptInput(text: string): boolean;
 	/** Get the resource URI of the currently active session. */
-	getCurrentSessionResource(): URI | undefined;
+	getCurrentSessionResource(): Promise<URI | undefined>;
 	/** Switch the view to a different session by resource URI. */
 	switchToSession(resource: URI): void;
 	/** Get the set of auto-approved session resource strings. */
@@ -127,7 +127,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				const text = argString('text');
 				if (text) {
 					if (!delegate.acceptInput(text)) {
-						const resource = delegate.getCurrentSessionResource();
+						const resource = await delegate.getCurrentSessionResource();
 						if (resource) {
 							await this.chatService.sendRequest(resource, text, this._agentModeOptions);
 						} else {
@@ -179,7 +179,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 					}
 				}
 				if (targetResource) {
-					const currentResource = delegate.getCurrentSessionResource();
+					const currentResource = await delegate.getCurrentSessionResource();
 					if (targetResource.toString() !== currentResource?.toString()) {
 						delegate.switchToSession(targetResource);
 					}
@@ -209,7 +209,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				}
 				if (!model) {
 					// Last resort: use the currently focused session
-					const res = delegate.getCurrentSessionResource();
+					const res = await delegate.getCurrentSessionResource();
 					model = res ? this.chatService.getSession(res) : undefined;
 				}
 				if (model) {
@@ -234,20 +234,20 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				break;
 			}
 			case 'revoke_auto_approve': {
-				const sessionResource = delegate.getCurrentSessionResource();
+				const sessionResource = await delegate.getCurrentSessionResource();
 				if (sessionResource) {
 					delegate.removeAutoApprovedSession(sessionResource.toString());
 				}
 				break;
 			}
 			case 'get_session_info': {
-				return this._gatherSessionInfo();
+				return await this._gatherSessionInfo();
 			}
 			case 'get_session_changes': {
 				const sessionId = typeof toolCall.args?.coding_session_id === 'string'
 					? toolCall.args.coding_session_id
 					: undefined;
-				return this._gatherSessionChanges(sessionId);
+				return await this._gatherSessionChanges(sessionId);
 			}
 			case 'get_session_thread': {
 				const sessionId = typeof toolCall.args?.coding_session_id === 'string'
@@ -255,16 +255,16 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 					: undefined;
 				const rawN = toolCall.args?.last_n_turns;
 				const lastN = typeof rawN === 'number' && rawN > 0 ? Math.min(10, Math.floor(rawN)) : 3;
-				return this._gatherSessionThread(sessionId, lastN);
+				return await this._gatherSessionThread(sessionId, lastN);
 			}
 		}
 		return 'ok';
 	}
 
-	private _gatherSessionInfo(): string {
+	private async _gatherSessionInfo(): Promise<string> {
 		const allSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 		const delegate = this._delegate;
-		const currentResource = delegate?.getCurrentSessionResource();
+		const currentResource = await delegate?.getCurrentSessionResource();
 
 		// Per-session lastActivity (ms epoch). 0 means "no timing info" — treat as oldest.
 		const lastActivityOf = (s: typeof allSessions[number]): number =>
@@ -333,7 +333,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * Resolve a coding_session_id (resource URI string) to an IAgentSession.
 	 * Falls back to the currently active session when id is missing/unknown.
 	 */
-	private _resolveSession(coding_session_id: string | undefined) {
+	private async _resolveSession(coding_session_id: string | undefined) {
 		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 		if (coding_session_id) {
 			const match = sessions.find(s => s.resource.toString() === coding_session_id);
@@ -341,7 +341,7 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 				return match;
 			}
 		}
-		const currentResource = this._delegate?.getCurrentSessionResource();
+		const currentResource = await this._delegate?.getCurrentSessionResource();
 		if (currentResource) {
 			const active = sessions.find(s => s.resource.toString() === currentResource.toString());
 			if (active) {
@@ -355,8 +355,8 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * Gather files touched + per-file insertions/deletions for a session.
 	 * Returns a JSON string keyed for the LLM follow-up to summarize.
 	 */
-	private _gatherSessionChanges(coding_session_id: string | undefined): string {
-		const session = this._resolveSession(coding_session_id);
+	private async _gatherSessionChanges(coding_session_id: string | undefined): Promise<string> {
+		const session = await this._resolveSession(coding_session_id);
 		if (!session) {
 			return JSON.stringify({ session_id: coding_session_id ?? null, files: [], note: 'session_not_found' });
 		}
@@ -400,8 +400,8 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 	 * Gather the last N user/assistant turns of a coding session — actual
 	 * conversation content, trimmed for spoken summarization.
 	 */
-	private _gatherSessionThread(coding_session_id: string | undefined, lastN: number): string {
-		const session = this._resolveSession(coding_session_id);
+	private async _gatherSessionThread(coding_session_id: string | undefined, lastN: number): Promise<string> {
+		const session = await this._resolveSession(coding_session_id);
 		if (!session) {
 			return JSON.stringify({ session_id: coding_session_id ?? null, turns: [], note: 'session_not_found' });
 		}

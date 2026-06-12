@@ -261,10 +261,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				});
 				return true;
 			},
-			getCurrentSessionResource: (): URI | undefined => {
-				// Synchronous command bridge not possible — return undefined,
-				// callers that need this fall back to finding sessions by other means
-				return undefined;
+			getCurrentSessionResource: async (): Promise<URI | undefined> => {
+				const resourceStr = await this.commandService.executeCommand<string | undefined>('_chat.voice.getCurrentSession').catch(() => undefined);
+				return resourceStr ? URI.parse(resourceStr) : undefined;
 			},
 			switchToSession: (resource: URI): void => {
 				this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString());

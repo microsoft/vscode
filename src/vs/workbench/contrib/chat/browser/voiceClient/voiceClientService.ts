@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import {
 	IVoiceClientService,
 	IVoicePriorTimelineEntry,
@@ -21,7 +22,6 @@ import {
 } from '../../common/voiceClient/voiceClientService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 
-const DEFAULT_VOICE_WS_URL = 'wss://falcon-caas.mai.microsoft.com/voice-code/api/v1/realtime/voice';
 const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
 const FAST_RETRY_COUNT = 3;
@@ -93,6 +93,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 	}
@@ -100,7 +101,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _getWsUrl(): string {
 		const configured = this._configurationService.getValue<string>('agents.voice.backendUrl');
 		const url = typeof configured === 'string' ? configured.trim() : '';
-		return url || DEFAULT_VOICE_WS_URL;
+		return url || this._productService.voiceWsUrl || '';
 	}
 
 	async connect(window: Window & typeof globalThis, authToken?: string): Promise<void> {
