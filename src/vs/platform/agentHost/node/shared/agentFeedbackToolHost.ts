@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
+import type { IAgentFeedbackToolHost } from '../../common/agentFeedbackAnnotations.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { AnnotationsState, URI } from '../../common/state/sessionState.js';
-import { AgentHostStateManager } from '../agentHostStateManager.js';
+import type { AnnotationsState, URI } from '../../common/state/sessionState.js';
+import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import { applyFeedbackTool, feedbackServerToolDefinitions } from './agentFeedbackServerTools.js';
 
 /**

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { FEEDBACK_ANNOTATION_META_KEY, IFeedbackAnnotationMeta } from '../../common/agentFeedbackAnnotations.js';
-import { AnnotationsAction } from '../../common/state/sessionActions.js';
+import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../common/agentFeedbackAnnotations.js';
+import type { AnnotationsAction } from '../../common/state/sessionActions.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { Annotation, AnnotationsState, StringOrMarkdown, TextRange, ToolDefinition } from '../../common/state/sessionState.js';
+import type { Annotation, AnnotationsState, StringOrMarkdown, TextRange, ToolDefinition } from '../../common/state/sessionState.js';
 
 /**
  * Server-side implementation of the agent feedback ("comments") tools.
@@ -255,11 +255,15 @@ function serializeComment(annotation: Annotation): ISerializedComment {
  */
 function listableAnnotations(state: AnnotationsState): Annotation[] {
 	return state.annotations.filter(annotation => {
-		if (!annotation.entries?.length) {
+		const meta = readMeta(annotation);
+		// The annotations channel is generic and may carry annotations produced
+		// by other features. Only annotations that carry feedback metadata are
+		// feedback comments; the feedback tools must never list, delete, or
+		// resolve unrelated annotations.
+		if (!meta || !annotation.entries?.length) {
 			return false;
 		}
-		const meta = readMeta(annotation);
-		const effectiveState = annotation.resolved ? 'resolved' : (meta?.state ?? 'accepted');
+		const effectiveState = annotation.resolved ? 'resolved' : (meta.state ?? 'accepted');
 		return effectiveState !== 'created';
 	});
 }

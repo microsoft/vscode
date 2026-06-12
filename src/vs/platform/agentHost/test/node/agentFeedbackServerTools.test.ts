@@ -123,6 +123,40 @@ suite('AgentFeedbackServerTools', () => {
 		assert.throws(() => applyFeedbackTool(stateWith(), sessionResource, addCommentToolName, { resourceUri: '', range: {}, text: 'x' }), /resourceUri must be a non-empty string/);
 	});
 
+	test('ignores annotations that do not carry feedback metadata', () => {
+		// A non-feedback annotation produced by another feature sharing the
+		// generic annotations channel must be invisible to the feedback tools:
+		// it is never listed, and delete/resolve treat it as not found rather
+		// than mutating it.
+		const foreign: Annotation = {
+			id: 'foreign',
+			turnId: '',
+			resource: fileUri,
+			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 4 } },
+			resolved: false,
+			entries: [{ id: 'foreign:0', text: 'not feedback' }],
+		};
+		const state = stateWith(foreign, annotation('a', 'accepted', false, 'real feedback'));
+
+		const listed = applyFeedbackTool(state, sessionResource, listCommentsToolName, {});
+		const deleted = applyFeedbackTool(state, sessionResource, deleteCommentsToolName, { commentIds: ['foreign'] });
+		const resolved = applyFeedbackTool(state, sessionResource, resolveCommentsToolName, { commentIds: ['foreign'] });
+
+		assert.deepStrictEqual({
+			listedIds: JSON.parse(listed.result).comments.map((c: { id: string }) => c.id),
+			deleteActions: deleted.actions,
+			deleteNotFound: JSON.parse(deleted.result).notFoundCommentIds,
+			resolveActions: resolved.actions,
+			resolveNotFound: JSON.parse(resolved.result).notFoundCommentIds,
+		}, {
+			listedIds: ['a'],
+			deleteActions: [],
+			deleteNotFound: ['foreign'],
+			resolveActions: [],
+			resolveNotFound: ['foreign'],
+		});
+	});
+
 	suite('AgentFeedbackToolHost', () => {
 
 		let disposables: DisposableStore;

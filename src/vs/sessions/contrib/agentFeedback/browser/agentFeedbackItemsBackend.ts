@@ -145,12 +145,14 @@ export class InMemoryAgentFeedbackItemsBackend extends Disposable implements IAg
 
 // --- Annotations-backed backend -----------------------------------------------
 
-/** Namespaced key under {@link Annotation._meta} carrying feedback semantics. */
-const FEEDBACK_META_KEY = FEEDBACK_ANNOTATION_META_KEY;
-
 /**
  * Feedback semantics carried in an annotation's {@link Annotation._meta}.
  * Everything not expressible by the annotation's own fields lives here.
+ *
+ * Mirrors the shared `IFeedbackAnnotationMeta` from `agentFeedbackAnnotations.ts`
+ * but types the client-only fields concretely (e.g. {@link suggestion}). The
+ * namespaced {@link FEEDBACK_ANNOTATION_META_KEY} is shared so the two sides
+ * cannot drift.
  */
 interface IFeedbackAnnotationMeta {
 	readonly kind: AgentFeedbackKind;
@@ -206,16 +208,20 @@ function feedbackToAnnotation(feedback: IAgentFeedback): Annotation {
 		range: toTextRange(feedback.range),
 		resolved: feedback.state === AgentFeedbackState.Resolved,
 		entries,
-		_meta: { [FEEDBACK_META_KEY]: meta },
+		_meta: { [FEEDBACK_ANNOTATION_META_KEY]: meta },
 	};
 }
 
 function annotationToFeedback(annotation: Annotation, sessionResource: URI): IAgentFeedback | undefined {
 	const entries = annotation.entries ?? [];
-	if (!entries.length) {
+	const meta = annotation._meta?.[FEEDBACK_ANNOTATION_META_KEY] as IFeedbackAnnotationMeta | undefined;
+	// The annotations channel is generic and may carry annotations produced by
+	// other features. Only annotations that carry feedback metadata are feedback
+	// items; everything else is ignored so feedback never surfaces or mutates
+	// unrelated annotations.
+	if (!meta || !entries.length) {
 		return undefined;
 	}
-	const meta = annotation._meta?.[FEEDBACK_META_KEY] as IFeedbackAnnotationMeta | undefined;
 	const replies = entries.slice(1).map(e => entryText(e.text));
 	return {
 		id: annotation.id,
@@ -268,6 +274,12 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
+
+		// Release a session's annotations subscription when the session is
+		// permanently deleted. Otherwise the per-session wire subscription
+		// acquired lazily in `_ensureChannel` would be held for the lifetime of
+		// this (singleton-owned) backend.
+		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._releaseChannel(session.resource)));
 	}
 
 	getItems(sessionResource: URI): readonly IAgentFeedback[] {
@@ -380,6 +392,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (idx >= 0) {
 			items.splice(idx, 1);
 		}
+	}
+
+	private _releaseChannel(sessionResource: URI): void {
+		const key = sessionResource.toString();
+		this._channels.deleteAndDispose(key);
+		this._channelBySession.delete(key);
+		this._sessionResourceByKey.delete(key);
+		this._cacheBySession.delete(key);
 	}
 
 	private _ensureChannel(sessionResource: URI): ITrackedChannel | undefined {
