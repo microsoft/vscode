@@ -139,7 +139,7 @@
 	chevron lines up with the per-item count numbers (which use
 	`right: 14px` inside their 10px-inset container). */
 .ai-customization-toolbar .ai-customization-header .customization-link-button {
-	font-weight: 500;
+	font-weight: var(--vscode-agents-fontWeight-semiBold, 600);
 	justify-content: space-between;
 	gap: 0;
 	padding: 6px 16px 6px 10px;
