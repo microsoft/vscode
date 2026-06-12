@@ -119,14 +119,12 @@ function main() {
 	process.on('uncaughtException', function(e) {
 		console.error(e.stack || e);
 		try { process.report?.writeReport(); } catch { }
-		process.exit(1);
 	});
 
 	process.on('unhandledRejection', function(reason) {
 		console.error('Unhandled promise rejection:');
 		console.error(reason && (/** @type {Error} */ (reason)).stack || reason);
 		try { process.report?.writeReport(); } catch { }
-		process.exit(1);
 	});
 
 	/**
