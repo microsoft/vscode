@@ -63,6 +63,7 @@ import './browser/parts/titlebar/menubar.contribution.js';
 //#region --- workbench services
 
 import '../platform/actions/common/actions.contribution.js';
+import '../platform/policy/common/policy.config.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';

@@ -590,11 +590,30 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.DEFAULT) {
 			return false;
 		}
+
+		// Build message with admin contact info if available
+		let message = nls.localize('unsupportedPolicySetting', "This setting cannot be applied because it is configured in the system policy.");
+		
+		const adminEmail = this.configurationService.getValue<string>('policy.adminContact.email');
+		const adminUrl = this.configurationService.getValue<string>('policy.adminContact.url');
+		
+		if (adminEmail || adminUrl) {
+			const contactParts: string[] = [];
+			if (adminEmail) {
+				contactParts.push(nls.localize('contactEmail', "email: {0}", adminEmail));
+			}
+			if (adminUrl) {
+				contactParts.push(nls.localize('contactUrl', "URL: {0}", adminUrl));
+			}
+			const contactInfo = contactParts.join(', ');
+			message = nls.localize('unsupportedPolicySettingWithContact', "This setting cannot be applied because it is configured in the system policy. Contact your administrator ({0}) for more information.", contactInfo);
+		}
+
 		markerData.push({
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
-			message: nls.localize('unsupportedPolicySetting', "This setting cannot be applied because it is configured in the system policy.")
+			message
 		});
 		return true;
 	}
