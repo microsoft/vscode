@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { MATCHES_LIMIT } from '../../../../../base/browser/ui/findinput/findContants.js';
 import { Delayer } from '../../../../../base/common/async.js';
 import * as platform from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,7 +14,7 @@ import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, MoveToLastMatchFindAction, MoveToNthMatchFindAction, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
 import { CONTEXT_FIND_INPUT_FOCUSED } from '../../browser/findModel.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -540,6 +541,269 @@ suite('FindController', () => {
 
 			const findState = findController.getState();
 			assert.deepStrictEqual(findState.searchString, 'ABC');
+			findController.dispose();
+		});
+	});
+
+	test('Nth Match: Highlight the correct match so the `matchesPosition` value is equal to the nthMatchInput value', async () => {
+		const testCodeEditorLines = [
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+		];
+		await withAsyncTestCodeEditor(testCodeEditorLines, { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+			const moveToNthMatchFindAction = new MoveToNthMatchFindAction();
+
+			// Open the find widget.
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			// Search for 'DEF'.
+			findState.change({ searchString: 'DEF' }, true);
+
+			// Type in a numeric value for N that is probably in-bounds.
+			const nthMatchSimulatedUserInput = '4';
+			await editor.runAction(moveToNthMatchFindAction, { n: nthMatchSimulatedUserInput });
+
+			// Assert that the number of matches is the same as the number of occurrences in the editor.
+			assert.strictEqual(findState.matchesCount, testCodeEditorLines.filter(line => line === 'DEF').length);
+
+			// Assert that the matchesPosition of the highlighted match is equal to nthMatchSimulatedUserInput.
+			assert.strictEqual(findState.matchesPosition, parseInt(nthMatchSimulatedUserInput));
+
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+	test('Nth Match: LEFT Bound Check - Highlight the FIRST match if the user input for N IS numerically parsable but IS LESS THAN 1', async () => {
+		const testCodeEditorLines = [
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+		];
+		await withAsyncTestCodeEditor(testCodeEditorLines, { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+			const moveToNthMatchFindAction = new MoveToNthMatchFindAction();
+
+			// Open the find widget.
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			// Search for 'DEF'.
+			findState.change({ searchString: 'DEF' }, true);
+
+			// Type in a numeric value for N that is out-of-bounds to the LEFT.
+			const nthMatchSimulatedUserInput = '-2';
+			await editor.runAction(moveToNthMatchFindAction, { n: nthMatchSimulatedUserInput });
+
+			// Assert that the number of matches is the same as the number of occurrences in the editor.
+			assert.strictEqual(findState.matchesCount, testCodeEditorLines.filter(line => line === 'DEF').length);
+
+			// Assert that the matchesPosition value of the highlighted match is 1,
+			// the position of the first match.
+			assert.strictEqual(findState.matchesPosition, 1);
+
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+	test('Nth Match: LEFT Bound Check - Highlight the FIRST match if the user input for N IS NOT numerically parsable', async () => {
+		const testCodeEditorLines = [
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+		];
+		await withAsyncTestCodeEditor(testCodeEditorLines, { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+			const moveToNthMatchFindAction = new MoveToNthMatchFindAction();
+
+
+			// Open the find widget.
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			// Search for 'DEF'.
+			findState.change({ searchString: 'DEF' }, true);
+
+			// Type in an alphabetical value for N.
+			const nthMatchSimulatedUserInput = 'abc';
+			await editor.runAction(moveToNthMatchFindAction, { n: nthMatchSimulatedUserInput });
+
+			// Assert that the number of matches is the same as the number of occurrences in the editor.
+			assert.strictEqual(findState.matchesCount, testCodeEditorLines.filter(line => line === 'DEF').length);
+
+			// Assert that the matchesPosition value of the highlighted match is 1,
+			// the position of the first match.
+			assert.strictEqual(findState.matchesPosition, 1);
+
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+	test('Nth Match: RIGHT Bound Check - Highlight the LAST match if the user input for N IS numerically parsable but IS GREATER THAN `matchesCount`', async () => {
+		const testCodeEditorLines = [
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+		];
+		await withAsyncTestCodeEditor(testCodeEditorLines, { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+			const moveToNthMatchFindAction = new MoveToNthMatchFindAction();
+
+			// Open the find widget.
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			// Search for 'DEF'.
+			findState.change({ searchString: 'DEF' }, true);
+
+			// Type in a numeric value for N that exceeds the maximum.
+			// The nthMatchInput validates user input so that the
+			// value is bound between 1 and (matchesCount | MATCHES_LIMIT).
+			const rawUserInput = findState.matchesCount + 100;
+			const nthMatchSimulatedUserInput = `${Math.min(findState.matchesCount, Math.min(rawUserInput, MATCHES_LIMIT))}`;
+			await editor.runAction(moveToNthMatchFindAction, { n: nthMatchSimulatedUserInput });
+
+			// Assert that the number of matches is the same as the number of occurrences in the editor.
+			assert.strictEqual(findState.matchesCount, testCodeEditorLines.filter(line => line === 'DEF').length);
+
+			// Assert that the matchesPosition value of the highlighted match is equal to matchesCount,
+			// the position of the last highlightable match.
+			assert.strictEqual(findState.matchesPosition, findState.matchesCount);
+
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+	test('Nth Match: RIGHT Bound Check - Highlight the LAST match if the user input for N IS numerically parsable but IS GREATER THAN `MATCHES_LIMIT`', async () => {
+		const testCodeEditorLines = [
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+		];
+		await withAsyncTestCodeEditor(testCodeEditorLines, { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+			const moveToNthMatchFindAction = new MoveToNthMatchFindAction();
+
+			// Open the find widget.
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			// Search for 'DEF'.
+			findState.change({ searchString: 'DEF' }, true);
+
+			// Type a numeric value for N that exceeds the maximum.
+			// The nthMatchInput validates user input so that
+			// N is bound between 1 and (matchesCount | MATCHES_LIMIT).
+			const rawUserInput = MATCHES_LIMIT + 100;
+			const nthMatchSimulatedUserInput = `${Math.min(findState.matchesCount, Math.min(rawUserInput, MATCHES_LIMIT))}`;
+			await editor.runAction(moveToNthMatchFindAction, { n: nthMatchSimulatedUserInput });
+
+			// Assert that the number of matches is the same as the number of occurrences in the editor.
+			assert.strictEqual(findState.matchesCount, testCodeEditorLines.filter(line => line === 'DEF').length);
+
+			// Assert that the matchesPosition value of the highlighted match is equal to matchesCount,
+			// the position of the last highlightable match.
+			assert.strictEqual(findState.matchesPosition, findState.matchesCount);
+
+			assert.strictEqual(findState.isRevealed, true);
+			findController.dispose();
+		});
+	});
+
+
+	test('Nth Match: Last Match - Highlight the LAST match so the `matchesPostion` value is the same as the `matchesCount` or `MATCHES_LIMIT` value', async () => {
+		const testCodeEditorLines = [
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+			'ABC',
+			'DEF',
+			'XYZ',
+		];
+		await withAsyncTestCodeEditor(testCodeEditorLines, { serviceCollection: serviceCollection, find: { closeOnResult: true } }, async (editor, _, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const findState = findController.getState();
+			const moveToLastMatchFindAction = new MoveToLastMatchFindAction();
+
+			// Open the find widget.
+			await executeAction(instantiationService, editor, StartFindAction);
+			assert.strictEqual(findState.isRevealed, true);
+
+			// Search for 'DEF'.
+			findState.change({ searchString: 'DEF' }, true);
+
+			// Simulate a click on the matchesCount widget (lastMatchButton) to trigger MoveToLastMatchFindAction.
+			await editor.runAction(moveToLastMatchFindAction, { n: findState.matchesCount || MATCHES_LIMIT });
+
+			// Assert that the number of matches is the same as the number of occurrences in the editor.
+			assert.strictEqual(findState.matchesCount, testCodeEditorLines.filter(line => line === 'DEF').length);
+
+			// Assert that the highlighted match is the last highlightable match in the editor.
+			assert.strictEqual(findState.matchesPosition, findState.matchesCount);
+
+			assert.strictEqual(findState.isRevealed, true);
 			findController.dispose();
 		});
 	});

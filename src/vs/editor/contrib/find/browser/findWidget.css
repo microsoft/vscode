@@ -113,25 +113,35 @@
 }
 
 .monaco-editor .find-widget .matchesCount {
-	display: flex;
-	flex: initial;
-	margin: 0 0 0 3px;
-	padding: 2px 0 0 2px;
-	height: 25px;
-	vertical-align: middle;
-	box-sizing: border-box;
-	text-align: center;
-	line-height: 23px;
+    display: flex;
+    align-items: center;
+    flex: initial;
+    margin: 0 0 0 3px;
+    padding: 2px 0 0 2px;
+    height: 25px;
+    vertical-align: middle;
+    box-sizing: border-box;
+    text-align: center;
+    line-height: 23px;
+}
+
+.monaco-editor .find-widget .matchesCount .last-match-btn {
+	width: fit-content;
+    padding: 4.5px;
+    margin-left: 10px;
+    margin-bottom: 2px;
+	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 }
 
 .monaco-editor .find-widget .button {
-	width: 16px;
+	min-width: 16px;
+    margin-left: 5px;
 	height: 16px;
 	padding: 3px;
 	border-radius: 5px;
 	display: flex;
 	flex: initial;
-	margin-left: 3px;
+	margin-left: 3.5px;
 	background-position: center center;
 	background-repeat: no-repeat;
 	cursor: pointer;
