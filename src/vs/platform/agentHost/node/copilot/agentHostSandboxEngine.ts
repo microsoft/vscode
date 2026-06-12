@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { ISandboxHelperService, type ISandboxDependencyStatus } from '../../../sandbox/common/sandboxHelperService.js';
+import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostSandboxConfigKey, sandboxConfigSchema, sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
@@ -83,6 +83,10 @@ class AgentHostTerminalSandboxHost implements ITerminalSandboxEngineHost {
 
 	async getWindowsMxcEnvironment() {
 		return this._sandboxHelper.getWindowsMxcEnvironment();
+	}
+
+	async buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment) {
+		return this._sandboxHelper.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
 	}
 
 	getSandboxSetting<T>(settingId: string): T | undefined {

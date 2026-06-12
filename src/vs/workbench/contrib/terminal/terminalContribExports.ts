@@ -50,6 +50,7 @@ export const enum TerminalContribSettingId {
 	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
 	AgentSandboxWindowsEnabled = AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
+	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
 	AgentSandboxAutoApproveUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAutoApproveUnsandboxedCommands,
 	AgentSandboxAllowAutoApprove = AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
 	DeprecatedAgentSandboxEnabled = AgentSandboxSettingId.DeprecatedAgentSandboxEnabled,

@@ -197,13 +197,14 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplierNumeric?: number;
+	readonly isBYOK?: boolean;
 	readonly pricing?: string;
 	readonly inputCost?: number;
-	readonly outputCost?: number;
 	readonly cacheCost?: number;
+	readonly outputCost?: number;
 	readonly longContextInputCost?: number;
-	readonly longContextOutputCost?: number;
 	readonly longContextCacheCost?: number;
+	readonly longContextOutputCost?: number;
 	readonly priceCategory?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
@@ -648,6 +649,54 @@ interface IChatControlResponse {
 		readonly free?: Record<string, { readonly label: string; readonly featured?: boolean }>;
 		readonly paid?: Record<string, { readonly label: string; readonly featured?: boolean; readonly minVSCodeVersion?: string }>;
 	};
+}
+
+/**
+ * Builds the per-model configuration submenu actions from a model's
+ * {@link ILanguageModelConfigurationSchema}. The current value is read from
+ * `currentConfig` and selections are routed through `setValue`, allowing the
+ * caller to decide whether changes apply globally or to a per-editor override.
+ */
+export function createModelConfigurationActions(
+	schema: ILanguageModelConfigurationSchema | undefined,
+	currentConfig: IStringDictionary<unknown>,
+	setValue: (key: string, value: unknown) => void,
+): IAction[] {
+	if (!schema?.properties) {
+		return [];
+	}
+
+	const actions: IAction[] = [];
+
+	for (const [key, propSchema] of Object.entries(schema.properties)) {
+		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
+			continue;
+		}
+		const currentValue = currentConfig[key] ?? propSchema.default;
+		const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
+			?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
+				.replace(/^./, s => s.toUpperCase());
+		const defaultValue = propSchema.default;
+		const enumItemLabels = propSchema.enumItemLabels;
+		const enumDescriptions = propSchema.enumDescriptions;
+		const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
+			const itemLabel = enumItemLabels?.[index] ?? String(value);
+			const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
+			const tooltip = enumDescriptions?.[index] ?? '';
+			return {
+				id: `configureModel.${key}.${value}`,
+				label: displayLabel,
+				class: undefined,
+				enabled: true,
+				tooltip,
+				checked: currentValue === value,
+				run: () => setValue(key, value)
+			};
+		});
+		actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
+	}
+
+	return actions;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -1225,43 +1274,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	getModelConfigurationActions(modelId: string): IAction[] {
 		const metadata = this._modelCache.get(modelId);
-		const schema = metadata?.configurationSchema;
-		if (!schema?.properties) {
-			return [];
-		}
-
-		const actions: IAction[] = [];
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
-
-		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
-				continue;
-			}
-			const currentValue = currentConfig[key] ?? propSchema.default;
-			const label = (typeof propSchema.title === 'string' ? propSchema.title : undefined)
-				?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
-					.replace(/^./, s => s.toUpperCase());
-			const defaultValue = propSchema.default;
-			const enumItemLabels = propSchema.enumItemLabels;
-			const enumDescriptions = propSchema.enumDescriptions;
-			const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
-				const itemLabel = enumItemLabels?.[index] ?? String(value);
-				const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
-				const tooltip = enumDescriptions?.[index] ?? '';
-				return {
-					id: `configureModel.${key}.${value}`,
-					label: displayLabel,
-					class: undefined,
-					enabled: true,
-					tooltip,
-					checked: currentValue === value,
-					run: () => this.setModelConfiguration(modelId, { [key]: value })
-				};
-			});
-			actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
-		}
-
-		return actions;
+		return createModelConfigurationActions(
+			metadata?.configurationSchema,
+			currentConfig,
+			(key, value) => this.setModelConfiguration(modelId, { [key]: value })
+		);
 	}
 
 	async configureLanguageModelsProviderGroup(vendorId: string, providerGroupName?: string): Promise<void> {

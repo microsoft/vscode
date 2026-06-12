@@ -32,9 +32,10 @@ const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
 /**
  * Resolve the path of the locally installed `@anthropic-ai/claude-agent-sdk`
  * package. It's a dev dep so it's always present at
- * `<repo>/node_modules/@anthropic-ai/claude-agent-sdk`; we hand its
- * directory to the agent host server via `--claude-sdk-path` so the Claude
- * provider gets registered.
+ * `<repo>/node_modules/@anthropic-ai/claude-agent-sdk`; we hand the repo
+ * directory (the SDK root — the parent of `node_modules/`) to the agent
+ * host server via `--claude-sdk-root` so the Claude provider gets
+ * registered.
  *
  * The Electron renderer test loader rejects bare module-specifier resolution
  * (no `import.meta.resolve('pkg')`, no `require.resolve('pkg')`), so we
@@ -45,14 +46,14 @@ const REAL_SDK_ENABLED = process.env['AGENT_HOST_REAL_SDK'] === '1';
  * once the suite has already opted in via env vars, so the suite's own
  * skip-if-not-found path surfaces the missing dep.
  */
-function resolveClaudeSdkPath(): string | undefined {
-	const candidate = join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk');
-	return existsSync(candidate) ? candidate : undefined;
+function resolveClaudeSdkRoot(): string | undefined {
+	const sdkPackageDir = join(process.cwd(), 'node_modules', '@anthropic-ai', 'claude-agent-sdk');
+	return existsSync(sdkPackageDir) ? process.cwd() : undefined;
 }
 
 // Resolve lazily: if the suite isn't opted in, skip the filesystem probe so a
 // missing SDK directory can't trip a disabled run.
-const CLAUDE_SDK_PATH = REAL_SDK_ENABLED ? resolveClaudeSdkPath() : undefined;
+const CLAUDE_SDK_ROOT = REAL_SDK_ENABLED ? resolveClaudeSdkRoot() : undefined;
 
 const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	suiteTitle: 'Protocol WebSocket — Real Claude SDK',
@@ -61,8 +62,8 @@ const CLAUDE_CONFIG: IRealSdkProviderConfig = {
 	shellToolName: 'Bash',
 	subagentToolNames: ['Task', 'Agent'],
 	exitPlanModeToolName: 'ExitPlanMode',
-	enabled: REAL_SDK_ENABLED && !!CLAUDE_SDK_PATH,
-	claudeSdkPath: CLAUDE_SDK_PATH,
+	enabled: REAL_SDK_ENABLED && !!CLAUDE_SDK_ROOT,
+	claudeSdkRoot: CLAUDE_SDK_ROOT,
 	// Claude has not landed worktree isolation yet (deferred to Phase 12).
 	// The shared suite skips that test when the flag is false.
 	supportsWorktreeIsolation: false,

@@ -45,6 +45,7 @@ export class TestContext {
 	private nextPort = 3010;
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
+	private wslVersion: number | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -55,6 +56,7 @@ export class TestContext {
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
 		screenshotsDir: string | undefined;
+		crashDumpsDir: string | undefined;
 	}>) {
 	}
 
@@ -222,6 +224,37 @@ export class TestContext {
 		}
 		this.log(`Default WSL distribution: ${distro}`);
 		return distro;
+	}
+
+	/**
+	 * Returns the WSL version of the Ubuntu distribution, or undefined if not found.
+	 */
+	public getUbuntuWslVersion(): number | undefined {
+		if (this.wslVersion !== undefined) {
+			return this.wslVersion;
+		}
+
+		const result = this.runNoErrors('wsl', '--list', '--verbose');
+		for (const rawLine of result.stdout.split(/\r?\n/)) {
+			const line = rawLine.trim();
+			if (!line || /^NAME\s+STATE\s+VERSION$/i.test(line)) {
+				continue;
+			}
+
+			const normalizedLine = line.replace(/^\*\s*/, '');
+			const columns = normalizedLine.split(/\s+/);
+			if (columns.length < 3 || columns[0] !== 'Ubuntu') {
+				continue;
+			}
+
+			const version = Number(columns[columns.length - 1]);
+			if (!Number.isNaN(version)) {
+				this.wslVersion = version;
+				return this.wslVersion;
+			}
+		}
+
+		return undefined;
 	}
 
 	/**
@@ -819,22 +852,32 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public async installDeb(packagePath: string): Promise<string> {
+		const name = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', name, name);
+		if (fs.existsSync(entryPoint)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${entryPoint}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using DEB package manager`);
 		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
-		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux DEB package.
+	 * Uninstalls VS Code Linux DEB package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallDeb() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/share', name, name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`DEB package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
 		await this.runDpkgNoErrors('-r', name);
@@ -852,22 +895,33 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installRpm(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const installedBinary = path.join('/usr/bin', name);
+		if (fs.existsSync(installedBinary)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${installedBinary}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using RPM package manager`);
 		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const name = this.getLinuxBinaryName();
 		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux RPM package.
+	 * Uninstalls VS Code Linux RPM package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallRpm() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/usr/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`RPM package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
 		this.runSudoNoErrors('rpm', '-e', name);
@@ -885,23 +939,34 @@ export class TestContext {
 	 * @returns The path to the installed VS Code executable.
 	 */
 	public installSnap(packagePath: string): string {
+		const name = this.getLinuxBinaryName();
+		const snapWrapper = path.join('/snap/bin', name);
+		if (fs.existsSync(snapWrapper)) {
+			this.error(`Cannot install ${packagePath}: ${name} is already installed at ${snapWrapper}. This usually means a previous test run was terminated before cleanup completed; investigate the prior failure rather than silencing this error.`);
+		}
+
 		this.log(`Installing ${packagePath} using Snap package manager`);
 		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
-		const name = this.getLinuxBinaryName();
 		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls VS Code Linux Snap package.
+	 * Uninstalls VS Code Linux Snap package. Safe to call when the package is not
+	 * installed (no-op) so that test cleanup in a `finally` block is always safe.
 	 */
 	public async uninstallSnap() {
 		const name = this.getLinuxBinaryName();
 		const packagePath = path.join('/snap/bin', name);
+
+		if (!fs.existsSync(packagePath)) {
+			this.log(`Snap package ${name} not installed, skipping uninstall`);
+			return;
+		}
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
 		this.runSudoNoErrors('snap', 'remove', name);
@@ -1166,6 +1231,19 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns a per-test crash dump directory for the desktop app to use with
+	 * `--crash-reporter-directory`. Returns undefined if `--crash-dumps-dir` was
+	 * not provided.
+	 */
+	public getCrashDumpsDir(): string | undefined {
+		if (!this.options.crashDumpsDir || !this.currentTestName) {
+			return undefined;
+		}
+		const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+		return path.join(this.options.crashDumpsDir, sanitizedName);
+	}
+
+	/**
 	 * Captures a screenshot of the current page if one is active.
 	 */
 	public async captureScreenshot(page: Page) {
@@ -1273,14 +1351,14 @@ export class TestContext {
 		const app = spawn(command, args, {
 			shell: /\.(sh|cmd)$/.test(command),
 			detached: !this.capabilities.has('windows'),
-			stdio: ['ignore', 'pipe', 'pipe']
+			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 
 		try {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)) {
+					if (this.isNonFatalCliStderr(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));
@@ -1317,5 +1395,10 @@ export class TestContext {
 		} finally {
 			this.killProcessTree(app.pid!);
 		}
+	}
+
+	private isNonFatalCliStderr(text: string): boolean {
+		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }

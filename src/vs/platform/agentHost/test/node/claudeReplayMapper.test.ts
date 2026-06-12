@@ -85,7 +85,7 @@ suite('claudeReplayMapper', () => {
 
 		assert.strictEqual(turns.length, 1);
 		assert.strictEqual(turns[0].id, 'u1', 'Turn.id MUST equal user SessionMessage.uuid');
-		assert.strictEqual(turns[0].userMessage.text, 'hello');
+		assert.strictEqual(turns[0].message.text, 'hello');
 		assert.strictEqual(turns[0].usage, undefined, 'replay never has usage');
 		assert.strictEqual(turns[0].state, TurnState.Complete);
 		assert.strictEqual(turns[0].responseParts.length, 1);
@@ -263,8 +263,8 @@ suite('claudeReplayMapper', () => {
 
 		assert.strictEqual(turns.length, 2, 'CLI-echo user envelopes must NOT start new turns');
 		assert.strictEqual(turns[0].id, 'u1');
-		assert.strictEqual(turns[0].userMessage.text, 'what model are you');
+		assert.strictEqual(turns[0].message.text, 'what model are you');
 		assert.strictEqual(turns[1].id, 'u2');
-		assert.strictEqual(turns[1].userMessage.text, 'how about now');
+		assert.strictEqual(turns[1].message.text, 'how about now');
 	});
 });

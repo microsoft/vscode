@@ -9,7 +9,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IModelChangedAction, IResponsePartAction, SessionAddedParams, ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
+import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type SessionState } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -252,7 +252,7 @@ suite('Protocol WebSocket — Session Features', function () {
 				type: 'session/pendingMessageSet',
 				kind: PendingMessageKind.Queued,
 				id: 'q-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		});
 
@@ -265,7 +265,7 @@ suite('Protocol WebSocket — Session Features', function () {
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = snapshot.snapshot!.state as SessionState;
 		assert.ok(state.turns.length >= 1);
-		assert.strictEqual(state.turns[state.turns.length - 1].userMessage.text, 'hello');
+		assert.strictEqual(state.turns[state.turns.length - 1].message.text, 'hello');
 		// Queue should be empty after consumption
 		assert.ok(!state.queuedMessages?.length, 'queued messages should be empty after consumption');
 	});
@@ -289,7 +289,7 @@ suite('Protocol WebSocket — Session Features', function () {
 				type: 'session/pendingMessageSet',
 				kind: PendingMessageKind.Queued,
 				id: 'q-wait-1',
-				userMessage: { text: 'hello' },
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
 			},
 		});
 
@@ -336,7 +336,7 @@ suite('Protocol WebSocket — Session Features', function () {
 				type: 'session/pendingMessageSet',
 				kind: PendingMessageKind.Steering,
 				id: 'steer-1',
-				userMessage: { text: 'Please be concise' },
+				message: { text: 'Please be concise', origin: { kind: MessageKind.User } },
 			},
 		});
 

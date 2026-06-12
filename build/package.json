@@ -32,7 +32,7 @@
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
-    "@types/node": "^22.18.10",
+    "@types/node": "24.x",
     "@types/p-all": "^1.0.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
@@ -60,7 +60,7 @@
     "tree-sitter": "^0.22.4",
     "vscode-universal-bundler": "^0.1.3",
     "workerpool": "^6.4.0",
-    "yauzl": "^2.10.0",
+    "yauzl": "^3.3.1",
     "zx": "^8.8.5"
   },
   "type": "module",
@@ -78,6 +78,7 @@
   "overrides": {
     "path-scurry": {
       "lru-cache": "11.2.1"
-    }
+    },
+    "yauzl": "^3.3.1"
   }
 }

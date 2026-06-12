@@ -7,7 +7,7 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { OS } from '../../../../base/common/platform.js';
 import './media/issueReporterOverlay.css';
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, disposableWindowInterval, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
@@ -132,8 +132,6 @@ export class IssueReporterOverlay {
 	private includeExtensions = true;
 	private includeExperiments = true;
 	private includeExtensionData = false;
-	private includeSettings = true;
-	private settingsContent: string | undefined;
 	private diagnosticBulkToggleButton: Button | undefined;
 	private diagnosticSectionStates: (() => boolean)[] = [];
 	private performanceInfoLoaded = false;
@@ -387,12 +385,12 @@ export class IssueReporterOverlay {
 				let remaining = this.screenshotDelay;
 				captureBtn.label = `${remaining}...`;
 				const targetWindow = getWindow(this.container);
-				const interval = targetWindow.setInterval(() => {
+				const intervalDisposable = this.disposables.add(disposableWindowInterval(targetWindow, () => {
 					remaining--;
 					if (remaining > 0) {
 						captureBtn.label = `${remaining}...`;
 					} else {
-						targetWindow.clearInterval(interval);
+						this.disposables.delete(intervalDisposable);
 						captureBtn.label = `$(device-camera) ${localize('screenshot', "Screenshot")}`;
 						captureBtn.element.style.minWidth = '';
 						captureBtn.enabled = true;
@@ -401,7 +399,7 @@ export class IssueReporterOverlay {
 						this.updateAttachmentButtons();
 						this._onDidRequestScreenshot.fire();
 					}
-				}, 1000);
+				}, 1000));
 			} else {
 				this._onDidRequestScreenshot.fire();
 			}
@@ -732,7 +730,13 @@ export class IssueReporterOverlay {
 			selectedExtension: this.selectedExtension,
 		});
 		this.data.issueSource = this.selectedIssueSource;
-		this.data.extensionId = fileOnExtension ? this.selectedExtension?.id : undefined;
+		// Preserve a preset `extensionId` while the extension list is still loading:
+		// `selectedExtension` may be undefined here even though the caller asked
+		// for a specific extension, and overwriting with `undefined` would prevent
+		// the catch-up retry in `updateExtensionOptions` from re-resolving it.
+		this.data.extensionId = fileOnExtension
+			? (this.selectedExtension?.id ?? this.data.extensionId)
+			: undefined;
 	}
 
 	private updateTitlePlaceholder(): void {
@@ -795,7 +799,15 @@ export class IssueReporterOverlay {
 			? this.model.getData().allExtensions.find(candidate => candidate.id.toLowerCase() === extensionId.toLowerCase())
 			: undefined;
 		this.selectedExtension = extension;
-		this.data.extensionId = extension?.id;
+		// Preserve the requested extensionId even when the extension list hasn't
+		// been populated yet (typical wizard flow: the constructor runs before
+		// `populateReporterDataAsync` finishes filling `allExtensions`). Without
+		// this preservation, the later catch-up retry in `updateExtensionOptions`
+		// sees `this.data.extensionId === undefined` and never re-resolves,
+		// dropping any preset extension data with it.
+		if (extensionId === undefined || extension) {
+			this.data.extensionId = extension?.id;
+		}
 		this.extensionSelect.select(this.getSelectedExtensionIndex());
 		this.updateExtensionValidation();
 		this.updateIssueSourceFlags();
@@ -804,6 +816,25 @@ export class IssueReporterOverlay {
 			this.updateTargetStatus();
 			this.searchSimilarIssues();
 			return;
+		}
+
+		// Apply any preset extension data BEFORE the built-in source-switch below.
+		// When the reporter is opened programmatically (e.g. via the
+		// `workbench.action.openIssueReporter` command) with a preset `extensionId`
+		// plus extension `data`/`uri`, propagate that data onto the selected
+		// extension and the model so it shows up in the issue body. Doing this
+		// before the built-in early-return is important: extensions bundled with
+		// the dev build (Copilot, etc.) are flagged `isBuiltin`, which triggers
+		// the source switch to VSCode and returns — otherwise the preset data
+		// would be silently lost for every built-in caller. We guard on
+		// `!this.includeExtensionData` (rather than `!extension.data`) because
+		// `issueService` pre-populates `extension.data` on every enabled
+		// extension, so that field is not a reliable "already applied" signal —
+		// `includeExtensionData` is only flipped to `true` by
+		// `applyExtensionIssueData`.
+		const hasPresetData = !this.includeExtensionData && (this.data.data !== undefined || this.data.uri !== undefined || this.data.privateUri !== undefined);
+		if (!loadExtensionData && hasPresetData) {
+			this.applyExtensionIssueData(extension, this.data);
 		}
 
 		if (extension.isBuiltin && this.selectedIssueSource === IssueSource.Extension && !this.data.issueSource) {
@@ -1416,7 +1447,12 @@ export class IssueReporterOverlay {
 			loading.textContent = localize('loadingSystemInfo', "Loading system information...");
 		}
 
-		if (modelData.fileOnExtension && modelData.extensionData) {
+		if (modelData.extensionData) {
+			// Match `buildIssueBody`, which only gates on `extensionData`. Gating
+			// here on `fileOnExtension` as well would hide the section in the
+			// review UI whenever the issue source was auto-switched away from
+			// Extension (e.g. built-in extensions are filed against VS Code),
+			// even though the extension data still ends up in the submitted body.
 			diagnosticSectionCount++;
 			diagnosticSectionStates.push(() => this.includeExtensionData);
 			this.createDiagSection(diagContainer, {
@@ -1480,26 +1516,6 @@ export class IssueReporterOverlay {
 				renderContent: (container) => {
 					const pre = append(container, $('pre.review-diag-pre'));
 					pre.textContent = modelData.experimentInfo!;
-				},
-			});
-		}
-
-		// Settings
-		if (this.settingsContent) {
-			diagnosticSectionCount++;
-			diagnosticSectionStates.push(() => this.includeSettings);
-			this.createDiagSection(diagContainer, {
-				id: 'settings',
-				label: localize('settings', "Settings"),
-				checked: this.includeSettings,
-				onToggle: (checked) => {
-					this.includeSettings = checked;
-				},
-				renderContent: (container) => {
-					const userLabel = append(container, $('div.review-diag-sublabel'));
-					userLabel.textContent = localize('userSettings', "User Settings");
-					const userPre = append(container, $('pre.review-diag-pre'));
-					userPre.textContent = this.settingsContent!;
 				},
 			});
 		}
@@ -1661,7 +1677,6 @@ export class IssueReporterOverlay {
 		this.includeExtensionData = included;
 		this.includeExtensions = included;
 		this.includeExperiments = included;
-		this.includeSettings = included;
 		this.includeProcessInfo = included;
 		this.includeWorkspaceInfo = included;
 		this.model.update({
@@ -2040,10 +2055,6 @@ export class IssueReporterOverlay {
 			sections.push(this.createDetails('A/B Experiments', this.createCodeBlock(modelData.experimentInfo)));
 		}
 
-		if (this.includeSettings && this.settingsContent) {
-			sections.push(this.generateSettingsMd());
-		}
-
 		if (this.selectedIssueType === IssueType.PerformanceIssue && !modelData.fileOnMarketplace) {
 			if (this.includeProcessInfo && modelData.processInfo) {
 				sections.push(this.createDetails('Running Processes', this.createCodeBlock(modelData.processInfo)));
@@ -2158,11 +2169,6 @@ export class IssueReporterOverlay {
 		}
 
 		return this.createDetails(`Extensions (${nonThemeExtensions.length})`, details.join('\n\n'));
-	}
-
-	private generateSettingsMd(): string {
-		const details = [`#### User Settings\n\n${this.createCodeBlock(this.settingsContent ?? '', 'json')}`];
-		return this.createDetails('Settings', details.join('\n\n'));
 	}
 
 	private getIssueTypeTitle(issueType: IssueType): string {
@@ -2280,13 +2286,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		}
 	}
 
-	setSettingsContent(userSettings: string): void {
-		this.settingsContent = userSettings;
-		if (this.currentStep === WizardStep.Review) {
-			this.updateReviewDetails();
-		}
-	}
-
 	hasUnsavedChanges(): boolean {
 		if (this.previewOpened && this.previewedDraftKey === this.getDraftKey()) {
 			return false;
@@ -2323,8 +2322,6 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 			includeExtensions: this.includeExtensions,
 			includeExperiments: this.includeExperiments,
 			includeExtensionData: this.includeExtensionData,
-			includeSettings: this.includeSettings,
-			settingsContent: this.settingsContent,
 			screenshots: this.screenshots.map(screenshot => screenshot.annotatedDataUrl ?? screenshot.dataUrl),
 			recordings: this.recordings.map(recording => recording.filePath),
 		});

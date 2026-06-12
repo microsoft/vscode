@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { changesetReducer, sessionReducer } from '../../common/state/protocol/reducers.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, CustomizationStatus, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, type ChangesetState, type CustomizationAgentRef, type CustomizationRef, type SessionState } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChangesetOperationStatus, CustomizationLoadStatus, MessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, SessionLifecycle, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, type AgentCustomization, type ChangesetState, type Customization, type PluginCustomization, type SessionState } from '../../common/state/sessionState.js';
+import { CustomizationType } from '../../common/state/protocol/state.js';
 
 function makeSession(): SessionState {
 	return {
@@ -29,7 +30,7 @@ function withActiveTurnAndToolCall(state: SessionState): SessionState {
 	state = sessionReducer(state, {
 		type: ActionType.SessionTurnStarted,
 		turnId: 'turn-1',
-		userMessage: { text: 'hello' },
+		message: { text: 'hello', origin: { kind: MessageKind.User } },
 	});
 	state = sessionReducer(state, {
 		type: ActionType.SessionToolCallStart,
@@ -180,6 +181,40 @@ suite('sessionReducer – summaryStatus with tool call confirmations and input r
 
 		assert.strictEqual(state.summary.status, SessionStatus.InputNeeded);
 	});
+
+	test('SessionToolCallReady preserves action metadata on pending and running tool calls', () => {
+		const state = withActiveTurnAndToolCall(makeSession());
+		const pending = sessionReducer(state, {
+			type: ActionType.SessionToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file?',
+			toolInput: '/foo.ts',
+			_meta: { autoApproveBySetting: true },
+		});
+		const running = sessionReducer(state, {
+			type: ActionType.SessionToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tc-1',
+			invocationMessage: 'Read file',
+			toolInput: '/foo.ts',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+			_meta: { autoApproveBySetting: true },
+		});
+
+		const getToolCall = (s: SessionState) => {
+			const part = s.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tc-1');
+			assert.ok(part?.kind === ResponsePartKind.ToolCall);
+			return part.toolCall;
+		};
+		assert.deepStrictEqual([
+			{ status: getToolCall(pending).status, meta: getToolCall(pending)._meta },
+			{ status: getToolCall(running).status, meta: getToolCall(running)._meta },
+		], [
+			{ status: ToolCallStatus.PendingConfirmation, meta: { autoApproveBySetting: true } },
+			{ status: ToolCallStatus.Running, meta: { autoApproveBySetting: true } },
+		]);
+	});
 });
 
 suite('changesetReducer', () => {
@@ -226,13 +261,13 @@ suite('changesetReducer', () => {
 	});
 
 	test('ChangesetOperationsChanged with array replaces operations', () => {
-		const ops = [{ id: 'stage', label: 'Stage', scopes: [] }];
+		const ops = [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }];
 		const next = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: ops });
 		assert.deepStrictEqual(next.operations, ops);
 	});
 
 	test('ChangesetOperationsChanged with undefined strips operations', () => {
-		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [] }] });
+		const seeded = changesetReducer(ready, { type: ActionType.ChangesetOperationsChanged, operations: [{ id: 'stage', label: 'Stage', scopes: [], status: ChangesetOperationStatus.Idle }] });
 		const next = changesetReducer(seeded, { type: ActionType.ChangesetOperationsChanged, operations: undefined });
 		assert.strictEqual(next.operations, undefined);
 	});
@@ -249,87 +284,46 @@ suite('changesetReducer', () => {
 	});
 });
 
-suite('sessionReducer – SessionCustomizationUpdated.agents', () => {
+suite('sessionReducer – SessionCustomizationUpdated', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const ref: CustomizationRef = { uri: 'file:///plugin-a', displayName: 'Plugin A' };
-	const agentA: CustomizationAgentRef = { uri: 'file:///plugin-a/agents/helper.md', name: 'helper' };
-	const agentB: CustomizationAgentRef = { uri: 'file:///plugin-a/agents/reviewer.md', name: 'reviewer', description: 'reviews code' };
+	const agentA: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/helper.md', uri: 'file:///plugin-a/agents/helper.md', name: 'helper' };
+	const agentB: AgentCustomization = { type: CustomizationType.Agent, id: 'file:///plugin-a/agents/reviewer.md', uri: 'file:///plugin-a/agents/reviewer.md', name: 'reviewer', description: 'reviews code' };
 
-	function withCustomization(status: CustomizationStatus): SessionState {
-		return sessionReducer(makeSession(), {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
+	function pluginA(extra: Partial<PluginCustomization> = {}): Customization {
+		return {
+			type: CustomizationType.Plugin,
+			id: 'file:///plugin-a',
+			uri: 'file:///plugin-a',
+			name: 'Plugin A',
 			enabled: true,
-			status,
-		});
+			...extra,
+		};
 	}
 
-	test('insert: persists agents from the action onto SessionCustomization', () => {
+	test('insert: appends a new top-level customization with its children', () => {
+		const customization = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentA, agentB] });
 		const state = sessionReducer(makeSession(), {
 			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [agentA, agentB],
+			customization,
 		});
 
-		assert.deepStrictEqual(state.customizations, [{
-			customization: ref,
-			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [agentA, agentB],
-		}]);
+		assert.deepStrictEqual(state.customizations, [customization]);
 	});
 
-	test('update: replaces previously-set agents when the action carries a new array', () => {
-		const seeded = sessionReducer(withCustomization(CustomizationStatus.Loading), {
+	test('update: replaces the matching entry entirely', () => {
+		const initial = pluginA({ load: { kind: CustomizationLoadStatus.Loading }, children: [agentA] });
+		const seeded = sessionReducer(makeSession(), {
 			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentA],
+			customization: initial,
 		});
+		const updated = pluginA({ load: { kind: CustomizationLoadStatus.Loaded }, children: [agentB] });
 		const next = sessionReducer(seeded, {
 			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentB],
+			customization: updated,
 		});
 
-		assert.deepStrictEqual(next.customizations?.[0].agents, [agentB]);
-	});
-
-	test('update: preserves existing agents when the action omits the field', () => {
-		const seeded = sessionReducer(withCustomization(CustomizationStatus.Loading), {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentA],
-		});
-		const next = sessionReducer(seeded, {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			status: CustomizationStatus.Loaded,
-		});
-
-		assert.deepStrictEqual(next.customizations?.[0], {
-			customization: ref,
-			enabled: true,
-			status: CustomizationStatus.Loaded,
-			agents: [agentA],
-		});
-	});
-
-	test('update: an empty agents array is respected (means "no agents contributed")', () => {
-		const seeded = sessionReducer(withCustomization(CustomizationStatus.Loading), {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [agentA],
-		});
-		const next = sessionReducer(seeded, {
-			type: ActionType.SessionCustomizationUpdated,
-			customization: ref,
-			agents: [],
-		});
-
-		assert.deepStrictEqual(next.customizations?.[0].agents, []);
+		assert.deepStrictEqual(next.customizations, [updated]);
 	});
 });

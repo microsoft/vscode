@@ -49,6 +49,7 @@ import { FileUserDataProvider } from '../../platform/userData/common/fileUserDat
 import { IUserDataProfilesService, reviveProfile } from '../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
+import { CopilotManagedSettingsChannelClient } from '../../platform/policy/common/copilotManagedSettingsIpc.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { UserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfile.js';
@@ -61,7 +62,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService, IAccountPolicyGateService } from '../../workbench/services/policies/common/accountPolicyService.js';
-import { MultiplexPolicyService } from '../../workbench/services/policies/common/multiplexPolicyService.js';
+import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
 import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -217,7 +218,8 @@ export class SessionsMain extends Disposable {
 		// Policies
 		let policyService: IPolicyService;
 		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
-		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel));
+		const copilotManagedSettings = this._register(new CopilotManagedSettingsChannelClient(mainProcessService.getChannel('copilotManagedSettings')));
+		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel, copilotManagedSettings));
 		if (policyChannel) {
 			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {

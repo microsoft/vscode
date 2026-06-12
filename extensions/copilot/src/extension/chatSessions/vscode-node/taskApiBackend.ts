@@ -66,8 +66,8 @@ function findPullArtifact(task: AgentTask): (AgentTaskArtifact & { data: AgentTa
 	return task.artifacts?.find(
 		(a): a is AgentTaskArtifact & { data: AgentTaskGitHubResourceData } =>
 			a.provider === 'github'
-			&& a.type === 'pull'
-			&& typeof (a.data as AgentTaskGitHubResourceData).id === 'number',
+			&& a.type === 'github_resource'
+			&& (a.data as AgentTaskGitHubResourceData).type === 'pull',
 	);
 }
 
@@ -109,9 +109,11 @@ function taskToSessionInfo(task: AgentTask): SessionInfo {
  * Parse `task.html_url` (e.g. `https://github.com/<owner>/<repo>/agents/tasks/<id>`) to
  * recover the repo identity. The Task API wire shape only carries `task.repository.id`, so
  * when the caller doesn't already know the repo (e.g. the global `listTasks` path) this is
- * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks.
+ * how we keep `PullArtifactRef.repo.owner/name` populated for resolver fallbacks. Also
+ * exported so the provider can derive `{owner, repo}` for the "Create pull request"
+ * toolbar action on PR-less tasks.
  */
-function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
+export function parseRepoFromTaskUrl(htmlUrl: string | undefined): { owner: string; name: string } | undefined {
 	if (!htmlUrl) {
 		return undefined;
 	}
@@ -189,7 +191,11 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			event_content: params.prompt,
 			problem_statement: params.problemStatement,
 			base_ref: params.baseRef,
-			create_pull_request: true,
+			// v2 default: don't auto-create a PR. The provider surfaces a "Create pull
+			// request" toolbar action in the chat input when the task completes without an
+			// attached pull artifact, so the user can opt in. See
+			// `CopilotCloudSessionsProvider.handleCreatePullRequestForTaskCommand`.
+			create_pull_request: false,
 			event_type: 'visual_studio_code_remote_agent_tool_invoked',
 			...(params.headRef && { head_ref: params.headRef }),
 			...(params.customAgent && { custom_agent: params.customAgent }),
@@ -263,12 +269,21 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 	}
 
 	async fetchTaskEvents(taskId: string): Promise<readonly AgentTaskSessionEvent[]> {
+		const perPage = 100;
+		const events: AgentTaskSessionEvent[] = [];
 		try {
-			const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: 100 });
-			return response.events;
+			for (let page = 1; ; page++) {
+				const response = await this._taskApiClient.getTaskEvents(taskId, { per_page: perPage, page });
+				const batch = response.events;
+				events.push(...batch);
+				if (batch.length === 0 || batch.length < perPage || (typeof response.total === 'number' && events.length >= response.total)) {
+					break;
+				}
+			}
+			return events;
 		} catch (e) {
 			this._logService.warn(`Failed to fetch events for task ${taskId}: ${e}`);
-			return [];
+			return events;
 		}
 	}
 
@@ -323,6 +338,10 @@ export class TaskApiBackend implements TaskCloudAgentBackend {
 			this._logService.warn(`Failed to find task for ${owner}/${repo}#${prNumber}: ${e}`);
 			return undefined;
 		}
+	}
+
+	async createPullRequestForTask(owner: string, repo: string, taskId: string): Promise<AgentTaskCreatePullRequestResponse> {
+		return this._taskApiClient.createPRForTask(owner, repo, taskId);
 	}
 }
 

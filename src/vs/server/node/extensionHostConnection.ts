@@ -163,7 +163,9 @@ export class ExtensionHostConnection extends Disposable {
 		const disposables = new DisposableStore();
 		disposables.add(connectionData.socket);
 		disposables.add(toDisposable(() => {
-			extHostSocket.destroy();
+			if (!extHostSocket.destroyed && !extHostSocket.writableEnded) {
+				extHostSocket.end();
+			}
 		}));
 
 		const stopAndCleanup = () => {

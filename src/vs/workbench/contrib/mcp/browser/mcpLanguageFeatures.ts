@@ -190,6 +190,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 			}
 
 			const name = node.children[0].value as string;
+
 			const server = mcpServers.find(s => s.definition.label === name);
 			if (!server) {
 				continue;

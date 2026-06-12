@@ -30,7 +30,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, IChatInputCompletionsParams, IChatInputCompletionsResult, isSessionInProgressStatus, localChatSessionType, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -216,6 +216,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				},
 				requiresCustomModels: {
 					description: localize('chatSessionsExtPoint.requiresCustomModels', 'When set, the chat session will show a filtered model picker that prefers custom models. This enables the use of standard model picker with contributed sessions.'),
+					type: 'boolean',
+					default: false
+				},
+				supportsAutoModel: {
+					description: localize('chatSessionsExtPoint.supportsAutoModel', 'Whether the chat session supports the synthetic "Auto" model fallback. Defaults to false. When true and no models are available, the picker shows "Auto" instead of a "No models available" state.'),
 					type: 'boolean',
 					default: false
 				},
@@ -1049,6 +1054,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return controllerData.controller.newChatSessionItem?.(request, token);
 	}
 
+	async deleteChatSessionItem(sessionResource: URI, token: CancellationToken): Promise<void> {
+		const sessionType = getChatSessionType(sessionResource);
+		const resolvedType = this._resolveToPrimaryType(sessionType) ?? sessionType;
+		const controllerData = this._itemControllers.get(resolvedType);
+		if (!controllerData?.controller.deleteChatSessionItem) {
+			throw new Error(`Session ${sessionResource.toString()} does not support deletion`);
+		}
+
+		await controllerData.initialRefresh;
+		return controllerData.controller.deleteChatSessionItem(sessionResource, token);
+	}
+
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
@@ -1107,7 +1124,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		{
 			const existingSessionData = this._sessions.get(sessionResource);
 			if (existingSessionData) {
-				session.dispose();
 				return existingSessionData.session;
 			}
 		}
@@ -1250,6 +1266,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!contribution?.requiresCustomModels;
 	}
 
+	public supportsAutoModelForSessionType(chatSessionType: string): boolean {
+		// The built-in local chat is not a registered contribution but always
+		// supports the synthetic "Auto" model fallback.
+		if (chatSessionType === localChatSessionType) {
+			return true;
+		}
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.supportsAutoModel;
+	}
+
 	public supportsDelegationForSessionType(chatSessionType: string): boolean {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.supportsDelegation !== false;
@@ -1270,6 +1296,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw new Error(`Session ${sessionResource.toString()} does not support forking`);
 		}
 		return session.session.forkSession(request, token);
+	}
+
+	public sessionSupportsRename(sessionResource: URI): boolean {
+		const session = this._sessions.get(sessionResource)
+			// Try to resolve in case an alias was used
+			?? this._sessions.get(this._resolveResource(sessionResource));
+		return !!session?.session.renameSession;
+	}
+
+	public async renameChatSession(sessionResource: URI, title: string, token: CancellationToken): Promise<void> {
+		// Resolve the session (creating it if necessary) so that rename works
+		// even when the session is not currently open in an editor.
+		const session = await this.getOrCreateChatSession(sessionResource, token);
+		if (!session.renameSession) {
+			throw new Error(`Session ${sessionResource.toString()} does not support renaming`);
+		}
+		return session.renameSession(title, token);
 	}
 
 	public getContentProviderSchemes(): string[] {
@@ -1362,7 +1405,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.widget.clear();
+					await view.startNewLocalSession();
 				} else {
 					await view.loadSession(sessionResource);
 				}

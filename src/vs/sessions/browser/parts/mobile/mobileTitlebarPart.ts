@@ -215,14 +215,24 @@ export class MobileTitlebarPart extends Disposable {
 				added += c.insertions;
 				removed += c.deletions;
 			}
-			const hasChanges = changes.length > 0 && (added > 0 || removed > 0);
+			const hasChanges = changes.length > 0;
 			// Hide on welcome / new-chat — no session changes to view there.
 			const visible = hasChanges && !isNewChatRef.value;
 			changesPill.style.display = visible ? '' : 'none';
 			if (visible) {
-				changesAddedEl.textContent = `+${added}`;
-				changesRemovedEl.textContent = `-${removed}`;
-				changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
+				if (added > 0 || removed > 0) {
+					changesAddedEl.textContent = `+${added}`;
+					changesRemovedEl.textContent = `-${removed}`;
+					changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
+				} else {
+					changesAddedEl.textContent = changes.length === 1
+						? localize('mobileTopBar.singleFileChanged', "1 file")
+						: localize('mobileTopBar.filesChangedCount', "{0} files", changes.length);
+					changesRemovedEl.textContent = '';
+					changesPill.title = changes.length === 1
+						? localize('mobileTopBar.singleFileChangedTooltip', "1 file changed")
+						: localize('mobileTopBar.filesChangedTooltip', "{0} files changed", changes.length);
+				}
 			}
 		};
 		this._register(autorun(reader => {
@@ -305,7 +315,7 @@ export class MobileTitlebarPart extends Disposable {
 		this.renderAccountState();
 
 		const info = await resolveAccountInfo(this.defaultAccountService, this.authenticationService);
-		if (requestId !== this.accountRequestCounter) {
+		if (requestId !== this.accountRequestCounter || this._store.isDisposed) {
 			return;
 		}
 

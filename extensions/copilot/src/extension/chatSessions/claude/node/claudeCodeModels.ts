@@ -14,7 +14,7 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
-import { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
+import type { EffortLevel } from '@anthropic-ai/claude-agent-sdk';
 
 export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 

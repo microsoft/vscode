@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionMode, Query, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentInfo, McpServerStatus, PermissionMode, Query, SDKUserMessage, SlashCommand, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -60,7 +60,61 @@ export interface IRematerializer {
  * Disposing the pipeline aborts the controller (terminating the SDK
  * subprocess per `sdk.d.ts:982`) and async-disposes the WarmQuery.
  */
+/**
+ * Snapshot of everything the SDK has currently resolved for this
+ * session. Returned by {@link ClaudeSdkPipeline.snapshotResolvedCustomizations}.
+ */
+export interface ISdkResolvedCustomizations {
+	readonly commands: readonly SlashCommand[];
+	readonly agents: readonly AgentInfo[];
+	readonly mcpServers: readonly McpServerStatus[];
+}
+
 export class ClaudeSdkPipeline extends Disposable {
+	/**
+	 * Phase 11 — hot-swap the SDK's plugin set in place via
+	 * `Query.reloadPlugins()`. Commands / agents / mcpServers added or
+	 * removed by the new plugin set become visible to the SDK
+	 * immediately, without a session restart. Throws if the query is
+	 * not yet bound (session not materialized).
+	 */
+	async reloadPlugins(): Promise<void> {
+		const query = await this._ensureQueryBound();
+		await query.reloadPlugins();
+	}
+
+	/**
+	 * Phase 11 — snapshot the SDK's currently-resolved customization
+	 * surface (slash commands / skills, subagents, MCP servers). This
+	 * is the SDK's view of "what does this session actually have
+	 * access to right now" — covers everything the SDK loaded itself
+	 * (`~/.claude/**`, `.claude/agents/`, `settings.json` MCP) AND
+	 * anything we fed in via `Options.plugins`. The host overlays
+	 * client-side enablement separately.
+	 */
+	async snapshotResolvedCustomizations(): Promise<ISdkResolvedCustomizations> {
+		const query = await this._ensureQueryBound();
+		const [commands, agents, mcpServers] = await Promise.all([
+			query.supportedCommands(),
+			query.supportedAgents(),
+			query.mcpServerStatus(),
+		]);
+		return { commands, agents, mcpServers };
+	}
+
+	/**
+	 * Bind the SDK Query if the previous one has unwound (e.g. after a
+	 * terminal result message). Mirrors the lazy bind in {@link send}
+	 * so pre-flight helpers can call into the SDK without first having
+	 * to issue a user prompt.
+	 */
+	private async _ensureQueryBound(): Promise<Query> {
+		if (!this._query) {
+			this._query = this._warm.query(this._queue.iterable);
+			await this._replayCurrentConfig();
+		}
+		return this._query;
+	}
 
 	private _query: Query | undefined;
 	private _warm: WarmQuery;

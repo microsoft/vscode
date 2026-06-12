@@ -6,11 +6,11 @@
 import { localize2 } from '../../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
 
 /**
- * All three agent-host pickers live under `MenuId.ChatInputSecondary` group
+ * Agent-host pickers live under `MenuId.ChatInputSecondary` group
  * `'navigation'` because non-navigation groups are routed to the overflow
  * menu by VS Code's menu/toolbar convention.
  *
@@ -22,12 +22,40 @@ import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/ch
  *   0.8  OpenAgentHostAutoApprovePickerAction (NEW — Auto-Approve)
  *   0.9  OpenAgentHostPermissionModePickerAction (NEW — Claude Approvals)
  *   1    OpenPermissionPickerAction           (Default Approvals)
- *   100  OpenAgentHostBranchPickerAction      (NEW — Branch)
- *   101  OpenAgentHostIsolationPickerAction   (NEW — Isolation)
- *
- * Branch + Isolation are pushed to the right of the row by CSS
- * (`margin-left: auto` on the first of the two; see picker CSS).
+ *   1.1  OpenAgentHostFolderPickerAction      (NEW — Folder, multi-root only;
+ *                                              ordered last to match the
+ *                                              extension-host Copilot CLI)
  */
+
+export class OpenAgentHostFolderPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openAgentHostFolderPicker';
+	constructor() {
+		super({
+			id: OpenAgentHostFolderPickerAction.ID,
+			title: localize2('agentHost.folderPicker', "Folder"),
+			f1: false,
+			// The working directory is an argument to session creation and is
+			// fixed once the session has started (its first request), so the
+			// chip stays visible afterwards but is disabled.
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty),
+			menu: [{
+				id: MenuId.ChatInputSecondary,
+				group: 'navigation',
+				order: 1.1,
+				// Only relevant when there is more than one root folder to choose
+				// from and we are in a regular editor window (the agent sessions
+				// window has its own workspace picker). Ordered last in the chip
+				// row to match the extension-host Copilot CLI layout.
+				when: ContextKeyExpr.and(
+					ChatContextKeyExprs.isAgentHostSession,
+					WorkspaceFolderCountContext.greater(1),
+					IsSessionsWindowContext.negate(),
+				),
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* the action view item handles interaction */ }
+}
 
 export class OpenAgentHostModePickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openAgentHostModePicker';
@@ -86,79 +114,7 @@ export class OpenAgentHostPermissionModePickerAction extends Action2 {
 	override async run(): Promise<void> { /* the action view item handles interaction */ }
 }
 
-export class OpenAgentHostBranchPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openAgentHostBranchPicker';
-	constructor() {
-		super({
-			id: OpenAgentHostBranchPickerAction.ID,
-			title: localize2('agentHost.branchPicker', "Branch"),
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: MenuId.ChatInputSecondary,
-				group: 'navigation',
-				// Large order so Branch always sorts after the existing
-				// secondary chips (SessionTarget, Mode, Approvals, ...).
-				order: 100,
-				// Workbench is locked to `isolation: 'folder'` (no worktrees /
-				// branch picking yet); only expose this chip in the dedicated
-				// agent sessions window.
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* the action view item handles interaction */ }
-}
-
-export class OpenAgentHostIsolationPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openAgentHostIsolationPicker';
-	constructor() {
-		super({
-			id: OpenAgentHostIsolationPickerAction.ID,
-			title: localize2('agentHost.isolationPicker', "Isolation"),
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: MenuId.ChatInputSecondary,
-				group: 'navigation',
-				order: 101,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* the action view item handles interaction */ }
-}
-
-/**
- * Workbench-chat custom-agent picker. Renders on `MenuId.ChatInput` to the
- * LEFT of the chat mode picker (`OpenModePickerAction`, order 1) and the
- * model picker (`OpenModelPickerAction`, order 3), giving the chip sequence
- * `Agent | Interactive | Auto` to match the Agents-Window picker. Hidden
- * inside the Agents Window — that surface renders its own picker into the
- * same menu (see `vs/sessions/.../agentHostAgentPicker.ts`).
- */
-export class OpenAgentHostCustomAgentPickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openAgentHostCustomAgentPicker';
-	constructor() {
-		super({
-			id: OpenAgentHostCustomAgentPickerAction.ID,
-			title: localize2('agentHost.customAgentPicker', "Agent"),
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: MenuId.ChatInput,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext.negate()),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* the action view item handles interaction */ }
-}
-
 registerAction2(OpenAgentHostModePickerAction);
 registerAction2(OpenAgentHostAutoApprovePickerAction);
 registerAction2(OpenAgentHostPermissionModePickerAction);
-registerAction2(OpenAgentHostBranchPickerAction);
-registerAction2(OpenAgentHostIsolationPickerAction);
-registerAction2(OpenAgentHostCustomAgentPickerAction);
+registerAction2(OpenAgentHostFolderPickerAction);

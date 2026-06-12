@@ -113,7 +113,6 @@ import { ConversationStore, IConversationStore } from '../../conversationStore/n
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
 import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
-import { ITestGenInfoStorage, TestGenInfoStorage } from '../../intents/node/testIntent/testInfoStorage';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
@@ -212,7 +211,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubCodeSearchService, new SyncDescriptor(GithubCodeSearchService));
 	builder.define(IGithubAvailableEmbeddingTypesService, new SyncDescriptor(GithubAvailableEmbeddingTypesService));
 
-	builder.define(ITestGenInfoStorage, new SyncDescriptor(TestGenInfoStorage)); // Used for test generation (/tests intent)
 	builder.define(IParserService, new SyncDescriptor(ParserServiceImpl, [/*useWorker*/ true]));
 	builder.define(IIntentService, new SyncDescriptor(IntentService));
 	builder.define(INaiveChunkingService, new SyncDescriptor(NaiveChunkingService));
@@ -274,7 +272,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	const sessionStoreDbPath = extensionContext.globalStorageUri
 		? path.join(extensionContext.globalStorageUri.fsPath, 'session-store.db')
 		: path.join(os.tmpdir(), 'copilot-session-store.db');
-	const sessionStore = new SessionStore(sessionStoreDbPath);
+	// On remote workspaces the storage path is typically a network filesystem
+	// that does not honour the POSIX locking WAL mode requires, so use a more
+	// robust rollback-journal configuration there.
+	const sessionStore = new SessionStore(sessionStoreDbPath, { remote: !!env.remoteName });
 	builder.define(ISessionStore, sessionStore);
 
 	// OTel SQLite store — created lazily, DB file only appears when dbSpanExporter.enabled is true

@@ -6,6 +6,7 @@
 import { IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
@@ -586,6 +587,10 @@ export interface IChatTerminalToolInvocationData {
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
 	requestUnsandboxedExecutionReason?: string;
+	/** Whether the terminal command was approved to run sandboxed with unrestricted network access */
+	requestAllowNetwork?: boolean;
+	/** The model-provided reason for requesting unrestricted network access within the sandbox */
+	requestAllowNetworkReason?: string;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -610,6 +615,10 @@ export interface IChatTerminalToolInvocationData {
 	autoApproveInfo?: IMarkdownString;
 	/** Names of missing sandbox dependencies that the user may choose to install */
 	missingSandboxDependencies?: string[];
+	/** Approved repair actions that may make an installed but unusable sandbox dependency work. */
+	sandboxRemediations?: string[];
+	/** User-visible reason a sandbox prerequisite cannot be repaired automatically. */
+	sandboxPrerequisiteFailure?: string;
 }
 
 /**
@@ -626,19 +635,51 @@ export function isLegacyChatTerminalToolInvocationData(data: unknown): data is I
 	return !!data && typeof data === 'object' && 'command' in data && 'language' in data;
 }
 
-export interface IChatToolInputInvocationData {
-	kind: 'input';
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	rawInput: any;
-	/** Optional MCP App UI metadata for rendering during and after tool execution */
-	mcpAppData?: {
+/**
+ * Routing information for an MCP App's webview sub-RPCs. The kind
+ * determines where `tools/call`, `resources/read`,
+ * `sampling/createMessage`, etc. are sent:
+ *
+ * - `local`: resolves the MCP server via {@link IMcpService} from a
+ *   `serverDefinitionId` + `collectionId`. Used for locally-configured
+ *   MCP servers whose state lives in the workbench.
+ * - `agentHost`: routes through {@link IAgentHostService.handleMcpRequest}
+ *   on an AHP `mcp://` side channel. Used for MCP servers owned by an
+ *   agent host (e.g. Copilot CLI).
+ */
+export type ChatMcpAppData =
+	| {
+		kind: 'local';
 		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
 		resourceUri: string;
 		/** Reference to the server definition for reconnection */
 		serverDefinitionId: string;
 		/** Reference to the collection containing the server */
 		collectionId: string;
+	}
+	| {
+		kind: 'agentHost';
+		/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+		resourceUri: string;
+		/** AHP `mcp://` channel URI for the originating server. */
+		channel: string;
+		/**
+		 * Stable identifier for the originating server, used as the
+		 * additional key when computing the webview origin. Typically the
+		 * AHP customization id. For top-level (bare) MCP servers this id
+		 * is currently session-scoped, so see {@link ChatMcpAppModel} for
+		 * how it avoids growing persistent application storage on every
+		 * new session.
+		 */
+		serverId: string;
 	};
+
+export interface IChatToolInputInvocationData {
+	kind: 'input';
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	rawInput: any;
+	/** Optional MCP App UI metadata for rendering during and after tool execution */
+	mcpAppData?: ChatMcpAppData;
 }
 
 export const enum ToolConfirmKind {
@@ -1512,6 +1553,13 @@ export const enum ChatRequestQueueKind {
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
 	userSelectedModelId?: string;
+	/**
+	 * The configuration (e.g. context size, thinking effort) for the selected
+	 * model as scoped to the requesting editor. When set, it takes precedence
+	 * over the global per-model configuration so the value sent matches what the
+	 * editor displays. See issue #320393.
+	 */
+	userSelectedModelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: IObservable<UserSelectedTools>;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;

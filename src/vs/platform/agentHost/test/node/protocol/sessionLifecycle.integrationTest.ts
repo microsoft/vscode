@@ -113,7 +113,7 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		assert.ok(state.turns.length >= 1, `expected at least 1 restored turn but got ${state.turns.length}`);
 
 		const turn = state.turns[0];
-		assert.strictEqual(turn.userMessage.text, 'What files are here?');
+		assert.strictEqual(turn.message.text, 'What files are here?');
 		assert.strictEqual(turn.state, 'complete');
 		const toolCallParts = turn.responseParts.filter((p): p is ToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
 		assert.ok(toolCallParts.length >= 1, 'turn should have tool call response parts');
