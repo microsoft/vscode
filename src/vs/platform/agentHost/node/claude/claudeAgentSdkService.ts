@@ -22,6 +22,7 @@ import { AgentHostClaudeSdkRootEnvVar } from '../../common/agentService.js';
 export const ClaudeSdkPackage: IAgentSdkPackage = {
 	id: 'claude',
 	devOverrideEnvVar: AgentHostClaudeSdkRootEnvVar,
+	npmModule: '@anthropic-ai/claude-agent-sdk',
 };
 
 export const IClaudeAgentSdkService = createDecorator<IClaudeAgentSdkService>('claudeAgentSdkService');

@@ -275,6 +275,7 @@ interface IConnectionReady {
 export const CodexSdkPackage: IAgentSdkPackage = {
 	id: 'codex',
 	devOverrideEnvVar: AgentHostCodexAgentSdkRootEnvVar,
+	npmModule: '@openai/codex',
 };
 
 export class CodexAgent extends Disposable implements IAgent {
