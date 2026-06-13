@@ -759,5 +759,92 @@ suite('TerminalLinkParsing', () => {
 				[] as IParsedLink[]
 			);
 		});
+
+		suite('paths with embedded spaces (#212334)', () => {
+			test('absolute posix path with a single embedded space and a row suffix', () => {
+				const links = detectLinks('/Users/me/My Project/file.ts:10', OperatingSystem.Linux);
+				// The narrow match (path after the space) is always emitted first, the extended
+				// match that includes the embedded space is appended for validation to choose.
+				ok(
+					links.some(l => l.path.text === '/Users/me/My Project/file.ts' && l.path.index === 0),
+					`expected an extended candidate covering the full path with spaces, got ${JSON.stringify(links)}`
+				);
+				ok(
+					links.some(l => l.path.text === 'Project/file.ts'),
+					`expected the original narrow candidate to still be present, got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('absolute posix path with multiple embedded spaces and a row/col suffix', () => {
+				const links = detectLinks('/foo bar baz.ts:10:5', OperatingSystem.Linux);
+				ok(
+					links.some(l => l.path.text === '/foo bar baz.ts' && l.path.index === 0),
+					`expected an extended candidate covering the full path, got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('Windows drive-letter path with embedded spaces and a row suffix', () => {
+				const links = detectLinks('C:\\Users\\Test User\\file.ts:10', OperatingSystem.Windows);
+				ok(
+					links.some(l => l.path.text === 'C:\\Users\\Test User\\file.ts' && l.path.index === 0),
+					`expected an extended candidate covering the full Windows path with spaces, got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('tilde-relative path with embedded spaces and a row suffix', () => {
+				const links = detectLinks('~/My Folder/file.ts:10', OperatingSystem.Linux);
+				ok(
+					links.some(l => l.path.text === '~/My Folder/file.ts' && l.path.index === 0),
+					`expected an extended candidate for tilde paths, got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('does not extend when the leading tokens are not a path marker', () => {
+				// `cat` is not a path-absolute marker so the extension must not consume it.
+				const links = detectLinks('cat foo.ts:10', OperatingSystem.Linux);
+				strictEqual(
+					links.some(l => l.path.text.startsWith('cat')),
+					false,
+					`expected no candidate to include the non-path leading word "cat", got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('extension stops at a hard delimiter (single quote)', () => {
+				// The single quote on the left bounds the extension - leading shell text must
+				// not be consumed.
+				const links = detectLinks("echo '/foo bar.ts:10", OperatingSystem.Linux);
+				strictEqual(
+					links.some(l => l.path.text.includes('echo')),
+					false,
+					`extension must not span past a single quote, got ${JSON.stringify(links)}`
+				);
+				ok(
+					links.some(l => l.path.text === '/foo bar.ts'),
+					`expected the extended path bounded by the quote, got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('extension does not span past a previous suffix on the same line', () => {
+				// Two distinct links on one line. The second one's extension would otherwise walk
+				// across the first one's range and produce a candidate spanning both.
+				const links = detectLinks('/a:1 /b/c d.ts:2', OperatingSystem.Linux);
+				strictEqual(
+					links.some(l => l.path.text.startsWith('/a:')),
+					false,
+					`extension must stop at the previous suffix boundary, got ${JSON.stringify(links)}`
+				);
+				ok(
+					links.some(l => l.path.text === '/b/c d.ts'),
+					`expected the extended candidate for the second path, got ${JSON.stringify(links)}`
+				);
+			});
+
+			test('path already starting at index 0 is not duplicated', () => {
+				// No leading whitespace to consume - we must not emit a redundant identical candidate.
+				const links = detectLinks('/foo.ts:10', OperatingSystem.Linux);
+				const fooMatches = links.filter(l => l.path.text === '/foo.ts');
+				strictEqual(fooMatches.length, 1, `expected exactly one parsed link, got ${JSON.stringify(links)}`);
+			});
+		});
 	});
 });
