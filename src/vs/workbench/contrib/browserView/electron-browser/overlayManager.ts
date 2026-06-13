@@ -34,8 +34,8 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 ];
 
 // Transparent full-screen layer that context menus render to capture clicks.
-// It paints above other overlays but isn't itself one, so hit-testing must
-// skip it to find the overlay actually painted underneath.
+// It's inside the `.context-view` stacking context (so it ends up above modals/menus) but isn't itself tracked as an overlay,
+// so hit-testing must skip it to find the overlay actually painted underneath.
 const CONTEXT_VIEW_BLOCK_CLASS = 'context-view-block';
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
