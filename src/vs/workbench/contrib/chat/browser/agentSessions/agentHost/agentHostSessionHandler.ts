@@ -19,7 +19,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/agentFeedbackAttachments.js';
 import { AgentProvider, AgentSession, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -39,9 +38,7 @@ import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import {
 	AgentHostCompletionReferenceKind,
 	getAgentHostCompletionReferenceKind,
-	isAgentFeedbackVariableEntry,
 	isImageVariableEntry,
-	type IAgentFeedbackVariableEntry,
 	type IChatRequestVariableEntry,
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
@@ -2832,9 +2829,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (isImageVariableEntry(v)) {
 			return this._toImageAttachment(v, sessionResource, referenceRange);
 		}
-		if (isAgentFeedbackVariableEntry(v)) {
-			return this._toAgentFeedbackAttachment(v, sessionResource);
-		}
 		// Pasted code, prompt text, and free-form string entries: surface their
 		// textual representation as an opaque attachment.
 		if (v.kind === 'paste') {
@@ -2911,28 +2905,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toResourceAttachment(refUri, v.name, 'image', sessionResource, v._meta, range);
 		}
 		return undefined;
-	}
-
-	private _toAgentFeedbackAttachment(v: IAgentFeedbackVariableEntry, sessionResource: URI): MessageAttachment {
-		const feedbackItems = v.feedbackItems.map(item => ({
-			id: item.id,
-			text: item.text,
-			resourceUri: item.resourceUri.toString(),
-			range: this._toTextRange(item.range),
-			...(item.replies?.length ? { replies: [...item.replies] } : {}),
-		}));
-		return this._toSimpleAttachment(
-			v.name,
-			typeof v.value === 'string' ? v.value : undefined,
-			{
-				...(v._meta ?? {}),
-				[AgentFeedbackAttachmentMetadataKey]: {
-					sessionResource: v.sessionResource.toString(),
-					feedbackItems,
-				},
-			},
-			AgentFeedbackAttachmentDisplayKind,
-		);
 	}
 
 	private _toSimpleAttachment(label: string, modelRepresentation: string | undefined, _meta: Record<string, unknown> | undefined, displayKind?: string, range?: MessageAttachment['range']): MessageAttachment {

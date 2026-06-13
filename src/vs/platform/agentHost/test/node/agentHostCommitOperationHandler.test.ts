@@ -108,8 +108,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	persistChangesSummary(_sessionUri: string, _summary: ChangesSummary): void { }
 	isStaticChangesetComputeActive(): boolean { return false; }
 	refreshBranchChangeset(session: string): void { this.calls.push(`refreshBranch:${session}`); }
-	refreshUncommittedChangeset(session: string): void { this.calls.push(`refreshUncommitted:${session}`); }
 	refreshSessionChangeset(session: string): void { this.calls.push(`refreshSession:${session}`); }
+	async computeUncommittedChangeset(session: string): Promise<string> { this.calls.push(`computeUncommitted:${session}`); return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(_session: string, _turnId: string): Promise<string> { return ''; }
 	async computeCompareTurnsChangeset(_session: string, _originalTurnId: string, _modifiedTurnId: string): Promise<string> { return ''; }
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
@@ -176,7 +176,7 @@ suite('AgentHostCommitOperationHandler', () => {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
 			completion: [{ token: 'gh-repo-token', fileIncluded: true }],
-			changesetCalls: ['onCommitted:agent:/session', 'refreshUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});
@@ -214,7 +214,7 @@ suite('AgentHostCommitOperationHandler', () => {
 		}, {
 			message: { markdown: 'Committed changes with message: `Update session changes`' },
 			gitCalls: ['hasUncommittedChanges', 'computeSessionFileDiffs', 'commitAll:Update session changes'],
-			changesetCalls: ['onCommitted:agent:/session', 'refreshUncommitted:agent:/session', 'refreshSession:agent:/session'],
+			changesetCalls: ['onCommitted:agent:/session', 'computeUncommitted:agent:/session', 'refreshSession:agent:/session'],
 			committedSessions: ['agent:/session'],
 		});
 	});

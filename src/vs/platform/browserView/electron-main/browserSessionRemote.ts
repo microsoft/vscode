@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISharedProcessTunnelProxyService, ITunnelProxyInfo } from '../../tunnel/common/sharedProcessTunnelProxyService.js';
 import { BrowserViewStorageScope } from '../common/browserView.js';
@@ -15,6 +16,17 @@ import type { BrowserSession } from './browserSession.js';
  */
 export interface IBrowserSessionRemote {
 	/**
+	 * Fires when the session's tunnel proxy becomes active, i.e. the
+	 * first {@link acquire} sets {@link proxyId}.
+	 */
+	readonly onDidStart: Event<void>;
+	/**
+	 * Fires when the session's tunnel proxy is torn down, i.e. the last
+	 * reference is released (or the proxy failed to start) and
+	 * {@link proxyId} is cleared.
+	 */
+	readonly onDidStop: Event<void>;
+	/**
 	 * Opaque id of the shared-process proxy this session is currently
 	 * using, or `undefined` when no view is holding a reference. Set
 	 * when the first {@link acquire} runs; cleared when the last
@@ -23,6 +35,13 @@ export interface IBrowserSessionRemote {
 	readonly proxyId: string | undefined;
 	/** Current resolved tunnel proxy info, or `undefined` if not started/no remote. */
 	readonly proxy: ITunnelProxyInfo | undefined;
+	/**
+	 * Resolves once the tunnel proxy (if any) has been started and
+	 * applied to the Electron session, so callers can defer navigation
+	 * until requests will flow through the proxy. Resolves immediately
+	 * for non-remote sessions or when no start is in flight.
+	 */
+	readonly whenReady: Promise<void>;
 	/**
 	 * Acquire a reference to the shared-process tunnel proxy on behalf
 	 * of {@link viewId}. Starts the proxy on the first reference and
@@ -61,7 +80,7 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 
 	private _proxy: ITunnelProxyInfo | undefined;
 	private _activeProxyId: string | undefined;
-	private _startPromise: Promise<ITunnelProxyInfo | undefined> | undefined;
+	private _startPromise: Promise<void> | undefined;
 
 	/**
 	 * Live references: viewId → the proxy id that view was acquired
@@ -69,6 +88,12 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 	 * without the caller having to remember it.
 	 */
 	private readonly _viewIds = new Map<string, string>();
+
+	private readonly _onDidStart = new Emitter<void>();
+	readonly onDidStart: Event<void> = this._onDidStart.event;
+
+	private readonly _onDidStop = new Emitter<void>();
+	readonly onDidStop: Event<void> = this._onDidStop.event;
 
 	constructor(
 		private readonly _session: BrowserSession,
@@ -85,9 +110,13 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 		return this._proxy;
 	}
 
+	get whenReady(): Promise<void> {
+		return this._startPromise ? this._startPromise.then(() => undefined) : Promise.resolve();
+	}
+
 	async acquire(viewId: string, proxyId: string | undefined): Promise<void> {
 		if (!proxyId || this._session.storageScope === BrowserViewStorageScope.Global) {
-			return;
+			return this.release(viewId);
 		}
 
 		// Idempotent per viewId: subsequent acquires just await the
@@ -113,26 +142,29 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 		this._viewIds.set(viewId, activeProxyId);
 
 		if (!this._startPromise) {
-			const startPromise: Promise<ITunnelProxyInfo | undefined> = this._tunnelService.start(activeProxyId).catch(err => {
+			const startPromise: Promise<void> = this._tunnelService.start(activeProxyId).then((proxy) => {
+				// Apply the resolved proxy to the Electron session once, as long
+				// as a view is still using it. Folding the apply into the start
+				// chain guarantees `whenReady` only resolves after `setProxy` ran.
+				if (this._viewIds.size > 0 && !sameProxyInfo(this._proxy, proxy)) {
+					this._proxy = proxy;
+					this._applyProxy();
+					this._onDidStart.fire();
+				}
+			}).catch(err => {
 				this._logService.error(`[BrowserSessionRemote] Failed to start tunnel proxy '${activeProxyId}':`, err);
 				// Reset so the next acquire retries from scratch.
 				if (this._startPromise === startPromise) {
 					this._startPromise = undefined;
 					this._viewIds.clear();
 					this._activeProxyId = undefined;
+					this._onDidStop.fire();
 				}
-				return undefined;
 			});
 			this._startPromise = startPromise;
 		}
 
-		const proxy = await this._startPromise;
-		// Only apply if this viewId is still alive (it may have been
-		// released or cleared on error while we were awaiting).
-		if (this._viewIds.has(viewId) && !sameProxyInfo(this._proxy, proxy)) {
-			this._proxy = proxy;
-			this._applyProxy();
-		}
+		return this._startPromise;
 	}
 
 	release(viewId: string): void {
@@ -148,6 +180,7 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 				this._proxy = undefined;
 				this._applyProxy();
 			}
+			this._onDidStop.fire();
 		}
 	}
 

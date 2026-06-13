@@ -876,9 +876,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return {
 				data: {
 					managedSettings: accountPolicyData.policyData.managedSettings,
-					enabledPlugins: accountPolicyData.policyData.enabledPlugins,
-					extraKnownMarketplaces: accountPolicyData.policyData.extraKnownMarketplaces,
-					strictKnownMarketplaces: accountPolicyData.policyData.strictKnownMarketplaces,
 				},
 				fetchedAt: accountPolicyData.managedSettingsFetchedAt,
 			};
@@ -918,11 +915,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.logService.trace('[DefaultAccount] Managed settings raw response:', JSON.stringify(data ?? null));
 			const adapted = adaptManagedSettings(data ?? {}, msg => this.logService.warn(msg));
 			// An empty response (`{}`) is a successful "no policy file present" signal.
-			const pluginCount = adapted.enabledPlugins ? Object.keys(adapted.enabledPlugins).length : 0;
-			const marketplaceCount = adapted.extraKnownMarketplaces?.length ?? 0;
-			const strictSet = adapted.strictKnownMarketplaces !== undefined;
 			const managedSettingsCount = adapted.managedSettings ? Object.keys(adapted.managedSettings).length : 0;
-			if (pluginCount === 0 && marketplaceCount === 0 && !strictSet && managedSettingsCount === 0) {
+			if (managedSettingsCount === 0) {
 				this.logService.debug('[DefaultAccount] Managed settings fetched (empty response — no enterprise policy file present)');
 			} else {
 				this.logService.info('[DefaultAccount] Managed settings applied');
