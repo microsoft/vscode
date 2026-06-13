@@ -729,7 +729,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 				// Try to render the textarea with the color/font style to match the text under it
 				const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(startPosition.lineNumber);
-				const fontSize = this._context.viewModel.getFontSizeAtPosition(this._primaryCursorPosition);
+				const fontInfo = this._context.viewModel.getFontAtPosition(this._primaryCursorPosition);
 				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
@@ -753,7 +753,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					bold: presentation.bold,
 					underline: presentation.underline,
 					strikethrough: presentation.strikethrough,
-					fontSize
+					fontSize: `${fontInfo.fontSize}px`
 				});
 			}
 			return;
