@@ -509,7 +509,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -544,7 +544,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -560,7 +560,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 				}
 				return;
 			}
-			this._writeUpstreamErrorResponse(res, err);
+			this._writeUpstreamErrorResponse(res, err, true);
 			return;
 		}
 
@@ -644,7 +644,15 @@ export class ClaudeProxyService implements IClaudeProxyService {
 
 	// #region Error helpers
 
-	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown): void {
+	/**
+	 * Writes an upstream error as a JSON response. When `embedChatError` is set
+	 * (the `/v1/messages` paths), a `VSCODE_PROXY_ERROR` marker is appended to
+	 * the envelope message so the structured CAPI error round-trips back through
+	 * the SDK subprocess to the agent host (which decodes it into `_meta` and
+	 * strips the marker). The `/v1/models` path does not round-trip, so it
+	 * re-emits the envelope verbatim.
+	 */
+	private _writeUpstreamErrorResponse(res: http.ServerResponse, err: unknown, embedChatError = false): void {
 		if (res.headersSent) {
 			// Headers are already sent — caller should have routed to
 			// the SSE error path. This is a defensive log.
@@ -660,7 +668,7 @@ export class ClaudeProxyService implements IClaudeProxyService {
 			// don't ship a 520 with a JSON body that violates HTTP
 			// semantics for the consumer.
 			const status = err.status === COPILOT_API_ERROR_STATUS_STREAMING ? 502 : err.status;
-			writeUpstreamJsonError(res, status, embedForwardedChatError(err));
+			writeUpstreamJsonError(res, status, embedChatError ? embedForwardedChatError(err) : err.envelope);
 			return;
 		}
 		writeJsonError(res, 502, 'api_error', err instanceof Error ? err.message : String(err));
