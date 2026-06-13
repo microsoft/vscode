@@ -1989,7 +1989,7 @@ export class Repository {
 
 	async stage(path: string, data: Uint8Array): Promise<void> {
 		const relativePath = this.sanitizeRelativePath(path);
-		const child = this.stream(['hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
+		const child = this.stream(['-c', 'core.autocrlf=false', 'hash-object', '--stdin', '-w', '--path', relativePath], { stdio: [null, null, null] });
 
 		if (!child.stdin) {
 			throw new GitError({
