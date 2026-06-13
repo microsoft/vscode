@@ -279,6 +279,30 @@ suite('FindModel', () => {
 		);
 	});
 
+	test('find decorations avoid inline styling on lines containing RTL text', () => {
+		withTestCodeEditor([
+			'const title = "بنی Adam بکد گر"',
+			'const subtitle = "Adam only"'
+		], {}, (editor) => {
+			editor.setPosition({ lineNumber: 1, column: 1 });
+			const findState = disposables.add(new FindReplaceState());
+			disposables.add(new FindModelBoundToEditorModel(editor as IActiveCodeEditor, findState));
+
+			findState.change({ searchString: 'Adam' }, true);
+
+			const decorations = editor.getModel()!.getAllDecorations().filter(decoration => decoration.options.className === 'currentFindMatch' || decoration.options.className === 'findMatch');
+			assert.strictEqual(decorations.length, 2);
+
+			const mixedLineDecoration = decorations.find(decoration => decoration.range.startLineNumber === 1);
+			assert.ok(mixedLineDecoration);
+			assert.strictEqual(mixedLineDecoration.options.inlineClassName, null);
+
+			const ltrLineDecoration = decorations.find(decoration => decoration.range.startLineNumber === 2);
+			assert.ok(ltrLineDecoration);
+			assert.strictEqual(ltrLineDecoration.options.inlineClassName, 'findMatchInline');
+		});
+	});
+
 	findTest('find model updates state matchesCount', (editor) => {
 		const findState = disposables.add(new FindReplaceState());
 		findState.change({ searchString: 'hello' }, false);
