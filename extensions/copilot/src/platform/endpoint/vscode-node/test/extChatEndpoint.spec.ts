@@ -132,6 +132,53 @@ describe('ExtensionContributedChatEndpoint', () => {
 		});
 	});
 
+	it('preserves begin and update ToolCallStream ordering before the final tool call delta', async () => {
+		const finishedDeltas: unknown[] = [];
+		const accumulatedArguments = '{"input":"*** Begin Patch\\n*** Update File: /workspace/foo.ts\\n@@\\n-old\\n+new"}';
+		const languageModel = createLanguageModel(() => undefined, [
+			new vscode.LanguageModelDataPart(
+				encodeToolCallStreamData({ beginToolCalls: [{ id: 'tool-1', name: 'apply_patch' }] }),
+				CustomDataPartMimeTypes.ToolCallStream
+			),
+			new vscode.LanguageModelDataPart(
+				encodeToolCallStreamData({ copilotToolCallStreamUpdates: [{ id: 'tool-1', name: 'apply_patch', arguments: accumulatedArguments }] }),
+				CustomDataPartMimeTypes.ToolCallStream
+			),
+			new vscode.LanguageModelToolCallPart('tool-1', 'apply_patch', { input: 'complete' })
+		]);
+		const endpoint = createEndpoint(languageModel);
+
+		const result = await endpoint.makeChatRequest2({
+			debugName: 'test',
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}],
+			finishedCb: async (_text, _index, delta) => {
+				finishedDeltas.push(delta);
+			},
+			location: ChatLocation.Panel,
+			requestOptions: {},
+			telemetryProperties: {}
+		}, new vscode.CancellationTokenSource().token);
+
+		expect(result.type).toBe(ChatFetchResponseType.Success);
+		expect(finishedDeltas).toEqual([
+			{
+				text: '',
+				beginToolCalls: [{ id: 'tool-1', name: 'apply_patch' }]
+			},
+			{
+				text: '',
+				copilotToolCallStreamUpdates: [{ id: 'tool-1', name: 'apply_patch', arguments: accumulatedArguments }]
+			},
+			{
+				text: '',
+				copilotToolCalls: [{ id: 'tool-1', name: 'apply_patch', arguments: '{"input":"complete"}' }]
+			}
+		]);
+	});
+
 	it('ignores malformed ToolCallStream data part without failing the request', async () => {
 		const finishedDeltas: unknown[] = [];
 		const languageModel = createLanguageModel(() => undefined, [

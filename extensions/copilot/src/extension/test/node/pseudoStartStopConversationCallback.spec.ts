@@ -324,6 +324,54 @@ suite('Tool stream throttling', () => {
 		await processor.doProcessResponse(responseSource.asyncIterable, stream, CancellationToken.None);
 	});
 
+	test('begin and update tool stream deltas reach stream callbacks without a final tool call', async () => {
+		const responseSource = new AsyncIterableSource<IResponsePart>();
+		const beginCalls: { toolCallId: string; toolName: string; streamData?: ChatToolInvocationStreamData }[] = [];
+		const toolStreamUpdates: { toolCallId: string; streamData: ChatToolInvocationStreamData }[] = [];
+		const toolStream = new ChatResponseStreamImpl(
+			() => { },
+			() => { },
+			undefined,
+			(toolCallId, toolName, streamData) => beginCalls.push({ toolCallId, toolName, streamData }),
+			(toolCallId, streamData) => toolStreamUpdates.push({ toolCallId, streamData }),
+		);
+		const processor = new PseudoStopStartResponseProcessor([], undefined);
+
+		responseSource.emitOne({
+			delta: {
+				text: '',
+				beginToolCalls: [{ id: 'tool1', name: 'apply_patch' }]
+			}
+		});
+		responseSource.emitOne({
+			delta: {
+				text: '',
+				copilotToolCallStreamUpdates: [{
+					id: 'tool1',
+					name: 'apply_patch',
+					arguments: '{"input":"*** Begin Patch\\n*** Update File: /workspace/foo.ts\\n@@\\n-old\\n+new"}'
+				}]
+			}
+		});
+		responseSource.resolve();
+
+		await processor.doProcessResponse(responseSource.asyncIterable, toolStream, CancellationToken.None);
+
+		assert.deepStrictEqual(beginCalls, [{
+			toolCallId: 'tool1',
+			toolName: 'copilot_applyPatch',
+			streamData: { subagentInvocationId: undefined }
+		}]);
+		assert.deepStrictEqual(toolStreamUpdates, [{
+			toolCallId: 'tool1',
+			streamData: {
+				partialInput: {
+					input: '*** Begin Patch\n*** Update File: /workspace/foo.ts\n@@\n-old\n+new'
+				}
+			}
+		}]);
+	});
+
 	test('apply_patch stream updates expose partial input before final completion', async () => {
 		const responseSource = new AsyncIterableSource<IResponsePart>();
 		const processor = new PseudoStopStartResponseProcessor([], undefined);
