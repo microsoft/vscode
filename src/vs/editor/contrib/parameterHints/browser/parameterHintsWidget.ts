@@ -29,6 +29,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const $ = dom.$;
 
+const HORIZONTAL_SCROLLING_BY = 30;
+
 const parameterHintsNextIcon = registerIcon('parameter-hints-next', Codicon.chevronDown, nls.localize('parameterHintsNextIcon', 'Icon for show next parameter hint.'));
 const parameterHintsPreviousIcon = registerIcon('parameter-hints-previous', Codicon.chevronUp, nls.localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
 
@@ -38,10 +40,12 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private readonly renderDisposeables = this._register(new DisposableStore());
 	private readonly keyVisible: IContextKey<boolean>;
+	private readonly keyFocused: IContextKey<boolean>;
 	private readonly keyMultipleSignatures: IContextKey<boolean>;
 
 	private domNodes?: {
 		readonly element: HTMLElement;
+		readonly wrapper: HTMLElement;
 		readonly signature: HTMLElement;
 		readonly docs: HTMLElement;
 		readonly overloads: HTMLElement;
@@ -63,6 +67,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		super();
 
 		this.keyVisible = Context.Visible.bindTo(contextKeyService);
+		this.keyFocused = Context.Focused.bindTo(contextKeyService);
 		this.keyMultipleSignatures = Context.MultipleSignatures.bindTo(contextKeyService);
 	}
 
@@ -70,6 +75,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(element, $('.phwrapper'));
 		wrapper.tabIndex = -1;
+
+		const focusTracker = this._register(dom.trackFocus(wrapper));
+		this._register(focusTracker.onDidFocus(() => this.keyFocused.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.keyFocused.set(false)));
 
 		const controls = dom.append(wrapper, $('.controls'));
 		const previous = dom.append(controls, $('.button' + ThemeIcon.asCSSSelector(parameterHintsPreviousIcon)));
@@ -100,6 +109,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 		this.domNodes = {
 			element,
+			wrapper,
 			signature,
 			overloads,
 			docs,
@@ -164,6 +174,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		this.keyVisible.reset();
+		this.keyFocused.reset();
 		this.visible = false;
 		this.announcedLabel = null;
 		this.domNodes?.element.classList.remove('visible');
@@ -336,6 +347,73 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	previous(): void {
 		this.editor.focus();
 		this.model.previous();
+	}
+
+	public focus(): void {
+		this.domNodes?.wrapper.focus();
+	}
+
+	public scrollUp(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollTop = this.domNodes.scrollbar.getScrollPosition().scrollTop;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		this.domNodes.scrollbar.setScrollPosition({ scrollTop: scrollTop - fontInfo.lineHeight });
+	}
+
+	public scrollDown(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollTop = this.domNodes.scrollbar.getScrollPosition().scrollTop;
+		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
+		this.domNodes.scrollbar.setScrollPosition({ scrollTop: scrollTop + fontInfo.lineHeight });
+	}
+
+	public scrollLeft(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollLeft = this.domNodes.scrollbar.getScrollPosition().scrollLeft;
+		this.domNodes.scrollbar.setScrollPosition({ scrollLeft: scrollLeft - HORIZONTAL_SCROLLING_BY });
+	}
+
+	public scrollRight(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollLeft = this.domNodes.scrollbar.getScrollPosition().scrollLeft;
+		this.domNodes.scrollbar.setScrollPosition({ scrollLeft: scrollLeft + HORIZONTAL_SCROLLING_BY });
+	}
+
+	public pageUp(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollTop = this.domNodes.scrollbar.getScrollPosition().scrollTop;
+		const scrollHeight = this.domNodes.scrollbar.getScrollDimensions().height;
+		this.domNodes.scrollbar.setScrollPosition({ scrollTop: scrollTop - scrollHeight });
+	}
+
+	public pageDown(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		const scrollTop = this.domNodes.scrollbar.getScrollPosition().scrollTop;
+		const scrollHeight = this.domNodes.scrollbar.getScrollDimensions().height;
+		this.domNodes.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
+	}
+
+	public goToTop(): void {
+		this.domNodes?.scrollbar.setScrollPosition({ scrollTop: 0 });
+	}
+
+	public goToBottom(): void {
+		if (!this.domNodes) {
+			return;
+		}
+		this.domNodes.scrollbar.setScrollPosition({ scrollTop: this.domNodes.scrollbar.getScrollDimensions().scrollHeight });
 	}
 
 	getDomNode(): HTMLElement {
