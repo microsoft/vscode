@@ -43,23 +43,10 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		const info = response.body;
 		const result = new vscode.SignatureHelp();
 		result.signatures = info.items.map(signature => this.convertSignature(signature, document.uri));
-		result.activeSignature = this.getActiveSignature(context, info, result.signatures);
+		result.activeSignature = info.selectedItemIndex;
 		result.activeParameter = this.getActiveParameter(info);
 
 		return result;
-	}
-
-	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
-		// Try matching the previous active signature's label to keep it selected
-		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
-		if (previouslyActiveSignature && context.isRetrigger) {
-			const existingIndex = signatures.findIndex(other => other.label === previouslyActiveSignature?.label);
-			if (existingIndex >= 0) {
-				return existingIndex;
-			}
-		}
-
-		return info.selectedItemIndex;
 	}
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
@@ -121,6 +108,9 @@ function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.Signatur
 			return { kind: 'invoked' };
 	}
 }
+/** @internal test-only export — do not use outside of unit tests */
+export { TypeScriptSignatureHelpProvider as _TypeScriptSignatureHelpProvider };
+
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
