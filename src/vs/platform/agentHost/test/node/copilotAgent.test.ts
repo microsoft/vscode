@@ -268,6 +268,9 @@ class MockAgentHostOTelService implements IAgentHostOTelService {
 	async flush() {
 		//
 	}
+	registerSpanConsumer() {
+		return { dispose: () => undefined };
+	}
 }
 
 class ResumePathCopilotAgent extends CopilotAgent {
@@ -370,6 +373,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 		getSdkTelemetryConfig: async () => undefined,
 		getSpansDbPath: () => undefined,
 		flush: async () => undefined,
+		registerSpanConsumer: () => ({ dispose: () => undefined }),
 	});
 	services.set(IAgentHostCompletions, disposables.add(new AgentHostCompletions(logService)));
 	services.set(ITelemetryService, NullTelemetryService);

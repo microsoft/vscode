@@ -42,6 +42,8 @@ export const GenAiAttr = {
 	RESPONSE_MODEL: 'gen_ai.response.model',
 	RESPONSE_ID: 'gen_ai.response.id',
 	RESPONSE_FINISH_REASONS: 'gen_ai.response.finish_reasons',
+	/** Time from request to first response chunk, in **seconds** (GenAI semconv). */
+	RESPONSE_TIME_TO_FIRST_CHUNK: 'gen_ai.response.time_to_first_chunk',
 
 	// Usage
 	USAGE_INPUT_TOKENS: 'gen_ai.usage.input_tokens',

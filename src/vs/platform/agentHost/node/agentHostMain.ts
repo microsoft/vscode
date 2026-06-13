@@ -30,6 +30,7 @@ import { CodexProxyService, ICodexProxyService } from './codex/codexProxyService
 import { AgentSdkDownloader, IAgentSdkDownloader } from './agentSdkDownloader.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostOTelService } from './otel/agentHostOTelService.js';
+import { AgentHostSpanTelemetryConsumer } from './otel/agentHostSpanTelemetryConsumer.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
@@ -71,7 +72,7 @@ import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './age
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { join } from '../../../base/common/path.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
-import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -170,6 +171,18 @@ async function startAgentHost(): Promise<void> {
 		diServices.set(ICodexProxyService, codexProxyService);
 		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
 		diServices.set(IAgentHostOTelService, agentHostOTelService);
+		// Route SDK-emitted spans into standard VS Code telemetry as per-turn
+		// summary events. The consumer registration is what flips the OTel
+		// service into loopback mode for in-process span inspection — see
+		// `AgentHostOTelService.getSdkTelemetryConfig()`. Skip when telemetry
+		// is off: otherwise we'd spin up the loopback receiver and aggregate
+		// every span just to drop the events at `publicLog2`. Mid-session
+		// telemetry-on requires a workbench reload, which restarts this
+		// process anyway, so there's no need to watch for config changes.
+		if (telemetryService.telemetryLevel >= TelemetryLevel.USAGE) {
+			const spanTelemetryConsumer = disposables.add(instantiationService.createInstance(AgentHostSpanTelemetryConsumer));
+			disposables.add(agentHostOTelService.registerSpanConsumer(spanTelemetryConsumer));
+		}
 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, checkpointService, rootConfigResource, telemetryService, fileMonitorService);
 		diServices.set(IAgentService, agentService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
