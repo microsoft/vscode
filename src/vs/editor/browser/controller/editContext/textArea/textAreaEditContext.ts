@@ -874,7 +874,7 @@ interface IRenderData {
 	height: number;
 	useCover: boolean;
 
-	fontSize?: string | null;
+	fontSize?: number | null;
 	color?: Color | null;
 	italic?: boolean;
 	bold?: boolean;
