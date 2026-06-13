@@ -196,7 +196,7 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 		assert.deepStrictEqual(log.warns, []);
 	});
 
-	test('Test 8b — content_block_start for a client tool sets the Client contributor (clientId-prefixed)', () => {
+	test('Test 8b — content_block_start for an mcp__client__* tool sets the Client contributor', () => {
 		// Regression: the mapper used to emit an invalid `toolClientId` field
 		// on the SessionToolCallStart action. Because the spread bypassed
 		// TypeScript's excess-property check and the reducer reads
